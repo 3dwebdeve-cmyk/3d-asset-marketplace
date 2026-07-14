@@ -51,7 +51,7 @@
 }
 
 #root {
-  width: 1126px;
+  width: min(1126px, 100%);
   max-width: 100%;
   margin: 0 auto;
   text-align: center;
@@ -60,6 +60,50 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+.home-page {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 3rem 1.5rem;
+  text-align: left;
+}
+
+.home-page__hero {
+  width: min(100%, 720px);
+}
+
+.home-page__eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.home-page__subtitle {
+  margin: 0 0 1.5rem;
+  max-width: 42rem;
+  line-height: 1.6;
+}
+
+.home-page__actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.home-page__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 1.25rem;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 body {

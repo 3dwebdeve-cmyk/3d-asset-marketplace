@@ -28,8 +28,12 @@ SECRET_KEY = config("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 
-DEBUG = config("DEBUG", cast=bool)
-ALLOWED_HOSTS = []
+DEBUG = config("DEBUG", cast=bool, default=False)
+ALLOWED_HOSTS = config(
+    "ALLOWED_HOSTS",
+    default="127.0.0.1,localhost",
+    cast=lambda value: [host.strip() for host in value.split(",") if host.strip()],
+)
 
 
 # Application definition
@@ -41,10 +45,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'corsheaders',
+    'accounts',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -123,3 +131,20 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+AUTH_USER_MODEL = "accounts.User"
+
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+    ],
+}
+
+CORS_ALLOWED_ORIGINS = config(
+    "CORS_ALLOWED_ORIGINS",
+    default="http://localhost:5173,http://127.0.0.1:5173",
+    cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
+)
