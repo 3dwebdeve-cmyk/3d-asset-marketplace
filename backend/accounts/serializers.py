@@ -55,6 +55,14 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError({"email": [exc.message]}) from exc
 
 
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+
+    def validate_email(self, value: str) -> str:
+        return value.strip().lower()
+
+
 class UserResponseSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source="role.role_name", read_only=True)
 

@@ -1,11 +1,19 @@
 from dataclasses import dataclass
 
+from django.contrib.auth import authenticate
 from django.db import transaction
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import Role, User, UserProfile
 
 
 class RegistrationError(Exception):
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+class AuthenticationError(Exception):
     def __init__(self, message: str) -> None:
         self.message = message
         super().__init__(message)
@@ -56,3 +64,29 @@ class RegistrationService:
             defaults={"description": "Marketplace customer"},
         )
         return role
+
+
+@dataclass(frozen=True)
+class LoginData:
+    email: str
+    password: str
+
+
+class AuthenticationService:
+    @staticmethod
+    def authenticate_user(data: LoginData) -> User:
+        email = data.email.strip().lower()
+        user = authenticate(username=email, password=data.password)
+
+        if user is None:
+            raise AuthenticationError("Invalid email or password.")
+
+        return user
+
+    @staticmethod
+    def build_tokens(user: User) -> dict[str, str]:
+        refresh = RefreshToken.for_user(user)
+        return {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+        }

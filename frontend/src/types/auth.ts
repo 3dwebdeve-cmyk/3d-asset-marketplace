@@ -18,6 +18,23 @@ export interface RegisteredUser {
   created_at: string
 }
 
+export type AuthUser = RegisteredUser
+
+export interface LoginPayload {
+  email: string
+  password: string
+}
+
+export interface LoginResponse {
+  access: string
+  refresh: string
+  user: AuthUser
+}
+
+export interface RefreshResponse {
+  access: string
+}
+
 export interface ApiFieldErrors {
   [field: string]: string[]
 }

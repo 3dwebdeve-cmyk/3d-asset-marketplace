@@ -14,6 +14,9 @@ export function HomePage() {
           <Link className="home-page__cta" to="/register">
             Create account
           </Link>
+          <Link className="home-page__cta home-page__cta--secondary" to="/login">
+            Sign in
+          </Link>
         </div>
       </section>
     </main>

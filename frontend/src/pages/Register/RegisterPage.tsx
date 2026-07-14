@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { useRegisterForm } from './useRegisterForm'
-import './RegisterPage.css'
+import '../../styles/auth.css'
 
 export function RegisterPage() {
   const {
@@ -28,11 +28,10 @@ export function RegisterPage() {
             message={`Welcome, ${registeredUser.full_name}. Your customer account is ready.`}
           />
           <p className="auth-card__hint">
-            You can sign in once login is available. For now, your account has been saved
-            securely.
+            Your account has been saved securely. You can now sign in.
           </p>
-          <Link className="auth-link" to="/">
-            Back to home
+          <Link className="auth-link" to="/login">
+            Continue to sign in
           </Link>
         </section>
       </main>
