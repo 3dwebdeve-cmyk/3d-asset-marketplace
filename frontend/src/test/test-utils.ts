@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 
 import { useAuthStore } from '../store/authStore'
+import { useToastStore } from '../store/toastStore'
 import type { AuthUser } from '../types/auth'
 
 export function createTestQueryClient(): QueryClient {
@@ -22,6 +23,10 @@ export function resetAuthStore(): void {
     isAuthenticated: false,
   })
   localStorage.clear()
+}
+
+export function resetToastStore(): void {
+  useToastStore.setState({ toasts: [] })
 }
 
 export const testUser: AuthUser = {

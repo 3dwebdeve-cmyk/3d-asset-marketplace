@@ -1,15 +1,27 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  --bg-main: #ffffff;
+  --bg-section: #dfe6ed;
+  --primary-accent: #5b82a8;
+  --text-heading: #426384;
+  --text-body: #1a1a1a;
+  --pure-white: #ffffff;
+
+  /* Derived roles — opacity/mixes of the palette only */
+  --border: var(--bg-section);
+  --accent-soft: color-mix(in srgb, var(--primary-accent) 14%, var(--pure-white));
+  --accent-border: color-mix(in srgb, var(--primary-accent) 45%, var(--pure-white));
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    color-mix(in srgb, var(--text-body) 10%, transparent) 0 10px 15px -3px,
+    color-mix(in srgb, var(--text-body) 5%, transparent) 0 4px 6px -2px;
+
+  /* Backward-compatible aliases used by existing class names */
+  --bg: var(--bg-main);
+  --text: var(--text-body);
+  --text-h: var(--text-heading);
+  --accent: var(--primary-accent);
+  --accent-bg: var(--accent-soft);
+  --code-bg: var(--bg-section);
+  --social-bg: var(--bg-section);
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -17,9 +29,9 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  color-scheme: light;
+  color: var(--text-body);
+  background: var(--bg-main);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -27,26 +39,6 @@
 
   @media (max-width: 1024px) {
     font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
   }
 }
 
@@ -60,6 +52,7 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background: var(--bg-main);
 }
 
 .home-page {
@@ -68,10 +61,19 @@
   place-items: center;
   padding: 3rem 1.5rem;
   text-align: left;
+  background: var(--bg-main);
 }
 
 .home-page__hero {
   width: min(100%, 720px);
+}
+
+.home-page__hero h1 {
+  margin: 0.5rem 0 1rem;
+  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 600;
 }
 
 .home-page__eyebrow {
@@ -80,13 +82,14 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--primary-accent);
 }
 
 .home-page__subtitle {
   margin: 0 0 1.5rem;
   max-width: 42rem;
   line-height: 1.6;
+  color: var(--text-body);
 }
 
 .home-page__actions {
@@ -100,15 +103,15 @@
   justify-content: center;
   padding: 0.875rem 1.25rem;
   border-radius: 10px;
-  background: var(--accent);
-  color: #fff;
+  background: var(--primary-accent);
+  color: var(--pure-white);
   font-weight: 600;
   text-decoration: none;
 }
 
 .home-page__cta--secondary {
-  background: var(--accent-bg);
-  color: var(--text-h);
+  background: var(--accent-soft);
+  color: var(--text-heading);
   border: 1px solid var(--accent-border);
 }
 
@@ -116,15 +119,15 @@
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
-  color: var(--text);
+  color: var(--text-body);
 }
 
 .ui-spinner__circle {
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 50%;
-  border: 3px solid var(--accent-bg);
-  border-top-color: var(--accent);
+  border: 3px solid var(--accent-soft);
+  border-top-color: var(--primary-accent);
   animation: ui-spin 0.8s linear infinite;
 }
 
@@ -148,6 +151,7 @@
   display: grid;
   place-items: center;
   padding: 2rem;
+  background: var(--bg-main);
 }
 
 @keyframes ui-spin {
@@ -168,22 +172,23 @@
   padding: 1.5rem;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--bg);
+  background: var(--pure-white);
 }
 
 .ui-state--error {
-  border-color: rgba(220, 38, 38, 0.35);
-  background: rgba(220, 38, 38, 0.08);
+  border-color: var(--text-heading);
+  background: var(--bg-section);
 }
 
 .ui-state__title {
   margin: 0;
   font-size: 1.125rem;
+  color: var(--text-heading);
 }
 
 .ui-state__description {
   margin: 0;
-  color: var(--text);
+  color: var(--text-body);
   line-height: 1.5;
 }
 
@@ -196,6 +201,7 @@
   display: grid;
   place-items: center;
   padding: 2rem;
+  background: var(--bg-section);
 }
 
 .dashboard-page {
@@ -204,6 +210,7 @@
   place-items: center;
   padding: 3rem 1.5rem;
   text-align: left;
+  background: var(--bg-section);
 }
 
 .dashboard-card {
@@ -211,7 +218,7 @@
   padding: 2rem;
   border: 1px solid var(--border);
   border-radius: 16px;
-  background: var(--bg);
+  background: var(--pure-white);
   box-shadow: var(--shadow);
 }
 
@@ -219,6 +226,7 @@
   display: grid;
   gap: 0.5rem;
   margin: 0 0 1.5rem;
+  color: var(--text-body);
 }
 
 .dashboard-card__actions {
@@ -234,28 +242,27 @@
 
 body {
   margin: 0;
+  background: var(--bg-main);
+  color: var(--text-body);
 }
 
 h1,
 h2 {
   font-family: var(--heading);
   font-weight: 500;
-  color: var(--text-h);
+  color: var(--text-heading);
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 1.25rem 0;
 }
 h2 {
   font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
   margin: 0 0 8px;
   @media (max-width: 1024px) {
     font-size: 20px;
@@ -270,12 +277,12 @@ code,
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
-  color: var(--text-h);
+  color: var(--text-heading);
 }
 
 code {
   font-size: 15px;
   line-height: 135%;
   padding: 4px 8px;
-  background: var(--code-bg);
+  background: var(--bg-section);
 }

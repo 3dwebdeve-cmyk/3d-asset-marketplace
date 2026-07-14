@@ -2,8 +2,8 @@
   font-size: 16px;
   padding: 5px 10px;
   border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
+  color: var(--primary-accent);
+  background: var(--accent-soft);
   border: 2px solid transparent;
   transition: border-color 0.3s;
   margin-bottom: 24px;
@@ -12,7 +12,7 @@
     border-color: var(--accent-border);
   }
   &:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--primary-accent);
     outline-offset: 2px;
   }
 }
@@ -116,10 +116,10 @@
   }
 
   a {
-    color: var(--text-h);
+    color: var(--text-heading);
     font-size: 16px;
     border-radius: 6px;
-    background: var(--social-bg);
+    background: var(--bg-section);
     display: flex;
     padding: 6px 12px;
     align-items: center;

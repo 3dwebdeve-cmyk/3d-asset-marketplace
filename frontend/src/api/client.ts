@@ -4,8 +4,11 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 
+import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import type { RefreshResponse } from '../types/auth'
+
+const SESSION_EXPIRED_TOAST_ID = 'session-expired'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
 
@@ -75,6 +78,9 @@ apiClient.interceptors.response.use(
       return apiClient(originalRequest)
     } catch (refreshError) {
       clearSession()
+      toast.error('Your session has expired. Please sign in again.', {
+        id: SESSION_EXPIRED_TOAST_ID,
+      })
       return Promise.reject(refreshError)
     } finally {
       refreshRequest = null

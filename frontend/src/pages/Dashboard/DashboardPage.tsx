@@ -6,6 +6,7 @@ import { getCurrentUser, logoutUser } from '../../api/authApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
+import { toast } from '../../lib/toast'
 import { useAuthStore } from '../../store/authStore'
 
 export function DashboardPage() {
@@ -34,6 +35,7 @@ export function DashboardPage() {
     },
     onSettled: () => {
       clearSession()
+      toast.success('Signed out')
       navigate('/login', { replace: true })
     },
   })

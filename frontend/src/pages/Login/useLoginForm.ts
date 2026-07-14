@@ -1,8 +1,9 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 
 import { loginUser } from '../../api/authApi'
+import { toast } from '../../lib/toast'
 import { useAuthStore } from '../../store/authStore'
 import type { ApiErrorResponse, LoginResponse } from '../../types/auth'
 import { defaultLoginValues, loginSchema, type LoginFormValues } from './loginSchema'
@@ -45,6 +46,7 @@ function mapApiError(error: unknown): string {
 }
 
 export function useLoginForm(): UseLoginFormResult {
+  const queryClient = useQueryClient()
   const setSession = useAuthStore((state) => state.setSession)
 
   const {
@@ -61,6 +63,10 @@ export function useLoginForm(): UseLoginFormResult {
     mutationFn: loginUser,
     onSuccess: (data: LoginResponse) => {
       setSession({ access: data.access, refresh: data.refresh, user: data.user })
+      // Seed the me query so bootstrap/dashboard see a valid user immediately.
+      queryClient.setQueryData(['auth', 'me', data.access], data.user)
+      const firstName = data.user.full_name?.split(' ')[0]
+      toast.success(firstName ? `Signed in. Welcome back, ${firstName}!` : 'Signed in')
     },
   })
 
