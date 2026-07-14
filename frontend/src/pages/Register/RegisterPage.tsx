@@ -5,7 +5,6 @@ import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { useRegisterForm } from './useRegisterForm'
-import '../../styles/auth.css'
 
 export function RegisterPage() {
   const {

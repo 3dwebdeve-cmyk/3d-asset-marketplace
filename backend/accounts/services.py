@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from django.contrib.auth import authenticate
 from django.db import transaction
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import Role, User, UserProfile
@@ -90,3 +91,11 @@ class AuthenticationService:
             "refresh": str(refresh),
             "access": str(refresh.access_token),
         }
+
+    @staticmethod
+    def blacklist_refresh_token(refresh_token: str) -> None:
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except TokenError as exc:
+            raise AuthenticationError("Invalid refresh token.") from exc

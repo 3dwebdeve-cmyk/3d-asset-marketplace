@@ -6,7 +6,6 @@ import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { useLoginForm } from './useLoginForm'
-import '../../styles/auth.css'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -15,7 +14,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (isSuccess) {
-      navigate('/', { replace: true })
+      navigate('/dashboard', { replace: true })
     }
   }, [isSuccess, navigate])
 

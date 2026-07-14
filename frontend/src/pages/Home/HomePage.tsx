@@ -1,6 +1,10 @@
 import { Link } from 'react-router-dom'
 
+import { useAuthStore } from '../../store/authStore'
+
 export function HomePage() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
   return (
     <main className="home-page">
       <section className="home-page__hero">
@@ -11,12 +15,20 @@ export function HomePage() {
           platform.
         </p>
         <div className="home-page__actions">
-          <Link className="home-page__cta" to="/register">
-            Create account
-          </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/login">
-            Sign in
-          </Link>
+          {isAuthenticated ? (
+            <Link className="home-page__cta" to="/dashboard">
+              Go to dashboard
+            </Link>
+          ) : (
+            <>
+              <Link className="home-page__cta" to="/register">
+                Create account
+              </Link>
+              <Link className="home-page__cta home-page__cta--secondary" to="/login">
+                Sign in
+              </Link>
+            </>
+          )}
         </div>
       </section>
     </main>

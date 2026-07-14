@@ -1,5 +1,6 @@
 import { apiClient } from './client'
 import type {
+  AuthUser,
   LoginPayload,
   LoginResponse,
   RefreshResponse,
@@ -22,4 +23,13 @@ export async function refreshAccessToken(refresh: string): Promise<RefreshRespon
     refresh,
   })
   return response.data
+}
+
+export async function getCurrentUser(): Promise<AuthUser> {
+  const response = await apiClient.get<AuthUser>('/api/auth/me/')
+  return response.data
+}
+
+export async function logoutUser(refresh: string): Promise<void> {
+  await apiClient.post('/api/auth/logout/', { refresh })
 }

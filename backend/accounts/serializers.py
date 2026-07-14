@@ -63,6 +63,10 @@ class LoginSerializer(serializers.Serializer):
         return value.strip().lower()
 
 
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(write_only=True, trim_whitespace=False)
+
+
 class UserResponseSerializer(serializers.ModelSerializer):
     role = serializers.CharField(source="role.role_name", read_only=True)
 
