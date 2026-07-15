@@ -1,11 +1,20 @@
 from dataclasses import dataclass
 
+from django.conf import settings
 from django.contrib.auth import authenticate
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.core.mail import send_mail
 from django.db import transaction
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import Role, User, UserProfile
+from accounts.storage import AvatarStorageService
+from accounts.upload_rules import validate_avatar_upload
+
+password_reset_token_generator = PasswordResetTokenGenerator()
 
 
 class RegistrationError(Exception):
@@ -74,6 +83,8 @@ class LoginData:
 
 
 class AuthenticationService:
+    ADMINISTRATOR_ROLE = "Administrator"
+
     @staticmethod
     def authenticate_user(data: LoginData) -> User:
         email = data.email.strip().lower()
@@ -83,6 +94,31 @@ class AuthenticationService:
             raise AuthenticationError("Invalid email or password.")
 
         return user
+
+    @classmethod
+    def authenticate_administrator(cls, data: LoginData) -> User:
+        """Authenticate credentials and require an active Administrator role."""
+        user = cls.authenticate_user(data)
+        if not cls.is_administrator(user):
+            raise AuthenticationError("Administrator access required.")
+        return user
+
+    @classmethod
+    def authenticate_customer(cls, data: LoginData) -> User:
+        """Authenticate credentials and require a non-administrator (customer) account."""
+        user = cls.authenticate_user(data)
+        if cls.is_administrator(user):
+            raise AuthenticationError(
+                "Administrators must use the admin sign-in page."
+            )
+        return user
+
+    @classmethod
+    def is_administrator(cls, user: User) -> bool:
+        if user is None or not user.is_active:
+            return False
+        role = getattr(user, "role", None)
+        return role is not None and role.role_name == cls.ADMINISTRATOR_ROLE
 
     @staticmethod
     def build_tokens(user: User) -> dict[str, str]:
@@ -99,3 +135,144 @@ class AuthenticationService:
             token.blacklist()
         except TokenError as exc:
             raise AuthenticationError("Invalid refresh token.") from exc
+
+    @staticmethod
+    def change_password(user: User, current_password: str, new_password: str) -> None:
+        if not user.check_password(current_password):
+            raise AuthenticationError("Current password is incorrect.")
+
+        if current_password == new_password:
+            raise AuthenticationError(
+                "New password must be different from the current password."
+            )
+
+        user.set_password(new_password)
+        user.save(update_fields=["password", "updated_at"])
+
+
+class PasswordResetService:
+    @classmethod
+    def request_reset(cls, email: str) -> None:
+        """Send a reset email when the account exists. Always no-op-safe for unknowns."""
+        normalized = email.strip().lower()
+        user = User.objects.filter(email=normalized, is_active=True).first()
+        if user is None:
+            return
+
+        uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
+        token = password_reset_token_generator.make_token(user)
+        frontend_base = getattr(
+            settings,
+            "FRONTEND_BASE_URL",
+            "http://localhost:5173",
+        ).rstrip("/")
+        reset_link = f"{frontend_base}/reset-password/{uid}/{token}"
+
+        send_mail(
+            subject="Reset your 3D Asset Marketplace password",
+            message=(
+                "We received a request to reset your password.\n\n"
+                f"Open this link to choose a new password:\n{reset_link}\n\n"
+                "If you did not request this, you can ignore this email."
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+
+    @classmethod
+    @transaction.atomic
+    def confirm_reset(
+        cls,
+        uid: str,
+        token: str,
+        new_password: str,
+    ) -> None:
+        user = cls._get_user_from_uid(uid)
+        if user is None or not password_reset_token_generator.check_token(user, token):
+            raise AuthenticationError("Invalid or expired password reset link.")
+
+        user.set_password(new_password)
+        user.save(update_fields=["password", "updated_at"])
+
+    @staticmethod
+    def _get_user_from_uid(uid: str) -> User | None:
+        try:
+            user_id = force_str(urlsafe_base64_decode(uid))
+            return User.objects.filter(pk=user_id, is_active=True).first()
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+
+@dataclass(frozen=True)
+class ProfileUpdateData:
+    company_name: str | None = None
+    website: str | None = None
+    address: str | None = None
+    city: str | None = None
+    country: str | None = None
+
+
+class ProfileService:
+    @staticmethod
+    def get_or_create_profile(user: User) -> UserProfile:
+        profile, _ = UserProfile.objects.get_or_create(
+            user=user,
+            defaults={"country": user.country or ""},
+        )
+        return profile
+
+    @classmethod
+    @transaction.atomic
+    def update_profile(cls, user: User, data: ProfileUpdateData) -> UserProfile:
+        profile = cls.get_or_create_profile(user)
+        updates = {
+            field: value
+            for field, value in (
+                ("company_name", data.company_name),
+                ("website", data.website),
+                ("address", data.address),
+                ("city", data.city),
+                ("country", data.country),
+            )
+            if value is not None
+        }
+
+        if not updates:
+            return profile
+
+        for field, value in updates.items():
+            setattr(profile, field, value)
+        profile.save(update_fields=[*updates.keys(), "updated_at"])
+
+        # Keep User.country aligned with the profile country when it changes.
+        if "country" in updates and user.country != updates["country"]:
+            user.country = updates["country"]
+            user.save(update_fields=["country", "updated_at"])
+
+        return profile
+
+    @classmethod
+    @transaction.atomic
+    def update_avatar(cls, user: User, uploaded_file) -> UserProfile:
+        validated = validate_avatar_upload(uploaded_file)
+        previous_url = user.avatar or ""
+        avatar_url = AvatarStorageService.save_avatar(
+            user_id=str(user.id),
+            uploaded=validated.file,
+            extension=validated.extension,
+        )
+        user.avatar = avatar_url
+        user.save(update_fields=["avatar", "updated_at"])
+        AvatarStorageService.delete_if_managed(previous_url)
+        return cls.get_or_create_profile(user)
+
+    @classmethod
+    @transaction.atomic
+    def clear_avatar(cls, user: User) -> UserProfile:
+        previous_url = user.avatar or ""
+        if previous_url:
+            user.avatar = ""
+            user.save(update_fields=["avatar", "updated_at"])
+            AvatarStorageService.delete_if_managed(previous_url)
+        return cls.get_or_create_profile(user)

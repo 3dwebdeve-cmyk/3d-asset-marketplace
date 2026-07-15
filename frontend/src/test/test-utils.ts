@@ -21,6 +21,7 @@ export function resetAuthStore(): void {
     refreshToken: null,
     user: null,
     isAuthenticated: false,
+    postLogoutRedirect: null,
   })
   localStorage.clear()
 }
@@ -35,6 +36,7 @@ export const testUser: AuthUser = {
   email: 'test@example.com',
   phone: '',
   country: 'India',
+  avatar: '',
   role: 'Customer',
   email_verified: false,
   created_at: '2024-01-01T00:00:00Z',

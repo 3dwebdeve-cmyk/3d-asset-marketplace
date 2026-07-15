@@ -1,9 +1,15 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useAuthStore } from '../../store/authStore'
 
 export function HomePage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const clearPostLogoutRedirect = useAuthStore((state) => state.clearPostLogoutRedirect)
+
+  useEffect(() => {
+    clearPostLogoutRedirect()
+  }, [clearPostLogoutRedirect])
 
   return (
     <main className="home-page">

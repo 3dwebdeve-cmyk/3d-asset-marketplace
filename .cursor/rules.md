@@ -7,6 +7,13 @@ Marketplace. The platform has three core modules:
 1. Marketplace (Sell existing 3D Models)
 2. Plugin Store (Sell digital plugins)
 3. Custom Project Portal (Clients request custom 3D design work)
+
+Before creating any new file, class, component, serializer, model, service, utility or API:
+• Search the existing project.
+• Reuse existing implementations whenever possible.
+• Do not create duplicate functionality.
+• Extend existing modules before creating new ones when appropriate.
+
 This is a commercial production application. Never generate prototype code. Always generate production-ready implementations.
 Technology Stack
 Frontend

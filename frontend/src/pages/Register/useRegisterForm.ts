@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 
 import { registerUser } from '../../api/authApi'
+import { getApiErrorMessage } from '../../lib/apiError'
 import type { ApiErrorResponse, RegisteredUser } from '../../types/auth'
 import {
   defaultRegisterValues,
@@ -18,33 +19,6 @@ interface UseRegisterFormResult {
   serverError: string | null
   registeredUser: RegisteredUser | null
   onSubmit: (values: RegisterFormValues) => void
-}
-
-function mapApiErrors(error: unknown): string {
-  if (!isAxiosError<ApiErrorResponse>(error)) {
-    return 'Registration failed. Please try again.'
-  }
-
-  const data = error.response?.data
-  if (!data) {
-    return 'Registration failed. Please try again.'
-  }
-
-  if (typeof data.detail === 'string') {
-    return data.detail
-  }
-
-  const messages = Object.values(data).flatMap((value) => {
-    if (Array.isArray(value)) {
-      return value.filter((item): item is string => typeof item === 'string')
-    }
-    if (typeof value === 'string') {
-      return [value]
-    }
-    return []
-  })
-
-  return messages[0] ?? 'Registration failed. Please check your details.'
 }
 
 export function useRegisterForm(): UseRegisterFormResult {
@@ -67,7 +41,7 @@ export function useRegisterForm(): UseRegisterFormResult {
 
       const data = error.response.data
       Object.entries(data).forEach(([field, value]) => {
-        if (field === 'detail' || !Array.isArray(value)) {
+        if (field === 'detail' || field === 'code' || !Array.isArray(value)) {
           return
         }
 
@@ -111,7 +85,9 @@ export function useRegisterForm(): UseRegisterFormResult {
     handleSubmit,
     errors,
     isSubmitting: mutation.isPending,
-    serverError: mutation.isError ? mapApiErrors(mutation.error) : null,
+    serverError: mutation.isError
+      ? getApiErrorMessage(mutation.error, 'Registration failed. Please try again.')
+      : null,
     registeredUser: mutation.isSuccess ? mutation.data : null,
     onSubmit,
   }

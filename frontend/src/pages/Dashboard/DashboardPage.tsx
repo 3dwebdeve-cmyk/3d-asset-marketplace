@@ -1,13 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { getCurrentUser, logoutUser } from '../../api/authApi'
+import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { FormField } from '../../components/ui/FormField'
+import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { toast } from '../../lib/toast'
 import { useAuthStore } from '../../store/authStore'
+import { useChangePasswordForm } from './useChangePasswordForm'
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -15,6 +19,7 @@ export function DashboardPage() {
   const storedUser = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
   const clearSession = useAuthStore((state) => state.clearSession)
+  const [showChangePassword, setShowChangePassword] = useState(false)
 
   const currentUserQuery = useQuery({
     queryKey: ['auth', 'me'],
@@ -34,10 +39,21 @@ export function DashboardPage() {
       }
     },
     onSettled: () => {
-      clearSession()
+      clearSession({ redirectTo: '/' })
       toast.success('Signed out')
-      navigate('/login', { replace: true })
+      navigate('/', { replace: true })
     },
+  })
+
+  const {
+    register,
+    handleSubmit,
+    errors,
+    isSubmitting,
+    serverError,
+    onSubmit,
+  } = useChangePasswordForm({
+    onSuccess: () => setShowChangePassword(false),
   })
 
   const user = currentUserQuery.data ?? storedUser
@@ -79,6 +95,17 @@ export function DashboardPage() {
         )}
 
         <div className="dashboard-card__actions">
+          <Link className="home-page__cta home-page__cta--secondary" to="/profile">
+            Edit profile
+          </Link>
+          <button
+            type="button"
+            className="home-page__cta home-page__cta--secondary"
+            onClick={() => setShowChangePassword((open) => !open)}
+            aria-expanded={showChangePassword}
+          >
+            {showChangePassword ? 'Cancel' : 'Change password'}
+          </button>
           <Link className="home-page__cta home-page__cta--secondary" to="/">
             Back to home
           </Link>
@@ -90,6 +117,73 @@ export function DashboardPage() {
             Sign out
           </Button>
         </div>
+
+        {showChangePassword ? (
+          <form
+            className="auth-form dashboard-password-form"
+            onSubmit={handleSubmit(onSubmit)}
+            noValidate
+            aria-label="Change password"
+          >
+            {serverError ? <Alert variant="error" message={serverError} /> : null}
+
+            <FormField
+              id="current_password"
+              label="Current password"
+              error={errors.current_password?.message}
+            >
+              <Input
+                id="current_password"
+                type="password"
+                autoComplete="current-password"
+                hasError={Boolean(errors.current_password)}
+                aria-invalid={Boolean(errors.current_password)}
+                aria-describedby={
+                  errors.current_password ? 'current_password-error' : undefined
+                }
+                {...register('current_password')}
+              />
+            </FormField>
+
+            <FormField
+              id="new_password"
+              label="New password"
+              error={errors.new_password?.message}
+            >
+              <Input
+                id="new_password"
+                type="password"
+                autoComplete="new-password"
+                hasError={Boolean(errors.new_password)}
+                aria-invalid={Boolean(errors.new_password)}
+                aria-describedby={errors.new_password ? 'new_password-error' : undefined}
+                {...register('new_password')}
+              />
+            </FormField>
+
+            <FormField
+              id="new_password_confirm"
+              label="Confirm new password"
+              error={errors.new_password_confirm?.message}
+            >
+              <Input
+                id="new_password_confirm"
+                type="password"
+                autoComplete="new-password"
+                hasError={Boolean(errors.new_password_confirm)}
+                aria-invalid={Boolean(errors.new_password_confirm)}
+                aria-describedby={
+                  errors.new_password_confirm ? 'new_password_confirm-error' : undefined
+                }
+                {...register('new_password_confirm')}
+              />
+            </FormField>
+
+            <Button type="submit" isLoading={isSubmitting}>
+              Update password
+            </Button>
+          </form>
+        ) : null}
       </section>
     </main>
   )

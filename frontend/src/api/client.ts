@@ -26,16 +26,26 @@ export const apiClient = axios.create({
 })
 
 apiClient.interceptors.request.use((config) => {
+  const headers = AxiosHeaders.from(config.headers)
   const { accessToken } = useAuthStore.getState()
+
   if (accessToken) {
-    const headers = AxiosHeaders.from(config.headers)
     headers.set('Authorization', `Bearer ${accessToken}`)
-    config.headers = headers
   }
+
+  // Let the browser set multipart boundary for FormData uploads.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    headers.delete('Content-Type')
+  }
+
+  config.headers = headers
   return config
 })
 
-async function requestFreshAccessToken(refreshToken: string): Promise<string> {
+async function requestFreshAccessToken(refreshToken: string): Promise<{
+  access: string
+  refresh?: string
+}> {
   const response = await axios.post<RefreshResponse>(
     `${apiBaseUrl}/api/auth/token/refresh/`,
     { refresh: refreshToken },
@@ -45,14 +55,17 @@ async function requestFreshAccessToken(refreshToken: string): Promise<string> {
       },
     },
   )
-  return response.data.access
+  return {
+    access: response.data.access,
+    refresh: response.data.refresh,
+  }
 }
 
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined
-    const { refreshToken, updateAccessToken, clearSession } = useAuthStore.getState()
+    const { refreshToken, updateTokens, clearSession } = useAuthStore.getState()
 
     if (
       error.response?.status !== 401 ||
@@ -67,9 +80,11 @@ apiClient.interceptors.response.use(
     originalRequest._retry = true
 
     try {
-      refreshRequest ??= requestFreshAccessToken(refreshToken)
+      refreshRequest ??= requestFreshAccessToken(refreshToken).then((tokens) => {
+        updateTokens(tokens)
+        return tokens.access
+      })
       const accessToken = await refreshRequest
-      updateAccessToken(accessToken)
 
       const headers = AxiosHeaders.from(originalRequest.headers)
       headers.set('Authorization', `Bearer ${accessToken}`)

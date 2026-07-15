@@ -1,12 +1,14 @@
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Role, User
+from accounts.models import Role, User, UserProfile
 
 
 class AuthenticationAPITests(APITestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.customer_role = Role.objects.get(role_name="Customer")
         self.password = "StrongPass123!"
         self.user = User.objects.create_user(
@@ -138,10 +140,20 @@ class AuthenticationAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertNotEqual(response.data["refresh"], tokens["refresh"])
 
         self._authenticate(response.data["access"])
         me_response = self.client.get(self.me_url)
         self.assertEqual(me_response.status_code, status.HTTP_200_OK)
+
+        # Rotated/blacklisted refresh token must no longer work.
+        reused = self.client.post(
+            self.refresh_url,
+            {"refresh": tokens["refresh"]},
+            format="json",
+        )
+        self.assertEqual(reused.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_logout_blacklists_refresh_token(self) -> None:
         tokens = self._login()
@@ -186,3 +198,221 @@ class AuthenticationAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class ProfileAPITests(APITestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        self.customer_role = Role.objects.get(role_name="Customer")
+        self.password = "StrongPass123!"
+        self.user = User.objects.create_user(
+            email="profile-user@example.com",
+            full_name="Profile User",
+            password=self.password,
+            role=self.customer_role,
+            country="India",
+        )
+        self.profile_url = reverse("accounts:profile")
+        self.login_url = reverse("accounts:login")
+
+    def _authenticate(self) -> None:
+        response = self.client.post(
+            self.login_url,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def test_profile_requires_authentication(self) -> None:
+        get_response = self.client.get(self.profile_url)
+        self.assertEqual(get_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        patch_response = self.client.patch(self.profile_url, {}, format="json")
+        self.assertEqual(patch_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_profile_creates_row_when_missing(self) -> None:
+        self.assertFalse(UserProfile.objects.filter(user=self.user).exists())
+
+        self._authenticate()
+        response = self.client.get(self.profile_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertEqual(response.data["full_name"], self.user.full_name)
+        self.assertEqual(response.data["country"], "India")
+        self.assertEqual(response.data["company_name"], "")
+        self.assertEqual(response.data["website"], "")
+        self.assertEqual(response.data["address"], "")
+        self.assertEqual(response.data["city"], "")
+        self.assertTrue(UserProfile.objects.filter(user=self.user).exists())
+
+    def test_patch_profile_updates_fields(self) -> None:
+        self._authenticate()
+        payload = {
+            "company_name": "Acme Studios",
+            "website": "https://acme.example.com",
+            "address": "12 Market Street",
+            "city": "Mumbai",
+            "country": "India",
+        }
+
+        response = self.client.patch(self.profile_url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["company_name"], "Acme Studios")
+        self.assertEqual(response.data["website"], "https://acme.example.com")
+        self.assertEqual(response.data["address"], "12 Market Street")
+        self.assertEqual(response.data["city"], "Mumbai")
+        self.assertEqual(response.data["country"], "India")
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.country, "India")
+        profile = self.user.profile
+        self.assertEqual(profile.company_name, "Acme Studios")
+        self.assertEqual(profile.city, "Mumbai")
+
+    def test_patch_profile_rejects_invalid_website(self) -> None:
+        self._authenticate()
+
+        response = self.client.patch(
+            self.profile_url,
+            {"website": "not-a-url"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("website", response.data)
+
+    def test_patch_profile_ignores_email_changes(self) -> None:
+        self._authenticate()
+        original_email = self.user.email
+
+        response = self.client.patch(
+            self.profile_url,
+            {
+                "email": "hacker@example.com",
+                "company_name": "Safe Co",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], original_email)
+        self.assertEqual(response.data["company_name"], "Safe Co")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, original_email)
+
+
+class ChangePasswordAPITests(APITestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        self.customer_role = Role.objects.get(role_name="Customer")
+        self.password = "StrongPass123!"
+        self.user = User.objects.create_user(
+            email="password-user@example.com",
+            full_name="Password User",
+            password=self.password,
+            role=self.customer_role,
+            country="India",
+        )
+        self.change_password_url = reverse("accounts:change-password")
+        self.login_url = reverse("accounts:login")
+
+    def _authenticate(self) -> None:
+        response = self.client.post(
+            self.login_url,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def test_change_password_requires_authentication(self) -> None:
+        response = self.client.post(
+            self.change_password_url,
+            {
+                "current_password": self.password,
+                "new_password": "AnotherStrong123!",
+                "new_password_confirm": "AnotherStrong123!",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_change_password_updates_credentials(self) -> None:
+        self._authenticate()
+        new_password = "AnotherStrong123!"
+
+        response = self.client.post(
+            self.change_password_url,
+            {
+                "current_password": self.password,
+                "new_password": new_password,
+                "new_password_confirm": new_password,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(new_password))
+        self.assertFalse(self.user.check_password(self.password))
+
+        self.client.credentials()
+        login_response = self.client.post(
+            self.login_url,
+            {"email": self.user.email, "password": new_password},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+
+    def test_change_password_rejects_wrong_current_password(self) -> None:
+        self._authenticate()
+
+        response = self.client.post(
+            self.change_password_url,
+            {
+                "current_password": "WrongPass123!",
+                "new_password": "AnotherStrong123!",
+                "new_password_confirm": "AnotherStrong123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("current_password", response.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.password))
+
+    def test_change_password_rejects_mismatched_confirmation(self) -> None:
+        self._authenticate()
+
+        response = self.client.post(
+            self.change_password_url,
+            {
+                "current_password": self.password,
+                "new_password": "AnotherStrong123!",
+                "new_password_confirm": "DifferentStrong123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("new_password_confirm", response.data)
+
+    def test_change_password_rejects_same_as_current(self) -> None:
+        self._authenticate()
+
+        response = self.client.post(
+            self.change_password_url,
+            {
+                "current_password": self.password,
+                "new_password": self.password,
+                "new_password_confirm": self.password,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("new_password", response.data)

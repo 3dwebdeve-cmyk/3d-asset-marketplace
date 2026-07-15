@@ -5,32 +5,30 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: 0%
-Update this percentage after completing each major module.
+Overall Completion: ~18%
 Current Development Sprint
-Current Sprint: Sprint 1
-Sprint Goal: Project Setup & Architecture
-Sprint Status: Not Started
+Current Sprint: Sprint 2 – Authentication
+Sprint Goal: Complete authentication & role-based access
+Sprint Status: In Progress
 Development Roadmap
 Sprint 1 – Project Setup
-• [ ] Create Git Repository
-• [ ] Configure Cursor IDE
-• [ ] Create Django Project
-• [ ] Create React Project
-• [ ] Configure PostgreSQL
+• [x] Create Git Repository
+• [x] Configure Cursor IDE
+• [x] Create Django Project
+• [x] Create React Project
+• [x] Configure PostgreSQL
 • [ ] Configure Docker
-• [ ] Configure GitHub Repository
-• [ ] Connect Frontend & Backend
-1
-• [ ] Initial Project Commit
+• [x] Configure GitHub Repository
+• [x] Connect Frontend & Backend
+• [x] Initial Project Commit
 Sprint 2 – Authentication
-• [ ] JWT Authentication
-• [ ] User Registration
-• [ ] User Login
+• [x] JWT Authentication
+• [x] User Registration
+• [x] User Login
 • [ ] Email Verification
-• [ ] Password Reset
-• [ ] User Roles
-• [ ] Protected Routes
+• [x] Password Reset
+• [x] User Roles (Administrator login + RBAC gate)
+• [x] Protected Routes
 Sprint 3 – Marketplace
 • [ ] Categories
 • [ ] Product CRUD
@@ -53,7 +51,6 @@ Sprint 5 – Plugin Store
 • [ ] Plugin Details
 • [ ] Plugin Downloads
 • [ ] Plugin Search
-2
 Sprint 6 – Shopping & Payments
 • [ ] Shopping Cart
 • [ ] Checkout
@@ -79,18 +76,18 @@ Sprint 8 – Custom Project Portal
 • [ ] Project Completion
 Sprint 9 – Dashboards
 Customer Dashboard
-• [ ] Profile
+• [x] Profile
 • [ ] Orders
 • [ ] Downloads
 • [ ] Wishlist
 • [ ] My Projects
 Admin Dashboard
-• [ ] Dashboard Overview
+• [x] Dashboard Overview (shell + administrator session gate)
+• [x] Dedicated /admin/login + customer/admin login separation
+• [x] Users (admin user CRUD)
 • [ ] Product Management
-3
 • [ ] Plugin Management
 • [ ] Custom Projects
-• [ ] Users
 • [ ] Payments
 • [ ] Analytics
 Sprint 10 – Testing & Deployment
@@ -102,76 +99,95 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Write today's primary development task here.
-Example:
-Build the Product CRUD API.
+Admin user CRUD — list/create/update/deactivate under IsAdministrator.
 Current Git Branch
-Example:
-feature/products
+main (local development)
 Files Being Worked On
-List all files currently under development.
-Example:
-• backend/apps/products/models.py
-• backend/apps/products/views.py
-4
-• frontend/src/pages/ProductDetails/
+• backend/accounts/admin_user_service.py
+• backend/accounts/views.py
+• backend/accounts/serializers.py
+• backend/accounts/urls.py
+• frontend/src/pages/Admin/AdminUsersPage.tsx
+• frontend/src/pages/Admin/AdminUserDetailPage.tsx
 Completed Features
-Move completed work here.
-Example:
-• Project Setup
-• Authentication
-• Categories
+• Project setup (Django, React, PostgreSQL, JWT wiring)
+• Customer registration / login / logout / refresh
+• Password reset + change password
+• Customer profile + avatar upload
+• Protected customer routes
+• Administrator role seed + createsuperuser → Administrator
+• Dedicated /admin/login (email + password only)
+• POST /api/auth/admin/login/ (Administrator-only tokens)
+• Administrator redirect + AdminRoute gate
+• Server-side IsAdministrator permission + /api/auth/admin/me/
+• Admin dashboard shell (session verified)
+• Admin user CRUD (list/create/update/soft-delete)
+• Refresh token rotation + blacklist after rotation
+• Production security headers (when DEBUG=False)
+• Auth/admin security logging
 Pending Features
-List all remaining work.
-Example:
-• Product Search
-• Shopping Cart
-• Payments
-• Secure Downloads
+• Email verification
+• Marketplace categories / products
+• 3D product viewer
+• Plugin store
+• Cart / payments / orders / downloads
+• Custom project portal
+• Full admin product management screens
+• Docker production stack
+• UI redesign pending manager prototype approval
 Current Issues / Blockers
-Record anything preventing development.
-Example:
-• Waiting for Stripe API Keys
-• Need AWS S3 Bucket
-• No current blockers
+• Waiting on manager approval for UI prototype
+• First Administrator must still be created via createsuperuser
 Bugs
-Document discovered bugs.
-5
-Example:
-• Product image upload fails for files larger than 20 MB.
-• Download link expires immediately.
-If there are no known bugs, write:
 No Known Bugs
 Technical Debt
-Record improvements that can be implemented later.
-Examples:
-• Optimize product search queries.
-• Improve image compression.
-• Refactor payment services.
-• Improve caching.
+• Avatar storage is local MEDIA_ROOT (move to S3/R2 later)
+• Docker Compose not production-ready
+• Admin audit logging not yet implemented
 Important Decisions
-Document architectural decisions.
-Examples:
 • PostgreSQL selected as the primary database.
-• AWS S3 selected for cloud storage.
+• JWT (SimpleJWT) for API authentication.
+• RBAC uses accounts.Role (Administrator / Customer); backend permissions never trust frontend alone.
+• Customer login: POST /api/auth/login/; Admin login: POST /api/auth/admin/login/.
+• Admin user DELETE soft-deactivates (is_active=False); protect last active admin and self-lockout.
 • React Three Fiber selected for 3D previews.
-• Stripe selected as the primary payment gateway.
 Daily Development Log
-Date
+Date: 2026-07-15
 Working Hours:
-Today's Objective:
-6
-Modules Completed:
+Today's Objective: Admin user CRUD
+Modules Completed: Admin users list/create/update/deactivate
 Files Created:
+• backend/accounts/admin_user_service.py
+• backend/accounts/pagination.py
+• backend/accounts/test_admin_users.py
+• frontend/src/pages/Admin/AdminUsersPage.tsx
+• frontend/src/pages/Admin/AdminUserDetailPage.tsx
 Files Modified:
+• backend/accounts/serializers.py
+• backend/accounts/views.py
+• backend/accounts/urls.py
+• frontend/src/api/authApi.ts
+• frontend/src/types/auth.ts
+• frontend/src/App.tsx
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• frontend/src/index.css
+• PROJECT_STATUS.md
 Database Changes:
+• None
 API Endpoints Added:
+• GET/POST /api/auth/admin/users/
+• GET/PATCH/DELETE /api/auth/admin/users/<uuid>/
 Frontend Pages Created:
+• /admin/users — AdminUsersPage
+• /admin/users/:userId — AdminUserDetailPage
 Problems Encountered:
+• None
 Solutions Implemented:
+• AdminUserService with self/last-admin safeguards; reuse IsAdministrator
 Lessons Learned:
+• Soft-delete is safer than hard delete for marketplace accounts
 Next Development Task:
-Copy the above section for each working day to maintain a complete project history.
+• Categories Django app + admin CRUD
 Deployment Checklist
 • [ ] Backend Stable
 • [ ] Frontend Stable
@@ -188,17 +204,13 @@ Final Release Checklist
 • [ ] Customer Dashboard Complete
 • [ ] Admin Dashboard Complete
 • [ ] Payment System Complete
-7
 • [ ] Secure Downloads Complete
 • [ ] Security Testing Complete
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ____ %
-Estimated Remaining Work: ____
+Current Completion Percentage: ~15%
+Estimated Remaining Work: Marketplace + payments + plugins + custom projects + full admin
 Expected Production Release Date: ____
 Notes
-Use this section for any important observations, ideas, architectural decisions, or reminders throughout the
-development process. This document should be updated at the end of every development session to
-maintain an accurate record of project progress.
-8
+UI prototype redesign is paused pending manager approval. Continue feature work on current UI.

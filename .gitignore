@@ -6,6 +6,9 @@ __pycache__/
 # Environment
 .env
 
+# Media uploads (avatars, etc.)
+backend/media/
+
 # Node
 node_modules/
 

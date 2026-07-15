@@ -1,0 +1,83 @@
+.app-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.navbar {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--pure-white);
+  text-align: left;
+}
+
+.navbar__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.875rem 1.5rem;
+}
+
+.navbar__brand {
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+  color: var(--text-heading);
+  text-decoration: none;
+}
+
+.navbar__brand:hover {
+  color: var(--primary-accent);
+}
+
+.navbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.navbar__user {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-body);
+}
+
+.navbar__link {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--primary-accent);
+  text-decoration: none;
+}
+
+.navbar__link:hover {
+  color: var(--text-heading);
+  text-decoration: underline;
+}
+
+.navbar__link--primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.875rem;
+  border-radius: 10px;
+  background: var(--primary-accent);
+  color: var(--pure-white);
+  text-decoration: none;
+}
+
+.navbar__link--primary:hover {
+  color: var(--pure-white);
+  text-decoration: none;
+  opacity: 0.92;
+}
+
+.navbar__sign-out {
+  width: auto;
+  margin-top: 0;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.95rem;
+}

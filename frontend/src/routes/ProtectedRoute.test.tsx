@@ -10,6 +10,7 @@ function renderProtectedRoutes(initialEntry: string) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
+        <Route path="/" element={<div>Home Page</div>} />
         <Route path="/login" element={<div>Login Page</div>} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<div>Dashboard Content</div>} />
@@ -29,6 +30,21 @@ describe('ProtectedRoute', () => {
 
     expect(screen.getByText('Login Page')).toBeInTheDocument()
     expect(screen.queryByText('Dashboard Content')).not.toBeInTheDocument()
+  })
+
+  it('redirects to home after intentional sign-out', () => {
+    useAuthStore.setState({
+      accessToken: null,
+      refreshToken: null,
+      user: null,
+      isAuthenticated: false,
+      postLogoutRedirect: '/',
+    })
+
+    renderProtectedRoutes('/dashboard')
+
+    expect(screen.getByText('Home Page')).toBeInTheDocument()
+    expect(screen.queryByText('Login Page')).not.toBeInTheDocument()
   })
 
   it('renders the protected content when the user is authenticated', () => {

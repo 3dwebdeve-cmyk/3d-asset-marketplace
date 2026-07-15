@@ -222,6 +222,60 @@
   box-shadow: var(--shadow);
 }
 
+.dashboard-card--wide {
+  width: min(100%, 960px);
+}
+
+.admin-filters {
+  display: grid;
+  grid-template-columns: 1fr minmax(140px, 200px);
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+
+.admin-create-form {
+  display: grid;
+  gap: 0.85rem;
+  margin: 1.25rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-table th {
+  color: var(--text-heading);
+  font-weight: 600;
+}
+
+.ui-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--pure-white);
+  color: var(--text-body);
+  font: inherit;
+}
+
 .dashboard-card__details {
   display: grid;
   gap: 0.5rem;
@@ -233,11 +287,29 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
+  align-items: center;
+}
+
+.dashboard-card__actions .home-page__cta {
+  border: 1px solid var(--accent-border);
+  cursor: pointer;
+  font: inherit;
 }
 
 .dashboard-card__logout {
   width: auto;
   margin-top: 0;
+}
+
+.dashboard-password-form {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.dashboard-password-form .ui-button {
+  width: auto;
+  margin-top: 0.25rem;
 }
 
 body {
