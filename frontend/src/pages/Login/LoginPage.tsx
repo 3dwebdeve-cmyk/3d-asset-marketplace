@@ -39,7 +39,7 @@ export function LoginPage() {
 
   const showAdminLoginHint =
     Boolean(serverError) &&
-    serverError.toLowerCase().includes('admin sign-in')
+    serverError?.toLowerCase().includes('admin sign-in')
 
   return (
     <main className="auth-page">
