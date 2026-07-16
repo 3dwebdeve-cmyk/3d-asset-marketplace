@@ -3,36 +3,29 @@
    * Brand palette — edit these hex values when the combo changes.
    * Everything else below derives from these tokens.
    */
-  --color-bg-primary: #f5fefd; /* Primary background */
-  --color-bg-secondary: #ffffff; /* Pure White — cards/sections */
-  --color-text-primary: #06162b; /* Deep Navy — headings/body */
-  --color-text-secondary: #0b2a4a; /* Medium Blue — subtitles/captions */
-  --color-action-primary: #1d4d7a; /* Brand Blue — buttons/links */
-  --color-action-secondary: #8fb3c7; /* Harbor Mist — borders/icons */
-
-  /* UI Roles */
-  --bg-primary: var(--color-bg-primary);
-  --bg-surface: var(--color-bg-secondary);
-  --text-primary: var(--color-text-primary);
-  --text-secondary: var(--color-text-secondary);
-  --action-color: var(--color-action-primary);
-  --action-secondary: var(--color-action-secondary);
+  --bg-primary: #faf9f5; /* Warm Cream White — page background */
+  --bg-card: #ffffff; /* Pure White — floating cards/containers */
+  --text-main: #06162b; /* Deep Navy — headings & body */
+  --action-color: #1d4d7a; /* Brand Blue — buttons, links, actions */
 
   /* Existing app tokens mapped to the palette */
   --bg-main: var(--bg-primary);
-  --bg-section: var(--bg-surface);
+  --bg-section: var(--bg-card);
+  --bg-surface: var(--bg-card);
   --primary-accent: var(--action-color);
-  --text-heading: var(--text-primary);
-  --text-body: var(--text-secondary);
-  --pure-white: #ffffff;
+  --text-primary: var(--text-main);
+  --text-heading: var(--text-main);
+  --text-body: var(--text-main);
+  --text-secondary: color-mix(in srgb, var(--text-main) 72%, var(--bg-primary));
+  --pure-white: var(--bg-card);
 
   /* Derived roles — opacity/mixes of the palette only */
-  --border: color-mix(in srgb, var(--action-secondary) 55%, var(--bg-surface));
-  --accent-soft: color-mix(in srgb, var(--action-color) 12%, var(--bg-surface));
-  --accent-border: color-mix(in srgb, var(--action-secondary) 70%, var(--action-color));
+  --border: color-mix(in srgb, var(--action-color) 22%, var(--bg-card));
+  --accent-soft: color-mix(in srgb, var(--action-color) 12%, var(--bg-card));
+  --accent-border: color-mix(in srgb, var(--action-color) 40%, var(--bg-card));
   --shadow:
-    color-mix(in srgb, var(--color-text-primary) 10%, transparent) 0 10px 15px -3px,
-    color-mix(in srgb, var(--color-text-primary) 5%, transparent) 0 4px 6px -2px;
+    color-mix(in srgb, var(--text-main) 10%, transparent) 0 10px 15px -3px,
+    color-mix(in srgb, var(--text-main) 5%, transparent) 0 4px 6px -2px;
 
   /* Backward-compatible aliases used by existing class names */
   --bg: var(--bg-main);
