@@ -4,7 +4,7 @@
   place-items: center;
   padding: 2rem 1rem;
   text-align: left;
-  background: var(--bg-section);
+  background: var(--bg-main);
 }
 
 .auth-card {

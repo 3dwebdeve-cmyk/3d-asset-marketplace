@@ -1,18 +1,38 @@
 :root {
-  --bg-main: #ffffff;
-  --bg-section: #dfe6ed;
-  --primary-accent: #5b82a8;
-  --text-heading: #426384;
-  --text-body: #1a1a1a;
+  /*
+   * Brand palette — edit these hex values when the combo changes.
+   * Everything else below derives from these tokens.
+   */
+  --color-bg-primary: #f5fefd; /* Primary background */
+  --color-bg-secondary: #ffffff; /* Pure White — cards/sections */
+  --color-text-primary: #06162b; /* Deep Navy — headings/body */
+  --color-text-secondary: #0b2a4a; /* Medium Blue — subtitles/captions */
+  --color-action-primary: #1d4d7a; /* Brand Blue — buttons/links */
+  --color-action-secondary: #8fb3c7; /* Harbor Mist — borders/icons */
+
+  /* UI Roles */
+  --bg-primary: var(--color-bg-primary);
+  --bg-surface: var(--color-bg-secondary);
+  --text-primary: var(--color-text-primary);
+  --text-secondary: var(--color-text-secondary);
+  --action-color: var(--color-action-primary);
+  --action-secondary: var(--color-action-secondary);
+
+  /* Existing app tokens mapped to the palette */
+  --bg-main: var(--bg-primary);
+  --bg-section: var(--bg-surface);
+  --primary-accent: var(--action-color);
+  --text-heading: var(--text-primary);
+  --text-body: var(--text-secondary);
   --pure-white: #ffffff;
 
   /* Derived roles — opacity/mixes of the palette only */
-  --border: var(--bg-section);
-  --accent-soft: color-mix(in srgb, var(--primary-accent) 14%, var(--pure-white));
-  --accent-border: color-mix(in srgb, var(--primary-accent) 45%, var(--pure-white));
+  --border: color-mix(in srgb, var(--action-secondary) 55%, var(--bg-surface));
+  --accent-soft: color-mix(in srgb, var(--action-color) 12%, var(--bg-surface));
+  --accent-border: color-mix(in srgb, var(--action-secondary) 70%, var(--action-color));
   --shadow:
-    color-mix(in srgb, var(--text-body) 10%, transparent) 0 10px 15px -3px,
-    color-mix(in srgb, var(--text-body) 5%, transparent) 0 4px 6px -2px;
+    color-mix(in srgb, var(--color-text-primary) 10%, transparent) 0 10px 15px -3px,
+    color-mix(in srgb, var(--color-text-primary) 5%, transparent) 0 4px 6px -2px;
 
   /* Backward-compatible aliases used by existing class names */
   --bg: var(--bg-main);
@@ -74,6 +94,7 @@
   line-height: 1.2;
   letter-spacing: -0.02em;
   font-weight: 600;
+  color: var(--text-heading);
 }
 
 .home-page__eyebrow {
@@ -201,7 +222,7 @@
   display: grid;
   place-items: center;
   padding: 2rem;
-  background: var(--bg-section);
+  background: var(--bg-main);
 }
 
 .dashboard-page {
@@ -210,7 +231,7 @@
   place-items: center;
   padding: 3rem 1.5rem;
   text-align: left;
-  background: var(--bg-section);
+  background: var(--bg-main);
 }
 
 .dashboard-card {
