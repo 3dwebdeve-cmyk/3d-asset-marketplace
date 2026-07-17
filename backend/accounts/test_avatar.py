@@ -33,6 +33,7 @@ class AvatarUploadAPITests(APITestCase):
             password=self.password,
             role=self.customer_role,
             country="India",
+            email_verified=True,
         )
         self.avatar_url = reverse("accounts:profile-avatar")
         self.profile_url = reverse("accounts:profile")

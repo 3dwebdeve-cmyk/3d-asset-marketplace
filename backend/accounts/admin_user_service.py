@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Q, QuerySet
 
 from accounts.models import Role, User, UserProfile
-from accounts.services import AuthenticationService
+from accounts.services import AuthenticationService, EmailVerificationService
 
 
 class AdminUserError(Exception):
@@ -92,12 +92,20 @@ class AdminUserService:
             country=data.country.strip(),
         )
         user.is_staff = role.role_name == AuthenticationService.ADMINISTRATOR_ROLE
-        user.save(update_fields=["is_staff", "updated_at"])
+        if role.role_name == AuthenticationService.ADMINISTRATOR_ROLE:
+            user.email_verified = True
+            user.save(update_fields=["is_staff", "email_verified", "updated_at"])
+        else:
+            user.save(update_fields=["is_staff", "updated_at"])
 
         UserProfile.objects.get_or_create(
             user=user,
             defaults={"country": data.country.strip()},
         )
+
+        if role.role_name != AuthenticationService.ADMINISTRATOR_ROLE:
+            EmailVerificationService.send_verification(user)
+
         return user
 
     @classmethod

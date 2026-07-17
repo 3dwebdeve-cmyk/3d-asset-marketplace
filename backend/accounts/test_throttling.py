@@ -29,6 +29,7 @@ class AuthThrottleAPITests(APITestCase):
             password=self.password,
             role=self.customer_role,
             country="India",
+            email_verified=True,
         )
         self.login_url = reverse("accounts:login")
         self.register_url = reverse("accounts:register")

@@ -1,3 +1,4 @@
+from django.core import mail
 from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
@@ -17,6 +18,7 @@ class AuthenticationAPITests(APITestCase):
             password=self.password,
             role=self.customer_role,
             country="India",
+            email_verified=True,
         )
 
         self.register_url = reverse("accounts:register")
@@ -55,8 +57,11 @@ class AuthenticationAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["email"], "new.customer@example.com")
         self.assertEqual(response.data["role"], "Customer")
+        self.assertFalse(response.data["email_verified"])
         self.assertNotIn("password", response.data)
         self.assertTrue(User.objects.filter(email="new.customer@example.com").exists())
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("/verify-email/", mail.outbox[0].body)
 
     def test_register_rejects_duplicate_email(self) -> None:
         payload = {
@@ -211,6 +216,7 @@ class ProfileAPITests(APITestCase):
             password=self.password,
             role=self.customer_role,
             country="India",
+            email_verified=True,
         )
         self.profile_url = reverse("accounts:profile")
         self.login_url = reverse("accounts:login")
@@ -315,6 +321,7 @@ class ChangePasswordAPITests(APITestCase):
             password=self.password,
             role=self.customer_role,
             country="India",
+            email_verified=True,
         )
         self.change_password_url = reverse("accounts:change-password")
         self.login_url = reverse("accounts:login")
@@ -366,6 +373,37 @@ class ChangePasswordAPITests(APITestCase):
             format="json",
         )
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+
+    def test_change_password_blacklists_outstanding_refresh_tokens(self) -> None:
+        login_response = self.client.post(
+            self.login_url,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+        refresh = login_response.data["refresh"]
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {login_response.data['access']}"
+        )
+        new_password = "AnotherStrong123!"
+
+        response = self.client.post(
+            self.change_password_url,
+            {
+                "current_password": self.password,
+                "new_password": new_password,
+                "new_password_confirm": new_password,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+        refresh_response = self.client.post(
+            reverse("accounts:token-refresh"),
+            {"refresh": refresh},
+            format="json",
+        )
+        self.assertEqual(refresh_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_change_password_rejects_wrong_current_password(self) -> None:
         self._authenticate()

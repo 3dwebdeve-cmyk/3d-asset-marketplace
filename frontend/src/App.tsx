@@ -10,6 +10,8 @@ import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
 import { AdminUserDetailPage } from './pages/Admin/AdminUserDetailPage'
 import { AdminUsersPage } from './pages/Admin/AdminUsersPage'
 import { DashboardPage } from './pages/Dashboard/DashboardPage'
+import { EmailVerificationPage } from './pages/EmailVerification/EmailVerificationPage'
+import { EmailVerificationResendPage } from './pages/EmailVerification/EmailVerificationResendPage'
 import { HomePage } from './pages/Home/HomePage'
 import { LoginPage } from './pages/Login/LoginPage'
 import { PasswordResetConfirmPage } from './pages/PasswordReset/PasswordResetConfirmPage'
@@ -44,6 +46,11 @@ function App() {
               <Route
                 path="/reset-password/:uid/:token"
                 element={<PasswordResetConfirmPage />}
+              />
+              <Route path="/verify-email/resend" element={<EmailVerificationResendPage />} />
+              <Route
+                path="/verify-email/:uid/:token"
+                element={<EmailVerificationPage />}
               />
               <Route element={<ProtectedRoute />}>
                 <Route path="/dashboard" element={<DashboardPage />} />

@@ -88,6 +88,15 @@ export interface PasswordResetConfirmPayload {
   new_password_confirm: string
 }
 
+export interface EmailVerificationResendPayload {
+  email: string
+}
+
+export interface EmailVerificationConfirmPayload {
+  uid: string
+  token: string
+}
+
 export interface AdminUser {
   id: string
   full_name: string

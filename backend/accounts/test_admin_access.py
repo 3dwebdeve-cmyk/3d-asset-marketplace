@@ -18,6 +18,7 @@ class AdministratorAccessAPITests(APITestCase):
             password=self.password,
             role=self.admin_role,
             country="India",
+            email_verified=True,
         )
         self.admin_user.is_staff = True
         self.admin_user.save(update_fields=["is_staff", "updated_at"])
@@ -28,6 +29,7 @@ class AdministratorAccessAPITests(APITestCase):
             password=self.password,
             role=self.customer_role,
             country="India",
+            email_verified=True,
         )
 
         self.login_url = reverse("accounts:login")

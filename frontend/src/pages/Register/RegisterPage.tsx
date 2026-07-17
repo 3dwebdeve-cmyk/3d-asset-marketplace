@@ -24,14 +24,21 @@ export function RegisterPage() {
           <h1 id="register-success-title">Account created</h1>
           <Alert
             variant="success"
-            message={`Welcome, ${registeredUser.full_name}. Your customer account is ready.`}
+            message={`Welcome, ${registeredUser.full_name}. Check your email to verify your account before signing in.`}
           />
           <p className="auth-card__hint">
-            Your account has been saved securely. You can now sign in.
+            We sent a verification link to {registeredUser.email}.
           </p>
-          <Link className="auth-link" to="/login">
-            Continue to sign in
-          </Link>
+          <p className="auth-card__footer">
+            <Link className="auth-link" to="/verify-email/resend">
+              Resend verification email
+            </Link>
+          </p>
+          <p className="auth-card__footer">
+            <Link className="auth-link" to="/login">
+              Continue to sign in
+            </Link>
+          </p>
         </section>
       </main>
     )

@@ -1,3 +1,4 @@
+from django.core import mail
 from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
@@ -18,6 +19,7 @@ class AdminUserCRUDAPITests(APITestCase):
             full_name="Admin User",
             password=self.password,
             role=self.admin_role,
+            email_verified=True,
         )
         self.admin_user.is_staff = True
         self.admin_user.save(update_fields=["is_staff", "updated_at"])
@@ -27,6 +29,7 @@ class AdminUserCRUDAPITests(APITestCase):
             full_name="Second Admin",
             password=self.password,
             role=self.admin_role,
+            email_verified=True,
         )
         self.second_admin.is_staff = True
         self.second_admin.save(update_fields=["is_staff", "updated_at"])
@@ -36,6 +39,7 @@ class AdminUserCRUDAPITests(APITestCase):
             full_name="Customer User",
             password=self.password,
             role=self.customer_role,
+            email_verified=True,
         )
 
         self.list_url = reverse("accounts:admin-users")
@@ -99,7 +103,10 @@ class AdminUserCRUDAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["email"], "new.customer@example.com")
         self.assertEqual(response.data["role"], "Customer")
+        self.assertFalse(response.data["email_verified"])
         self.assertTrue(response.data["is_active"])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("/verify-email/", mail.outbox[0].body)
 
     def test_update_and_deactivate_user(self) -> None:
         self._authenticate_as(self.admin_user.email)

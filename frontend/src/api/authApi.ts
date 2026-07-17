@@ -11,6 +11,8 @@ import type {
   PaginatedAdminUsers,
   PasswordResetConfirmPayload,
   PasswordResetRequestPayload,
+  EmailVerificationConfirmPayload,
+  EmailVerificationResendPayload,
   ProfileUpdatePayload,
   RefreshResponse,
   RegisterPayload,
@@ -95,6 +97,26 @@ export async function confirmPasswordReset(
 ): Promise<{ detail: string }> {
   const response = await apiClient.post<{ detail: string }>(
     '/api/auth/password-reset/confirm/',
+    payload,
+  )
+  return response.data
+}
+
+export async function resendEmailVerification(
+  payload: EmailVerificationResendPayload,
+): Promise<{ detail: string }> {
+  const response = await apiClient.post<{ detail: string }>(
+    '/api/auth/email-verification/resend/',
+    payload,
+  )
+  return response.data
+}
+
+export async function confirmEmailVerification(
+  payload: EmailVerificationConfirmPayload,
+): Promise<{ detail: string }> {
+  const response = await apiClient.post<{ detail: string }>(
+    '/api/auth/email-verification/confirm/',
     payload,
   )
   return response.data

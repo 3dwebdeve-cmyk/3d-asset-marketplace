@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { useForm } from 'react-hook-form'
 
 import { loginUser } from '../../api/authApi'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import { useAuthStore } from '../../store/authStore'
-import type { LoginResponse } from '../../types/auth'
+import type { ApiErrorResponse, LoginResponse } from '../../types/auth'
 import { defaultLoginValues, loginSchema, type LoginFormValues } from './loginSchema'
 
 interface UseLoginFormResult {
@@ -14,6 +15,7 @@ interface UseLoginFormResult {
   errors: ReturnType<typeof useForm<LoginFormValues>>['formState']['errors']
   isSubmitting: boolean
   serverError: string | null
+  emailNotVerified: boolean
   isSuccess: boolean
   onSubmit: (values: LoginFormValues) => void
 }
@@ -71,6 +73,10 @@ export function useLoginForm(): UseLoginFormResult {
     serverError: mutation.isError
       ? getApiErrorMessage(mutation.error, 'Invalid email or password.')
       : null,
+    emailNotVerified:
+      mutation.isError &&
+      isAxiosError<ApiErrorResponse>(mutation.error) &&
+      mutation.error.response?.data?.code === 'email_not_verified',
     isSuccess: mutation.isSuccess,
     onSubmit,
   }

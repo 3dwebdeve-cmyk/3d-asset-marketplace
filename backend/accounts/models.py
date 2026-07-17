@@ -28,6 +28,7 @@ class UserManager(BaseUserManager):
         role: Role,
         phone: str = "",
         country: str = "",
+        email_verified: bool = False,
     ) -> "User":
         if not email:
             raise ValueError("Email is required.")
@@ -43,6 +44,7 @@ class UserManager(BaseUserManager):
             phone=phone.strip(),
             country=country.strip(),
             role=role,
+            email_verified=email_verified,
         )
         user.set_password(password)
         user.save(using=self._db)
@@ -67,6 +69,7 @@ class UserManager(BaseUserManager):
             role=role,
             phone=phone,
             country=country,
+            email_verified=True,
         )
         user.is_staff = True
         user.is_superuser = True

@@ -20,6 +20,8 @@ from accounts.serializers import (
     AdminUserUpdateSerializer,
     AvatarUploadSerializer,
     ChangePasswordSerializer,
+    EmailVerificationConfirmSerializer,
+    EmailVerificationResendSerializer,
     LoginSerializer,
     LogoutSerializer,
     PasswordResetConfirmSerializer,
@@ -33,12 +35,16 @@ from accounts.security_log import log_admin_action, log_auth_failure
 from accounts.services import (
     AuthenticationError,
     AuthenticationService,
+    EmailVerificationService,
     LoginData,
     PasswordResetService,
     ProfileService,
 )
 from accounts.throttles import (
+    EmailVerificationConfirmRateThrottle,
+    EmailVerificationResendRateThrottle,
     LoginRateThrottle,
+    PasswordResetConfirmRateThrottle,
     PasswordResetRateThrottle,
     RegisterRateThrottle,
 )
@@ -73,6 +79,11 @@ class LoginView(APIView):
             user = AuthenticationService.authenticate_customer(credentials)
         except AuthenticationError as exc:
             log_auth_failure(scope="customer_login", email=credentials.email)
+            if exc.code == "email_not_verified":
+                return Response(
+                    {"detail": exc.message, "code": exc.code},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             raise AuthenticationFailed(exc.message) from exc
 
         tokens = AuthenticationService.build_tokens(user)
@@ -199,6 +210,7 @@ class PasswordResetRequestView(APIView):
 
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetConfirmRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = PasswordResetConfirmSerializer(data=request.data)
@@ -218,6 +230,54 @@ class PasswordResetConfirmView(APIView):
 
         return Response(
             {"detail": "Password has been reset. You can sign in with your new password."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class EmailVerificationResendView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [EmailVerificationResendRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = EmailVerificationResendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        EmailVerificationService.resend_verification(serializer.validated_data["email"])
+        return Response(
+            {
+                "detail": (
+                    "If an unverified account exists for that email, "
+                    "a verification link has been sent."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class EmailVerificationConfirmView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [EmailVerificationConfirmRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = EmailVerificationConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            EmailVerificationService.confirm_verification(
+                uid=serializer.validated_data["uid"],
+                token=serializer.validated_data["token"],
+            )
+        except AuthenticationError as exc:
+            return Response(
+                {"detail": exc.message, "code": exc.code},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "detail": (
+                    "Your email has been verified. You can now sign in to your account."
+                )
+            },
             status=status.HTTP_200_OK,
         )
 

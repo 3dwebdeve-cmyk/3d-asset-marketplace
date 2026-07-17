@@ -19,6 +19,7 @@ export function LoginPage() {
     errors,
     isSubmitting,
     serverError,
+    emailNotVerified,
     isSuccess,
     onSubmit,
   } = useLoginForm()
@@ -58,6 +59,14 @@ export function LoginPage() {
           <p className="auth-card__footer">
             <Link className="auth-link" to="/admin/login">
               Go to admin sign in
+            </Link>
+          </p>
+        ) : null}
+
+        {emailNotVerified ? (
+          <p className="auth-card__footer">
+            <Link className="auth-link" to="/verify-email/resend">
+              Resend verification email
             </Link>
           </p>
         ) : null}

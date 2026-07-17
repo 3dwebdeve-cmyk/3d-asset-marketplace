@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'accounts',
+    'categories',
 ]
 
 MIDDLEWARE = [
@@ -166,6 +167,10 @@ REST_FRAMEWORK = {
         "auth_login": "5/min",
         "auth_register": "3/min",
         "auth_password_reset": "5/hour",
+        "auth_password_reset_confirm": "10/hour",
+        "auth_email_verification_resend": "5/hour",
+        "auth_email_verification_confirm": "10/hour",
+        "admin_category_write": "60/min",
     },
 }
 

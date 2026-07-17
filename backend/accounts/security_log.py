@@ -22,3 +22,31 @@ def log_admin_action(*, action: str, actor_id: str, target_id: str | None = None
         actor_id,
         target_id or "-",
     )
+
+
+def log_password_reset(
+    *,
+    action: str,
+    email: str | None = None,
+    user_id: str | None = None,
+) -> None:
+    security_logger.info(
+        "password_reset action=%s email=%s user_id=%s",
+        action,
+        (email or "").strip().lower() or "-",
+        user_id or "-",
+    )
+
+
+def log_email_verification(
+    *,
+    action: str,
+    email: str | None = None,
+    user_id: str | None = None,
+) -> None:
+    security_logger.info(
+        "email_verification action=%s email=%s user_id=%s",
+        action,
+        (email or "").strip().lower() or "-",
+        user_id or "-",
+    )

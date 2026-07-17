@@ -8,13 +8,29 @@ from django.db import transaction
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.token_blacklist.models import (
+    BlacklistedToken,
+    OutstandingToken,
+)
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import Role, User, UserProfile
+from accounts.security_log import log_email_verification, log_password_reset
 from accounts.storage import AvatarStorageService
 from accounts.upload_rules import validate_avatar_upload
 
 password_reset_token_generator = PasswordResetTokenGenerator()
+
+
+class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
+    """Token invalidates once email_verified becomes True."""
+
+    def _make_hash_value(self, user, timestamp) -> str:
+        email_verified = getattr(user, "email_verified", False)
+        return f"{user.pk}{user.email}{email_verified}{timestamp}"
+
+
+email_verification_token_generator = EmailVerificationTokenGenerator()
 
 
 class RegistrationError(Exception):
@@ -24,8 +40,9 @@ class RegistrationError(Exception):
 
 
 class AuthenticationError(Exception):
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, *, code: str = "authentication_failed") -> None:
         self.message = message
+        self.code = code
         super().__init__(message)
 
 
@@ -64,6 +81,8 @@ class RegistrationService:
             user=user,
             country=data.country.strip(),
         )
+
+        EmailVerificationService.send_verification(user)
 
         return user
 
@@ -111,6 +130,11 @@ class AuthenticationService:
             raise AuthenticationError(
                 "Administrators must use the admin sign-in page."
             )
+        if not user.email_verified:
+            raise AuthenticationError(
+                "Please verify your email address before signing in.",
+                code="email_not_verified",
+            )
         return user
 
     @classmethod
@@ -137,6 +161,12 @@ class AuthenticationService:
             raise AuthenticationError("Invalid refresh token.") from exc
 
     @staticmethod
+    def blacklist_all_refresh_tokens(user: User) -> None:
+        """Invalidate every outstanding refresh token for the user (e.g. after password change)."""
+        for outstanding in OutstandingToken.objects.filter(user_id=user.pk):
+            BlacklistedToken.objects.get_or_create(token=outstanding)
+
+    @staticmethod
     def change_password(user: User, current_password: str, new_password: str) -> None:
         if not user.check_password(current_password):
             raise AuthenticationError("Current password is incorrect.")
@@ -148,6 +178,7 @@ class AuthenticationService:
 
         user.set_password(new_password)
         user.save(update_fields=["password", "updated_at"])
+        AuthenticationService.blacklist_all_refresh_tokens(user)
 
 
 class PasswordResetService:
@@ -155,6 +186,7 @@ class PasswordResetService:
     def request_reset(cls, email: str) -> None:
         """Send a reset email when the account exists. Always no-op-safe for unknowns."""
         normalized = email.strip().lower()
+        log_password_reset(action="request", email=normalized)
         user = User.objects.filter(email=normalized, is_active=True).first()
         if user is None:
             return
@@ -190,10 +222,17 @@ class PasswordResetService:
     ) -> None:
         user = cls._get_user_from_uid(uid)
         if user is None or not password_reset_token_generator.check_token(user, token):
+            log_password_reset(action="confirm_failure", email=None)
             raise AuthenticationError("Invalid or expired password reset link.")
 
         user.set_password(new_password)
         user.save(update_fields=["password", "updated_at"])
+        AuthenticationService.blacklist_all_refresh_tokens(user)
+        log_password_reset(
+            action="confirm_success",
+            email=user.email,
+            user_id=str(user.pk),
+        )
 
     @staticmethod
     def _get_user_from_uid(uid: str) -> User | None:
@@ -202,6 +241,84 @@ class PasswordResetService:
             return User.objects.filter(pk=user_id, is_active=True).first()
         except (TypeError, ValueError, OverflowError):
             return None
+
+
+class EmailVerificationService:
+    @staticmethod
+    def _frontend_base_url() -> str:
+        return getattr(
+            settings,
+            "FRONTEND_BASE_URL",
+            "http://localhost:5173",
+        ).rstrip("/")
+
+    @staticmethod
+    def _build_verification_link(user: User) -> str:
+        uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
+        token = email_verification_token_generator.make_token(user)
+        return f"{EmailVerificationService._frontend_base_url()}/verify-email/{uid}/{token}"
+
+    @classmethod
+    def send_verification(cls, user: User) -> None:
+        if user.email_verified or not user.is_active:
+            return
+
+        verification_link = cls._build_verification_link(user)
+        send_mail(
+            subject="Verify your 3D Asset Marketplace email",
+            message=(
+                "Thanks for registering.\n\n"
+                f"Confirm your email address by opening this link:\n{verification_link}\n\n"
+                "If you did not create this account, you can ignore this email."
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+
+    @classmethod
+    def resend_verification(cls, email: str) -> None:
+        """Send verification email when the account exists and is unverified."""
+        normalized = email.strip().lower()
+        log_email_verification(action="resend", email=normalized)
+        user = User.objects.filter(
+            email=normalized,
+            is_active=True,
+            email_verified=False,
+        ).first()
+        if user is None:
+            return
+
+        cls.send_verification(user)
+
+    @classmethod
+    @transaction.atomic
+    def confirm_verification(cls, uid: str, token: str) -> User:
+        user = PasswordResetService._get_user_from_uid(uid)
+        if user is None:
+            log_email_verification(action="confirm_failure", email=None)
+            raise AuthenticationError("Invalid or expired email verification link.")
+
+        if user.email_verified:
+            log_email_verification(
+                action="confirm_already_verified",
+                email=user.email,
+                user_id=str(user.pk),
+            )
+            return user
+
+        if not email_verification_token_generator.check_token(user, token):
+            log_email_verification(action="confirm_failure", email=user.email)
+            raise AuthenticationError("Invalid or expired email verification link.")
+
+        user.email_verified = True
+        user.save(update_fields=["email_verified", "updated_at"])
+        log_email_verification(
+            action="confirm_success",
+            email=user.email,
+            user_id=str(user.pk),
+        )
+        return user
 
 
 @dataclass(frozen=True)
