@@ -1,0 +1,53 @@
+import { apiClient } from './client'
+import type {
+  AdminCategory,
+  AdminCategoryCreatePayload,
+  AdminCategoryListParams,
+  AdminCategoryUpdatePayload,
+  PaginatedAdminCategories,
+} from '../types/category'
+
+export async function listAdminCategories(
+  params: AdminCategoryListParams = {},
+): Promise<PaginatedAdminCategories> {
+  const response = await apiClient.get<PaginatedAdminCategories>(
+    '/api/admin/categories/',
+    { params },
+  )
+  return response.data
+}
+
+export async function getAdminCategory(categoryId: string): Promise<AdminCategory> {
+  const response = await apiClient.get<AdminCategory>(
+    `/api/admin/categories/${categoryId}/`,
+  )
+  return response.data
+}
+
+export async function createAdminCategory(
+  payload: AdminCategoryCreatePayload,
+): Promise<AdminCategory> {
+  const response = await apiClient.post<AdminCategory>(
+    '/api/admin/categories/',
+    payload,
+  )
+  return response.data
+}
+
+export async function updateAdminCategory(
+  categoryId: string,
+  payload: AdminCategoryUpdatePayload,
+): Promise<AdminCategory> {
+  const response = await apiClient.patch<AdminCategory>(
+    `/api/admin/categories/${categoryId}/`,
+    payload,
+  )
+  return response.data
+}
+
+export async function deactivateAdminCategory(categoryId: string): Promise<AdminCategory> {
+  const response = await apiClient.delete<AdminCategory>(
+    `/api/admin/categories/${categoryId}/`,
+  )
+  return response.data
+}

@@ -25,9 +25,12 @@ export function LoginPage() {
   } = useLoginForm()
 
   useEffect(() => {
-    if (isSuccess) {
-      navigate('/dashboard', { replace: true })
+    if (!isSuccess) {
+      return
     }
+
+    const role = useAuthStore.getState().user?.role
+    navigate(isAdministrator(role) ? '/admin' : '/dashboard', { replace: true })
   }, [isSuccess, navigate])
 
   if (isAuthenticated && isAdministrator(user?.role)) {

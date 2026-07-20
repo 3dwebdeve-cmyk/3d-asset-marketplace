@@ -41,7 +41,7 @@ export function useAdminLoginForm(): UseAdminLoginFormResult {
     onSuccess: (data: LoginResponse) => {
       setSession({ access: data.access, refresh: data.refresh, user: data.user })
       queryClient.setQueryData(['auth', 'me', data.access], data.user)
-      queryClient.setQueryData(['auth', 'admin', 'me'], data.user)
+      queryClient.setQueryData(['auth', 'admin', 'me', data.access], data.user)
       const firstName = data.user.full_name?.split(' ')[0]
       toast.success(
         firstName ? `Administrator signed in. Welcome, ${firstName}!` : 'Administrator signed in',

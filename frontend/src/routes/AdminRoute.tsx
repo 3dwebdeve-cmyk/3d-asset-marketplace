@@ -1,5 +1,6 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 
+import { AdminLayout } from '../layouts/AdminLayout'
 import { isAdministrator } from '../lib/roles'
 import { useAuthStore } from '../store/authStore'
 
@@ -22,5 +23,5 @@ export function AdminRoute() {
     return <Navigate to="/dashboard" replace />
   }
 
-  return <Outlet />
+  return <AdminLayout />
 }

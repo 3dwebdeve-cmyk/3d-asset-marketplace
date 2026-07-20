@@ -50,6 +50,7 @@ export function AdminUserDetailPage() {
       toast.success('User updated')
       setFormError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      navigate('/admin', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not update user.'))
@@ -61,7 +62,7 @@ export function AdminUserDetailPage() {
     onSuccess: async () => {
       toast.success('User deactivated')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      navigate('/admin/users', { replace: true })
+      navigate('/admin', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not deactivate user.'))

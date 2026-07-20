@@ -27,3 +27,7 @@ class EmailVerificationConfirmRateThrottle(AnonRateThrottle):
 
 class AdminCategoryWriteRateThrottle(UserRateThrottle):
     scope = "admin_category_write"
+
+
+class AdminProductWriteRateThrottle(UserRateThrottle):
+    scope = "admin_product_write"

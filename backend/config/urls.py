@@ -24,6 +24,9 @@ urlpatterns = [
     path('api/auth/', include('accounts.urls')),
     path('api/categories/', include('categories.urls')),
     path('api/admin/categories/', include('categories.admin_urls')),
+    path('api/products/', include('products.urls')),
+    path('api/admin/products/', include('products.admin_urls')),
+    path('api/admin/dashboard/', include('analytics.admin_urls')),
 ]
 
 if settings.DEBUG:

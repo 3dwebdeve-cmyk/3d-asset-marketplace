@@ -58,6 +58,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'accounts',
     'categories',
+    'products',
+    'analytics',
 ]
 
 MIDDLEWARE = [
@@ -146,9 +148,9 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 PUBLIC_API_BASE_URL = config("PUBLIC_API_BASE_URL", default="http://127.0.0.1:8000")
 
-# Avatar upload limits used by validation and Django file uploads.
-DATA_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+# Upload limits: avatars stay small; product images/files may be larger.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -171,6 +173,7 @@ REST_FRAMEWORK = {
         "auth_email_verification_resend": "5/hour",
         "auth_email_verification_confirm": "10/hour",
         "admin_category_write": "60/min",
+        "admin_product_write": "60/min",
     },
 }
 

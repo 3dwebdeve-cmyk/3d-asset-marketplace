@@ -1,124 +1,164 @@
-import { useEffect } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { isAxiosError } from 'axios'
-import { Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
-import { getAdminCurrentUser, logoutUser } from '../../api/authApi'
-import { Alert } from '../../components/ui/Alert'
+import { getAdminDashboardStats } from '../../api/dashboardApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
-import { toast } from '../../lib/toast'
-import { useAuthStore } from '../../store/authStore'
+
+function formatCurrency(amount: string, currency: string): string {
+  const parsed = Number.parseFloat(amount)
+  if (Number.isNaN(parsed)) {
+    return `${currency} ${amount}`
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(parsed)
+}
 
 export function AdminDashboardPage() {
-  const navigate = useNavigate()
-  const refreshToken = useAuthStore((state) => state.refreshToken)
-  const storedUser = useAuthStore((state) => state.user)
-  const setUser = useAuthStore((state) => state.setUser)
-  const clearSession = useAuthStore((state) => state.clearSession)
-
-  const adminUserQuery = useQuery({
-    queryKey: ['auth', 'admin', 'me'],
-    queryFn: getAdminCurrentUser,
-    retry: false,
+  const statsQuery = useQuery({
+    queryKey: ['admin', 'dashboard', 'stats'],
+    queryFn: getAdminDashboardStats,
   })
 
-  useEffect(() => {
-    if (adminUserQuery.data) {
-      setUser(adminUserQuery.data)
-    }
-  }, [adminUserQuery.data, setUser])
-
-  useEffect(() => {
-    if (!adminUserQuery.isError || !adminUserQuery.error) {
-      return
-    }
-
-    const status = isAxiosError(adminUserQuery.error)
-      ? adminUserQuery.error.response?.status
-      : undefined
-
-    if (status === 401 || status === 403) {
-      clearSession({ redirectTo: '/admin/login' })
-      navigate('/admin/login', { replace: true })
-    }
-  }, [adminUserQuery.isError, adminUserQuery.error, clearSession, navigate])
-
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      if (refreshToken) {
-        await logoutUser(refreshToken)
-      }
-    },
-    onSettled: () => {
-      clearSession({ redirectTo: '/admin/login' })
-      toast.success('Signed out')
-      navigate('/admin/login', { replace: true })
-    },
-  })
-
-  const user = adminUserQuery.data ?? storedUser
+  const stats = statsQuery.data
 
   return (
     <main className="dashboard-page">
-      <section className="dashboard-card" aria-labelledby="admin-dashboard-title">
+      <section
+        className="dashboard-card dashboard-card--wide admin-dashboard"
+        aria-labelledby="admin-dashboard-title"
+      >
         <p className="home-page__eyebrow">Administrator</p>
         <h1 id="admin-dashboard-title">Admin dashboard</h1>
         <p className="home-page__subtitle">
-          Platform management tools will appear here as marketplace modules come online.
+          Live marketplace overview with category inventory and module readiness.
         </p>
 
-        {adminUserQuery.isLoading ? (
-          <Spinner label="Verifying administrator access..." />
-        ) : adminUserQuery.isError ? (
+        {statsQuery.isLoading ? (
+          <Spinner label="Loading dashboard stats..." />
+        ) : statsQuery.isError ? (
           <ErrorState
-            title="Administrator access denied"
-            description="Your account is signed in, but the server rejected administrator access."
+            title="Could not load dashboard stats"
+            description="The server did not return marketplace overview data."
             action={
               <Button
                 variant="secondary"
-                isLoading={adminUserQuery.isFetching}
-                onClick={() => adminUserQuery.refetch()}
+                isLoading={statsQuery.isFetching}
+                onClick={() => statsQuery.refetch()}
               >
                 Retry
               </Button>
             }
           />
-        ) : (
+        ) : stats ? (
           <>
-            <Alert
-              variant="success"
-              message="Administrator session verified with the server."
-            />
-            <div className="dashboard-card__details">
-              <p>
-                <strong>Name:</strong> {user?.full_name ?? 'Unavailable'}
-              </p>
-              <p>
-                <strong>Email:</strong> {user?.email ?? 'Unavailable'}
-              </p>
-              <p>
-                <strong>Role:</strong> {user?.role ?? 'Unavailable'}
-              </p>
+            <div className="admin-stats-grid" aria-label="Marketplace summary">
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Users</h2>
+                <p className="admin-stat-card__value">{stats.users.active}</p>
+                <p className="admin-stat-card__meta">
+                  {stats.users.total} total accounts
+                </p>
+              </article>
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Products</h2>
+                <p className="admin-stat-card__value">{stats.products.published}</p>
+                <p className="admin-stat-card__meta">
+                  {stats.products.total} total · {stats.products.draft} draft ·{' '}
+                  {stats.products.archived} archived
+                </p>
+              </article>
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Live categories</h2>
+                <p className="admin-stat-card__value">{stats.categories.live}</p>
+                <p className="admin-stat-card__meta">
+                  {stats.categories.total} categories overall
+                </p>
+              </article>
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Plugins</h2>
+                <p className="admin-stat-card__value">{stats.plugins.total}</p>
+                <p className="admin-stat-card__meta">Plugin store not live yet</p>
+              </article>
             </div>
+
+            <div className="admin-stats-grid admin-stats-grid--secondary">
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Pending projects</h2>
+                <p className="admin-stat-card__value">{stats.projects.pending}</p>
+                <p className="admin-stat-card__meta">Awaiting admin review</p>
+              </article>
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Live projects</h2>
+                <p className="admin-stat-card__value">{stats.projects.live}</p>
+                <p className="admin-stat-card__meta">
+                  {stats.projects.completed} completed overall
+                </p>
+              </article>
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Monthly sales</h2>
+                <p className="admin-stat-card__value">
+                  {formatCurrency(stats.sales.monthly_revenue, stats.sales.currency)}
+                </p>
+                <p className="admin-stat-card__meta">
+                  {stats.sales.monthly_orders} orders this month
+                </p>
+              </article>
+            </div>
+
+            <section className="admin-dashboard__section" aria-labelledby="live-categories-title">
+              <h2 id="live-categories-title">Live categories and product counts</h2>
+              {stats.category_breakdown.length ? (
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Category</th>
+                        <th scope="col">Slug</th>
+                        <th scope="col">Products</th>
+                        <th scope="col">Published</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.category_breakdown.map((category) => (
+                        <tr key={category.id}>
+                          <td>{category.name}</td>
+                          <td>{category.slug}</td>
+                          <td>{category.product_count}</td>
+                          <td>{category.published_product_count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="home-page__subtitle">
+                  No live categories yet. Create one to start organizing products.
+                </p>
+              )}
+            </section>
           </>
-        )}
+        ) : null}
 
         <div className="dashboard-card__actions">
+          <Link className="home-page__cta home-page__cta--secondary" to="/admin/products">
+            Manage products
+          </Link>
+          <Link className="home-page__cta home-page__cta--secondary" to="/admin/categories">
+            Manage categories
+          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/users">
             Manage users
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/profile">
             Edit profile
           </Link>
-          <Button
-            variant="secondary"
-            isLoading={logoutMutation.isPending}
-            onClick={() => logoutMutation.mutate()}
-          >
-            Sign out
-          </Button>
         </div>
       </section>
     </main>

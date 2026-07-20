@@ -5,7 +5,7 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~22%
+Overall Completion: ~40%
 Current Development Sprint
 Current Sprint: Sprint 3 – Marketplace
 Sprint Goal: Categories, products, and marketplace foundations
@@ -31,13 +31,13 @@ Sprint 2 – Authentication
 • [x] Protected Routes
 Sprint 3 – Marketplace
 • [x] Categories
-• [ ] Product CRUD
-• [ ] Product Images
-• [ ] Product Files
+• [x] Product CRUD
+• [x] Product Images
+• [x] Product Files
 • [ ] Product Details Page
-• [ ] Product Search
-• [ ] Product Filters
-• [ ] Pagination
+• [x] Product Search
+• [x] Product Filters
+• [x] Pagination
 Sprint 4 – 3D Viewer
 • [ ] React Three Fiber Setup
 • [ ] GLB Preview
@@ -83,9 +83,11 @@ Customer Dashboard
 • [ ] My Projects
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
+• [x] Admin layout & navigation (sidebar, header, mobile menu, session shell)
+• [x] Admin home dashboard with real stats (users, products, categories, placeholders)
 • [x] Dedicated /admin/login + customer/admin login separation
 • [x] Users (admin user CRUD)
-• [ ] Product Management
+• [x] Product Management
 • [ ] Plugin Management
 • [ ] Custom Projects
 • [ ] Payments
@@ -99,13 +101,12 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Categories Django app + admin API CRUD (backend complete).
+Plugins backend (Feature 6).
 Current Git Branch
 main (local development)
 Files Being Worked On
-• backend/categories/
-• backend/config/settings.py
-• backend/config/urls.py
+• backend/plugins/ (planned)
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
 Completed Features
 • Project setup (Django, React, PostgreSQL, JWT wiring)
 • Customer registration / login / logout / refresh
@@ -114,6 +115,13 @@ Completed Features
 • Customer profile + avatar upload
 • Protected customer routes
 • Product categories (model, public list/detail, admin CRUD API)
+• Marketplace products (model, public list/detail, admin CRUD API)
+• Product images + files upload (validated MIME/extension/size; local MEDIA)
+• Admin categories UI (list/create/edit/deactivate at /admin/categories)
+• Admin products UI (list/create/edit/archive + image/file uploads at /admin/products)
+• Admin layout & navigation (shared shell, sidebar, header, mobile menu)
+• Admin home dashboard with live stats (users, products, categories, category breakdown)
+• Product upload polish (USDZ support, media upload UX on admin product detail)
 • Administrator role seed + createsuperuser → Administrator
 • Dedicated /admin/login (email + password only)
 • POST /api/auth/admin/login/ (Administrator-only tokens)
@@ -125,13 +133,11 @@ Completed Features
 • Production security headers (when DEBUG=False)
 • Auth/admin/password-reset/email-verification security logging
 Pending Features
-• Admin categories UI (React)
-• Marketplace products
+• Public marketplace browse + product details page (React)
 • 3D product viewer
 • Plugin store
 • Cart / payments / orders / downloads
 • Custom project portal
-• Full admin product management screens
 • Docker production stack
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
@@ -140,7 +146,8 @@ Current Issues / Blockers
 Bugs
 No Known Bugs
 Technical Debt
-• Avatar storage is local MEDIA_ROOT (move to S3/R2 later)
+• Avatar/product storage is local MEDIA_ROOT (move to S3/R2 later)
+• Product downloadable files are reachable via MEDIA URL if path is known (signed URLs after payments)
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
 • Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
@@ -150,10 +157,202 @@ Important Decisions
 • RBAC uses accounts.Role (Administrator / Customer); backend permissions never trust frontend alone.
 • Customer login: POST /api/auth/login/; Admin login: POST /api/auth/admin/login/.
 • Admin user DELETE soft-deactivates (is_active=False); protect last active admin and self-lockout.
+• Product DELETE soft-archives (status=archived); public APIs only return status=published.
+• Public product file responses omit storage_path (download entitlement comes later).
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
 Daily Development Log
+Date: 2026-07-20 (Product management polish)
+Working Hours:
+Today's Objective: USDZ upload support + improved admin product media UX (Feature 3)
+Modules Completed: upload_rules USDZ, ProductMediaSection component, format helpers, tests
+Files Created:
+• frontend/src/lib/productUpload.ts
+• frontend/src/lib/productUpload.test.ts
+• frontend/src/pages/Admin/ProductMediaSection.tsx
+• frontend/src/pages/Admin/ProductMediaSection.test.tsx
+Files Modified:
+• backend/products/upload_rules.py
+• backend/products/test_products.py
+• frontend/src/pages/Admin/AdminProductDetailPage.tsx
+• frontend/src/pages/Admin/AdminProductDetailPage.test.tsx
+• frontend/src/index.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (extended existing product file upload validation)
+API Endpoints Modified:
+• POST /api/admin/products/<uuid>/files/ — now accepts .usdz (model/vnd.usdz+zip)
+Frontend Pages Modified:
+• /admin/products/:productId — polished images/files upload section with drag-and-drop, badges, thumbnails
+Problems Encountered:
+• None
+Solutions Implemented:
+• Extracted ProductMediaSection; shared productUpload constants mirror backend rules
+Lessons Learned:
+• Primary image upload already sets thumbnail server-side; UI now explains that clearly
+Next Development Task:
+• Plugins backend (Feature 6)
+Date: 2026-07-20 (Admin home dashboard stats)
+Working Hours:
+Today's Objective: Admin home dashboard with real stats (Feature 2)
+Modules Completed: analytics app, dashboard stats API, AdminDashboardPage stats UI, tests
+Files Created:
+• backend/analytics/ (services, serializers, views, admin_urls, test_dashboard_stats.py)
+• frontend/src/api/dashboardApi.ts
+• frontend/src/types/dashboard.ts
+• frontend/src/pages/Admin/AdminDashboardPage.test.tsx
+Files Modified:
+• backend/config/settings.py
+• backend/config/urls.py
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• frontend/src/styles/admin-layout.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• GET /api/admin/dashboard/stats/
+Frontend Pages Modified:
+• /admin — AdminDashboardPage now shows stat cards and live category breakdown
+Problems Encountered:
+• None
+Solutions Implemented:
+• New analytics app aggregates users/products/categories with efficient Count queries; placeholders for plugins/projects/sales until those modules ship
+Lessons Learned:
+• Category breakdown uses distinct Count to avoid duplicate rows from published filter joins
+Next Development Task:
+• Product management polish — USDZ support and upload UX (Feature 3)
+Date: 2026-07-20 (Admin layout & navigation)
+Working Hours:
+Today's Objective: Admin layout & navigation (Feature 1)
+Modules Completed: AdminLayout shell, sidebar nav, header, mobile menu, useAdminSession hook, tests
+Files Created:
+• frontend/src/layouts/AdminLayout.tsx
+• frontend/src/layouts/AdminLayout.test.tsx
+• frontend/src/hooks/useAdminSession.ts
+• frontend/src/config/adminNav.ts
+• frontend/src/styles/admin-layout.css
+Files Modified:
+• frontend/src/routes/AdminRoute.tsx
+• frontend/src/routes/AdminRoute.test.tsx
+• frontend/src/App.tsx
+• frontend/src/index.css
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• frontend/src/pages/Admin/AdminCategoriesPage.tsx
+• frontend/src/pages/Admin/AdminProductsPage.tsx
+• frontend/src/pages/Admin/AdminUsersPage.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None
+Frontend Pages Created:
+• None (layout wraps existing /admin/* routes)
+Frontend Components Added:
+• AdminLayout (sidebar + header shell for all admin routes except /admin/login)
+Problems Encountered:
+• None
+Solutions Implemented:
+• Centralized admin session verification and sign-out in useAdminSession; hid public Navbar on admin routes
+Lessons Learned:
+• Future admin sections (Plugins, Projects, Analytics) can be enabled in adminNav.ts as modules ship
+Next Development Task:
+• Admin home dashboard with real stats (Feature 2)
+Date: 2026-07-20 (Admin Products UI)
+Working Hours:
+Today's Objective: Admin Products UI (React)
+Modules Completed: productsApi client, admin list/create/detail pages, image/file uploads, routes, dashboard link, tests
+Files Created:
+• frontend/src/api/productsApi.ts
+• frontend/src/types/product.ts
+• frontend/src/pages/Admin/AdminProductsPage.tsx
+• frontend/src/pages/Admin/AdminProductDetailPage.tsx
+• frontend/src/pages/Admin/AdminProductsPage.test.tsx
+• frontend/src/pages/Admin/AdminProductDetailPage.test.tsx
+Files Modified:
+• frontend/src/App.tsx
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (reused existing /api/admin/products/ backend)
+Frontend Pages Created:
+• /admin/products — AdminProductsPage
+• /admin/products/:productId — AdminProductDetailPage
+Problems Encountered:
+• None
+Solutions Implemented:
+• Mirrored admin categories/users patterns; multipart uploads via productsApi + apiClient FormData handling
+Lessons Learned:
+• Product create on list page; media uploads on detail page keeps forms manageable
+Next Development Task:
+• Public marketplace browse + product detail pages (React)
+Date: 2026-07-20 (Admin Categories UI)
+Working Hours:
+Today's Objective: Admin Categories UI (React)
+Modules Completed: categoriesApi client, admin list/create/detail pages, routes, dashboard link, tests
+Files Created:
+• frontend/src/api/categoriesApi.ts
+• frontend/src/types/category.ts
+• frontend/src/pages/Admin/AdminCategoriesPage.tsx
+• frontend/src/pages/Admin/AdminCategoryDetailPage.tsx
+• frontend/src/pages/Admin/AdminCategoriesPage.test.tsx
+• frontend/src/pages/Admin/AdminCategoryDetailPage.test.tsx
+Files Modified:
+• frontend/src/App.tsx
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (reused existing /api/admin/categories/ backend)
+Frontend Pages Created:
+• /admin/categories — AdminCategoriesPage
+• /admin/categories/:categoryId — AdminCategoryDetailPage
+Problems Encountered:
+• None
+Solutions Implemented:
+• Mirrored AdminUsersPage/AdminUserDetailPage patterns; TanStack Query + categoriesApi module
+Lessons Learned:
+• Parent category dropdown should exclude self on detail edit to avoid invalid hierarchy
+Next Development Task:
+• Admin Products UI (React)
+Date: 2026-07-20 (Products)
+Working Hours:
+Today's Objective: Product CRUD Django app + admin wiring foundation
+Modules Completed: Product / ProductImage / ProductFile models, public + admin APIs, image/file uploads, tests
+Files Created:
+• backend/products/ (models, services, serializers, views, urls, admin_urls, pagination, admin, storage, upload_rules, test_products.py)
+• backend/products/migrations/0001_initial.py
+Files Modified:
+• backend/config/settings.py
+• backend/config/urls.py
+• backend/accounts/throttles.py
+• PROJECT_STATUS.md
+Database Changes:
+• New tables: products, product_images, product_files
+API Endpoints Added:
+• GET /api/products/
+• GET /api/products/<slug>/
+• GET/POST /api/admin/products/
+• GET/PATCH/DELETE /api/admin/products/<uuid>/
+• POST /api/admin/products/<uuid>/images/
+• DELETE /api/admin/products/<uuid>/images/<uuid>/
+• POST /api/admin/products/<uuid>/files/
+• DELETE /api/admin/products/<uuid>/files/<uuid>/
+Frontend Pages Created:
+• None (backend-only task)
+Problems Encountered:
+• None
+Solutions Implemented:
+• Reused categories app patterns, IsAdministrator, log_admin_action, AvatarStorageService URL shape
+Lessons Learned:
+• Hide downloadable storage_path on public serializers until signed downloads exist
+Next Development Task:
+• Admin categories + products React UI, then public marketplace browse/detail pages
 Date: 2026-07-17 (Categories)
 Working Hours:
 Today's Objective: Categories Django app
@@ -329,8 +528,8 @@ Final Release Checklist
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~22%
-Estimated Remaining Work: Marketplace + payments + plugins + custom projects + full admin
+Current Completion Percentage: ~40%
+Estimated Remaining Work: Marketplace UI + payments + plugins + custom projects + full admin
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { createAdminUser, listAdminUsers } from '../../api/authApi'
 import { Alert } from '../../components/ui/Alert'
@@ -25,6 +25,7 @@ const emptyCreateForm: AdminUserCreatePayload = {
 }
 
 export function AdminUsersPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -50,6 +51,7 @@ export function AdminUsersPage() {
       setShowCreate(false)
       setCreateError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      navigate('/admin', { replace: true })
     },
     onError: (error) => {
       setCreateError(getApiErrorMessage(error, 'Could not create user.'))
@@ -70,9 +72,6 @@ export function AdminUsersPage() {
         <p className="home-page__subtitle">Create, review, and manage platform accounts.</p>
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin">
-            Back to admin
-          </Link>
           <Button type="button" onClick={() => setShowCreate((value) => !value)}>
             {showCreate ? 'Hide create form' : 'Create user'}
           </Button>
