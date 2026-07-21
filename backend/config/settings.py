@@ -15,6 +15,7 @@ from pathlib import Path
 
 from decouple import Config, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
+from django.utils.csp import CSP
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -65,6 +66,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'django.middleware.csp.ContentSecurityPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -211,6 +213,23 @@ CORS_ALLOWED_ORIGINS = config(
     cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
 )
 CORS_ALLOW_CREDENTIALS = False
+
+# Backend/API CSP. The separately deployed frontend host must emit its own CSP
+# header at the CDN or web-server layer.
+SECURE_CSP = {
+    "default-src": [CSP.SELF],
+    # Django's built-in administrator currently emits small inline scripts.
+    "script-src": [CSP.SELF, CSP.UNSAFE_INLINE],
+    "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
+    "img-src": [CSP.SELF, "data:"],
+    "font-src": [CSP.SELF],
+    "connect-src": [CSP.SELF],
+    "object-src": [CSP.NONE],
+    "base-uri": [CSP.SELF],
+    "frame-ancestors": [CSP.NONE],
+    "form-action": [CSP.SELF],
+}
+SECURE_CSP_REPORT_ONLY = {}
 
 FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="http://localhost:5173")
 

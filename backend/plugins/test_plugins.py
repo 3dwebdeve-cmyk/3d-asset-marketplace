@@ -1,8 +1,10 @@
 import io
 import tempfile
 from decimal import Decimal
+from unittest.mock import patch
 from zipfile import ZipFile
 
+from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
@@ -13,7 +15,12 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
+from accounts.throttles import AdminPluginWriteRateThrottle
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
+from plugins.upload_rules import (
+    PLUGIN_FILE_MAX_BYTES,
+    validate_plugin_file_upload,
+)
 
 
 def make_image_bytes() -> bytes:
@@ -97,6 +104,8 @@ class PluginPublicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "blender")
+        self.assertIn("Content-Security-Policy", response)
+        self.assertIn("object-src 'none'", response["Content-Security-Policy"])
 
     def test_public_list_returns_only_published_plugins(self) -> None:
         response = self.client.get(reverse("plugins:plugin-list"))
@@ -127,6 +136,22 @@ class PluginPublicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "mesh-toolkit")
+
+    def test_public_list_query_count_does_not_scale_with_plugins(self) -> None:
+        for index in range(5):
+            Plugin.objects.create(
+                category=self.category,
+                name=f"Published Toolkit {index}",
+                slug=f"published-toolkit-{index}",
+                price=Decimal("10.00"),
+                status=Plugin.Status.PUBLISHED,
+            )
+
+        with self.assertNumQueries(2):
+            response = self.client.get(reverse("plugins:plugin-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 6)
 
     def test_public_detail_hides_storage_path(self) -> None:
         response = self.client.get(
@@ -298,6 +323,49 @@ class PluginAdminAPITests(PluginTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("status", response.data)
 
+    @patch.object(AdminPluginWriteRateThrottle, "rate", "1/min", create=True)
+    def test_admin_plugin_endpoints_are_rate_limited(self) -> None:
+        self.authenticate_admin()
+
+        first = self.client.get(self.plugin_list_url)
+        second = self.client.get(self.plugin_list_url)
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(second.data.get("code"), "throttled")
+        self.assertIn("Too many attempts", second.data.get("detail", ""))
+
+    def test_admin_list_is_lightweight_and_constant_query_count(self) -> None:
+        for index in range(5):
+            plugin = Plugin.objects.create(
+                category=self.category,
+                name=f"Admin Toolkit {index}",
+                slug=f"admin-toolkit-{index}",
+                price=Decimal("10.00"),
+            )
+            PluginImage.objects.create(
+                plugin=plugin,
+                image_url=f"https://example.com/{index}.png",
+            )
+            PluginFile.objects.create(
+                plugin=plugin,
+                file_name=f"plugin-{index}.zip",
+                file_format="zip",
+                file_size=100,
+                storage_path=f"https://example.com/{index}.zip",
+            )
+        self.authenticate_admin()
+
+        with self.assertNumQueries(2):
+            response = self.client.get(self.plugin_list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 6)
+        for item in response.data["results"]:
+            self.assertNotIn("images", item)
+            self.assertNotIn("files", item)
+            self.assertNotIn("storage_path", item)
+
 
 class PluginModelConstraintTests(TestCase):
     def setUp(self) -> None:
@@ -345,6 +413,35 @@ class PluginModelConstraintTests(TestCase):
                 storage_path="https://example.com/two.zip",
                 is_primary=True,
             )
+
+
+class PluginUploadRuleTests(TestCase):
+    def test_package_rejects_oversized_upload(self) -> None:
+        archive = SimpleUploadedFile(
+            "plugin.zip",
+            make_zip_bytes(),
+            content_type="application/zip",
+        )
+        archive.size = PLUGIN_FILE_MAX_BYTES + 1
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Plugin package must be 50 MB or smaller.",
+        ):
+            validate_plugin_file_upload(archive)
+
+    def test_package_rejects_mismatched_mime_type(self) -> None:
+        archive = SimpleUploadedFile(
+            "plugin.zip",
+            make_zip_bytes(),
+            content_type="application/x-msdownload",
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            "Invalid MIME type for this plugin package.",
+        ):
+            validate_plugin_file_upload(archive)
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
@@ -413,7 +510,7 @@ class PluginMediaAPITests(PluginTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["file_format"], "zip")
         self.assertTrue(response.data["is_primary"])
-        self.assertIn("/media/plugins/files/", response.data["storage_path"])
+        self.assertNotIn("storage_path", response.data)
 
     def test_upload_rejects_dangerous_extension_and_fake_archive(self) -> None:
         self.authenticate_admin()

@@ -78,6 +78,10 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByText('Furniture')).toBeInTheDocument()
     expect(screen.getByText('Architecture')).toBeInTheDocument()
     expect(screen.getByText('$0.00')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Manage plugins' })).toHaveAttribute(
+      'href',
+      '/admin/plugins',
+    )
     expect(dashboardApi.getAdminDashboardStats).toHaveBeenCalledTimes(1)
   })
 

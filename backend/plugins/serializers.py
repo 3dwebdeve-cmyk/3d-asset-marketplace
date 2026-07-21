@@ -3,8 +3,11 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
-from plugins.upload_rules import validate_plugin_file_upload
-from products.upload_rules import validate_product_image_upload
+from plugins.upload_rules import ValidatedPluginFileUpload, validate_plugin_file_upload
+from products.upload_rules import (
+    ValidatedProductImageUpload,
+    validate_product_image_upload,
+)
 
 
 class PluginCategorySerializer(serializers.ModelSerializer):
@@ -78,7 +81,6 @@ class PluginFileAdminSerializer(serializers.ModelSerializer):
             "file_name",
             "file_format",
             "file_size",
-            "storage_path",
             "version",
             "is_primary",
             "created_at",
@@ -124,6 +126,11 @@ class PluginDetailPublicSerializer(PluginListPublicSerializer):
             "files",
             "updated_at",
         )
+
+
+class PluginAdminListSerializer(PluginListPublicSerializer):
+    class Meta(PluginListPublicSerializer.Meta):
+        fields = PluginListPublicSerializer.Meta.fields + ("status",)
 
 
 class PluginAdminSerializer(serializers.ModelSerializer):
@@ -286,22 +293,26 @@ class PluginUpdateSerializer(serializers.Serializer):
 
 
 class PluginImageUploadSerializer(serializers.Serializer):
+    validated_upload: ValidatedProductImageUpload
+
     image = serializers.ImageField()
     display_order = serializers.IntegerField(required=False, min_value=0, default=0)
     is_primary = serializers.BooleanField(required=False, default=False)
 
     def validate_image(self, value):
-        validate_product_image_upload(value)
+        self.validated_upload = validate_product_image_upload(value)
         return value
 
 
 class PluginFileUploadSerializer(serializers.Serializer):
+    validated_upload: ValidatedPluginFileUpload
+
     file = serializers.FileField()
     version = serializers.CharField(required=False, default="1.0", max_length=64)
     is_primary = serializers.BooleanField(required=False, default=False)
 
     def validate_file(self, value):
-        validate_plugin_file_upload(value)
+        self.validated_upload = validate_plugin_file_upload(value)
         return value
 
     def validate_version(self, value: str) -> str:

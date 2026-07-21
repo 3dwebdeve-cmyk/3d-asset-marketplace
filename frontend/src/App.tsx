@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -28,6 +28,27 @@ import './App.css'
 import './styles/auth.css'
 import './styles/admin-layout.css'
 import './styles/navbar.css'
+
+const AdminPluginsPage = lazy(() =>
+  import('./pages/Admin/AdminPluginsPage').then((module) => ({
+    default: module.AdminPluginsPage,
+  })),
+)
+const AdminPluginDetailPage = lazy(() =>
+  import('./pages/Admin/AdminPluginDetailPage').then((module) => ({
+    default: module.AdminPluginDetailPage,
+  })),
+)
+const AdminPluginCategoriesPage = lazy(() =>
+  import('./pages/Admin/AdminPluginCategoriesPage').then((module) => ({
+    default: module.AdminPluginCategoriesPage,
+  })),
+)
+const AdminPluginCategoryDetailPage = lazy(() =>
+  import('./pages/Admin/AdminPluginCategoryDetailPage').then((module) => ({
+    default: module.AdminPluginCategoryDetailPage,
+  })),
+)
 
 function AppRoutes() {
   const location = useLocation()
@@ -69,6 +90,19 @@ function AppRoutes() {
               <Route
                 path="/admin/products/:productId"
                 element={<AdminProductDetailPage />}
+              />
+              <Route path="/admin/plugins" element={<AdminPluginsPage />} />
+              <Route
+                path="/admin/plugins/:pluginId"
+                element={<AdminPluginDetailPage />}
+              />
+              <Route
+                path="/admin/plugin-categories"
+                element={<AdminPluginCategoriesPage />}
+              />
+              <Route
+                path="/admin/plugin-categories/:categoryId"
+                element={<AdminPluginCategoryDetailPage />}
               />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/users/:userId" element={<AdminUserDetailPage />} />

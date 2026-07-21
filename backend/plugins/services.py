@@ -5,14 +5,13 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
-from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
 from plugins.storage import PluginMediaStorageService
-from plugins.upload_rules import validate_plugin_file_upload
-from products.upload_rules import validate_product_image_upload
+from plugins.upload_rules import ValidatedPluginFileUpload
+from products.upload_rules import ValidatedProductImageUpload
 
 
 class PluginError(Exception):
@@ -208,7 +207,10 @@ class PluginService:
         search: str | None = None,
         ordering: str | None = None,
     ) -> QuerySet[Plugin]:
-        queryset = cls._base_queryset().filter(
+        # Public list responses do not serialize images or files. Avoid loading
+        # media collections for every row; detail/admin serializers still use
+        # the media-prefetching base queryset.
+        queryset = Plugin.objects.select_related("category").filter(
             status=Plugin.Status.PUBLISHED,
             category__is_active=True,
         )
@@ -228,7 +230,7 @@ class PluginService:
         search: str | None = None,
         ordering: str | None = None,
     ) -> QuerySet[Plugin]:
-        queryset = cls._base_queryset()
+        queryset = Plugin.objects.select_related("category")
         if status is not None:
             queryset = queryset.filter(status=status)
         return cls._filter_list(
@@ -274,6 +276,13 @@ class PluginService:
     def get_by_id(cls, plugin_id: UUID) -> Plugin:
         try:
             return cls._base_queryset().get(pk=plugin_id)
+        except Plugin.DoesNotExist as exc:
+            raise PluginError("Plugin not found.") from exc
+
+    @staticmethod
+    def get_for_mutation_by_id(plugin_id: UUID) -> Plugin:
+        try:
+            return Plugin.objects.select_related("category").get(pk=plugin_id)
         except Plugin.DoesNotExist as exc:
             raise PluginError("Plugin not found.") from exc
 
@@ -369,12 +378,11 @@ class PluginService:
     def add_image(
         cls,
         plugin: Plugin,
-        uploaded: UploadedFile,
+        validated: ValidatedProductImageUpload,
         *,
         display_order: int = 0,
         is_primary: bool = False,
     ) -> PluginImage:
-        validated = validate_product_image_upload(uploaded)
         image_url = PluginMediaStorageService.save_image(
             str(plugin.pk),
             validated.file,
@@ -423,12 +431,11 @@ class PluginService:
     def add_file(
         cls,
         plugin: Plugin,
-        uploaded: UploadedFile,
+        validated: ValidatedPluginFileUpload,
         *,
         version: str,
         is_primary: bool = False,
     ) -> PluginFile:
-        validated = validate_plugin_file_upload(uploaded)
         storage_path = PluginMediaStorageService.save_file(
             str(plugin.pk),
             validated.file,
@@ -440,9 +447,9 @@ class PluginService:
             )
         return PluginFile.objects.create(
             plugin=plugin,
-            file_name=Path(uploaded.name.replace("\\", "/")).name,
+            file_name=Path(validated.file.name.replace("\\", "/")).name,
             file_format=validated.file_format,
-            file_size=uploaded.size or 0,
+            file_size=validated.file.size or 0,
             storage_path=storage_path,
             version=cls._normalize_version(version),
             is_primary=is_primary,
