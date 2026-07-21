@@ -1,0 +1,124 @@
+import uuid
+
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.db import models
+
+
+class Role(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    role_name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "roles"
+        ordering = ["role_name"]
+
+    def __str__(self) -> str:
+        return self.role_name
+
+
+class UserManager(BaseUserManager):
+    def create_user(
+        self,
+        email: str,
+        full_name: str,
+        password: str,
+        role: Role,
+        phone: str = "",
+        country: str = "",
+        email_verified: bool = False,
+    ) -> "User":
+        if not email:
+            raise ValueError("Email is required.")
+        if not full_name:
+            raise ValueError("Full name is required.")
+        if not password:
+            raise ValueError("Password is required.")
+
+        email = self.normalize_email(email)
+        user = self.model(
+            email=email,
+            full_name=full_name.strip(),
+            phone=phone.strip(),
+            country=country.strip(),
+            role=role,
+            email_verified=email_verified,
+        )
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(
+        self,
+        email: str,
+        full_name: str,
+        password: str,
+        phone: str = "",
+        country: str = "",
+    ) -> "User":
+        role, _ = Role.objects.get_or_create(
+            role_name="Administrator",
+            defaults={"description": "Platform administrator"},
+        )
+        user = self.create_user(
+            email=email,
+            full_name=full_name,
+            password=password,
+            role=role,
+            phone=phone,
+            country=country,
+            email_verified=True,
+        )
+        user.is_staff = True
+        user.is_superuser = True
+        user.save(using=self._db)
+        return user
+
+
+class User(AbstractBaseUser, PermissionsMixin):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    full_name = models.CharField(max_length=255)
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    avatar = models.URLField(blank=True)
+    role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name="users")
+    email_verified = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    is_staff = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = UserManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["full_name"]
+
+    class Meta:
+        db_table = "users"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return self.email
+
+
+class UserProfile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    company_name = models.CharField(max_length=255, blank=True)
+    website = models.URLField(blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "user_profiles"
+
+    def __str__(self) -> str:
+        return f"Profile for {self.user.email}"

@@ -1,0 +1,61 @@
+import { AxiosError } from 'axios'
+import { describe, expect, it } from 'vitest'
+
+import { getApiErrorMessage } from './apiError'
+import type { ApiErrorResponse } from '../types/auth'
+
+function axiosError(
+  status: number,
+  data: ApiErrorResponse | undefined,
+): AxiosError<ApiErrorResponse> {
+  return new AxiosError(
+    'Request failed',
+    String(status),
+    undefined,
+    undefined,
+    {
+      status,
+      statusText: 'Error',
+      data: data as ApiErrorResponse,
+      headers: {},
+      config: {} as never,
+    },
+  )
+}
+
+describe('getApiErrorMessage', () => {
+  it('prefers detail from the API payload', () => {
+    const error = axiosError(401, {
+      detail: 'Invalid email or password.',
+      code: 'authentication_failed',
+    })
+    expect(getApiErrorMessage(error, 'fallback')).toBe('Invalid email or password.')
+  })
+
+  it('shows throttle detail for 429 responses', () => {
+    const error = axiosError(429, {
+      detail: 'Too many attempts. Please try again in 12 seconds.',
+      code: 'throttled',
+    })
+    expect(getApiErrorMessage(error, 'fallback')).toBe(
+      'Too many attempts. Please try again in 12 seconds.',
+    )
+  })
+
+  it('falls back for empty 429 bodies', () => {
+    const error = axiosError(429, undefined)
+    expect(getApiErrorMessage(error, 'fallback')).toBe(
+      'Too many attempts. Please wait and try again.',
+    )
+  })
+
+  it('skips code when reading field errors', () => {
+    const error = axiosError(400, {
+      code: 'validation_error',
+      email: ['A user with this email already exists.'],
+    })
+    expect(getApiErrorMessage(error, 'fallback')).toBe(
+      'A user with this email already exists.',
+    )
+  })
+})
