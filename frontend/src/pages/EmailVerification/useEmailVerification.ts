@@ -16,6 +16,7 @@ export function useEmailVerification(uid: string, token: string): UseEmailVerifi
   const mutation = useMutation({
     mutationFn: confirmEmailVerification,
   })
+  const { mutate } = mutation
 
   useEffect(() => {
     if (!uid || !token || hasAttempted.current) {
@@ -23,8 +24,8 @@ export function useEmailVerification(uid: string, token: string): UseEmailVerifi
     }
 
     hasAttempted.current = true
-    mutation.mutate({ uid, token })
-  }, [uid, token])
+    mutate({ uid, token })
+  }, [mutate, token, uid])
 
   return {
     isVerifying: mutation.isPending,

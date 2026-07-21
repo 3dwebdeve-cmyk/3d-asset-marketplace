@@ -84,7 +84,7 @@ export function AdminDashboardPage() {
               <article className="admin-stat-card">
                 <h2 className="admin-stat-card__label">Plugins</h2>
                 <p className="admin-stat-card__value">{stats.plugins.total}</p>
-                <p className="admin-stat-card__meta">Plugin store not live yet</p>
+                <p className="admin-stat-card__meta">Plugin products overall</p>
               </article>
             </div>
 
@@ -152,6 +152,9 @@ export function AdminDashboardPage() {
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/categories">
             Manage categories
+          </Link>
+          <Link className="home-page__cta home-page__cta--secondary" to="/admin/plugins">
+            Manage plugins
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/users">
             Manage users

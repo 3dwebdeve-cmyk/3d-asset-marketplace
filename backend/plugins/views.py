@@ -14,6 +14,7 @@ from accounts.throttles import AdminPluginWriteRateThrottle
 from plugins.models import Plugin
 from plugins.pagination import PluginPagination
 from plugins.serializers import (
+    PluginAdminListSerializer,
     PluginAdminSerializer,
     PluginCategoryCreateSerializer,
     PluginCategorySerializer,
@@ -270,7 +271,7 @@ class AdminPluginListCreateView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(
-            PluginAdminSerializer(page, many=True).data
+            PluginAdminListSerializer(page, many=True).data
         )
 
     def post(self, request: Request) -> Response:
@@ -381,6 +382,13 @@ class AdminPluginDetailView(APIView):
         except PluginError as exc:
             raise NotFound(exc.message) from exc
 
+    @staticmethod
+    def _get_plugin_for_mutation(plugin_id: UUID) -> Plugin:
+        try:
+            return PluginService.get_for_mutation_by_id(plugin_id)
+        except PluginError as exc:
+            raise NotFound(exc.message) from exc
+
 
 class AdminPluginImageUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
@@ -388,12 +396,12 @@ class AdminPluginImageUploadView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, plugin_id: UUID) -> Response:
-        plugin = AdminPluginDetailView._get_plugin(plugin_id)
+        plugin = AdminPluginDetailView._get_plugin_for_mutation(plugin_id)
         serializer = PluginImageUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         image = PluginService.add_image(
             plugin,
-            serializer.validated_data["image"],
+            serializer.validated_upload,
             display_order=serializer.validated_data.get("display_order", 0),
             is_primary=serializer.validated_data.get("is_primary", False),
         )
@@ -413,7 +421,7 @@ class AdminPluginImageDetailView(APIView):
     throttle_classes = [AdminPluginWriteRateThrottle]
 
     def delete(self, request: Request, plugin_id: UUID, image_id: UUID) -> Response:
-        plugin = AdminPluginDetailView._get_plugin(plugin_id)
+        plugin = AdminPluginDetailView._get_plugin_for_mutation(plugin_id)
         try:
             PluginService.delete_image(plugin, image_id)
         except PluginError as exc:
@@ -432,12 +440,12 @@ class AdminPluginFileUploadView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, plugin_id: UUID) -> Response:
-        plugin = AdminPluginDetailView._get_plugin(plugin_id)
+        plugin = AdminPluginDetailView._get_plugin_for_mutation(plugin_id)
         serializer = PluginFileUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         plugin_file = PluginService.add_file(
             plugin,
-            serializer.validated_data["file"],
+            serializer.validated_upload,
             version=serializer.validated_data.get("version", "1.0"),
             is_primary=serializer.validated_data.get("is_primary", False),
         )
@@ -457,7 +465,7 @@ class AdminPluginFileDetailView(APIView):
     throttle_classes = [AdminPluginWriteRateThrottle]
 
     def delete(self, request: Request, plugin_id: UUID, file_id: UUID) -> Response:
-        plugin = AdminPluginDetailView._get_plugin(plugin_id)
+        plugin = AdminPluginDetailView._get_plugin_for_mutation(plugin_id)
         try:
             PluginService.delete_file(plugin, file_id)
         except PluginError as exc:

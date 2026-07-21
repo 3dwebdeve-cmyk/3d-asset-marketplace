@@ -99,17 +99,19 @@ describe('AdminLayout', () => {
     )
   })
 
-  it('shows coming soon items as disabled navigation entries', async () => {
+  it('enables plugins while keeping future modules disabled', async () => {
     renderAdminLayout()
 
     await waitFor(() => {
       expect(screen.getByText('Admin dashboard content')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Plugins')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute(
+      'href',
+      '/admin/plugins',
+    )
     expect(screen.getByText('Projects')).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByText('Analytics')).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.queryByRole('link', { name: /^plugins$/i })).not.toBeInTheDocument()
   })
 
   it('signs out administrators to the admin login page', async () => {

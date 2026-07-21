@@ -2,7 +2,6 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import * as productsApi from '../../api/productsApi'
 import { createTestQueryClient, resetAuthStore, resetToastStore } from '../../test/test-utils'
 import { ProductMediaSection } from './ProductMediaSection'
 
