@@ -5,7 +5,7 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~40%
+Overall Completion: ~43%
 Current Development Sprint
 Current Sprint: Sprint 3 – Marketplace
 Sprint Goal: Categories, products, and marketplace foundations
@@ -46,11 +46,11 @@ Sprint 4 – 3D Viewer
 • [ ] Fullscreen Mode
 • [ ] Responsive Viewer
 Sprint 5 – Plugin Store
-• [ ] Plugin Categories
-• [ ] Plugin Listing
-• [ ] Plugin Details
+• [x] Plugin Categories (backend APIs)
+• [x] Plugin Listing (backend API)
+• [x] Plugin Details (backend API)
 • [ ] Plugin Downloads
-• [ ] Plugin Search
+• [x] Plugin Search (backend API)
 Sprint 6 – Shopping & Payments
 • [ ] Shopping Cart
 • [ ] Checkout
@@ -84,7 +84,7 @@ Customer Dashboard
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
 • [x] Admin layout & navigation (sidebar, header, mobile menu, session shell)
-• [x] Admin home dashboard with real stats (users, products, categories, placeholders)
+• [x] Admin home dashboard with real stats (users, products, categories, plugins; project/sales placeholders)
 • [x] Dedicated /admin/login + customer/admin login separation
 • [x] Users (admin user CRUD)
 • [x] Product Management
@@ -101,12 +101,12 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Plugins backend (Feature 6).
+Plugins admin UI (Feature 7).
 Current Git Branch
 main (local development)
 Files Being Worked On
-• backend/plugins/ (planned)
-• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• frontend/src/pages/Admin/ (planned)
+• frontend/src/api/pluginsApi.ts (planned)
 Completed Features
 • Project setup (Django, React, PostgreSQL, JWT wiring)
 • Customer registration / login / logout / refresh
@@ -122,6 +122,8 @@ Completed Features
 • Admin layout & navigation (shared shell, sidebar, header, mobile menu)
 • Admin home dashboard with live stats (users, products, categories, category breakdown)
 • Product upload polish (USDZ support, media upload UX on admin product detail)
+• Plugin catalog backend (categories, CRUD, public APIs, image/package uploads, search/filtering)
+• Admin dashboard live plugin total
 • Administrator role seed + createsuperuser → Administrator
 • Dedicated /admin/login (email + password only)
 • POST /api/auth/admin/login/ (Administrator-only tokens)
@@ -135,7 +137,7 @@ Completed Features
 Pending Features
 • Public marketplace browse + product details page (React)
 • 3D product viewer
-• Plugin store
+• Plugin admin UI + public plugin store UI
 • Cart / payments / orders / downloads
 • Custom project portal
 • Docker production stack
@@ -146,8 +148,8 @@ Current Issues / Blockers
 Bugs
 No Known Bugs
 Technical Debt
-• Avatar/product storage is local MEDIA_ROOT (move to S3/R2 later)
-• Product downloadable files are reachable via MEDIA URL if path is known (signed URLs after payments)
+• Avatar/product/plugin storage is local MEDIA_ROOT (move to S3/R2 later)
+• Product/plugin downloadable files are reachable via MEDIA URL if path is known (signed URLs after payments)
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
 • Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
@@ -159,10 +161,59 @@ Important Decisions
 • Admin user DELETE soft-deactivates (is_active=False); protect last active admin and self-lockout.
 • Product DELETE soft-archives (status=archived); public APIs only return status=published.
 • Public product file responses omit storage_path (download entitlement comes later).
+• Plugin categories are separate from product categories; public plugin file responses omit storage_path.
+• Plugin packages accept ZIP/RAR/7Z; ZIP metadata is scanned for traversal and expansion limits.
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
 Daily Development Log
+Date: 2026-07-21 (Plugins backend)
+Working Hours:
+Today's Objective: Plugin catalog Django app (Feature 6)
+Modules Completed: PluginCategory, Plugin, PluginImage, PluginFile, public/admin APIs, uploads, tests
+Files Created:
+• backend/plugins/ (models, services, serializers, views, URLs, storage, upload rules, admin, pagination, migration, tests)
+Files Modified:
+• backend/config/settings.py
+• backend/config/urls.py
+• backend/accounts/throttles.py
+• backend/analytics/services.py
+• backend/analytics/test_dashboard_stats.py
+• PROJECT_STATUS.md
+Database Changes:
+• New tables: plugin_categories, plugins, plugin_images, plugin_files
+• Database constraints: valid pricing/rating ranges and one primary image/file per plugin
+API Endpoints Added:
+• GET /api/plugin-categories/
+• GET /api/plugin-categories/<slug>/
+• GET /api/plugins/
+• GET /api/plugins/<slug>/
+• GET/POST /api/admin/plugin-categories/
+• GET/PATCH/DELETE /api/admin/plugin-categories/<uuid>/
+• GET/POST /api/admin/plugins/
+• GET/PATCH/DELETE /api/admin/plugins/<uuid>/
+• POST /api/admin/plugins/<uuid>/images/
+• DELETE /api/admin/plugins/<uuid>/images/<uuid>/
+• POST /api/admin/plugins/<uuid>/files/
+• DELETE /api/admin/plugins/<uuid>/files/<uuid>/
+API Endpoints Modified:
+• GET /api/admin/dashboard/stats/ — plugin total is now live
+Frontend Pages Modified:
+• None (backend-only task)
+Problems Encountered:
+• None
+Solutions Implemented:
+• Reused product/category service, serializer, permission, pagination, logging, storage, and upload patterns
+• Added archive signature checks plus ZIP path traversal, symlink, encryption, entry count, and expansion limits
+Verification:
+• Plugin backend: 18/18 tests passed
+• Full backend: 115/115 tests passed
+• Full frontend: 64/64 tests passed
+• Django checks and migration drift checks passed
+Security Review:
+• No medium, high, or critical issues found
+Next Development Task:
+• Plugins admin UI (Feature 7)
 Date: 2026-07-20 (Product management polish)
 Working Hours:
 Today's Objective: USDZ upload support + improved admin product media UX (Feature 3)
@@ -528,7 +579,7 @@ Final Release Checklist
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~40%
+Current Completion Percentage: ~43%
 Estimated Remaining Work: Marketplace UI + payments + plugins + custom projects + full admin
 Expected Production Release Date: ____
 Notes

@@ -7,6 +7,7 @@ from django.db.models import Count, Q
 
 from accounts.models import User
 from categories.models import Category
+from plugins.models import Plugin
 from products.models import Product
 
 
@@ -39,6 +40,7 @@ class DashboardStatsService:
             total=Count("id"),
             live=Count("id", filter=Q(is_active=True)),
         )
+        plugin_counts = Plugin.objects.aggregate(total=Count("id"))
 
         category_breakdown = [
             CategoryBreakdownItem(
@@ -87,7 +89,7 @@ class DashboardStatsService:
                 "live": category_counts["live"],
             },
             "plugins": {
-                "total": 0,
+                "total": plugin_counts["total"],
             },
             "projects": {
                 "pending": 0,

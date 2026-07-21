@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'accounts',
     'categories',
     'products',
+    'plugins',
     'analytics',
 ]
 
@@ -174,6 +175,7 @@ REST_FRAMEWORK = {
         "auth_email_verification_confirm": "10/hour",
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
+        "admin_plugin_write": "60/min",
     },
 }
 

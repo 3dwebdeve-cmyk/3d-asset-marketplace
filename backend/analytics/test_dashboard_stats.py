@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
 from categories.models import Category
+from plugins.models import Plugin, PluginCategory
 from products.models import Product
 
 
@@ -59,6 +60,16 @@ class AdminDashboardStatsAPITests(APITestCase):
             price=Decimal("99.00"),
             status=Product.Status.DRAFT,
         )
+        plugin_category = PluginCategory.objects.create(
+            name="Blender",
+            slug="blender",
+        )
+        Plugin.objects.create(
+            category=plugin_category,
+            name="Mesh Toolkit",
+            slug="mesh-toolkit",
+            price=Decimal("20.00"),
+        )
 
         self.stats_url = reverse("analytics_admin:admin-dashboard-stats")
         self.admin_login_url = reverse("accounts:admin-login")
@@ -99,7 +110,7 @@ class AdminDashboardStatsAPITests(APITestCase):
         self.assertEqual(response.data["products"]["archived"], 0)
         self.assertEqual(response.data["categories"]["total"], 2)
         self.assertEqual(response.data["categories"]["live"], 1)
-        self.assertEqual(response.data["plugins"]["total"], 0)
+        self.assertEqual(response.data["plugins"]["total"], 1)
         self.assertEqual(response.data["projects"]["pending"], 0)
         self.assertEqual(response.data["projects"]["live"], 0)
         self.assertEqual(response.data["projects"]["completed"], 0)

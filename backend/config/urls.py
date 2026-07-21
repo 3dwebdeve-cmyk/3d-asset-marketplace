@@ -26,6 +26,10 @@ urlpatterns = [
     path('api/admin/categories/', include('categories.admin_urls')),
     path('api/products/', include('products.urls')),
     path('api/admin/products/', include('products.admin_urls')),
+    path('api/plugins/', include('plugins.urls')),
+    path('api/plugin-categories/', include('plugins.category_urls')),
+    path('api/admin/plugins/', include('plugins.admin_urls')),
+    path('api/admin/plugin-categories/', include('plugins.admin_category_urls')),
     path('api/admin/dashboard/', include('analytics.admin_urls')),
 ]
 
