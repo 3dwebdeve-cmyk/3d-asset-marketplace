@@ -153,9 +153,17 @@ class AuthenticationService:
         }
 
     @staticmethod
-    def blacklist_refresh_token(refresh_token: str) -> None:
+    def blacklist_refresh_token(
+        refresh_token: str,
+        *,
+        user: User | None = None,
+    ) -> None:
         try:
             token = RefreshToken(refresh_token)
+            if user is not None:
+                token_user_id = token.payload.get("user_id")
+                if str(token_user_id) != str(user.pk):
+                    raise AuthenticationError("Invalid refresh token.")
             token.blacklist()
         except TokenError as exc:
             raise AuthenticationError("Invalid refresh token.") from exc

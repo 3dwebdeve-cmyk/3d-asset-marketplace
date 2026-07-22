@@ -15,17 +15,17 @@ from accounts.throttles import (
     AdminCustomProjectWriteRateThrottle,
     CustomProjectWriteRateThrottle,
 )
-from custom_projects.models import CustomProject
+from custom_projects.models import CustomProject, ProjectFile
 from custom_projects.pagination import CustomProjectPagination
 from custom_projects.serializers import (
     AdminCustomProjectCreateSerializer,
     CustomProjectCreateSerializer,
     CustomProjectCustomerDetailSerializer,
+    CustomProjectCustomerListSerializer,
     CustomProjectDetailSerializer,
     CustomProjectListSerializer,
     CustomProjectUpdateSerializer,
     ProjectFilePublicSerializer,
-    ProjectFileSerializer,
     ProjectFileUploadSerializer,
     ProjectQuotationSerializer,
     ProjectQuotationUpsertSerializer,
@@ -38,6 +38,7 @@ from custom_projects.services import (
     ProjectQuotationData,
 )
 from custom_projects.upload_rules import validate_project_file_upload
+from config.media import open_stored_file
 
 
 def _error_response(exc: CustomProjectError) -> Response:
@@ -80,7 +81,7 @@ class CustomerCustomProjectListCreateView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(
-            CustomProjectListSerializer(page, many=True).data
+            CustomProjectCustomerListSerializer(page, many=True).data
         )
 
     def post(self, request: Request) -> Response:
@@ -192,7 +193,7 @@ class AdminCustomProjectListCreateView(APIView):
         )
         detail = CustomProjectService.get_for_admin(project.id)
         return Response(
-            CustomProjectDetailSerializer(detail).data,
+            CustomProjectDetailSerializer(detail, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -206,7 +207,9 @@ class AdminCustomProjectDetailView(APIView):
             project = CustomProjectService.get_for_admin(project_id)
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
-        return Response(CustomProjectDetailSerializer(project).data)
+        return Response(
+            CustomProjectDetailSerializer(project, context={"request": request}).data
+        )
 
     def patch(self, request: Request, project_id: UUID) -> Response:
         try:
@@ -246,7 +249,23 @@ class AdminCustomProjectDetailView(APIView):
             actor_id=str(request.user.id),
             target_id=str(project_id),
         )
-        return Response(CustomProjectDetailSerializer(updated).data)
+        return Response(
+            CustomProjectDetailSerializer(updated, context={"request": request}).data
+        )
+
+
+class AdminCustomProjectFileDownloadView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+
+    def get(self, request: Request, project_id: UUID, file_id: UUID):
+        try:
+            CustomProjectService.get_for_admin(project_id)
+            project_file = ProjectFile.objects.get(pk=file_id, project_id=project_id)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+        except ProjectFile.DoesNotExist as exc:
+            raise NotFound(detail="File not found.") from exc
+        return open_stored_file(project_file.storage_path)
 
 
 class AdminCustomProjectQuotationView(APIView):
@@ -278,7 +297,9 @@ class AdminCustomProjectQuotationView(APIView):
         return Response(
             {
                 "quotation": ProjectQuotationSerializer(quotation).data,
-                "project": CustomProjectDetailSerializer(detail).data,
+                "project": CustomProjectDetailSerializer(
+                    detail, context={"request": request}
+                ).data,
             },
             status=status.HTTP_200_OK,
         )

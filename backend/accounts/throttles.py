@@ -25,6 +25,14 @@ class EmailVerificationConfirmRateThrottle(AnonRateThrottle):
     scope = "auth_email_verification_confirm"
 
 
+class TokenRefreshRateThrottle(AnonRateThrottle):
+    scope = "auth_token_refresh"
+
+
+class AvatarUploadRateThrottle(UserRateThrottle):
+    scope = "avatar_upload"
+
+
 class AdminCategoryWriteRateThrottle(UserRateThrottle):
     scope = "admin_category_write"
 

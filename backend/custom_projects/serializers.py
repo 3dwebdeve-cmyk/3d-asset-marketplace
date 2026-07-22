@@ -21,6 +21,7 @@ class ProjectQuotationSerializer(serializers.ModelSerializer):
 
 class ProjectFileSerializer(serializers.ModelSerializer):
     uploaded_by_email = serializers.EmailField(source="uploaded_by.email", read_only=True)
+    download_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectFile
@@ -28,13 +29,20 @@ class ProjectFileSerializer(serializers.ModelSerializer):
             "id",
             "file_type",
             "file_name",
-            "storage_path",
+            "download_url",
             "file_size",
             "uploaded_by_email",
             "created_at",
             "updated_at",
         )
         read_only_fields = fields
+
+    def get_download_url(self, obj: ProjectFile) -> str:
+        request = self.context.get("request")
+        path = f"/api/admin/custom-projects/{obj.project_id}/files/{obj.id}/download/"
+        if request is not None:
+            return request.build_absolute_uri(path)
+        return path
 
 
 class ProjectFilePublicSerializer(serializers.ModelSerializer):
@@ -59,6 +67,13 @@ class CustomProjectCustomerBriefSerializer(serializers.Serializer):
     full_name = serializers.CharField()
 
 
+class AssignedDesignerPublicSerializer(serializers.Serializer):
+    """Customer-visible designer identity without admin email."""
+
+    id = serializers.UUIDField()
+    full_name = serializers.CharField()
+
+
 class CustomProjectListSerializer(serializers.ModelSerializer):
     customer = CustomProjectCustomerBriefSerializer(read_only=True)
     assigned_designer = CustomProjectCustomerBriefSerializer(read_only=True, allow_null=True)
@@ -76,6 +91,35 @@ class CustomProjectListSerializer(serializers.ModelSerializer):
             "currency",
             "deadline",
             "customer",
+            "assigned_designer",
+            "quotation_amount",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_quotation_amount(self, obj: CustomProject) -> str | None:
+        quotation = getattr(obj, "quotation", None)
+        if quotation is None:
+            return None
+        return f"{quotation.amount:.2f}"
+
+
+class CustomProjectCustomerListSerializer(serializers.ModelSerializer):
+    assigned_designer = AssignedDesignerPublicSerializer(read_only=True, allow_null=True)
+    quotation_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CustomProject
+        fields = (
+            "id",
+            "title",
+            "category",
+            "status",
+            "payment_status",
+            "estimated_budget",
+            "currency",
+            "deadline",
             "assigned_designer",
             "quotation_amount",
             "created_at",
@@ -120,7 +164,7 @@ class CustomProjectDetailSerializer(serializers.ModelSerializer):
 
 
 class CustomProjectCustomerDetailSerializer(serializers.ModelSerializer):
-    assigned_designer = CustomProjectCustomerBriefSerializer(read_only=True, allow_null=True)
+    assigned_designer = AssignedDesignerPublicSerializer(read_only=True, allow_null=True)
     quotation = ProjectQuotationSerializer(read_only=True, allow_null=True)
     files = ProjectFilePublicSerializer(many=True, read_only=True)
 

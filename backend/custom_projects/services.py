@@ -145,7 +145,7 @@ class CustomProjectService:
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
         if search and search.strip():
-            query = search.strip()
+            query = search.strip()[:100]
             queryset = queryset.filter(
                 Q(title__icontains=query)
                 | Q(description__icontains=query)

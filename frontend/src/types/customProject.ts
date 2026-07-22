@@ -48,7 +48,7 @@ export interface ProjectFile {
   id: string
   file_type: ProjectFileType
   file_name: string
-  storage_path?: string
+  download_url?: string
   file_size: number
   uploaded_by_email?: string
   created_at: string

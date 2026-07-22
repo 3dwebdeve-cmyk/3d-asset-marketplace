@@ -41,6 +41,7 @@ from accounts.services import (
     ProfileService,
 )
 from accounts.throttles import (
+    AvatarUploadRateThrottle,
     EmailVerificationConfirmRateThrottle,
     EmailVerificationResendRateThrottle,
     LoginRateThrottle,
@@ -150,7 +151,8 @@ class LogoutView(APIView):
 
         try:
             AuthenticationService.blacklist_refresh_token(
-                serializer.validated_data["refresh"]
+                serializer.validated_data["refresh"],
+                user=request.user,
             )
         except AuthenticationError as exc:
             raise AuthenticationFailed(exc.message) from exc
@@ -301,6 +303,7 @@ class ProfileView(APIView):
 
 class AvatarUploadView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AvatarUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request) -> Response:

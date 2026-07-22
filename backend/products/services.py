@@ -84,6 +84,15 @@ class ProductService:
         )
 
     @classmethod
+    def _normalize_search(cls, search: str | None) -> str | None:
+        if not search:
+            return None
+        query = search.strip()
+        if not query:
+            return None
+        return query[:100]
+
+    @classmethod
     def list_public(
         cls,
         *,
@@ -91,18 +100,20 @@ class ProductService:
         search: str | None = None,
         ordering: str | None = None,
     ) -> QuerySet[Product]:
-        queryset = cls._base_queryset().filter(status=Product.Status.PUBLISHED)
+        # Public list responses do not serialize images or files.
+        queryset = Product.objects.select_related("category").filter(
+            status=Product.Status.PUBLISHED
+        )
 
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
-        if search:
-            query = search.strip()
-            if query:
-                queryset = queryset.filter(
-                    Q(name__icontains=query)
-                    | Q(description__icontains=query)
-                    | Q(short_description__icontains=query)
-                )
+        query = cls._normalize_search(search)
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query)
+                | Q(description__icontains=query)
+                | Q(short_description__icontains=query)
+            )
 
         return queryset.order_by(cls._resolve_ordering(ordering))
 
@@ -115,21 +126,21 @@ class ProductService:
         search: str | None = None,
         ordering: str | None = None,
     ) -> QuerySet[Product]:
+        # Admin list serializers include nested media; keep prefetch.
         queryset = cls._base_queryset()
 
         if status is not None:
             queryset = queryset.filter(status=status)
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
-        if search:
-            query = search.strip()
-            if query:
-                queryset = queryset.filter(
-                    Q(name__icontains=query)
-                    | Q(description__icontains=query)
-                    | Q(short_description__icontains=query)
-                    | Q(slug__icontains=query)
-                )
+        query = cls._normalize_search(search)
+        if query:
+            queryset = queryset.filter(
+                Q(name__icontains=query)
+                | Q(description__icontains=query)
+                | Q(short_description__icontains=query)
+                | Q(slug__icontains=query)
+            )
 
         return queryset.order_by(cls._resolve_ordering(ordering))
 

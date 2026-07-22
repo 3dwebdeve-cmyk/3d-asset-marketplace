@@ -257,3 +257,57 @@ class CustomProjectFileUploadTests(APITestCase):
             format="multipart",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_private_reference_file_requires_authenticated_download(self) -> None:
+        upload = SimpleUploadedFile(
+            "ref.png",
+            _png_bytes(),
+            content_type="image/png",
+        )
+        created = self.client.post(
+            self.upload_url,
+            {"file": upload, "file_type": "reference_image"},
+            format="multipart",
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        project_file = self.project.files.get()
+        relative = project_file.storage_path.split("/media/", maxsplit=1)[1]
+
+        public = self.client.get(f"/media/{relative}")
+        self.assertEqual(public.status_code, status.HTTP_404_NOT_FOUND)
+
+        admin_role = Role.objects.get(role_name="Administrator")
+        admin = User.objects.create_user(
+            email="admin-download@example.com",
+            full_name="Admin Download",
+            password=self.password,
+            role=admin_role,
+            email_verified=True,
+        )
+        admin.is_staff = True
+        admin.save(update_fields=["is_staff", "updated_at"])
+        admin_login = self.client.post(
+            reverse("accounts:admin-login"),
+            {"email": admin.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(admin_login.status_code, status.HTTP_200_OK)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {admin_login.data['access']}"
+        )
+        download_url = reverse(
+            "custom_projects_admin:admin-custom-project-file-download",
+            kwargs={"project_id": self.project.id, "file_id": project_file.id},
+        )
+        downloaded = self.client.get(download_url)
+        self.assertEqual(downloaded.status_code, status.HTTP_200_OK)
+
+        detail = self.client.get(
+            reverse(
+                "custom_projects_admin:admin-custom-project-detail",
+                kwargs={"project_id": self.project.id},
+            )
+        )
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertIn("download_url", detail.data["files"][0])
+        self.assertNotIn("storage_path", detail.data["files"][0])

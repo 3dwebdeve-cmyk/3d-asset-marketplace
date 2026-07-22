@@ -167,7 +167,9 @@ def validate_product_file_upload(uploaded: UploadedFile) -> ValidatedProductFile
         )
 
     declared_mime = (uploaded.content_type or "").lower().strip()
-    if declared_mime and declared_mime not in PRODUCT_FILE_ALLOWED_MIME_TYPES:
+    if not declared_mime:
+        raise ValidationError({"file": "Content-Type header is required."})
+    if declared_mime not in PRODUCT_FILE_ALLOWED_MIME_TYPES:
         raise ValidationError(
             {
                 "file": (
@@ -196,6 +198,6 @@ def validate_product_file_upload(uploaded: UploadedFile) -> ValidatedProductFile
     return ValidatedProductFileUpload(
         file=uploaded,
         extension=extension,
-        mime_type=declared_mime or "application/octet-stream",
+        mime_type=declared_mime,
         file_format=file_format,
     )

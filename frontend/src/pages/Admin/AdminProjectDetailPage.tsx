@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { listAdminUsers } from '../../api/authApi'
 import {
+  downloadAdminCustomProjectFile,
   getAdminCustomProject,
   updateAdminCustomProject,
   upsertAdminCustomProjectQuotation,
@@ -437,16 +438,23 @@ export function AdminProjectDetailPage() {
                           {formatFileSize(file.file_size)}
                           {file.uploaded_by_email ? ` · ${file.uploaded_by_email}` : ''}
                         </p>
-                        {file.storage_path ? (
+                        {file.download_url ? (
                           <div className="admin-media-item__actions">
-                            <a
+                            <button
+                              type="button"
                               className="auth-link"
-                              href={file.storage_path}
-                              target="_blank"
-                              rel="noreferrer"
+                              onClick={() => {
+                                void downloadAdminCustomProjectFile(
+                                  projectId,
+                                  file.id,
+                                  file.file_name,
+                                ).catch(() => {
+                                  toast.error('Unable to download file.')
+                                })
+                              }}
                             >
-                              Open
-                            </a>
+                              Download
+                            </button>
                           </div>
                         ) : null}
                       </div>

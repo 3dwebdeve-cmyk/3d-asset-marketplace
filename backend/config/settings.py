@@ -158,6 +158,24 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 AUTH_USER_MODEL = "accounts.User"
 
+# Shared cache for DRF throttles across workers. Prefer Redis in production:
+# REDIS_URL=redis://127.0.0.1:6379/1
+REDIS_URL = config("REDIS_URL", default="")
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "marketplace-default",
+        }
+    }
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -169,13 +187,21 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.JSONParser",
     ],
     "EXCEPTION_HANDLER": "accounts.exceptions.custom_exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
     "DEFAULT_THROTTLE_RATES": {
+        "anon": "120/min",
+        "user": "300/min",
         "auth_login": "5/min",
         "auth_register": "3/min",
         "auth_password_reset": "5/hour",
         "auth_password_reset_confirm": "10/hour",
         "auth_email_verification_resend": "5/hour",
         "auth_email_verification_confirm": "10/hour",
+        "auth_token_refresh": "20/min",
+        "avatar_upload": "10/hour",
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
         "admin_plugin_write": "60/min",
@@ -206,6 +232,13 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=31536000, cast=int)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+    CSRF_TRUSTED_ORIGINS = config(
+        "CSRF_TRUSTED_ORIGINS",
+        default="",
+        cast=lambda value: [
+            origin.strip() for origin in value.split(",") if origin.strip()
+        ],
+    )
 
 # Browser XSS filter is legacy; keep clickjacking/nosniff/HSTS above for CSP-adjacent defenses.
 SECURE_BROWSER_XSS_FILTER = True

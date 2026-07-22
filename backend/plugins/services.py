@@ -252,7 +252,7 @@ class PluginService:
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
         if search and search.strip():
-            query = search.strip()
+            query = search.strip()[:100]
             queryset = queryset.filter(
                 Q(name__icontains=query)
                 | Q(description__icontains=query)

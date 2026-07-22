@@ -71,3 +71,20 @@ export async function upsertAdminCustomProjectQuotation(
   )
   return data
 }
+
+export async function downloadAdminCustomProjectFile(
+  projectId: string,
+  fileId: string,
+  fileName: string,
+): Promise<void> {
+  const { data } = await apiClient.get<Blob>(
+    `/api/admin/custom-projects/${projectId}/files/${fileId}/download/`,
+    { responseType: 'blob' },
+  )
+  const objectUrl = URL.createObjectURL(data)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(objectUrl)
+}

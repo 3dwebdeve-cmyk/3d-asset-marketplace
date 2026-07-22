@@ -204,6 +204,41 @@ class AuthenticationAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_logout_rejects_another_users_refresh_token(self) -> None:
+        other = User.objects.create_user(
+            email="other-logout@example.com",
+            full_name="Other User",
+            password=self.password,
+            role=self.customer_role,
+            country="India",
+            email_verified=True,
+        )
+        other_login = self.client.post(
+            self.login_url,
+            {"email": other.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(other_login.status_code, status.HTTP_200_OK)
+        other_refresh = other_login.data["refresh"]
+
+        tokens = self._login()
+        self._authenticate(tokens["access"])
+        response = self.client.post(
+            self.logout_url,
+            {"refresh": other_refresh},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Victim refresh must remain usable.
+        self.client.credentials()
+        refresh_response = self.client.post(
+            self.refresh_url,
+            {"refresh": other_refresh},
+            format="json",
+        )
+        self.assertEqual(refresh_response.status_code, status.HTTP_200_OK)
+
 
 class ProfileAPITests(APITestCase):
     def setUp(self) -> None:

@@ -2,16 +2,25 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 security_logger = logging.getLogger("accounts.security")
+
+
+def _redact_email(email: str | None) -> str:
+    normalized = (email or "").strip().lower()
+    if not normalized:
+        return "-"
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+    return f"sha256:{digest}"
 
 
 def log_auth_failure(*, scope: str, email: str | None = None) -> None:
     security_logger.warning(
         "auth_failure scope=%s email=%s",
         scope,
-        (email or "").strip().lower() or "-",
+        _redact_email(email),
     )
 
 
@@ -33,7 +42,7 @@ def log_password_reset(
     security_logger.info(
         "password_reset action=%s email=%s user_id=%s",
         action,
-        (email or "").strip().lower() or "-",
+        _redact_email(email),
         user_id or "-",
     )
 
@@ -47,6 +56,6 @@ def log_email_verification(
     security_logger.info(
         "email_verification action=%s email=%s user_id=%s",
         action,
-        (email or "").strip().lower() or "-",
+        _redact_email(email),
         user_id or "-",
     )
