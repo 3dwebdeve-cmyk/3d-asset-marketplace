@@ -49,6 +49,16 @@ const AdminPluginCategoryDetailPage = lazy(() =>
     default: module.AdminPluginCategoryDetailPage,
   })),
 )
+const AdminProjectsPage = lazy(() =>
+  import('./pages/Admin/AdminProjectsPage').then((module) => ({
+    default: module.AdminProjectsPage,
+  })),
+)
+const AdminProjectDetailPage = lazy(() =>
+  import('./pages/Admin/AdminProjectDetailPage').then((module) => ({
+    default: module.AdminProjectDetailPage,
+  })),
+)
 
 function AppRoutes() {
   const location = useLocation()
@@ -103,6 +113,11 @@ function AppRoutes() {
               <Route
                 path="/admin/plugin-categories/:categoryId"
                 element={<AdminPluginCategoryDetailPage />}
+              />
+              <Route path="/admin/projects" element={<AdminProjectsPage />} />
+              <Route
+                path="/admin/projects/:projectId"
+                element={<AdminProjectDetailPage />}
               />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/users/:userId" element={<AdminUserDetailPage />} />

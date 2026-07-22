@@ -99,7 +99,7 @@ describe('AdminLayout', () => {
     )
   })
 
-  it('enables plugins while keeping future modules disabled', async () => {
+  it('enables plugins and projects while keeping analytics disabled', async () => {
     renderAdminLayout()
 
     await waitFor(() => {
@@ -110,7 +110,10 @@ describe('AdminLayout', () => {
       'href',
       '/admin/plugins',
     )
-    expect(screen.getByText('Projects')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('link', { name: /^projects$/i })).toHaveAttribute(
+      'href',
+      '/admin/projects',
+    )
     expect(screen.getByText('Analytics')).toHaveAttribute('aria-disabled', 'true')
   })
 

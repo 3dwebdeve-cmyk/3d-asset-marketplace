@@ -5,7 +5,7 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~45%
+Overall Completion: ~48%
 Current Development Sprint
 Current Sprint: Sprint 3 – Marketplace
 Sprint Goal: Categories, products, and marketplace foundations
@@ -66,12 +66,12 @@ Sprint 7 – Orders & Downloads
 • [ ] Signed Download URLs
 • [ ] Download History
 Sprint 8 – Custom Project Portal
-• [ ] Request Custom Project
-• [ ] Upload Reference Files
-• [ ] Admin Review
-• [ ] Project Quotation
+• [x] Request Custom Project (customer API create/list/detail + reference upload)
+• [ ] Upload Reference Files (customer UI)
+• [x] Admin Review (admin list/detail/status/assign/notes)
+• [x] Project Quotation (admin upsert quotation API + UI)
 • [ ] Client Approval
-• [ ] Project Status Tracking
+• [ ] Project Status Tracking (customer-facing)
 • [ ] Deliverables Upload
 • [ ] Project Completion
 Sprint 9 – Dashboards
@@ -84,12 +84,12 @@ Customer Dashboard
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
 • [x] Admin layout & navigation (sidebar, header, mobile menu, session shell)
-• [x] Admin home dashboard with real stats (users, products, categories, plugins; project/sales placeholders)
+• [x] Admin home dashboard with real stats (users, products, categories, plugins, custom projects; sales placeholders)
 • [x] Dedicated /admin/login + customer/admin login separation
 • [x] Users (admin user CRUD)
 • [x] Product Management
 • [x] Plugin Management
-• [ ] Custom Projects
+• [x] Custom Projects
 • [ ] Payments
 • [ ] Analytics
 Sprint 10 – Testing & Deployment
@@ -101,12 +101,14 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Plugins admin UI (Feature 7) completed.
+Custom Projects admin side (Feature 8) completed.
 Current Git Branch
-feature/plugins-admin-ui
+feature/custom-projects-admin
 Files Being Worked On
-• frontend/src/pages/Admin/ (plugin management UI)
-• frontend/src/api/pluginsApi.ts
+• backend/custom_projects/
+• frontend/src/pages/Admin/AdminProjectsPage.tsx
+• frontend/src/pages/Admin/AdminProjectDetailPage.tsx
+• frontend/src/api/customProjectsApi.ts
 Completed Features
 • Project setup (Django, React, PostgreSQL, JWT wiring)
 • Customer registration / login / logout / refresh
@@ -120,13 +122,18 @@ Completed Features
 • Admin categories UI (list/create/edit/deactivate at /admin/categories)
 • Admin products UI (list/create/edit/archive + image/file uploads at /admin/products)
 • Admin layout & navigation (shared shell, sidebar, header, mobile menu)
-• Admin home dashboard with live stats (users, products, categories, category breakdown)
+• Admin home dashboard with live stats (users, products, categories, category breakdown, custom projects)
 • Product upload polish (USDZ support, media upload UX on admin product detail)
 • Plugin catalog backend (categories, CRUD, public APIs, image/package uploads, search/filtering)
 • Admin dashboard live plugin total
 • Plugins admin UI (list/create/edit/archive, filters, ordering, pagination)
 • Plugin image and package upload/delete UI
 • Plugin category admin management UI
+• Custom projects backend (CustomProject, ProjectFile, ProjectQuotation)
+• Customer custom-project APIs (create/list/detail + reference upload)
+• Admin custom-project APIs (list/create/detail/update + quotation upsert)
+• Custom projects admin UI (list/create/detail review, quote, assign designer)
+• Admin dashboard live custom-project pending/live/completed counts
 • Administrator role seed + createsuperuser → Administrator
 • Dedicated /admin/login (email + password only)
 • POST /api/auth/admin/login/ (Administrator-only tokens)
@@ -141,8 +148,9 @@ Pending Features
 • Public marketplace browse + product details page (React)
 • 3D product viewer
 • Public plugin store UI
+• Customer custom-project portal UI (My Projects, approve quote)
+• Project messages, deliverables, and secure project downloads
 • Cart / payments / orders / downloads
-• Custom project portal
 • Docker production stack
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
@@ -151,8 +159,9 @@ Current Issues / Blockers
 Bugs
 No Known Bugs
 Technical Debt
-• Avatar/product/plugin storage is local MEDIA_ROOT (move to S3/R2 later)
+• Avatar/product/plugin/custom-project storage is local MEDIA_ROOT (move to S3/R2 later)
 • Product/plugin downloadable files are reachable via MEDIA URL if path is known (signed URLs after payments)
+• Custom-project admin reference file URLs use local MEDIA until signed entitlement downloads ship
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
 • Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
@@ -166,10 +175,67 @@ Important Decisions
 • Public product file responses omit storage_path (download entitlement comes later).
 • Plugin categories are separate from product categories; public plugin file responses omit storage_path.
 • Plugin packages accept ZIP/RAR/7Z; ZIP metadata is scanned for traversal and expansion limits.
+• Custom projects are independent from marketplace orders; status transitions are enforced server-side.
+• Customer custom-project file responses omit storage_path; admins can open reference files for review.
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
 Daily Development Log
+Date: 2026-07-22 (Custom Projects admin)
+Working Hours:
+Today's Objective: Custom Projects administrator management (Feature 8)
+Modules Completed: custom_projects Django app, customer request APIs, admin review/quote APIs, admin UI list/detail, dashboard project stats, tests
+Files Created:
+• backend/custom_projects/ (models, services, serializers, views, urls, admin_urls, storage, upload_rules, pagination, admin, migration, tests)
+• frontend/src/types/customProject.ts
+• frontend/src/api/customProjectsApi.ts
+• frontend/src/pages/Admin/AdminProjectsPage.tsx
+• frontend/src/pages/Admin/AdminProjectDetailPage.tsx
+• frontend/src/pages/Admin/AdminProjectsPage.test.tsx
+• frontend/src/pages/Admin/AdminProjectDetailPage.test.tsx
+Files Modified:
+• backend/config/settings.py
+• backend/config/urls.py
+• backend/accounts/throttles.py
+• backend/analytics/services.py
+• backend/analytics/test_dashboard_stats.py
+• frontend/src/App.tsx
+• frontend/src/config/adminNav.ts
+• frontend/src/layouts/AdminLayout.test.tsx
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• New tables: custom_projects, custom_project_files, custom_project_quotations
+API Endpoints Added:
+• GET/POST /api/custom-projects/
+• GET /api/custom-projects/<uuid>/
+• POST /api/custom-projects/<uuid>/files/
+• GET/POST /api/admin/custom-projects/
+• GET/PATCH /api/admin/custom-projects/<uuid>/
+• POST /api/admin/custom-projects/<uuid>/quotation/
+API Endpoints Modified:
+• GET /api/admin/dashboard/stats/ — custom project pending/live/completed counts are live
+Frontend Pages Created:
+• /admin/projects — list/create with search, status/payment filters, ordering, pagination
+• /admin/projects/:projectId — review, assign designer, update status/notes, set quotation, view reference files
+Problems Encountered:
+• None blocking
+Solutions Implemented:
+• Reused products/plugins admin patterns, IsAdministrator, log_admin_action, pagination, storage, and upload validation patterns
+• Enforced custom-project status transitions in the service layer
+Verification:
+• custom_projects + dashboard stats backend: 9/9 tests passed
+• Frontend project admin tests: 4/4 passed
+• Frontend lint (oxlint): passed
+Security Review:
+• No medium, high, or critical issues found
+• Admin routes remain protected by AdminRoute and backend IsAdministrator
+• Customer project detail is ownership-scoped; other customers receive 404
+• Customer file responses omit storage_path; upload MIME/extension/size validated server-side
+• Admin write endpoints throttled (admin_custom_project_write / custom_project_write)
+• Admin create/update/quotation actions logged via log_admin_action
+Next Development Task:
+• Customer My Projects UI (list/detail, reference upload UI, quote approval)
 Date: 2026-07-21 (Plugins admin UI)
 Working Hours:
 Today's Objective: Plugins administrator UI (Feature 7)
@@ -662,7 +728,7 @@ Final Release Checklist
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~43%
+Current Completion Percentage: ~48%
 Estimated Remaining Work: Marketplace UI + payments + plugins + custom projects + full admin
 Expected Production Release Date: ____
 Notes
