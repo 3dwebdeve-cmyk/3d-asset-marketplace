@@ -39,6 +39,8 @@ const customer = {
   country: '',
   is_active: true,
   email_verified: true,
+  avatar: '',
+  is_staff: false,
   date_joined: '2026-01-01T00:00:00Z',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',

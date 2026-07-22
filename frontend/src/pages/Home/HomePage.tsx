@@ -21,8 +21,11 @@ export function HomePage() {
           platform.
         </p>
         <div className="home-page__actions">
+          <Link className="home-page__cta" to="/products">
+            Browse Marketplace
+          </Link>
           {isAuthenticated ? (
-            <Link className="home-page__cta" to="/dashboard">
+            <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
               Go to dashboard
             </Link>
           ) : (

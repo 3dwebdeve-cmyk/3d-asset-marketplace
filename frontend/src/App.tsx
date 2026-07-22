@@ -28,6 +28,13 @@ import './App.css'
 import './styles/auth.css'
 import './styles/admin-layout.css'
 import './styles/navbar.css'
+import './styles/products-browse.css'
+
+const ProductsBrowsePage = lazy(() =>
+  import('./pages/Products/ProductsBrowsePage').then((module) => ({
+    default: module.ProductsBrowsePage,
+  })),
+)
 
 const AdminPluginsPage = lazy(() =>
   import('./pages/Admin/AdminPluginsPage').then((module) => ({
@@ -72,6 +79,8 @@ function AppRoutes() {
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/products" element={<ProductsBrowsePage />} />
+            <Route path="/Products" element={<ProductsBrowsePage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
