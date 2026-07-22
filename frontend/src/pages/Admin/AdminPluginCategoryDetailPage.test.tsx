@@ -90,4 +90,36 @@ describe('AdminPluginCategoryDetailPage', () => {
     })
     expect(await screen.findByText('Admin Dashboard')).toBeInTheDocument()
   })
+
+  it('preserves unsaved edits when category data is refetched', async () => {
+    const user = userEvent.setup()
+    const queryClient = createTestQueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[`/admin/plugin-categories/${categoryId}`]}>
+          <Routes>
+            <Route
+              path="/admin/plugin-categories/:categoryId"
+              element={<AdminPluginCategoryDetailPage />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    const name = await screen.findByDisplayValue('Blender')
+    await user.clear(name)
+    await user.type(name, 'Unsaved Category Name')
+
+    queryClient.setQueryData(['admin', 'plugin-categories', categoryId], {
+      ...category,
+      name: 'Server Category Name',
+      description: 'Changed on server',
+    })
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Unsaved Category Name')).toBeInTheDocument()
+    })
+    expect(screen.queryByDisplayValue('Server Category Name')).not.toBeInTheDocument()
+  })
 })

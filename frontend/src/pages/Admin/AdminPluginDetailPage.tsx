@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
@@ -46,7 +46,7 @@ export function AdminPluginDetailPage() {
   const { pluginId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const initializedPluginId = useRef<string | null>(null)
+  const [hydratedPluginId, setHydratedPluginId] = useState<string | null>(null)
   const [form, setForm] = useState<AdminPluginUpdatePayload>({})
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -61,9 +61,15 @@ export function AdminPluginDetailPage() {
   })
 
   useEffect(() => {
+    setHydratedPluginId(null)
+    setForm({})
+    setFormError(null)
+  }, [pluginId])
+
+  useEffect(() => {
     const plugin = pluginQuery.data
-    if (!plugin || initializedPluginId.current === plugin.id) return
-    initializedPluginId.current = plugin.id
+    if (!plugin || plugin.id !== pluginId || hydratedPluginId === plugin.id) return
+    setHydratedPluginId(plugin.id)
     setForm({
       category_id: plugin.category.id,
       name: plugin.name,
@@ -79,7 +85,7 @@ export function AdminPluginDetailPage() {
       license_type: plugin.license_type,
       status: plugin.status,
     })
-  }, [pluginQuery.data])
+  }, [pluginId, pluginQuery.data, hydratedPluginId])
 
   const invalidatePlugin = async () => {
     await queryClient.invalidateQueries({
@@ -107,6 +113,10 @@ export function AdminPluginDetailPage() {
   })
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
+    if (hydratedPluginId !== pluginId || pluginQuery.data?.id !== pluginId) {
+      setFormError('Plugin data is still loading. Try again in a moment.')
+      return
+    }
     const validationError = validatePlugin(form)
     setFormError(validationError)
     if (validationError) return
@@ -118,15 +128,16 @@ export function AdminPluginDetailPage() {
       discount_price:
         form.discount_price === '' ? null : form.discount_price,
     }
-    if (payload.name !== pluginQuery.data?.name) {
+    if (payload.name !== pluginQuery.data.name) {
       payload.slug = undefined
     }
-    if (payload.category_id === pluginQuery.data?.category.id) {
+    if (payload.category_id === pluginQuery.data.category.id) {
       payload.category_id = undefined
     }
     saveMutation.mutate(payload)
   }
   const plugin = pluginQuery.data
+  const formReady = hydratedPluginId === pluginId && plugin?.id === pluginId
   const categories = categoriesQuery.data ?? []
 
   return (
@@ -149,7 +160,7 @@ export function AdminPluginDetailPage() {
             )}
             action={<Button variant="secondary" onClick={() => pluginQuery.refetch()}>Retry</Button>}
           />
-        ) : plugin ? (
+        ) : plugin && formReady ? (
           <>
             <form className="admin-create-form" onSubmit={onSubmit} noValidate>
               {formError ? <Alert variant="error" message={formError} /> : null}
@@ -222,8 +233,10 @@ export function AdminPluginDetailPage() {
                 <Button type="button" variant="secondary" isLoading={archiveMutation.isPending} onClick={() => archiveMutation.mutate()}>Archive</Button>
               </div>
             </form>
-            <PluginMediaSection pluginId={pluginId} plugin={plugin} />
+            <PluginMediaSection key={pluginId} pluginId={pluginId} plugin={plugin} />
           </>
+        ) : pluginQuery.isFetching ? (
+          <Spinner label="Loading plugin..." />
         ) : null}
       </section>
     </main>

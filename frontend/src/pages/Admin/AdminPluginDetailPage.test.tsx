@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Link, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as pluginsApi from '../../api/pluginsApi'
@@ -58,10 +58,10 @@ const plugin = {
   updated_at: '2026-01-01T00:00:00Z',
 }
 
-function renderPage() {
+function renderPage(initialPluginId = pluginId) {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={[`/admin/plugins/${pluginId}`]}>
+      <MemoryRouter initialEntries={[`/admin/plugins/${initialPluginId}`]}>
         <Routes>
           <Route path="/admin/plugins/:pluginId" element={<AdminPluginDetailPage />} />
           <Route path="/admin" element={<div>Admin Dashboard</div>} />
@@ -171,5 +171,60 @@ describe('AdminPluginDetailPage', () => {
       expect(pluginsApi.archiveAdminPlugin).toHaveBeenCalledWith(pluginId)
     })
     expect(await screen.findByText('Admin Dashboard')).toBeInTheDocument()
+  })
+
+  it('rehydrates form fields when navigating to another plugin', async () => {
+    const user = userEvent.setup()
+    const otherPluginId = '55555555-5555-5555-5555-555555555555'
+    const otherPlugin = {
+      ...plugin,
+      id: otherPluginId,
+      name: 'UV Packer',
+      slug: 'uv-packer',
+      version: '1.0',
+      compatibility: 'Maya 2024',
+    }
+    vi.mocked(pluginsApi.getAdminPlugin).mockImplementation(async (id: string) => {
+      if (id === otherPluginId) return otherPlugin
+      return plugin
+    })
+    vi.mocked(pluginsApi.updateAdminPlugin).mockResolvedValue(otherPlugin)
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <MemoryRouter initialEntries={[`/admin/plugins/${pluginId}`]}>
+          <Routes>
+            <Route
+              path="/admin/plugins/:pluginId"
+              element={
+                <>
+                  <AdminPluginDetailPage />
+                  <Link to={`/admin/plugins/${otherPluginId}`}>Next plugin</Link>
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByDisplayValue('Mesh Toolkit')).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'Next plugin' }))
+
+    expect(await screen.findByDisplayValue('UV Packer')).toBeInTheDocument()
+    expect(screen.getByLabelText('Version')).toHaveValue('1.0')
+    expect(screen.getByLabelText('Package version')).toHaveValue('1.0')
+    expect(screen.queryByDisplayValue('Mesh Toolkit')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => {
+      expect(pluginsApi.updateAdminPlugin).toHaveBeenCalledWith(
+        otherPluginId,
+        expect.objectContaining({
+          name: 'UV Packer',
+          version: '1.0',
+        }),
+      )
+    })
   })
 })
