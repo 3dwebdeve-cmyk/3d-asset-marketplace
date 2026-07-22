@@ -22,6 +22,7 @@ export function AdminPluginCategoryDetailPage() {
   const { categoryId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [hydratedCategoryId, setHydratedCategoryId] = useState<string | null>(null)
   const [form, setForm] = useState<PluginCategoryUpdatePayload>({})
   const [formError, setFormError] = useState<string | null>(null)
   const categoryQuery = useQuery({
@@ -31,8 +32,17 @@ export function AdminPluginCategoryDetailPage() {
   })
 
   useEffect(() => {
+    setHydratedCategoryId(null)
+    setForm({})
+    setFormError(null)
+  }, [categoryId])
+
+  useEffect(() => {
     const category = categoryQuery.data
-    if (!category) return
+    if (!category || category.id !== categoryId || hydratedCategoryId === category.id) {
+      return
+    }
+    setHydratedCategoryId(category.id)
     setForm({
       name: category.name,
       slug: category.slug,
@@ -40,7 +50,7 @@ export function AdminPluginCategoryDetailPage() {
       image: category.image,
       is_active: category.is_active,
     })
-  }, [categoryQuery.data])
+  }, [categoryId, categoryQuery.data, hydratedCategoryId])
 
   const invalidateCategories = async () => {
     await queryClient.invalidateQueries({
@@ -71,6 +81,10 @@ export function AdminPluginCategoryDetailPage() {
   })
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
+    if (hydratedCategoryId !== categoryId || categoryQuery.data?.id !== categoryId) {
+      setFormError('Category data is still loading. Try again in a moment.')
+      return
+    }
     const error =
       (form.name ?? '').trim().length < 2 ? 'Name must be at least 2 characters.' : null
     setFormError(error)
@@ -79,11 +93,14 @@ export function AdminPluginCategoryDetailPage() {
       ...form,
       name: form.name?.trim(),
     }
-    if (payload.name !== categoryQuery.data?.name) {
+    if (payload.name !== categoryQuery.data.name) {
       payload.slug = undefined
     }
     saveMutation.mutate(payload)
   }
+
+  const category = categoryQuery.data
+  const formReady = hydratedCategoryId === categoryId && category?.id === categoryId
 
   return (
     <main className="dashboard-page">
@@ -105,7 +122,7 @@ export function AdminPluginCategoryDetailPage() {
               )}
               action={<Button variant="secondary" onClick={() => categoryQuery.refetch()}>Retry</Button>}
             />
-          ) : (
+          ) : formReady ? (
             <form className="admin-create-form" onSubmit={onSubmit} noValidate>
               {formError ? <Alert variant="error" message={formError} /> : null}
               <FormField id="detail-plugin-category-name" label="Name">
@@ -141,7 +158,9 @@ export function AdminPluginCategoryDetailPage() {
                 <Button type="button" variant="secondary" isLoading={deactivateMutation.isPending} onClick={() => deactivateMutation.mutate()}>Deactivate</Button>
               </div>
             </form>
-          )}
+          ) : categoryQuery.isFetching ? (
+            <Spinner label="Loading plugin category..." />
+          ) : null}
       </section>
     </main>
   )

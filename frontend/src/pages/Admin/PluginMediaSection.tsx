@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
 
 import {
@@ -57,6 +57,14 @@ export function PluginMediaSection({ pluginId, plugin }: PluginMediaSectionProps
   const [packageIsPrimary, setPackageIsPrimary] = useState(true)
   const [imageDragActive, setImageDragActive] = useState(false)
   const [packageDragActive, setPackageDragActive] = useState(false)
+
+  useEffect(() => {
+    setPackageVersion(plugin.version)
+    setPackageIsPrimary(true)
+    setMediaError(null)
+    if (imageInput.current) imageInput.current.value = ''
+    if (packageInput.current) packageInput.current.value = ''
+  }, [plugin.id, plugin.version])
 
   const invalidatePlugin = async () => {
     await queryClient.invalidateQueries({

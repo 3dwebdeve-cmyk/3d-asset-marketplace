@@ -129,4 +129,50 @@ describe('PluginMediaSection', () => {
       )
     })
   })
+
+  it('resets package version when switching to another plugin', async () => {
+    const user = userEvent.setup()
+    const otherPluginId = '55555555-5555-5555-5555-555555555555'
+    const otherPlugin = {
+      ...plugin,
+      id: otherPluginId,
+      version: '9.9',
+      images: [],
+      files: [],
+    }
+    vi.mocked(pluginsApi.uploadPluginFile).mockResolvedValue({
+      id: '66666666-6666-6666-6666-666666666666',
+      file_name: 'other.zip',
+      file_format: 'zip',
+      file_size: 4,
+      version: '9.9',
+      is_primary: true,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    })
+
+    const { rerender } = render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <PluginMediaSection pluginId={pluginId} plugin={plugin} />
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByDisplayValue('2.1')).toBeInTheDocument()
+    rerender(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <PluginMediaSection pluginId={otherPluginId} plugin={otherPlugin} />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByDisplayValue('9.9')).toBeInTheDocument()
+
+    const input = document.getElementById('plugin-package-upload') as HTMLInputElement
+    const file = new File(['PK\u0003\u0004'], 'other.zip', { type: 'application/zip' })
+    await user.upload(input, file)
+    await waitFor(() => {
+      expect(pluginsApi.uploadPluginFile).toHaveBeenCalledWith(
+        otherPluginId,
+        expect.objectContaining({ version: '9.9' }),
+      )
+    })
+  })
 })
