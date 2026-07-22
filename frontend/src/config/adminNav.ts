@@ -12,6 +12,6 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Plugins', to: '/admin/plugins', enabled: true },
   { label: 'Categories', to: '/admin/categories', enabled: true },
   { label: 'Users', to: '/admin/users', enabled: true },
-  { label: 'Projects', to: '/admin/projects', enabled: false, comingSoon: true },
+  { label: 'Projects', to: '/admin/projects', enabled: true },
   { label: 'Analytics', to: '/admin/analytics', enabled: false, comingSoon: true },
 ]

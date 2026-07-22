@@ -35,3 +35,11 @@ class AdminProductWriteRateThrottle(UserRateThrottle):
 
 class AdminPluginWriteRateThrottle(UserRateThrottle):
     scope = "admin_plugin_write"
+
+
+class AdminCustomProjectWriteRateThrottle(UserRateThrottle):
+    scope = "admin_custom_project_write"
+
+
+class CustomProjectWriteRateThrottle(UserRateThrottle):
+    scope = "custom_project_write"

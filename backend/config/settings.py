@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'categories',
     'products',
     'plugins',
+    'custom_projects',
     'analytics',
 ]
 
@@ -178,6 +179,8 @@ REST_FRAMEWORK = {
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
         "admin_plugin_write": "60/min",
+        "admin_custom_project_write": "60/min",
+        "custom_project_write": "30/min",
     },
 }
 
