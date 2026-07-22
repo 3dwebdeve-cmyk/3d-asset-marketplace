@@ -37,6 +37,9 @@ export function Navbar() {
         </Link>
 
         <div className="navbar__actions">
+          <Link className="navbar__link" to="/products">
+            Browse Models
+          </Link>
           {isAuthenticated ? (
             <>
               {user?.full_name ? (

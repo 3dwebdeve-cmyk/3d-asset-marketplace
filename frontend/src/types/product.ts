@@ -125,3 +125,72 @@ export interface ProductFileUploadPayload {
   version?: string
   is_preview?: boolean
 }
+
+export interface PublicProduct {
+  id: string
+  name: string
+  slug: string
+  short_description: string
+  price: string
+  currency: string
+  discount_price: string | null
+  thumbnail: string
+  category: CategoryParent
+  license_type: ProductLicenseType
+  average_rating: string
+  total_downloads: number
+  created_at: string
+}
+
+export interface PublicProductFile {
+  id: string
+  file_name: string
+  file_format: string
+  file_size: number
+  version: string
+  is_preview: boolean
+}
+
+export interface PublicProductDetail {
+  id: string
+  name: string
+  slug: string
+  description: string
+  short_description: string
+  price: string
+  currency: string
+  discount_price: string | null
+  thumbnail: string
+  preview_model: string
+  preview_video: string
+  polygon_count: number | null
+  vertex_count: number | null
+  software_used: string
+  animated: boolean
+  rigged: boolean
+  pbr_ready: boolean
+  game_ready: boolean
+  license_type: ProductLicenseType
+  average_rating: string
+  total_downloads: number
+  category: CategoryParent
+  images: ProductImage[]
+  files: PublicProductFile[]
+  created_at: string
+  updated_at: string
+}
+
+export interface PaginatedPublicProducts {
+  count: number
+  next: string | null
+  previous: string | null
+  results: PublicProduct[]
+}
+
+export interface PublicProductListParams {
+  page?: number
+  page_size?: number
+  category_id?: string
+  search?: string
+  ordering?: string
+}

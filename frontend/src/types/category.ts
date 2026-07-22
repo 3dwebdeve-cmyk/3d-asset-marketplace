@@ -46,3 +46,27 @@ export interface AdminCategoryListParams {
   parent_id?: string
   search?: string
 }
+
+export interface CategoryPublic {
+  id: string
+  name: string
+  slug: string
+  description: string
+  image: string
+  parent: CategoryParent | null
+  created_at: string
+}
+
+export interface PaginatedPublicCategories {
+  count: number
+  next: string | null
+  previous: string | null
+  results: CategoryPublic[]
+}
+
+export interface PublicCategoryListParams {
+  page?: number
+  page_size?: number
+  parent_id?: string
+  search?: string
+}

@@ -5,7 +5,18 @@ import type {
   AdminCategoryListParams,
   AdminCategoryUpdatePayload,
   PaginatedAdminCategories,
+  PaginatedPublicCategories,
+  PublicCategoryListParams,
 } from '../types/category'
+
+export async function listPublicCategories(
+  params: PublicCategoryListParams = {},
+): Promise<PaginatedPublicCategories> {
+  const response = await apiClient.get<PaginatedPublicCategories>('/api/categories/', {
+    params,
+  })
+  return response.data
+}
 
 export async function listAdminCategories(
   params: AdminCategoryListParams = {},

@@ -5,11 +5,28 @@ import type {
   AdminProductListParams,
   AdminProductUpdatePayload,
   PaginatedAdminProducts,
+  PaginatedPublicProducts,
   ProductFile,
   ProductFileUploadPayload,
   ProductImage,
   ProductImageUploadPayload,
+  PublicProductDetail,
+  PublicProductListParams,
 } from '../types/product'
+
+export async function listPublicProducts(
+  params: PublicProductListParams = {},
+): Promise<PaginatedPublicProducts> {
+  const response = await apiClient.get<PaginatedPublicProducts>('/api/products/', {
+    params,
+  })
+  return response.data
+}
+
+export async function getPublicProduct(slug: string): Promise<PublicProductDetail> {
+  const response = await apiClient.get<PublicProductDetail>(`/api/products/${slug}/`)
+  return response.data
+}
 
 export async function listAdminProducts(
   params: AdminProductListParams = {},
