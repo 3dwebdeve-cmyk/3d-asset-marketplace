@@ -1,6 +1,11 @@
 from django.contrib import admin
 
-from custom_projects.models import CustomProject, ProjectFile, ProjectQuotation
+from custom_projects.models import (
+    CustomProject,
+    ProjectFile,
+    ProjectMessage,
+    ProjectQuotation,
+)
 
 
 @admin.register(CustomProject)
@@ -30,3 +35,11 @@ class ProjectQuotationAdmin(admin.ModelAdmin):
     list_display = ("project", "amount", "currency", "status", "created_at")
     list_filter = ("status",)
     raw_id_fields = ("project",)
+
+
+@admin.register(ProjectMessage)
+class ProjectMessageAdmin(admin.ModelAdmin):
+    list_display = ("id", "project", "sender", "created_at")
+    search_fields = ("body", "sender__email", "project__title")
+    raw_id_fields = ("project", "sender")
+    readonly_fields = ("created_at", "updated_at")

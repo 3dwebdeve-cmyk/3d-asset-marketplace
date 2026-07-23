@@ -9,6 +9,18 @@ export type CustomProjectStatus =
   | 'rejected'
   | 'cancelled'
 
+export const CUSTOM_PROJECT_STATUS_LABELS: Record<CustomProjectStatus, string> = {
+  submitted: 'Submitted',
+  under_review: 'Under review',
+  quoted: 'Quoted',
+  approved: 'Approved',
+  in_progress: 'In progress',
+  delivered: 'Delivered',
+  completed: 'Completed',
+  rejected: 'Rejected',
+  cancelled: 'Cancelled',
+}
+
 export type CustomProjectPaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded'
 
 export type ProjectQuotationStatus = 'pending' | 'accepted' | 'rejected'
@@ -31,6 +43,56 @@ export interface CustomProjectPerson {
   id: string
   email: string
   full_name: string
+}
+
+/** Customer-visible designer identity (no email). */
+export interface CustomProjectDesignerPublic {
+  id: string
+  full_name: string
+}
+
+export interface CustomerCustomProjectListItem {
+  id: string
+  title: string
+  category: string
+  status: CustomProjectStatus
+  payment_status: CustomProjectPaymentStatus
+  estimated_budget: string | null
+  currency: string
+  deadline: string | null
+  assigned_designer: CustomProjectDesignerPublic | null
+  quotation_amount: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerCustomProject {
+  id: string
+  title: string
+  description: string
+  category: string
+  status: CustomProjectStatus
+  payment_status: CustomProjectPaymentStatus
+  estimated_budget: string | null
+  currency: string
+  deadline: string | null
+  assigned_designer: CustomProjectDesignerPublic | null
+  quotation: ProjectQuotation | null
+  files: ProjectFile[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerCustomProjectListParams {
+  page?: number
+  page_size?: number
+}
+
+export interface PaginatedCustomerCustomProjects {
+  count: number
+  next: string | null
+  previous: string | null
+  results: CustomerCustomProjectListItem[]
 }
 
 export interface ProjectQuotation {
@@ -129,4 +191,34 @@ export interface PaginatedCustomProjects {
 export interface ProjectQuotationUpsertResponse {
   quotation: ProjectQuotation
   project: AdminCustomProject
+}
+
+export interface ProjectMessageSender {
+  id: string
+  full_name: string
+}
+
+export interface ProjectMessage {
+  id: string
+  project_id: string
+  body: string
+  sender: ProjectMessageSender
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectMessageCreatePayload {
+  body: string
+}
+
+export interface ProjectMessageListParams {
+  page?: number
+  page_size?: number
+}
+
+export interface PaginatedProjectMessages {
+  count: number
+  next: string | null
+  previous: string | null
+  results: ProjectMessage[]
 }

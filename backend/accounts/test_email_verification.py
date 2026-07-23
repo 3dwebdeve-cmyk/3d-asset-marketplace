@@ -100,6 +100,21 @@ class EmailVerificationAPITests(APITestCase):
         self.user.refresh_from_db()
         self.assertFalse(self.user.email_verified)
 
+    def test_confirm_verification_rejects_truncated_uid_without_500(self) -> None:
+        """Truncated base64 can decode to an invalid UUID; must not crash."""
+        full_uid = urlsafe_base64_encode(force_bytes(str(self.user.pk)))
+        truncated_uid = full_uid[:-4]
+
+        response = self.client.post(
+            self.confirm_url,
+            {"uid": truncated_uid, "token": "any-token"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.email_verified)
+
     def test_resend_sends_email_for_unverified_user(self) -> None:
         response = self.client.post(
             self.resend_url,

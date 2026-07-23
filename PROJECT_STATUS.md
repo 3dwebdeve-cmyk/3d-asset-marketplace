@@ -70,8 +70,9 @@ Sprint 8 – Custom Project Portal
 • [ ] Upload Reference Files (customer UI)
 • [x] Admin Review (admin list/detail/status/assign/notes)
 • [x] Project Quotation (admin upsert quotation API + UI)
+• [x] Project Messages (backend APIs + customer detail thread UI)
 • [ ] Client Approval
-• [ ] Project Status Tracking (customer-facing)
+• [x] Project Status Tracking (customer-facing detail)
 • [ ] Deliverables Upload
 • [ ] Project Completion
 Sprint 9 – Dashboards
@@ -80,7 +81,7 @@ Customer Dashboard
 • [ ] Orders
 • [ ] Downloads
 • [ ] Wishlist
-• [ ] My Projects
+• [x] My Projects
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
 • [x] Admin layout & navigation (sidebar, header, mobile menu, session shell)
@@ -101,15 +102,19 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Public Products Browse Page (/products) UI completed.
+CP-MSG-04 Customer project messages UI completed.
 Current Git Branch
-feature/public-prodcts-browse
+feature/custom-project-messages-backend
 Files Being Worked On
-• frontend/src/pages/Products/ProductsBrowsePage.tsx
-• frontend/src/pages/Products/ProductCard.tsx
-• frontend/src/api/productsApi.ts
-• frontend/src/api/categoriesApi.ts
-• frontend/src/styles/products-browse.css
+• frontend/src/types/customProject.ts
+• frontend/src/api/customProjectsApi.ts
+• frontend/src/api/customProjectsApi.test.ts
+• frontend/src/pages/Dashboard/CustomerProjectMessagesSection.tsx
+• frontend/src/pages/Dashboard/CustomerProjectMessagesSection.test.tsx
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.test.tsx
+• frontend/src/index.css
+• PROJECT_STATUS.md
 Completed Features
 • Project setup (Django, React, PostgreSQL, JWT wiring)
 • Customer registration / login / logout / refresh
@@ -117,6 +122,9 @@ Completed Features
 • Password reset + change password (with session invalidation)
 • Customer profile + avatar upload
 • Protected customer routes
+• Customer My Projects list UI (/dashboard/projects)
+• Customer project detail UI (/dashboard/projects/:projectId — fields, quote, files, states)
+• Customer project messages UI (thread + composer on project detail)
 • Product categories (model, public list/detail, admin CRUD API)
 • Marketplace products (model, public list/detail, admin CRUD API)
 • Product images + files upload (validated MIME/extension/size; local MEDIA)
@@ -130,9 +138,10 @@ Completed Features
 • Plugins admin UI (list/create/edit/archive, filters, ordering, pagination)
 • Plugin image and package upload/delete UI
 • Plugin category admin management UI
-• Custom projects backend (CustomProject, ProjectFile, ProjectQuotation)
+• Custom projects backend (CustomProject, ProjectFile, ProjectQuotation, ProjectMessage)
 • Customer custom-project APIs (create/list/detail + reference upload)
 • Admin custom-project APIs (list/create/detail/update + quotation upsert)
+• Customer/admin project message APIs (list + create, ownership/RBAC, throttle, pagination)
 • Custom projects admin UI (list/create/detail review, quote, assign designer)
 • Admin dashboard live custom-project pending/live/completed counts
 • Administrator role seed + createsuperuser → Administrator
@@ -150,8 +159,10 @@ Pending Features
 • Public product details page (React)
 • 3D product viewer
 • Public plugin store UI
-• Customer custom-project portal UI (My Projects, approve quote)
-• Project messages, deliverables, and secure project downloads
+• Customer custom-project portal UI (request form, reference upload, quote approval)
+• Admin project messages UI
+• Project message unread indicators, attachments, email notifications
+• Project deliverables and secure project downloads
 • Cart / payments / orders / downloads
 • Docker production stack
 • UI redesign pending manager prototype approval
@@ -179,10 +190,172 @@ Important Decisions
 • Plugin packages accept ZIP/RAR/7Z; ZIP metadata is scanned for traversal and expansion limits.
 • Custom projects are independent from marketplace orders; status transitions are enforced server-side.
 • Customer custom-project file responses omit storage_path; admins can open reference files for review.
+• Project messages are project-scoped threads; customer access is ownership-only (404 for others); admin_notes stay off message APIs.
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
 Daily Development Log
+Date: 2026-07-23 (CP-MSG-04 Customer project messages UI)
+Working Hours:
+Today's Objective: Customer project messages UI
+Modules Completed: Messages section on customer project detail, list/create API client, chronological You/Studio thread, composer with submit/error states, tests
+Files Created:
+• frontend/src/pages/Dashboard/CustomerProjectMessagesSection.tsx
+• frontend/src/pages/Dashboard/CustomerProjectMessagesSection.test.tsx
+Files Modified:
+• frontend/src/types/customProject.ts
+• frontend/src/api/customProjectsApi.ts
+• frontend/src/api/customProjectsApi.test.ts
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.test.tsx
+• frontend/src/index.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (reused GET/POST /api/custom-projects/<uuid>/messages/)
+API Endpoints Modified:
+• None
+Frontend Pages Created/Updated:
+• Customer project detail — Messages section (thread, empty state, composer, loading/error)
+Problems Encountered:
+• None
+Solutions Implemented:
+• Reused existing customer messages API, TanStack Query, Alert/ErrorState/Spinner/FormField patterns
+• Sender label from current user id (You) vs other senders (Studio); body rendered as React text (XSS-safe)
+Verification:
+• CustomerProjectMessagesSection tests: 5/5 passed (thread labels, empty, send success, send failure, XSS text)
+• CustomerProjectDetailPage tests: still passing with messages mocked
+• customProjectsApi message client tests: passed
+• TypeScript check (`tsc --noEmit`): 0 errors
+• oxlint on touched files: clean
+Security Review:
+• No medium, high, or critical issues found
+• Messages load/send only after project detail succeeds (ownership already gated by detail API + ProtectedRoute)
+• API calls via customProjectsApi (authenticated apiClient); no Axios in components
+• Message body rendered as text nodes only (no dangerouslySetInnerHTML); HTML payloads stay escaped
+• Client trims/validates empty + max length; server remains source of truth for validation/throttle
+• Sender email not exposed (matches public message serializer)
+Next Development Task:
+• CP-MSG-05 Admin project messages UI (or customer reference upload / quote approval)
+Date: 2026-07-23 (CP-MSG-03 Customer project detail UI)
+Working Hours:
+Today's Objective: Customer project detail UI
+Modules Completed: Protected customer project detail page, quotation display, reference file list, loading/404/error states, tests
+Files Created:
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.test.tsx
+Files Modified:
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (reused GET /api/custom-projects/<uuid>/)
+API Endpoints Modified:
+• None
+Frontend Pages Created/Updated:
+• /dashboard/projects/:projectId — full customer project detail (title, description, status, payment status, deadline, category, budget, quotation block, reference files; loading / 404-or-forbidden / error+retry; back link to My Projects)
+Problems Encountered:
+• Query-level retry overrode the test client's retry:false and hid the recoverable error state
+Solutions Implemented:
+• Disabled auto-retry on detail query; 404/403 show not-found without Retry; recoverable errors use Retry button
+• Reused getCustomerCustomProject, ProtectedRoute, ErrorState/Spinner, admin-media file list styles, formatFileSize
+Verification:
+• CustomerProjectDetailPage tests: 5/5 passed (happy path, empty quote/files, 404, error/retry, back link)
+• MyProjectsPage tests: 7/7 passed
+• TypeScript check (`tsc --noEmit`): 0 errors
+• oxlint on touched files: clean
+Security Review:
+• No medium, high, or critical issues found
+• Route gated by ProtectedRoute (JWT session required)
+• Ownership enforced server-side (404 for other customers); UI treats 404/403 as not-found without leaking existence details beyond API message
+• No Axios in components; API via customProjectsApi; React text rendering for user-generated title/description/notes/file names
+• Customer file list uses public metadata only (no download_url / storage_path)
+• Approve/reject quotation and file upload UI intentionally out of scope
+Next Development Task:
+• CP-MSG-04 Customer project messages UI (thread on detail page)
+Date: 2026-07-23 (CP-MSG-02 Customer My Projects list UI)
+Working Hours:
+Today's Objective: Customer My Projects list UI
+Modules Completed: Customer custom-projects API client, My Projects list page, protected routes, nav/dashboard links, basic customer project detail shell, tests
+Files Created:
+• frontend/src/pages/Dashboard/MyProjectsPage.tsx
+• frontend/src/pages/Dashboard/MyProjectsPage.test.tsx
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx
+Files Modified:
+• frontend/src/types/customProject.ts
+• frontend/src/api/customProjectsApi.ts
+• frontend/src/App.tsx
+• frontend/src/components/Navbar.tsx
+• frontend/src/components/Navbar.test.tsx
+• frontend/src/pages/Dashboard/DashboardPage.tsx
+• frontend/src/index.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (reused GET /api/custom-projects/ and GET /api/custom-projects/<uuid>/)
+API Endpoints Modified:
+• None
+Frontend Pages Created:
+• /dashboard/projects — My Projects list (title, status, updated date, quote amount; loading/empty/error; row → detail)
+• /dashboard/projects/:projectId — basic customer project detail shell (title, status, description, quote)
+Problems Encountered:
+• List API exposes quotation_amount but not quotation status; quote column shows amount when present
+Solutions Implemented:
+• Reused ProtectedRoute, customProjectsApi module pattern, TanStack Query, AdminProjectsPage table/loading/error patterns, Spinner/ErrorState
+Verification:
+• MyProjectsPage tests: 7/7 passed (list, quote dash, navigation, empty, page recovery, error/retry)
+• TypeScript check (`tsc --noEmit`): 0 errors
+• oxlint on touched files: clean
+Security Review:
+• No medium, high, or critical issues found
+• List/detail routes gated by ProtectedRoute (JWT session required)
+• API client reuses authenticated apiClient; ownership enforced server-side (404 for other customers)
+• No Axios calls in components; user-generated titles rendered via React text nodes
+• Admin users do not see My Projects nav link
+• Real-world hardening: empty later-page auto-recovery; title uses real Link (open in new tab)
+Next Development Task:
+• CP-MSG-03 Customer project detail UI (fields, quote display, reference files, states)
+Date: 2026-07-23 (CP-MSG-01 Project messages backend)
+Working Hours:
+Today's Objective: Project messages backend (API + model)
+Modules Completed: ProjectMessage model, customer/admin list+create APIs, validation, pagination, create throttles, ownership/RBAC, admin security logging, tests
+Files Created:
+• backend/custom_projects/migrations/0002_project_messages.py
+Files Modified:
+• backend/custom_projects/models.py
+• backend/custom_projects/services.py
+• backend/custom_projects/serializers.py
+• backend/custom_projects/views.py
+• backend/custom_projects/urls.py
+• backend/custom_projects/admin_urls.py
+• backend/custom_projects/admin.py
+• backend/custom_projects/test_custom_projects.py
+• PROJECT_STATUS.md
+Database Changes:
+• New table: custom_project_messages (UUID pk, project FK, sender FK, body, created_at, updated_at; indexes on created_at and project+created_at)
+API Endpoints Added:
+• GET/POST /api/custom-projects/<uuid>/messages/
+• GET/POST /api/admin/custom-projects/<uuid>/messages/
+API Endpoints Modified:
+• None
+Frontend Pages Created:
+• None (backend-only task)
+Problems Encountered:
+• None
+Solutions Implemented:
+• Reused CustomProjectService ownership helpers, CustomProjectPagination, existing write throttles, log_admin_action, and nested file-upload view patterns
+Verification:
+• custom_projects tests: 15/15 passed
+Security Review:
+• No medium, high, or critical issues found
+• Customer message routes resolve project via get_for_customer (other owners → 404)
+• Admin message routes require IsAdministrator
+• Message serializers never include admin_notes
+• Create endpoints rate-limited; admin creates logged as custom_project_message_create
+Next Development Task:
+• CP-MSG-02 Customer My Projects list UI
 Date: 2026-07-22 (Public Products Browse Page)
 Working Hours:
 Today's Objective: Public products Browse Page (/products)

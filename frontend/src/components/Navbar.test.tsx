@@ -35,6 +35,7 @@ function renderNavbar(initialPath = '/') {
           <Route path="/login" element={<div>Sign in page</div>} />
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<div>Dashboard page</div>} />
+            <Route path="/dashboard/projects" element={<div>My projects page</div>} />
             <Route path="/profile" element={<div>Profile page</div>} />
           </Route>
         </Routes>
@@ -59,7 +60,7 @@ describe('Navbar', () => {
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
   })
 
-  it('shows user name, Dashboard, Profile, and Sign out when logged in', () => {
+  it('shows user name, Dashboard, My Projects, Profile, and Sign out when logged in', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -71,6 +72,10 @@ describe('Navbar', () => {
 
     expect(screen.getByText(testUser.full_name)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /my projects/i })).toHaveAttribute(
+      'href',
+      '/dashboard/projects',
+    )
     expect(screen.getByRole('link', { name: /profile/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /sign in/i })).not.toBeInTheDocument()
@@ -90,6 +95,7 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /^admin$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /profile/i })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /my projects/i })).not.toBeInTheDocument()
   })
 
   it('navigates to the home page after sign out from a protected route', async () => {

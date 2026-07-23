@@ -4,6 +4,7 @@ from custom_projects.views import (
     AdminCustomProjectDetailView,
     AdminCustomProjectFileDownloadView,
     AdminCustomProjectListCreateView,
+    AdminCustomProjectMessageListCreateView,
     AdminCustomProjectQuotationView,
 )
 
@@ -29,5 +30,10 @@ urlpatterns = [
         "<uuid:project_id>/files/<uuid:file_id>/download/",
         AdminCustomProjectFileDownloadView.as_view(),
         name="admin-custom-project-file-download",
+    ),
+    path(
+        "<uuid:project_id>/messages/",
+        AdminCustomProjectMessageListCreateView.as_view(),
+        name="admin-custom-project-message-list-create",
     ),
 ]

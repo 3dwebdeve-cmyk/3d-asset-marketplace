@@ -4,7 +4,14 @@ import type {
   AdminCustomProjectCreatePayload,
   AdminCustomProjectListParams,
   AdminCustomProjectUpdatePayload,
+  CustomerCustomProject,
+  CustomerCustomProjectListParams,
+  PaginatedCustomerCustomProjects,
   PaginatedCustomProjects,
+  PaginatedProjectMessages,
+  ProjectMessage,
+  ProjectMessageCreatePayload,
+  ProjectMessageListParams,
   ProjectQuotationUpsertPayload,
   ProjectQuotationUpsertResponse,
 } from '../types/customProject'
@@ -20,6 +27,61 @@ function toQuery(params: AdminCustomProjectListParams = {}): string {
   if (params.page_size) query.set('page_size', String(params.page_size))
   const encoded = query.toString()
   return encoded ? `?${encoded}` : ''
+}
+
+function toCustomerListQuery(params: CustomerCustomProjectListParams = {}): string {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', String(params.page))
+  if (params.page_size) query.set('page_size', String(params.page_size))
+  const encoded = query.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
+export async function listCustomerCustomProjects(
+  params: CustomerCustomProjectListParams = {},
+): Promise<PaginatedCustomerCustomProjects> {
+  const { data } = await apiClient.get<PaginatedCustomerCustomProjects>(
+    `/api/custom-projects/${toCustomerListQuery(params)}`,
+  )
+  return data
+}
+
+export async function getCustomerCustomProject(
+  projectId: string,
+): Promise<CustomerCustomProject> {
+  const { data } = await apiClient.get<CustomerCustomProject>(
+    `/api/custom-projects/${projectId}/`,
+  )
+  return data
+}
+
+function toMessageListQuery(params: ProjectMessageListParams = {}): string {
+  const query = new URLSearchParams()
+  if (params.page) query.set('page', String(params.page))
+  if (params.page_size) query.set('page_size', String(params.page_size))
+  const encoded = query.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
+export async function listCustomerProjectMessages(
+  projectId: string,
+  params: ProjectMessageListParams = {},
+): Promise<PaginatedProjectMessages> {
+  const { data } = await apiClient.get<PaginatedProjectMessages>(
+    `/api/custom-projects/${projectId}/messages/${toMessageListQuery(params)}`,
+  )
+  return data
+}
+
+export async function createCustomerProjectMessage(
+  projectId: string,
+  payload: ProjectMessageCreatePayload,
+): Promise<ProjectMessage> {
+  const { data } = await apiClient.post<ProjectMessage>(
+    `/api/custom-projects/${projectId}/messages/`,
+    payload,
+  )
+  return data
 }
 
 export async function listAdminCustomProjects(

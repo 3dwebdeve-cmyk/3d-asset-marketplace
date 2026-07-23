@@ -11,7 +11,12 @@ from django.db.models import Prefetch, Q, QuerySet
 
 from accounts.models import User
 from accounts.services import AuthenticationService
-from custom_projects.models import CustomProject, ProjectFile, ProjectQuotation
+from custom_projects.models import (
+    CustomProject,
+    ProjectFile,
+    ProjectMessage,
+    ProjectQuotation,
+)
 from custom_projects.storage import ProjectFileStorageService
 from custom_projects.upload_rules import ValidatedProjectFileUpload
 
@@ -303,6 +308,43 @@ class CustomProjectService:
             project.status = CustomProject.Status.QUOTED
             project.save(update_fields=["status", "updated_at"])
         return quotation
+
+    @classmethod
+    def list_messages(cls, project: CustomProject) -> QuerySet[ProjectMessage]:
+        return (
+            ProjectMessage.objects.filter(project=project)
+            .select_related("sender")
+            .order_by("created_at")
+        )
+
+    @classmethod
+    @transaction.atomic
+    def create_message(
+        cls,
+        project: CustomProject,
+        *,
+        sender: User,
+        body: str,
+    ) -> ProjectMessage:
+        normalized = body.strip()
+        if not normalized:
+            raise CustomProjectError("Message body cannot be empty.", field="body")
+        if len(normalized) > ProjectMessage.BODY_MAX_LENGTH:
+            raise CustomProjectError(
+                f"Message body cannot exceed {ProjectMessage.BODY_MAX_LENGTH} characters.",
+                field="body",
+            )
+        message = ProjectMessage.objects.create(
+            project=project,
+            sender=sender,
+            body=normalized,
+        )
+        CustomProject.objects.filter(pk=project.pk).update(
+            updated_at=message.created_at,
+        )
+        return (
+            ProjectMessage.objects.select_related("sender").get(pk=message.pk)
+        )
 
     @classmethod
     @transaction.atomic

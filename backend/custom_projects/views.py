@@ -27,6 +27,8 @@ from custom_projects.serializers import (
     CustomProjectUpdateSerializer,
     ProjectFilePublicSerializer,
     ProjectFileUploadSerializer,
+    ProjectMessageCreateSerializer,
+    ProjectMessageSerializer,
     ProjectQuotationSerializer,
     ProjectQuotationUpsertSerializer,
 )
@@ -302,4 +304,95 @@ class AdminCustomProjectQuotationView(APIView):
                 ).data,
             },
             status=status.HTTP_200_OK,
+        )
+
+
+class CustomerCustomProjectMessageListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomProjectPagination
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            return [CustomProjectWriteRateThrottle()]
+        return []
+
+    def get(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_customer(project_id, request.user)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+        queryset = CustomProjectService.list_messages(project)
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(
+            ProjectMessageSerializer(page, many=True).data
+        )
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_customer(project_id, request.user)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        serializer = ProjectMessageCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            message = CustomProjectService.create_message(
+                project,
+                sender=request.user,
+                body=serializer.validated_data["body"],
+            )
+        except CustomProjectError as exc:
+            return _error_response(exc)
+        return Response(
+            ProjectMessageSerializer(message).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AdminCustomProjectMessageListCreateView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    pagination_class = CustomProjectPagination
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            return [AdminCustomProjectWriteRateThrottle()]
+        return []
+
+    def get(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_admin(project_id)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+        queryset = CustomProjectService.list_messages(project)
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(
+            ProjectMessageSerializer(page, many=True).data
+        )
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_admin(project_id)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        serializer = ProjectMessageCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            message = CustomProjectService.create_message(
+                project,
+                sender=request.user,
+                body=serializer.validated_data["body"],
+            )
+        except CustomProjectError as exc:
+            return _error_response(exc)
+        log_admin_action(
+            action="custom_project_message_create",
+            actor_id=str(request.user.id),
+            target_id=str(message.id),
+        )
+        return Response(
+            ProjectMessageSerializer(message).data,
+            status=status.HTTP_201_CREATED,
         )

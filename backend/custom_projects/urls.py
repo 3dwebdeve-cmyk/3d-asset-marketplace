@@ -4,6 +4,7 @@ from custom_projects.views import (
     CustomerCustomProjectDetailView,
     CustomerCustomProjectFileUploadView,
     CustomerCustomProjectListCreateView,
+    CustomerCustomProjectMessageListCreateView,
 )
 
 app_name = "custom_projects"
@@ -23,5 +24,10 @@ urlpatterns = [
         "<uuid:project_id>/files/",
         CustomerCustomProjectFileUploadView.as_view(),
         name="customer-custom-project-file-upload",
+    ),
+    path(
+        "<uuid:project_id>/messages/",
+        CustomerCustomProjectMessageListCreateView.as_view(),
+        name="customer-custom-project-message-list-create",
     ),
 ]

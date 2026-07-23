@@ -285,6 +285,20 @@
   font-weight: 600;
 }
 
+.admin-table__row--clickable {
+  cursor: pointer;
+}
+
+.admin-table__row--clickable:hover,
+.admin-table__row--clickable:focus-visible {
+  background: var(--bg-section);
+}
+
+.admin-table__row--clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 .admin-media-section {
   display: grid;
   gap: 1.25rem;
@@ -487,6 +501,59 @@
 .dashboard-password-form .ui-button {
   width: auto;
   margin-top: 0.25rem;
+}
+
+.project-message-thread {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.project-message-item {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-section);
+}
+
+.project-message-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.project-message-item__sender {
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.project-message-item__body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-body);
+}
+
+.project-message-composer {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.project-message-composer__input {
+  resize: vertical;
+  min-height: 6rem;
+}
+
+.project-message-composer .ui-button {
+  width: auto;
+  justify-self: start;
 }
 
 body {

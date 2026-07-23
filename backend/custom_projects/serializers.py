@@ -1,6 +1,11 @@
 from rest_framework import serializers
 
-from custom_projects.models import CustomProject, ProjectFile, ProjectQuotation
+from custom_projects.models import (
+    CustomProject,
+    ProjectFile,
+    ProjectMessage,
+    ProjectQuotation,
+)
 
 
 class ProjectQuotationSerializer(serializers.ModelSerializer):
@@ -251,3 +256,38 @@ class ProjectFileUploadSerializer(serializers.Serializer):
         choices=ProjectFile.FileType.choices,
         default=ProjectFile.FileType.OTHER,
     )
+
+
+class ProjectMessageSenderSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    full_name = serializers.CharField()
+
+
+class ProjectMessageSerializer(serializers.ModelSerializer):
+    sender = ProjectMessageSenderSerializer(read_only=True)
+
+    class Meta:
+        model = ProjectMessage
+        fields = (
+            "id",
+            "project_id",
+            "body",
+            "sender",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
+class ProjectMessageCreateSerializer(serializers.Serializer):
+    body = serializers.CharField(
+        max_length=ProjectMessage.BODY_MAX_LENGTH,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+
+    def validate_body(self, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Message body cannot be empty.")
+        return normalized

@@ -154,3 +154,35 @@ class ProjectQuotation(models.Model):
 
     def __str__(self) -> str:
         return f"Quote {self.amount} {self.currency} for {self.project_id}"
+
+
+class ProjectMessage(models.Model):
+    """Shared project thread message between customer and administrators."""
+
+    BODY_MAX_LENGTH = 5000
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        CustomProject,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="custom_project_messages",
+    )
+    body = models.TextField(max_length=BODY_MAX_LENGTH)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_project_messages"
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["project", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Message {self.id} on {self.project_id}"
