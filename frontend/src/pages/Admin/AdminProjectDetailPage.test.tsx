@@ -18,6 +18,10 @@ vi.mock('../../api/customProjectsApi', async () => {
     getAdminCustomProject: vi.fn(),
     updateAdminCustomProject: vi.fn(),
     upsertAdminCustomProjectQuotation: vi.fn(),
+    listAdminProjectMessages: vi.fn(),
+    createAdminProjectMessage: vi.fn(),
+    markAdminProjectMessagesRead: vi.fn(),
+    listAdminProjectDeliveries: vi.fn(),
   }
 })
 
@@ -89,6 +93,23 @@ beforeEach(() => {
   resetToastStore()
   vi.clearAllMocks()
   vi.mocked(customProjectsApi.getAdminCustomProject).mockResolvedValue(project)
+  vi.mocked(customProjectsApi.listAdminProjectMessages).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(customProjectsApi.listAdminProjectDeliveries).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(customProjectsApi.markAdminProjectMessagesRead).mockResolvedValue({
+    project_id: projectId,
+    last_read_at: '2026-01-10T12:00:00Z',
+    unread_count: 0,
+  })
   vi.mocked(authApi.listAdminUsers).mockResolvedValue({
     count: 1,
     next: null,
@@ -112,6 +133,16 @@ describe('AdminProjectDetailPage', () => {
     })
     renderPage()
     expect(await screen.findByDisplayValue('Hero prop')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Deliverables' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Messages' })).toBeInTheDocument()
+    expect(customProjectsApi.listAdminProjectDeliveries).toHaveBeenCalledWith(projectId, {
+      page: 1,
+      page_size: 50,
+    })
+    expect(customProjectsApi.listAdminProjectMessages).toHaveBeenCalledWith(projectId, {
+      page: 1,
+      page_size: 100,
+    })
     await user.selectOptions(screen.getByLabelText('Status'), 'under_review')
     await user.selectOptions(screen.getByLabelText('Assigned designer'), adminUser.id)
     await user.type(screen.getByLabelText('Admin notes'), 'Feasible this sprint.')

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import type { FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 
 import {
   createCustomerProjectMessage,
+  downloadCustomerProjectMessageAttachment,
   listCustomerProjectMessages,
+  markCustomerProjectMessagesRead,
 } from '../../api/customProjectsApi'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
@@ -12,10 +14,21 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { formatFileSize } from '../../lib/productUpload'
+import {
+  PROJECT_MESSAGE_ATTACHMENT_ACCEPT,
+  PROJECT_MESSAGE_ATTACHMENT_FORMAT_LABELS,
+  PROJECT_MESSAGE_ATTACHMENT_MAX_MB,
+  validateProjectMessageAttachment,
+} from '../../lib/projectMessageUpload'
+import {
+  fetchLatestProjectMessages,
+  PROJECT_MESSAGE_PAGE_SIZE,
+  resolveCustomerMessageSenderLabel,
+} from '../../lib/projectMessages'
 import { useAuthStore } from '../../store/authStore'
-import type { ProjectMessage } from '../../types/customProject'
+import type { ProjectMessageAttachment } from '../../types/customProject'
 
-const MESSAGE_PAGE_SIZE = 100
 const MESSAGE_MAX_LENGTH = 5000
 
 function formatMessageTimestamp(iso: string): string {
@@ -30,13 +43,6 @@ function formatMessageTimestamp(iso: string): string {
   }).format(date)
 }
 
-function senderLabel(message: ProjectMessage, currentUserId: string | undefined): string {
-  if (currentUserId && message.sender.id === currentUserId) {
-    return 'You'
-  }
-  return 'Studio'
-}
-
 interface CustomerProjectMessagesSectionProps {
   projectId: string
 }
@@ -47,24 +53,63 @@ export function CustomerProjectMessagesSection({
   const queryClient = useQueryClient()
   const currentUserId = useAuthStore((state) => state.user?.id)
   const [body, setBody] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const markedReadForLoadKey = useRef<string | null>(null)
 
   const messagesQuery = useQuery({
     queryKey: ['customer', 'custom-projects', projectId, 'messages'],
     queryFn: () =>
-      listCustomerProjectMessages(projectId, {
-        page: 1,
-        page_size: MESSAGE_PAGE_SIZE,
-      }),
+      fetchLatestProjectMessages(
+        listCustomerProjectMessages,
+        projectId,
+        PROJECT_MESSAGE_PAGE_SIZE,
+      ),
     enabled: Boolean(projectId),
     retry: false,
   })
 
+  useEffect(() => {
+    if (!messagesQuery.isSuccess || !projectId) return
+    const loadKey = `${projectId}:${messagesQuery.dataUpdatedAt}`
+    if (markedReadForLoadKey.current === loadKey) return
+    markedReadForLoadKey.current = loadKey
+
+    void markCustomerProjectMessagesRead(projectId)
+      .then(() =>
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const [scope, resource, third] = query.queryKey
+            // Only list queries use an object filter key (e.g. { page }).
+            return (
+              scope === 'customer' &&
+              resource === 'custom-projects' &&
+              typeof third === 'object' &&
+              third !== null
+            )
+          },
+        }),
+      )
+      .catch(() => {
+        // Opening the thread should still work if mark-read fails; badge clears on retry.
+        markedReadForLoadKey.current = null
+      })
+  }, [
+    messagesQuery.isSuccess,
+    messagesQuery.dataUpdatedAt,
+    projectId,
+    queryClient,
+  ])
+
   const sendMutation = useMutation({
-    mutationFn: (messageBody: string) =>
-      createCustomerProjectMessage(projectId, { body: messageBody }),
+    mutationFn: (payload: { body: string; file?: File }) =>
+      createCustomerProjectMessage(projectId, payload),
     onSuccess: async () => {
       setBody('')
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
       setSendError(null)
       await queryClient.invalidateQueries({
         queryKey: ['customer', 'custom-projects', projectId, 'messages'],
@@ -75,11 +120,28 @@ export function CustomerProjectMessagesSection({
     },
   })
 
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null
+    if (!file) {
+      setSelectedFile(null)
+      return
+    }
+    const validationError = validateProjectMessageAttachment(file)
+    if (validationError) {
+      setSendError(validationError)
+      setSelectedFile(null)
+      event.target.value = ''
+      return
+    }
+    setSendError(null)
+    setSelectedFile(file)
+  }
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     const trimmed = body.trim()
-    if (!trimmed) {
-      setSendError('Message cannot be empty.')
+    if (!trimmed && !selectedFile) {
+      setSendError('Provide a message or an attachment.')
       return
     }
     if (trimmed.length > MESSAGE_MAX_LENGTH) {
@@ -87,15 +149,40 @@ export function CustomerProjectMessagesSection({
       return
     }
     setSendError(null)
-    sendMutation.mutate(trimmed)
+    sendMutation.mutate(
+      selectedFile ? { body: trimmed, file: selectedFile } : { body: trimmed },
+    )
   }
 
-  const messages = messagesQuery.data?.results ?? []
+  const onDownloadAttachment = async (
+    messageId: string,
+    attachment: ProjectMessageAttachment,
+  ) => {
+    setDownloadError(null)
+    try {
+      await downloadCustomerProjectMessageAttachment(
+        projectId,
+        messageId,
+        attachment.id,
+        attachment.file_name,
+      )
+    } catch (error) {
+      setDownloadError(
+        getApiErrorMessage(error, 'Could not download the attachment. Please try again.'),
+      )
+    }
+  }
+
+  const messages = messagesQuery.data?.messages ?? []
+  const truncated = messagesQuery.data?.truncated ?? false
   const isSending = sendMutation.isPending
+  const canSend = Boolean(body.trim() || selectedFile)
 
   return (
     <section className="admin-media-section" aria-labelledby="project-messages-title">
       <h2 id="project-messages-title">Messages</h2>
+
+      {downloadError ? <Alert variant="error" message={downloadError} /> : null}
 
       {messagesQuery.isLoading ? (
         <Spinner label="Loading messages..." />
@@ -121,21 +208,48 @@ export function CustomerProjectMessagesSection({
           No messages yet.
         </p>
       ) : (
-        <ul className="project-message-thread" aria-label="Project message thread">
-          {messages.map((message) => (
-            <li key={message.id} className="project-message-item">
-              <div className="project-message-item__meta">
-                <span className="project-message-item__sender">
-                  {senderLabel(message, currentUserId)}
-                </span>
-                <time dateTime={message.created_at}>
-                  {formatMessageTimestamp(message.created_at)}
-                </time>
-              </div>
-              <p className="project-message-item__body">{message.body}</p>
-            </li>
-          ))}
-        </ul>
+        <>
+          {truncated ? (
+            <p className="home-page__subtitle" role="status">
+              Showing the latest {PROJECT_MESSAGE_PAGE_SIZE} messages.
+            </p>
+          ) : null}
+          <ul className="project-message-thread" aria-label="Project message thread">
+            {messages.map((message) => (
+              <li key={message.id} className="project-message-item">
+                <div className="project-message-item__meta">
+                  <span className="project-message-item__sender">
+                    {resolveCustomerMessageSenderLabel(message, currentUserId)}
+                  </span>
+                  <time dateTime={message.created_at}>
+                    {formatMessageTimestamp(message.created_at)}
+                  </time>
+                </div>
+                {message.body ? (
+                  <p className="project-message-item__body">{message.body}</p>
+                ) : null}
+                {(message.attachments ?? []).length > 0 ? (
+                  <ul className="project-message-attachments" aria-label="Attachments">
+                    {(message.attachments ?? []).map((attachment) => (
+                      <li key={attachment.id} className="project-message-attachment">
+                        <span className="project-message-attachment__meta">
+                          {attachment.file_name} · {formatFileSize(attachment.file_size)}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void onDownloadAttachment(message.id, attachment)}
+                        >
+                          Download
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <form className="project-message-composer" onSubmit={onSubmit} noValidate>
@@ -152,7 +266,37 @@ export function CustomerProjectMessagesSection({
             placeholder="Ask a question or share project details…"
           />
         </FormField>
-        <Button type="submit" isLoading={isSending} disabled={!body.trim()}>
+        <FormField id="project-message-attachment" label="Attachment (optional)">
+          <input
+            ref={fileInputRef}
+            id="project-message-attachment"
+            type="file"
+            accept={PROJECT_MESSAGE_ATTACHMENT_ACCEPT}
+            disabled={isSending}
+            onChange={onFileChange}
+          />
+        </FormField>
+        <p className="project-message-composer__hint">
+          Allowed: {PROJECT_MESSAGE_ATTACHMENT_FORMAT_LABELS.join(', ')}. Max{' '}
+          {PROJECT_MESSAGE_ATTACHMENT_MAX_MB} MB.
+        </p>
+        {selectedFile ? (
+          <p className="project-message-composer__file" role="status">
+            Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+            <button
+              type="button"
+              className="project-message-composer__clear-file"
+              disabled={isSending}
+              onClick={() => {
+                setSelectedFile(null)
+                if (fileInputRef.current) fileInputRef.current.value = ''
+              }}
+            >
+              Remove
+            </button>
+          </p>
+        ) : null}
+        <Button type="submit" isLoading={isSending} disabled={!canSend}>
           Send message
         </Button>
       </form>

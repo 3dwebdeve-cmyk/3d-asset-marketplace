@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import default_storage
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.views.static import serve
@@ -32,7 +33,18 @@ def media_relative_path(storage_path: str) -> str | None:
 
     if not relative or ".." in relative or relative.startswith(("/", "\\")):
         return None
-    return relative
+
+    # Reject Windows drive-letter / UNC / absolute paths before storage join.
+    # Without this, FileSystemStorage.safe_join can raise SuspiciousFileOperation (400).
+    if len(relative) >= 2 and relative[1] == ":":
+        return None
+    if relative.startswith("\\\\") or Path(relative).is_absolute():
+        return None
+
+    normalized = relative.replace("\\", "/")
+    if not normalized or ".." in normalized or normalized.startswith("/"):
+        return None
+    return normalized
 
 
 def is_public_media_path(relative: str) -> bool:
@@ -41,13 +53,24 @@ def is_public_media_path(relative: str) -> bool:
 
 def open_stored_file(storage_path: str) -> FileResponse:
     relative = media_relative_path(storage_path)
-    if relative is None or not default_storage.exists(relative):
+    if relative is None:
         raise Http404("File not found.")
 
-    handle = default_storage.open(relative, "rb")
+    try:
+        exists = default_storage.exists(relative)
+    except (OSError, SuspiciousFileOperation, ValueError):
+        raise Http404("File not found.") from None
+
+    if not exists:
+        raise Http404("File not found.")
+
+    try:
+        handle = default_storage.open(relative, "rb")
+    except (OSError, SuspiciousFileOperation, ValueError, FileNotFoundError):
+        raise Http404("File not found.") from None
+
     filename = Path(relative).name
-    response = FileResponse(handle, as_attachment=True, filename=filename)
-    return response
+    return FileResponse(handle, as_attachment=True, filename=filename)
 
 
 def serve_public_media(request: HttpRequest, path: str) -> HttpResponse:

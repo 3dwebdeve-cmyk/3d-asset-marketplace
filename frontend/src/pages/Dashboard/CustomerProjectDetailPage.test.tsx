@@ -20,6 +20,7 @@ vi.mock('../../api/customProjectsApi', async () => {
     getCustomerCustomProject: vi.fn(),
     listCustomerProjectMessages: vi.fn(),
     createCustomerProjectMessage: vi.fn(),
+    markCustomerProjectMessagesRead: vi.fn(),
   }
 })
 
@@ -106,6 +107,11 @@ beforeEach(() => {
     previous: null,
     results: [],
   })
+  vi.mocked(customProjectsApi.markCustomerProjectMessagesRead).mockResolvedValue({
+    project_id: projectId,
+    last_read_at: '2026-01-10T12:00:00Z',
+    unread_count: 0,
+  })
 })
 
 describe('CustomerProjectDetailPage', () => {
@@ -159,6 +165,7 @@ describe('CustomerProjectDetailPage', () => {
             id: '88888888-8888-8888-8888-888888888888',
             full_name: 'Studio Admin',
           },
+          attachments: [],
           created_at: '2026-01-10T10:00:00Z',
           updated_at: '2026-01-10T10:00:00Z',
         },

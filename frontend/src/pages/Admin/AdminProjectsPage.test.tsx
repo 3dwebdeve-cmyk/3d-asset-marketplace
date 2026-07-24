@@ -62,6 +62,8 @@ const project = {
   },
   assigned_designer: null,
   quotation_amount: null,
+  unread_count: 0,
+  has_unread: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 }
@@ -109,6 +111,20 @@ describe('AdminProjectsPage', () => {
       'href',
       `/admin/projects/${project.id}`,
     )
+  })
+
+  it('shows an unread badge when a project has unread messages', async () => {
+    vi.mocked(customProjectsApi.listAdminCustomProjects).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{ ...project, unread_count: 3, has_unread: true }],
+    })
+
+    renderPage()
+
+    expect(await screen.findByText('Hero prop')).toBeInTheDocument()
+    expect(screen.getByLabelText('3 unread messages')).toHaveTextContent('3')
   })
 
   it('creates a project for a customer', async () => {

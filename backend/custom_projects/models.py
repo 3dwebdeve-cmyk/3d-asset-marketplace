@@ -119,6 +119,49 @@ class ProjectFile(models.Model):
         return self.file_name
 
 
+class ProjectDelivery(models.Model):
+    """Final deliverable uploaded for a custom project (separate from reference files)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        CustomProject,
+        on_delete=models.CASCADE,
+        related_name="deliveries",
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="custom_project_deliveries",
+    )
+    file_name = models.CharField(max_length=255)
+    storage_path = models.URLField()
+    file_size = models.PositiveBigIntegerField(default=0)
+    version = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_project_deliveries"
+        ordering = ["-version", "-created_at"]
+        indexes = [
+            models.Index(fields=["project", "version"]),
+            models.Index(fields=["project", "created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "version"],
+                name="uniq_custom_project_delivery_version",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.file_name} (v{self.version})"
+
+
 class ProjectQuotation(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -172,7 +215,7 @@ class ProjectMessage(models.Model):
         on_delete=models.PROTECT,
         related_name="custom_project_messages",
     )
-    body = models.TextField(max_length=BODY_MAX_LENGTH)
+    body = models.TextField(max_length=BODY_MAX_LENGTH, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -186,3 +229,65 @@ class ProjectMessage(models.Model):
 
     def __str__(self) -> str:
         return f"Message {self.id} on {self.project_id}"
+
+
+class ProjectMessageAttachment(models.Model):
+    """File attached to a project message (private; download via authenticated API)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(
+        ProjectMessage,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    file_name = models.CharField(max_length=255)
+    storage_path = models.URLField()
+    file_size = models.PositiveBigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_project_message_attachments"
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["message", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.file_name
+
+
+class ProjectMessageReadState(models.Model):
+    """Per-user last-read cursor for a custom project message thread."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(
+        CustomProject,
+        on_delete=models.CASCADE,
+        related_name="message_read_states",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="custom_project_message_read_states",
+    )
+    last_read_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "custom_project_message_read_states"
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "user"],
+                name="uniq_custom_project_message_read_state",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "last_read_at"]),
+            models.Index(fields=["project", "user"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Read state {self.user_id} on {self.project_id}"

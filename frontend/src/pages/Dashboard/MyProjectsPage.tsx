@@ -33,6 +33,11 @@ function formatQuote(project: CustomerCustomProjectListItem): string {
   return `${project.currency} ${project.quotation_amount}`
 }
 
+function formatUnreadBadge(count: number): string {
+  if (count > 99) return '99+'
+  return String(count)
+}
+
 export function MyProjectsPage() {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
@@ -129,13 +134,23 @@ export function MyProjectsPage() {
                         }}
                       >
                         <td>
-                          <Link
-                            className="auth-link"
-                            to={detailPath}
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {project.title}
-                          </Link>
+                          <div className="project-list-title">
+                            <Link
+                              className="auth-link"
+                              to={detailPath}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {project.title}
+                            </Link>
+                            {project.has_unread ? (
+                              <span
+                                className="project-unread-badge"
+                                aria-label={`${project.unread_count} unread message${project.unread_count === 1 ? '' : 's'}`}
+                              >
+                                {formatUnreadBadge(project.unread_count)}
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td>{formatStatus(project.status)}</td>
                         <td>{formatUpdatedAt(project.updated_at)}</td>

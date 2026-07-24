@@ -62,6 +62,8 @@ export interface CustomerCustomProjectListItem {
   deadline: string | null
   assigned_designer: CustomProjectDesignerPublic | null
   quotation_amount: string | null
+  unread_count: number
+  has_unread: boolean
   created_at: string
   updated_at: string
 }
@@ -129,11 +131,14 @@ export interface AdminCustomProjectListItem {
   customer: CustomProjectPerson
   assigned_designer: CustomProjectPerson | null
   quotation_amount: string | null
+  unread_count: number
+  has_unread: boolean
   created_at: string
   updated_at: string
 }
 
-export interface AdminCustomProject extends AdminCustomProjectListItem {
+export interface AdminCustomProject
+  extends Omit<AdminCustomProjectListItem, 'unread_count' | 'has_unread'> {
   description: string
   admin_notes: string
   quotation: ProjectQuotation | null
@@ -198,17 +203,28 @@ export interface ProjectMessageSender {
   full_name: string
 }
 
+export interface ProjectMessageAttachment {
+  id: string
+  file_name: string
+  file_size: number
+  download_url: string
+  created_at: string
+  updated_at: string
+}
+
 export interface ProjectMessage {
   id: string
   project_id: string
   body: string
   sender: ProjectMessageSender
+  attachments: ProjectMessageAttachment[]
   created_at: string
   updated_at: string
 }
 
 export interface ProjectMessageCreatePayload {
   body: string
+  file?: File
 }
 
 export interface ProjectMessageListParams {
@@ -221,4 +237,41 @@ export interface PaginatedProjectMessages {
   next: string | null
   previous: string | null
   results: ProjectMessage[]
+}
+
+export interface ProjectMessageReadState {
+  project_id: string
+  last_read_at: string
+  unread_count: number
+}
+
+export interface ProjectDelivery {
+  id: string
+  project_id: string
+  file_name: string
+  file_size: number
+  version: number
+  notes: string
+  uploaded_by_email?: string
+  download_url: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectDeliveryUploadPayload {
+  file: File
+  notes?: string
+  version?: number
+}
+
+export interface ProjectDeliveryListParams {
+  page?: number
+  page_size?: number
+}
+
+export interface PaginatedProjectDeliveries {
+  count: number
+  next: string | null
+  previous: string | null
+  results: ProjectDelivery[]
 }

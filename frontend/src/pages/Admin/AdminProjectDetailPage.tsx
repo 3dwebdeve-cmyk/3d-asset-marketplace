@@ -24,6 +24,8 @@ import type {
   CustomProjectStatus,
   ProjectQuotationUpsertPayload,
 } from '../../types/customProject'
+import { AdminProjectDeliveriesSection } from './AdminProjectDeliveriesSection'
+import { AdminProjectMessagesSection } from './AdminProjectMessagesSection'
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -465,6 +467,19 @@ export function AdminProjectDetailPage() {
                 <p className="home-page__subtitle">No reference files uploaded yet.</p>
               )}
             </section>
+
+            <AdminProjectDeliveriesSection
+              projectId={project.id}
+              status={form.status ?? project.status}
+              onStatusChange={(nextStatus) =>
+                setForm((current) => ({ ...current, status: nextStatus }))
+              }
+            />
+
+            <AdminProjectMessagesSection
+              projectId={project.id}
+              customerId={project.customer.id}
+            />
           </>
         ) : projectQuery.isFetching ? (
           <Spinner label="Loading custom project..." />

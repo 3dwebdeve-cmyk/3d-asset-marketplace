@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,6 +24,8 @@ vi.mock('../../api/customProjectsApi', async () => {
     ...actual,
     listCustomerProjectMessages: vi.fn(),
     createCustomerProjectMessage: vi.fn(),
+    markCustomerProjectMessagesRead: vi.fn(),
+    downloadCustomerProjectMessageAttachment: vi.fn(),
   }
 })
 
@@ -38,6 +40,7 @@ const customerMessage: ProjectMessage = {
     id: testUser.id,
     full_name: testUser.full_name,
   },
+  attachments: [],
   created_at: '2026-01-10T10:00:00Z',
   updated_at: '2026-01-10T10:00:00Z',
 }
@@ -50,6 +53,7 @@ const studioMessage: ProjectMessage = {
     id: studioSenderId,
     full_name: 'Studio Admin',
   },
+  attachments: [],
   created_at: '2026-01-10T11:00:00Z',
   updated_at: '2026-01-10T11:00:00Z',
 }
@@ -94,6 +98,11 @@ beforeEach(() => {
     previous: null,
     results: [customerMessage, studioMessage],
   })
+  vi.mocked(customProjectsApi.markCustomerProjectMessagesRead).mockResolvedValue({
+    project_id: projectId,
+    last_read_at: '2026-01-10T12:00:00Z',
+    unread_count: 0,
+  })
 })
 
 describe('CustomerProjectMessagesSection', () => {
@@ -114,6 +123,54 @@ describe('CustomerProjectMessagesSection', () => {
     })
   })
 
+  it('marks the thread as read after a successful messages load', async () => {
+    renderSection()
+
+    await screen.findByText('Can we keep the crate matte?')
+    await waitFor(() => {
+      expect(customProjectsApi.markCustomerProjectMessagesRead).toHaveBeenCalledWith(
+        projectId,
+      )
+    })
+  })
+
+  it('does not mark read when messages fail to load', async () => {
+    vi.mocked(customProjectsApi.listCustomerProjectMessages).mockRejectedValue(
+      axiosStatusError(500, 'Server error'),
+    )
+    renderSection()
+
+    expect(await screen.findByText(/could not load messages/i)).toBeInTheDocument()
+    expect(customProjectsApi.markCustomerProjectMessagesRead).not.toHaveBeenCalled()
+  })
+
+  it('keeps the thread visible when mark-read fails (no crash)', async () => {
+    vi.mocked(customProjectsApi.markCustomerProjectMessagesRead).mockRejectedValue(
+      new Error('mark-read unavailable'),
+    )
+    renderSection()
+
+    expect(await screen.findByText('Can we keep the crate matte?')).toBeInTheDocument()
+    expect(screen.getByText('Yes — matte finish works well.')).toBeInTheDocument()
+    expect(screen.getByLabelText(/write a message/i)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(customProjectsApi.markCustomerProjectMessagesRead).toHaveBeenCalled()
+    })
+  })
+
+  it('does not storm mark-read or list calls after a successful open', async () => {
+    renderSection()
+    await screen.findByText('Can we keep the crate matte?')
+
+    await waitFor(() => {
+      expect(customProjectsApi.markCustomerProjectMessagesRead).toHaveBeenCalledTimes(1)
+    })
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(customProjectsApi.markCustomerProjectMessagesRead).toHaveBeenCalledTimes(1)
+    // fetchLatestProjectMessages may request page 1 only when count <= page size.
+    expect(customProjectsApi.listCustomerProjectMessages.mock.calls.length).toBeLessThan(5)
+  })
+
   it('labels every sender as Studio when the current user is unknown', async () => {
     useAuthStore.setState({ user: null })
     renderSection()
@@ -121,6 +178,44 @@ describe('CustomerProjectMessagesSection', () => {
     expect(await screen.findByText('Can we keep the crate matte?')).toBeInTheDocument()
     expect(screen.getAllByText('Studio')).toHaveLength(2)
     expect(screen.queryByText('You')).not.toBeInTheDocument()
+  })
+
+  it('shows the latest messages when the thread exceeds one page', async () => {
+    const pageOne = Array.from({ length: 100 }, (_, index) => ({
+      ...customerMessage,
+      id: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+      body: `old-${index + 1}`,
+    }))
+    const newest: ProjectMessage = {
+      ...studioMessage,
+      id: '99999999-9999-9999-9999-999999999999',
+      body: 'latest studio reply',
+    }
+    vi.mocked(customProjectsApi.listCustomerProjectMessages).mockImplementation(
+      async (_id, params = {}) => {
+        const page = params.page ?? 1
+        if (page === 1) {
+          return {
+            count: 101,
+            next: 'next-page',
+            previous: null,
+            results: pageOne,
+          }
+        }
+        return {
+          count: 101,
+          next: null,
+          previous: 'prev-page',
+          results: [newest],
+        }
+      },
+    )
+
+    renderSection()
+
+    expect(await screen.findByText('latest studio reply')).toBeInTheDocument()
+    expect(screen.getByText(/showing the latest 100 messages/i)).toBeInTheDocument()
+    expect(screen.queryByText('old-1')).not.toBeInTheDocument()
   })
 
   it('shows a dash for invalid message timestamps', async () => {
@@ -256,6 +351,7 @@ describe('CustomerProjectMessagesSection', () => {
         id: testUser.id,
         full_name: testUser.full_name,
       },
+      attachments: [],
       created_at: '2026-01-10T12:00:00Z',
       updated_at: '2026-01-10T12:00:00Z',
     }
@@ -376,5 +472,179 @@ describe('CustomerProjectMessagesSection', () => {
     expect(body).toHaveTextContent('Line one')
     expect(body).toHaveTextContent('Line two')
     expect(body.textContent).toContain('\n')
+  })
+
+  it('shows attachments in the thread and downloads via API', async () => {
+    const user = userEvent.setup()
+    const attachmentMessage: ProjectMessage = {
+      ...customerMessage,
+      body: 'Attached sketch',
+      attachments: [
+        {
+          id: '55555555-5555-5555-5555-555555555555',
+          file_name: 'sketch.png',
+          file_size: 2048,
+          download_url: `/api/custom-projects/${projectId}/messages/${customerMessage.id}/attachments/55555555-5555-5555-5555-555555555555/download/`,
+          created_at: '2026-01-10T10:00:00Z',
+          updated_at: '2026-01-10T10:00:00Z',
+        },
+      ],
+    }
+    vi.mocked(customProjectsApi.listCustomerProjectMessages).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [attachmentMessage],
+    })
+    vi.mocked(customProjectsApi.downloadCustomerProjectMessageAttachment).mockResolvedValue()
+
+    renderSection()
+
+    expect(await screen.findByText(/sketch\.png/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /download/i }))
+
+    expect(customProjectsApi.downloadCustomerProjectMessageAttachment).toHaveBeenCalledWith(
+      projectId,
+      attachmentMessage.id,
+      '55555555-5555-5555-5555-555555555555',
+      'sketch.png',
+    )
+  })
+
+  it('sends a message with an attached file', async () => {
+    const user = userEvent.setup()
+    const file = new File(['png-bytes'], 'brief.png', { type: 'image/png' })
+    vi.mocked(customProjectsApi.createCustomerProjectMessage).mockResolvedValue({
+      ...customerMessage,
+      id: '66666666-6666-6666-6666-666666666666',
+      body: 'With file',
+      attachments: [
+        {
+          id: '77777777-7777-7777-7777-777777777777',
+          file_name: 'brief.png',
+          file_size: file.size,
+          download_url: 'https://example.test/download',
+          created_at: '2026-01-10T12:00:00Z',
+          updated_at: '2026-01-10T12:00:00Z',
+        },
+      ],
+    })
+    vi.mocked(customProjectsApi.listCustomerProjectMessages)
+      .mockResolvedValueOnce({
+        count: 0,
+        next: null,
+        previous: null,
+        results: [],
+      })
+      .mockResolvedValueOnce({
+        count: 1,
+        next: null,
+        previous: null,
+        results: [
+          {
+            ...customerMessage,
+            id: '66666666-6666-6666-6666-666666666666',
+            body: 'With file',
+          },
+        ],
+      })
+
+    renderSection()
+    await screen.findByText(/no messages yet/i)
+
+    await user.type(screen.getByLabelText(/write a message/i), 'With file')
+    await user.upload(screen.getByLabelText(/attachment \(optional\)/i), file)
+    await user.click(screen.getByRole('button', { name: /send message/i }))
+
+    await waitFor(() => {
+      expect(customProjectsApi.createCustomerProjectMessage).toHaveBeenCalledWith(projectId, {
+        body: 'With file',
+        file,
+      })
+    })
+  })
+
+  it('rejects invalid attachment types before calling create', async () => {
+    const file = new File(['MZ'], 'malware.exe', { type: 'application/octet-stream' })
+    renderSection()
+    await screen.findByText('Can we keep the crate matte?')
+
+    fireEvent.change(screen.getByLabelText(/attachment \(optional\)/i), {
+      target: { files: [file] },
+    })
+
+    expect(await screen.findByText(/invalid file type/i)).toBeInTheDocument()
+    expect(customProjectsApi.createCustomerProjectMessage).not.toHaveBeenCalled()
+  })
+
+  it('RISK A: missing attachments field no longer crashes the thread', async () => {
+    const broken = {
+      ...customerMessage,
+      attachments: undefined,
+    } as unknown as ProjectMessage
+    vi.mocked(customProjectsApi.listCustomerProjectMessages).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [broken],
+    })
+
+    renderSection()
+
+    expect(await screen.findByText('Can we keep the crate matte?')).toBeInTheDocument()
+  })
+
+  it('RISK B/E: attachment-only and multi-attachment messages render without crash', async () => {
+    const attachmentOnly: ProjectMessage = {
+      ...customerMessage,
+      id: 'aaaaaaaa-1111-1111-1111-111111111111',
+      body: '',
+      attachments: [
+        {
+          id: 'aaaaaaaa-2222-2222-2222-222222222222',
+          file_name: 'solo.png',
+          file_size: 128,
+          download_url: 'https://example.test/solo',
+          created_at: '2026-01-10T10:00:00Z',
+          updated_at: '2026-01-10T10:00:00Z',
+        },
+      ],
+    }
+    const multi: ProjectMessage = {
+      ...studioMessage,
+      id: 'bbbbbbbb-1111-1111-1111-111111111111',
+      body: 'two files',
+      attachments: [
+        {
+          id: 'bbbbbbbb-2222-2222-2222-222222222222',
+          file_name: 'a.pdf',
+          file_size: 256,
+          download_url: 'https://example.test/a',
+          created_at: '2026-01-10T11:00:00Z',
+          updated_at: '2026-01-10T11:00:00Z',
+        },
+        {
+          id: 'bbbbbbbb-3333-3333-3333-333333333333',
+          file_name: 'b.zip',
+          file_size: 512,
+          download_url: 'https://example.test/b',
+          created_at: '2026-01-10T11:00:00Z',
+          updated_at: '2026-01-10T11:00:00Z',
+        },
+      ],
+    }
+    vi.mocked(customProjectsApi.listCustomerProjectMessages).mockResolvedValue({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [attachmentOnly, multi],
+    })
+
+    renderSection()
+
+    expect(await screen.findByText(/solo\.png/)).toBeInTheDocument()
+    expect(screen.getByText(/a\.pdf/)).toBeInTheDocument()
+    expect(screen.getByText(/b\.zip/)).toBeInTheDocument()
+    expect(screen.getByText('two files')).toBeInTheDocument()
   })
 })

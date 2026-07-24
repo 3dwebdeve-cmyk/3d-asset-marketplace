@@ -290,6 +290,11 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        "custom_projects.notifications": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 
@@ -301,6 +306,11 @@ EMAIL_BACKEND = config(
 DEFAULT_FROM_EMAIL = config(
     "DEFAULT_FROM_EMAIL",
     default="noreply@3dassetmarketplace.local",
+)
+# Comma-separated inboxes for customer→staff project message alerts when no designer is assigned.
+PROJECT_MESSAGE_ADMIN_RECIPIENTS = config(
+    "PROJECT_MESSAGE_ADMIN_RECIPIENTS",
+    default="",
 )
 EMAIL_HOST = config("EMAIL_HOST", default="")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)

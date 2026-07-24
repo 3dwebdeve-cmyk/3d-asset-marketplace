@@ -25,9 +25,12 @@ from custom_projects.serializers import (
     CustomProjectDetailSerializer,
     CustomProjectListSerializer,
     CustomProjectUpdateSerializer,
+    ProjectDeliverySerializer,
+    ProjectDeliveryUploadSerializer,
     ProjectFilePublicSerializer,
     ProjectFileUploadSerializer,
     ProjectMessageCreateSerializer,
+    ProjectMessageReadStateSerializer,
     ProjectMessageSerializer,
     ProjectQuotationSerializer,
     ProjectQuotationUpsertSerializer,
@@ -41,6 +44,52 @@ from custom_projects.services import (
 )
 from custom_projects.upload_rules import validate_project_file_upload
 from config.media import open_stored_file
+
+
+def _message_serializer_context(request: Request, *, scope: str) -> dict:
+    return {
+        "request": request,
+        "attachment_download_scope": scope,
+    }
+
+
+def _delivery_serializer_context(request: Request, *, scope: str) -> dict:
+    return {
+        "request": request,
+        "delivery_download_scope": scope,
+    }
+
+
+def _create_project_message(
+    request: Request,
+    project: CustomProject,
+    *,
+    scope: str,
+) -> Response:
+    serializer = ProjectMessageCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    uploaded = serializer.validated_data.get("file")
+    try:
+        validated_upload = (
+            validate_project_file_upload(uploaded) if uploaded is not None else None
+        )
+        message = CustomProjectService.create_message(
+            project,
+            sender=request.user,
+            body=serializer.validated_data["body"],
+            attachment=validated_upload,
+        )
+    except DjangoValidationError as exc:
+        return Response(exc.message_dict, status=status.HTTP_400_BAD_REQUEST)
+    except CustomProjectError as exc:
+        return _error_response(exc)
+    return Response(
+        ProjectMessageSerializer(
+            message,
+            context=_message_serializer_context(request, scope=scope),
+        ).data,
+        status=status.HTTP_201_CREATED,
+    )
 
 
 def _error_response(exc: CustomProjectError) -> Response:
@@ -154,6 +203,7 @@ class AdminCustomProjectListCreateView(APIView):
 
     def get(self, request: Request) -> Response:
         queryset = CustomProjectService.list_admin(
+            viewer=request.user,
             search=request.query_params.get("search") or None,
             status=_parse_choice(
                 request.query_params.get("status"),
@@ -307,9 +357,133 @@ class AdminCustomProjectQuotationView(APIView):
         )
 
 
+class AdminCustomProjectDeliveryListCreateView(APIView):
+    """Admin list + upload deliverables. Customers cannot upload."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    pagination_class = CustomProjectPagination
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            return [AdminCustomProjectWriteRateThrottle()]
+        return []
+
+    def get(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_admin(project_id)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+        queryset = CustomProjectService.list_deliveries(project)
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(
+            ProjectDeliverySerializer(
+                page,
+                many=True,
+                context=_delivery_serializer_context(request, scope="admin"),
+            ).data
+        )
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_admin(project_id)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        serializer = ProjectDeliveryUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            validated = validate_project_file_upload(serializer.validated_data["file"])
+            delivery = CustomProjectService.create_delivery(
+                project,
+                uploaded_by=request.user,
+                validated=validated,
+                notes=serializer.validated_data.get("notes", ""),
+                version=serializer.validated_data.get("version"),
+            )
+        except DjangoValidationError as exc:
+            return Response(exc.message_dict, status=status.HTTP_400_BAD_REQUEST)
+        except CustomProjectError as exc:
+            return _error_response(exc)
+
+        log_admin_action(
+            action="custom_project_delivery_upload",
+            actor_id=str(request.user.id),
+            target_id=str(delivery.id),
+        )
+        return Response(
+            ProjectDeliverySerializer(
+                delivery,
+                context=_delivery_serializer_context(request, scope="admin"),
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AdminCustomProjectDeliveryDownloadView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+
+    def get(self, request: Request, project_id: UUID, delivery_id: UUID):
+        try:
+            delivery = CustomProjectService.get_delivery_for_admin(
+                project_id=project_id,
+                delivery_id=delivery_id,
+            )
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+        log_admin_action(
+            action="custom_project_delivery_download",
+            actor_id=str(request.user.id),
+            target_id=str(delivery.id),
+        )
+        return open_stored_file(delivery.storage_path)
+
+
+class CustomerCustomProjectDeliveryListView(APIView):
+    """Project owner can list deliverables for their own project."""
+
+    permission_classes = [IsAuthenticated]
+    pagination_class = CustomProjectPagination
+
+    def get(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_customer(project_id, request.user)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+        queryset = CustomProjectService.list_deliveries(project)
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(
+            ProjectDeliverySerializer(
+                page,
+                many=True,
+                context=_delivery_serializer_context(request, scope="customer"),
+            ).data
+        )
+
+
+class CustomerCustomProjectDeliveryDownloadView(APIView):
+    """Project owner can download deliverables for their own project."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, project_id: UUID, delivery_id: UUID):
+        try:
+            delivery = CustomProjectService.get_delivery_for_customer(
+                project_id=project_id,
+                delivery_id=delivery_id,
+                customer=request.user,
+            )
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+        return open_stored_file(delivery.storage_path)
+
+
 class CustomerCustomProjectMessageListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = CustomProjectPagination
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_throttles(self):
         if self.request.method == "POST":
@@ -325,7 +499,11 @@ class CustomerCustomProjectMessageListCreateView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(
-            ProjectMessageSerializer(page, many=True).data
+            ProjectMessageSerializer(
+                page,
+                many=True,
+                context=_message_serializer_context(request, scope="customer"),
+            ).data
         )
 
     def post(self, request: Request, project_id: UUID) -> Response:
@@ -333,26 +511,59 @@ class CustomerCustomProjectMessageListCreateView(APIView):
             project = CustomProjectService.get_for_customer(project_id, request.user)
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
+        return _create_project_message(request, project, scope="customer")
 
-        serializer = ProjectMessageCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+
+class CustomerCustomProjectMessageAttachmentDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(
+        self,
+        request: Request,
+        project_id: UUID,
+        message_id: UUID,
+        attachment_id: UUID,
+    ):
         try:
-            message = CustomProjectService.create_message(
-                project,
-                sender=request.user,
-                body=serializer.validated_data["body"],
+            attachment = CustomProjectService.get_message_attachment_for_customer(
+                project_id=project_id,
+                message_id=message_id,
+                attachment_id=attachment_id,
+                customer=request.user,
             )
         except CustomProjectError as exc:
-            return _error_response(exc)
+            raise NotFound(detail=exc.message) from exc
+        return open_stored_file(attachment.storage_path)
+
+
+class CustomerCustomProjectMessageMarkReadView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [CustomProjectWriteRateThrottle]
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_customer(project_id, request.user)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        state = CustomProjectService.mark_messages_read(project, user=request.user)
+        unread_count = CustomProjectService.get_unread_count(project, request.user)
         return Response(
-            ProjectMessageSerializer(message).data,
-            status=status.HTTP_201_CREATED,
+            ProjectMessageReadStateSerializer(
+                {
+                    "project_id": project.id,
+                    "last_read_at": state.last_read_at,
+                    "unread_count": unread_count,
+                }
+            ).data,
+            status=status.HTTP_200_OK,
         )
 
 
 class AdminCustomProjectMessageListCreateView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
     pagination_class = CustomProjectPagination
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_throttles(self):
         if self.request.method == "POST":
@@ -368,7 +579,11 @@ class AdminCustomProjectMessageListCreateView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(
-            ProjectMessageSerializer(page, many=True).data
+            ProjectMessageSerializer(
+                page,
+                many=True,
+                context=_message_serializer_context(request, scope="admin"),
+            ).data
         )
 
     def post(self, request: Request, project_id: UUID) -> Response:
@@ -377,22 +592,56 @@ class AdminCustomProjectMessageListCreateView(APIView):
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
 
-        serializer = ProjectMessageCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        response = _create_project_message(request, project, scope="admin")
+        if response.status_code == status.HTTP_201_CREATED:
+            log_admin_action(
+                action="custom_project_message_create",
+                actor_id=str(request.user.id),
+                target_id=str(response.data["id"]),
+            )
+        return response
+
+
+class AdminCustomProjectMessageAttachmentDownloadView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+
+    def get(
+        self,
+        request: Request,
+        project_id: UUID,
+        message_id: UUID,
+        attachment_id: UUID,
+    ):
         try:
-            message = CustomProjectService.create_message(
-                project,
-                sender=request.user,
-                body=serializer.validated_data["body"],
+            attachment = CustomProjectService.get_message_attachment_for_admin(
+                project_id=project_id,
+                message_id=message_id,
+                attachment_id=attachment_id,
             )
         except CustomProjectError as exc:
-            return _error_response(exc)
-        log_admin_action(
-            action="custom_project_message_create",
-            actor_id=str(request.user.id),
-            target_id=str(message.id),
-        )
+            raise NotFound(detail=exc.message) from exc
+        return open_stored_file(attachment.storage_path)
+
+
+class AdminCustomProjectMessageMarkReadView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminCustomProjectWriteRateThrottle]
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_admin(project_id)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        state = CustomProjectService.mark_messages_read(project, user=request.user)
+        unread_count = CustomProjectService.get_unread_count(project, request.user)
         return Response(
-            ProjectMessageSerializer(message).data,
-            status=status.HTTP_201_CREATED,
+            ProjectMessageReadStateSerializer(
+                {
+                    "project_id": project.id,
+                    "last_read_at": state.last_read_at,
+                    "unread_count": unread_count,
+                }
+            ).data,
+            status=status.HTTP_200_OK,
         )

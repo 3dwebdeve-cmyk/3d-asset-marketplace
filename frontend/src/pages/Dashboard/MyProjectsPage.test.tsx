@@ -29,6 +29,8 @@ const project = {
   deadline: '2026-08-01',
   assigned_designer: null,
   quotation_amount: '175.00',
+  unread_count: 0,
+  has_unread: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-15T12:00:00Z',
 }
@@ -194,6 +196,20 @@ describe('MyProjectsPage', () => {
       })
     })
     expect(await screen.findByText('Hero prop')).toBeInTheDocument()
+  })
+
+  it('shows an unread badge when a project has unread messages', async () => {
+    vi.mocked(customProjectsApi.listCustomerCustomProjects).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{ ...project, unread_count: 2, has_unread: true }],
+    })
+
+    renderPage()
+
+    expect(await screen.findByText('Hero prop')).toBeInTheDocument()
+    expect(screen.getByLabelText('2 unread messages')).toHaveTextContent('2')
   })
 
   it('shows an error state and retries the list request', async () => {

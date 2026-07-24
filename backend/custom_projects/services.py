@@ -1,24 +1,37 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone as dt_timezone
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
-from django.db import transaction
-from django.db.models import Prefetch, Q, QuerySet
+from django.db import IntegrityError, transaction
+from django.db.models import Count, F, Max, OuterRef, Prefetch, Q, QuerySet, Subquery, Value
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from accounts.models import User
 from accounts.services import AuthenticationService
 from custom_projects.models import (
     CustomProject,
+    ProjectDelivery,
     ProjectFile,
     ProjectMessage,
+    ProjectMessageAttachment,
+    ProjectMessageReadState,
     ProjectQuotation,
 )
-from custom_projects.storage import ProjectFileStorageService
+from custom_projects.notifications import ProjectMessageNotificationService
+from custom_projects.storage import (
+    ProjectDeliveryStorageService,
+    ProjectFileStorageService,
+    ProjectMessageAttachmentStorageService,
+)
 from custom_projects.upload_rules import ValidatedProjectFileUpload
+
+# Sentinel so messages with no prior read state all count as unread.
+_UNREAD_EPOCH = datetime(1970, 1, 1, tzinfo=dt_timezone.utc)
 
 
 class CustomProjectError(Exception):
@@ -132,6 +145,7 @@ class CustomProjectService:
     def list_admin(
         cls,
         *,
+        viewer: User,
         search: str | None = None,
         status: str | None = None,
         payment_status: str | None = None,
@@ -172,14 +186,38 @@ class CustomProjectService:
         }
         if ordering not in allowed_ordering:
             ordering = "-created_at"
-        return queryset.order_by(ordering)
+        return cls.annotate_unread_counts(queryset, viewer).order_by(ordering)
 
     @classmethod
     def list_for_customer(cls, customer: User) -> QuerySet[CustomProject]:
-        return (
-            CustomProject.objects.filter(customer=customer)
-            .select_related("quotation", "assigned_designer")
-            .order_by("-created_at")
+        queryset = CustomProject.objects.filter(customer=customer).select_related(
+            "quotation",
+            "assigned_designer",
+        )
+        return cls.annotate_unread_counts(queryset, customer).order_by("-created_at")
+
+    @classmethod
+    def annotate_unread_counts(
+        cls,
+        queryset: QuerySet[CustomProject],
+        viewer: User,
+    ) -> QuerySet[CustomProject]:
+        """Annotate unread_count: messages from others after the viewer's last_read_at."""
+        last_read_subquery = ProjectMessageReadState.objects.filter(
+            project_id=OuterRef("pk"),
+            user_id=viewer.id,
+        ).values("last_read_at")[:1]
+        return queryset.annotate(
+            _viewer_last_read_at=Coalesce(
+                Subquery(last_read_subquery),
+                Value(_UNREAD_EPOCH),
+            ),
+            unread_count=Count(
+                "messages",
+                filter=Q(messages__created_at__gt=F("_viewer_last_read_at"))
+                & ~Q(messages__sender_id=viewer.id),
+                distinct=True,
+            ),
         )
 
     @classmethod
@@ -314,21 +352,45 @@ class CustomProjectService:
         return (
             ProjectMessage.objects.filter(project=project)
             .select_related("sender")
+            .prefetch_related("attachments")
             .order_by("created_at")
         )
 
     @classmethod
-    @transaction.atomic
     def create_message(
         cls,
         project: CustomProject,
         *,
         sender: User,
         body: str,
+        attachment: ValidatedProjectFileUpload | None = None,
+    ) -> ProjectMessage:
+        message = cls._persist_message(
+            project,
+            sender=sender,
+            body=body,
+            attachment=attachment,
+        )
+        # Mail failures must not undo a successful message create.
+        ProjectMessageNotificationService.notify_new_message(message)
+        return message
+
+    @classmethod
+    @transaction.atomic
+    def _persist_message(
+        cls,
+        project: CustomProject,
+        *,
+        sender: User,
+        body: str,
+        attachment: ValidatedProjectFileUpload | None = None,
     ) -> ProjectMessage:
         normalized = body.strip()
-        if not normalized:
-            raise CustomProjectError("Message body cannot be empty.", field="body")
+        if not normalized and attachment is None:
+            raise CustomProjectError(
+                "Provide a message body or an attachment.",
+                field="body",
+            )
         if len(normalized) > ProjectMessage.BODY_MAX_LENGTH:
             raise CustomProjectError(
                 f"Message body cannot exceed {ProjectMessage.BODY_MAX_LENGTH} characters.",
@@ -339,11 +401,99 @@ class CustomProjectService:
             sender=sender,
             body=normalized,
         )
+        if attachment is not None:
+            storage_path = ProjectMessageAttachmentStorageService.save_file(
+                str(project.id),
+                attachment.file,
+                attachment.extension,
+            )
+            ProjectMessageAttachment.objects.create(
+                message=message,
+                file_name=Path(attachment.file.name or "upload.bin").name[:255],
+                storage_path=storage_path,
+                file_size=int(getattr(attachment.file, "size", 0) or 0),
+            )
         CustomProject.objects.filter(pk=project.pk).update(
             updated_at=message.created_at,
         )
         return (
-            ProjectMessage.objects.select_related("sender").get(pk=message.pk)
+            ProjectMessage.objects.select_related("sender")
+            .prefetch_related("attachments")
+            .get(pk=message.pk)
+        )
+
+    @classmethod
+    def get_message_attachment_for_customer(
+        cls,
+        *,
+        project_id: UUID,
+        message_id: UUID,
+        attachment_id: UUID,
+        customer: User,
+    ) -> ProjectMessageAttachment:
+        cls.get_for_customer(project_id, customer)
+        try:
+            return ProjectMessageAttachment.objects.select_related(
+                "message",
+                "message__project",
+            ).get(
+                pk=attachment_id,
+                message_id=message_id,
+                message__project_id=project_id,
+            )
+        except ProjectMessageAttachment.DoesNotExist as exc:
+            raise CustomProjectError("Attachment not found.") from exc
+
+    @classmethod
+    def get_message_attachment_for_admin(
+        cls,
+        *,
+        project_id: UUID,
+        message_id: UUID,
+        attachment_id: UUID,
+    ) -> ProjectMessageAttachment:
+        cls.get_for_admin(project_id)
+        try:
+            return ProjectMessageAttachment.objects.select_related(
+                "message",
+                "message__project",
+            ).get(
+                pk=attachment_id,
+                message_id=message_id,
+                message__project_id=project_id,
+            )
+        except ProjectMessageAttachment.DoesNotExist as exc:
+            raise CustomProjectError("Attachment not found.") from exc
+
+    @classmethod
+    @transaction.atomic
+    def mark_messages_read(
+        cls,
+        project: CustomProject,
+        *,
+        user: User,
+    ) -> ProjectMessageReadState:
+        """Advance the user's last-read cursor for this project thread."""
+        now = timezone.now()
+        state, _created = ProjectMessageReadState.objects.update_or_create(
+            project=project,
+            user=user,
+            defaults={"last_read_at": now},
+        )
+        return state
+
+    @classmethod
+    def get_unread_count(cls, project: CustomProject, user: User) -> int:
+        last_read_at = (
+            ProjectMessageReadState.objects.filter(project=project, user=user)
+            .values_list("last_read_at", flat=True)
+            .first()
+        )
+        cursor = last_read_at or _UNREAD_EPOCH
+        return (
+            ProjectMessage.objects.filter(project=project, created_at__gt=cursor)
+            .exclude(sender_id=user.id)
+            .count()
         )
 
     @classmethod
@@ -380,6 +530,106 @@ class CustomProjectService:
             storage_path=storage_path,
             file_size=int(getattr(validated.file, "size", 0) or 0),
         )
+
+    @classmethod
+    def list_deliveries(cls, project: CustomProject) -> QuerySet[ProjectDelivery]:
+        return (
+            ProjectDelivery.objects.filter(project=project)
+            .select_related("uploaded_by")
+            .order_by("-version", "-created_at")
+        )
+
+    @classmethod
+    def get_delivery_for_admin(
+        cls,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+    ) -> ProjectDelivery:
+        cls.get_for_admin(project_id)
+        try:
+            return ProjectDelivery.objects.select_related("uploaded_by", "project").get(
+                pk=delivery_id,
+                project_id=project_id,
+            )
+        except ProjectDelivery.DoesNotExist as exc:
+            raise CustomProjectError("Delivery not found.") from exc
+
+    @classmethod
+    def get_delivery_for_customer(
+        cls,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+        customer: User,
+    ) -> ProjectDelivery:
+        cls.get_for_customer(project_id, customer)
+        try:
+            return ProjectDelivery.objects.select_related("uploaded_by", "project").get(
+                pk=delivery_id,
+                project_id=project_id,
+            )
+        except ProjectDelivery.DoesNotExist as exc:
+            raise CustomProjectError("Delivery not found.") from exc
+
+    @classmethod
+    @transaction.atomic
+    def create_delivery(
+        cls,
+        project: CustomProject,
+        *,
+        uploaded_by: User,
+        validated: ValidatedProjectFileUpload,
+        notes: str = "",
+        version: int | None = None,
+    ) -> ProjectDelivery:
+        """Admin-only deliverable upload. Version defaults to next unused integer."""
+        locked = CustomProject.objects.select_for_update().get(pk=project.pk)
+        if version is None:
+            current_max = (
+                ProjectDelivery.objects.filter(project=locked)
+                .aggregate(max_version=Max("version"))
+                .get("max_version")
+            )
+            resolved_version = int(current_max or 0) + 1
+        else:
+            if version < 1:
+                raise CustomProjectError(
+                    "Version must be a positive integer.",
+                    field="version",
+                )
+            resolved_version = version
+
+        storage_path = ProjectDeliveryStorageService.save_file(
+            str(locked.id),
+            validated.file,
+            validated.extension,
+        )
+        try:
+            with transaction.atomic():
+                delivery = ProjectDelivery.objects.create(
+                    project=locked,
+                    uploaded_by=uploaded_by,
+                    file_name=Path(validated.file.name or "upload.bin").name[:255],
+                    storage_path=storage_path,
+                    file_size=int(getattr(validated.file, "size", 0) or 0),
+                    version=resolved_version,
+                    notes=(notes or "").strip(),
+                )
+        except IntegrityError as exc:
+            ProjectDeliveryStorageService.delete_if_managed(
+                storage_path,
+                prefix=ProjectDeliveryStorageService.FILE_PREFIX,
+            )
+            raise CustomProjectError(
+                "A delivery with this version already exists for the project.",
+                field="version",
+            ) from exc
+
+        CustomProject.objects.filter(pk=locked.pk).update(
+            updated_at=delivery.created_at,
+        )
+        return delivery
 
     @classmethod
     def _apply_status(cls, project: CustomProject, new_status: str) -> None:
