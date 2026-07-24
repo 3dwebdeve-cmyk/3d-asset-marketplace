@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
 from django.db import transaction
 from django.utils.encoding import force_bytes, force_str
@@ -244,10 +245,11 @@ class PasswordResetService:
 
     @staticmethod
     def _get_user_from_uid(uid: str) -> User | None:
+        """Resolve a urlsafe base64 user id. Invalid/truncated uids return None."""
         try:
             user_id = force_str(urlsafe_base64_decode(uid))
             return User.objects.filter(pk=user_id, is_active=True).first()
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError, ValidationError):
             return None
 
 

@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from custom_projects.models import CustomProject, ProjectFile, ProjectQuotation
+from custom_projects.models import (
+    CustomProject,
+    ProjectDelivery,
+    ProjectFile,
+    ProjectMessage,
+    ProjectMessageAttachment,
+    ProjectQuotation,
+)
 
 
 class ProjectQuotationSerializer(serializers.ModelSerializer):
@@ -78,6 +85,8 @@ class CustomProjectListSerializer(serializers.ModelSerializer):
     customer = CustomProjectCustomerBriefSerializer(read_only=True)
     assigned_designer = CustomProjectCustomerBriefSerializer(read_only=True, allow_null=True)
     quotation_amount = serializers.SerializerMethodField()
+    unread_count = serializers.IntegerField(read_only=True)
+    has_unread = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomProject
@@ -93,6 +102,8 @@ class CustomProjectListSerializer(serializers.ModelSerializer):
             "customer",
             "assigned_designer",
             "quotation_amount",
+            "unread_count",
+            "has_unread",
             "created_at",
             "updated_at",
         )
@@ -104,10 +115,15 @@ class CustomProjectListSerializer(serializers.ModelSerializer):
             return None
         return f"{quotation.amount:.2f}"
 
+    def get_has_unread(self, obj: CustomProject) -> bool:
+        return int(getattr(obj, "unread_count", 0) or 0) > 0
+
 
 class CustomProjectCustomerListSerializer(serializers.ModelSerializer):
     assigned_designer = AssignedDesignerPublicSerializer(read_only=True, allow_null=True)
     quotation_amount = serializers.SerializerMethodField()
+    unread_count = serializers.IntegerField(read_only=True)
+    has_unread = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomProject
@@ -122,6 +138,8 @@ class CustomProjectCustomerListSerializer(serializers.ModelSerializer):
             "deadline",
             "assigned_designer",
             "quotation_amount",
+            "unread_count",
+            "has_unread",
             "created_at",
             "updated_at",
         )
@@ -132,6 +150,9 @@ class CustomProjectCustomerListSerializer(serializers.ModelSerializer):
         if quotation is None:
             return None
         return f"{quotation.amount:.2f}"
+
+    def get_has_unread(self, obj: CustomProject) -> bool:
+        return int(getattr(obj, "unread_count", 0) or 0) > 0
 
 
 class CustomProjectDetailSerializer(serializers.ModelSerializer):
@@ -251,3 +272,148 @@ class ProjectFileUploadSerializer(serializers.Serializer):
         choices=ProjectFile.FileType.choices,
         default=ProjectFile.FileType.OTHER,
     )
+
+
+class ProjectDeliverySerializer(serializers.ModelSerializer):
+    """Delivery metadata with authenticated download URL. Never exposes storage_path."""
+
+    uploaded_by_email = serializers.EmailField(
+        source="uploaded_by.email",
+        read_only=True,
+    )
+    download_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectDelivery
+        fields = (
+            "id",
+            "project_id",
+            "file_name",
+            "file_size",
+            "version",
+            "notes",
+            "uploaded_by_email",
+            "download_url",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_download_url(self, obj: ProjectDelivery) -> str:
+        request = self.context.get("request")
+        scope = self.context.get("delivery_download_scope", "admin")
+        project_id = self.context.get("project_id") or obj.project_id
+        if scope == "customer":
+            path = (
+                f"/api/custom-projects/{project_id}/deliveries/{obj.id}/download/"
+            )
+        else:
+            path = (
+                f"/api/admin/custom-projects/{project_id}/deliveries/"
+                f"{obj.id}/download/"
+            )
+        if request is not None:
+            return request.build_absolute_uri(path)
+        return path
+
+
+class ProjectDeliveryUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+    version = serializers.IntegerField(required=False, min_value=1)
+
+
+class ProjectMessageSenderSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    full_name = serializers.CharField()
+
+
+class ProjectMessageAttachmentSerializer(serializers.ModelSerializer):
+    """Message attachment metadata with authenticated download URL (never storage_path)."""
+
+    download_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectMessageAttachment
+        fields = (
+            "id",
+            "file_name",
+            "file_size",
+            "download_url",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_download_url(self, obj: ProjectMessageAttachment) -> str:
+        request = self.context.get("request")
+        scope = self.context.get("attachment_download_scope", "customer")
+        project_id = self.context.get("project_id") or obj.message.project_id
+        if scope == "admin":
+            path = (
+                f"/api/admin/custom-projects/{project_id}/messages/"
+                f"{obj.message_id}/attachments/{obj.id}/download/"
+            )
+        else:
+            path = (
+                f"/api/custom-projects/{project_id}/messages/"
+                f"{obj.message_id}/attachments/{obj.id}/download/"
+            )
+        if request is not None:
+            return request.build_absolute_uri(path)
+        return path
+
+
+class ProjectMessageSerializer(serializers.ModelSerializer):
+    sender = ProjectMessageSenderSerializer(read_only=True)
+    attachments = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectMessage
+        fields = (
+            "id",
+            "project_id",
+            "body",
+            "sender",
+            "attachments",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_attachments(self, obj: ProjectMessage) -> list:
+        return ProjectMessageAttachmentSerializer(
+            obj.attachments.all(),
+            many=True,
+            context={
+                **self.context,
+                "project_id": obj.project_id,
+            },
+        ).data
+
+
+class ProjectMessageCreateSerializer(serializers.Serializer):
+    body = serializers.CharField(
+        max_length=ProjectMessage.BODY_MAX_LENGTH,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=True,
+        default="",
+    )
+    file = serializers.FileField(required=False)
+
+    def validate(self, attrs: dict) -> dict:
+        body = (attrs.get("body") or "").strip()
+        uploaded = attrs.get("file")
+        if not body and uploaded is None:
+            raise serializers.ValidationError(
+                {"body": ["Provide a message body or an attachment."]}
+            )
+        attrs["body"] = body
+        return attrs
+
+
+class ProjectMessageReadStateSerializer(serializers.Serializer):
+    project_id = serializers.UUIDField()
+    last_read_at = serializers.DateTimeField()
+    unread_count = serializers.IntegerField()

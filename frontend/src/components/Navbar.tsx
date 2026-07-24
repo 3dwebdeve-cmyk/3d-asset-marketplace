@@ -52,9 +52,14 @@ export function Navbar() {
                   Admin
                 </Link>
               ) : (
-                <Link className="navbar__link" to="/dashboard">
-                  Dashboard
-                </Link>
+                <>
+                  <Link className="navbar__link" to="/dashboard">
+                    Dashboard
+                  </Link>
+                  <Link className="navbar__link" to="/dashboard/projects">
+                    My Projects
+                  </Link>
+                </>
               )}
               <Link className="navbar__link" to="/profile">
                 Profile

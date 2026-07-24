@@ -14,6 +14,11 @@ function renderProtectedRoutes(initialEntry: string) {
         <Route path="/login" element={<div>Login Page</div>} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<div>Dashboard Content</div>} />
+          <Route path="/dashboard/projects" element={<div>My Projects Content</div>} />
+          <Route
+            path="/dashboard/projects/:projectId"
+            element={<div>Project Detail Content</div>}
+          />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -72,5 +77,41 @@ describe('ProtectedRoute', () => {
     renderProtectedRoutes('/dashboard')
 
     expect(screen.getByText('Login Page')).toBeInTheDocument()
+  })
+
+  it('redirects unauthenticated users away from My Projects', () => {
+    renderProtectedRoutes('/dashboard/projects')
+    expect(screen.getByText('Login Page')).toBeInTheDocument()
+    expect(screen.queryByText('My Projects Content')).not.toBeInTheDocument()
+  })
+
+  it('redirects unauthenticated users away from project detail', () => {
+    renderProtectedRoutes('/dashboard/projects/11111111-1111-1111-1111-111111111111')
+    expect(screen.getByText('Login Page')).toBeInTheDocument()
+    expect(screen.queryByText('Project Detail Content')).not.toBeInTheDocument()
+  })
+
+  it('allows authenticated users onto My Projects', () => {
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      user: null,
+      isAuthenticated: true,
+    })
+
+    renderProtectedRoutes('/dashboard/projects')
+    expect(screen.getByText('My Projects Content')).toBeInTheDocument()
+  })
+
+  it('allows authenticated users onto project detail', () => {
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      user: null,
+      isAuthenticated: true,
+    })
+
+    renderProtectedRoutes('/dashboard/projects/11111111-1111-1111-1111-111111111111')
+    expect(screen.getByText('Project Detail Content')).toBeInTheDocument()
   })
 })

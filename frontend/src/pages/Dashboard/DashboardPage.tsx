@@ -95,6 +95,12 @@ export function DashboardPage() {
         )}
 
         <div className="dashboard-card__actions">
+          <Link
+            className="home-page__cta home-page__cta--secondary"
+            to="/dashboard/projects"
+          >
+            My projects
+          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/profile">
             Edit profile
           </Link>

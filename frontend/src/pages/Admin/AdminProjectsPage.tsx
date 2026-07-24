@@ -319,8 +319,29 @@ export function AdminProjectsPage() {
                 </thead>
                 <tbody>
                   {projectsQuery.data?.results.map((project) => (
-                    <tr key={project.id}>
-                      <td>{project.title}</td>
+                    <tr
+                      key={project.id}
+                      className={
+                        project.has_unread
+                          ? 'admin-table__row--has-unread'
+                          : undefined
+                      }
+                    >
+                      <td>
+                        <div className="project-list-title">
+                          <span>{project.title}</span>
+                          {project.has_unread ? (
+                            <span
+                              className="project-unread-badge"
+                              aria-label={`${project.unread_count} unread message${project.unread_count === 1 ? '' : 's'}`}
+                            >
+                              {project.unread_count > 99
+                                ? '99+'
+                                : project.unread_count}
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
                       <td>{project.customer.full_name}</td>
                       <td>{project.status}</td>
                       <td>{project.payment_status}</td>
