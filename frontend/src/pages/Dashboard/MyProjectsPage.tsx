@@ -80,6 +80,9 @@ export function MyProjectsPage() {
           Track your custom 3D project requests, status, and quotations.
         </p>
         <div className="dashboard-card__actions">
+          <Link className="home-page__cta" to="/dashboard/projects/new">
+            New request
+          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
             Back to dashboard
           </Link>
@@ -102,9 +105,16 @@ export function MyProjectsPage() {
             }
           />
         ) : isTrulyEmpty ? (
-          <p className="home-page__subtitle" role="status">
-            You have no custom projects yet.
-          </p>
+          <div>
+            <p className="home-page__subtitle" role="status">
+              You have no custom projects yet.
+            </p>
+            <div className="dashboard-card__actions">
+              <Link className="home-page__cta" to="/dashboard/projects/new">
+                Submit your first request
+              </Link>
+            </div>
+          </div>
         ) : (
           <>
             <div className="admin-table-wrap">

@@ -1,21 +1,25 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { Link, useParams } from 'react-router-dom'
 
-import { getCustomerCustomProject } from '../../api/customProjectsApi'
+import {
+  acceptCustomerCustomProjectQuotation,
+  getCustomerCustomProject,
+} from '../../api/customProjectsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
-import { formatFileSize } from '../../lib/productUpload'
+import { toast } from '../../lib/toast'
 import {
   CUSTOM_PROJECT_STATUS_LABELS,
   type CustomProjectPaymentStatus,
   type CustomerCustomProject,
-  type ProjectFileType,
   type ProjectQuotationStatus,
 } from '../../types/customProject'
+import { CustomerProjectDeliveriesSection } from './CustomerProjectDeliveriesSection'
 import { CustomerProjectMessagesSection } from './CustomerProjectMessagesSection'
+import { CustomerProjectReferenceFilesSection } from './CustomerProjectReferenceFilesSection'
 
 const PAYMENT_STATUS_LABELS: Record<CustomProjectPaymentStatus, string> = {
   unpaid: 'Unpaid',
@@ -28,13 +32,6 @@ const QUOTATION_STATUS_LABELS: Record<ProjectQuotationStatus, string> = {
   pending: 'Pending',
   accepted: 'Accepted',
   rejected: 'Rejected',
-}
-
-const FILE_TYPE_LABELS: Record<ProjectFileType, string> = {
-  reference_image: 'Reference image',
-  cad_drawing: 'CAD drawing',
-  sketch: 'Sketch',
-  other: 'Other',
 }
 
 function formatDate(value: string | null): string {
@@ -92,8 +89,20 @@ function ProjectSummary({ project }: { project: CustomerCustomProject }) {
   )
 }
 
-function QuotationBlock({ project }: { project: CustomerCustomProject }) {
+function QuotationBlock({
+  project,
+  onAccept,
+  isAccepting,
+  acceptError,
+}: {
+  project: CustomerCustomProject
+  onAccept: () => void
+  isAccepting: boolean
+  acceptError: string | null
+}) {
   const quotation = project.quotation
+  const canAccept =
+    project.status === 'quoted' && quotation?.status === 'pending'
 
   return (
     <section className="admin-media-section" aria-labelledby="project-quote-title">
@@ -114,6 +123,22 @@ function QuotationBlock({ project }: { project: CustomerCustomProject }) {
           <p>
             <strong>Notes:</strong> {quotation.notes.trim() ? quotation.notes : '—'}
           </p>
+          {canAccept ? (
+            <div className="dashboard-card__actions">
+              <Button
+                type="button"
+                isLoading={isAccepting}
+                onClick={onAccept}
+              >
+                Accept quotation
+              </Button>
+            </div>
+          ) : null}
+          {acceptError ? (
+            <p className="form-error" role="alert">
+              {acceptError}
+            </p>
+          ) : null}
         </div>
       ) : (
         <p className="home-page__subtitle" role="status">
@@ -124,37 +149,9 @@ function QuotationBlock({ project }: { project: CustomerCustomProject }) {
   )
 }
 
-function ReferenceFilesBlock({ project }: { project: CustomerCustomProject }) {
-  return (
-    <section className="admin-media-section" aria-labelledby="project-files-title">
-      <h2 id="project-files-title">Reference files</h2>
-      {project.files.length ? (
-        <ul className="admin-media-list">
-          {project.files.map((file) => (
-            <li key={file.id} className="admin-media-item admin-media-item--file">
-              <span className="admin-format-badge admin-format-badge--large">
-                {FILE_TYPE_LABELS[file.file_type]}
-              </span>
-              <div className="admin-media-item__content">
-                <p className="admin-media-item__title">{file.file_name}</p>
-                <p className="admin-media-item__meta">
-                  {formatFileSize(file.file_size)} · {formatDate(file.created_at)}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="home-page__subtitle" role="status">
-          No reference files uploaded yet.
-        </p>
-      )}
-    </section>
-  )
-}
-
 export function CustomerProjectDetailPage() {
   const { projectId = '' } = useParams<{ projectId: string }>()
+  const queryClient = useQueryClient()
 
   const projectQuery = useQuery({
     queryKey: ['customer', 'custom-projects', projectId],
@@ -162,6 +159,17 @@ export function CustomerProjectDetailPage() {
     enabled: Boolean(projectId),
     // Missing/forbidden projects should not auto-retry; Retry button covers recoverable errors.
     retry: false,
+  })
+
+  const acceptMutation = useMutation({
+    mutationFn: () => acceptCustomerCustomProjectQuotation(projectId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['customer', 'custom-projects', projectId], updated)
+      void queryClient.invalidateQueries({
+        queryKey: ['customer', 'custom-projects'],
+      })
+      toast.success('Quotation accepted.')
+    },
   })
 
   const backLink = (
@@ -219,8 +227,21 @@ export function CustomerProjectDetailPage() {
           <>
             <h1 id="project-detail-title">{projectQuery.data.title}</h1>
             <ProjectSummary project={projectQuery.data} />
-            <QuotationBlock project={projectQuery.data} />
-            <ReferenceFilesBlock project={projectQuery.data} />
+            <QuotationBlock
+              project={projectQuery.data}
+              onAccept={() => acceptMutation.mutate()}
+              isAccepting={acceptMutation.isPending}
+              acceptError={
+                acceptMutation.isError
+                  ? getApiErrorMessage(
+                      acceptMutation.error,
+                      'Could not accept the quotation. Please try again.',
+                    )
+                  : null
+              }
+            />
+            <CustomerProjectReferenceFilesSection project={projectQuery.data} />
+            <CustomerProjectDeliveriesSection projectId={projectQuery.data.id} />
             <CustomerProjectMessagesSection projectId={projectQuery.data.id} />
           </>
         ) : null}

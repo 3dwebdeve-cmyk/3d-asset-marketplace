@@ -76,6 +76,10 @@ describe('MyProjectsPage', () => {
     renderPage()
 
     expect(await screen.findByText('Hero prop')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /new request/i })).toHaveAttribute(
+      'href',
+      '/dashboard/projects/new',
+    )
     expect(screen.getByText('Quoted')).toBeInTheDocument()
     expect(screen.getByText('USD 175.00')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Hero prop' })).toHaveAttribute(
@@ -160,6 +164,10 @@ describe('MyProjectsPage', () => {
     expect(
       await screen.findByText(/you have no custom projects yet/i),
     ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /submit your first request/i })).toHaveAttribute(
+      'href',
+      '/dashboard/projects/new',
+    )
     expect(screen.queryByLabelText(/project pagination/i)).not.toBeInTheDocument()
   })
 

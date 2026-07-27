@@ -90,6 +90,15 @@ export interface CustomerCustomProjectListParams {
   page_size?: number
 }
 
+export interface CustomerCustomProjectCreatePayload {
+  title: string
+  description: string
+  category?: string
+  estimated_budget?: string | null
+  currency?: string
+  deadline?: string | null
+}
+
 export interface PaginatedCustomerCustomProjects {
   count: number
   next: string | null
@@ -117,6 +126,11 @@ export interface ProjectFile {
   uploaded_by_email?: string
   created_at: string
   updated_at: string
+}
+
+export interface ProjectFileUploadPayload {
+  file: File
+  file_type: ProjectFileType
 }
 
 export interface AdminCustomProjectListItem {

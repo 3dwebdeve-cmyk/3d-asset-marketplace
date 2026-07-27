@@ -18,9 +18,12 @@ vi.mock('../../api/customProjectsApi', async () => {
   return {
     ...actual,
     getCustomerCustomProject: vi.fn(),
+    acceptCustomerCustomProjectQuotation: vi.fn(),
     listCustomerProjectMessages: vi.fn(),
     createCustomerProjectMessage: vi.fn(),
     markCustomerProjectMessagesRead: vi.fn(),
+    listCustomerProjectDeliveries: vi.fn(),
+    uploadCustomerCustomProjectFile: vi.fn(),
   }
 })
 
@@ -112,6 +115,12 @@ beforeEach(() => {
     last_read_at: '2026-01-10T12:00:00Z',
     unread_count: 0,
   })
+  vi.mocked(customProjectsApi.listCustomerProjectDeliveries).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
 })
 
 describe('CustomerProjectDetailPage', () => {
@@ -136,7 +145,9 @@ describe('CustomerProjectDetailPage', () => {
     expect(screen.getByRole('heading', { name: 'Reference files' })).toBeInTheDocument()
     expect(screen.getByText('crate-ref.png')).toBeInTheDocument()
     expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument()
-    expect(screen.getByText('Reference image')).toBeInTheDocument()
+    expect(screen.getAllByText('Reference image').length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'Deliverables' })).toBeInTheDocument()
+    expect(await screen.findByText(/no deliverables yet/i)).toBeInTheDocument()
 
     expect(screen.getByRole('link', { name: /back to my projects/i })).toHaveAttribute(
       'href',
@@ -303,10 +314,10 @@ describe('CustomerProjectDetailPage', () => {
     expect(screen.getByText('crate.dwg')).toBeInTheDocument()
     expect(screen.getByText('idea.pdf')).toBeInTheDocument()
     expect(screen.getByText('notes.txt')).toBeInTheDocument()
-    expect(screen.getByText('Reference image')).toBeInTheDocument()
-    expect(screen.getByText('CAD drawing')).toBeInTheDocument()
-    expect(screen.getByText('Sketch')).toBeInTheDocument()
-    expect(screen.getByText('Other')).toBeInTheDocument()
+    expect(screen.getAllByText('Reference image').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('CAD drawing').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Sketch').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Other').length).toBeGreaterThan(0)
     expect(screen.getByText(/1\.0 MB/)).toBeInTheDocument()
   })
 
@@ -385,5 +396,49 @@ describe('CustomerProjectDetailPage', () => {
     await user.click(screen.getByRole('link', { name: /back to my projects/i }))
 
     expect(await screen.findByText('My projects list')).toBeInTheDocument()
+  })
+
+  it('shows Accept quotation button when project is quoted and quotation is pending', async () => {
+    renderPage()
+
+    expect(
+      await screen.findByRole('button', { name: /accept quotation/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('calls accept API and updates status on successful acceptance', async () => {
+    const user = userEvent.setup()
+    vi.mocked(customProjectsApi.acceptCustomerCustomProjectQuotation).mockResolvedValue({
+      ...project,
+      status: 'approved' as const,
+      quotation: { ...project.quotation!, status: 'accepted' as const },
+    })
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: /accept quotation/i }),
+    )
+
+    await waitFor(() => {
+      expect(
+        customProjectsApi.acceptCustomerCustomProjectQuotation,
+      ).toHaveBeenCalledWith(projectId)
+    })
+  })
+
+  it('shows error message when acceptance API call fails', async () => {
+    const user = userEvent.setup()
+    vi.mocked(customProjectsApi.acceptCustomerCustomProjectQuotation).mockRejectedValue(
+      axiosStatusError(400, 'Only a pending quotation can be accepted.'),
+    )
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: /accept quotation/i }),
+    )
+
+    expect(
+      await screen.findByText('Only a pending quotation can be accepted.'),
+    ).toBeInTheDocument()
   })
 })

@@ -60,7 +60,8 @@ Sprint 6 – Shopping & Payments
 • [ ] Invoice Generation
 • [ ] Payment Verification
 Sprint 7 – Orders & Downloads
-• [ ] Orders
+• [x] Orders (Phase 15A — data model + service layer)
+• [x] Orders admin APIs (Phase 15B — admin list/detail + optional create)
 • [ ] Order History
 • [ ] Secure Downloads
 • [ ] Signed Download URLs
@@ -74,7 +75,7 @@ Sprint 8 – Custom Project Portal
 • [x] Project Message Unread Indicators (read cursor, mark-read, list badges)
 • [x] Project Message Attachments (multipart upload, owner/admin download, thread UI)
 • [x] Project Message Email Notifications (customer↔staff alerts via Django mail)
-• [ ] Client Approval
+• [x] Client Approval (accept quotation API + customer detail UI)
 • [x] Project Status Tracking (customer-facing detail)
 • [x] Deliverables Upload (admin multipart API; storage_path hidden)
 • [x] Project Delivery data model (ProjectDelivery table + Django admin; separate from reference ProjectFile)
@@ -108,16 +109,19 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-CP-DEL-06 Admin UI: Delivery section on project detail (upload, list, download, mark delivered/completed).
+Phase 15B — Admin order list + detail APIs (GET /api/admin/orders/, GET /api/admin/orders/:id/, optional POST create; filters, pagination, tests).
 Current Git Branch
-feature/custom-project-messages-backend
+feature/project-email-notifications
 Files Being Worked On
-• frontend/src/pages/Admin/AdminProjectDeliveriesSection.tsx
-• frontend/src/pages/Admin/AdminProjectDetailPage.tsx
-• frontend/src/api/customProjectsApi.ts
-• frontend/src/types/customProject.ts
-• frontend/src/lib/projectFileUpload.ts
-• frontend/src/lib/projectDeliveryUpload.ts
+• backend/orders/services.py
+• backend/orders/serializers.py
+• backend/orders/views.py
+• backend/orders/pagination.py
+• backend/orders/admin_urls.py
+• backend/orders/test_orders.py
+• backend/config/urls.py
+• backend/accounts/throttles.py
+• backend/config/settings.py
 • PROJECT_STATUS.md
 Completed Features
 • Project setup (Django, React, PostgreSQL, JWT wiring)
@@ -133,6 +137,13 @@ Completed Features
 • Project message unread indicators (per-user last-read cursor, mark-read on open, unread badges on customer/admin lists)
 • Project message attachments (ProjectMessageAttachment model; multipart create; owner+admin download; no storage_path in serializers; composer attach + thread download UI)
 • Project message email notifications (customer→designer/admin recipients; admin→customer; title+deep link only; mail failure does not block create)
+• Project creation email notifications (customer submit → assigned designer/admin recipients; title+customer+deep link only; mail failure does not block create)
+• Project quotation email notifications (admin saves quote → customer email; customer accepts → staff email; title+deep link only; mail failure does not block action)
+• Project delivery email notification (admin marks status=delivered → customer email; title+deep link; mail failure does not block status update)
+• Orders backend Phase 15A (Order + OrderItem models, OrderService create/totals/status transitions, Django admin, 16 tests)
+• Orders admin APIs Phase 15B (GET list/detail + POST create at /api/admin/orders/; filters order_status/payment_status/customer_id/search; live catalog title lookup; 8 API tests)
+• Quotation accept API (POST /api/custom-projects/:id/quotation/accept/ — customer only, throttled; sets ProjectQuotation.status=accepted, project.status=approved)
+• Accept quotation UI on customer project detail (Accept quotation button visible when status=quoted and quotation.status=pending; optimistic cache update on success)
 • Project message thread hardening (correct multi-admin labels; latest-window when >100 messages)
 • Project delivery admin upload API (multipart; version auto/explicit; reuse project-file validation; storage_path never in response)
 • Project delivery list/download APIs (admin + project owner; paginated list with download_url; authenticated FileResponse; private MEDIA blocked)
@@ -173,7 +184,7 @@ Pending Features
 • Public plugin store UI
 • Customer custom-project portal UI (request form, reference upload, quote approval)
 • Customer delivery UI (list + download on project detail)
-• Cart / payments / orders / downloads
+• Cart / payments / order APIs / downloads
 • Docker production stack
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
@@ -201,16 +212,201 @@ Important Decisions
 • Plugin categories are separate from product categories; public plugin file responses omit storage_path.
 • Plugin packages accept ZIP/RAR/7Z; ZIP metadata is scanned for traversal and expansion limits.
 • Custom projects are independent from marketplace orders; status transitions are enforced server-side.
+• Marketplace orders use a dedicated orders app (Order + OrderItem); product_type is product or plugin; purchase_price is snapshotted at order creation; only published catalog items are accepted; no FK to custom_projects.
+• Order item titles in admin detail API use live Product/Plugin name lookup (not snapshotted on OrderItem); deleted catalog rows return null title.
 • Customer custom-project file responses omit storage_path; admins can open reference files for review.
 • Project messages are project-scoped threads; customer access is ownership-only (404 for others); admin_notes stay off message APIs.
 • Project message unread state is a per-user last-read cursor (ProjectMessageReadState); own messages never count as unread.
 • Project message attachments reuse project file MIME/extension/size rules; create is attach-on-send (multipart); downloads are owner+admin only via authenticated endpoints.
-• Project message emails reuse Django send_mail + FRONTEND_BASE_URL; body has title + deep link only (no message body, emails, tokens, or storage paths); mail failures are logged and never roll back message create; customer→staff uses assigned designer else PROJECT_MESSAGE_ADMIN_RECIPIENTS else active Administrator account emails (never DEFAULT_FROM_EMAIL as To).
+• Project message, creation, quotation, and delivery emails reuse Django send_mail + FRONTEND_BASE_URL; bodies contain only minimal project context and deep links (no message body, quote amounts/notes, emails, tokens, or storage paths); mail failures are logged and never roll back any project action; staff recipients resolve to assigned designer else PROJECT_MESSAGE_ADMIN_RECIPIENTS else active Administrator account emails (never DEFAULT_FROM_EMAIL as To); email bodies rendered from Django text templates in custom_projects/templates/custom_projects/emails/.
+• Quotation accept: customer-only endpoint (IsAuthenticated, not IsAdministrator); requires project status=quoted and quotation.status=pending; transitions project to approved and quotation to accepted atomically; notifies staff after commit; other customers get 404 (not 403).
 • Project deliveries use a dedicated ProjectDelivery model (not ProjectFile); version is a positive integer per project with a unique (project, version) constraint; admin upload reuses validate_project_file_upload + private deliveries/ storage prefix; API responses never include storage_path; customers have no delivery upload route; list/download is admin or project-owner only (other customers → 404; customers on admin routes → 403).
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
 Daily Development Log
+Date: 2026-07-27 (Phase 15B — Admin order list + detail APIs)
+Working Hours:
+Today's Objective: Admin list/detail order APIs with filters, pagination, optional admin create, and API tests.
+Modules Completed: orders admin API layer (serializers, views, admin_urls, list_admin service, tests)
+Files Created:
+• backend/orders/serializers.py
+• backend/orders/pagination.py
+• backend/orders/admin_urls.py
+Files Modified:
+• backend/orders/services.py (list_admin, build_catalog_titles)
+• backend/orders/views.py (AdminOrderListCreateView, AdminOrderDetailView)
+• backend/orders/test_orders.py (8 new API tests)
+• backend/config/urls.py (api/admin/orders/)
+• backend/accounts/throttles.py (AdminOrderWriteRateThrottle)
+• backend/config/settings.py (admin_order_write rate)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• GET /api/admin/orders/ — paginated admin order list (filters: order_status, payment_status, customer_id, search; ordering)
+• POST /api/admin/orders/ — admin-only manual order create (throttled; logs order_create)
+• GET /api/admin/orders/<uuid>/ — admin order detail (items + customer summary + live catalog titles)
+API Endpoints Modified:
+• None
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• None
+Frontend Pages/Components Modified:
+• None
+Tests Added/Updated:
+• orders.test_orders — 24 tests total (+8: admin list, filters, search, detail, 403 customer, 404 missing, admin create)
+Security Checklist:
+• IsAuthenticated + IsAdministrator on all admin order endpoints
+• Customer JWT returns 403 on admin order list/detail
+• POST create throttled (admin_order_write 60/min) and logged via log_admin_action
+• Filters validated (choice/uuid); search capped at 100 chars
+• No payment data or storage paths exposed; purchase_price remains server-side snapshot
+• Live title lookup uses ORM only (no user input in queries)
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 21 — Admin orders UI, or Phase 15C customer order history APIs, or shopping cart
+Notes:
+• Item titles use live Product/Plugin name lookup (not stored on OrderItem); null if catalog row deleted
+• Admin create reuses OrderService.create for pricing/validation consistency with checkout flow
+
+Date: 2026-07-27 (Phase 15A — Orders data model + service layer)
+Working Hours:
+Today's Objective: New orders Django app with Order/OrderItem models, OrderService (create, totals, status rules), Django admin, migrations, and tests.
+Modules Completed: orders app (models, services, admin, migrations, tests)
+Files Created:
+• backend/orders/models.py
+• backend/orders/services.py
+• backend/orders/admin.py
+• backend/orders/apps.py
+• backend/orders/test_orders.py
+• backend/orders/migrations/0001_initial.py
+Files Modified:
+• backend/config/settings.py (added orders to INSTALLED_APPS)
+• PROJECT_STATUS.md
+Database Changes:
+• New tables: orders, order_items
+• Indexes on order_status, payment_status, created_at, user+created_at, product_type+product_id
+• Constraints: unique invoice_number, unique line item per order, quantity >= 1, purchase_price >= 0
+API Endpoints Added:
+• None (Phase 15A is service-layer only; no /api/admin/orders/ routes yet)
+API Endpoints Modified:
+• None
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• None
+Frontend Pages/Components Modified:
+• None
+Tests Added/Updated:
+• orders.test_orders — 16 tests (model constraints, create order, invalid product/plugin, status transitions, totals)
+Security Checklist:
+• Order creation validates user exists and is active; catalog items must be published
+• purchase_price snapshotted server-side from catalog (discount_price when set)
+• Status transitions enforced server-side (pending→paid/cancelled, paid→refunded)
+• No payment data stored; no custom_projects linkage
+• Invoice numbers generated with secrets.token_hex (non-guessable)
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Phase 15B — Order admin/customer APIs (list/detail) or shopping cart
+Notes:
+• Orders inspectable at /django-admin/ via OrderAdmin + OrderItemInline
+• OrderService.create usable from Django shell and tests for seeding
+
+Date: 2026-07-27 (Feature 14 — Project email notifications, Phases 2–5)
+Working Hours:
+Today's Objective: Quotation sent → customer email; quotation accepted → staff email + accept API; mark delivered → customer email; Django text templates; fail-soft tests; accept UI on customer project detail.
+Modules Completed: ProjectWorkflowNotificationService, accept_quotation service, CustomerCustomProjectQuotationAcceptView, email templates, workflow email tests, frontend accept API + UI
+Files Created:
+• backend/custom_projects/templates/custom_projects/emails/project_created.txt
+• backend/custom_projects/templates/custom_projects/emails/quotation_sent.txt
+• backend/custom_projects/templates/custom_projects/emails/quotation_accepted.txt
+• backend/custom_projects/templates/custom_projects/emails/project_delivered.txt
+Files Modified:
+• backend/custom_projects/notifications.py (added ProjectWorkflowNotificationService + _ProjectEmailSupport._customer_recipients/_render_body; shared support base)
+• backend/custom_projects/services.py (upsert_quotation triggers quotation_sent; update_admin triggers project_delivered on status transition; new accept_quotation method)
+• backend/custom_projects/views.py (new CustomerCustomProjectQuotationAcceptView)
+• backend/custom_projects/urls.py (new /api/custom-projects/:id/quotation/accept/ route)
+• backend/custom_projects/test_custom_projects.py (CustomProjectWorkflowEmailNotificationTests — 6 new tests)
+• frontend/src/api/customProjectsApi.ts (acceptCustomerCustomProjectQuotation)
+• frontend/src/api/customProjectsApi.test.ts (accept quotation API contract test)
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx (Accept quotation button + useMutation; uses toast.success)
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.test.tsx (3 new accept-quotation UI tests + vi.mock updated)
+• PROJECT_STATUS.md
+Database Changes:
+• None — existing ProjectQuotation.status and CustomProject.status fields cover accepted/approved; no new migrations.
+API Endpoints Added:
+• POST /api/custom-projects/<uuid>/quotation/accept/ — customer accepts a pending quotation (IsAuthenticated + ownership; throttled; returns updated CustomerCustomProject)
+API Endpoints Modified:
+• POST /api/admin/custom-projects/<uuid>/quotation/ — now triggers quotation_sent email to customer after successful upsert
+• PATCH /api/admin/custom-projects/<uuid>/ — now triggers project_delivered email to customer when status transitions to delivered
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• None (modified existing)
+Frontend Pages/Components Modified:
+• CustomerProjectDetailPage — Accept quotation button (visible when status=quoted and quotation.status=pending); useMutation + toast on success; error message on failure
+Tests Added/Updated:
+• CustomProjectWorkflowEmailNotificationTests (6 new Django tests: quotation save, quotation accept via API, ACL isolation, mark delivered, mail failure non-blocking for accept + delivery, mail failure non-blocking for quotation save)
+• CustomerProjectDetailPage tests (3 new: Accept button visible, success calls API, failure shows error)
+• customProjectsApi.test.ts (1 new: accept quotation API contract)
+Security Checklist:
+• Email bodies exclude quote amount, notes, customer email, API URLs, and storage paths
+• Acceptance requires authenticated project ownership (other customers get 404); admin accounts cannot be customers
+• APPROVED transition enforced server-side via existing ALLOWED_STATUS_TRANSITIONS
+• ProjectQuotation.status=PENDING gate prevents double-accept
+• Quotation and delivery updates are atomic; notification runs after commit
+• Customer accept endpoint throttled with existing CustomProjectWriteRateThrottle
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Customer delivery UI on /dashboard/projects/:projectId (list + download delivered files)
+Notes:
+• Email templates added under custom_projects/templates/custom_projects/emails/ — Django APP_DIRS=True picks them up automatically
+• _ProjectEmailSupport._render_body uses render_to_string (Django template engine); templates contain only safe static text + variable interpolation
+
+Date: 2026-07-27 (Feature 14 — Project email notifications, Phase 1)
+Working Hours:
+Today's Objective: Email staff when a customer submits a new custom project request; reuse existing notification patterns and keep dev console-email behavior.
+Modules Completed: project creation notification service, customer-create notification trigger, recipient-resolution reuse, API tests, status update
+Files Created:
+• None
+Files Modified:
+• backend/custom_projects/notifications.py
+• backend/custom_projects/services.py
+• backend/custom_projects/views.py
+• backend/custom_projects/test_custom_projects.py
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None
+API Endpoints Modified:
+• POST /api/custom-projects/ — now triggers staff email notification after successful customer project creation
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• None
+Frontend Pages/Components Modified:
+• None
+Tests Added/Updated:
+• CustomProjectAPITests now cover project-create staff email delivery, configured recipients fallback, non-blocking mail failure, and no-email admin-created project behavior
+Security Checklist:
+• Reused existing recipient resolution to avoid duplicate mail-routing logic
+• Email body excludes project description, customer email, API URLs, tokens, and storage paths
+• Notification runs after successful create and mail failures are logged without breaking the API response
+• Customer endpoint remains JWT-protected and throttled; admin create path does not emit customer-submission email
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 14 Phase 2: send notification when admin posts the first quotation / review-state transition customers need to act on
+Notes:
+• Reused the existing custom-project notification module rather than adding a second email stack
+• Dev environments still satisfy the requirement through Django's console email backend by default
+
 Date: 2026-07-24 (CP-DEL-06 Admin UI: Delivery section on project detail)
 Working Hours:
 Today's Objective: Deliverables section on /admin/projects/:id — upload, list (name/version/notes/size/date), download, Mark delivered / Mark completed

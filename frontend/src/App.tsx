@@ -14,6 +14,7 @@ import { AdminProductsPage } from './pages/Admin/AdminProductsPage'
 import { AdminUserDetailPage } from './pages/Admin/AdminUserDetailPage'
 import { AdminUsersPage } from './pages/Admin/AdminUsersPage'
 import { CustomerProjectDetailPage } from './pages/Dashboard/CustomerProjectDetailPage'
+import { CustomerProjectRequestPage } from './pages/Dashboard/CustomerProjectRequestPage'
 import { DashboardPage } from './pages/Dashboard/DashboardPage'
 import { MyProjectsPage } from './pages/Dashboard/MyProjectsPage'
 import { EmailVerificationPage } from './pages/EmailVerification/EmailVerificationPage'
@@ -99,6 +100,10 @@ function AppRoutes() {
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/dashboard/projects" element={<MyProjectsPage />} />
+              <Route
+                path="/dashboard/projects/new"
+                element={<CustomerProjectRequestPage />}
+              />
               <Route
                 path="/dashboard/projects/:projectId"
                 element={<CustomerProjectDetailPage />}

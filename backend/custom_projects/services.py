@@ -22,7 +22,11 @@ from custom_projects.models import (
     ProjectMessageReadState,
     ProjectQuotation,
 )
-from custom_projects.notifications import ProjectMessageNotificationService
+from custom_projects.notifications import (
+    ProjectCreationNotificationService,
+    ProjectMessageNotificationService,
+    ProjectWorkflowNotificationService,
+)
 from custom_projects.storage import (
     ProjectDeliveryStorageService,
     ProjectFileStorageService,
@@ -235,10 +239,14 @@ class CustomProjectService:
             raise CustomProjectError("Custom project not found.") from exc
 
     @classmethod
-    @transaction.atomic
-    def create(cls, data: CustomProjectCreateData) -> CustomProject:
+    def create(
+        cls,
+        data: CustomProjectCreateData,
+        *,
+        notify_staff_on_create: bool = False,
+    ) -> CustomProject:
         customer = cls._require_customer(data.customer_id)
-        title = data.title.strip()
+        title = " ".join(data.title.strip().split())
         description = data.description.strip()
         if len(title) < 3:
             raise CustomProjectError(
@@ -250,72 +258,84 @@ class CustomProjectService:
                 "Description must be at least 10 characters.",
                 field="description",
             )
-        return CustomProject.objects.create(
-            customer=customer,
-            title=title,
-            description=description,
-            category=data.category.strip(),
-            estimated_budget=data.estimated_budget,
-            currency=(data.currency or "USD").strip().upper()[:3],
-            deadline=data.deadline,
-            status=CustomProject.Status.SUBMITTED,
-            payment_status=CustomProject.PaymentStatus.UNPAID,
-        )
+        with transaction.atomic():
+            project = CustomProject.objects.create(
+                customer=customer,
+                title=title,
+                description=description,
+                category=data.category.strip(),
+                estimated_budget=data.estimated_budget,
+                currency=(data.currency or "USD").strip().upper()[:3],
+                deadline=data.deadline,
+                status=CustomProject.Status.SUBMITTED,
+                payment_status=CustomProject.PaymentStatus.UNPAID,
+            )
+        if notify_staff_on_create:
+            # Outside the write transaction so SMTP latency/failures cannot roll back create.
+            ProjectCreationNotificationService.notify_new_project(project)
+        return project
 
     @classmethod
-    @transaction.atomic
     def update_admin(
         cls,
         project: CustomProject,
         data: CustomProjectUpdateData,
     ) -> CustomProject:
-        if data.title is not None:
-            title = data.title.strip()
-            if len(title) < 3:
-                raise CustomProjectError(
-                    "Title must be at least 3 characters.",
-                    field="title",
+        previous_status = project.status
+        with transaction.atomic():
+            if data.title is not None:
+                title = " ".join(data.title.strip().split())
+                if len(title) < 3:
+                    raise CustomProjectError(
+                        "Title must be at least 3 characters.",
+                        field="title",
+                    )
+                project.title = title
+            if data.description is not None:
+                description = data.description.strip()
+                if len(description) < 10:
+                    raise CustomProjectError(
+                        "Description must be at least 10 characters.",
+                        field="description",
+                    )
+                project.description = description
+            if data.category is not None:
+                project.category = data.category.strip()
+            if data.clear_estimated_budget:
+                project.estimated_budget = None
+            elif data.estimated_budget is not None:
+                project.estimated_budget = data.estimated_budget
+            if data.currency is not None:
+                project.currency = data.currency.strip().upper()[:3]
+            if data.clear_deadline:
+                project.deadline = None
+            elif data.deadline is not None:
+                project.deadline = data.deadline
+            if data.status is not None:
+                cls._apply_status(project, data.status)
+            if data.clear_assigned_designer:
+                project.assigned_designer = None
+            elif data.assigned_designer_id is not None:
+                project.assigned_designer = cls._require_administrator(
+                    data.assigned_designer_id
                 )
-            project.title = title
-        if data.description is not None:
-            description = data.description.strip()
-            if len(description) < 10:
-                raise CustomProjectError(
-                    "Description must be at least 10 characters.",
-                    field="description",
-                )
-            project.description = description
-        if data.category is not None:
-            project.category = data.category.strip()
-        if data.clear_estimated_budget:
-            project.estimated_budget = None
-        elif data.estimated_budget is not None:
-            project.estimated_budget = data.estimated_budget
-        if data.currency is not None:
-            project.currency = data.currency.strip().upper()[:3]
-        if data.clear_deadline:
-            project.deadline = None
-        elif data.deadline is not None:
-            project.deadline = data.deadline
-        if data.status is not None:
-            cls._apply_status(project, data.status)
-        if data.clear_assigned_designer:
-            project.assigned_designer = None
-        elif data.assigned_designer_id is not None:
-            project.assigned_designer = cls._require_administrator(
-                data.assigned_designer_id
-            )
-        if data.payment_status is not None:
-            if data.payment_status not in CustomProject.PaymentStatus.values:
-                raise CustomProjectError("Invalid payment status.", field="payment_status")
-            project.payment_status = data.payment_status
-        if data.admin_notes is not None:
-            project.admin_notes = data.admin_notes.strip()
-        project.save()
-        return cls.get_for_admin(project.id)
+            if data.payment_status is not None:
+                if data.payment_status not in CustomProject.PaymentStatus.values:
+                    raise CustomProjectError("Invalid payment status.", field="payment_status")
+                project.payment_status = data.payment_status
+            if data.admin_notes is not None:
+                project.admin_notes = data.admin_notes.strip()
+            project.save()
+            updated = cls.get_for_admin(project.id)
+        if (
+            previous_status != CustomProject.Status.DELIVERED
+            and updated.status == CustomProject.Status.DELIVERED
+        ):
+            # Outside the write transaction so SMTP latency/failures cannot roll back status.
+            ProjectWorkflowNotificationService.notify_project_delivered(updated)
+        return updated
 
     @classmethod
-    @transaction.atomic
     def upsert_quotation(
         cls,
         project: CustomProject,
@@ -329,23 +349,82 @@ class CustomProjectService:
         if data.status not in ProjectQuotation.Status.values:
             raise CustomProjectError("Invalid quotation status.", field="status")
 
-        quotation, _created = ProjectQuotation.objects.update_or_create(
-            project=project,
-            defaults={
-                "amount": data.amount,
-                "currency": (data.currency or "USD").strip().upper()[:3],
-                "estimated_delivery": data.estimated_delivery,
-                "notes": data.notes.strip(),
-                "status": data.status,
-            },
-        )
-        if project.status in {
-            CustomProject.Status.SUBMITTED,
-            CustomProject.Status.UNDER_REVIEW,
-        }:
-            project.status = CustomProject.Status.QUOTED
-            project.save(update_fields=["status", "updated_at"])
+        with transaction.atomic():
+            quotation, created = ProjectQuotation.objects.update_or_create(
+                project=project,
+                defaults={
+                    "amount": data.amount,
+                    "currency": (data.currency or "USD").strip().upper()[:3],
+                    "estimated_delivery": data.estimated_delivery,
+                    "notes": data.notes.strip(),
+                    "status": data.status,
+                },
+            )
+            became_quoted = False
+            if project.status in {
+                CustomProject.Status.SUBMITTED,
+                CustomProject.Status.UNDER_REVIEW,
+            }:
+                project.status = CustomProject.Status.QUOTED
+                project.save(update_fields=["status", "updated_at"])
+                became_quoted = True
+
+            notified_project = CustomProject.objects.select_related(
+                "customer",
+                "assigned_designer",
+                "assigned_designer__role",
+            ).get(pk=project.pk)
+
+        # Notify once when a quote is first created or the project first becomes quoted.
+        # Subsequent quote edits must not spam the customer.
+        if created or became_quoted:
+            ProjectWorkflowNotificationService.notify_quotation_sent(notified_project)
         return quotation
+
+    @classmethod
+    def accept_quotation(
+        cls,
+        project: CustomProject,
+        *,
+        customer: User,
+    ) -> ProjectQuotation:
+        """Customer accepts a pending quotation and moves the project to approved."""
+        owned = cls.get_for_customer(project.id, customer)
+        with transaction.atomic():
+            try:
+                quotation = ProjectQuotation.objects.select_for_update().get(project=owned)
+            except ProjectQuotation.DoesNotExist as exc:
+                raise CustomProjectError("No quotation is available to accept.") from exc
+
+            if quotation.status != ProjectQuotation.Status.PENDING:
+                raise CustomProjectError(
+                    "Only a pending quotation can be accepted.",
+                    field="status",
+                )
+            if owned.status != CustomProject.Status.QUOTED:
+                raise CustomProjectError(
+                    "Quotation can only be accepted when the project is quoted.",
+                    field="status",
+                )
+
+            quotation.status = ProjectQuotation.Status.ACCEPTED
+            quotation.save(update_fields=["status", "updated_at"])
+            cls._apply_status(owned, CustomProject.Status.APPROVED)
+            owned.save(update_fields=["status", "updated_at"])
+
+            notified_project = CustomProject.objects.select_related(
+                "customer",
+                "assigned_designer",
+                "assigned_designer__role",
+            ).get(pk=owned.pk)
+            accepted = (
+                ProjectQuotation.objects.select_related("project")
+                .get(pk=quotation.pk)
+            )
+
+        # Outside the write transaction so SMTP latency/failures cannot roll back accept.
+        ProjectWorkflowNotificationService.notify_quotation_accepted(notified_project)
+        return accepted
 
     @classmethod
     def list_messages(cls, project: CustomProject) -> QuerySet[ProjectMessage]:

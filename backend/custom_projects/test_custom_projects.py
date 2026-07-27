@@ -28,6 +28,7 @@ def _png_bytes() -> bytes:
 class CustomProjectAPITests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
+        mail.outbox.clear()
         self.password = "StrongPass123!"
         self.admin_role = Role.objects.get(role_name="Administrator")
         self.customer_role = Role.objects.get(role_name="Customer")
@@ -94,6 +95,85 @@ class CustomProjectAPITests(APITestCase):
         listed = self.client.get(self.customer_list_url)
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
         self.assertEqual(listed.data["count"], 1)
+
+    def test_customer_create_emails_active_admins_when_no_designer(self) -> None:
+        self._authenticate_customer()
+        secret_description = "Do not leak the full customer brief into the email body."
+        create = self.client.post(
+            self.customer_list_url,
+            {
+                "title": "Custom chair model",
+                "description": secret_description,
+                "category": "Furniture",
+            },
+            format="json",
+        )
+        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 1)
+
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.admin_user.email])
+        self.assertIn("Custom chair model", email.subject)
+        self.assertIn("Custom chair model", email.body)
+        self.assertIn(self.customer_user.full_name, email.body)
+        self.assertIn("/admin/projects/", email.body)
+        self.assertNotIn(secret_description, email.body)
+        self.assertNotIn(self.customer_user.email, email.body)
+        self.assertNotIn("/api/", email.body)
+
+    @override_settings(
+        PROJECT_MESSAGE_ADMIN_RECIPIENTS=(
+            "ops@3dassetmarketplace.local, desk@3dassetmarketplace.local"
+        ),
+    )
+    def test_customer_create_uses_configured_admin_recipients(self) -> None:
+        self._authenticate_customer()
+        create = self.client.post(
+            self.customer_list_url,
+            {
+                "title": "Configured recipients project",
+                "description": "Need a product visualization with configurable recipients.",
+            },
+            format="json",
+        )
+        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(
+            mail.outbox[0].to,
+            ["ops@3dassetmarketplace.local", "desk@3dassetmarketplace.local"],
+        )
+
+    def test_mail_failure_does_not_break_customer_project_create(self) -> None:
+        self._authenticate_customer()
+        with patch(
+            "custom_projects.notifications.send_mail",
+            side_effect=RuntimeError("SMTP unavailable"),
+        ):
+            create = self.client.post(
+                self.customer_list_url,
+                {
+                    "title": "Mail failure project",
+                    "description": "Project should still be created when email sending fails.",
+                },
+                format="json",
+            )
+        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(CustomProject.objects.count(), 1)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_admin_create_does_not_send_customer_submission_email(self) -> None:
+        self._authenticate_admin()
+        response = self.client.post(
+            self.admin_list_url,
+            {
+                "customer_id": str(self.customer_user.id),
+                "title": "Admin-created project",
+                "description": "Created by staff so it should not trigger customer submission email.",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_customer_cannot_access_another_customers_project(self) -> None:
         project = CustomProject.objects.create(
@@ -1524,6 +1604,304 @@ class CustomProjectMessageEmailNotificationTests(APITestCase):
             )
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
         self.assertEqual(ProjectMessage.objects.filter(project=self.project).count(), 1)
+        self.assertEqual(len(mail.outbox), 0)
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    FRONTEND_BASE_URL="http://localhost:5173",
+    DEFAULT_FROM_EMAIL="noreply@3dassetmarketplace.local",
+    PROJECT_MESSAGE_ADMIN_RECIPIENTS="",
+)
+class CustomProjectWorkflowEmailNotificationTests(APITestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        mail.outbox.clear()
+        self.password = "StrongPass123!"
+        self.admin_role = Role.objects.get(role_name="Administrator")
+        self.customer_role = Role.objects.get(role_name="Customer")
+        self.admin_user = User.objects.create_user(
+            email="admin-workflow-mail@example.com",
+            full_name="Admin Workflow",
+            password=self.password,
+            role=self.admin_role,
+            email_verified=True,
+        )
+        self.admin_user.is_staff = True
+        self.admin_user.save(update_fields=["is_staff", "updated_at"])
+        self.designer = User.objects.create_user(
+            email="designer-workflow-mail@example.com",
+            full_name="Assigned Designer",
+            password=self.password,
+            role=self.admin_role,
+            email_verified=True,
+        )
+        self.designer.is_staff = True
+        self.designer.save(update_fields=["is_staff", "updated_at"])
+        self.customer_user = User.objects.create_user(
+            email="customer-workflow-mail@example.com",
+            full_name="Customer Workflow",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        self.admin_login_url = reverse("accounts:admin-login")
+        self.customer_login_url = reverse("accounts:login")
+
+    def _authenticate_admin(self, user: User | None = None) -> None:
+        actor = user or self.admin_user
+        response = self.client.post(
+            self.admin_login_url,
+            {"email": actor.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def _authenticate_customer(self) -> None:
+        response = self.client.post(
+            self.customer_login_url,
+            {"email": self.customer_user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def _quoted_project(self) -> CustomProject:
+        project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="Oak table commission",
+            description="Project used to exercise quotation workflow emails.",
+            status=CustomProject.Status.UNDER_REVIEW,
+            assigned_designer=self.designer,
+        )
+        ProjectQuotation.objects.create(
+            project=project,
+            amount=Decimal("350.00"),
+            currency="USD",
+            notes="Secret quote notes must stay off email.",
+            status=ProjectQuotation.Status.PENDING,
+        )
+        project.status = CustomProject.Status.QUOTED
+        project.save(update_fields=["status", "updated_at"])
+        return project
+
+    def test_quotation_save_emails_customer_without_quote_secrets(self) -> None:
+        project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="Oak table commission",
+            description="Project used to exercise quotation workflow emails.",
+            status=CustomProject.Status.UNDER_REVIEW,
+        )
+        self._authenticate_admin()
+        secret_notes = "Internal pricing strategy must never appear in email."
+        quote = self.client.post(
+            reverse(
+                "custom_projects_admin:admin-custom-project-quotation",
+                kwargs={"project_id": project.id},
+            ),
+            {
+                "amount": "350.00",
+                "currency": "USD",
+                "notes": secret_notes,
+            },
+            format="json",
+        )
+        self.assertEqual(quote.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.customer_user.email])
+        self.assertIn("Oak table commission", email.subject)
+        self.assertIn("Oak table commission", email.body)
+        self.assertIn(
+            f"http://localhost:5173/dashboard/projects/{project.id}",
+            email.body,
+        )
+        self.assertNotIn(secret_notes, email.body)
+        self.assertNotIn("350.00", email.body)
+        self.assertNotIn(self.admin_user.email, email.body)
+        self.assertNotIn("/api/", email.body)
+        self.assertNotIn("/admin/", email.body)
+
+    def test_quotation_update_does_not_reemail_customer(self) -> None:
+        project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="Quote revision project",
+            description="Subsequent quote edits must not spam email.",
+            status=CustomProject.Status.UNDER_REVIEW,
+        )
+        self._authenticate_admin()
+        first = self.client.post(
+            reverse(
+                "custom_projects_admin:admin-custom-project-quotation",
+                kwargs={"project_id": project.id},
+            ),
+            {"amount": "200.00", "currency": "USD"},
+            format="json",
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+
+        mail.outbox.clear()
+        second = self.client.post(
+            reverse(
+                "custom_projects_admin:admin-custom-project-quotation",
+                kwargs={"project_id": project.id},
+            ),
+            {"amount": "225.00", "currency": "USD", "notes": "Revised amount"},
+            format="json",
+        )
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 0)
+        quotation = ProjectQuotation.objects.get(project_id=project.id)
+        self.assertEqual(str(quotation.amount), "225.00")
+
+    def test_customer_accept_quotation_emails_assigned_designer(self) -> None:
+        project = self._quoted_project()
+        mail.outbox.clear()
+        self._authenticate_customer()
+        accepted = self.client.post(
+            reverse(
+                "custom_projects:customer-custom-project-quotation-accept",
+                kwargs={"project_id": project.id},
+            ),
+            {},
+            format="json",
+        )
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+        self.assertEqual(accepted.data["status"], CustomProject.Status.APPROVED)
+        self.assertEqual(accepted.data["quotation"]["status"], "accepted")
+        self.assertEqual(len(mail.outbox), 1)
+
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.designer.email])
+        self.assertIn("Oak table commission", email.subject)
+        self.assertIn(
+            f"http://localhost:5173/admin/projects/{project.id}",
+            email.body,
+        )
+        self.assertNotIn("350.00", email.body)
+        self.assertNotIn(self.customer_user.email, email.body)
+
+    def test_other_customer_cannot_accept_quotation(self) -> None:
+        project = self._quoted_project()
+        other = User.objects.create_user(
+            email="other-workflow-mail@example.com",
+            full_name="Other Workflow",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        login = self.client.post(
+            self.customer_login_url,
+            {"email": other.email, "password": self.password},
+            format="json",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        response = self.client.post(
+            reverse(
+                "custom_projects:customer-custom-project-quotation-accept",
+                kwargs={"project_id": project.id},
+            ),
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_mark_delivered_emails_customer_with_deep_link(self) -> None:
+        project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="Oak table commission",
+            description="Project used to exercise delivery workflow emails.",
+            status=CustomProject.Status.IN_PROGRESS,
+        )
+        self._authenticate_admin()
+        updated = self.client.patch(
+            reverse(
+                "custom_projects_admin:admin-custom-project-detail",
+                kwargs={"project_id": project.id},
+            ),
+            {"status": CustomProject.Status.DELIVERED},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+        self.assertEqual(updated.data["status"], CustomProject.Status.DELIVERED)
+        self.assertEqual(len(mail.outbox), 1)
+
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.customer_user.email])
+        self.assertIn("Oak table commission", email.subject)
+        self.assertIn(
+            f"http://localhost:5173/dashboard/projects/{project.id}",
+            email.body,
+        )
+        self.assertNotIn("/api/", email.body)
+        self.assertNotIn("/admin/", email.body)
+
+    def test_mail_failure_does_not_break_quotation_accept_or_delivery(self) -> None:
+        project = self._quoted_project()
+        self._authenticate_customer()
+        with patch(
+            "custom_projects.notifications.send_mail",
+            side_effect=RuntimeError("SMTP unavailable"),
+        ):
+            accepted = self.client.post(
+                reverse(
+                    "custom_projects:customer-custom-project-quotation-accept",
+                    kwargs={"project_id": project.id},
+                ),
+                {},
+                format="json",
+            )
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
+        project.refresh_from_db()
+        self.assertEqual(project.status, CustomProject.Status.APPROVED)
+        self.assertEqual(project.quotation.status, ProjectQuotation.Status.ACCEPTED)
+
+        project.status = CustomProject.Status.IN_PROGRESS
+        project.save(update_fields=["status", "updated_at"])
+        self._authenticate_admin()
+        with patch(
+            "custom_projects.notifications.send_mail",
+            side_effect=RuntimeError("SMTP unavailable"),
+        ):
+            delivered = self.client.patch(
+                reverse(
+                    "custom_projects_admin:admin-custom-project-detail",
+                    kwargs={"project_id": project.id},
+                ),
+                {"status": CustomProject.Status.DELIVERED},
+                format="json",
+            )
+        self.assertEqual(delivered.status_code, status.HTTP_200_OK)
+        project.refresh_from_db()
+        self.assertEqual(project.status, CustomProject.Status.DELIVERED)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_mail_failure_does_not_break_quotation_save(self) -> None:
+        project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="Mail failure quote project",
+            description="Quotation must persist when email sending fails.",
+            status=CustomProject.Status.UNDER_REVIEW,
+        )
+        self._authenticate_admin()
+        with patch(
+            "custom_projects.notifications.send_mail",
+            side_effect=RuntimeError("SMTP unavailable"),
+        ):
+            quote = self.client.post(
+                reverse(
+                    "custom_projects_admin:admin-custom-project-quotation",
+                    kwargs={"project_id": project.id},
+                ),
+                {"amount": "120.00", "currency": "USD"},
+                format="json",
+            )
+        self.assertEqual(quote.status_code, status.HTTP_200_OK)
+        self.assertTrue(ProjectQuotation.objects.filter(project_id=project.id).exists())
         self.assertEqual(len(mail.outbox), 0)
 
 

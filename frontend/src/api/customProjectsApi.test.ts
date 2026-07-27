@@ -2,21 +2,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiClient } from './client'
 import {
+  acceptCustomerCustomProjectQuotation,
   createAdminProjectMessage,
+  createCustomerCustomProject,
   createCustomerProjectMessage,
   downloadAdminProjectDelivery,
+  downloadCustomerProjectDelivery,
   getCustomerCustomProject,
   listAdminProjectDeliveries,
   listAdminProjectMessages,
   listCustomerCustomProjects,
+  listCustomerProjectDeliveries,
   listCustomerProjectMessages,
   markAdminProjectMessagesRead,
   markCustomerProjectMessagesRead,
   uploadAdminProjectDelivery,
+  uploadCustomerCustomProjectFile,
 } from './customProjectsApi'
 import type {
   CustomerCustomProject,
   ProjectDelivery,
+  ProjectFile,
   ProjectMessage,
 } from '../types/customProject'
 
@@ -101,6 +107,52 @@ describe('customProjectsApi customer endpoints', () => {
     const result = await getCustomerCustomProject(projectId)
 
     expect(apiClient.get).toHaveBeenCalledWith(`/api/custom-projects/${projectId}/`)
+    expect(result).toEqual(detail)
+  })
+
+  it('accepts a customer project quotation', async () => {
+    const accepted = {
+      ...detail,
+      status: 'approved' as const,
+      quotation: {
+        id: '44444444-4444-4444-4444-444444444444',
+        amount: '220.00',
+        currency: 'USD',
+        estimated_delivery: '2026-08-20',
+        notes: 'Includes two revision rounds.',
+        status: 'accepted' as const,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    }
+    vi.mocked(apiClient.post).mockResolvedValue({ data: accepted })
+
+    const result = await acceptCustomerCustomProjectQuotation(projectId)
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/api/custom-projects/${projectId}/quotation/accept/`,
+    )
+    expect(result).toEqual(accepted)
+  })
+
+  it('creates a customer custom project', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: detail })
+
+    const result = await createCustomerCustomProject({
+      title: 'Hero prop',
+      description: 'Stylized sci-fi crate with baked lighting.',
+      category: 'Props',
+      estimated_budget: '150.00',
+      currency: 'USD',
+    })
+
+    expect(apiClient.post).toHaveBeenCalledWith('/api/custom-projects/', {
+      title: 'Hero prop',
+      description: 'Stylized sci-fi crate with baked lighting.',
+      category: 'Props',
+      estimated_budget: '150.00',
+      currency: 'USD',
+    })
     expect(result).toEqual(detail)
   })
 
@@ -326,6 +378,96 @@ describe('customProjectsApi admin message endpoints', () => {
       `/api/admin/custom-projects/${projectId}/messages/read/`,
     )
     expect(result).toEqual(readState)
+  })
+})
+
+describe('customProjectsApi customer file upload', () => {
+  it('uploads a reference file via multipart form data', async () => {
+    const file = new File(['png'], 'ref.png', { type: 'image/png' })
+    const uploaded: ProjectFile = {
+      id: '66666666-6666-6666-6666-666666666666',
+      file_type: 'reference_image',
+      file_name: 'ref.png',
+      file_size: 3,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }
+    vi.mocked(apiClient.post).mockResolvedValue({ data: uploaded })
+
+    const result = await uploadCustomerCustomProjectFile(projectId, {
+      file,
+      file_type: 'reference_image',
+    })
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/api/custom-projects/${projectId}/files/`,
+      expect.any(FormData),
+    )
+    const [, payload] = vi.mocked(apiClient.post).mock.calls[0] ?? []
+    const formData = payload as FormData
+    expect(formData.get('file')).toBe(file)
+    expect(formData.get('file_type')).toBe('reference_image')
+    expect(result).toEqual(uploaded)
+  })
+})
+
+describe('customProjectsApi customer delivery endpoints', () => {
+  const delivery: ProjectDelivery = {
+    id: '77777777-7777-7777-7777-777777777777',
+    project_id: projectId,
+    file_name: 'final.zip',
+    file_size: 4096,
+    version: 1,
+    notes: 'Ready for review',
+    download_url: `http://localhost/api/custom-projects/${projectId}/deliveries/77777777-7777-7777-7777-777777777777/download/`,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }
+
+  it('lists customer project deliveries with pagination params', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: { count: 1, next: null, previous: null, results: [delivery] },
+    })
+
+    const result = await listCustomerProjectDeliveries(projectId, {
+      page: 1,
+      page_size: 50,
+    })
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      `/api/custom-projects/${projectId}/deliveries/?page=1&page_size=50`,
+    )
+    expect(result.results[0]?.file_name).toBe('final.zip')
+  })
+
+  it('downloads a customer project delivery as a blob', async () => {
+    const click = vi.fn()
+    const revokeObjectURL = vi.fn()
+    const createObjectURL = vi.fn(() => 'blob:customer-delivery')
+    vi.stubGlobal('URL', {
+      createObjectURL,
+      revokeObjectURL,
+    })
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName === 'a') {
+        return { click, download: '', href: '' } as unknown as HTMLAnchorElement
+      }
+      return originalCreateElement(tagName)
+    })
+    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['zip']) })
+
+    await downloadCustomerProjectDelivery(projectId, delivery.id, delivery.file_name)
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      `/api/custom-projects/${projectId}/deliveries/${delivery.id}/download/`,
+      { responseType: 'blob' },
+    )
+    expect(createObjectURL).toHaveBeenCalled()
+    expect(click).toHaveBeenCalled()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:customer-delivery')
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
   })
 })
 
