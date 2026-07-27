@@ -5,6 +5,7 @@ import type {
   AdminCustomProjectListParams,
   AdminCustomProjectUpdatePayload,
   CustomerCustomProject,
+  CustomerCustomProjectCreatePayload,
   CustomerCustomProjectListParams,
   PaginatedCustomerCustomProjects,
   PaginatedCustomProjects,
@@ -13,6 +14,8 @@ import type {
   ProjectDelivery,
   ProjectDeliveryListParams,
   ProjectDeliveryUploadPayload,
+  ProjectFile,
+  ProjectFileUploadPayload,
   ProjectMessage,
   ProjectMessageCreatePayload,
   ProjectMessageListParams,
@@ -56,6 +59,16 @@ export async function getCustomerCustomProject(
 ): Promise<CustomerCustomProject> {
   const { data } = await apiClient.get<CustomerCustomProject>(
     `/api/custom-projects/${projectId}/`,
+  )
+  return data
+}
+
+export async function createCustomerCustomProject(
+  payload: CustomerCustomProjectCreatePayload,
+): Promise<CustomerCustomProject> {
+  const { data } = await apiClient.post<CustomerCustomProject>(
+    '/api/custom-projects/',
+    payload,
   )
   return data
 }
@@ -234,6 +247,15 @@ export async function upsertAdminCustomProjectQuotation(
   return data
 }
 
+export async function acceptCustomerCustomProjectQuotation(
+  projectId: string,
+): Promise<CustomerCustomProject> {
+  const { data } = await apiClient.post<CustomerCustomProject>(
+    `/api/custom-projects/${projectId}/quotation/accept/`,
+  )
+  return data
+}
+
 export async function downloadAdminCustomProjectFile(
   projectId: string,
   fileId: string,
@@ -295,6 +317,47 @@ export async function downloadAdminProjectDelivery(
 ): Promise<void> {
   const { data } = await apiClient.get<Blob>(
     `/api/admin/custom-projects/${projectId}/deliveries/${deliveryId}/download/`,
+    { responseType: 'blob' },
+  )
+  const objectUrl = URL.createObjectURL(data)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(objectUrl)
+}
+
+export async function uploadCustomerCustomProjectFile(
+  projectId: string,
+  payload: ProjectFileUploadPayload,
+): Promise<ProjectFile> {
+  const formData = new FormData()
+  formData.append('file', payload.file)
+  formData.append('file_type', payload.file_type)
+  const { data } = await apiClient.post<ProjectFile>(
+    `/api/custom-projects/${projectId}/files/`,
+    formData,
+  )
+  return data
+}
+
+export async function listCustomerProjectDeliveries(
+  projectId: string,
+  params: ProjectDeliveryListParams = {},
+): Promise<PaginatedProjectDeliveries> {
+  const { data } = await apiClient.get<PaginatedProjectDeliveries>(
+    `/api/custom-projects/${projectId}/deliveries/${toDeliveryListQuery(params)}`,
+  )
+  return data
+}
+
+export async function downloadCustomerProjectDelivery(
+  projectId: string,
+  deliveryId: string,
+  fileName: string,
+): Promise<void> {
+  const { data } = await apiClient.get<Blob>(
+    `/api/custom-projects/${projectId}/deliveries/${deliveryId}/download/`,
     { responseType: 'blob' },
   )
   const objectUrl = URL.createObjectURL(data)

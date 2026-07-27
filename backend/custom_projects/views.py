@@ -143,7 +143,8 @@ class CustomerCustomProjectListCreateView(APIView):
                 CustomProjectCreateData(
                     customer_id=request.user.id,
                     **serializer.validated_data,
-                )
+                ),
+                notify_staff_on_create=True,
             )
         except CustomProjectError as exc:
             return _error_response(exc)
@@ -163,6 +164,30 @@ class CustomerCustomProjectDetailView(APIView):
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
         return Response(CustomProjectCustomerDetailSerializer(project).data)
+
+
+class CustomerCustomProjectQuotationAcceptView(APIView):
+    """Customer accepts a pending quotation for their own project."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [CustomProjectWriteRateThrottle]
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_customer(project_id, request.user)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        try:
+            CustomProjectService.accept_quotation(project, customer=request.user)
+        except CustomProjectError as exc:
+            return _error_response(exc)
+
+        detail = CustomProjectService.get_for_customer(project_id, request.user)
+        return Response(
+            CustomProjectCustomerDetailSerializer(detail).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class CustomerCustomProjectFileUploadView(APIView):

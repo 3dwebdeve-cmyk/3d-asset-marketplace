@@ -33,6 +33,7 @@ urlpatterns = [
     path('api/admin/plugin-categories/', include('plugins.admin_category_urls')),
     path('api/custom-projects/', include('custom_projects.urls')),
     path('api/admin/custom-projects/', include('custom_projects.admin_urls')),
+    path('api/admin/orders/', include('orders.admin_urls')),
     path('api/admin/dashboard/', include('analytics.admin_urls')),
 ]
 
