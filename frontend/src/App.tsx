@@ -69,6 +69,16 @@ const AdminProjectDetailPage = lazy(() =>
     default: module.AdminProjectDetailPage,
   })),
 )
+const AdminOrdersPage = lazy(() =>
+  import('./pages/Admin/AdminOrdersPage').then((module) => ({
+    default: module.AdminOrdersPage,
+  })),
+)
+const AdminOrderDetailPage = lazy(() =>
+  import('./pages/Admin/AdminOrderDetailPage').then((module) => ({
+    default: module.AdminOrderDetailPage,
+  })),
+)
 
 function AppRoutes() {
   const location = useLocation()
@@ -139,6 +149,11 @@ function AppRoutes() {
               <Route
                 path="/admin/projects/:projectId"
                 element={<AdminProjectDetailPage />}
+              />
+              <Route path="/admin/orders" element={<AdminOrdersPage />} />
+              <Route
+                path="/admin/orders/:orderId"
+                element={<AdminOrderDetailPage />}
               />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/users/:userId" element={<AdminUserDetailPage />} />

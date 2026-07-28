@@ -94,5 +94,13 @@ class AdminOrderItemCreateSerializer(serializers.Serializer):
 
 class AdminOrderCreateSerializer(serializers.Serializer):
     customer_id = serializers.UUIDField()
-    currency = serializers.CharField(max_length=3, required=False, default="USD")
+    currency = serializers.RegexField(
+        regex=r"^[A-Za-z]{3}$",
+        required=False,
+        default="USD",
+        error_messages={"invalid": "Currency must be a 3-letter code."},
+    )
     items = AdminOrderItemCreateSerializer(many=True, min_length=1)
+
+    def validate_currency(self, value: str) -> str:
+        return value.strip().upper()

@@ -82,6 +82,10 @@ describe('AdminDashboardPage', () => {
       'href',
       '/admin/plugins',
     )
+    expect(screen.getByRole('link', { name: 'Manage orders' })).toHaveAttribute(
+      'href',
+      '/admin/orders',
+    )
     expect(dashboardApi.getAdminDashboardStats).toHaveBeenCalledTimes(1)
   })
 

@@ -159,6 +159,9 @@ export function AdminDashboardPage() {
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/projects">
             Manage projects
           </Link>
+          <Link className="home-page__cta home-page__cta--secondary" to="/admin/orders">
+            Manage orders
+          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/users">
             Manage users
           </Link>
