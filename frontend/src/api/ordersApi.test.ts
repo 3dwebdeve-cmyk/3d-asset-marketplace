@@ -1,0 +1,114 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { apiClient } from './client'
+import { createAdminOrder, getAdminOrder, listAdminOrders } from './ordersApi'
+import type { AdminOrder } from '../types/order'
+
+vi.mock('./client', () => ({
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+  },
+}))
+
+const orderId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+const customerId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+const productId = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+
+const sampleOrder: AdminOrder = {
+  id: orderId,
+  invoice_number: 'INV-20260728-ABCD',
+  total_amount: '59.98',
+  currency: 'USD',
+  order_status: 'pending',
+  payment_status: 'pending',
+  customer: {
+    id: customerId,
+    email: 'customer@example.com',
+    full_name: 'Ada Customer',
+  },
+  items: [
+    {
+      id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+      product_type: 'product',
+      product_id: productId,
+      title: 'Oak Chair',
+      quantity: 2,
+      purchase_price: '29.99',
+      line_total: '59.98',
+      created_at: '2026-07-28T00:00:00Z',
+      updated_at: '2026-07-28T00:00:00Z',
+    },
+  ],
+  items_total: '59.98',
+  created_at: '2026-07-28T00:00:00Z',
+  updated_at: '2026-07-28T00:00:00Z',
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+describe('ordersApi', () => {
+  it('lists admin orders with filters and pagination', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: {
+        count: 1,
+        next: null,
+        previous: null,
+        results: [
+          {
+            id: orderId,
+            invoice_number: sampleOrder.invoice_number,
+            total_amount: sampleOrder.total_amount,
+            currency: sampleOrder.currency,
+            order_status: sampleOrder.order_status,
+            payment_status: sampleOrder.payment_status,
+            customer: sampleOrder.customer,
+            item_count: 1,
+            created_at: sampleOrder.created_at,
+            updated_at: sampleOrder.updated_at,
+          },
+        ],
+      },
+    })
+
+    const result = await listAdminOrders({
+      search: 'INV',
+      order_status: 'pending',
+      payment_status: 'pending',
+      customer_id: customerId,
+      ordering: '-created_at',
+      page: 1,
+      page_size: 20,
+    })
+
+    expect(result.count).toBe(1)
+    expect(apiClient.get).toHaveBeenCalledWith(
+      `/api/admin/orders/?search=INV&order_status=pending&payment_status=pending&customer_id=${customerId}&ordering=-created_at&page=1&page_size=20`,
+    )
+  })
+
+  it('fetches a single admin order', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ data: sampleOrder })
+
+    const result = await getAdminOrder(orderId)
+
+    expect(result.invoice_number).toBe(sampleOrder.invoice_number)
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/admin/orders/${orderId}/`)
+  })
+
+  it('creates an admin order', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: sampleOrder })
+
+    const payload = {
+      customer_id: customerId,
+      currency: 'USD',
+      items: [{ product_type: 'product' as const, product_id: productId, quantity: 2 }],
+    }
+    const result = await createAdminOrder(payload)
+
+    expect(result.id).toBe(orderId)
+    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/orders/', payload)
+  })
+})

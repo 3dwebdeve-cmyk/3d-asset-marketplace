@@ -250,6 +250,31 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
             )
         self.assertEqual(exc.exception.field, "items[1]")
 
+    def test_create_rejects_non_customer_user(self) -> None:
+        admin_role = Role.objects.get(role_name="Administrator")
+        admin_user = User.objects.create_user(
+            email="order-admin-customer@example.com",
+            full_name="Not A Customer",
+            password="StrongPass123!",
+            role=admin_role,
+            email_verified=True,
+        )
+        with self.assertRaises(OrderError) as exc:
+            OrderService.create(
+                OrderCreateData(
+                    user_id=admin_user.pk,
+                    items=(
+                        OrderItemCreateData(
+                            product_type=OrderItem.ProductType.PRODUCT,
+                            product_id=self.product.pk,
+                            quantity=1,
+                        ),
+                    ),
+                )
+            )
+        self.assertEqual(exc.exception.field, "user_id")
+        self.assertIn("customer", exc.exception.message.lower())
+
 
 class OrderServiceStatusTransitionTests(OrderTestMixin, TestCase):
     def setUp(self) -> None:
@@ -521,3 +546,105 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(response.data["customer"]["email"], self.user.email)
         self.assertEqual(len(response.data["items"]), 1)
         self.assertEqual(response.data["items"][0]["title"], "Hero Sword")
+
+    def test_unauthenticated_denied_on_admin_order_endpoints(self) -> None:
+        list_response = self.client.get(self.admin_list_url)
+        self.assertEqual(list_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        detail_url = reverse(
+            "orders_admin:admin-order-detail",
+            kwargs={"order_id": self.order.id},
+        )
+        detail_response = self.client.get(detail_url)
+        self.assertEqual(detail_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        create_response = self.client.post(
+            self.admin_list_url,
+            {
+                "customer_id": str(self.user.id),
+                "items": [
+                    {
+                        "product_type": OrderItem.ProductType.PRODUCT,
+                        "product_id": str(self.product.id),
+                        "quantity": 1,
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_admin_list_rejects_invalid_order_status_filter(self) -> None:
+        self._authenticate_admin()
+        response = self.client.get(
+            self.admin_list_url,
+            {"order_status": "not-a-status"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("order_status", response.data)
+
+    def test_admin_list_rejects_invalid_customer_id_filter(self) -> None:
+        self._authenticate_admin()
+        response = self.client.get(
+            self.admin_list_url,
+            {"customer_id": "not-a-uuid"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("customer_id", response.data)
+
+    def test_admin_create_rejects_non_customer_user(self) -> None:
+        self._authenticate_admin()
+        response = self.client.post(
+            self.admin_list_url,
+            {
+                "customer_id": str(self.admin_user.id),
+                "items": [
+                    {
+                        "product_type": OrderItem.ProductType.PRODUCT,
+                        "product_id": str(self.product.id),
+                        "quantity": 1,
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("user_id", response.data)
+
+    def test_admin_create_rejects_invalid_currency(self) -> None:
+        self._authenticate_admin()
+        response = self.client.post(
+            self.admin_list_url,
+            {
+                "customer_id": str(self.user.id),
+                "currency": "US",
+                "items": [
+                    {
+                        "product_type": OrderItem.ProductType.PRODUCT,
+                        "product_id": str(self.product.id),
+                        "quantity": 1,
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("currency", response.data)
+
+    def test_admin_create_rejects_unpublished_product(self) -> None:
+        self._authenticate_admin()
+        response = self.client.post(
+            self.admin_list_url,
+            {
+                "customer_id": str(self.user.id),
+                "items": [
+                    {
+                        "product_type": OrderItem.ProductType.PRODUCT,
+                        "product_id": str(self.draft_product.id),
+                        "quantity": 1,
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

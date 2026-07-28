@@ -261,6 +261,20 @@
   border-top: 1px solid var(--border);
 }
 
+.admin-create-form__items {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-create-form__item-row {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-section);
+}
+
 .admin-table-wrap {
   overflow-x: auto;
   margin-top: 1rem;

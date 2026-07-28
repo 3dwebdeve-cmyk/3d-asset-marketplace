@@ -349,11 +349,16 @@ class OrderService:
     @classmethod
     def _require_user(cls, user_id: UUID) -> User:
         try:
-            user = User.objects.get(pk=user_id)
+            user = User.objects.select_related("role").get(pk=user_id)
         except User.DoesNotExist as exc:
             raise OrderError("User not found.", field="user_id") from exc
         if not user.is_active:
             raise OrderError("User is inactive.", field="user_id")
+        if user.role is None or user.role.role_name != "Customer":
+            raise OrderError(
+                "Orders can only be created for customer accounts.",
+                field="user_id",
+            )
         return user
 
     @staticmethod

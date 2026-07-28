@@ -62,6 +62,7 @@ Sprint 6 – Shopping & Payments
 Sprint 7 – Orders & Downloads
 • [x] Orders (Phase 15A — data model + service layer)
 • [x] Orders admin APIs (Phase 15B — admin list/detail + optional create)
+• [x] Orders admin UI (Feature 21 — list/detail/create SPA)
 • [ ] Order History
 • [ ] Secure Downloads
 • [ ] Signed Download URLs
@@ -98,6 +99,7 @@ Admin Dashboard
 • [x] Product Management
 • [x] Plugin Management
 • [x] Custom Projects
+• [x] Orders (admin list/detail/create UI)
 • [ ] Payments
 • [ ] Analytics
 Sprint 10 – Testing & Deployment
@@ -109,19 +111,21 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Phase 15B — Admin order list + detail APIs (GET /api/admin/orders/, GET /api/admin/orders/:id/, optional POST create; filters, pagination, tests).
+Feature 21 — Admin orders UI (list with filters/pagination, detail with line items, manual create; nav + routes).
 Current Git Branch
-feature/project-email-notifications
+feature/admin-orders-ui
 Files Being Worked On
-• backend/orders/services.py
-• backend/orders/serializers.py
-• backend/orders/views.py
-• backend/orders/pagination.py
-• backend/orders/admin_urls.py
-• backend/orders/test_orders.py
-• backend/config/urls.py
-• backend/accounts/throttles.py
-• backend/config/settings.py
+• frontend/src/types/order.ts
+• frontend/src/api/ordersApi.ts
+• frontend/src/api/ordersApi.test.ts
+• frontend/src/pages/Admin/AdminOrdersPage.tsx
+• frontend/src/pages/Admin/AdminOrdersPage.test.tsx
+• frontend/src/pages/Admin/AdminOrderDetailPage.tsx
+• frontend/src/pages/Admin/AdminOrderDetailPage.test.tsx
+• frontend/src/config/adminNav.ts
+• frontend/src/App.tsx
+• frontend/src/pages/Admin/AdminDashboardPage.tsx
+• frontend/src/index.css
 • PROJECT_STATUS.md
 Completed Features
 • Project setup (Django, React, PostgreSQL, JWT wiring)
@@ -142,6 +146,7 @@ Completed Features
 • Project delivery email notification (admin marks status=delivered → customer email; title+deep link; mail failure does not block status update)
 • Orders backend Phase 15A (Order + OrderItem models, OrderService create/totals/status transitions, Django admin, 16 tests)
 • Orders admin APIs Phase 15B (GET list/detail + POST create at /api/admin/orders/; filters order_status/payment_status/customer_id/search; live catalog title lookup; 8 API tests)
+• Orders admin UI Feature 21 (/admin/orders list+create, /admin/orders/:orderId detail; nav + dashboard link; API module + tests)
 • Quotation accept API (POST /api/custom-projects/:id/quotation/accept/ — customer only, throttled; sets ProjectQuotation.status=accepted, project.status=approved)
 • Accept quotation UI on customer project detail (Accept quotation button visible when status=quoted and quotation.status=pending; optimistic cache update on success)
 • Project message thread hardening (correct multi-admin labels; latest-window when >100 messages)
@@ -225,6 +230,60 @@ Important Decisions
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
 Daily Development Log
+Date: 2026-07-28 (Feature 21 — Admin orders UI)
+Working Hours:
+Today's Objective: Admin SPA for marketplace orders — list with filters/pagination, detail with line items, manual create; wire into admin nav and routes.
+Modules Completed: frontend orders admin UI (types, API module, list/create page, detail page, nav/routes/dashboard)
+Files Created:
+• frontend/src/types/order.ts
+• frontend/src/api/ordersApi.ts
+• frontend/src/api/ordersApi.test.ts
+• frontend/src/pages/Admin/AdminOrdersPage.tsx
+• frontend/src/pages/Admin/AdminOrdersPage.test.tsx
+• frontend/src/pages/Admin/AdminOrderDetailPage.tsx
+• frontend/src/pages/Admin/AdminOrderDetailPage.test.tsx
+Files Modified:
+• frontend/src/config/adminNav.ts (Orders nav item)
+• frontend/src/App.tsx (lazy /admin/orders + /admin/orders/:orderId routes)
+• frontend/src/pages/Admin/AdminDashboardPage.tsx (Manage orders quick link)
+• frontend/src/pages/Admin/AdminDashboardPage.test.tsx
+• frontend/src/layouts/AdminLayout.test.tsx
+• frontend/src/index.css (create-form line-item layout)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (reuses Phase 15B GET/POST /api/admin/orders/ and GET /api/admin/orders/:id/)
+API Endpoints Modified:
+• None
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• /admin/orders — list with search, order_status/payment_status filters, ordering, pagination, manual create form
+• /admin/orders/:orderId — read-only detail with customer summary and line items
+Frontend Pages/Components Modified:
+• Admin nav — Orders enabled
+• Admin dashboard — Manage orders quick link
+Tests Added/Updated:
+• ordersApi.test.ts — list/get/create API client coverage
+• AdminOrdersPage.test.tsx — list + create flow
+• AdminOrderDetailPage.test.tsx — detail + error state
+• AdminLayout.test.tsx / AdminDashboardPage.test.tsx — Orders link assertions
+Security Checklist:
+• Admin pages remain behind AdminRoute (JWT + Administrator role); backend still enforces IsAdministrator
+• No Axios calls in components — ordersApi service module only
+• Create form validates customer, currency (3-letter), quantity, and duplicate catalog lines client-side; server remains source of truth for prices and permissions
+• Catalog options limited to published products/plugins; customer options reuse admin users API (Customer role)
+• No secrets, storage paths, or payment gateway data in UI
+• Existing backend create throttle + order_create admin logging unchanged
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Phase 15C — Customer order history APIs, or shopping cart / checkout
+Notes:
+• Detail is read-only in this feature (no status update UI yet; Phase 15B has GET/POST only)
+• Manual create prices are resolved server-side via OrderService.create
+
 Date: 2026-07-27 (Phase 15B — Admin order list + detail APIs)
 Working Hours:
 Today's Objective: Admin list/detail order APIs with filters, pagination, optional admin create, and API tests.

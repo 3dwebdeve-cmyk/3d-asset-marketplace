@@ -115,9 +115,8 @@ class AdminOrderListCreateView(APIView):
             actor_id=str(request.user.id),
             target_id=str(order.id),
         )
-        detail = OrderService.get(order.id)
         return Response(
-            OrderDetailSerializer(detail, context=_detail_serializer_context(detail)).data,
+            OrderDetailSerializer(order, context=_detail_serializer_context(order)).data,
             status=status.HTTP_201_CREATED,
         )
 
