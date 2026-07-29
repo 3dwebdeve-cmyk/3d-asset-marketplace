@@ -2,6 +2,65 @@ export type PluginStatus = 'draft' | 'published' | 'archived'
 export type PluginLicenseType = 'standard' | 'extended' | 'commercial'
 export type PluginOrdering = 'name' | '-name' | 'price' | '-price' | 'created_at' | '-created_at'
 
+// ─── Public Plugin Types ───────────────────────────────────────────────────
+
+export interface PublicPlugin {
+  id: string
+  name: string
+  slug: string
+  short_description: string
+  price: string
+  currency: string
+  discount_price: string | null
+  thumbnail: string
+  version: string
+  compatibility: string
+  license_type: PluginLicenseType
+  average_rating: string
+  total_downloads: number
+  category: PluginCategory
+  created_at: string
+}
+
+export interface PublicPluginDetail extends PublicPlugin {
+  description: string
+  documentation_url: string
+  images: PluginImage[]
+  files: PublicPluginFile[]
+  updated_at: string
+}
+
+export interface PublicPluginFile {
+  id: string
+  file_name: string
+  file_format: string
+  file_size: number
+  version: string
+  is_primary: boolean
+}
+
+export interface PaginatedPublicPlugins {
+  count: number
+  next: string | null
+  previous: string | null
+  results: PublicPlugin[]
+}
+
+export interface PublicPluginListParams {
+  page?: number
+  page_size?: number
+  category_id?: string
+  search?: string
+  ordering?: PluginOrdering
+}
+
+export interface PublicPluginCategoryListParams {
+  page?: number
+  page_size?: number
+  is_active?: boolean
+  search?: string
+}
+
 export interface PluginCategory {
   id: string
   name: string

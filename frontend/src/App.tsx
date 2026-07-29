@@ -32,10 +32,29 @@ import './styles/auth.css'
 import './styles/admin-layout.css'
 import './styles/navbar.css'
 import './styles/products-browse.css'
+import './styles/product-details.css'
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
     default: module.ProductsBrowsePage,
+  })),
+)
+
+const PluginsBrowsePage = lazy(() =>
+  import('./pages/Plugins/PluginsBrowsePage').then((module) => ({
+    default: module.PluginsBrowsePage,
+  })),
+)
+
+const PluginDetailsPage = lazy(() =>
+  import('./pages/Plugins/PluginDetailsPage').then((module) => ({
+    default: module.PluginDetailsPage,
+  })),
+)
+
+const ProductDetailsPage = lazy(() =>
+  import('./pages/Products/ProductDetailsPage').then((module) => ({
+    default: module.ProductDetailsPage,
   })),
 )
 
@@ -94,6 +113,12 @@ function AppRoutes() {
             <Route path="/" element={<HomePage />} />
             <Route path="/products" element={<ProductsBrowsePage />} />
             <Route path="/Products" element={<ProductsBrowsePage />} />
+            <Route path="/products/:slug" element={<ProductDetailsPage />} />
+            <Route path="/Products/:slug" element={<ProductDetailsPage />} />
+            <Route path="/plugins" element={<PluginsBrowsePage />} />
+            <Route path="/Plugins" element={<PluginsBrowsePage />} />
+            <Route path="/plugins/:slug" element={<PluginDetailsPage />} />
+            <Route path="/Plugins/:slug" element={<PluginDetailsPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />

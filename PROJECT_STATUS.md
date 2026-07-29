@@ -5,7 +5,7 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~50%
+Overall Completion: ~56%
 Current Development Sprint
 Current Sprint: Sprint 3 – Marketplace
 Sprint Goal: Categories, products, and marketplace foundations
@@ -34,23 +34,47 @@ Sprint 3 – Marketplace
 • [x] Product CRUD
 • [x] Product Images
 • [x] Product Files
-• [ ] Product Details Page
+• [x] Product Details Page
 • [x] Product Search
 • [x] Product Filters
 • [x] Pagination
 Sprint 4 – 3D Viewer
-• [ ] React Three Fiber Setup
-• [ ] GLB Preview
-• [ ] Orbit Controls
-• [ ] Lighting
-• [ ] Fullscreen Mode
-• [ ] Responsive Viewer
+• [x] React Three Fiber Setup (lazy ModelViewer)
+• [x] GLB Preview (preview_model only; never private packages)
+• [x] Orbit Controls (basic limits)
+• [x] Lighting (studio defaults)
+• [x] WebGL unavailable fallback
+• [x] GPU resource disposal on unmount
+• [x] Mobile pixel-ratio cap + off-screen render pause
+• [ ] Fullscreen Mode (deferred polish)
+• [x] Responsive Viewer (adaptive DPR + viewport visibility)
 Sprint 5 – Plugin Store
 • [x] Plugin Categories (backend APIs)
 • [x] Plugin Listing (backend API)
 • [x] Plugin Details (backend API)
 • [ ] Plugin Downloads
 • [x] Plugin Search (backend API)
+• [x] Public Plugin Browse Page (/plugins) — Feature 3A complete
+  - Public TypeScript types (PublicPlugin, PublicPluginDetail, etc.)
+  - listPublicPlugins / getPublicPlugin / listPublicPluginCategories API functions
+  - PluginCard component (reuses products-browse CSS design system)
+  - PluginsBrowsePage: search, category filter, sort, pagination, loading/empty/error states
+  - /plugins + /Plugins routes in App.tsx
+  - "Plugins" link added to Navbar
+  - 7/7 unit tests passing
+• [x] Plugin Detail Page (/plugins/:slug) — Feature 3B complete (2026-07-29)
+  - PluginDetailsPage.tsx: hero, breadcrumb, gallery, description, compatible software, documentation link, related plugins
+  - PluginCtaGroup.tsx: auth-aware CTAs (disabled "coming soon" for signed-in; sign-in links for guests); plugin-specific share URL
+  - PluginSpecs.tsx: version, compatible software, file format(s), file size, last updated specs table
+  - Reuses ProductImageGallery component (no 3D model — plugins have no preview_model)
+  - /plugins/:slug + /Plugins/:slug routes wired in App.tsx (lazy-loaded)
+  - No storage_path or package download URL exposed on public page
+  - documentation_url rendered as plain <a> with rel="noopener noreferrer" (no dangerouslySetInnerHTML)
+  - all text fields rendered as plain text nodes (XSS-safe)
+  - SEO: document title and meta description set from plugin name + short_description
+  - Loading skeleton, error state with retry, 404 not-found state
+  - Related plugins from same category (excludes current plugin, up to 4)
+  - 15/15 unit tests passing
 Sprint 6 – Shopping & Payments
 • [ ] Shopping Cart
 • [ ] Checkout
@@ -111,23 +135,16 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 21 — Admin orders UI (list with filters/pagination, detail with line items, manual create; nav + routes).
+Feature 3 — Public Plugin Store UI (browse + detail routes; no payments/downloads).
 Current Git Branch
-feature/admin-orders-ui
+feature/product-details-page
 Files Being Worked On
-• frontend/src/types/order.ts
-• frontend/src/api/ordersApi.ts
-• frontend/src/api/ordersApi.test.ts
-• frontend/src/pages/Admin/AdminOrdersPage.tsx
-• frontend/src/pages/Admin/AdminOrdersPage.test.tsx
-• frontend/src/pages/Admin/AdminOrderDetailPage.tsx
-• frontend/src/pages/Admin/AdminOrderDetailPage.test.tsx
-• frontend/src/config/adminNav.ts
-• frontend/src/App.tsx
-• frontend/src/pages/Admin/AdminDashboardPage.tsx
-• frontend/src/index.css
+• (next) frontend plugin store pages + API client
 • PROJECT_STATUS.md
 Completed Features
+• Feature 2 — Interactive 3D Viewer (Phase 2A foundation + Phase 2C performance/hardening; product detail integration complete)
+• Phase 2C — Viewer performance + hardening (GPU disposal, mobile DPR cap, off-screen pause, WebGL fallback, lifecycle tests)
+• Phase 2A — Viewer foundation (lazy R3F ModelViewer, preview_model mount on product detail, image fallback, tests)
 • Project setup (Django, React, PostgreSQL, JWT wiring)
 • Customer registration / login / logout / refresh
 • Email verification (register/resend/confirm + login gate for customers)
@@ -183,8 +200,8 @@ Completed Features
 • Production security headers (when DEBUG=False)
 • Auth/admin/password-reset/email-verification security logging
 • Public marketplace browse page (/products) UI (hero, search, category/license filters, sorting, pagination, skeletal loading, error state)
+• Public product details page (/products/:slug) — Atelier-style two-column layout using brand cream/navy/blue tokens; gallery stage, purchase card, specs table, related products, SEO, auth-aware CTAs
 Pending Features
-• Public product details page (React)
 • 3D product viewer
 • Public plugin store UI
 • Customer custom-project portal UI (request form, reference upload, quote approval)
@@ -229,7 +246,149 @@ Important Decisions
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
+• Public product detail CTAs gate cart/wishlist as coming soon; guests are prompted to sign in; Share copies the public /products/:slug URL only.
 Daily Development Log
+Date: 2026-07-29 (Phase 2C — Viewer performance + hardening)
+Working Hours:
+Today's Objective: Production-safe viewer — GPU cleanup, mobile performance, off-screen pause, edge-case hardening; mark Feature 2 complete.
+Modules Completed: viewer disposal utilities, adaptive DPR + viewport visibility hooks, ModelViewer lifecycle hardening, expanded tests
+Files Created:
+• frontend/src/components/viewer/disposeSceneResources.ts
+• frontend/src/components/viewer/disposeSceneResources.test.ts
+• frontend/src/components/viewer/useViewportVisibility.ts
+• frontend/src/components/viewer/useViewportVisibility.test.ts
+• frontend/src/components/viewer/useAdaptivePixelRatio.ts
+• frontend/src/components/viewer/useAdaptivePixelRatio.test.ts
+• frontend/src/components/viewer/isWebGLAvailable.ts
+• frontend/src/components/viewer/isWebGLAvailable.test.ts
+Files Modified:
+• frontend/src/components/viewer/ModelViewer.tsx (disposal, DPR cap, frameloop pause, WebGL gate, error boundary)
+• frontend/src/components/viewer/ModelViewer.test.tsx (lifecycle, off-screen, WebGL fallback)
+• frontend/src/pages/Products/ProductDetailsPage.test.tsx (unsafe preview_model URL integration)
+• frontend/src/styles/product-details.css (viewer shell wrapper)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None
+API Endpoints Modified:
+• None
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• disposeSceneResources, useViewportVisibility, useAdaptivePixelRatio, isWebGLAvailable utilities
+Frontend Pages/Components Modified:
+• ModelViewer — disposes geometries/materials/textures + clears useGLTF cache on unmount; caps DPR on mobile; pauses frameloop off-screen; WebGL + corrupt-model fallbacks
+Tests Added/Updated:
+• disposeSceneResources.test.ts, useViewportVisibility.test.ts, useAdaptivePixelRatio.test.ts, isWebGLAvailable.test.ts
+• ModelViewer.test.tsx — dispose/clear on unmount, frameloop never when hidden, WebGL unavailable
+• ProductDetailsPage.test.tsx — rejects unsafe preview_model URLs (no viewer mount; URL not in DOM)
+Security Checklist:
+• Still loads only safe public preview_model URLs (.glb/.gltf http(s)); never storage_path / private packages
+• Unsafe/empty preview_model falls back to image stage; raw URLs never rendered in UI
+• useGLTF cache cleared on unmount to avoid retaining remote model bytes after navigate-away
+• No secrets or console.log in production code
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 3 — Public Plugin Store UI
+Notes:
+• Ground/shadow skipped (not added — shadow maps would hurt mobile performance)
+• Fullscreen mode remains optional deferred polish
+• Plugin detail 3D preview explicitly out of scope unless requested later
+
+Date: 2026-07-29 (Phase 2A — Viewer foundation)
+Working Hours:
+Today's Objective: Reusable lazy-loaded R3F + Drei viewer mounted on product detail when preview_model exists; image gallery fallback otherwise.
+Modules Completed: frontend ModelViewer (code-split), product detail stage integration, URL safety helper, component + page tests
+Files Created:
+• frontend/src/components/viewer/ModelViewer.tsx
+• frontend/src/components/viewer/LazyModelViewer.tsx
+• frontend/src/components/viewer/isSafePreviewModelUrl.ts
+• frontend/src/components/viewer/isSafePreviewModelUrl.test.ts
+• frontend/src/components/viewer/ModelViewer.test.tsx
+Files Modified:
+• frontend/src/pages/Products/ProductImageGallery.tsx (3D/Images stage modes; LazyModelViewer mount)
+• frontend/src/pages/Products/ProductDetailsPage.tsx (pass previewModelUrl)
+• frontend/src/pages/Products/ProductDetailsPage.test.tsx (viewer mount, no-model image stage, lightbox via Images)
+• frontend/src/styles/product-details.css (viewer canvas / progress / mode controls)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None
+API Endpoints Modified:
+• None
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• LazyModelViewer / ModelViewer — reusable public preview_model canvas (studio lights, Suspense progress, basic orbit)
+Frontend Pages/Components Modified:
+• Product detail left stage — shows 3D canvas when preview_model is a safe .glb/.gltf URL; image gallery when not
+Tests Added/Updated:
+• isSafePreviewModelUrl.test.ts — accept/reject URL cases
+• ModelViewer.test.tsx — mount with mocked R3F; no-model fallback
+• ProductDetailsPage.test.tsx — viewer mount, image fallback, lightbox after Images mode
+Security Checklist:
+• Loads only public preview_model; never ProductFile storage_path / private packages
+• preview_model URL not rendered as visible text; http(s) + .glb/.gltf gate before load
+• No R2 dependency; uses existing MEDIA / public preview URL pattern
+• No secrets or console.log in production code
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 2 remaining — camera auto-fit/bounds, fullscreen + Escape, WebGL unavailable fallback, mobile pixel-ratio / off-screen pause
+Notes:
+• Three.js stays out of the main bundle via React.lazy(ModelViewer)
+• Basic OrbitControls ship in 2A so the canvas is interactive; polish follows
+
+Date: 2026-07-29 (Feature 1 — Public Product Details Page)
+Working Hours:
+Today's Objective: Ship the public product details page customers use before purchase (all Feature 1 sub-features; no R2/payments/3D viewer).
+Modules Completed: frontend public product detail page + gallery/CTA/specs/preview + browse category deep-link + SEO hook + tests
+Files Created:
+• frontend/src/pages/Products/ProductDetailsPage.tsx
+• frontend/src/pages/Products/ProductDetailsPage.test.tsx
+• frontend/src/pages/Products/ProductImageGallery.tsx
+• frontend/src/pages/Products/ProductCtaGroup.tsx
+• frontend/src/pages/Products/ProductSpecs.tsx
+• frontend/src/hooks/useDocumentSeo.ts
+• frontend/src/styles/product-details.css
+Files Modified:
+• frontend/src/App.tsx (lazy /products/:slug route + product-details.css)
+• frontend/src/pages/Products/ProductsBrowsePage.tsx (?category= query sync for breadcrumb back-links)
+• frontend/src/pages/Products/ProductsBrowsePage.test.tsx (URL category filter coverage)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None (reuses GET /api/products/<slug>/ and GET /api/products/?category_id=)
+API Endpoints Modified:
+• None
+API Endpoints Removed:
+• None
+Frontend Pages/Components Added:
+• /products/:slug — Public Product Details Page (hero, gallery/lightbox, specs, related, SEO, CTAs, preview placeholder)
+Frontend Pages/Components Modified:
+• /products — reads/writes ?category= for category filter deep-links from product detail breadcrumb
+Tests Added/Updated:
+• ProductDetailsPage.test.tsx — route/load, 404, error retry, gallery keyboard lightbox, guest/auth CTAs, share, related products
+• ProductsBrowsePage.test.tsx — category from URL query string
+Security Checklist:
+• Descriptions rendered as plain text (no dangerouslySetInnerHTML / XSS)
+• Public detail reuses published-only API; draft/archived → 404 empty state
+• No storage_path or raw package URLs rendered; preview_model URL never shown in UI (placeholder only)
+• Share copies public product path only
+• Cart/wishlist gated; guests redirected to login; authenticated users see disabled coming-soon CTAs
+• No secrets or console.log in production code
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 2 — Interactive 3D Viewer (mount into ProductPreviewSlot)
+Notes:
+• ProductCard already linked to /products/:slug; route now resolves
+• 3D viewer intentionally deferred; clean preview placeholder ships now
+
 Date: 2026-07-28 (Feature 21 — Admin orders UI)
 Working Hours:
 Today's Objective: Admin SPA for marketplace orders — list with filters/pagination, detail with line items, manual create; wire into admin nav and routes.

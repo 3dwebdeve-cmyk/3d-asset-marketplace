@@ -6,6 +6,7 @@ import type {
   AdminPluginUpdatePayload,
   PaginatedAdminPlugins,
   PaginatedPluginCategories,
+  PaginatedPublicPlugins,
   PluginCategory,
   PluginCategoryCreatePayload,
   PluginCategoryListParams,
@@ -14,7 +15,33 @@ import type {
   PluginFileUploadPayload,
   PluginImage,
   PluginImageUploadPayload,
+  PublicPluginCategoryListParams,
+  PublicPluginDetail,
+  PublicPluginListParams,
 } from '../types/plugin'
+
+// ─── Public Plugin API ─────────────────────────────────────────────────────
+
+export async function listPublicPlugins(
+  params: PublicPluginListParams = {},
+): Promise<PaginatedPublicPlugins> {
+  const response = await apiClient.get<PaginatedPublicPlugins>('/api/plugins/', { params })
+  return response.data
+}
+
+export async function getPublicPlugin(slug: string): Promise<PublicPluginDetail> {
+  const response = await apiClient.get<PublicPluginDetail>(`/api/plugins/${slug}/`)
+  return response.data
+}
+
+export async function listPublicPluginCategories(
+  params: PublicPluginCategoryListParams = {},
+): Promise<PaginatedPluginCategories> {
+  const response = await apiClient.get<PaginatedPluginCategories>('/api/plugin-categories/', {
+    params,
+  })
+  return response.data
+}
 
 export async function listAdminPlugins(
   params: AdminPluginListParams = {},

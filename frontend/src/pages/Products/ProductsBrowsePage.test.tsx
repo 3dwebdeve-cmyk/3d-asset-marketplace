@@ -72,11 +72,11 @@ const samplePublicCategories = {
   ],
 }
 
-function renderProductsBrowsePage() {
+function renderProductsBrowsePage(initialPath = '/products') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/products']}>
+      <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/products" element={<ProductsBrowsePage />} />
         </Routes>
@@ -124,6 +124,22 @@ describe('ProductsBrowsePage', () => {
           category_id: categoryId,
         }),
       )
+    })
+  })
+
+  it('applies category filter from the URL query string', async () => {
+    renderProductsBrowsePage(`/products?category=${encodeURIComponent(categoryId)}`)
+
+    await waitFor(() => {
+      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category_id: categoryId,
+        }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^category$/i)).toHaveValue(categoryId)
     })
   })
 
