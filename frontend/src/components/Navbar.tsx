@@ -40,6 +40,9 @@ export function Navbar() {
           <Link className="navbar__link" to="/products">
             Browse Models
           </Link>
+          <Link className="navbar__link" to="/plugins">
+            Plugins
+          </Link>
           {isAuthenticated ? (
             <>
               {user?.full_name ? (

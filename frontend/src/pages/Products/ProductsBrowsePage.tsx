@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
 import { listPublicProducts } from '../../api/productsApi'
 import { Button } from '../../components/ui/Button'
@@ -13,11 +14,19 @@ const PAGE_SIZE = 12
 type SortOption = '-created_at' | 'price' | '-price' | 'name' | '-name'
 
 export function ProductsBrowsePage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
+
   const [searchInput, setSearchInput] = useState('')
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [selectedLicense, setSelectedLicense] = useState<string>('all')
   const [sortOrdering, setSortOrdering] = useState<SortOption>('-created_at')
   const [currentPage, setCurrentPage] = useState(1)
+
+  useEffect(() => {
+    setSelectedCategoryId(categoryFromUrl)
+    setCurrentPage(1)
+  }, [categoryFromUrl])
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
 
@@ -30,6 +39,14 @@ export function ProductsBrowsePage() {
   const handleCategoryChange = (catId: string) => {
     setSelectedCategoryId(catId)
     setCurrentPage(1)
+
+    const nextParams = new URLSearchParams(searchParams)
+    if (catId) {
+      nextParams.set('category', catId)
+    } else {
+      nextParams.delete('category')
+    }
+    setSearchParams(nextParams, { replace: true })
   }
 
   const handleLicenseChange = (license: string) => {
@@ -48,6 +65,10 @@ export function ProductsBrowsePage() {
     setSelectedLicense('all')
     setSortOrdering('-created_at')
     setCurrentPage(1)
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('category')
+    setSearchParams(nextParams, { replace: true })
   }
 
   // Categories Query

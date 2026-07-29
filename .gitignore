@@ -18,3 +18,15 @@ build/
 
 # Logs
 *.log
+
+# Local Cursor IDE / agent workflow (do not commit)
+.cursor/skills/
+.cursor/commands/
+.cursor/settings.json
+.cursor/debug-*.log
+
+# Local agent standards & roadmap (kept on disk, not for remote)
+TESTING.md
+CODE_REVIEWER.md
+ARCHITECT_REVIEWER.md
+IMPLEMENTATION_ROADMAP.md
