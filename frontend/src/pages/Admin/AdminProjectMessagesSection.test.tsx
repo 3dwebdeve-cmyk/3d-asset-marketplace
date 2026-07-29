@@ -166,7 +166,7 @@ describe('AdminProjectMessagesSection', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 150))
     expect(customProjectsApi.markAdminProjectMessagesRead).toHaveBeenCalledTimes(1)
-    expect(customProjectsApi.listAdminProjectMessages.mock.calls.length).toBeLessThan(5)
+    expect(vi.mocked(customProjectsApi.listAdminProjectMessages).mock.calls.length).toBeLessThan(5)
   })
 
   it('labels another admin by name instead of Customer', async () => {
