@@ -101,6 +101,18 @@ export function DashboardPage() {
           >
             My projects
           </Link>
+          <Link
+            className="home-page__cta home-page__cta--secondary"
+            to="/dashboard/wishlist"
+          >
+            Wishlist
+          </Link>
+          <Link
+            className="home-page__cta home-page__cta--secondary"
+            to="/dashboard/orders"
+          >
+            My orders
+          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/profile">
             Edit profile
           </Link>

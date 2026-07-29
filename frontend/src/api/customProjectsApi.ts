@@ -330,6 +330,7 @@ export async function downloadAdminProjectDelivery(
 export async function uploadCustomerCustomProjectFile(
   projectId: string,
   payload: ProjectFileUploadPayload,
+  onUploadProgress?: (percent: number) => void,
 ): Promise<ProjectFile> {
   const formData = new FormData()
   formData.append('file', payload.file)
@@ -337,8 +338,24 @@ export async function uploadCustomerCustomProjectFile(
   const { data } = await apiClient.post<ProjectFile>(
     `/api/custom-projects/${projectId}/files/`,
     formData,
+    {
+      onUploadProgress: onUploadProgress
+        ? (evt) => {
+            if (evt.total && evt.total > 0) {
+              onUploadProgress(Math.round((evt.loaded / evt.total) * 100))
+            }
+          }
+        : undefined,
+    },
   )
   return data
+}
+
+export async function deleteCustomerCustomProjectFile(
+  projectId: string,
+  fileId: string,
+): Promise<void> {
+  await apiClient.delete(`/api/custom-projects/${projectId}/files/${fileId}/`)
 }
 
 export async function listCustomerProjectDeliveries(

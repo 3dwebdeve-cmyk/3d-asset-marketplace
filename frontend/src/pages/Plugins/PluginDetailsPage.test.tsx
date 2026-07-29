@@ -6,6 +6,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as pluginsApi from '../../api/pluginsApi'
+import * as cartApi from '../../api/cartApi'
+import * as wishlistApi from '../../api/wishlistApi'
 import {
   createTestQueryClient,
   resetAuthStore,
@@ -26,6 +28,27 @@ vi.mock('../../api/pluginsApi', async () => {
     ...actual,
     getPublicPlugin: vi.fn(),
     listPublicPlugins: vi.fn(),
+  }
+})
+
+vi.mock('../../api/cartApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/cartApi')>('../../api/cartApi')
+  return {
+    ...actual,
+    getCart: vi.fn(),
+    addCartItem: vi.fn(),
+  }
+})
+
+vi.mock('../../api/wishlistApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/wishlistApi')>(
+    '../../api/wishlistApi',
+  )
+  return {
+    ...actual,
+    listWishlistItems: vi.fn(),
+    addWishlistItem: vi.fn(),
+    removeWishlistItem: vi.fn(),
   }
 })
 
@@ -137,6 +160,20 @@ beforeEach(() => {
   resetToastStore()
   vi.mocked(pluginsApi.getPublicPlugin).mockResolvedValue(sampleDetail)
   vi.mocked(pluginsApi.listPublicPlugins).mockResolvedValue(relatedList)
+  vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(cartApi.getCart).mockResolvedValue({
+    id: 'cart-id',
+    currency: 'USD',
+    subtotal: '0.00',
+    item_count: 0,
+    total_quantity: 0,
+    items: [],
+  })
 })
 
 describe('PluginDetailsPage', () => {
@@ -306,13 +343,31 @@ describe('PluginDetailsPage', () => {
     expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
   })
 
-  it('disables cart and wishlist as coming soon for authenticated users', async () => {
+  it('shows working add-to-cart and wishlist controls for authenticated users', async () => {
+    const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
       postLogoutRedirect: null,
+    })
+    vi.mocked(wishlistApi.addWishlistItem).mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      product_type: 'plugin',
+      product_id: pluginId,
+      catalog: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    })
+    vi.mocked(cartApi.addCartItem).mockResolvedValue({
+      id: '22222222-2222-2222-2222-222222222222',
+      product_type: 'plugin',
+      product_id: pluginId,
+      quantity: 1,
+      unit_price: '19.99',
+      line_total: '19.99',
+      catalog: null,
     })
 
     renderPluginDetails()
@@ -324,8 +379,18 @@ describe('PluginDetailsPage', () => {
     })
 
     expect(screen.getByRole('button', { name: /buy now — coming soon/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /add to cart — coming soon/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /wishlist — coming soon/i })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: /^add to cart$/i }))
+    expect(vi.mocked(cartApi.addCartItem).mock.calls[0]?.[0]).toEqual({
+      product_type: 'plugin',
+      product_id: pluginId,
+      quantity: 1,
+    })
+    const wishlistButtons = screen.getAllByRole('button', { name: /^add to wishlist$/i })
+    await user.click(wishlistButtons[0])
+    expect(vi.mocked(wishlistApi.addWishlistItem).mock.calls[0]?.[0]).toEqual({
+      product_type: 'plugin',
+      product_id: pluginId,
+    })
   })
 
   it('copies the share link and excludes package storage paths from the document', async () => {

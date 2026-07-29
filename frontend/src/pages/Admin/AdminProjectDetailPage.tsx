@@ -305,6 +305,12 @@ export function AdminProjectDetailPage() {
                   <option value="rejected">Rejected</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
+                {form.status === 'completed' ? (
+                  <p className="form-hint" role="note">
+                    Requires at least one delivery to be uploaded. The server will reject this
+                    transition if no deliveries exist.
+                  </p>
+                ) : null}
               </FormField>
               <FormField id="detail-project-payment" label="Payment status">
                 <select

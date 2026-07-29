@@ -55,3 +55,11 @@ class AdminCustomProjectWriteRateThrottle(UserRateThrottle):
 
 class CustomProjectWriteRateThrottle(UserRateThrottle):
     scope = "custom_project_write"
+
+
+class WishlistWriteRateThrottle(UserRateThrottle):
+    scope = "wishlist_write"
+
+
+class CartWriteRateThrottle(UserRateThrottle):
+    scope = "cart_write"

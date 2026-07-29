@@ -15,6 +15,7 @@ vi.mock('../../api/customProjectsApi', async () => {
   return {
     ...actual,
     uploadCustomerCustomProjectFile: vi.fn(),
+    deleteCustomerCustomProjectFile: vi.fn(),
   }
 })
 
@@ -86,14 +87,60 @@ describe('CustomerProjectReferenceFilesSection', () => {
           file,
           file_type: 'sketch',
         }),
+        expect.any(Function),
       )
     })
   })
 
-  it('hides upload form for closed projects', async () => {
+  it('hides upload form and remove buttons for closed projects', async () => {
     renderSection({ status: 'completed' })
 
     expect(await screen.findByText('crate-ref.png')).toBeInTheDocument()
     expect(screen.queryByLabelText('Upload reference file')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Remove/i })).not.toBeInTheDocument()
+  })
+
+  it('shows remove button for open projects', async () => {
+    renderSection({ status: 'submitted' })
+
+    expect(await screen.findByText('crate-ref.png')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Remove crate-ref\.png/i })).toBeInTheDocument()
+  })
+
+  it('shows confirmation dialog on remove click', async () => {
+    const user = userEvent.setup()
+    renderSection({ status: 'submitted' })
+
+    await user.click(await screen.findByRole('button', { name: /Remove crate-ref\.png/i }))
+
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.getByText(/Remove this reference file/i)).toBeInTheDocument()
+  })
+
+  it('calls delete API and invalidates query on confirm', async () => {
+    const user = userEvent.setup()
+    vi.mocked(customProjectsApi.deleteCustomerCustomProjectFile).mockResolvedValue(undefined)
+    renderSection({ status: 'submitted' })
+
+    await user.click(await screen.findByRole('button', { name: /Remove crate-ref\.png/i }))
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => {
+      expect(customProjectsApi.deleteCustomerCustomProjectFile).toHaveBeenCalledWith(
+        project.id,
+        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      )
+    })
+  })
+
+  it('dismisses confirmation on cancel', async () => {
+    const user = userEvent.setup()
+    renderSection({ status: 'submitted' })
+
+    await user.click(await screen.findByRole('button', { name: /Remove crate-ref\.png/i }))
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 })

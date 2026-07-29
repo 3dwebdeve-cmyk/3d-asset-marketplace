@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as categoriesApi from '../../api/categoriesApi'
 import * as productsApi from '../../api/productsApi'
-import { createTestQueryClient } from '../../test/test-utils'
+import * as wishlistApi from '../../api/wishlistApi'
+import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
+import { useAuthStore } from '../../store/authStore'
 import { ProductsBrowsePage } from './ProductsBrowsePage'
 
 vi.mock('../../api/productsApi', async () => {
@@ -26,6 +28,18 @@ vi.mock('../../api/categoriesApi', async () => {
   return {
     ...actual,
     listPublicCategories: vi.fn(),
+  }
+})
+
+vi.mock('../../api/wishlistApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/wishlistApi')>(
+    '../../api/wishlistApi',
+  )
+  return {
+    ...actual,
+    listWishlistItems: vi.fn(),
+    addWishlistItem: vi.fn(),
+    removeWishlistItem: vi.fn(),
   }
 })
 
@@ -87,8 +101,15 @@ function renderProductsBrowsePage(initialPath = '/products') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetAuthStore()
   vi.mocked(productsApi.listPublicProducts).mockResolvedValue(samplePublicProducts)
   vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue(samplePublicCategories)
+  vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
 })
 
 describe('ProductsBrowsePage', () => {
@@ -175,5 +196,27 @@ describe('ProductsBrowsePage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument()
     })
+  })
+
+  it('shows wishlist toggle on product cards for authenticated users', async () => {
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      user: testUser,
+      isAuthenticated: true,
+      postLogoutRedirect: null,
+    })
+
+    renderProductsBrowsePage()
+
+    await waitFor(() => {
+      expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
+    })
+
+    expect(
+      screen.getByRole('button', {
+        name: /add to wishlist for cyberpunk drone 3d/i,
+      }),
+    ).toBeInTheDocument()
   })
 })

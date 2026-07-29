@@ -1,15 +1,18 @@
 import { Link, useLocation } from 'react-router-dom'
 
+import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
+import { AddToCartButton } from '../../components/cart/AddToCartButton'
 import { Button } from '../../components/ui/Button'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 
 interface PluginCtaGroupProps {
+  pluginId: string
   pluginName: string
   pluginSlug: string
 }
 
-export function PluginCtaGroup({ pluginName, pluginSlug }: PluginCtaGroupProps) {
+export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGroupProps) {
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
@@ -61,47 +64,18 @@ export function PluginCtaGroup({ pluginName, pluginSlug }: PluginCtaGroupProps) 
       )}
 
       <div className="product-detail-cta__secondary">
-        {isSignedIn ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="product-detail-cta__chip"
-            disabled
-            aria-disabled="true"
-            title="Add to cart is coming soon"
-          >
-            Add to cart — coming soon
-          </Button>
-        ) : (
-          <Link
-            to={loginPath}
-            state={loginState}
-            className="ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link"
-          >
-            Sign in to add to cart
-          </Link>
-        )}
+        <AddToCartButton
+          productType="plugin"
+          productId={pluginId}
+          productName={pluginName}
+        />
 
-        {isSignedIn ? (
-          <Button
-            type="button"
-            variant="secondary"
-            className="product-detail-cta__chip"
-            disabled
-            aria-disabled="true"
-            title="Add to wishlist is coming soon"
-          >
-            Wishlist — coming soon
-          </Button>
-        ) : (
-          <Link
-            to={loginPath}
-            state={loginState}
-            className="ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link"
-          >
-            Sign in to add to wishlist
-          </Link>
-        )}
+        <WishlistToggle
+          productType="plugin"
+          productId={pluginId}
+          productName={pluginName}
+          variant="chip"
+        />
 
         <Button
           type="button"
@@ -117,8 +91,8 @@ export function PluginCtaGroup({ pluginName, pluginSlug }: PluginCtaGroupProps) 
       </div>
 
       <p className="product-detail-cta__note">
-        Checkout, cart, wishlist, and downloads unlock in later releases. No package files are
-        exposed on this page.
+        Checkout and downloads unlock in later releases. No package files are exposed on this
+        page.
       </p>
     </div>
   )

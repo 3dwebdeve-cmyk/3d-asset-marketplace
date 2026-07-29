@@ -64,7 +64,7 @@ Sprint 5 – Plugin Store
   - 7/7 unit tests passing
 • [x] Plugin Detail Page (/plugins/:slug) — Feature 3B complete (2026-07-29)
   - PluginDetailsPage.tsx: hero, breadcrumb, gallery, description, compatible software, documentation link, related plugins
-  - PluginCtaGroup.tsx: auth-aware CTAs (disabled "coming soon" for signed-in; sign-in links for guests); plugin-specific share URL
+  - PluginCtaGroup.tsx: auth-aware CTAs (wishlist live; cart disabled coming soon for signed-in; sign-in links for guests); plugin-specific share URL
   - PluginSpecs.tsx: version, compatible software, file format(s), file size, last updated specs table
   - Reuses ProductImageGallery component (no 3D model — plugins have no preview_model)
   - /plugins/:slug + /Plugins/:slug routes wired in App.tsx (lazy-loaded)
@@ -76,7 +76,7 @@ Sprint 5 – Plugin Store
   - Related plugins from same category (excludes current plugin, up to 4)
   - 15/15 unit tests passing
 Sprint 6 – Shopping & Payments
-• [ ] Shopping Cart
+• [x] Shopping Cart (no checkout — Feature 6)
 • [ ] Checkout
 • [ ] Stripe Integration
 • [ ] PayPal Integration
@@ -106,13 +106,13 @@ Sprint 8 – Custom Project Portal
 • [x] Project Delivery data model (ProjectDelivery table + Django admin; separate from reference ProjectFile)
 • [x] Project Delivery list/download APIs (admin + owner; authenticated FileResponse; storage_path hidden)
 • [x] Admin delivery UI (upload + list/download + mark delivered/completed on /admin/projects/:id)
-• [ ] Project Completion
+• [x] Project Completion (Feature 4)
 Sprint 9 – Dashboards
 Customer Dashboard
 • [x] Profile
 • [ ] Orders
 • [ ] Downloads
-• [ ] Wishlist
+• [x] Wishlist
 • [x] My Projects
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
@@ -135,13 +135,36 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 3 — Public Plugin Store UI (browse + detail routes; no payments/downloads).
+Feature 4 — Custom Project Portal completion (non-payment).
 Current Git Branch
-feature/product-details-page
+feature/custom-project-portal-completion
 Files Being Worked On
-• (next) frontend plugin store pages + API client
+• backend/custom_projects/services.py
+• backend/custom_projects/notifications.py
+• backend/custom_projects/views.py
+• backend/custom_projects/urls.py
+• backend/custom_projects/test_custom_projects.py
+• frontend/src/components/ui/StatusBadge.tsx
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx
+• frontend/src/pages/Dashboard/MyProjectsPage.tsx
+• frontend/src/pages/Dashboard/CustomerProjectReferenceFilesSection.tsx
+• frontend/src/pages/Admin/AdminProjectDetailPage.tsx
+• frontend/src/api/customProjectsApi.ts
 • PROJECT_STATUS.md
 Completed Features
+• Feature 4 — Custom Project Portal completion (non-payment) (2026-07-29)
+  - Backend: delivery-required guard before status=completed (_apply_status)
+  - Backend: illegal status transitions from terminal states (completed/rejected/cancelled) rejected with 400
+  - Backend: completion email (notify_project_completed) sent to customer on completed transition
+  - Backend: DELETE /api/custom-projects/<id>/files/<file_id>/ — customer can delete own reference files from open projects
+  - Backend: 18 new tests (ProjectCompletionGuardTests + ReferenceFileDeleteTests) — all passing
+  - Frontend: StatusBadge component with 6 color variants applied to MyProjectsPage and CustomerProjectDetailPage
+  - Frontend: upload progress bar (<progress>) on reference file upload form
+  - Frontend: inline delete confirmation + Remove button for reference files on open projects
+  - Frontend: "Pay quotation (coming soon)" disabled button when quotation=accepted, project not completed
+  - Frontend: completed-state banner on CustomerProjectDetailPage
+  - Frontend: "Requires at least one delivery" hint on AdminProjectDetailPage completed status option
+  - Frontend: 39/39 tests passing across 3 updated test files
 • Feature 2 — Interactive 3D Viewer (Phase 2A foundation + Phase 2C performance/hardening; product detail integration complete)
 • Phase 2C — Viewer performance + hardening (GPU disposal, mobile DPR cap, off-screen pause, WebGL fallback, lifecycle tests)
 • Phase 2A — Viewer foundation (lazy R3F ModelViewer, preview_model mount on product detail, image fallback, tests)
@@ -246,8 +269,184 @@ Important Decisions
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification required for customer login; admins/superusers auto-verified.
 • React Three Fiber selected for 3D previews.
-• Public product detail CTAs gate cart/wishlist as coming soon; guests are prompted to sign in; Share copies the public /products/:slug URL only.
+• Public product detail CTAs gate checkout as coming soon; wishlist and cart are live for authenticated customers; guests are prompted to sign in; Share copies the public /products/:slug URL only.
+• Wishlist uses dedicated wishlist app (WishlistItem); product_type is product or plugin; only published catalog items can be added; owner-only list/add/remove (IDOR → 404); write endpoints throttled; no payment dependency.
+• Cart uses dedicated cart app (Cart + CartItem); product_type matches OrderItem (product | plugin); live catalog prices for subtotal; only published items can be added; owner-only CRUD (IDOR → 404); write endpoints throttled; checkout disabled until Feature 15.
+• Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; downloads disabled until Feature 15; line item titles use live Product/Plugin lookup until Feature 8 snapshots.
 Daily Development Log
+Date: 2026-07-29 (Feature 7 — Customer Order History complete)
+Working Hours:
+Today's Objective: Customer order history — Phase 1 backend APIs + Phase 2 dashboard UI (list, detail, navigation, tests).
+Modules Completed: customer order APIs (backend), ordersApi client, MyOrdersPage, CustomerOrderDetailPage, navbar/dashboard links, OrderStatusBadge components
+Files Created:
+• frontend/src/pages/Dashboard/MyOrdersPage.tsx, MyOrdersPage.test.tsx
+• frontend/src/pages/Dashboard/CustomerOrderDetailPage.tsx, CustomerOrderDetailPage.test.tsx
+Files Modified:
+• backend/orders/services.py, serializers.py, views.py, urls.py, test_orders.py (Phase 1)
+• backend/config/urls.py (Phase 1)
+• frontend/src/types/order.ts, api/ordersApi.ts, ordersApi.test.ts
+• frontend/src/components/ui/StatusBadge.tsx, Navbar.tsx, Navbar.test.tsx
+• frontend/src/pages/Dashboard/DashboardPage.tsx
+• frontend/src/App.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None (reuses existing Order / OrderItem models)
+API Endpoints (customer):
+• GET /api/orders/ — paginated list (auth; filters: order_status, payment_status, search, ordering)
+• GET /api/orders/<uuid:order_id>/ — detail with line items (auth; IDOR → 404)
+Frontend Pages/Components Added:
+• /dashboard/orders — MyOrdersPage (table, filters, pagination, empty/loading/error)
+• /dashboard/orders/:orderId — CustomerOrderDetailPage (summary, line items, disabled download messaging)
+• OrderStatusBadge / OrderPaymentStatusBadge
+• Navbar + Dashboard "My orders" links (customers only)
+Tests Added/Updated:
+• backend/orders/test_orders.py — OrderCustomerAPITests (45 tests total in orders app)
+• frontend ordersApi, MyOrdersPage, CustomerOrderDetailPage, Navbar tests — 18 tests passing in touched frontend suite
+Security Checklist:
+• Owner-only API queryset; other users' order IDs → 404
+• No customer_id, storage_path, or download URLs in responses
+• Downloads disabled in UI with clear messaging until Feature 15
+• Queries enabled only for authenticated non-admin customers
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 8 — Order integrity hardening (title snapshots on OrderItem, admin status transitions)
+Notes:
+• Line item titles use live catalog lookup; Feature 8 will add OrderItem.title snapshots
+• Manual test: sign in as customer, view orders created via /admin/orders for that account only
+
+Date: 2026-07-29 (Feature 7 Phase 1 — Customer Order History backend)
+Working Hours:
+Today's Objective: Read-only customer order list and detail APIs — owner-scoped, paginated, filtered; no frontend UI in this phase.
+Modules Completed: OrderService.list_for_user / get_for_user, customer serializers/views/urls, customer API tests
+Files Created:
+• backend/orders/urls.py
+Files Modified:
+• backend/orders/services.py, serializers.py, views.py, test_orders.py
+• backend/config/urls.py
+• PROJECT_STATUS.md
+Database Changes:
+• None (reuses existing Order / OrderItem models)
+API Endpoints Added:
+• GET /api/orders/ — paginated list of own orders (auth; filters: order_status, payment_status, search on invoice_number, ordering)
+• GET /api/orders/<uuid:order_id>/ — own order detail with line items and live catalog titles (auth; IDOR → 404)
+Frontend Pages/Components Added:
+• None (Phase 1 backend only)
+Tests Added/Updated:
+• backend/orders/test_orders.py — OrderCustomerAPITests (14 tests: auth, ownership, pagination, filters, search, ordering, schema, live titles)
+• Full orders suite: 45 tests passing
+Security Checklist:
+• Owner-only queryset via OrderService.list_for_user / get_for_user
+• Other users' order IDs return 404 (not 403)
+• Unauthenticated requests return 401
+• No customer_id, user_id, storage_path, or download URLs in responses
+• Admin /api/admin/orders/ routes unchanged (customers still 403)
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 7 Phase 2 — Customer order history UI (/dashboard/orders), or Feature 8 — Order integrity hardening (title snapshots)
+Notes:
+• Line item titles use live Product/Plugin name lookup (same as admin detail); Feature 8 will snapshot title on OrderItem with serializer fallback
+• Administrators using customer endpoints see only orders where user=request.user (wishlist/cart convention)
+
+Date: 2026-07-29 (Feature 6 — Shopping Cart)
+Working Hours:
+Today's Objective: Authenticated shopping cart for products and plugins — backend APIs, TanStack Query frontend, cart page + drawer, add-to-cart CTAs; no checkout/payments.
+Modules Completed: backend cart app, cart APIs, useCart hook, CartPage, CartDrawer, navbar badge, product/plugin CTAs
+Files Created:
+• backend/cart/__init__.py, apps.py, models.py, services.py, serializers.py, views.py, urls.py, test_cart.py, migrations/0001_initial.py
+• frontend/src/types/cart.ts
+• frontend/src/api/cartApi.ts, cartApi.test.ts
+• frontend/src/hooks/useCart.ts
+• frontend/src/store/cartUiStore.ts
+• frontend/src/components/cart/AddToCartButton.tsx, CartLineItem.tsx, CartDrawer.tsx
+• frontend/src/pages/Cart/CartPage.tsx, CartPage.test.tsx
+• frontend/src/styles/cart.css
+Files Modified:
+• backend/config/settings.py, backend/config/urls.py, backend/accounts/throttles.py
+• frontend/src/App.tsx, Navbar.tsx, Navbar.test.tsx
+• frontend/src/pages/Products/ProductCtaGroup.tsx, ProductDetailsPage.test.tsx
+• frontend/src/pages/Plugins/PluginCtaGroup.tsx, PluginDetailsPage.test.tsx
+• frontend/src/styles/navbar.css
+• PROJECT_STATUS.md
+Database Changes:
+• carts table (UUID PK, user OneToOne, timestamps)
+• cart_items table (UUID PK, cart FK, product_type, product_id, quantity, unique cart+type+id)
+API Endpoints Added:
+• GET /api/cart/ — full cart envelope with live subtotal (auth)
+• POST /api/cart/ — add/merge item (auth, throttled)
+• DELETE /api/cart/ — clear cart (auth, throttled)
+• PATCH /api/cart/items/<uuid:item_id>/ — update quantity (auth, throttled)
+• DELETE /api/cart/items/<uuid:item_id>/ — remove item (auth, throttled, IDOR → 404)
+Frontend Pages/Components Added:
+• /cart — CartPage (line items, quantity stepper, subtotal, disabled checkout)
+• CartDrawer — navbar slide-over with link to full cart
+• AddToCartButton — product/plugin detail CTAs
+• useCart hook + cartApi client (TanStack Query; Zustand for drawer open state only)
+Tests Added/Updated:
+• backend/cart/test_cart.py — 15 tests (auth, CRUD, validation, totals, currency, IDOR, throttle)
+• frontend cartApi, CartPage, Navbar, ProductDetailsPage, PluginDetailsPage tests
+Security Checklist:
+• Owner-only cart access; other users' item IDs return 404
+• Only published products/plugins (active plugin category) can be added
+• Write endpoints rate-limited (cart_write 30/min)
+• No storage_path or package URLs in cart responses
+• No order creation from cart (deferred to Feature 15)
+• No console.log / placeholders in production code
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 7 Phase 2 — Customer order history UI (/dashboard/orders), or Feature 8 — Order integrity hardening (title snapshots)
+Notes:
+• Pricing policy: live catalog effective_price for display/subtotal; OrderService snapshots at checkout (Feature 15)
+• Unavailable lines remain visible with is_available=false but excluded from subtotal
+• Checkout button disabled with "Payments coming soon"
+
+Date: 2026-07-29 (Feature 5 — Wishlist)
+Working Hours:
+Today's Objective: Customer wishlist — save published products/plugins for later with owner-scoped APIs and dashboard UI.
+Modules Completed: backend wishlist app, customer wishlist APIs, dashboard page, catalog CTAs/cards, navbar count badge
+Files Created:
+• backend/wishlist/__init__.py, apps.py, models.py, services.py, serializers.py, views.py, urls.py, pagination.py, test_wishlist.py, migrations/0001_initial.py
+• frontend/src/types/wishlist.ts
+• frontend/src/api/wishlistApi.ts, wishlistApi.test.ts
+• frontend/src/hooks/useWishlist.ts
+• frontend/src/components/wishlist/WishlistToggle.tsx
+• frontend/src/pages/Dashboard/WishlistPage.tsx, WishlistPage.test.tsx
+Files Modified:
+• backend/config/settings.py, backend/config/urls.py, backend/accounts/throttles.py
+• frontend/src/App.tsx, Navbar.tsx, Navbar.test.tsx, DashboardPage.tsx
+• frontend/src/pages/Products/ProductCtaGroup.tsx, ProductCard.tsx, ProductDetailsPage.tsx, ProductDetailsPage.test.tsx, ProductsBrowsePage.test.tsx
+• frontend/src/pages/Plugins/PluginCtaGroup.tsx, PluginCard.tsx, PluginDetailsPage.tsx, PluginDetailsPage.test.tsx
+• frontend/src/styles/products-browse.css, frontend/src/styles/navbar.css
+• PROJECT_STATUS.md
+Database Changes:
+• wishlist_items table (UUID PK, user FK, product_type, product_id, timestamps, unique user+type+id)
+API Endpoints Added:
+• GET /api/wishlist/ — paginated list (auth; optional product_type filter)
+• POST /api/wishlist/ — add item idempotently (auth, throttled)
+• DELETE /api/wishlist/<uuid:item_id>/ — remove own item (auth, throttled, IDOR → 404)
+Frontend Pages/Components Added:
+• /dashboard/wishlist — WishlistPage (filters, pagination, empty/loading/error)
+• WishlistToggle — detail chips + browse card heart icon
+• useWishlist hook + wishlistApi client
+Tests Added/Updated:
+• backend/wishlist/test_wishlist.py — 14 tests (auth, CRUD, published validation, IDOR, throttle, pagination)
+• frontend wishlistApi, WishlistPage, Navbar badge, ProductDetailsPage, PluginDetailsPage, ProductsBrowsePage tests — 45 tests passing in wishlist suite
+Security Checklist:
+• Owner-only queries; other users' item IDs return 404
+• Only published products/plugins (active plugin category) can be added
+• Write endpoints rate-limited (wishlist_write 30/min)
+• No payment or order entitlement required
+• No console.log / placeholders in production code
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 7 — Customer Order History (read-only)
+Notes:
+• Navbar and dashboard link to /dashboard/wishlist with optional count badge
+• Stale wishlist rows for archived/unpublished items show is_available=false but remain removable
+
 Date: 2026-07-29 (Phase 2C — Viewer performance + hardening)
 Working Hours:
 Today's Objective: Production-safe viewer — GPU cleanup, mobile performance, off-screen pause, edge-case hardening; mark Feature 2 complete.
@@ -379,7 +578,7 @@ Security Checklist:
 • Public detail reuses published-only API; draft/archived → 404 empty state
 • No storage_path or raw package URLs rendered; preview_model URL never shown in UI (placeholder only)
 • Share copies public product path only
-• Cart/wishlist gated; guests redirected to login; authenticated users see disabled coming-soon CTAs
+• Cart gated; wishlist live for authenticated customers; guests redirected to login for both CTAs
 • No secrets or console.log in production code
 Issues / Blockers:
 • None

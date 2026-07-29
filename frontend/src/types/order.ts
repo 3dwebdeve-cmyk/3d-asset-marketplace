@@ -105,3 +105,48 @@ export interface AdminOrderCreatePayload {
   currency?: string
   items: AdminOrderItemCreatePayload[]
 }
+
+export interface CustomerOrderListItem {
+  id: string
+  invoice_number: string
+  total_amount: string
+  currency: string
+  order_status: OrderStatus
+  payment_status: OrderPaymentStatus
+  item_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerOrderItem {
+  id: string
+  product_type: OrderItemProductType
+  product_id: string
+  title: string | null
+  quantity: number
+  purchase_price: string
+  line_total: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerOrder extends CustomerOrderListItem {
+  items: CustomerOrderItem[]
+  items_total: string
+}
+
+export interface PaginatedCustomerOrders {
+  count: number
+  next: string | null
+  previous: string | null
+  results: CustomerOrderListItem[]
+}
+
+export interface CustomerOrderListParams {
+  search?: string
+  order_status?: OrderStatus
+  payment_status?: OrderPaymentStatus
+  ordering?: OrderOrdering
+  page?: number
+  page_size?: number
+}

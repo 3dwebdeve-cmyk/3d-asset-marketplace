@@ -81,3 +81,15 @@
   padding: 0.5rem 0.875rem;
   font-size: 0.95rem;
 }
+
+.navbar__link--with-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.navbar__wishlist-badge {
+  position: static;
+  margin-left: 0.15rem;
+}

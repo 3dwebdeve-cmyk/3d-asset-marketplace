@@ -86,6 +86,55 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         return f"{total:.2f}"
 
 
+class CustomerOrderListSerializer(serializers.ModelSerializer):
+    item_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Order
+        fields = (
+            "id",
+            "invoice_number",
+            "total_amount",
+            "currency",
+            "order_status",
+            "payment_status",
+            "item_count",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
+class CustomerOrderDetailSerializer(serializers.ModelSerializer):
+    item_count = serializers.SerializerMethodField()
+    items = OrderItemDetailSerializer(many=True, read_only=True)
+    items_total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Order
+        fields = (
+            "id",
+            "invoice_number",
+            "total_amount",
+            "currency",
+            "order_status",
+            "payment_status",
+            "item_count",
+            "items",
+            "items_total",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+    def get_item_count(self, obj: Order) -> int:
+        return obj.items.count()
+
+    def get_items_total(self, obj: Order) -> str:
+        total = sum((item.line_total for item in obj.items.all()), start=Decimal("0.00"))
+        return f"{total:.2f}"
+
+
 class AdminOrderItemCreateSerializer(serializers.Serializer):
     product_type = serializers.ChoiceField(choices=OrderItem.ProductType.choices)
     product_id = serializers.UUIDField()
