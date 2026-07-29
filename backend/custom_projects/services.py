@@ -333,6 +333,11 @@ class CustomProjectService:
         ):
             # Outside the write transaction so SMTP latency/failures cannot roll back status.
             ProjectWorkflowNotificationService.notify_project_delivered(updated)
+        if (
+            previous_status != CustomProject.Status.COMPLETED
+            and updated.status == CustomProject.Status.COMPLETED
+        ):
+            ProjectWorkflowNotificationService.notify_project_completed(updated)
         return updated
 
     @classmethod
@@ -611,6 +616,35 @@ class CustomProjectService:
         )
 
     @classmethod
+    @transaction.atomic
+    def delete_file(
+        cls,
+        project: CustomProject,
+        *,
+        file_id: UUID,
+        customer: User,
+    ) -> None:
+        """Customer deletes one of their own reference files from an open project."""
+        if project.status in {
+            CustomProject.Status.COMPLETED,
+            CustomProject.Status.REJECTED,
+            CustomProject.Status.CANCELLED,
+        }:
+            raise CustomProjectError(
+                "Reference files cannot be deleted from a closed project."
+            )
+        try:
+            project_file = ProjectFile.objects.get(pk=file_id, project=project)
+        except ProjectFile.DoesNotExist as exc:
+            raise CustomProjectError("Reference file not found.") from exc
+        storage_url = project_file.storage_path
+        project_file.delete()
+        ProjectFileStorageService.delete_if_managed(
+            storage_url,
+            prefix=ProjectFileStorageService.FILE_PREFIX,
+        )
+
+    @classmethod
     def list_deliveries(cls, project: CustomProject) -> QuerySet[ProjectDelivery]:
         return (
             ProjectDelivery.objects.filter(project=project)
@@ -726,6 +760,12 @@ class CustomProjectService:
             if not ProjectQuotation.objects.filter(project_id=project.id).exists():
                 raise CustomProjectError(
                     "Set a quotation before marking the project as quoted.",
+                    field="status",
+                )
+        if new_status == CustomProject.Status.COMPLETED:
+            if not ProjectDelivery.objects.filter(project_id=project.id).exists():
+                raise CustomProjectError(
+                    "At least one delivery must be uploaded before marking the project as completed.",
                     field="status",
                 )
         project.status = new_status

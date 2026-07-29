@@ -220,6 +220,18 @@ describe('MyProjectsPage', () => {
     expect(screen.getByLabelText('2 unread messages')).toHaveTextContent('2')
   })
 
+  it('renders a StatusBadge for completed projects', async () => {
+    vi.mocked(customProjectsApi.listCustomerCustomProjects).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{ ...project, status: 'completed' as const }],
+    })
+    renderPage()
+
+    expect(await screen.findByLabelText('Status: Completed')).toBeInTheDocument()
+  })
+
   it('shows an error state and retries the list request', async () => {
     const user = userEvent.setup()
     vi.mocked(customProjectsApi.listCustomerCustomProjects)

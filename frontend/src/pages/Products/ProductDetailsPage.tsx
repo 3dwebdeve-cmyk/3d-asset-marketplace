@@ -206,7 +206,11 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             })}
           </div>
 
-          <ProductCtaGroup productName={product.name} productSlug={product.slug} />
+          <ProductCtaGroup
+            productId={product.id}
+            productName={product.name}
+            productSlug={product.slug}
+          />
           <ProductSpecs product={product} />
         </aside>
       </div>

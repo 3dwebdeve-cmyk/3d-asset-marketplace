@@ -370,6 +370,89 @@
   font-size: 0.8rem;
 }
 
+/* ─── Project status badge ─────────────────────────────────── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.status-badge--neutral {
+  background: color-mix(in srgb, var(--text-main) 10%, var(--bg-card));
+  color: var(--text-main);
+}
+
+.status-badge--info {
+  background: color-mix(in srgb, #1d4d7a 15%, var(--bg-card));
+  color: #1d4d7a;
+}
+
+.status-badge--active {
+  background: color-mix(in srgb, #b45309 15%, var(--bg-card));
+  color: #b45309;
+}
+
+.status-badge--delivered {
+  background: color-mix(in srgb, #0e7490 15%, var(--bg-card));
+  color: #0e7490;
+}
+
+.status-badge--success {
+  background: color-mix(in srgb, #166534 15%, var(--bg-card));
+  color: #166534;
+}
+
+.status-badge--danger {
+  background: color-mix(in srgb, #991b1b 15%, var(--bg-card));
+  color: #991b1b;
+}
+
+/* ─── Project completed banner ──────────────────────────────── */
+.project-completed-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, #166534 12%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, #166534 35%, var(--bg-card));
+  color: #166534;
+  font-size: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ─── Upload progress bar ───────────────────────────────────── */
+.upload-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  accent-color: var(--action-color);
+  margin-block: 0.5rem;
+}
+
+/* ─── Form hint text ────────────────────────────────────────── */
+.form-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ─── Inline delete confirmation ────────────────────────────── */
+.project-delete-confirm {
+  padding: 0.85rem 1.1rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, #991b1b 8%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, #991b1b 30%, var(--bg-card));
+  color: var(--text-main);
+  margin-bottom: 1rem;
+}
+
 .admin-media-upload {
   position: relative;
   display: grid;

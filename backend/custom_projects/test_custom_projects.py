@@ -3059,6 +3059,16 @@ class ProjectDeliveryStatusMarkCrashRiskScenarioTests(APITestCase):
         self._assert_not_crash(delivered, allowed=(200,))
         self.assertEqual(delivered.data["status"], CustomProject.Status.DELIVERED)
 
+        # At least one delivery is required before marking completed.
+        ProjectDelivery.objects.create(
+            project=self.project,
+            uploaded_by=self.admin_user,
+            file_name="final.zip",
+            storage_path="http://localhost/media/custom_projects/deliveries/final.zip",
+            file_size=512,
+            version=1,
+        )
+
         completed = self._patch_status(CustomProject.Status.COMPLETED)
         self._assert_not_crash(completed, allowed=(200,))
         self.assertEqual(completed.data["status"], CustomProject.Status.COMPLETED)
@@ -3088,3 +3098,234 @@ class ProjectDeliveryStatusMarkCrashRiskScenarioTests(APITestCase):
         self._assert_not_crash(response, allowed=(400,))
         self.assertIsInstance(response.data.get("status"), list)
         self.assertTrue(response.data["status"])
+
+
+class ProjectCompletionGuardTests(APITestCase):
+    """Tests for the delivery-required guard on status=completed transitions."""
+
+    def setUp(self) -> None:
+        cache.clear()
+        mail.outbox.clear()
+        self.password = "StrongPass123!"
+        self.customer_role = Role.objects.get(role_name="Customer")
+        self.admin_role = Role.objects.get(role_name="Administrator")
+        self.customer_user = User.objects.create_user(
+            email="completion-guard-customer@example.com",
+            full_name="Completion Guard Customer",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        self.admin_user = User.objects.create_user(
+            email="completion-guard-admin@example.com",
+            full_name="Completion Guard Admin",
+            password=self.password,
+            role=self.admin_role,
+            email_verified=True,
+        )
+        self.admin_user.is_staff = True
+        self.admin_user.save(update_fields=["is_staff", "updated_at"])
+        self.project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="Completion guard project",
+            description="Testing completion guard rules.",
+            status=CustomProject.Status.DELIVERED,
+        )
+        self.detail_url = reverse(
+            "custom_projects_admin:admin-custom-project-detail",
+            kwargs={"project_id": self.project.id},
+        )
+        login = self.client.post(
+            reverse("accounts:admin-login"),
+            {"email": self.admin_user.email, "password": self.password},
+            format="json",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+
+    def _patch_status(self, next_status: str):
+        return self.client.patch(
+            self.detail_url,
+            {"status": next_status},
+            format="json",
+        )
+
+    def _make_delivery(self) -> ProjectDelivery:
+        return ProjectDelivery.objects.create(
+            project=self.project,
+            uploaded_by=self.admin_user,
+            file_name="delivery.zip",
+            storage_path="http://localhost/media/custom_projects/deliveries/delivery.zip",
+            file_size=1024,
+            version=1,
+        )
+
+    def test_complete_without_deliveries_is_rejected(self) -> None:
+        """Marking completed without any delivery must return 400."""
+        self.assertEqual(self.project.deliveries.count(), 0)
+        response = self._patch_status(CustomProject.Status.COMPLETED)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", response.data)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.status, CustomProject.Status.DELIVERED)
+
+    def test_complete_with_delivery_succeeds(self) -> None:
+        """Marking completed with at least one delivery must succeed."""
+        self._make_delivery()
+        response = self._patch_status(CustomProject.Status.COMPLETED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], CustomProject.Status.COMPLETED)
+
+    def test_completed_to_in_progress_rejected(self) -> None:
+        """completed is a terminal state; back-transitions must 400."""
+        self._make_delivery()
+        self._patch_status(CustomProject.Status.COMPLETED)
+        response = self._patch_status(CustomProject.Status.IN_PROGRESS)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", response.data)
+
+    def test_rejected_to_submitted_rejected(self) -> None:
+        """rejected is terminal; forward-transition must 400."""
+        self.project.status = CustomProject.Status.REJECTED
+        self.project.save(update_fields=["status", "updated_at"])
+        response = self._patch_status(CustomProject.Status.SUBMITTED)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cancelled_to_in_progress_rejected(self) -> None:
+        """cancelled is terminal; any forward-transition must 400."""
+        self.project.status = CustomProject.Status.CANCELLED
+        self.project.save(update_fields=["status", "updated_at"])
+        response = self._patch_status(CustomProject.Status.IN_PROGRESS)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_completion_email_sent_to_customer(self) -> None:
+        """Completing a project must send an email to the customer."""
+        self._make_delivery()
+        mail.outbox.clear()
+        response = self._patch_status(CustomProject.Status.COMPLETED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertIn(self.customer_user.email, sent.to)
+        self.assertIn(self.project.title, sent.subject)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_completion_email_not_sent_if_already_completed(self) -> None:
+        """Re-saving a project that is already completed must not re-send the email."""
+        self._make_delivery()
+        self._patch_status(CustomProject.Status.COMPLETED)
+        mail.outbox.clear()
+        # second PATCH with same status — no-op; previous_status == COMPLETED
+        self._patch_status(CustomProject.Status.COMPLETED)
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class ReferenceFileDeleteTests(APITestCase):
+    """Tests for DELETE /api/custom-projects/<id>/files/<file_id>/."""
+
+    def setUp(self) -> None:
+        cache.clear()
+        self.password = "StrongPass123!"
+        self.customer_role = Role.objects.get(role_name="Customer")
+        self.admin_role = Role.objects.get(role_name="Administrator")
+        self.customer_user = User.objects.create_user(
+            email="reffile-delete-customer@example.com",
+            full_name="RefFile Delete Customer",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        self.other_customer = User.objects.create_user(
+            email="reffile-delete-other@example.com",
+            full_name="RefFile Delete Other",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        self.admin_user = User.objects.create_user(
+            email="reffile-delete-admin@example.com",
+            full_name="RefFile Delete Admin",
+            password=self.password,
+            role=self.admin_role,
+            email_verified=True,
+        )
+        self.admin_user.is_staff = True
+        self.admin_user.save(update_fields=["is_staff", "updated_at"])
+        self.project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="Ref file delete project",
+            description="Testing reference file deletion.",
+            status=CustomProject.Status.SUBMITTED,
+        )
+        from custom_projects.models import ProjectFile
+        self.project_file = ProjectFile.objects.create(
+            project=self.project,
+            uploaded_by=self.customer_user,
+            file_type=ProjectFile.FileType.OTHER,
+            file_name="ref.png",
+            storage_path="http://localhost/media/custom_projects/files/ref.png",
+            file_size=256,
+        )
+        self.delete_url = reverse(
+            "custom_projects:customer-custom-project-file-delete",
+            kwargs={"project_id": self.project.id, "file_id": self.project_file.id},
+        )
+
+    def _authenticate(self, user: User) -> None:
+        url = reverse("accounts:admin-login") if user == self.admin_user else reverse("accounts:login")
+        response = self.client.post(
+            url,
+            {"email": user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def test_owner_can_delete_reference_file(self) -> None:
+        """Project owner can delete their own reference file."""
+        self._authenticate(self.customer_user)
+        response = self.client.delete(self.delete_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        from custom_projects.models import ProjectFile
+        self.assertFalse(ProjectFile.objects.filter(pk=self.project_file.pk).exists())
+
+    def test_other_customer_cannot_delete_reference_file(self) -> None:
+        """Another customer receives 404 (no IDOR)."""
+        self._authenticate(self.other_customer)
+        response = self.client.delete(self.delete_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_unauthenticated_cannot_delete_reference_file(self) -> None:
+        """Unauthenticated request must be denied."""
+        self.client.credentials()
+        response = self.client.delete(self.delete_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_file_on_completed_project_is_rejected(self) -> None:
+        """Deleting a reference file from a completed project must 400."""
+        self.project.status = CustomProject.Status.COMPLETED
+        self.project.save(update_fields=["status", "updated_at"])
+        self._authenticate(self.customer_user)
+        response = self.client.delete(self.delete_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        from custom_projects.models import ProjectFile
+        self.assertTrue(ProjectFile.objects.filter(pk=self.project_file.pk).exists())
+
+    def test_delete_file_on_rejected_project_is_rejected(self) -> None:
+        """Deleting a reference file from a rejected project must 400."""
+        self.project.status = CustomProject.Status.REJECTED
+        self.project.save(update_fields=["status", "updated_at"])
+        self._authenticate(self.customer_user)
+        response = self.client.delete(self.delete_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_delete_nonexistent_file_returns_400(self) -> None:
+        """Attempting to delete a file ID that doesn't exist must 400."""
+        import uuid
+        self._authenticate(self.customer_user)
+        url = reverse(
+            "custom_projects:customer-custom-project-file-delete",
+            kwargs={"project_id": self.project.id, "file_id": uuid.uuid4()},
+        )
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

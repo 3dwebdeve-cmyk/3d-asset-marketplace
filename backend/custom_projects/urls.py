@@ -4,6 +4,7 @@ from custom_projects.views import (
     CustomerCustomProjectDeliveryDownloadView,
     CustomerCustomProjectDeliveryListView,
     CustomerCustomProjectDetailView,
+    CustomerCustomProjectFileDeleteView,
     CustomerCustomProjectFileUploadView,
     CustomerCustomProjectListCreateView,
     CustomerCustomProjectMessageAttachmentDownloadView,
@@ -34,6 +35,11 @@ urlpatterns = [
         "<uuid:project_id>/files/",
         CustomerCustomProjectFileUploadView.as_view(),
         name="customer-custom-project-file-upload",
+    ),
+    path(
+        "<uuid:project_id>/files/<uuid:file_id>/",
+        CustomerCustomProjectFileDeleteView.as_view(),
+        name="customer-custom-project-file-delete",
     ),
     path(
         "<uuid:project_id>/deliveries/",

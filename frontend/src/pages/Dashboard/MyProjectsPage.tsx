@@ -6,17 +6,13 @@ import { listCustomerCustomProjects } from '../../api/customProjectsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
+import { StatusBadge } from '../../components/ui/StatusBadge'
 import {
   CUSTOM_PROJECT_STATUS_LABELS,
-  type CustomProjectStatus,
   type CustomerCustomProjectListItem,
 } from '../../types/customProject'
 
 const PAGE_SIZE = 20
-
-function formatStatus(status: CustomProjectStatus): string {
-  return CUSTOM_PROJECT_STATUS_LABELS[status] ?? status
-}
 
 function formatUpdatedAt(iso: string): string {
   const date = new Date(iso)
@@ -162,7 +158,12 @@ export function MyProjectsPage() {
                             ) : null}
                           </div>
                         </td>
-                        <td>{formatStatus(project.status)}</td>
+                        <td>
+                          <StatusBadge
+                            status={project.status}
+                            label={CUSTOM_PROJECT_STATUS_LABELS[project.status] ?? project.status}
+                          />
+                        </td>
                         <td>{formatUpdatedAt(project.updated_at)}</td>
                         <td>{formatQuote(project)}</td>
                       </tr>

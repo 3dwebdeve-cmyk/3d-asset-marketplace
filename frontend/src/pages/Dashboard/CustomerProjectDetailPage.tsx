@@ -11,6 +11,7 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
+import { StatusBadge } from '../../components/ui/StatusBadge'
 import {
   CUSTOM_PROJECT_STATUS_LABELS,
   type CustomProjectPaymentStatus,
@@ -60,7 +61,11 @@ function ProjectSummary({ project }: { project: CustomerCustomProject }) {
   return (
     <div className="dashboard-card__details">
       <p>
-        <strong>Status:</strong> {CUSTOM_PROJECT_STATUS_LABELS[project.status]}
+        <strong>Status:</strong>{' '}
+        <StatusBadge
+          status={project.status}
+          label={CUSTOM_PROJECT_STATUS_LABELS[project.status] ?? project.status}
+        />
       </p>
       <p>
         <strong>Payment status:</strong>{' '}
@@ -131,6 +136,17 @@ function QuotationBlock({
                 onClick={onAccept}
               >
                 Accept quotation
+              </Button>
+            </div>
+          ) : null}
+          {quotation.status === 'accepted' && project.status !== 'completed' ? (
+            <div className="dashboard-card__actions">
+              <Button
+                type="button"
+                disabled
+                title="Payment will be available in a future update"
+              >
+                Pay quotation (coming soon)
               </Button>
             </div>
           ) : null}
@@ -226,6 +242,12 @@ export function CustomerProjectDetailPage() {
         ) : projectQuery.data ? (
           <>
             <h1 id="project-detail-title">{projectQuery.data.title}</h1>
+            {projectQuery.data.status === 'completed' ? (
+              <div className="project-completed-banner" role="status">
+                <strong>Project completed!</strong> Your project has been delivered and marked
+                complete. Thank you for working with us.
+              </div>
+            ) : null}
             <ProjectSummary project={projectQuery.data} />
             <QuotationBlock
               project={projectQuery.data}

@@ -648,3 +648,334 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class OrderCustomerAPITests(OrderTestMixin, APITestCase):
+    LIST_FIELDS = {
+        "id",
+        "invoice_number",
+        "total_amount",
+        "currency",
+        "order_status",
+        "payment_status",
+        "item_count",
+        "created_at",
+        "updated_at",
+    }
+
+    ITEM_FIELDS = {
+        "id",
+        "product_type",
+        "product_id",
+        "title",
+        "quantity",
+        "purchase_price",
+        "line_total",
+        "created_at",
+        "updated_at",
+    }
+
+    def setUp(self) -> None:
+        super().setUp()
+        cache.clear()
+        self.password = "StrongPass123!"
+        self.admin_role = Role.objects.get(role_name="Administrator")
+        self.admin_user = User.objects.create_user(
+            email="admin-customer-orders@example.com",
+            full_name="Admin Customer Orders",
+            password=self.password,
+            role=self.admin_role,
+            email_verified=True,
+        )
+        self.admin_user.is_staff = True
+        self.admin_user.save(update_fields=["is_staff", "updated_at"])
+        self.other_customer = User.objects.create_user(
+            email="other-customer-orders@example.com",
+            full_name="Other Customer Orders",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        self.list_url = reverse("orders:order-list")
+        self.admin_list_url = reverse("orders_admin:admin-order-list-create")
+        self.admin_login_url = reverse("accounts:admin-login")
+        self.customer_login_url = reverse("accounts:login")
+        self.order = OrderService.create(
+            OrderCreateData(
+                user_id=self.user.pk,
+                items=(
+                    OrderItemCreateData(
+                        product_type=OrderItem.ProductType.PRODUCT,
+                        product_id=self.product.pk,
+                        quantity=2,
+                    ),
+                    OrderItemCreateData(
+                        product_type=OrderItem.ProductType.PLUGIN,
+                        product_id=self.plugin.pk,
+                        quantity=1,
+                    ),
+                ),
+            )
+        )
+        self.detail_url = reverse(
+            "orders:order-detail",
+            kwargs={"order_id": self.order.id},
+        )
+
+    def _authenticate_admin(self) -> None:
+        response = self.client.post(
+            self.admin_login_url,
+            {"email": self.admin_user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def _authenticate_customer(self, user: User | None = None) -> None:
+        target = user or self.user
+        response = self.client.post(
+            self.customer_login_url,
+            {"email": target.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def test_unauthenticated_list_and_detail_return_401(self) -> None:
+        list_response = self.client.get(self.list_url)
+        self.assertEqual(list_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        detail_response = self.client.get(self.detail_url)
+        self.assertEqual(detail_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_customer_list_returns_only_own_orders(self) -> None:
+        self._authenticate_customer()
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], str(self.order.id))
+
+        OrderService.create(
+            OrderCreateData(
+                user_id=self.other_customer.pk,
+                items=(
+                    OrderItemCreateData(
+                        product_type=OrderItem.ProductType.PRODUCT,
+                        product_id=self.product.pk,
+                        quantity=1,
+                    ),
+                ),
+            )
+        )
+
+        scoped = self.client.get(self.list_url)
+        self.assertEqual(scoped.status_code, status.HTTP_200_OK)
+        self.assertEqual(scoped.data["count"], 1)
+        self.assertEqual(scoped.data["results"][0]["id"], str(self.order.id))
+
+    def test_customer_list_includes_admin_created_order(self) -> None:
+        self._authenticate_admin()
+        admin_response = self.client.post(
+            self.admin_list_url,
+            {
+                "customer_id": str(self.user.id),
+                "items": [
+                    {
+                        "product_type": OrderItem.ProductType.PRODUCT,
+                        "product_id": str(self.product.id),
+                        "quantity": 1,
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(admin_response.status_code, status.HTTP_201_CREATED)
+        admin_created_id = admin_response.data["id"]
+
+        self._authenticate_customer()
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order_ids = {item["id"] for item in response.data["results"]}
+        self.assertIn(admin_created_id, order_ids)
+
+    def test_customer_detail_own_order_returns_200(self) -> None:
+        self._authenticate_customer()
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], str(self.order.id))
+        self.assertEqual(response.data["invoice_number"], self.order.invoice_number)
+        self.assertEqual(len(response.data["items"]), 2)
+
+    def test_customer_detail_other_users_order_returns_404(self) -> None:
+        other_order = OrderService.create(
+            OrderCreateData(
+                user_id=self.other_customer.pk,
+                items=(
+                    OrderItemCreateData(
+                        product_type=OrderItem.ProductType.PRODUCT,
+                        product_id=self.product.pk,
+                        quantity=1,
+                    ),
+                ),
+            )
+        )
+        self._authenticate_customer()
+        other_detail_url = reverse(
+            "orders:order-detail",
+            kwargs={"order_id": other_order.id},
+        )
+        response = self.client.get(other_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_customer_detail_unknown_order_returns_404(self) -> None:
+        self._authenticate_customer()
+        unknown_url = reverse(
+            "orders:order-detail",
+            kwargs={"order_id": uuid4()},
+        )
+        response = self.client.get(unknown_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_customer_list_pagination(self) -> None:
+        for _ in range(24):
+            OrderService.create(
+                OrderCreateData(
+                    user_id=self.user.pk,
+                    items=(
+                        OrderItemCreateData(
+                            product_type=OrderItem.ProductType.PRODUCT,
+                            product_id=self.product.pk,
+                            quantity=1,
+                        ),
+                    ),
+                )
+            )
+
+        self._authenticate_customer()
+        page_one = self.client.get(self.list_url, {"page": 1, "page_size": 20})
+        self.assertEqual(page_one.status_code, status.HTTP_200_OK)
+        self.assertEqual(page_one.data["count"], 25)
+        self.assertEqual(len(page_one.data["results"]), 20)
+        self.assertIsNotNone(page_one.data["next"])
+        self.assertIsNone(page_one.data["previous"])
+
+        page_two = self.client.get(self.list_url, {"page": 2, "page_size": 20})
+        self.assertEqual(page_two.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(page_two.data["results"]), 5)
+        self.assertIsNone(page_two.data["next"])
+        self.assertIsNotNone(page_two.data["previous"])
+
+        page_one_ids = {item["id"] for item in page_one.data["results"]}
+        page_two_ids = {item["id"] for item in page_two.data["results"]}
+        self.assertTrue(page_one_ids.isdisjoint(page_two_ids))
+
+    def test_customer_list_filters_by_order_status(self) -> None:
+        self._authenticate_customer()
+        pending = self.client.get(
+            self.list_url,
+            {"order_status": Order.OrderStatus.PENDING},
+        )
+        self.assertEqual(pending.status_code, status.HTTP_200_OK)
+        self.assertEqual(pending.data["count"], 1)
+
+        paid = self.client.get(
+            self.list_url,
+            {"order_status": Order.OrderStatus.PAID},
+        )
+        self.assertEqual(paid.status_code, status.HTTP_200_OK)
+        self.assertEqual(paid.data["count"], 0)
+
+        invalid = self.client.get(
+            self.list_url,
+            {"order_status": "not-a-status"},
+        )
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("order_status", invalid.data)
+
+    def test_customer_list_filters_by_payment_status(self) -> None:
+        self._authenticate_customer()
+        pending = self.client.get(
+            self.list_url,
+            {"payment_status": Order.PaymentStatus.PENDING},
+        )
+        self.assertEqual(pending.status_code, status.HTTP_200_OK)
+        self.assertEqual(pending.data["count"], 1)
+
+        paid = self.client.get(
+            self.list_url,
+            {"payment_status": Order.PaymentStatus.PAID},
+        )
+        self.assertEqual(paid.status_code, status.HTTP_200_OK)
+        self.assertEqual(paid.data["count"], 0)
+
+        invalid = self.client.get(
+            self.list_url,
+            {"payment_status": "not-a-status"},
+        )
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("payment_status", invalid.data)
+
+    def test_customer_list_search_by_invoice_number(self) -> None:
+        self._authenticate_customer()
+        partial = self.order.invoice_number[-6:]
+        response = self.client.get(self.list_url, {"search": partial})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], str(self.order.id))
+
+        no_match = self.client.get(self.list_url, {"search": "INV-NO-SUCH-ORDER"})
+        self.assertEqual(no_match.status_code, status.HTTP_200_OK)
+        self.assertEqual(no_match.data["count"], 0)
+
+    def test_customer_list_ordering(self) -> None:
+        low_total = OrderService.create(
+            OrderCreateData(
+                user_id=self.user.pk,
+                items=(
+                    OrderItemCreateData(
+                        product_type=OrderItem.ProductType.PLUGIN,
+                        product_id=self.plugin.pk,
+                        quantity=1,
+                    ),
+                ),
+            )
+        )
+        self.order.total_amount = Decimal("999.99")
+        self.order.save(update_fields=["total_amount", "updated_at"])
+
+        self._authenticate_customer()
+        ascending = self.client.get(self.list_url, {"ordering": "total_amount"})
+        self.assertEqual(ascending.status_code, status.HTTP_200_OK)
+        totals = [Decimal(item["total_amount"]) for item in ascending.data["results"]]
+        self.assertEqual(totals, sorted(totals))
+        self.assertEqual(ascending.data["results"][0]["id"], str(low_total.id))
+
+    def test_customer_list_response_schema(self) -> None:
+        self._authenticate_customer()
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = response.data["results"][0]
+        self.assertEqual(set(item.keys()), self.LIST_FIELDS)
+        self.assertNotIn("customer", item)
+        self.assertNotIn("user_id", item)
+
+    def test_customer_detail_response_schema(self) -> None:
+        self._authenticate_customer()
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        detail_fields = self.LIST_FIELDS | {"items", "items_total"}
+        self.assertEqual(set(response.data.keys()), detail_fields)
+        self.assertNotIn("customer", response.data)
+        self.assertNotIn("user_id", response.data)
+
+        item = response.data["items"][0]
+        self.assertEqual(set(item.keys()), self.ITEM_FIELDS)
+        self.assertNotIn("storage_path", item)
+        self.assertNotIn("download_url", item)
+
+    def test_customer_detail_live_titles(self) -> None:
+        self._authenticate_customer()
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = {item["title"] for item in response.data["items"]}
+        self.assertEqual(titles, {"Hero Sword", "UV Toolkit"})

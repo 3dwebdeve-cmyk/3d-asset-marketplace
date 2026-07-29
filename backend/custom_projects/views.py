@@ -221,6 +221,28 @@ class CustomerCustomProjectFileUploadView(APIView):
         )
 
 
+class CustomerCustomProjectFileDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [CustomProjectWriteRateThrottle]
+
+    def delete(self, request: Request, project_id: UUID, file_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_customer(project_id, request.user)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        try:
+            CustomProjectService.delete_file(
+                project,
+                file_id=file_id,
+                customer=request.user,
+            )
+        except CustomProjectError as exc:
+            return _error_response(exc)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class AdminCustomProjectListCreateView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
     throttle_classes = [AdminCustomProjectWriteRateThrottle]

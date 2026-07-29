@@ -24,6 +24,7 @@ vi.mock('../../api/customProjectsApi', async () => {
     markCustomerProjectMessagesRead: vi.fn(),
     listCustomerProjectDeliveries: vi.fn(),
     uploadCustomerCustomProjectFile: vi.fn(),
+    deleteCustomerCustomProjectFile: vi.fn(),
   }
 })
 
@@ -440,5 +441,58 @@ describe('CustomerProjectDetailPage', () => {
     expect(
       await screen.findByText('Only a pending quotation can be accepted.'),
     ).toBeInTheDocument()
+  })
+
+  it('shows completed banner when project status is completed', async () => {
+    vi.mocked(customProjectsApi.getCustomerCustomProject).mockResolvedValue({
+      ...project,
+      status: 'completed',
+      quotation: { ...project.quotation!, status: 'accepted' },
+    })
+    renderPage()
+
+    const banner = await screen.findByText(/Project completed!/i)
+    expect(banner).toBeInTheDocument()
+    expect(banner.closest('.project-completed-banner')).toBeInTheDocument()
+  })
+
+  it('does not show completed banner for non-completed projects', async () => {
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Hero prop' })
+    expect(screen.queryByText(/Project completed!/i)).not.toBeInTheDocument()
+  })
+
+  it('shows "Pay quotation (coming soon)" when quotation is accepted and project is not completed', async () => {
+    vi.mocked(customProjectsApi.getCustomerCustomProject).mockResolvedValue({
+      ...project,
+      status: 'approved',
+      quotation: { ...project.quotation!, status: 'accepted' },
+    })
+    renderPage()
+
+    const payBtn = await screen.findByRole('button', { name: /Pay quotation/i })
+    expect(payBtn).toBeInTheDocument()
+    expect(payBtn).toBeDisabled()
+  })
+
+  it('does not show pay button when project is completed', async () => {
+    vi.mocked(customProjectsApi.getCustomerCustomProject).mockResolvedValue({
+      ...project,
+      status: 'completed',
+      quotation: { ...project.quotation!, status: 'accepted' },
+    })
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Hero prop' })
+    expect(screen.queryByRole('button', { name: /Pay quotation/i })).not.toBeInTheDocument()
+  })
+
+  it('renders status badge with correct label', async () => {
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Hero prop' })
+    const badge = screen.getByLabelText('Status: Quoted')
+    expect(badge).toBeInTheDocument()
   })
 })

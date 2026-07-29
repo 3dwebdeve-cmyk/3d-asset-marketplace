@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+
+import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import type { PublicPlugin } from '../../types/plugin'
 
 interface PluginCardProps {
@@ -50,6 +52,12 @@ export function PluginCard({ plugin }: PluginCardProps) {
 
         {hasDiscount && <span className="product-card__badge-discount">Sale</span>}
         <span className="product-card__badge-license">{plugin.license_type}</span>
+        <WishlistToggle
+          productType="plugin"
+          productId={plugin.id}
+          productName={plugin.name}
+          variant="icon"
+        />
       </div>
 
       <div className="product-card__body">

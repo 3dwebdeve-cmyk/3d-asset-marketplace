@@ -64,6 +64,8 @@ INSTALLED_APPS = [
     'custom_projects',
     'orders',
     'analytics',
+    'wishlist',
+    'cart',
 ]
 
 MIDDLEWARE = [
@@ -209,6 +211,8 @@ REST_FRAMEWORK = {
         "admin_order_write": "60/min",
         "admin_custom_project_write": "60/min",
         "custom_project_write": "30/min",
+        "wishlist_write": "30/min",
+        "cart_write": "30/min",
     },
 }
 

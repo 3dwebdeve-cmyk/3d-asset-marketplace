@@ -278,6 +278,38 @@ class ProjectWorkflowNotificationService(_ProjectEmailSupport):
                 getattr(project, "pk", "-"),
             )
 
+    @classmethod
+    def notify_project_completed(cls, project: CustomProject) -> None:
+        try:
+            recipients = cls._customer_recipients(project)
+            if not recipients:
+                logger.warning(
+                    "custom_project_email_skipped event=project_completed "
+                    "reason=no_customer_recipient project_id=%s",
+                    project.pk,
+                )
+                return
+
+            link = cls._customer_project_link(project.pk)
+            cls._send(
+                subject=f"Your project is complete: {project.title}",
+                body=cls._render_body(
+                    "project_completed.txt",
+                    {
+                        "project_title": cls._safe_email_text(project.title),
+                        "project_link": link,
+                    },
+                ),
+                recipients=recipients,
+                project_id=project.pk,
+                event="project_completed",
+            )
+        except Exception:
+            logger.exception(
+                "custom_project_email_failed event=project_completed project_id=%s",
+                getattr(project, "pk", "-"),
+            )
+
 
 class ProjectMessageNotificationService(_ProjectEmailSupport):
     """Notify the opposite party when a project message is created."""

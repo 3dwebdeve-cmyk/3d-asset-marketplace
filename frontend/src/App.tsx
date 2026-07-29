@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Navbar } from './components/Navbar'
+import { CartDrawer } from './components/cart/CartDrawer'
 import { Spinner } from './components/ui/Spinner'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
 import { AdminCategoriesPage } from './pages/Admin/AdminCategoriesPage'
@@ -17,6 +18,10 @@ import { CustomerProjectDetailPage } from './pages/Dashboard/CustomerProjectDeta
 import { CustomerProjectRequestPage } from './pages/Dashboard/CustomerProjectRequestPage'
 import { DashboardPage } from './pages/Dashboard/DashboardPage'
 import { MyProjectsPage } from './pages/Dashboard/MyProjectsPage'
+import { MyOrdersPage } from './pages/Dashboard/MyOrdersPage'
+import { CustomerOrderDetailPage } from './pages/Dashboard/CustomerOrderDetailPage'
+import { WishlistPage } from './pages/Dashboard/WishlistPage'
+import { CartPage } from './pages/Cart/CartPage'
 import { EmailVerificationPage } from './pages/EmailVerification/EmailVerificationPage'
 import { EmailVerificationResendPage } from './pages/EmailVerification/EmailVerificationResendPage'
 import { HomePage } from './pages/Home/HomePage'
@@ -33,6 +38,7 @@ import './styles/admin-layout.css'
 import './styles/navbar.css'
 import './styles/products-browse.css'
 import './styles/product-details.css'
+import './styles/cart.css'
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
@@ -107,6 +113,7 @@ function AppRoutes() {
   return (
     <>
       {!hideMainNavbar ? <Navbar /> : null}
+      <CartDrawer />
       <div className="app-shell">
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
@@ -135,6 +142,9 @@ function AppRoutes() {
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/dashboard/projects" element={<MyProjectsPage />} />
+              <Route path="/dashboard/orders" element={<MyOrdersPage />} />
+              <Route path="/dashboard/wishlist" element={<WishlistPage />} />
+              <Route path="/cart" element={<CartPage />} />
               <Route
                 path="/dashboard/projects/new"
                 element={<CustomerProjectRequestPage />}
@@ -142,6 +152,10 @@ function AppRoutes() {
               <Route
                 path="/dashboard/projects/:projectId"
                 element={<CustomerProjectDetailPage />}
+              />
+              <Route
+                path="/dashboard/orders/:orderId"
+                element={<CustomerOrderDetailPage />}
               />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>

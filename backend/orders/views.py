@@ -14,6 +14,8 @@ from orders.models import Order
 from orders.pagination import OrderPagination
 from orders.serializers import (
     AdminOrderCreateSerializer,
+    CustomerOrderDetailSerializer,
+    CustomerOrderListSerializer,
     OrderDetailSerializer,
     OrderListSerializer,
 )
@@ -131,4 +133,47 @@ class AdminOrderDetailView(APIView):
             raise NotFound(detail=exc.message) from exc
         return Response(
             OrderDetailSerializer(order, context=_detail_serializer_context(order)).data
+        )
+
+
+class CustomerOrderListView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = OrderPagination
+
+    def get(self, request: Request) -> Response:
+        queryset = OrderService.list_for_user(
+            request.user,
+            order_status=_parse_choice(
+                request.query_params.get("order_status"),
+                "order_status",
+                set(Order.OrderStatus.values),
+            ),
+            payment_status=_parse_choice(
+                request.query_params.get("payment_status"),
+                "payment_status",
+                set(Order.PaymentStatus.values),
+            ),
+            search=request.query_params.get("search") or None,
+            ordering=request.query_params.get("ordering") or "-created_at",
+        )
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(
+            CustomerOrderListSerializer(page, many=True).data
+        )
+
+
+class CustomerOrderDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, order_id: UUID) -> Response:
+        try:
+            order = OrderService.get_for_user(order_id, request.user)
+        except OrderError as exc:
+            raise NotFound(detail=exc.message) from exc
+        return Response(
+            CustomerOrderDetailSerializer(
+                order,
+                context=_detail_serializer_context(order),
+            ).data
         )

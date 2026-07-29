@@ -218,7 +218,11 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
             })}
           </div>
 
-          <PluginCtaGroup pluginName={plugin.name} pluginSlug={plugin.slug} />
+          <PluginCtaGroup
+            pluginId={plugin.id}
+            pluginName={plugin.name}
+            pluginSlug={plugin.slug}
+          />
           <PluginSpecs plugin={plugin} />
         </aside>
       </div>

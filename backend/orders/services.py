@@ -48,6 +48,23 @@ ALLOWED_PAYMENT_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
     Order.PaymentStatus.REFUNDED: frozenset(),
 }
 
+ALLOWED_ORDERING = frozenset(
+    {
+        "created_at",
+        "-created_at",
+        "updated_at",
+        "-updated_at",
+        "total_amount",
+        "-total_amount",
+        "invoice_number",
+        "-invoice_number",
+        "order_status",
+        "-order_status",
+        "payment_status",
+        "-payment_status",
+    }
+)
+
 
 @dataclass(frozen=True)
 class OrderItemCreateData:
@@ -99,23 +116,38 @@ class OrderService:
             queryset = queryset.filter(
                 Q(invoice_number__icontains=query) | Q(user__email__icontains=query)
             )
-        allowed_ordering = {
-            "created_at",
-            "-created_at",
-            "updated_at",
-            "-updated_at",
-            "total_amount",
-            "-total_amount",
-            "invoice_number",
-            "-invoice_number",
-            "order_status",
-            "-order_status",
-            "payment_status",
-            "-payment_status",
-        }
-        if ordering not in allowed_ordering:
+        if ordering not in ALLOWED_ORDERING:
             ordering = "-created_at"
         return queryset.order_by(ordering)
+
+    @classmethod
+    def list_for_user(
+        cls,
+        user: User,
+        *,
+        order_status: str | None = None,
+        payment_status: str | None = None,
+        search: str | None = None,
+        ordering: str = "-created_at",
+    ) -> QuerySet[Order]:
+        queryset = Order.objects.filter(user=user).annotate(item_count=Count("items"))
+        if order_status:
+            queryset = queryset.filter(order_status=order_status)
+        if payment_status:
+            queryset = queryset.filter(payment_status=payment_status)
+        if search and search.strip():
+            query = search.strip()[:100]
+            queryset = queryset.filter(invoice_number__icontains=query)
+        if ordering not in ALLOWED_ORDERING:
+            ordering = "-created_at"
+        return queryset.order_by(ordering)
+
+    @classmethod
+    def get_for_user(cls, order_id: UUID, user: User) -> Order:
+        try:
+            return cls.get_detail_queryset().get(pk=order_id, user=user)
+        except Order.DoesNotExist as exc:
+            raise OrderError("Order not found.") from exc
 
     @classmethod
     def build_catalog_titles(
