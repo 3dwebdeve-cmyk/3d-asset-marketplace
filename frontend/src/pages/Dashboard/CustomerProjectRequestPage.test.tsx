@@ -122,7 +122,7 @@ describe('CustomerProjectRequestPage', () => {
     await waitFor(() => {
       expect(customProjectsApi.createCustomerCustomProject).toHaveBeenCalled()
     })
-    expect(customProjectsApi.createCustomerCustomProject.mock.calls[0]?.[0]).toEqual({
+    expect(vi.mocked(customProjectsApi.createCustomerCustomProject).mock.calls[0]?.[0]).toEqual({
       title: 'Manual test chair',
       description: 'Need a game-ready wooden chair with PBR textures.',
       category: 'Furniture',

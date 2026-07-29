@@ -402,6 +402,7 @@ describe('customProjectsApi customer file upload', () => {
     expect(apiClient.post).toHaveBeenCalledWith(
       `/api/custom-projects/${projectId}/files/`,
       expect.any(FormData),
+      { onUploadProgress: undefined },
     )
     const [, payload] = vi.mocked(apiClient.post).mock.calls[0] ?? []
     const formData = payload as FormData

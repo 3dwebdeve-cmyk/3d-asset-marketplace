@@ -168,7 +168,7 @@ describe('CustomerProjectMessagesSection', () => {
     await new Promise((resolve) => setTimeout(resolve, 150))
     expect(customProjectsApi.markCustomerProjectMessagesRead).toHaveBeenCalledTimes(1)
     // fetchLatestProjectMessages may request page 1 only when count <= page size.
-    expect(customProjectsApi.listCustomerProjectMessages.mock.calls.length).toBeLessThan(5)
+    expect(vi.mocked(customProjectsApi.listCustomerProjectMessages).mock.calls.length).toBeLessThan(5)
   })
 
   it('labels every sender as Studio when the current user is unknown', async () => {
