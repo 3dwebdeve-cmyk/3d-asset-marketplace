@@ -158,7 +158,11 @@ describe('ordersApi', () => {
       order_status: sampleOrder.order_status,
       payment_status: sampleOrder.payment_status,
       item_count: 1,
-      items: sampleOrder.items,
+      items: sampleOrder.items.map((item) => ({
+        ...item,
+        can_download: false,
+        files: [],
+      })),
       items_total: sampleOrder.items_total,
       created_at: sampleOrder.created_at,
       updated_at: sampleOrder.updated_at,

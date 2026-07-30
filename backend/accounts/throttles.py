@@ -63,3 +63,15 @@ class WishlistWriteRateThrottle(UserRateThrottle):
 
 class CartWriteRateThrottle(UserRateThrottle):
     scope = "cart_write"
+
+
+class ReviewWriteRateThrottle(UserRateThrottle):
+    scope = "review_write"
+
+
+class AdminReviewWriteRateThrottle(UserRateThrottle):
+    scope = "admin_review_write"
+
+
+class DownloadRateThrottle(UserRateThrottle):
+    scope = "download"

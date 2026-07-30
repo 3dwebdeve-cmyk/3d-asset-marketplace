@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { downloadCatalogFileByUrl } from '../../api/downloadsApi'
 import { getCustomerOrder } from '../../api/ordersApi'
+import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
@@ -9,8 +12,11 @@ import {
   OrderPaymentStatusBadge,
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
+import { getApiErrorMessage } from '../../lib/apiError'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
+import type { CustomerOrderItem } from '../../types/order'
+import type { OrderItemDownloadFile } from '../../types/download'
 
 function formatMoney(amount: string, currency: string): string {
   return `${currency} ${amount}`
@@ -26,17 +32,78 @@ function formatProductType(productType: string): string {
   return productType === 'product' ? 'Product' : 'Plugin'
 }
 
+function OrderItemDownloads({
+  item,
+  onDownload,
+}: {
+  item: CustomerOrderItem
+  onDownload: (file: OrderItemDownloadFile) => Promise<void>
+}) {
+  if (!item.can_download) {
+    return (
+      <Button
+        type="button"
+        variant="secondary"
+        disabled
+        title="Downloads unlock when order and payment are both paid"
+      >
+        Download
+      </Button>
+    )
+  }
+
+  if (item.files.length === 0) {
+    return <span className="home-page__subtitle">No files</span>
+  }
+
+  if (item.files.length === 1) {
+    const file = item.files[0]
+    return (
+      <Button type="button" variant="secondary" onClick={() => void onDownload(file)}>
+        Download
+      </Button>
+    )
+  }
+
+  return (
+    <div className="dashboard-card__actions">
+      {item.files.map((file) => (
+        <Button
+          key={file.id}
+          type="button"
+          variant="secondary"
+          onClick={() => void onDownload(file)}
+        >
+          {file.file_name}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 export function CustomerOrderDetailPage() {
   const { orderId = '' } = useParams()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   const isCustomerSession = isAuthenticated && !isAdministrator(user?.role)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const orderQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],
     queryFn: () => getCustomerOrder(orderId),
     enabled: Boolean(orderId) && isCustomerSession,
   })
+
+  const onDownload = async (file: OrderItemDownloadFile) => {
+    setDownloadError(null)
+    try {
+      await downloadCatalogFileByUrl(file.download_url, file.file_name)
+    } catch (error) {
+      setDownloadError(
+        getApiErrorMessage(error, 'Could not download the file. Please try again.'),
+      )
+    }
+  }
 
   if (!isCustomerSession) {
     return (
@@ -95,6 +162,9 @@ export function CustomerOrderDetailPage() {
           <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/orders">
             Back to orders
           </Link>
+          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/downloads">
+            My downloads
+          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
             Back to dashboard
           </Link>
@@ -125,6 +195,7 @@ export function CustomerOrderDetailPage() {
 
         <section className="admin-media-section" aria-labelledby="order-items-title">
           <h2 id="order-items-title">Line items</h2>
+          {downloadError ? <Alert variant="error" message={downloadError} /> : null}
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
@@ -146,14 +217,7 @@ export function CustomerOrderDetailPage() {
                     <td>{formatMoney(item.purchase_price, order.currency)}</td>
                     <td>{formatMoney(item.line_total, order.currency)}</td>
                     <td>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled
-                        title="Downloads available after purchase"
-                      >
-                        Download
-                      </Button>
+                      <OrderItemDownloads item={item} onDownload={onDownload} />
                     </td>
                   </tr>
                 ))}
@@ -163,10 +227,11 @@ export function CustomerOrderDetailPage() {
               <p className="home-page__subtitle">This order has no line items.</p>
             ) : null}
           </div>
-          <p className="home-page__subtitle" role="note">
-            Downloads available after purchase. Secure file delivery is coming in a future
-            update.
-          </p>
+          {!order.items.some((item) => item.can_download) ? (
+            <p className="home-page__subtitle" role="note">
+              Downloads unlock when both order and payment status are paid.
+            </p>
+          ) : null}
         </section>
       </section>
     </main>

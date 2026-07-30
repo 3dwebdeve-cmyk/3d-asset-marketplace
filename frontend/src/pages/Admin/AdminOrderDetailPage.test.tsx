@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,7 @@ vi.mock('../../api/ordersApi', async () => {
   return {
     ...actual,
     getAdminOrder: vi.fn(),
+    updateAdminOrderStatus: vi.fn(),
   }
 })
 
@@ -91,6 +93,27 @@ describe('AdminOrderDetailPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/could not load order/i)).toBeInTheDocument()
+    })
+  })
+
+  it('marks a pending order as paid', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ordersApi.updateAdminOrderStatus).mockResolvedValue({
+      ...sampleOrder,
+      order_status: 'paid',
+      payment_status: 'paid',
+    })
+
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'INV-20260728-ABCD' })
+    await user.click(screen.getByRole('button', { name: /mark as paid/i }))
+
+    await waitFor(() => {
+      expect(ordersApi.updateAdminOrderStatus).toHaveBeenCalledWith(orderId, {
+        order_status: 'paid',
+        payment_status: 'paid',
+      })
     })
   })
 })

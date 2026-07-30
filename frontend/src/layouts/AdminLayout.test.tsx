@@ -118,6 +118,10 @@ describe('AdminLayout', () => {
       'href',
       '/admin/orders',
     )
+    expect(screen.getByRole('link', { name: /^reviews$/i })).toHaveAttribute(
+      'href',
+      '/admin/reviews',
+    )
     expect(screen.getByText('Analytics')).toHaveAttribute('aria-disabled', 'true')
   })
 

@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 
 import { getPublicProduct, listPublicProducts } from '../../api/productsApi'
+import { RatingDisplay } from '../../components/reviews/RatingDisplay'
+import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -89,7 +91,6 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
       ? discountPercent(product.price, product.discount_price)
       : null
   const browseCategoryHref = `/products?category=${encodeURIComponent(product.category.id)}`
-  const rating = Number(product.average_rating)
   const licenses: ProductLicenseType[] = ['standard', 'extended', 'editorial']
 
   const relatedQuery = useQuery({
@@ -144,7 +145,12 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
 
           <div className="product-detail-purchase__meta">
             <span className="product-detail-purchase__rating">
-              {rating > 0 ? `${rating.toFixed(1)} rating` : 'New asset'}
+              <RatingDisplay
+                averageRating={product.average_rating}
+                reviewCount={product.review_count}
+                variant="detail"
+                className=""
+              />
               <span aria-hidden="true"> · </span>
               {product.total_downloads.toLocaleString()} downloads
             </span>
@@ -230,6 +236,14 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
           </p>
         )}
       </section>
+
+      <ReviewsSection
+        productType="product"
+        productId={product.id}
+        catalogSlug={product.slug}
+        averageRating={product.average_rating}
+        reviewCount={product.review_count}
+      />
 
       <section className="product-detail-related" aria-labelledby="product-related-heading">
         <div className="product-detail-related__header">

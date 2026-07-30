@@ -1,3 +1,5 @@
+import type { OrderItemDownloadFile } from './download'
+
 export type OrderStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
 
 export type OrderPaymentStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
@@ -106,6 +108,11 @@ export interface AdminOrderCreatePayload {
   items: AdminOrderItemCreatePayload[]
 }
 
+export interface AdminOrderStatusUpdatePayload {
+  order_status?: OrderStatus
+  payment_status?: OrderPaymentStatus
+}
+
 export interface CustomerOrderListItem {
   id: string
   invoice_number: string
@@ -126,6 +133,8 @@ export interface CustomerOrderItem {
   quantity: number
   purchase_price: string
   line_total: string
+  can_download: boolean
+  files: OrderItemDownloadFile[]
   created_at: string
   updated_at: string
 }

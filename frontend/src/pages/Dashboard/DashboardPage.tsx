@@ -113,6 +113,12 @@ export function DashboardPage() {
           >
             My orders
           </Link>
+          <Link
+            className="home-page__cta home-page__cta--secondary"
+            to="/dashboard/downloads"
+          >
+            My downloads
+          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/profile">
             Edit profile
           </Link>

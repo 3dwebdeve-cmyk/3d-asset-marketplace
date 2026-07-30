@@ -40,7 +40,7 @@ Database
 Storage
  AWS S3 or Cloudflare R2
 Payments
- Stripe  PayPal  Razorpay
+ Stripe
 Deployment  Docker  Docker Compose  Gunicorn
  Nginx
  Cloudflare
@@ -159,10 +159,8 @@ Always validate permissions on the backend.
 Never trust frontend authorization. 
 
 Payments
-Supported gateways: 
-   Stripe 
-   PayPal 
-   Razorpay
+Supported gateway: 
+   Stripe
 Payment flow:
 Customer
 ↓

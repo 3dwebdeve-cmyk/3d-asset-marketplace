@@ -98,10 +98,8 @@ Order Management
   Download History
 
 Payment System
-Supported Payment Gateways
-  Stripe 
-  PayPal 
-  Razorpay
+Supported Payment Gateway
+  Stripe
 The backend verifies every payment before granting download access. 
 
 Administration
@@ -167,10 +165,8 @@ Database
 Search
   Meilisearch
 
-Payment Gateways
-  Stripe 
-  PayPal 
-  Razorpay
+Payment Gateway
+  Stripe
 
 Deployment
   Docker 
@@ -365,9 +361,7 @@ Shopping
 
 Stage 7
 Payments
-  Stripe 
-  PayPal 
-  Razorpay
+  Stripe
   Order Verification
 
 Stage 8

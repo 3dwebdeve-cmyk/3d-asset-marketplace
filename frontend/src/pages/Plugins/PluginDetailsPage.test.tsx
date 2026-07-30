@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as pluginsApi from '../../api/pluginsApi'
 import * as cartApi from '../../api/cartApi'
 import * as wishlistApi from '../../api/wishlistApi'
+import * as reviewsApi from '../../api/reviewsApi'
 import {
   createTestQueryClient,
   resetAuthStore,
@@ -52,6 +53,18 @@ vi.mock('../../api/wishlistApi', async () => {
   }
 })
 
+vi.mock('../../api/reviewsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/reviewsApi')>(
+    '../../api/reviewsApi',
+  )
+  return {
+    ...actual,
+    listReviews: vi.fn(),
+    getReviewEligibility: vi.fn(),
+    createReview: vi.fn(),
+  }
+})
+
 const categoryId = '55ccb318-9b1d-4a0e-bcef-6b494fe3222c'
 const pluginId = 'd4e77f31-f244-5617-b7d6-b58e3ff6de22'
 const relatedPluginId = 'e5f88a42-a355-6728-c8e7-c69f4aa7ef33'
@@ -71,6 +84,7 @@ const sampleDetail: PublicPluginDetail = {
   documentation_url: 'https://docs.example.com/uv-unwrap-pro',
   license_type: 'standard',
   average_rating: '4.50',
+  review_count: 8,
   total_downloads: 85,
   category: { id: categoryId, name: 'UV Tools', slug: 'uv-tools', description: '', image: '', is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
   images: [
@@ -114,6 +128,7 @@ const relatedList = {
       compatibility: 'Blender 3.x',
       license_type: 'standard' as const,
       average_rating: '4.50',
+      review_count: 0,
       total_downloads: 85,
       category: { id: categoryId, name: 'UV Tools', slug: 'uv-tools', description: '', image: '', is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
       created_at: '2026-01-01T00:00:00Z',
@@ -131,6 +146,7 @@ const relatedList = {
       compatibility: 'Blender 4.x',
       license_type: 'standard' as const,
       average_rating: '4.00',
+      review_count: 0,
       total_downloads: 30,
       category: { id: categoryId, name: 'UV Tools', slug: 'uv-tools', description: '', image: '', is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
       created_at: '2026-02-01T00:00:00Z',
@@ -173,6 +189,17 @@ beforeEach(() => {
     item_count: 0,
     total_quantity: 0,
     items: [],
+  })
+  vi.mocked(reviewsApi.listReviews).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(reviewsApi.getReviewEligibility).mockResolvedValue({
+    can_review: false,
+    has_reviewed: false,
+    review: null,
   })
 })
 

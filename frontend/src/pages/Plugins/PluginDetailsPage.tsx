@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 
 import { getPublicPlugin, listPublicPlugins } from '../../api/pluginsApi'
+import { RatingDisplay } from '../../components/reviews/RatingDisplay'
+import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -97,7 +99,6 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
       ? discountPercent(plugin.price, plugin.discount_price)
       : null
   const browseCategoryHref = `/plugins?category=${encodeURIComponent(plugin.category.id)}`
-  const rating = Number(plugin.average_rating)
   const licenses: PluginLicenseType[] = ['standard', 'extended', 'commercial']
 
   const relatedQuery = useQuery({
@@ -152,7 +153,12 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
 
           <div className="product-detail-purchase__meta">
             <span className="product-detail-purchase__rating">
-              {rating > 0 ? `${rating.toFixed(1)} rating` : 'New plugin'}
+              <RatingDisplay
+                averageRating={plugin.average_rating}
+                reviewCount={plugin.review_count}
+                variant="detail"
+                className=""
+              />
               <span aria-hidden="true"> · </span>
               {plugin.total_downloads.toLocaleString()} downloads
             </span>
@@ -273,6 +279,14 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
           </a>
         </section>
       ) : null}
+
+      <ReviewsSection
+        productType="plugin"
+        productId={plugin.id}
+        catalogSlug={plugin.slug}
+        averageRating={plugin.average_rating}
+        reviewCount={plugin.review_count}
+      />
 
       <section className="product-detail-related" aria-labelledby="plugin-related-heading">
         <div className="product-detail-related__header">

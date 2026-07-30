@@ -671,6 +671,8 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         "quantity",
         "purchase_price",
         "line_total",
+        "can_download",
+        "files",
         "created_at",
         "updated_at",
     }

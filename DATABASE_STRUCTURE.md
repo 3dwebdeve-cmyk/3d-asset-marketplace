@@ -163,7 +163,7 @@ Stores payment transactions. Fields
  transaction_id
  amount  currency
  payment_status  payment_date
-Supported gateways:  Stripe  PayPal  Razorpay
+Supported gateway:  Stripe
 Invoices
 Stores invoice information. Fields
  id
@@ -174,12 +174,17 @@ Stores promotional offers. Fields
  id
  code  discount_type  discount_value  expiry_date  active
 Downloads
-Stores customer download records.
+Stores customer download event records (download_history table).
 Fields
- id
- user_id
- product_type  product_id
- signed_url  expires_at  download_count  downloaded_at
+ id (UUID)
+ user_id (FK)
+ product_type
+ product_id
+ file_id (ProductFile or PluginFile UUID)
+ file_name (snapshot at download time)
+ order_id (FK, nullable — best matching paid order)
+ downloaded_at
+Deferred until Cloudflare signed URLs: signed_url, expires_at
 Wishlist
 Stores customer favorite products. Fields
  id
@@ -191,8 +196,13 @@ Stores customer ratings. Fields
  user_id
  product_type  product_id
  rating
- review
+ review_text
+ is_hidden
  created_at
+ updated_at
+Product / Plugin aggregates
+ average_rating (denormalized from visible reviews)
+ review_count (denormalized count of visible reviews)
 Notifications
 Stores platform notifications. Fields
  id
@@ -267,7 +277,7 @@ The database follows industry-standard security practices:  Password hashing 
  Secure payment references  No storage of payment card details  Cloud storage references instead of local file paths  Automatic timestamps for auditing
  Signed download URLs  Server-side payment verification
 10. Scalability
-The database is designed to support:  More than 20,000 marketplace assets  More than 10,000 plugins  Thousands of concurrent users  Unlimited customer project requests  Future AI-assisted services  Multi-language support  Multi-currency support  Additional payment gateways  Future seller marketplace functionality
+The database is designed to support:  More than 20,000 marketplace assets  More than 10,000 plugins  Thousands of concurrent users  Unlimited customer project requests  Future AI-assisted services  Multi-language support  Multi-currency support  Stripe payment processing  Future seller marketplace functionality
 11. Conclusion
 The proposed database architecture provides a secure, scalable, and maintainable
 foundation for the 3D Model Marketplace Platform. It supports three primary business

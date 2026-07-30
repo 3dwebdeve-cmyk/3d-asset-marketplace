@@ -14,6 +14,7 @@ from orders.models import Order
 from orders.pagination import OrderPagination
 from orders.serializers import (
     AdminOrderCreateSerializer,
+    AdminOrderStatusUpdateSerializer,
     CustomerOrderDetailSerializer,
     CustomerOrderListSerializer,
     OrderDetailSerializer,
@@ -52,11 +53,15 @@ def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | Non
     return normalized
 
 
-def _detail_serializer_context(order: Order) -> dict:
+def _detail_serializer_context(order: Order, request: Request | None = None) -> dict:
     items = list(order.items.all())
-    return {
+    context = {
         "catalog_titles": OrderService.build_catalog_titles(items),
+        "order": order,
     }
+    if request is not None:
+        context["request"] = request
+    return context
 
 
 class AdminOrderListCreateView(APIView):
@@ -125,12 +130,40 @@ class AdminOrderListCreateView(APIView):
 
 class AdminOrderDetailView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminOrderWriteRateThrottle]
 
     def get(self, request: Request, order_id: UUID) -> Response:
         try:
             order = OrderService.get(order_id)
         except OrderError as exc:
             raise NotFound(detail=exc.message) from exc
+        return Response(
+            OrderDetailSerializer(order, context=_detail_serializer_context(order)).data
+        )
+
+    def patch(self, request: Request, order_id: UUID) -> Response:
+        serializer = AdminOrderStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            order = OrderService.get(order_id)
+            if "order_status" in serializer.validated_data:
+                order = OrderService.update_order_status(
+                    order,
+                    serializer.validated_data["order_status"],
+                )
+            if "payment_status" in serializer.validated_data:
+                order = OrderService.update_payment_status(
+                    order,
+                    serializer.validated_data["payment_status"],
+                )
+        except OrderError as exc:
+            return _error_response(exc)
+
+        log_admin_action(
+            action="order_status_update",
+            actor_id=str(request.user.id),
+            target_id=str(order.id),
+        )
         return Response(
             OrderDetailSerializer(order, context=_detail_serializer_context(order)).data
         )
@@ -174,6 +207,6 @@ class CustomerOrderDetailView(APIView):
         return Response(
             CustomerOrderDetailSerializer(
                 order,
-                context=_detail_serializer_context(order),
+                context=_detail_serializer_context(order, request),
             ).data
         )

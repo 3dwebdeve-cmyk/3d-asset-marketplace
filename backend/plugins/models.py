@@ -112,6 +112,7 @@ class Plugin(models.Model):
             MaxValueValidator(Decimal("5.00")),
         ],
     )
+    review_count = models.PositiveIntegerField(default=0)
     total_downloads = models.PositiveIntegerField(default=0)
     status = models.CharField(
         max_length=20,

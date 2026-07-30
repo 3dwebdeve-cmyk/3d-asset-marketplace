@@ -63,6 +63,7 @@ const samplePublicProducts = {
       category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
       license_type: 'standard' as const,
       average_rating: '4.80',
+      review_count: 0,
       total_downloads: 120,
       created_at: '2026-01-01T00:00:00Z',
     },
