@@ -29,7 +29,7 @@ Checklist
 • Never expose storage bucket paths.
 5. Payment Security
 • Verify every payment server-side.
-• Store payment gateway secrets in environment variables.
+• Store Stripe secrets in environment variables.
 • Generate invoices only after verified payment.
 • Log transaction IDs.
 6. Frontend Security

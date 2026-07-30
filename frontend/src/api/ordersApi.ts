@@ -3,6 +3,7 @@ import type {
   AdminOrder,
   AdminOrderCreatePayload,
   AdminOrderListParams,
+  AdminOrderStatusUpdatePayload,
   CustomerOrder,
   CustomerOrderListParams,
   PaginatedAdminOrders,
@@ -40,6 +41,17 @@ export async function createAdminOrder(
   payload: AdminOrderCreatePayload,
 ): Promise<AdminOrder> {
   const { data } = await apiClient.post<AdminOrder>('/api/admin/orders/', payload)
+  return data
+}
+
+export async function updateAdminOrderStatus(
+  orderId: string,
+  payload: AdminOrderStatusUpdatePayload,
+): Promise<AdminOrder> {
+  const { data } = await apiClient.patch<AdminOrder>(
+    `/api/admin/orders/${orderId}/`,
+    payload,
+  )
   return data
 }
 

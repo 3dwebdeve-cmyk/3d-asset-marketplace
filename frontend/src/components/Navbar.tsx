@@ -88,6 +88,9 @@ export function Navbar() {
                   <Link className="navbar__link" to="/dashboard/orders">
                     My Orders
                   </Link>
+                  <Link className="navbar__link" to="/dashboard/downloads">
+                    My Downloads
+                  </Link>
                   <button
                     type="button"
                     className="navbar__link navbar__link--with-badge navbar__cart-button"

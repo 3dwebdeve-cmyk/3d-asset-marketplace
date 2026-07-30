@@ -2,6 +2,9 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from downloads.serializers import OrderItemDownloadFileSerializer
+from downloads.services import DownloadService
+from orders.entitlements import order_allows_download
 from orders.models import Order, OrderItem
 
 
@@ -59,6 +62,50 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
         return f"{obj.line_total:.2f}"
 
 
+class CustomerOrderItemDetailSerializer(OrderItemDetailSerializer):
+    can_download = serializers.SerializerMethodField()
+    files = serializers.SerializerMethodField()
+
+    class Meta(OrderItemDetailSerializer.Meta):
+        fields = OrderItemDetailSerializer.Meta.fields + (
+            "can_download",
+            "files",
+        )
+
+    def get_can_download(self, obj: OrderItem) -> bool:
+        order = self.context.get("order")
+        if order is None:
+            return False
+        return order_allows_download(order)
+
+    def get_files(self, obj: OrderItem) -> list:
+        order = self.context.get("order")
+        if order is None or not order_allows_download(order):
+            return []
+
+        file_rows = DownloadService.list_downloadable_files_for_item(
+            obj.product_type,
+            obj.product_id,
+        )
+        request = self.context.get("request")
+        return OrderItemDownloadFileSerializer(
+            [
+                {
+                    "id": file_row.file_id,
+                    "file_name": file_row.file_name,
+                    "file_format": file_row.file_format,
+                    "file_size": file_row.file_size,
+                    "version": file_row.version,
+                    "product_type": file_row.product_type,
+                    "product_id": file_row.product_id,
+                }
+                for file_row in file_rows
+            ],
+            many=True,
+            context={"request": request},
+        ).data
+
+
 class OrderDetailSerializer(serializers.ModelSerializer):
     customer = OrderCustomerBriefSerializer(source="user", read_only=True)
     items = OrderItemDetailSerializer(many=True, read_only=True)
@@ -107,7 +154,7 @@ class CustomerOrderListSerializer(serializers.ModelSerializer):
 
 class CustomerOrderDetailSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
-    items = OrderItemDetailSerializer(many=True, read_only=True)
+    items = CustomerOrderItemDetailSerializer(many=True, read_only=True)
     items_total = serializers.SerializerMethodField()
 
     class Meta:
@@ -153,3 +200,21 @@ class AdminOrderCreateSerializer(serializers.Serializer):
 
     def validate_currency(self, value: str) -> str:
         return value.strip().upper()
+
+
+class AdminOrderStatusUpdateSerializer(serializers.Serializer):
+    order_status = serializers.ChoiceField(
+        choices=Order.OrderStatus.choices,
+        required=False,
+    )
+    payment_status = serializers.ChoiceField(
+        choices=Order.PaymentStatus.choices,
+        required=False,
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        if not attrs.get("order_status") and not attrs.get("payment_status"):
+            raise serializers.ValidationError(
+                "Provide order_status and/or payment_status."
+            )
+        return attrs

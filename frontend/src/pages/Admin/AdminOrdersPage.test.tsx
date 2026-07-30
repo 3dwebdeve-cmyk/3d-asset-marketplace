@@ -109,6 +109,7 @@ const sampleProduct = {
   game_ready: false,
   license_type: 'standard' as const,
   average_rating: '0.00',
+      review_count: 0,
   total_downloads: 0,
   status: 'published' as const,
   category: {

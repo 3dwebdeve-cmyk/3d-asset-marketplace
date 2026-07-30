@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as productsApi from '../../api/productsApi'
 import * as cartApi from '../../api/cartApi'
 import * as wishlistApi from '../../api/wishlistApi'
+import * as reviewsApi from '../../api/reviewsApi'
 import {
   createTestQueryClient,
   resetAuthStore,
@@ -52,6 +53,18 @@ vi.mock('../../api/wishlistApi', async () => {
   }
 })
 
+vi.mock('../../api/reviewsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/reviewsApi')>(
+    '../../api/reviewsApi',
+  )
+  return {
+    ...actual,
+    listReviews: vi.fn(),
+    getReviewEligibility: vi.fn(),
+    createReview: vi.fn(),
+  }
+})
+
 vi.mock('../../components/viewer/LazyModelViewer', () => ({
   LazyModelViewer: ({ ariaLabel }: { ariaLabel: string }) => (
     <div data-testid="lazy-model-viewer" role="img" aria-label={ariaLabel} />
@@ -83,6 +96,7 @@ const sampleDetail: PublicProductDetail = {
   game_ready: true,
   license_type: 'standard',
   average_rating: '4.80',
+  review_count: 12,
   total_downloads: 120,
   category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
   images: [
@@ -132,6 +146,7 @@ const relatedList = {
       category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
       license_type: 'standard' as const,
       average_rating: '4.80',
+      review_count: 0,
       total_downloads: 120,
       created_at: '2026-01-01T00:00:00Z',
     },
@@ -147,6 +162,7 @@ const relatedList = {
       category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
       license_type: 'extended' as const,
       average_rating: '4.20',
+      review_count: 0,
       total_downloads: 40,
       created_at: '2026-01-03T00:00:00Z',
     },
@@ -188,6 +204,17 @@ beforeEach(() => {
     item_count: 0,
     total_quantity: 0,
     items: [],
+  })
+  vi.mocked(reviewsApi.listReviews).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(reviewsApi.getReviewEligibility).mockResolvedValue({
+    can_review: false,
+    has_reviewed: false,
+    review: null,
   })
 })
 

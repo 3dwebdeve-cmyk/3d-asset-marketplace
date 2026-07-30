@@ -44,6 +44,7 @@ export interface AdminProduct {
   game_ready: boolean
   license_type: ProductLicenseType
   average_rating: string
+  review_count: number
   total_downloads: number
   status: ProductStatus
   category: CategoryParent
@@ -138,6 +139,7 @@ export interface PublicProduct {
   category: CategoryParent
   license_type: ProductLicenseType
   average_rating: string
+  review_count: number
   total_downloads: number
   created_at: string
 }
@@ -172,6 +174,7 @@ export interface PublicProductDetail {
   game_ready: boolean
   license_type: ProductLicenseType
   average_rating: string
+  review_count: number
   total_downloads: number
   category: CategoryParent
   images: ProductImage[]

@@ -17,6 +17,7 @@ export interface PublicPlugin {
   compatibility: string
   license_type: PluginLicenseType
   average_rating: string
+  review_count: number
   total_downloads: number
   category: PluginCategory
   created_at: string
@@ -106,6 +107,7 @@ export interface AdminPlugin {
   documentation_url: string
   license_type: PluginLicenseType
   average_rating: string
+  review_count: number
   total_downloads: number
   status: PluginStatus
   category: PluginCategory
@@ -128,6 +130,7 @@ export interface AdminPluginListItem {
   compatibility: string
   license_type: PluginLicenseType
   average_rating: string
+  review_count: number
   total_downloads: number
   status: PluginStatus
   category: PluginCategory

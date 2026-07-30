@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as downloadsApi from '../../api/downloadsApi'
 import * as ordersApi from '../../api/ordersApi'
 import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
@@ -20,9 +21,19 @@ vi.mock('../../api/ordersApi', async () => {
   }
 })
 
+vi.mock('../../api/downloadsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/downloadsApi')>(
+    '../../api/downloadsApi',
+  )
+  return {
+    ...actual,
+    downloadCatalogFileByUrl: vi.fn(),
+  }
+})
+
 const orderId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 
-const customerOrder: CustomerOrder = {
+const pendingOrder: CustomerOrder = {
   id: orderId,
   invoice_number: 'INV-20260729-ABCD',
   total_amount: '59.98',
@@ -40,12 +51,37 @@ const customerOrder: CustomerOrder = {
       quantity: 1,
       purchase_price: '39.99',
       line_total: '39.99',
+      can_download: false,
+      files: [],
       created_at: '2026-07-29T00:00:00Z',
       updated_at: '2026-07-29T00:00:00Z',
     },
   ],
   created_at: '2026-07-29T00:00:00Z',
   updated_at: '2026-07-29T00:00:00Z',
+}
+
+const paidOrder: CustomerOrder = {
+  ...pendingOrder,
+  order_status: 'paid',
+  payment_status: 'paid',
+  items: [
+    {
+      ...pendingOrder.items[0],
+      can_download: true,
+      files: [
+        {
+          id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+          file_name: 'hero-sword.zip',
+          file_format: 'zip',
+          file_size: 2048,
+          version: '1.0',
+          download_url:
+            '/api/downloads/products/cccccccc-cccc-cccc-cccc-cccccccccccc/files/dddddddd-dddd-dddd-dddd-dddddddddddd/download/',
+        },
+      ],
+    },
+  ],
 }
 
 function renderCustomerOrderDetailPage() {
@@ -70,35 +106,55 @@ beforeEach(() => {
     user: testUser,
     isAuthenticated: true,
   })
-  vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue(customerOrder)
+  vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue(pendingOrder)
 })
 
 describe('CustomerOrderDetailPage', () => {
   it('renders line items with title, quantity, and price', async () => {
     renderCustomerOrderDetailPage()
 
-    expect(await screen.findByRole('heading', { name: customerOrder.invoice_number })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: pendingOrder.invoice_number })).toBeInTheDocument()
     const table = screen.getByRole('table')
     expect(within(table).getByText('Hero Sword')).toBeInTheDocument()
     expect(within(table).getAllByText('USD 39.99')).toHaveLength(2)
     expect(within(table).getByText('1')).toBeInTheDocument()
   })
 
-  it('shows disabled download controls with purchase messaging', async () => {
+  it('shows disabled download controls when order is not fully paid', async () => {
     renderCustomerOrderDetailPage()
 
-    await screen.findByRole('heading', { name: customerOrder.invoice_number })
+    await screen.findByRole('heading', { name: pendingOrder.invoice_number })
     const downloadButton = screen.getByRole('button', { name: /^download$/i })
     expect(downloadButton).toBeDisabled()
-    expect(downloadButton).toHaveAttribute('title', 'Downloads available after purchase')
-    expect(screen.getByText(/downloads available after purchase/i)).toBeInTheDocument()
+    expect(downloadButton).toHaveAttribute(
+      'title',
+      'Downloads unlock when order and payment are both paid',
+    )
+    expect(
+      screen.getByText(/downloads unlock when both order and payment status are paid/i),
+    ).toBeInTheDocument()
+  })
+
+  it('enables download when order is fully paid', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue(paidOrder)
+    renderCustomerOrderDetailPage()
+
+    await screen.findByRole('heading', { name: paidOrder.invoice_number })
+    const downloadButton = screen.getByRole('button', { name: /^download$/i })
+    expect(downloadButton).toBeEnabled()
+    await user.click(downloadButton)
+    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(
+      paidOrder.items[0].files[0].download_url,
+      'hero-sword.zip',
+    )
   })
 
   it('shows error state and retries', async () => {
     const user = userEvent.setup()
     vi.mocked(ordersApi.getCustomerOrder)
       .mockRejectedValueOnce(new Error('network'))
-      .mockResolvedValueOnce(customerOrder)
+      .mockResolvedValueOnce(pendingOrder)
 
     renderCustomerOrderDetailPage()
 
@@ -107,7 +163,7 @@ describe('CustomerOrderDetailPage', () => {
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /retry/i }))
     expect(
-      await screen.findByRole('heading', { name: customerOrder.invoice_number }),
+      await screen.findByRole('heading', { name: pendingOrder.invoice_number }),
     ).toBeInTheDocument()
   })
 })

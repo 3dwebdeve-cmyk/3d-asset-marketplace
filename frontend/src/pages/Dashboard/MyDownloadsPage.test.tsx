@@ -1,0 +1,108 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import * as downloadsApi from '../../api/downloadsApi'
+import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
+import { useAuthStore } from '../../store/authStore'
+import type { DownloadEntitlement } from '../../types/download'
+import { MyDownloadsPage } from './MyDownloadsPage'
+
+vi.mock('../../api/downloadsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/downloadsApi')>(
+    '../../api/downloadsApi',
+  )
+  return {
+    ...actual,
+    listDownloadEntitlements: vi.fn(),
+    listDownloadHistory: vi.fn(),
+    downloadCatalogFile: vi.fn(),
+  }
+})
+
+const entitlement: DownloadEntitlement = {
+  product_type: 'product',
+  product_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+  title: 'Hero Sword',
+  slug: 'hero-sword',
+  files: [
+    {
+      id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+      file_name: 'hero-sword.zip',
+      file_format: 'zip',
+      file_size: 2048,
+      version: '1.0',
+      download_url: '/api/downloads/products/cccccccc-cccc-cccc-cccc-cccccccccccc/files/dddddddd-dddd-dddd-dddd-dddddddddddd/download/',
+      last_downloaded_at: null,
+    },
+  ],
+}
+
+function renderMyDownloadsPage() {
+  const queryClient = createTestQueryClient()
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <MyDownloadsPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+beforeEach(() => {
+  resetAuthStore()
+  vi.clearAllMocks()
+  useAuthStore.setState({
+    accessToken: 'access-token',
+    refreshToken: 'refresh-token',
+    user: testUser,
+    isAuthenticated: true,
+  })
+  vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([entitlement])
+  vi.mocked(downloadsApi.listDownloadHistory).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+})
+
+describe('MyDownloadsPage', () => {
+  it('renders library rows and downloads on click', async () => {
+    const user = userEvent.setup()
+    renderMyDownloadsPage()
+
+    expect(await screen.findByRole('heading', { name: /my downloads/i })).toBeInTheDocument()
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('Hero Sword')).toBeInTheDocument()
+    expect(within(table).getByText('hero-sword.zip')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^download$/i }))
+    expect(downloadsApi.downloadCatalogFile).toHaveBeenCalledWith(
+      'product',
+      entitlement.product_id,
+      entitlement.files[0].id,
+      'hero-sword.zip',
+    )
+  })
+
+  it('shows empty library state', async () => {
+    vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([])
+    renderMyDownloadsPage()
+
+    expect(
+      await screen.findByText(/do not have any downloadable purchases yet/i),
+    ).toBeInTheDocument()
+  })
+
+  it('shows download history tab', async () => {
+    const user = userEvent.setup()
+    renderMyDownloadsPage()
+
+    await screen.findByRole('heading', { name: /my downloads/i })
+    await user.click(screen.getByRole('tab', { name: /download history/i }))
+    expect(await screen.findByText(/no downloads recorded yet/i)).toBeInTheDocument()
+  })
+})

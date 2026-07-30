@@ -29,7 +29,13 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ("status", "license_type", "category")
     search_fields = ("name", "slug", "short_description")
     prepopulated_fields = {"slug": ("name",)}
-    readonly_fields = ("average_rating", "total_downloads", "created_at", "updated_at")
+    readonly_fields = (
+        "average_rating",
+        "review_count",
+        "total_downloads",
+        "created_at",
+        "updated_at",
+    )
     inlines = [ProductImageInline, ProductFileInline]
 
 

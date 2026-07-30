@@ -93,7 +93,7 @@ describe('Navbar', () => {
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
   })
 
-  it('shows user name, Dashboard, My Projects, My Orders, Wishlist, Profile, and Sign out when logged in', () => {
+  it('shows user name, Dashboard, My Projects, My Orders, My Downloads, Wishlist, Profile, and Sign out when logged in', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -112,6 +112,10 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /my orders/i })).toHaveAttribute(
       'href',
       '/dashboard/orders',
+    )
+    expect(screen.getByRole('link', { name: /my downloads/i })).toHaveAttribute(
+      'href',
+      '/dashboard/downloads',
     )
     expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^wishlist$/i })).toHaveAttribute(

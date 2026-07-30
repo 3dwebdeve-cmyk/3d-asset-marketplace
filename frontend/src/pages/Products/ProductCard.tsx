@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { RatingDisplay } from '../../components/reviews/RatingDisplay'
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import type { PublicProduct } from '../../types/product'
 
@@ -19,8 +20,6 @@ export function ProductCard({ product }: ProductCardProps) {
   const formattedDiscount = product.discount_price
     ? `$${Number(product.discount_price).toFixed(2)}`
     : null
-
-  const rating = Number(product.average_rating)
 
   return (
     <article className="product-card">
@@ -63,9 +62,10 @@ export function ProductCard({ product }: ProductCardProps) {
       <div className="product-card__body">
         <div className="product-card__meta">
           <span className="product-card__category">{product.category.name}</span>
-          <span className="product-card__rating">
-            ⭐ {rating > 0 ? rating.toFixed(1) : 'New'}
-          </span>
+          <RatingDisplay
+            averageRating={product.average_rating}
+            reviewCount={product.review_count}
+          />
         </div>
 
         <h3 className="product-card__title">

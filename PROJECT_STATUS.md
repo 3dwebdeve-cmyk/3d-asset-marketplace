@@ -5,11 +5,11 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~56%
+Overall Completion: ~58%
 Current Development Sprint
-Current Sprint: Sprint 3 – Marketplace
-Sprint Goal: Categories, products, and marketplace foundations
-Sprint Status: In Progress
+Current Sprint: Sprint 7 – Orders & Downloads
+Sprint Goal: Customer order history, secure purchase-gated downloads, download audit trail
+Sprint Status: Downloads complete (local storage); checkout/Stripe deferred
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -52,7 +52,7 @@ Sprint 5 – Plugin Store
 • [x] Plugin Categories (backend APIs)
 • [x] Plugin Listing (backend API)
 • [x] Plugin Details (backend API)
-• [ ] Plugin Downloads
+• [x] Plugin Downloads (authenticated local FileResponse; purchase-gated)
 • [x] Plugin Search (backend API)
 • [x] Public Plugin Browse Page (/plugins) — Feature 3A complete
   - Public TypeScript types (PublicPlugin, PublicPluginDetail, etc.)
@@ -79,21 +79,19 @@ Sprint 6 – Shopping & Payments
 • [x] Shopping Cart (no checkout — Feature 6)
 • [ ] Checkout
 • [ ] Stripe Integration
-• [ ] PayPal Integration
-• [ ] Razorpay Integration
 • [ ] Invoice Generation
 • [ ] Payment Verification
 Sprint 7 – Orders & Downloads
 • [x] Orders (Phase 15A — data model + service layer)
 • [x] Orders admin APIs (Phase 15B — admin list/detail + optional create)
 • [x] Orders admin UI (Feature 21 — list/detail/create SPA)
-• [ ] Order History
-• [ ] Secure Downloads
+• [x] Order History (customer list/detail at /dashboard/orders)
+• [x] Secure Downloads (local authenticated FileResponse; order+payment must be paid)
 • [ ] Signed Download URLs
-• [ ] Download History
+• [x] Download History (download_history table; customer + admin audit UI)
 Sprint 8 – Custom Project Portal
 • [x] Request Custom Project (customer API create/list/detail + reference upload)
-• [ ] Upload Reference Files (customer UI)
+• [x] Upload Reference Files (customer UI on project detail + request flow)
 • [x] Admin Review (admin list/detail/status/assign/notes)
 • [x] Project Quotation (admin upsert quotation API + UI)
 • [x] Project Messages (backend APIs + customer/admin detail thread UI)
@@ -110,9 +108,10 @@ Sprint 8 – Custom Project Portal
 Sprint 9 – Dashboards
 Customer Dashboard
 • [x] Profile
-• [ ] Orders
-• [ ] Downloads
+• [x] Orders (My Orders list/detail at /dashboard/orders)
+• [x] Downloads (My Downloads library + history at /dashboard/downloads)
 • [x] Wishlist
+• [x] Reviews & Ratings (purchase-gated; admin hide/delete; aggregates on cards/detail)
 • [x] My Projects
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
@@ -123,7 +122,9 @@ Admin Dashboard
 • [x] Product Management
 • [x] Plugin Management
 • [x] Custom Projects
-• [x] Orders (admin list/detail/create UI)
+• [x] Orders (admin list/detail/create UI; mark paid PATCH for testing)
+• [x] Reviews moderation (list / hide / delete)
+• [x] Download History audit (/admin/downloads)
 • [ ] Payments
 • [ ] Analytics
 Sprint 10 – Testing & Deployment
@@ -135,23 +136,29 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 4 — Custom Project Portal completion (non-payment).
+Checkout + Stripe integration (Feature 15 — payments); signed CDN URLs deferred until Cloudflare.
 Current Git Branch
 feature/custom-project-portal-completion
 Files Being Worked On
-• backend/custom_projects/services.py
-• backend/custom_projects/notifications.py
-• backend/custom_projects/views.py
-• backend/custom_projects/urls.py
-• backend/custom_projects/test_custom_projects.py
-• frontend/src/components/ui/StatusBadge.tsx
-• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx
-• frontend/src/pages/Dashboard/MyProjectsPage.tsx
-• frontend/src/pages/Dashboard/CustomerProjectReferenceFilesSection.tsx
-• frontend/src/pages/Admin/AdminProjectDetailPage.tsx
-• frontend/src/api/customProjectsApi.ts
-• PROJECT_STATUS.md
+• (none — Secure Downloads + Download History shipped 2026-07-30)
 Completed Features
+• Secure Downloads + Download History (2026-07-30)
+  - Backend: downloads app (DownloadHistory model, DownloadService, entitlement via order+payment paid)
+  - Backend: GET /api/downloads/entitlements/, /history/, product+plugin file download endpoints
+  - Backend: GET /api/admin/downloads/history/; order detail exposes can_download + files[] on paid orders
+  - Backend: 17 download API tests; DownloadRateThrottle (30/min)
+  - Frontend: MyDownloadsPage (library + history tabs), CustomerOrderDetailPage download buttons
+  - Frontend: AdminDownloadsPage audit table; Navbar/Dashboard links; downloadsApi blob helpers
+  - Docs: DATABASE_STRUCTURE.md + DatabaseDesign.md download_history table documented
+• Feature 7 — Customer Order History (2026-07-29)
+  - Customer GET /api/orders/ + /api/orders/:id/ (owner-scoped)
+  - MyOrdersPage + CustomerOrderDetailPage at /dashboard/orders
+• Feature 6 — Shopping Cart (2026-07-29)
+  - Backend cart app + APIs; CartPage, CartDrawer, AddToCartButton; checkout disabled until Stripe
+• Reviews & Ratings (2026-07-30)
+  - Purchase-gated create/update; public list; admin moderation; aggregates on product/plugin cards
+• Public Plugin Store UI (Feature 3A + 3B — 2026-07-29)
+  - PluginsBrowsePage + PluginDetailsPage at /plugins/:slug
 • Feature 4 — Custom Project Portal completion (non-payment) (2026-07-29)
   - Backend: delivery-required guard before status=completed (_apply_status)
   - Backend: illegal status transitions from terminal states (completed/rejected/cancelled) rejected with 400
@@ -225,11 +232,9 @@ Completed Features
 • Public marketplace browse page (/products) UI (hero, search, category/license filters, sorting, pagination, skeletal loading, error state)
 • Public product details page (/products/:slug) — Atelier-style two-column layout using brand cream/navy/blue tokens; gallery stage, purchase card, specs table, related products, SEO, auth-aware CTAs
 Pending Features
-• 3D product viewer
-• Public plugin store UI
-• Customer custom-project portal UI (request form, reference upload, quote approval)
-• Customer delivery UI (list + download on project detail)
-• Cart / payments / order APIs / downloads
+• Checkout + Stripe payment integration
+• Invoice generation
+• Signed download URLs (Cloudflare R2 / CDN — local authenticated downloads shipped)
 • Docker production stack
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
@@ -239,7 +244,7 @@ Bugs
 No Known Bugs
 Technical Debt
 • Avatar/product/plugin/custom-project storage is local MEDIA_ROOT (move to S3/R2 later)
-• Product/plugin downloadable files are reachable via MEDIA URL if path is known (signed URLs after payments)
+• Product/plugin catalog downloads use authenticated FileResponse (downloads app); private /media/ prefixes still blocked in DEBUG; signed CDN URLs deferred to Cloudflare phase
 • Custom-project admin reference file URLs use local MEDIA until signed entitlement downloads ship
 • Message attachment downloads use authenticated FileResponse (same private-media pattern as reference files); still local MEDIA until S3/R2
 • Project delivery downloads use authenticated FileResponse (same private-media pattern); still local MEDIA until S3/R2
@@ -253,7 +258,7 @@ Important Decisions
 • Customer login: POST /api/auth/login/; Admin login: POST /api/auth/admin/login/.
 • Admin user DELETE soft-deactivates (is_active=False); protect last active admin and self-lockout.
 • Product DELETE soft-archives (status=archived); public APIs only return status=published.
-• Public product file responses omit storage_path (download entitlement comes later).
+• Public product file responses omit storage_path; entitled customers receive download_url via orders/downloads APIs only.
 • Plugin categories are separate from product categories; public plugin file responses omit storage_path.
 • Plugin packages accept ZIP/RAR/7Z; ZIP metadata is scanned for traversal and expansion limits.
 • Custom projects are independent from marketplace orders; status transitions are enforced server-side.
@@ -272,8 +277,57 @@ Important Decisions
 • Public product detail CTAs gate checkout as coming soon; wishlist and cart are live for authenticated customers; guests are prompted to sign in; Share copies the public /products/:slug URL only.
 • Wishlist uses dedicated wishlist app (WishlistItem); product_type is product or plugin; only published catalog items can be added; owner-only list/add/remove (IDOR → 404); write endpoints throttled; no payment dependency.
 • Cart uses dedicated cart app (Cart + CartItem); product_type matches OrderItem (product | plugin); live catalog prices for subtotal; only published items can be added; owner-only CRUD (IDOR → 404); write endpoints throttled; checkout disabled until Feature 15.
-• Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; downloads disabled until Feature 15; line item titles use live Product/Plugin lookup until Feature 8 snapshots.
+• Catalog download entitlement requires order_status=paid AND payment_status=paid (stricter than reviews' order_status-only check); DownloadHistory logged per file fetch; total_downloads incremented on Product/Plugin.
+• Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles use live Product/Plugin lookup until Feature 8 snapshots.
 Daily Development Log
+Date: 2026-07-30 (Secure Downloads + Download History)
+Working Hours:
+Today's Objective: Purchase-gated catalog downloads (local storage), download audit trail, customer library UI, order-detail download buttons.
+Modules Completed: downloads app, orders/entitlements.py, customer + admin download APIs, MyDownloadsPage, AdminDownloadsPage, CustomerOrderDetailPage download wiring
+Files Created:
+• backend/downloads/ (models, services, views, urls, admin_urls, test_downloads.py, migration)
+• backend/orders/entitlements.py
+• frontend/src/api/downloadsApi.ts, downloadsApi.test.ts
+• frontend/src/types/download.ts
+• frontend/src/pages/Dashboard/MyDownloadsPage.tsx, MyDownloadsPage.test.tsx
+• frontend/src/pages/Admin/AdminDownloadsPage.tsx
+Files Modified:
+• backend/config/settings.py, urls.py; backend/accounts/throttles.py
+• backend/orders/serializers.py, views.py, test_orders.py
+• frontend/src/types/order.ts, App.tsx, Navbar.tsx, Navbar.test.tsx
+• frontend/src/pages/Dashboard/DashboardPage.tsx, CustomerOrderDetailPage.tsx, CustomerOrderDetailPage.test.tsx
+• frontend/src/config/adminNav.ts
+• DATABASE_STRUCTURE.md, docs/DatabaseDesign.md, PROJECT_STATUS.md
+Database Changes:
+• download_history table (DownloadHistory model)
+API Endpoints:
+• GET /api/downloads/entitlements/ — customer owned library
+• GET /api/downloads/history/ — customer paginated audit
+• GET /api/downloads/products/<uuid>/files/<uuid>/download/
+• GET /api/downloads/plugins/<uuid>/files/<uuid>/download/
+• GET /api/admin/downloads/history/ — admin paginated audit (email/type filters)
+Frontend Pages/Components Added:
+• /dashboard/downloads — MyDownloadsPage (library + history tabs)
+• /admin/downloads — AdminDownloadsPage
+• CustomerOrderDetailPage — enabled download buttons when order+payment paid
+• Navbar + Dashboard "My downloads" links
+Tests Added/Updated:
+• backend/downloads/test_downloads.py — 17 tests
+• frontend downloadsApi, MyDownloadsPage, CustomerOrderDetailPage, Navbar tests
+Security Checklist:
+• Entitlement: both order_status and payment_status must be paid; refunded/cancelled → 404
+• IDOR-safe: non-owners get 404 (not 403)
+• storage_path never exposed; download_url only via entitled APIs
+• Private /media/products/files/ and /media/plugins/files/ remain 404 in DEBUG
+• DownloadRateThrottle 30/min per user
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 15 — Checkout + Stripe (mark orders paid; download logic already works)
+Notes:
+• Signed CDN URLs explicitly deferred; swap DownloadService._stream_file when Cloudflare ships
+• Manual test: admin marks order paid (both statuses), customer downloads from /dashboard/downloads or order detail
+
 Date: 2026-07-29 (Feature 7 — Customer Order History complete)
 Working Hours:
 Today's Objective: Customer order history — Phase 1 backend APIs + Phase 2 dashboard UI (list, detail, navigation, tests).
@@ -296,7 +350,7 @@ API Endpoints (customer):
 • GET /api/orders/<uuid:order_id>/ — detail with line items (auth; IDOR → 404)
 Frontend Pages/Components Added:
 • /dashboard/orders — MyOrdersPage (table, filters, pagination, empty/loading/error)
-• /dashboard/orders/:orderId — CustomerOrderDetailPage (summary, line items, disabled download messaging)
+• /dashboard/orders/:orderId — CustomerOrderDetailPage (summary, line items, download buttons when fully paid)
 • OrderStatusBadge / OrderPaymentStatusBadge
 • Navbar + Dashboard "My orders" links (customers only)
 Tests Added/Updated:
@@ -304,8 +358,8 @@ Tests Added/Updated:
 • frontend ordersApi, MyOrdersPage, CustomerOrderDetailPage, Navbar tests — 18 tests passing in touched frontend suite
 Security Checklist:
 • Owner-only API queryset; other users' order IDs → 404
-• No customer_id, storage_path, or download URLs in responses
-• Downloads disabled in UI with clear messaging until Feature 15
+• No customer_id or storage_path in responses; download_url only for entitled paid orders/downloads APIs
+• Paid-order downloads via authenticated FileResponse (local storage); storage_path never exposed; requires order_status=paid AND payment_status=paid
 • Queries enabled only for authenticated non-admin customers
 Issues / Blockers:
 • None
@@ -2031,24 +2085,24 @@ Deployment Checklist
 • [ ] Frontend Stable
 • [ ] Database Stable
 • [ ] Payments Tested
-• [ ] Downloads Tested
+• [x] Downloads Tested
 • [ ] Security Reviewed
 • [ ] Docker Ready
 • [ ] Production Ready
 Final Release Checklist
-• [ ] Marketplace Complete
-• [ ] Plugin Store Complete
-• [ ] Custom Project Portal Complete
-• [ ] Customer Dashboard Complete
-• [ ] Admin Dashboard Complete
+• [x] Marketplace Complete
+• [x] Plugin Store Complete (signed CDN URLs deferred)
+• [x] Custom Project Portal Complete (non-payment)
+• [x] Customer Dashboard Complete (checkout/payments deferred)
+• [x] Admin Dashboard Complete (payments/analytics deferred)
 • [ ] Payment System Complete
-• [ ] Secure Downloads Complete
+• [x] Secure Downloads Complete
 • [ ] Security Testing Complete
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~50%
-Estimated Remaining Work: Marketplace UI + payments + plugins + custom projects + full admin
+Current Completion Percentage: ~58%
+Estimated Remaining Work: Checkout/Stripe payments, signed CDN URLs (Cloudflare), Docker production stack, analytics, final QA
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
@@ -2884,24 +2938,24 @@ Deployment Checklist
 • [ ] Frontend Stable
 • [ ] Database Stable
 • [ ] Payments Tested
-• [ ] Downloads Tested
+• [x] Downloads Tested
 • [ ] Security Reviewed
 • [ ] Docker Ready
 • [ ] Production Ready
 Final Release Checklist
-• [ ] Marketplace Complete
-• [ ] Plugin Store Complete
-• [ ] Custom Project Portal Complete
-• [ ] Customer Dashboard Complete
-• [ ] Admin Dashboard Complete
+• [x] Marketplace Complete
+• [x] Plugin Store Complete (signed CDN URLs deferred)
+• [x] Custom Project Portal Complete (non-payment)
+• [x] Customer Dashboard Complete (checkout/payments deferred)
+• [x] Admin Dashboard Complete (payments/analytics deferred)
 • [ ] Payment System Complete
-• [ ] Secure Downloads Complete
+• [x] Secure Downloads Complete
 • [ ] Security Testing Complete
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~48%
-Estimated Remaining Work: Marketplace UI + payments + plugins + custom projects + full admin
+Current Completion Percentage: ~58%
+Estimated Remaining Work: Checkout/Stripe payments, signed CDN URLs (Cloudflare), Docker production stack, analytics, final QA
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.

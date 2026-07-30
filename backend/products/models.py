@@ -61,6 +61,7 @@ class Product(models.Model):
         default=Decimal("0.00"),
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    review_count = models.PositiveIntegerField(default=0)
     total_downloads = models.PositiveIntegerField(default=0)
     status = models.CharField(
         max_length=20,

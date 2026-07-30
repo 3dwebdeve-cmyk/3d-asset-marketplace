@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 
-import { getAdminOrder } from '../../api/ordersApi'
+import { getAdminOrder, updateAdminOrderStatus } from '../../api/ordersApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
+import { getApiErrorMessage } from '../../lib/apiError'
+import { toast } from '../../lib/toast'
 import {
   ORDER_PAYMENT_STATUS_LABELS,
   ORDER_STATUS_LABELS,
@@ -22,11 +24,28 @@ function formatDate(value: string): string {
 
 export function AdminOrderDetailPage() {
   const { orderId = '' } = useParams()
+  const queryClient = useQueryClient()
 
   const orderQuery = useQuery({
     queryKey: ['admin', 'orders', orderId],
     queryFn: () => getAdminOrder(orderId),
     enabled: Boolean(orderId),
+  })
+
+  const markPaidMutation = useMutation({
+    mutationFn: () =>
+      updateAdminOrderStatus(orderId, {
+        order_status: 'paid',
+        payment_status: 'paid',
+      }),
+    onSuccess: async (order) => {
+      queryClient.setQueryData(['admin', 'orders', orderId], order)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'orders'] })
+      toast.success('Order marked as paid.')
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, 'Could not update order status.'))
+    },
   })
 
   if (orderQuery.isLoading) {
@@ -59,6 +78,8 @@ export function AdminOrderDetailPage() {
   }
 
   const order = orderQuery.data
+  const canMarkPaid =
+    order.order_status === 'pending' || order.payment_status === 'pending'
 
   return (
     <main className="dashboard-page">
@@ -69,6 +90,14 @@ export function AdminOrderDetailPage() {
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/orders">
             Back to orders
           </Link>
+          {canMarkPaid ? (
+            <Button
+              onClick={() => markPaidMutation.mutate()}
+              disabled={markPaidMutation.isPending}
+            >
+              {markPaidMutation.isPending ? 'Marking paid…' : 'Mark as paid'}
+            </Button>
+          ) : null}
         </div>
         <p className="home-page__subtitle">
           Customer: {order.customer.full_name} ({order.customer.email})
