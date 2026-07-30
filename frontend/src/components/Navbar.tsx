@@ -66,6 +66,15 @@ export function Navbar() {
           <Link className="navbar__link" to="/plugins">
             Plugins
           </Link>
+          <Link className="navbar__link" to="/custom-projects">
+            Custom Projects
+          </Link>
+          <Link className="navbar__link" to="/about">
+            About
+          </Link>
+          <Link className="navbar__link" to="/contact">
+            Contact
+          </Link>
           {isAuthenticated ? (
             <>
               {user?.full_name ? (

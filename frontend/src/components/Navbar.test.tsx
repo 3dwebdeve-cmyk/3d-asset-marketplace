@@ -77,8 +77,11 @@ beforeEach(() => {
     id: 'cart-id',
     currency: 'USD',
     subtotal: '0.00',
+    discount_amount: '0.00',
+    total: '0.00',
     item_count: 0,
     total_quantity: 0,
+    coupon: null,
     items: [],
   })
 })
@@ -89,6 +92,12 @@ describe('Navbar', () => {
 
     expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /register/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^about$/i })).toHaveAttribute('href', '/about')
+    expect(screen.getByRole('link', { name: /^contact$/i })).toHaveAttribute('href', '/contact')
+    expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
+      'href',
+      '/custom-projects',
+    )
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
   })
@@ -139,8 +148,11 @@ describe('Navbar', () => {
       id: 'cart-id',
       currency: 'USD',
       subtotal: '59.98',
+      discount_amount: '0.00',
+      total: '59.98',
       item_count: 2,
       total_quantity: 3,
+      coupon: null,
       items: [],
     })
 

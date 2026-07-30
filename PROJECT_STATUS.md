@@ -77,6 +77,7 @@ Sprint 5 – Plugin Store
   - 15/15 unit tests passing
 Sprint 6 – Shopping & Payments
 • [x] Shopping Cart (no checkout — Feature 6)
+• [x] Coupons / Discount codes (admin CRUD + cart apply; Stripe later)
 • [ ] Checkout
 • [ ] Stripe Integration
 • [ ] Invoice Generation
@@ -123,10 +124,16 @@ Admin Dashboard
 • [x] Plugin Management
 • [x] Custom Projects
 • [x] Orders (admin list/detail/create UI; mark paid PATCH for testing)
+• [x] Coupons (list/create/detail; percent or fixed; expiry + usage limits)
 • [x] Reviews moderation (list / hide / delete)
 • [x] Download History audit (/admin/downloads)
 • [ ] Payments
 • [ ] Analytics
+Public Site Pages
+• [x] About page (/about) — studio mission, offerings, trust, CTAs
+• [x] Contact form (/contact) — POST /api/contact/ emails admin; honeypot + rate limit
+• [x] Custom Projects landing (/custom-projects) — marketing page linking to request flow
+• [x] Site footer + navbar discovery links; login honors state.from redirect
 Sprint 10 – Testing & Deployment
 • [ ] API Testing
 • [ ] UI Testing
@@ -136,12 +143,26 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Checkout + Stripe integration (Feature 15 — payments); signed CDN URLs deferred until Cloudflare.
+Checkout + Stripe integration (Feature 15 — payments); coupons already apply on cart totals.
 Current Git Branch
 feature/custom-project-portal-completion
 Files Being Worked On
-• (none — Secure Downloads + Download History shipped 2026-07-30)
+• (none — Coupons / Discount codes shipped 2026-07-30)
 Completed Features
+• Public Site Pages — About, Contact, Custom Projects landing (2026-07-30)
+  - Backend: contact app — POST /api/contact/ (AllowAny, ContactFormRateThrottle 5/hour)
+  - Backend: ContactService emails CONTACT_ADMIN_RECIPIENTS (fallback PROJECT_MESSAGE_ADMIN_RECIPIENTS, then admins)
+  - Backend: honeypot field, header-safe sanitization, non-blocking send_mail; 7 API tests
+  - Frontend: AboutPage, ContactPage (Zod + RHF), CustomProjectsLandingPage with auth-aware CTAs
+  - Frontend: SiteFooter; Navbar About/Contact/Custom Projects links; Home “Request custom work” CTA
+  - Frontend: LoginPage honors ProtectedRoute state.from (safe path only)
+• Coupons / Discount codes (2026-07-30)
+  - Backend: coupons app (Coupon model, CouponService, admin CRUD APIs, audit logging, AdminCouponWriteRateThrottle)
+  - Backend: Cart.coupon FK; POST/DELETE /api/cart/coupon/; server-side discount_amount + total on cart envelope
+  - Backend: percent/fixed discounts capped at subtotal; stale/inactive/expired coupons cleared on cart GET
+  - Backend: 27 coupons+cart API tests passing; times_used reserved for Feature 15 checkout increment
+  - Frontend: AdminCouponsPage + AdminCouponDetailPage; Coupons admin nav
+  - Frontend: CartCouponForm on CartPage + CartDrawer; subtotal / discount / total display
 • Secure Downloads + Download History (2026-07-30)
   - Backend: downloads app (DownloadHistory model, DownloadService, entitlement via order+payment paid)
   - Backend: GET /api/downloads/entitlements/, /history/, product+plugin file download endpoints
@@ -276,10 +297,61 @@ Important Decisions
 • React Three Fiber selected for 3D previews.
 • Public product detail CTAs gate checkout as coming soon; wishlist and cart are live for authenticated customers; guests are prompted to sign in; Share copies the public /products/:slug URL only.
 • Wishlist uses dedicated wishlist app (WishlistItem); product_type is product or plugin; only published catalog items can be added; owner-only list/add/remove (IDOR → 404); write endpoints throttled; no payment dependency.
-• Cart uses dedicated cart app (Cart + CartItem); product_type matches OrderItem (product | plugin); live catalog prices for subtotal; only published items can be added; owner-only CRUD (IDOR → 404); write endpoints throttled; checkout disabled until Feature 15.
+• Cart uses dedicated cart app (Cart + CartItem); product_type matches OrderItem (product | plugin); live catalog prices for subtotal; optional coupon discount applied server-side to subtotal; only published items can be added; owner-only CRUD (IDOR → 404); write endpoints throttled; checkout disabled until Feature 15.
+• Coupons use dedicated coupons app; codes are uppercase unique; percent/fixed discounts capped at cart subtotal; times_used increments at Feature 15 checkout (not on apply); max_uses_per_user stored for checkout enforcement later.
 • Catalog download entitlement requires order_status=paid AND payment_status=paid (stricter than reviews' order_status-only check); DownloadHistory logged per file fetch; total_downloads incremented on Product/Plugin.
 • Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles use live Product/Plugin lookup until Feature 8 snapshots.
 Daily Development Log
+Date: 2026-07-30 (Coupons / Discount codes)
+Working Hours:
+Today's Objective: Admin coupon CRUD + customer apply/remove on cart with server-side discounted totals (no Stripe).
+Modules Completed: coupons Django app, cart coupon wiring, Admin coupons UI, CartPage/CartDrawer coupon form
+Files Created:
+• backend/coupons/ (models, services, serializers, views, admin_urls, pagination, admin, test_coupons.py, migration 0001)
+• backend/cart/migrations/0002_cart_coupon.py
+• frontend/src/types/coupon.ts
+• frontend/src/api/adminCouponsApi.ts
+• frontend/src/components/cart/CartCouponForm.tsx
+• frontend/src/pages/Admin/AdminCouponsPage.tsx, AdminCouponDetailPage.tsx
+Files Modified:
+• backend/config/settings.py, urls.py; backend/accounts/throttles.py
+• backend/cart/models.py, services.py, serializers.py, views.py, urls.py, test_cart.py
+• frontend/src/types/cart.ts, api/cartApi.ts, api/cartApi.test.ts, hooks/useCart.ts
+• frontend/src/pages/Cart/CartPage.tsx, CartPage.test.tsx
+• frontend/src/components/cart/CartDrawer.tsx; styles/cart.css
+• frontend/src/App.tsx, config/adminNav.ts
+• frontend cart mocks in Navbar/ProductDetails/PluginDetails tests
+• PROJECT_STATUS.md
+Database Changes:
+• coupons table (Coupon model)
+• carts.coupon_id nullable FK → coupons
+API Endpoints:
+• GET/POST /api/admin/coupons/
+• GET/PATCH/DELETE /api/admin/coupons/<uuid>/ (DELETE soft-deactivates; ?hard=true deletes unused)
+• POST /api/cart/coupon/ — apply code
+• DELETE /api/cart/coupon/ — remove applied coupon
+• GET /api/cart/ — now includes discount_amount, total, coupon
+Frontend Pages/Components Added:
+• /admin/coupons — AdminCouponsPage
+• /admin/coupons/:couponId — AdminCouponDetailPage
+• CartCouponForm on CartPage + CartDrawer
+Tests Added/Updated:
+• backend/coupons/test_coupons.py + cart coupon tests — 27 passing
+• frontend CartPage, cartApi tests updated/extended
+Security Checklist:
+• Admin-only coupon CRUD (IsAdministrator); customer 403
+• Coupon apply/remove authenticated + CartWriteRateThrottle
+• Discount never trusted from client; invalid codes use generic error
+• Admin create/update/deactivate/delete logged via log_admin_action
+• Coupon codes rendered as plain text (XSS-safe)
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 15 — Checkout + Stripe (charge cart.total; snapshot coupon; increment times_used)
+Notes:
+• max_uses_per_user is stored and editable; historical per-user redemption checks wait for order coupon linkage at checkout
+• Catalog discount_price remains SKU-level; coupon is cart-level on top of effective prices
+
 Date: 2026-07-30 (Secure Downloads + Download History)
 Working Hours:
 Today's Objective: Purchase-gated catalog downloads (local storage), download audit trail, customer library UI, order-detail download buttons.

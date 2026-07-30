@@ -13,6 +13,7 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Categories', to: '/admin/categories', enabled: true },
   { label: 'Users', to: '/admin/users', enabled: true },
   { label: 'Orders', to: '/admin/orders', enabled: true },
+  { label: 'Coupons', to: '/admin/coupons', enabled: true },
   { label: 'Reviews', to: '/admin/reviews', enabled: true },
   { label: 'Downloads', to: '/admin/downloads', enabled: true },
   { label: 'Projects', to: '/admin/projects', enabled: true },

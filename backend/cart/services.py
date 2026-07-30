@@ -5,6 +5,8 @@ Cart pricing policy (v1):
 - Prices are NOT snapshotted in the cart; checkout (Feature 15) snapshots
   purchase_price on OrderItem via OrderService.create().
 - Unavailable catalog lines remain in the cart but are excluded from subtotal.
+- Optional coupon discount is applied to the cart subtotal server-side.
+  times_used increments at checkout (Feature 15), not on apply.
 """
 from __future__ import annotations
 
@@ -15,9 +17,9 @@ from uuid import UUID
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import QuerySet
-
 from cart.models import Cart, CartItem
+from coupons.models import Coupon
+from coupons.services import CouponError, CouponService, ZERO
 from plugins.models import Plugin
 from products.models import Product
 
@@ -36,6 +38,8 @@ class CartError(Exception):
 @dataclass(frozen=True)
 class CartTotals:
     subtotal: Decimal
+    discount_amount: Decimal
+    total: Decimal
     currency: str
     item_count: int
     total_quantity: int
@@ -47,21 +51,31 @@ class CartEnvelope:
     items: list[CartItem]
     totals: CartTotals
     snapshots: dict[tuple[str, UUID], dict[str, Any] | None]
+    coupon: Coupon | None
 
 
 class CartService:
     @classmethod
     def get_or_create_cart(cls, user: User) -> Cart:
-        cart, _ = Cart.objects.get_or_create(user=user)
-        return cart
+        cart, created = Cart.objects.get_or_create(user=user)
+        if created:
+            return cart
+        return Cart.objects.select_related("coupon").get(pk=cart.pk)
 
     @classmethod
     def get_cart_envelope(cls, user: User) -> CartEnvelope:
         cart = cls.get_or_create_cart(user)
         items = list(cart.items.order_by("created_at"))
         snapshots = cls.build_catalog_snapshots(items)
-        totals = cls._compute_totals(items, snapshots)
-        return CartEnvelope(cart=cart, items=items, totals=totals, snapshots=snapshots)
+        coupon = cls._resolve_applied_coupon(cart)
+        totals = cls._compute_totals(items, snapshots, coupon)
+        return CartEnvelope(
+            cart=cart,
+            items=items,
+            totals=totals,
+            snapshots=snapshots,
+            coupon=coupon,
+        )
 
     @classmethod
     @transaction.atomic
@@ -141,6 +155,59 @@ class CartService:
     def clear_cart(cls, user: User) -> None:
         cart = cls.get_or_create_cart(user)
         cart.items.all().delete()
+        if cart.coupon_id is not None:
+            cart.coupon = None
+            cart.save(update_fields=["coupon", "updated_at"])
+
+    @classmethod
+    @transaction.atomic
+    def apply_coupon(cls, user: User, code: str) -> CartEnvelope:
+        cart = cls.get_or_create_cart(user)
+        cart = Cart.objects.select_for_update().get(pk=cart.pk)
+        items = list(cart.items.order_by("created_at"))
+        snapshots = cls.build_catalog_snapshots(items)
+        subtotal = cls._compute_subtotal(items, snapshots)
+
+        try:
+            coupon = CouponService.get_by_code(code)
+            CouponService.assert_redeemable(coupon, subtotal=subtotal)
+        except CouponError as exc:
+            raise CartError(exc.message, field=exc.field) from exc
+
+        cart.coupon = coupon
+        cart.save(update_fields=["coupon", "updated_at"])
+        return cls.get_cart_envelope(user)
+
+    @classmethod
+    @transaction.atomic
+    def remove_coupon(cls, user: User) -> CartEnvelope:
+        cart = cls.get_or_create_cart(user)
+        if cart.coupon_id is not None:
+            cart.coupon = None
+            cart.save(update_fields=["coupon", "updated_at"])
+        return cls.get_cart_envelope(user)
+
+    @classmethod
+    def _resolve_applied_coupon(cls, cart: Cart) -> Coupon | None:
+        if cart.coupon_id is None:
+            return None
+
+        coupon = cart.coupon
+        if coupon is None:
+            return None
+
+        items = list(cart.items.order_by("created_at"))
+        snapshots = cls.build_catalog_snapshots(items)
+        subtotal = cls._compute_subtotal(items, snapshots)
+
+        try:
+            CouponService.assert_redeemable(coupon, subtotal=subtotal)
+        except CouponError:
+            cart.coupon = None
+            cart.save(update_fields=["coupon", "updated_at"])
+            return None
+
+        return coupon
 
     @classmethod
     def _ensure_currency_consistency(cls, cart: Cart, currency: str) -> None:
@@ -297,26 +364,41 @@ class CartService:
         }
 
     @classmethod
-    def _compute_totals(
+    def _compute_subtotal(
         cls,
         items: Iterable[CartItem],
         snapshots: dict[tuple[str, UUID], dict[str, Any] | None],
-    ) -> CartTotals:
-        item_list = list(items)
+    ) -> Decimal:
         subtotal = Decimal("0.00")
-        total_quantity = 0
-
-        for item in item_list:
-            total_quantity += item.quantity
+        for item in items:
             snapshot = snapshots.get((item.product_type, item.product_id))
             if not snapshot or not snapshot.get("is_available"):
                 continue
             effective_price = Decimal(snapshot["effective_price"])
             subtotal += effective_price * item.quantity
+        return subtotal.quantize(Decimal("0.01"))
 
+    @classmethod
+    def _compute_totals(
+        cls,
+        items: Iterable[CartItem],
+        snapshots: dict[tuple[str, UUID], dict[str, Any] | None],
+        coupon: Coupon | None,
+    ) -> CartTotals:
+        item_list = list(items)
+        subtotal = cls._compute_subtotal(item_list, snapshots)
+        total_quantity = sum(item.quantity for item in item_list)
+
+        discount_amount = ZERO
+        if coupon is not None:
+            discount_amount = CouponService.compute_discount(subtotal, coupon)
+
+        total = (subtotal - discount_amount).quantize(Decimal("0.01"))
         currency = cls._resolve_cart_currency(item_list, snapshots)
         return CartTotals(
-            subtotal=subtotal.quantize(Decimal("0.01")),
+            subtotal=subtotal,
+            discount_amount=discount_amount,
+            total=total,
             currency=currency,
             item_count=len(item_list),
             total_quantity=total_quantity,

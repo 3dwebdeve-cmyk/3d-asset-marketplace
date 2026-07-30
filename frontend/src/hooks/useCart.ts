@@ -3,8 +3,10 @@ import { useCallback, useMemo } from 'react'
 
 import {
   addCartItem,
+  applyCartCoupon,
   clearCart,
   getCart,
+  removeCartCoupon,
   removeCartItem,
   updateCartItemQuantity,
 } from '../api/cartApi'
@@ -87,6 +89,30 @@ export function useCart() {
     },
   })
 
+  const applyCouponMutation = useMutation({
+    mutationFn: (code: string) => applyCartCoupon({ code }),
+    onSuccess: async (cart) => {
+      queryClient.setQueryData(['cart'], cart)
+      await queryClient.invalidateQueries({ queryKey: ['cart', 'count'] })
+      toast.success('Coupon applied.')
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, 'Could not apply coupon.'))
+    },
+  })
+
+  const removeCouponMutation = useMutation({
+    mutationFn: removeCartCoupon,
+    onSuccess: async (cart) => {
+      queryClient.setQueryData(['cart'], cart)
+      await queryClient.invalidateQueries({ queryKey: ['cart', 'count'] })
+      toast.success('Coupon removed.')
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, 'Could not remove coupon.'))
+    },
+  })
+
   const lookup = useMemo(() => {
     const map = new Map<string, string>()
     for (const item of cartQuery.data?.items ?? []) {
@@ -138,11 +164,30 @@ export function useCart() {
     clearMutation.mutate()
   }, [clearMutation, isSignedIn])
 
+  const applyCoupon = useCallback(
+    (code: string) => {
+      if (!isSignedIn) {
+        return
+      }
+      applyCouponMutation.mutate(code)
+    },
+    [applyCouponMutation, isSignedIn],
+  )
+
+  const removeCoupon = useCallback(() => {
+    if (!isSignedIn) {
+      return
+    }
+    removeCouponMutation.mutate()
+  }, [isSignedIn, removeCouponMutation])
+
   const isPending =
     addMutation.isPending ||
     updateQuantityMutation.isPending ||
     removeMutation.isPending ||
-    clearMutation.isPending
+    clearMutation.isPending ||
+    applyCouponMutation.isPending ||
+    removeCouponMutation.isPending
 
   return {
     cart: cartQuery.data,
@@ -152,11 +197,17 @@ export function useCart() {
     updateQuantity,
     remove,
     clear,
+    applyCoupon,
+    removeCoupon,
     isLoading: cartQuery.isLoading || countQuery.isLoading,
     isPending,
     isSignedIn,
     isError: cartQuery.isError,
     error: cartQuery.error,
     refetch: cartQuery.refetch,
+    couponError: applyCouponMutation.error
+      ? getApiErrorMessage(applyCouponMutation.error, 'Could not apply coupon.')
+      : null,
+    clearCouponError: applyCouponMutation.reset,
   }
 }

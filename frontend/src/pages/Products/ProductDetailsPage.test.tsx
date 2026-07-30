@@ -201,8 +201,11 @@ beforeEach(() => {
     id: 'cart-id',
     currency: 'USD',
     subtotal: '0.00',
+    discount_amount: '0.00',
+    total: '0.00',
     item_count: 0,
     total_quantity: 0,
+    coupon: null,
     items: [],
   })
   vi.mocked(reviewsApi.listReviews).mockResolvedValue({

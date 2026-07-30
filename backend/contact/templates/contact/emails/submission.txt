@@ -1,0 +1,7 @@
+A visitor submitted the public contact form.
+
+From: {{ sender_name }} <{{ sender_email }}>
+Subject: {{ subject }}
+
+Message:
+{{ message }}

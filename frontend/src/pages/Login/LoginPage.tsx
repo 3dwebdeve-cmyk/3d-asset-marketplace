@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
@@ -9,10 +9,25 @@ import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
 import { useLoginForm } from './useLoginForm'
 
+function safePostLoginPath(fromPathname: unknown): string | null {
+  if (typeof fromPathname !== 'string' || !fromPathname.startsWith('/')) {
+    return null
+  }
+  // Prevent open redirects to external URLs or protocol-relative paths.
+  if (fromPathname.startsWith('//') || fromPathname.includes('\\')) {
+    return null
+  }
+  return fromPathname
+}
+
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
+  const redirectFrom = safePostLoginPath(
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname,
+  )
   const {
     register,
     handleSubmit,
@@ -30,15 +45,17 @@ export function LoginPage() {
     }
 
     const role = useAuthStore.getState().user?.role
-    navigate(isAdministrator(role) ? '/admin' : '/dashboard', { replace: true })
-  }, [isSuccess, navigate])
+    navigate(isAdministrator(role) ? '/admin' : (redirectFrom ?? '/dashboard'), {
+      replace: true,
+    })
+  }, [isSuccess, navigate, redirectFrom])
 
   if (isAuthenticated && isAdministrator(user?.role)) {
     return <Navigate to="/admin" replace />
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={redirectFrom ?? '/dashboard'} replace />
   }
 
   const showAdminLoginHint =
