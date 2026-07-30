@@ -24,6 +24,9 @@ export function HomePage() {
           <Link className="home-page__cta" to="/products">
             Browse Marketplace
           </Link>
+          <Link className="home-page__cta home-page__cta--secondary" to="/custom-projects">
+            Request custom work
+          </Link>
           {isAuthenticated ? (
             <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
               Go to dashboard

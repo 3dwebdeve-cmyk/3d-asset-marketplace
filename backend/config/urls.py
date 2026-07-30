@@ -42,6 +42,8 @@ urlpatterns = [
     path('api/admin/reviews/', include('reviews.admin_urls')),
     path('api/downloads/', include('downloads.urls')),
     path('api/admin/downloads/', include('downloads.admin_urls')),
+    path('api/admin/coupons/', include('coupons.admin_urls')),
+    path('api/contact/', include('contact.urls')),
 ]
 
 # DEBUG only: serve public media prefixes. Private packages/references use

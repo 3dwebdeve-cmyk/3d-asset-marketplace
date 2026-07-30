@@ -18,6 +18,8 @@ vi.mock('../../api/cartApi', async () => {
     updateCartItemQuantity: vi.fn(),
     removeCartItem: vi.fn(),
     clearCart: vi.fn(),
+    applyCartCoupon: vi.fn(),
+    removeCartCoupon: vi.fn(),
   }
 })
 
@@ -28,8 +30,11 @@ const sampleCart = {
   id: 'cart-id',
   currency: 'USD',
   subtotal: '59.98',
+  discount_amount: '0.00',
+  total: '59.98',
   item_count: 1,
   total_quantity: 2,
+  coupon: null,
   items: [
     {
       id: itemId,
@@ -80,7 +85,7 @@ beforeEach(() => {
 })
 
 describe('CartPage', () => {
-  it('renders cart line items, subtotal, and disabled checkout', async () => {
+  it('renders cart line items, subtotal, total, and disabled checkout', async () => {
     renderCartPage()
 
     expect(await screen.findByRole('link', { name: /oak chair/i })).toHaveAttribute(
@@ -89,7 +94,38 @@ describe('CartPage', () => {
     )
     expect(screen.getByText('Product')).toBeInTheDocument()
     expect(screen.getAllByText('$59.98').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(/coupon code/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /payments coming soon/i })).toBeDisabled()
+  })
+
+  it('applies a coupon code', async () => {
+    const user = userEvent.setup()
+    vi.mocked(cartApi.applyCartCoupon).mockResolvedValue({
+      ...sampleCart,
+      discount_amount: '6.00',
+      total: '53.98',
+      coupon: {
+        code: 'SAVE10',
+        discount_type: 'percent',
+        discount_value: '10.00',
+      },
+    })
+
+    renderCartPage()
+    await screen.findByRole('link', { name: /oak chair/i })
+
+    await user.type(screen.getByLabelText(/coupon code/i), 'SAVE10')
+    await user.click(screen.getByRole('button', { name: /^apply$/i }))
+
+    await waitFor(() => {
+      expect(vi.mocked(cartApi.applyCartCoupon).mock.calls[0]?.[0]).toEqual({
+        code: 'SAVE10',
+      })
+    })
+    expect(await screen.findByRole('button', { name: /remove coupon/i })).toBeInTheDocument()
+    expect(screen.getByText('SAVE10')).toBeInTheDocument()
+    expect(screen.getByText('−$6.00')).toBeInTheDocument()
+    expect(screen.getByText('$53.98')).toBeInTheDocument()
   })
 
   it('shows empty state when cart has no items', async () => {
@@ -97,8 +133,11 @@ describe('CartPage', () => {
       id: 'cart-id',
       currency: 'USD',
       subtotal: '0.00',
+      discount_amount: '0.00',
+      total: '0.00',
       item_count: 0,
       total_quantity: 0,
+      coupon: null,
       items: [],
     })
 

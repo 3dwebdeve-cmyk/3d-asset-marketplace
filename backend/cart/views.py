@@ -11,10 +11,12 @@ from accounts.throttles import CartWriteRateThrottle
 from cart.models import CartItem
 from cart.serializers import (
     CartAddSerializer,
+    CartCouponApplySerializer,
     CartSerializer,
     CartUpdateQuantitySerializer,
 )
 from cart.services import CartError, CartService
+from coupons.services import CouponService
 
 
 def _cart_error_response(exc: CartError) -> Response:
@@ -49,13 +51,22 @@ def _serialize_cart(user) -> dict:
             }
         )
 
+    coupon_data = (
+        CouponService.serialize_applied(envelope.coupon)
+        if envelope.coupon is not None
+        else None
+    )
+
     serializer = CartSerializer(
         data={
             "id": envelope.cart.id,
             "currency": envelope.totals.currency,
             "subtotal": f"{envelope.totals.subtotal:.2f}",
+            "discount_amount": f"{envelope.totals.discount_amount:.2f}",
+            "total": f"{envelope.totals.total:.2f}",
             "item_count": envelope.totals.item_count,
             "total_quantity": envelope.totals.total_quantity,
+            "coupon": coupon_data,
             "items": items_data,
         }
     )
@@ -141,3 +152,27 @@ class CartItemDetailView(APIView):
         except CartError as exc:
             raise NotFound(detail=exc.message) from exc
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CartCouponView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [CartWriteRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = CartCouponApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            CartService.apply_coupon(
+                request.user,
+                serializer.validated_data["code"],
+            )
+        except CartError as exc:
+            return _cart_error_response(exc)
+        return Response(_serialize_cart(request.user), status=status.HTTP_200_OK)
+
+    def delete(self, request: Request) -> Response:
+        try:
+            CartService.remove_coupon(request.user)
+        except CartError as exc:
+            return _cart_error_response(exc)
+        return Response(_serialize_cart(request.user), status=status.HTTP_200_OK)

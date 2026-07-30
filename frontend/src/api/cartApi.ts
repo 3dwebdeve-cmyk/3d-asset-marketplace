@@ -1,4 +1,10 @@
-import type { Cart, CartAddPayload, CartItem, CartUpdateQuantityPayload } from '../types/cart'
+import type {
+  Cart,
+  CartAddPayload,
+  CartApplyCouponPayload,
+  CartItem,
+  CartUpdateQuantityPayload,
+} from '../types/cart'
 import { apiClient } from './client'
 
 export async function getCart(): Promise<Cart> {
@@ -25,4 +31,14 @@ export async function removeCartItem(itemId: string): Promise<void> {
 
 export async function clearCart(): Promise<void> {
   await apiClient.delete('/api/cart/')
+}
+
+export async function applyCartCoupon(payload: CartApplyCouponPayload): Promise<Cart> {
+  const { data } = await apiClient.post<Cart>('/api/cart/coupon/', payload)
+  return data
+}
+
+export async function removeCartCoupon(): Promise<Cart> {
+  const { data } = await apiClient.delete<Cart>('/api/cart/coupon/')
+  return data
 }

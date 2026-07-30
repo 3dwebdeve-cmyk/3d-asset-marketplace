@@ -5,12 +5,25 @@ import { useCartUiStore } from '../../store/cartUiStore'
 import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/ErrorState'
 import { Spinner } from '../ui/Spinner'
+import { CartCouponForm } from './CartCouponForm'
 import { CartLineItem, formatCartPrice } from './CartLineItem'
 
 export function CartDrawer() {
   const isDrawerOpen = useCartUiStore((state) => state.isDrawerOpen)
   const closeDrawer = useCartUiStore((state) => state.closeDrawer)
-  const { cart, isLoading, isError, isPending, updateQuantity, remove, refetch } = useCart()
+  const {
+    cart,
+    isLoading,
+    isError,
+    isPending,
+    updateQuantity,
+    remove,
+    applyCoupon,
+    removeCoupon,
+    couponError,
+    clearCouponError,
+    refetch,
+  } = useCart()
 
   if (!isDrawerOpen) {
     return null
@@ -84,9 +97,28 @@ export function CartDrawer() {
 
         {cart && cart.item_count > 0 ? (
           <footer className="cart-drawer__footer">
+            <CartCouponForm
+              coupon={cart.coupon}
+              isPending={isPending}
+              error={couponError}
+              onApply={applyCoupon}
+              onRemove={removeCoupon}
+              onClearError={clearCouponError}
+              compact
+            />
             <div className="cart-summary">
               <span>Subtotal</span>
               <strong>{formatCartPrice(cart.subtotal, cart.currency)}</strong>
+            </div>
+            {Number(cart.discount_amount) > 0 ? (
+              <div className="cart-summary cart-summary--discount">
+                <span>Discount</span>
+                <strong>−{formatCartPrice(cart.discount_amount, cart.currency)}</strong>
+              </div>
+            ) : null}
+            <div className="cart-summary cart-summary--total">
+              <span>Total</span>
+              <strong>{formatCartPrice(cart.total, cart.currency)}</strong>
             </div>
             <p className="cart-summary__note">
               Unavailable items are excluded from the subtotal.

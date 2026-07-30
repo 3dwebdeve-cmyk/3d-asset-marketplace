@@ -28,12 +28,23 @@ export interface CartItem {
   catalog: CartCatalogItem | null
 }
 
+export type CouponDiscountType = 'percent' | 'fixed'
+
+export interface AppliedCoupon {
+  code: string
+  discount_type: CouponDiscountType
+  discount_value: string
+}
+
 export interface Cart {
   id: string
   currency: string
   subtotal: string
+  discount_amount: string
+  total: string
   item_count: number
   total_quantity: number
+  coupon: AppliedCoupon | null
   items: CartItem[]
 }
 
@@ -45,4 +56,8 @@ export interface CartAddPayload {
 
 export interface CartUpdateQuantityPayload {
   quantity: number
+}
+
+export interface CartApplyCouponPayload {
+  code: string
 }

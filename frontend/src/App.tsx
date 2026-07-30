@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Navbar } from './components/Navbar'
+import { SiteFooter } from './components/SiteFooter'
 import { CartDrawer } from './components/cart/CartDrawer'
 import { Spinner } from './components/ui/Spinner'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
@@ -40,6 +41,7 @@ import './styles/navbar.css'
 import './styles/products-browse.css'
 import './styles/product-details.css'
 import './styles/cart.css'
+import './styles/marketing.css'
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
@@ -115,10 +117,40 @@ const AdminDownloadsPage = lazy(() =>
     default: module.AdminDownloadsPage,
   })),
 )
+const AdminCouponsPage = lazy(() =>
+  import('./pages/Admin/AdminCouponsPage').then((module) => ({
+    default: module.AdminCouponsPage,
+  })),
+)
+const AdminCouponDetailPage = lazy(() =>
+  import('./pages/Admin/AdminCouponDetailPage').then((module) => ({
+    default: module.AdminCouponDetailPage,
+  })),
+)
+
+const AboutPage = lazy(() =>
+  import('./pages/About/AboutPage').then((module) => ({
+    default: module.AboutPage,
+  })),
+)
+
+const ContactPage = lazy(() =>
+  import('./pages/Contact/ContactPage').then((module) => ({
+    default: module.ContactPage,
+  })),
+)
+
+const CustomProjectsLandingPage = lazy(() =>
+  import('./pages/CustomProjects/CustomProjectsLandingPage').then((module) => ({
+    default: module.CustomProjectsLandingPage,
+  })),
+)
 
 function AppRoutes() {
   const location = useLocation()
   const hideMainNavbar =
+    location.pathname.startsWith('/admin') && location.pathname !== '/admin/login'
+  const hideSiteFooter =
     location.pathname.startsWith('/admin') && location.pathname !== '/admin/login'
 
   return (
@@ -129,6 +161,9 @@ function AppRoutes() {
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
             <Route path="/products" element={<ProductsBrowsePage />} />
             <Route path="/Products" element={<ProductsBrowsePage />} />
             <Route path="/products/:slug" element={<ProductDetailsPage />} />
@@ -206,6 +241,11 @@ function AppRoutes() {
                 path="/admin/orders/:orderId"
                 element={<AdminOrderDetailPage />}
               />
+              <Route path="/admin/coupons" element={<AdminCouponsPage />} />
+              <Route
+                path="/admin/coupons/:couponId"
+                element={<AdminCouponDetailPage />}
+              />
               <Route path="/admin/reviews" element={<AdminReviewsPage />} />
               <Route path="/admin/downloads" element={<AdminDownloadsPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
@@ -214,6 +254,7 @@ function AppRoutes() {
           </Routes>
         </Suspense>
       </div>
+      {!hideSiteFooter ? <SiteFooter /> : null}
     </>
   )
 }

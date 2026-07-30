@@ -75,3 +75,11 @@ class AdminReviewWriteRateThrottle(UserRateThrottle):
 
 class DownloadRateThrottle(UserRateThrottle):
     scope = "download"
+
+
+class AdminCouponWriteRateThrottle(UserRateThrottle):
+    scope = "admin_coupon_write"
+
+
+class ContactFormRateThrottle(AnonRateThrottle):
+    scope = "contact_form"

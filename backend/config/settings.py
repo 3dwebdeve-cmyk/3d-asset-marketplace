@@ -68,6 +68,8 @@ INSTALLED_APPS = [
     'cart',
     'reviews',
     'downloads',
+    'coupons',
+    'contact',
 ]
 
 MIDDLEWARE = [
@@ -218,6 +220,8 @@ REST_FRAMEWORK = {
         "review_write": "20/min",
         "admin_review_write": "60/min",
         "download": "30/min",
+        "admin_coupon_write": "60/min",
+        "contact_form": "5/hour",
     },
 }
 
@@ -321,6 +325,12 @@ DEFAULT_FROM_EMAIL = config(
 # Comma-separated inboxes for customer→staff project message alerts when no designer is assigned.
 PROJECT_MESSAGE_ADMIN_RECIPIENTS = config(
     "PROJECT_MESSAGE_ADMIN_RECIPIENTS",
+    default="",
+)
+# Comma-separated inboxes for public contact form submissions (falls back to
+# PROJECT_MESSAGE_ADMIN_RECIPIENTS, then active Administrator users).
+CONTACT_ADMIN_RECIPIENTS = config(
+    "CONTACT_ADMIN_RECIPIENTS",
     default="",
 )
 EMAIL_HOST = config("EMAIL_HOST", default="")

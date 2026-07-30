@@ -146,6 +146,38 @@
   font-size: 1.25rem;
 }
 
+.cart-summary--discount {
+  font-size: 1rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.cart-summary--total {
+  font-weight: 600;
+}
+
+.cart-coupon {
+  margin-bottom: 1rem;
+}
+
+.cart-coupon--compact {
+  margin-bottom: 0.75rem;
+}
+
+.cart-coupon__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.cart-coupon__row .ui-input {
+  flex: 1;
+}
+
+.cart-coupon__applied {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
 .cart-summary__note {
   margin: 0 0 1rem;
   font-size: 0.875rem;
