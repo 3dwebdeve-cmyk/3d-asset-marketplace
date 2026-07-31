@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
+from uuid import UUID
 
 import stripe
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from django.db.models import Q, QuerySet
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 
 from cart.services import CartService
 from coupons.services import CouponService
@@ -21,8 +26,36 @@ User = get_user_model()
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+PAYMENT_STATUS_FILTER_ALIASES = {
+    "paid": Payment.Status.SUCCEEDED,
+    "cancelled": Payment.Status.EXPIRED,
+    "canceled": Payment.Status.EXPIRED,
+}
+
+ALLOWED_PAYMENT_STATUS_FILTERS = set(Payment.Status.values) | set(
+    PAYMENT_STATUS_FILTER_ALIASES.keys()
+)
+
+PAYMENT_ORDERING_FIELDS = {
+    "created_at",
+    "-created_at",
+    "amount",
+    "-amount",
+    "status",
+    "-status",
+    "updated_at",
+    "-updated_at",
+}
+
 
 class CheckoutError(Exception):
+    def __init__(self, message: str, field: str | None = None) -> None:
+        self.message = message
+        self.field = field
+        super().__init__(message)
+
+
+class AdminPaymentError(Exception):
     def __init__(self, message: str, field: str | None = None) -> None:
         self.message = message
         self.field = field
@@ -57,6 +90,77 @@ def _stripe_id(value: Any) -> str:
         return str(raw) if raw else ""
     raw = getattr(value, "id", None)
     return str(raw) if raw else ""
+
+
+def _normalize_status_filter(value: str) -> str:
+    normalized = value.strip().lower()
+    return PAYMENT_STATUS_FILTER_ALIASES.get(normalized, normalized)
+
+
+def _parse_day_bound(
+    value: str | None,
+    *,
+    end_of_day: bool,
+) -> datetime | date | None:
+    if not value:
+        return None
+    raw = value.strip()
+    field = "created_before" if end_of_day else "created_after"
+    parsed_dt = parse_datetime(raw)
+    if parsed_dt is not None:
+        if timezone.is_naive(parsed_dt):
+            return timezone.make_aware(parsed_dt, timezone.get_current_timezone())
+        return parsed_dt
+    parsed_day = parse_date(raw)
+    if parsed_day is None:
+        raise AdminPaymentError("Invalid date filter.", field=field)
+    return parsed_day
+
+
+class AdminPaymentService:
+    @classmethod
+    def list_admin(
+        cls,
+        *,
+        status: str | None = None,
+        search: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        ordering: str = "-created_at",
+    ) -> QuerySet[Payment]:
+        queryset = Payment.objects.select_related("order", "order__user")
+
+        if status:
+            queryset = queryset.filter(status=_normalize_status_filter(status))
+
+        if search:
+            term = search.strip()
+            if term:
+                queryset = queryset.filter(
+                    Q(order__invoice_number__icontains=term)
+                    | Q(order__user__email__icontains=term)
+                )
+
+        after = _parse_day_bound(created_after, end_of_day=False)
+        before = _parse_day_bound(created_before, end_of_day=True)
+        if isinstance(after, date) and not isinstance(after, datetime):
+            queryset = queryset.filter(created_at__date__gte=after)
+        elif after is not None:
+            queryset = queryset.filter(created_at__gte=after)
+        if isinstance(before, date) and not isinstance(before, datetime):
+            queryset = queryset.filter(created_at__date__lte=before)
+        elif before is not None:
+            queryset = queryset.filter(created_at__lte=before)
+
+        order_by = ordering if ordering in PAYMENT_ORDERING_FIELDS else "-created_at"
+        return queryset.order_by(order_by)
+
+    @classmethod
+    def get(cls, payment_id: UUID) -> Payment:
+        try:
+            return Payment.objects.select_related("order", "order__user").get(pk=payment_id)
+        except Payment.DoesNotExist as exc:
+            raise AdminPaymentError("Payment not found.") from exc
 
 
 class CheckoutService:

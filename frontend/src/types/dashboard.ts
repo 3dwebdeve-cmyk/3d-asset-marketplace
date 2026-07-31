@@ -31,6 +31,11 @@ export interface AdminDashboardSalesStats {
   currency: string
 }
 
+export interface AdminDashboardPaymentsStats {
+  succeeded: number
+  pending: number
+}
+
 export interface AdminDashboardCategoryBreakdown {
   id: string
   name: string
@@ -47,5 +52,6 @@ export interface AdminDashboardStats {
   plugins: AdminDashboardPluginsStats
   projects: AdminDashboardProjectsStats
   sales: AdminDashboardSalesStats
+  payments: AdminDashboardPaymentsStats
   category_breakdown: AdminDashboardCategoryBreakdown[]
 }

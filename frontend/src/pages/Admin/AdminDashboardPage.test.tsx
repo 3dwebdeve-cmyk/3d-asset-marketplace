@@ -25,6 +25,7 @@ const sampleStats = {
   plugins: { total: 0 },
   projects: { pending: 0, live: 0, completed: 0 },
   sales: { monthly_revenue: '0.00', monthly_orders: 0, currency: 'USD' },
+  payments: { succeeded: 2, pending: 1 },
   category_breakdown: [
     {
       id: '44bba207-8a0c-490d-abdf-5a383ed2111b',
@@ -78,6 +79,14 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByText('Furniture')).toBeInTheDocument()
     expect(screen.getByText('Architecture')).toBeInTheDocument()
     expect(screen.getByText('$0.00')).toBeInTheDocument()
+    expect(screen.getByText('Paid payments')).toBeInTheDocument()
+    expect(
+      screen.getByText((_, element) => element?.textContent === '1 pending · View payments'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View payments' })).toHaveAttribute(
+      'href',
+      '/admin/payments',
+    )
     expect(screen.getByRole('link', { name: 'Manage plugins' })).toHaveAttribute(
       'href',
       '/admin/plugins',
@@ -85,6 +94,10 @@ describe('AdminDashboardPage', () => {
     expect(screen.getByRole('link', { name: 'Manage orders' })).toHaveAttribute(
       'href',
       '/admin/orders',
+    )
+    expect(screen.getByRole('link', { name: 'Manage payments' })).toHaveAttribute(
+      'href',
+      '/admin/payments',
     )
     expect(dashboardApi.getAdminDashboardStats).toHaveBeenCalledTimes(1)
   })
