@@ -18,13 +18,19 @@ from plugins.models import Plugin, PluginCategory
 from products.models import Product
 
 
-class _FakeStripeObject(dict):
-    """Minimal stand-in for stripe's StripeObject: dict + attribute access."""
+class _FakeStripeObject:
+    """Mimics stripe.StripeObject: item/attr access, but no ``.get()`` method."""
 
-    def __getattr__(self, item):
+    def __init__(self, data: dict) -> None:
+        self._data = dict(data)
+
+    def __getitem__(self, key: str):
+        return self._data[key]
+
+    def __getattr__(self, item: str):
         try:
-            return self[item]
-        except KeyError as exc:  # pragma: no cover - defensive
+            return self._data[item]
+        except KeyError as exc:
             raise AttributeError(item) from exc
 
 
@@ -32,7 +38,7 @@ class _FakeEvent:
     def __init__(self, event_id: str, event_type: str, data_object: dict) -> None:
         self.id = event_id
         self.type = event_type
-        self.data = _FakeStripeObject(object=_FakeStripeObject(data_object))
+        self.data = _FakeStripeObject({"object": _FakeStripeObject(data_object)})
 
 
 class PaymentsTestMixin:
@@ -94,8 +100,10 @@ class PaymentsTestMixin:
 
 def _fake_session(session_id: str = "cs_test_123") -> _FakeStripeObject:
     return _FakeStripeObject(
-        id=session_id,
-        url=f"https://checkout.stripe.com/pay/{session_id}",
+        {
+            "id": session_id,
+            "url": f"https://checkout.stripe.com/pay/{session_id}",
+        }
     )
 
 
@@ -150,7 +158,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         mock_coupon_create,
     ) -> None:
         mock_session_create.return_value = _fake_session()
-        mock_coupon_create.return_value = _FakeStripeObject(id="stripe_coupon_123")
+        mock_coupon_create.return_value = _FakeStripeObject({"id": "stripe_coupon_123"})
 
         coupon = Coupon.objects.create(
             code="SAVE10",
