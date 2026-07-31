@@ -14,6 +14,7 @@ from django.views.static import serve
 # Paid packages and private project references must use authenticated downloads.
 PUBLIC_MEDIA_PREFIXES = (
     "products/images/",
+    "products/previews/",
     "plugins/images/",
     "avatars/",
 )

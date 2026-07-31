@@ -17,6 +17,7 @@ import { getApiErrorMessage } from '../../lib/apiError'
 import {
   formatFileSize,
   formatFormatLabel,
+  isPreviewModelFile,
   PREVIEW_MODEL_FORMATS,
   PRODUCT_FILE_ACCEPT,
   PRODUCT_FILE_FORMAT_LABELS,
@@ -51,7 +52,6 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [fileVersion, setFileVersion] = useState('1.0')
-  const [fileIsPreview, setFileIsPreview] = useState(false)
   const [isImageDragActive, setIsImageDragActive] = useState(false)
   const [isFileDragActive, setIsFileDragActive] = useState(false)
 
@@ -93,12 +93,16 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
       uploadProductFile(productId, {
         file,
         version: fileVersion,
-        is_preview: fileIsPreview,
+        // GLB/glTF always become the interactive preview (server also enforces this).
+        is_preview: isPreviewModelFile(file),
       }),
-    onSuccess: async () => {
-      toast.success('Model file uploaded')
+    onSuccess: async (uploaded) => {
+      toast.success(
+        uploaded.is_preview && PREVIEW_MODEL_FORMATS.has(uploaded.file_format)
+          ? 'Preview model uploaded for 3D viewer'
+          : 'Model file uploaded',
+      )
       setMediaError(null)
-      setFileIsPreview(false)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -275,14 +279,10 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
             onChange={(event) => setFileVersion(event.target.value)}
           />
         </FormField>
-        <label className="ui-input admin-media-checkbox">
-          <input
-            type="checkbox"
-            checked={fileIsPreview}
-            onChange={(event) => setFileIsPreview(event.target.checked)}
-          />{' '}
-          Mark upload as interactive preview model (GLB / GLTF only)
-        </label>
+        <p className="home-page__subtitle">
+          GLB and GLTF uploads are always used as the interactive 3D preview.
+          Other formats are stored as downloadable package files.
+        </p>
 
         <div
           className={`admin-media-upload${isFileDragActive ? ' admin-media-upload--active' : ''}`}

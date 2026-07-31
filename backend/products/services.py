@@ -385,11 +385,21 @@ class ProductService:
         is_preview: bool = False,
     ) -> ProductFile:
         validated = validate_product_file_upload(uploaded)
-        storage_path = ProductMediaStorageService.save_file(
-            str(product.pk),
-            validated.file,
-            validated.extension,
-        )
+        # GLB/glTF uploads always become the interactive public preview.
+        use_public_preview = validated.file_format in {"glb", "gltf"}
+        effective_is_preview = True if use_public_preview else is_preview
+        if use_public_preview:
+            storage_path = ProductMediaStorageService.save_preview(
+                str(product.pk),
+                validated.file,
+                validated.extension,
+            )
+        else:
+            storage_path = ProductMediaStorageService.save_file(
+                str(product.pk),
+                validated.file,
+                validated.extension,
+            )
         file_name = Path(uploaded.name).name if uploaded.name else f"asset{validated.extension}"
 
         product_file = ProductFile.objects.create(
@@ -399,10 +409,10 @@ class ProductService:
             file_size=uploaded.size or 0,
             storage_path=storage_path,
             version=version.strip() or "1.0",
-            is_preview=is_preview,
+            is_preview=effective_is_preview,
         )
 
-        if is_preview and validated.file_format in {"glb", "gltf"}:
+        if use_public_preview:
             product.preview_model = storage_path
             product.save(update_fields=["preview_model", "updated_at"])
 
@@ -419,6 +429,11 @@ class ProductService:
         storage_path = product_file.storage_path
         was_preview = product_file.is_preview
         product_file.delete()
+        # Preview GLBs live under products/previews/; packages under products/files/.
+        ProductMediaStorageService.delete_if_managed(
+            storage_path,
+            prefix=ProductMediaStorageService.PREVIEW_PREFIX,
+        )
         ProductMediaStorageService.delete_if_managed(
             storage_path,
             prefix=ProductMediaStorageService.FILE_PREFIX,

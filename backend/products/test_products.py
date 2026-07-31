@@ -344,8 +344,27 @@ class ProductMediaUploadAPITests(APITestCase):
         self.assertTrue(response.data["is_preview"])
         self.assertIn("storage_path", response.data)
         self.product.refresh_from_db()
-        self.assertIn("/media/products/files/", self.product.preview_model)
+        self.assertIn("/media/products/previews/", self.product.preview_model)
         self.assertEqual(ProductFile.objects.filter(product=self.product).count(), 1)
+
+    def test_upload_glb_without_preview_flag_still_sets_preview_model(self) -> None:
+        self._authenticate_as_admin()
+        glb = SimpleUploadedFile(
+            "auto-preview.glb",
+            b"glTF binary auto preview content",
+            content_type="model/gltf-binary",
+        )
+
+        response = self.client.post(
+            self.files_url,
+            {"file": glb, "is_preview": False, "version": "1.0"},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["is_preview"])
+        self.product.refresh_from_db()
+        self.assertIn("/media/products/previews/", self.product.preview_model)
 
     def test_upload_usdz_file(self) -> None:
         self._authenticate_as_admin()

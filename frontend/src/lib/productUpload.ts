@@ -23,6 +23,15 @@ export const PRODUCT_FILE_MAX_MB = 50
 
 export const PREVIEW_MODEL_FORMATS = new Set(['glb', 'gltf'])
 
+export function isPreviewModelFile(file: File): boolean {
+  const name = file.name.trim().toLowerCase()
+  const dot = name.lastIndexOf('.')
+  if (dot < 0) {
+    return false
+  }
+  return PREVIEW_MODEL_FORMATS.has(name.slice(dot + 1))
+}
+
 export function formatFileSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) {
     return '0 B'

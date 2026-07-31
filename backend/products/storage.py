@@ -15,6 +15,9 @@ class ProductMediaStorageService:
     """Persist product media bytes and return a public URL reference."""
 
     IMAGE_PREFIX = "products/images/"
+    # Interactive GLB/glTF previews (publicly readable in DEBUG via media serve).
+    PREVIEW_PREFIX = "products/previews/"
+    # Paid / downloadable packages (private — authenticated download endpoints only).
     FILE_PREFIX = "products/files/"
 
     @classmethod
@@ -25,6 +28,12 @@ class ProductMediaStorageService:
     @classmethod
     def save_image(cls, product_id: str, uploaded: UploadedFile, extension: str) -> str:
         key = cls.build_storage_key(cls.IMAGE_PREFIX, str(product_id), extension)
+        saved_path = default_storage.save(key, uploaded)
+        return cls.build_public_url(saved_path)
+
+    @classmethod
+    def save_preview(cls, product_id: str, uploaded: UploadedFile, extension: str) -> str:
+        key = cls.build_storage_key(cls.PREVIEW_PREFIX, str(product_id), extension)
         saved_path = default_storage.save(key, uploaded)
         return cls.build_public_url(saved_path)
 
