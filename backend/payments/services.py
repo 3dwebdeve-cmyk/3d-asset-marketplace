@@ -6,7 +6,7 @@ from typing import Any
 import stripe
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from cart.services import CartService
 from coupons.services import CouponService
@@ -30,6 +30,32 @@ class CheckoutError(Exception):
 
 def _to_cents(amount: Decimal) -> int:
     return int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _session_value(session: Any, key: str) -> Any:
+    """Read a field from a Stripe session or plain dict.
+
+    stripe.StripeObject supports item/attribute access but does not implement
+    ``.get()`` — calling ``session.get(...)`` raises AttributeError.
+    """
+    if isinstance(session, dict):
+        return session.get(key)
+    try:
+        return session[key]
+    except (KeyError, TypeError):
+        return getattr(session, key, None)
+
+
+def _stripe_id(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        raw = value.get("id")
+        return str(raw) if raw else ""
+    raw = getattr(value, "id", None)
+    return str(raw) if raw else ""
 
 
 class CheckoutService:
@@ -103,30 +129,34 @@ class CheckoutService:
 class WebhookService:
     @classmethod
     def handle_event(cls, event: "stripe.Event") -> None:
-        _, created = StripeWebhookEvent.objects.get_or_create(
-            stripe_event_id=event.id,
-            defaults={"event_type": event.type},
-        )
-        if not created:
-            return
+        # Keep idempotency insert + processing in one transaction so a handler
+        # crash rolls back the event row and Stripe retries can succeed.
+        with transaction.atomic():
+            try:
+                StripeWebhookEvent.objects.create(
+                    stripe_event_id=event.id,
+                    event_type=event.type,
+                )
+            except IntegrityError:
+                return
 
-        if event.type == "checkout.session.completed":
-            cls._handle_checkout_completed(event.data.object)
-        elif event.type == "checkout.session.expired":
-            cls._handle_checkout_expired(event.data.object)
-        elif event.type == "payment_intent.payment_failed":
-            cls._handle_payment_failed(event.data.object)
+            if event.type == "checkout.session.completed":
+                cls._handle_checkout_completed(event.data.object)
+            elif event.type == "checkout.session.expired":
+                cls._handle_checkout_expired(event.data.object)
+            elif event.type == "payment_intent.payment_failed":
+                cls._handle_payment_failed(event.data.object)
 
     @classmethod
-    @transaction.atomic
     def _handle_checkout_completed(cls, session: "stripe.checkout.Session") -> None:
         # Note: coupon is a nullable FK, so it is intentionally excluded from
         # select_related here — Postgres rejects SELECT ... FOR UPDATE across
         # a LEFT OUTER JOIN ("nullable side"). payment.coupon is instead
         # lazy-loaded (unlocked) just below when needed.
+        session_id = _stripe_id(session) or str(_session_value(session, "id") or "")
         try:
             payment = Payment.objects.select_for_update().select_related("order").get(
-                stripe_checkout_session_id=session.id
+                stripe_checkout_session_id=session_id
             )
         except Payment.DoesNotExist:
             return
@@ -134,7 +164,7 @@ class WebhookService:
         if payment.status == Payment.Status.SUCCEEDED:
             return
 
-        payment_intent = session.get("payment_intent") or ""
+        payment_intent = _stripe_id(_session_value(session, "payment_intent"))
         payment.status = Payment.Status.SUCCEEDED
         payment.stripe_payment_intent_id = payment_intent
         payment.save(update_fields=["status", "stripe_payment_intent_id", "updated_at"])
@@ -156,14 +186,16 @@ class WebhookService:
 
     @classmethod
     def _handle_checkout_expired(cls, session: "stripe.checkout.Session") -> None:
+        session_id = _stripe_id(session) or str(_session_value(session, "id") or "")
         Payment.objects.filter(
-            stripe_checkout_session_id=session.id,
+            stripe_checkout_session_id=session_id,
             status=Payment.Status.PENDING,
         ).update(status=Payment.Status.EXPIRED)
 
     @classmethod
     def _handle_payment_failed(cls, payment_intent: "stripe.PaymentIntent") -> None:
+        intent_id = _stripe_id(payment_intent)
         Payment.objects.filter(
-            stripe_payment_intent_id=payment_intent.id,
+            stripe_payment_intent_id=intent_id,
             status=Payment.Status.PENDING,
         ).update(status=Payment.Status.FAILED)
