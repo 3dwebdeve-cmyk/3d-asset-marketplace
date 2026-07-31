@@ -48,6 +48,7 @@ const pendingOrder: CustomerOrder = {
       product_type: 'product',
       product_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
       title: 'Hero Sword',
+      slug: 'hero-sword',
       quantity: 1,
       purchase_price: '39.99',
       line_total: '39.99',

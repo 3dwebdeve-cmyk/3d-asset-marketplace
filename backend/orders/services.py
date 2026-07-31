@@ -151,29 +151,52 @@ class OrderService:
             raise OrderError("Order not found.") from exc
 
     @classmethod
-    def build_catalog_titles(
+    def build_catalog_snapshots(
         cls,
         items: Iterable[OrderItem],
-    ) -> dict[tuple[str, UUID], str | None]:
-        """Live lookup of product/plugin titles for order line items (not snapshotted)."""
+    ) -> dict[tuple[str, UUID], tuple[str | None, str | None]]:
+        """Live lookup fallback for title/slug when OrderItem snapshots are null."""
         product_ids = [
             item.product_id
             for item in items
             if item.product_type == OrderItem.ProductType.PRODUCT
+            and (not item.title or not item.slug)
         ]
         plugin_ids = [
             item.product_id
             for item in items
             if item.product_type == OrderItem.ProductType.PLUGIN
+            and (not item.title or not item.slug)
         ]
-        titles: dict[tuple[str, UUID], str | None] = {}
+        snapshots: dict[tuple[str, UUID], tuple[str | None, str | None]] = {}
         if product_ids:
-            for product in Product.objects.filter(pk__in=product_ids).only("id", "name"):
-                titles[(OrderItem.ProductType.PRODUCT, product.id)] = product.name
+            for product in Product.objects.filter(pk__in=product_ids).only(
+                "id", "name", "slug"
+            ):
+                snapshots[(OrderItem.ProductType.PRODUCT, product.id)] = (
+                    product.name,
+                    product.slug,
+                )
         if plugin_ids:
-            for plugin in Plugin.objects.filter(pk__in=plugin_ids).only("id", "name"):
-                titles[(OrderItem.ProductType.PLUGIN, plugin.id)] = plugin.name
-        return titles
+            for plugin in Plugin.objects.filter(pk__in=plugin_ids).only(
+                "id", "name", "slug"
+            ):
+                snapshots[(OrderItem.ProductType.PLUGIN, plugin.id)] = (
+                    plugin.name,
+                    plugin.slug,
+                )
+        return snapshots
+
+    @classmethod
+    def build_catalog_titles(
+        cls,
+        items: Iterable[OrderItem],
+    ) -> dict[tuple[str, UUID], str | None]:
+        """Live title fallback for line items missing a snapshotted title."""
+        return {
+            key: title
+            for key, (title, _slug) in cls.build_catalog_snapshots(items).items()
+        }
 
     @classmethod
     def create(cls, data: OrderCreateData) -> Order:
@@ -182,7 +205,7 @@ class OrderService:
             raise OrderError("At least one order item is required.", field="items")
 
         currency = (data.currency or "USD").strip().upper()[:3]
-        resolved_items: list[tuple[str, UUID, int, Decimal, str]] = []
+        resolved_items: list[tuple[str, UUID, int, Decimal, str, str]] = []
         seen_keys: set[tuple[str, UUID]] = set()
 
         for index, item in enumerate(data.items):
@@ -205,7 +228,7 @@ class OrderService:
                 )
             seen_keys.add(key)
 
-            purchase_price, item_currency = cls._resolve_catalog_item(
+            purchase_price, item_currency, title, slug = cls._resolve_catalog_item(
                 product_type,
                 item.product_id,
                 field_prefix=f"items[{index}]",
@@ -216,11 +239,21 @@ class OrderService:
                     field=f"items[{index}].product_id",
                 )
             resolved_items.append(
-                (product_type, item.product_id, item.quantity, purchase_price, item_currency)
+                (
+                    product_type,
+                    item.product_id,
+                    item.quantity,
+                    purchase_price,
+                    title,
+                    slug,
+                )
             )
 
         total_amount = sum(
-            (purchase_price * quantity for _, _, quantity, purchase_price, _ in resolved_items),
+            (
+                purchase_price * quantity
+                for _, _, quantity, purchase_price, _, _ in resolved_items
+            ),
             start=Decimal("0.00"),
         )
 
@@ -236,10 +269,19 @@ class OrderService:
                         order=order,
                         product_type=product_type,
                         product_id=product_id,
+                        title=title,
+                        slug=slug,
                         quantity=quantity,
                         purchase_price=purchase_price,
                     )
-                    for product_type, product_id, quantity, purchase_price, _ in resolved_items
+                    for (
+                        product_type,
+                        product_id,
+                        quantity,
+                        purchase_price,
+                        title,
+                        slug,
+                    ) in resolved_items
                 ]
             )
 
@@ -274,7 +316,17 @@ class OrderService:
                 item.product_id,
                 item.quantity,
                 Decimal(
-                    envelope.snapshots[(item.product_type, item.product_id)]["effective_price"]
+                    envelope.snapshots[(item.product_type, item.product_id)][
+                        "effective_price"
+                    ]
+                ),
+                str(
+                    envelope.snapshots[(item.product_type, item.product_id)].get("name")
+                    or ""
+                ),
+                str(
+                    envelope.snapshots[(item.product_type, item.product_id)].get("slug")
+                    or ""
                 ),
             )
             for item in available_items
@@ -291,10 +343,19 @@ class OrderService:
                     order=order,
                     product_type=product_type,
                     product_id=product_id,
+                    title=title or None,
+                    slug=slug or None,
                     quantity=quantity,
                     purchase_price=purchase_price,
                 )
-                for product_type, product_id, quantity, purchase_price in resolved_items
+                for (
+                    product_type,
+                    product_id,
+                    quantity,
+                    purchase_price,
+                    title,
+                    slug,
+                ) in resolved_items
             ]
         )
 
@@ -384,7 +445,7 @@ class OrderService:
         product_id: UUID,
         *,
         field_prefix: str,
-    ) -> tuple[Decimal, str]:
+    ) -> tuple[Decimal, str, str, str]:
         if product_type == OrderItem.ProductType.PRODUCT:
             try:
                 product = Product.objects.get(pk=product_id)
@@ -403,7 +464,7 @@ class OrderService:
                 if product.discount_price is not None
                 else product.price
             )
-            return purchase_price, product.currency
+            return purchase_price, product.currency, product.name, product.slug
 
         try:
             plugin = Plugin.objects.get(pk=product_id)
@@ -422,7 +483,7 @@ class OrderService:
             if plugin.discount_price is not None
             else plugin.price
         )
-        return purchase_price, plugin.currency
+        return purchase_price, plugin.currency, plugin.name, plugin.slug
 
     @classmethod
     def _apply_status_transition(

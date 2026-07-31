@@ -5,11 +5,11 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~58%
+Overall Completion: ~65%
 Current Development Sprint
-Current Sprint: Sprint 7 – Orders & Downloads
-Sprint Goal: Customer order history, secure purchase-gated downloads, download audit trail
-Sprint Status: Downloads complete (local storage); checkout/Stripe deferred
+Current Sprint: Feature 8 – Order integrity hardening
+Sprint Goal: Snapshot order line titles/slugs; admin status transitions; safer invoices
+Sprint Status: Feature 8 complete
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -76,17 +76,18 @@ Sprint 5 – Plugin Store
   - Related plugins from same category (excludes current plugin, up to 4)
   - 15/15 unit tests passing
 Sprint 6 – Shopping & Payments
-• [x] Shopping Cart (no checkout — Feature 6)
-• [x] Coupons / Discount codes (admin CRUD + cart apply; Stripe later)
-• [ ] Checkout
-• [ ] Stripe Integration
-• [ ] Invoice Generation
-• [ ] Payment Verification
+• [x] Shopping Cart (Feature 6)
+• [x] Coupons / Discount codes (admin CRUD + cart apply)
+• [x] Checkout (cart → pending order → Stripe Checkout Session)
+• [x] Stripe Integration (Phase 1 — Checkout Sessions + webhook fulfillment)
+• [ ] Invoice Generation (invoice_number exists; PDF / formal invoices deferred)
+• [x] Payment Verification (Stripe webhook signature + idempotent event store)
 Sprint 7 – Orders & Downloads
 • [x] Orders (Phase 15A — data model + service layer)
 • [x] Orders admin APIs (Phase 15B — admin list/detail + optional create)
 • [x] Orders admin UI (Feature 21 — list/detail/create SPA)
 • [x] Order History (customer list/detail at /dashboard/orders)
+• [x] Order integrity hardening (Feature 8 — title/slug snapshots + admin status transitions)
 • [x] Secure Downloads (local authenticated FileResponse; order+payment must be paid)
 • [ ] Signed Download URLs
 • [x] Download History (download_history table; customer + admin audit UI)
@@ -106,6 +107,7 @@ Sprint 8 – Custom Project Portal
 • [x] Project Delivery list/download APIs (admin + owner; authenticated FileResponse; storage_path hidden)
 • [x] Admin delivery UI (upload + list/download + mark delivered/completed on /admin/projects/:id)
 • [x] Project Completion (Feature 4)
+• [ ] Quotation payment (Feature 15G — deferred)
 Sprint 9 – Dashboards
 Customer Dashboard
 • [x] Profile
@@ -123,11 +125,11 @@ Admin Dashboard
 • [x] Product Management
 • [x] Plugin Management
 • [x] Custom Projects
-• [x] Orders (admin list/detail/create UI; mark paid PATCH for testing)
+• [x] Orders (admin list/detail/create UI; allowed status transition controls)
 • [x] Coupons (list/create/detail; percent or fixed; expiry + usage limits)
 • [x] Reviews moderation (list / hide / delete)
 • [x] Download History audit (/admin/downloads)
-• [ ] Payments
+• [ ] Payments (admin payments list/detail — Feature 15F)
 • [ ] Analytics
 Public Site Pages
 • [x] About page (/about) — studio mission, offerings, trust, CTAs
@@ -143,12 +145,26 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Checkout + Stripe integration (Feature 15 — payments); coupons already apply on cart totals.
+Feature 8 complete. Next recommended: Feature 10 — In-app Notifications (or Feature 11 Admin Analytics / Feature 13 Docker per roadmap).
 Current Git Branch
-feature/custom-project-portal-completion
+develop
 Files Being Worked On
-• (none — Coupons / Discount codes shipped 2026-07-30)
+• (none — Feature 8 shipped 2026-07-31)
 Completed Features
+• Feature 8 — Order integrity hardening (2026-07-31)
+  - Backend: OrderItem.title + OrderItem.slug snapshotted on admin create and cart checkout
+  - Backend: migration 0002 backfills existing rows from Product/Plugin names
+  - Backend: serializers prefer snapshot; live catalog fallback only when snapshot null
+  - Backend: admin PATCH status transitions remain throttled + audited (AdminOrderWriteRateThrottle + log_admin_action)
+  - Frontend: AdminOrderDetailPage shows only allowed order/payment status actions; slug column on line items
+  - Tests: orders API 57 related backend tests OK; 16 frontend order tests OK
+• Stripe Checkout Phase 1 — cart payments (2026-07-31)
+  - Backend: payments app (Payment, StripeWebhookEvent), CheckoutService, WebhookService
+  - Backend: POST /api/payments/checkout/; POST /api/payments/webhook/
+  - Backend: OrderService.create_from_cart; cart line removal + coupon times_used on paid webhook
+  - Frontend: useCheckout, CartPage/CartDrawer Checkout enabled, /checkout/success + /checkout/cancel
+  - Frontend: success page polls order payment_status then links to downloads
+  - Tests: payments API tests + cart checkout button redirect tests
 • Public Site Pages — About, Contact, Custom Projects landing (2026-07-30)
   - Backend: contact app — POST /api/contact/ (AllowAny, ContactFormRateThrottle 5/hour)
   - Backend: ContactService emails CONTACT_ADMIN_RECIPIENTS (fallback PROJECT_MESSAGE_ADMIN_RECIPIENTS, then admins)
@@ -253,10 +269,12 @@ Completed Features
 • Public marketplace browse page (/products) UI (hero, search, category/license filters, sorting, pagination, skeletal loading, error state)
 • Public product details page (/products/:slug) — Atelier-style two-column layout using brand cream/navy/blue tokens; gallery stage, purchase card, specs table, related products, SEO, auth-aware CTAs
 Pending Features
-• Checkout + Stripe payment integration
-• Invoice generation
-• Signed download URLs (Cloudflare R2 / CDN — local authenticated downloads shipped)
-• Docker production stack
+• Feature 10 — In-app Notifications
+• Feature 11 — Admin Analytics
+• Feature 13 — Docker & local/prod runtime
+• Feature 14 — Cloudflare R2 Storage
+• Feature 15 remainder — Admin Payments UI, quotation payment, PayPal/Razorpay (if still in scope), R2 signed downloads
+• Invoice PDF generation (invoice_number already exists)
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
 • Waiting on manager approval for UI prototype
@@ -284,7 +302,7 @@ Important Decisions
 • Plugin packages accept ZIP/RAR/7Z; ZIP metadata is scanned for traversal and expansion limits.
 • Custom projects are independent from marketplace orders; status transitions are enforced server-side.
 • Marketplace orders use a dedicated orders app (Order + OrderItem); product_type is product or plugin; purchase_price is snapshotted at order creation; only published catalog items are accepted; no FK to custom_projects.
-• Order item titles in admin detail API use live Product/Plugin name lookup (not snapshotted on OrderItem); deleted catalog rows return null title.
+• Order item titles/slugs are snapshotted on OrderItem at create (admin create + cart checkout); serializers prefer snapshot and fall back to live catalog only when snapshot is null.
 • Customer custom-project file responses omit storage_path; admins can open reference files for review.
 • Project messages are project-scoped threads; customer access is ownership-only (404 for others); admin_notes stay off message APIs.
 • Project message unread state is a per-user last-read cursor (ProjectMessageReadState); own messages never count as unread.
@@ -300,8 +318,44 @@ Important Decisions
 • Cart uses dedicated cart app (Cart + CartItem); product_type matches OrderItem (product | plugin); live catalog prices for subtotal; optional coupon discount applied server-side to subtotal; only published items can be added; owner-only CRUD (IDOR → 404); write endpoints throttled; checkout disabled until Feature 15.
 • Coupons use dedicated coupons app; codes are uppercase unique; percent/fixed discounts capped at cart subtotal; times_used increments at Feature 15 checkout (not on apply); max_uses_per_user stored for checkout enforcement later.
 • Catalog download entitlement requires order_status=paid AND payment_status=paid (stricter than reviews' order_status-only check); DownloadHistory logged per file fetch; total_downloads incremented on Product/Plugin.
-• Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles use live Product/Plugin lookup until Feature 8 snapshots.
+• Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles/slugs use OrderItem snapshots (Feature 8).
 Daily Development Log
+Date: 2026-07-31 (Feature 8 — Order integrity hardening)
+Working Hours:
+Today's Objective: Snapshot OrderItem title/slug; harden admin status UI; update PROJECT_STATUS after Stripe Phase 1.
+Modules Completed: OrderItem snapshots, admin transition UI, serializer fallback, docs
+Files Created:
+• backend/orders/migrations/0002_orderitem_title_slug.py
+Files Modified:
+• backend/orders/models.py, services.py, serializers.py, views.py, test_orders.py
+• backend/payments/services.py (prefer snapshotted titles for Stripe line items)
+• frontend/src/types/order.ts
+• frontend/src/pages/Admin/AdminOrderDetailPage.tsx (+ tests)
+• frontend ordersApi / AdminOrdersPage / CustomerOrderDetailPage test fixtures
+• DATABASE_STRUCTURE.md, docs/DatabaseDesign.md, PROJECT_STATUS.md
+Database Changes:
+• order_items.title (nullable CharField)
+• order_items.slug (nullable SlugField)
+• Backfill from live Product/Plugin for existing rows
+API Endpoints:
+• Unchanged routes; order detail item payload now includes slug; title prefers snapshot
+Frontend Pages/Components Added:
+• AdminOrderDetailPage — Status transitions section (allowed actions only)
+Tests Added/Updated:
+• backend orders.test_orders — snapshot persistence, rename immunity, fallback, admin PATCH transitions
+• frontend AdminOrderDetailPage — transition buttons + slug display
+Security Checklist:
+• Admin status writes still IsAdministrator + AdminOrderWriteRateThrottle + log_admin_action
+• Illegal transitions rejected 400 via OrderService maps
+• Snapshots prevent catalog rename/delete from rewriting historical invoice titles
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 10 — In-app Notifications (per IMPLEMENTATION_ROADMAP.md)
+Notes:
+• Stripe Checkout Phase 1 already on develop; Feature 8 restores roadmap order before remaining Feature 15 work
+• Feature 12 public pages and Feature 9 reviews already shipped earlier
+
 Date: 2026-07-30 (Coupons / Discount codes)
 Working Hours:
 Today's Objective: Admin coupon CRUD + customer apply/remove on cart with server-side discounted totals (no Stripe).
@@ -2165,58 +2219,20 @@ Final Release Checklist
 • [x] Marketplace Complete
 • [x] Plugin Store Complete (signed CDN URLs deferred)
 • [x] Custom Project Portal Complete (non-payment)
-• [x] Customer Dashboard Complete (checkout/payments deferred)
+• [x] Customer Dashboard Complete (Stripe cart checkout live; quotation pay deferred)
 • [x] Admin Dashboard Complete (payments/analytics deferred)
-• [ ] Payment System Complete
-• [x] Secure Downloads Complete
+• [x] Payment System Complete (Stripe cart Phase 1; admin payments UI + quotation pay deferred)
+• [x] Secure Downloads Complete (local; R2 signed URLs deferred)
 • [ ] Security Testing Complete
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~58%
-Estimated Remaining Work: Checkout/Stripe payments, signed CDN URLs (Cloudflare), Docker production stack, analytics, final QA
+Current Completion Percentage: ~65%
+Estimated Remaining Work: In-app notifications, admin analytics, Docker, Cloudflare R2, remaining payments (admin UI / quotation pay / signed CDN URLs), final QA
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
-Working Hours:
-Today's Objective: Determine whether multi-admin labeling and page_size=100 risks cause crashes or silent failures; fix if needed
-Modules Completed: Scenario tests + fixes for admin sender labels and latest-message window loading
-Files Created:
-• frontend/src/lib/projectMessages.ts
-• frontend/src/lib/projectMessages.test.ts
-Files Modified:
-• frontend/src/pages/Admin/AdminProjectMessagesSection.tsx
-• frontend/src/pages/Admin/AdminProjectMessagesSection.test.tsx
-• frontend/src/pages/Dashboard/CustomerProjectMessagesSection.tsx
-• frontend/src/pages/Dashboard/CustomerProjectMessagesSection.test.tsx
-• frontend/src/pages/Admin/AdminProjectDetailPage.tsx
-• backend/custom_projects/test_custom_projects.py
-• PROJECT_STATUS.md
-Database Changes:
-• None
-API Endpoints Added:
-• None
-API Endpoints Modified:
-• None
-Frontend Pages Created/Updated:
-• Admin/Customer message sections — safer labels + latest 100-message window
-Problems Encountered:
-• No crashes found
-• Risk 1: other admins were labeled "Customer" (misleading, not a crash)
-• Risk 2: page 1 only showed oldest 100 messages; newest replies hidden when count > 100 (silent data loss, not a crash)
-Solutions Implemented:
-• Admin labels: You / Customer / other sender full_name (fallback Studio)
-• Shared fetchLatestProjectMessages loads the chronological latest window across pages
-• UI notice when thread is truncated to latest 100
-Verification:
-• frontend projectMessages + message section tests: 32/32 passed
-• backend CustomProjectMessageApiTests including 101-message page-cap scenario: passed
-• tsc / oxlint: clean
-Security Review:
-• No medium, high, or critical issues found
-• Labeling uses existing sender id/full_name only; no HTML rendering changes
-Next Development Task:
-• Customer reference upload UI, or quote approval (Client Approval), or public product details page
+Stripe Checkout Phase 1 and Feature 8 order integrity hardening shipped 2026-07-31.
 Date: 2026-07-24 (CP-MSG-05 Admin project messages UI)
 Working Hours:
 Today's Objective: Admin project messages UI on /admin/projects/:projectId
@@ -3026,8 +3042,9 @@ Final Release Checklist
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~58%
-Estimated Remaining Work: Checkout/Stripe payments, signed CDN URLs (Cloudflare), Docker production stack, analytics, final QA
+Current Completion Percentage: ~65%
+Estimated Remaining Work: In-app notifications, admin analytics, Docker, Cloudflare R2, remaining payments (admin UI / quotation pay / signed CDN URLs), final QA
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
+Stripe Checkout Phase 1 and Feature 8 order integrity hardening shipped 2026-07-31.

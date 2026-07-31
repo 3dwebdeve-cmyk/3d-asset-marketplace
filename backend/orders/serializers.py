@@ -37,6 +37,7 @@ class OrderListSerializer(serializers.ModelSerializer):
 
 class OrderItemDetailSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
+    slug = serializers.SerializerMethodField()
     line_total = serializers.SerializerMethodField()
 
     class Meta:
@@ -46,6 +47,7 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
             "product_type",
             "product_id",
             "title",
+            "slug",
             "quantity",
             "purchase_price",
             "line_total",
@@ -55,8 +57,16 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_title(self, obj: OrderItem) -> str | None:
+        if obj.title:
+            return obj.title
         titles = self.context.get("catalog_titles", {})
         return titles.get((obj.product_type, obj.product_id))
+
+    def get_slug(self, obj: OrderItem) -> str | None:
+        if obj.slug:
+            return obj.slug
+        slugs = self.context.get("catalog_slugs", {})
+        return slugs.get((obj.product_type, obj.product_id))
 
     def get_line_total(self, obj: OrderItem) -> str:
         return f"{obj.line_total:.2f}"

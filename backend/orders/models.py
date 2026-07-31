@@ -74,6 +74,8 @@ class OrderItem(models.Model):
     )
     product_type = models.CharField(max_length=16, choices=ProductType.choices)
     product_id = models.UUIDField()
+    title = models.CharField(max_length=255, blank=True, null=True)
+    slug = models.SlugField(max_length=255, blank=True, null=True)
     quantity = models.PositiveIntegerField(
         validators=[MinValueValidator(1)],
     )

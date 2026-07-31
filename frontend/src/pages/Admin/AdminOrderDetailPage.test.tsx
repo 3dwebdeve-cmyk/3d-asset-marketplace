@@ -40,6 +40,7 @@ const sampleOrder = {
       product_type: 'product' as const,
       product_id: productId,
       title: 'Oak Chair',
+      slug: 'oak-chair',
       quantity: 2,
       purchase_price: '29.99',
       line_total: '59.98',
@@ -113,6 +114,35 @@ describe('AdminOrderDetailPage', () => {
       expect(ordersApi.updateAdminOrderStatus).toHaveBeenCalledWith(orderId, {
         order_status: 'paid',
         payment_status: 'paid',
+      })
+    })
+  })
+
+  it('shows allowed status transition actions for a pending order', async () => {
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'INV-20260728-ABCD' })
+    expect(screen.getByRole('button', { name: /set order → paid/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /set order → cancelled/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /set payment → paid/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /set payment → cancelled/i })).toBeInTheDocument()
+    expect(screen.getByText('oak-chair')).toBeInTheDocument()
+  })
+
+  it('applies a single allowed order status transition', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ordersApi.updateAdminOrderStatus).mockResolvedValue({
+      ...sampleOrder,
+      order_status: 'cancelled',
+    })
+
+    renderPage()
+    await screen.findByRole('heading', { name: 'INV-20260728-ABCD' })
+    await user.click(screen.getByRole('button', { name: /set order → cancelled/i }))
+
+    await waitFor(() => {
+      expect(ordersApi.updateAdminOrderStatus).toHaveBeenCalledWith(orderId, {
+        order_status: 'cancelled',
       })
     })
   })

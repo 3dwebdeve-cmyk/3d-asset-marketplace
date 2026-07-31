@@ -69,12 +69,16 @@ class CheckoutService:
         except OrderError as exc:
             raise CheckoutError(exc.message, field=exc.field) from exc
 
-        titles = OrderService.build_catalog_titles(list(order.items.all()))
+        fallback_titles = OrderService.build_catalog_titles(list(order.items.all()))
         currency_lower = order.currency.lower()
 
         line_items: list[dict[str, Any]] = []
         for item in order.items.all():
-            title = titles.get((item.product_type, item.product_id)) or "Marketplace item"
+            title = (
+                item.title
+                or fallback_titles.get((item.product_type, item.product_id))
+                or "Marketplace item"
+            )
             line_items.append(
                 {
                     "price_data": {

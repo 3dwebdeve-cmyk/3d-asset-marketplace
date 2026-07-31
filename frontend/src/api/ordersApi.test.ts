@@ -33,6 +33,7 @@ const sampleOrder: AdminOrder = {
       product_type: 'product',
       product_id: productId,
       title: 'Oak Chair',
+      slug: 'oak-chair',
       quantity: 2,
       purchase_price: '29.99',
       line_total: '59.98',
