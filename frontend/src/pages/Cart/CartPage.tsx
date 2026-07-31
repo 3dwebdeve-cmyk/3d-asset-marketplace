@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { useCart } from '../../hooks/useCart'
+import { useCheckout } from '../../hooks/useCheckout'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
@@ -22,6 +23,7 @@ export function CartPage() {
     clearCouponError,
     refetch,
   } = useCart()
+  const { startCheckout, isRedirecting } = useCheckout()
 
   const isEmpty = cart?.item_count === 0
 
@@ -130,17 +132,15 @@ export function CartPage() {
                 </strong>
               </div>
               <p className="cart-summary__note">
-                Unavailable items are excluded from the subtotal. Checkout unlocks in a later
-                release.
+                Unavailable items are excluded from the subtotal.
               </p>
               <Button
                 type="button"
                 className="cart-checkout-button"
-                disabled
-                aria-disabled="true"
-                title="Payments coming soon"
+                isLoading={isRedirecting}
+                onClick={() => startCheckout()}
               >
-                Payments coming soon
+                Checkout
               </Button>
             </footer>
           </>

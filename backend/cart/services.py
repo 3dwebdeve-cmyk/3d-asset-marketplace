@@ -2,11 +2,11 @@
 Cart pricing policy (v1):
 - Display and subtotal use live catalog effective prices:
   effective_price = discount_price if set else price.
-- Prices are NOT snapshotted in the cart; checkout (Feature 15) snapshots
-  purchase_price on OrderItem via OrderService.create().
+- Prices are NOT snapshotted in the cart; checkout snapshots purchase_price
+  on OrderItem via OrderService.create() / OrderService.create_from_cart().
 - Unavailable catalog lines remain in the cart but are excluded from subtotal.
 - Optional coupon discount is applied to the cart subtotal server-side.
-  times_used increments at checkout (Feature 15), not on apply.
+  times_used increments on successful checkout payment, not on apply.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from uuid import UUID
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from cart.models import Cart, CartItem
 from coupons.models import Coupon
 from coupons.services import CouponError, CouponService, ZERO
@@ -156,6 +157,26 @@ class CartService:
         cart = cls.get_or_create_cart(user)
         cart.items.all().delete()
         if cart.coupon_id is not None:
+            cart.coupon = None
+            cart.save(update_fields=["coupon", "updated_at"])
+
+    @classmethod
+    @transaction.atomic
+    def remove_items(cls, user: User, keys: Iterable[tuple[str, UUID]]) -> None:
+        """Remove only the given (product_type, product_id) lines from the cart.
+
+        Used after a successful checkout to drop just the purchased lines,
+        leaving anything the customer added after starting checkout intact.
+        """
+        cart = cls.get_or_create_cart(user)
+        key_set = set(keys)
+        if not key_set:
+            return
+        query = Q()
+        for product_type, product_id in key_set:
+            query |= Q(product_type=product_type, product_id=product_id)
+        cart.items.filter(query).delete()
+        if not cart.items.exists() and cart.coupon_id is not None:
             cart.coupon = None
             cart.save(update_fields=["coupon", "updated_at"])
 

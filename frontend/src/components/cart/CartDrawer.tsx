@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { useCart } from '../../hooks/useCart'
+import { useCheckout } from '../../hooks/useCheckout'
 import { useCartUiStore } from '../../store/cartUiStore'
 import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/ErrorState'
@@ -24,6 +25,7 @@ export function CartDrawer() {
     clearCouponError,
     refetch,
   } = useCart()
+  const { startCheckout, isRedirecting } = useCheckout()
 
   if (!isDrawerOpen) {
     return null
@@ -126,11 +128,10 @@ export function CartDrawer() {
             <Button
               type="button"
               className="cart-checkout-button"
-              disabled
-              aria-disabled="true"
-              title="Payments coming soon"
+              isLoading={isRedirecting}
+              onClick={() => startCheckout()}
             >
-              Payments coming soon
+              Checkout
             </Button>
             <Link
               to="/cart"
