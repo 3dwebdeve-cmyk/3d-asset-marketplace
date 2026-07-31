@@ -83,3 +83,7 @@ class AdminCouponWriteRateThrottle(UserRateThrottle):
 
 class ContactFormRateThrottle(AnonRateThrottle):
     scope = "contact_form"
+
+
+class PaymentCheckoutRateThrottle(UserRateThrottle):
+    scope = "payment_checkout"

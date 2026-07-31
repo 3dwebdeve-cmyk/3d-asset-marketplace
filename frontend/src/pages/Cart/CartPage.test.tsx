@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as cartApi from '../../api/cartApi'
+import * as paymentsApi from '../../api/paymentsApi'
 import { createTestQueryClient, resetAuthStore, resetToastStore, testUser } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
 import { CartPage } from './CartPage'
@@ -20,6 +21,16 @@ vi.mock('../../api/cartApi', async () => {
     clearCart: vi.fn(),
     applyCartCoupon: vi.fn(),
     removeCartCoupon: vi.fn(),
+  }
+})
+
+vi.mock('../../api/paymentsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/paymentsApi')>(
+    '../../api/paymentsApi',
+  )
+  return {
+    ...actual,
+    createCheckoutSession: vi.fn(),
   }
 })
 
@@ -85,7 +96,7 @@ beforeEach(() => {
 })
 
 describe('CartPage', () => {
-  it('renders cart line items, subtotal, total, and disabled checkout', async () => {
+  it('renders cart line items, subtotal, total, and an enabled checkout button', async () => {
     renderCartPage()
 
     expect(await screen.findByRole('link', { name: /oak chair/i })).toHaveAttribute(
@@ -95,7 +106,38 @@ describe('CartPage', () => {
     expect(screen.getByText('Product')).toBeInTheDocument()
     expect(screen.getAllByText('$59.98').length).toBeGreaterThan(0)
     expect(screen.getByLabelText(/coupon code/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /payments coming soon/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^checkout$/i })).toBeEnabled()
+  })
+
+  it('starts checkout and redirects to the returned checkout URL', async () => {
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, href: '' },
+    })
+
+    const user = userEvent.setup()
+    vi.mocked(paymentsApi.createCheckoutSession).mockResolvedValue({
+      checkout_url: 'https://checkout.stripe.com/pay/cs_test_123',
+      order_id: 'order-id',
+    })
+
+    renderCartPage()
+    await screen.findByRole('link', { name: /oak chair/i })
+
+    await user.click(screen.getByRole('button', { name: /^checkout$/i }))
+
+    await waitFor(() => {
+      expect(paymentsApi.createCheckoutSession).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_test_123')
+    })
+
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    })
   })
 
   it('applies a coupon code', async () => {

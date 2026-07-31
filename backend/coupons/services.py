@@ -7,7 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
 from django.utils import timezone
 
 from coupons.models import COUPON_CODE_REGEX, Coupon
@@ -257,6 +257,10 @@ class CouponService:
         if discount < ZERO:
             return ZERO
         return discount
+
+    @classmethod
+    def increment_usage(cls, coupon: Coupon) -> None:
+        Coupon.objects.filter(pk=coupon.pk).update(times_used=F("times_used") + 1)
 
     @classmethod
     def serialize_applied(cls, coupon: Coupon) -> dict[str, Any]:

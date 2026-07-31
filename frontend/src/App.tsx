@@ -24,6 +24,8 @@ import { MyDownloadsPage } from './pages/Dashboard/MyDownloadsPage'
 import { CustomerOrderDetailPage } from './pages/Dashboard/CustomerOrderDetailPage'
 import { WishlistPage } from './pages/Dashboard/WishlistPage'
 import { CartPage } from './pages/Cart/CartPage'
+import { CheckoutSuccessPage } from './pages/Checkout/CheckoutSuccessPage'
+import { CheckoutCancelPage } from './pages/Checkout/CheckoutCancelPage'
 import { EmailVerificationPage } from './pages/EmailVerification/EmailVerificationPage'
 import { EmailVerificationResendPage } from './pages/EmailVerification/EmailVerificationResendPage'
 import { HomePage } from './pages/Home/HomePage'
@@ -192,6 +194,8 @@ function AppRoutes() {
               <Route path="/dashboard/downloads" element={<MyDownloadsPage />} />
               <Route path="/dashboard/wishlist" element={<WishlistPage />} />
               <Route path="/cart" element={<CartPage />} />
+              <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+              <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
               <Route
                 path="/dashboard/projects/new"
                 element={<CustomerProjectRequestPage />}

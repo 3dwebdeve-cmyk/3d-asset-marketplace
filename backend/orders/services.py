@@ -12,6 +12,7 @@ from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
 
 from accounts.models import User
+from coupons.models import Coupon
 from orders.models import Order, OrderItem
 from plugins.models import Plugin
 from products.models import Product
@@ -224,26 +225,11 @@ class OrderService:
         )
 
         with transaction.atomic():
-            for _attempt in range(5):
-                invoice_number = cls._generate_invoice_number()
-                try:
-                    order = Order.objects.create(
-                        user=user,
-                        invoice_number=invoice_number,
-                        total_amount=total_amount,
-                        currency=currency,
-                        order_status=Order.OrderStatus.PENDING,
-                        payment_status=Order.PaymentStatus.PENDING,
-                    )
-                    break
-                except IntegrityError:
-                    if _attempt == 4:
-                        raise OrderError(
-                            "Unable to generate a unique invoice number.",
-                        ) from None
-            else:
-                raise OrderError("Unable to generate a unique invoice number.")
-
+            order = cls._create_order_with_unique_invoice(
+                user=user,
+                total_amount=total_amount,
+                currency=currency,
+            )
             OrderItem.objects.bulk_create(
                 [
                     OrderItem(
@@ -258,6 +244,87 @@ class OrderService:
             )
 
         return cls.get(order.pk)
+
+    @classmethod
+    @transaction.atomic
+    def create_from_cart(cls, user: User) -> tuple[Order, Decimal, Coupon | None]:
+        """Snapshot the user's cart into a PENDING order for checkout.
+
+        Only available cart lines are included (mirrors CartService totals).
+        Returns the created order, the discount amount applied at checkout
+        time, and the coupon that produced it (if any), so the caller (e.g.
+        the payments app) can build a matching Stripe Checkout Session and
+        later increment coupon usage once payment succeeds.
+        """
+        from cart.services import CartService
+
+        envelope = CartService.get_cart_envelope(user)
+        available_items = [
+            item
+            for item in envelope.items
+            if (snapshot := envelope.snapshots.get((item.product_type, item.product_id)))
+            and snapshot.get("is_available")
+        ]
+        if not available_items:
+            raise OrderError("Your cart is empty.", field="items")
+
+        resolved_items = [
+            (
+                item.product_type,
+                item.product_id,
+                item.quantity,
+                Decimal(
+                    envelope.snapshots[(item.product_type, item.product_id)]["effective_price"]
+                ),
+            )
+            for item in available_items
+        ]
+
+        order = cls._create_order_with_unique_invoice(
+            user=user,
+            total_amount=envelope.totals.total,
+            currency=envelope.totals.currency,
+        )
+        OrderItem.objects.bulk_create(
+            [
+                OrderItem(
+                    order=order,
+                    product_type=product_type,
+                    product_id=product_id,
+                    quantity=quantity,
+                    purchase_price=purchase_price,
+                )
+                for product_type, product_id, quantity, purchase_price in resolved_items
+            ]
+        )
+
+        return cls.get(order.pk), envelope.totals.discount_amount, envelope.coupon
+
+    @classmethod
+    def _create_order_with_unique_invoice(
+        cls,
+        *,
+        user: User,
+        total_amount: Decimal,
+        currency: str,
+    ) -> Order:
+        for _attempt in range(5):
+            invoice_number = cls._generate_invoice_number()
+            try:
+                return Order.objects.create(
+                    user=user,
+                    invoice_number=invoice_number,
+                    total_amount=total_amount,
+                    currency=currency,
+                    order_status=Order.OrderStatus.PENDING,
+                    payment_status=Order.PaymentStatus.PENDING,
+                )
+            except IntegrityError:
+                if _attempt == 4:
+                    raise OrderError(
+                        "Unable to generate a unique invoice number.",
+                    ) from None
+        raise OrderError("Unable to generate a unique invoice number.")
 
     @classmethod
     def update_order_status(cls, order: Order, new_status: str) -> Order:
