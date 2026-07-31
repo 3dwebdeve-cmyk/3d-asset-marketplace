@@ -148,9 +148,13 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
         product_item = order.items.get(product_type=OrderItem.ProductType.PRODUCT)
         self.assertEqual(product_item.purchase_price, Decimal("39.99"))
         self.assertEqual(product_item.quantity, 2)
+        self.assertEqual(product_item.title, "Hero Sword")
+        self.assertEqual(product_item.slug, "hero-sword")
 
         plugin_item = order.items.get(product_type=OrderItem.ProductType.PLUGIN)
         self.assertEqual(plugin_item.purchase_price, Decimal("24.50"))
+        self.assertEqual(plugin_item.title, "UV Toolkit")
+        self.assertEqual(plugin_item.slug, "uv-toolkit")
 
         expected_total = Decimal("39.99") * 2 + Decimal("24.50")
         self.assertEqual(order.total_amount, expected_total)
@@ -481,7 +485,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(no_match.status_code, status.HTTP_200_OK)
         self.assertEqual(no_match.data["count"], 0)
 
-    def test_admin_detail_includes_items_customer_and_live_titles(self) -> None:
+    def test_admin_detail_includes_items_customer_and_snapshotted_titles(self) -> None:
         self._authenticate_admin()
         detail_url = reverse(
             "orders_admin:admin-order-detail",
@@ -494,7 +498,9 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(len(response.data["items"]), 2)
 
         titles = {item["title"] for item in response.data["items"]}
+        slugs = {item["slug"] for item in response.data["items"]}
         self.assertEqual(titles, {"Hero Sword", "UV Toolkit"})
+        self.assertEqual(slugs, {"hero-sword", "uv-toolkit"})
 
         product_item = next(
             item
@@ -504,6 +510,55 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(product_item["quantity"], 2)
         self.assertEqual(product_item["purchase_price"], "39.99")
         self.assertEqual(product_item["line_total"], "79.98")
+
+        # Renaming catalog rows must not change snapshotted order titles.
+        self.product.name = "Renamed Sword"
+        self.product.slug = "renamed-sword"
+        self.product.save(update_fields=["name", "slug", "updated_at"])
+        renamed = self.client.get(detail_url)
+        self.assertEqual(renamed.status_code, status.HTTP_200_OK)
+        renamed_titles = {item["title"] for item in renamed.data["items"]}
+        self.assertEqual(renamed_titles, {"Hero Sword", "UV Toolkit"})
+
+    def test_admin_can_patch_allowed_status_transitions(self) -> None:
+        self._authenticate_admin()
+        detail_url = reverse(
+            "orders_admin:admin-order-detail",
+            kwargs={"order_id": self.order.id},
+        )
+        response = self.client.patch(
+            detail_url,
+            {
+                "order_status": Order.OrderStatus.PAID,
+                "payment_status": Order.PaymentStatus.PAID,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["order_status"], Order.OrderStatus.PAID)
+        self.assertEqual(response.data["payment_status"], Order.PaymentStatus.PAID)
+
+        refund = self.client.patch(
+            detail_url,
+            {"order_status": Order.OrderStatus.REFUNDED},
+            format="json",
+        )
+        self.assertEqual(refund.status_code, status.HTTP_200_OK)
+        self.assertEqual(refund.data["order_status"], Order.OrderStatus.REFUNDED)
+
+    def test_admin_patch_rejects_illegal_status_transition(self) -> None:
+        self._authenticate_admin()
+        detail_url = reverse(
+            "orders_admin:admin-order-detail",
+            kwargs={"order_id": self.order.id},
+        )
+        response = self.client.patch(
+            detail_url,
+            {"order_status": Order.OrderStatus.REFUNDED},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("order_status", response.data)
 
     def test_customer_denied_on_admin_order_endpoints(self) -> None:
         self._authenticate_customer()
@@ -546,6 +601,10 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(response.data["customer"]["email"], self.user.email)
         self.assertEqual(len(response.data["items"]), 1)
         self.assertEqual(response.data["items"][0]["title"], "Hero Sword")
+        self.assertEqual(response.data["items"][0]["slug"], "hero-sword")
+        created_item = OrderItem.objects.get(id=response.data["items"][0]["id"])
+        self.assertEqual(created_item.title, "Hero Sword")
+        self.assertEqual(created_item.slug, "hero-sword")
 
     def test_unauthenticated_denied_on_admin_order_endpoints(self) -> None:
         list_response = self.client.get(self.admin_list_url)
@@ -668,6 +727,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         "product_type",
         "product_id",
         "title",
+        "slug",
         "quantity",
         "purchase_price",
         "line_total",
@@ -975,9 +1035,37 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         self.assertNotIn("storage_path", item)
         self.assertNotIn("download_url", item)
 
-    def test_customer_detail_live_titles(self) -> None:
+    def test_customer_detail_snapshotted_titles(self) -> None:
         self._authenticate_customer()
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         titles = {item["title"] for item in response.data["items"]}
+        slugs = {item["slug"] for item in response.data["items"]}
         self.assertEqual(titles, {"Hero Sword", "UV Toolkit"})
+        self.assertEqual(slugs, {"hero-sword", "uv-toolkit"})
+
+        self.product.name = "Renamed Sword"
+        self.product.save(update_fields=["name", "updated_at"])
+        after_rename = self.client.get(self.detail_url)
+        self.assertEqual(after_rename.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {item["title"] for item in after_rename.data["items"]},
+            {"Hero Sword", "UV Toolkit"},
+        )
+
+    def test_serializer_falls_back_to_live_catalog_when_snapshot_missing(self) -> None:
+        self._authenticate_customer()
+        item = self.order.items.get(product_type=OrderItem.ProductType.PRODUCT)
+        item.title = None
+        item.slug = None
+        item.save(update_fields=["title", "slug", "updated_at"])
+
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product_row = next(
+            row
+            for row in response.data["items"]
+            if row["product_type"] == OrderItem.ProductType.PRODUCT
+        )
+        self.assertEqual(product_row["title"], "Hero Sword")
+        self.assertEqual(product_row["slug"], "hero-sword")

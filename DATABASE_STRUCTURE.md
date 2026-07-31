@@ -153,6 +153,8 @@ Stores purchased items. Fields
  id
  order_id
  product_type  product_id
+ title (snapshotted at order create)
+ slug (snapshotted at order create)
  quantity
  purchase_price
 Payments

@@ -58,6 +58,7 @@ export interface AdminOrderItem {
   product_type: OrderItemProductType
   product_id: string
   title: string | null
+  slug: string | null
   quantity: number
   purchase_price: string
   line_total: string
@@ -130,6 +131,7 @@ export interface CustomerOrderItem {
   product_type: OrderItemProductType
   product_id: string
   title: string | null
+  slug: string | null
   quantity: number
   purchase_price: string
   line_total: string
@@ -137,6 +139,24 @@ export interface CustomerOrderItem {
   files: OrderItemDownloadFile[]
   created_at: string
   updated_at: string
+}
+
+/** Allowed admin status transitions (mirrors OrderService maps). */
+export const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  pending: ['paid', 'cancelled'],
+  paid: ['refunded'],
+  cancelled: [],
+  refunded: [],
+}
+
+export const ALLOWED_PAYMENT_STATUS_TRANSITIONS: Record<
+  OrderPaymentStatus,
+  OrderPaymentStatus[]
+> = {
+  pending: ['paid', 'cancelled'],
+  paid: ['refunded'],
+  cancelled: [],
+  refunded: [],
 }
 
 export interface CustomerOrder extends CustomerOrderListItem {

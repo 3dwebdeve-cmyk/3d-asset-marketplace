@@ -55,8 +55,10 @@ def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | Non
 
 def _detail_serializer_context(order: Order, request: Request | None = None) -> dict:
     items = list(order.items.all())
+    snapshots = OrderService.build_catalog_snapshots(items)
     context = {
-        "catalog_titles": OrderService.build_catalog_titles(items),
+        "catalog_titles": {key: title for key, (title, _slug) in snapshots.items()},
+        "catalog_slugs": {key: slug for key, (_title, slug) in snapshots.items()},
         "order": order,
     }
     if request is not None:
