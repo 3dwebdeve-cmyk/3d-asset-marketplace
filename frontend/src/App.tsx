@@ -109,6 +109,16 @@ const AdminOrderDetailPage = lazy(() =>
     default: module.AdminOrderDetailPage,
   })),
 )
+const AdminPaymentsPage = lazy(() =>
+  import('./pages/Admin/AdminPaymentsPage').then((module) => ({
+    default: module.AdminPaymentsPage,
+  })),
+)
+const AdminPaymentDetailPage = lazy(() =>
+  import('./pages/Admin/AdminPaymentDetailPage').then((module) => ({
+    default: module.AdminPaymentDetailPage,
+  })),
+)
 const AdminReviewsPage = lazy(() =>
   import('./pages/Admin/AdminReviewsPage').then((module) => ({
     default: module.AdminReviewsPage,
@@ -244,6 +254,11 @@ function AppRoutes() {
               <Route
                 path="/admin/orders/:orderId"
                 element={<AdminOrderDetailPage />}
+              />
+              <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+              <Route
+                path="/admin/payments/:paymentId"
+                element={<AdminPaymentDetailPage />}
               />
               <Route path="/admin/coupons" element={<AdminCouponsPage />} />
               <Route

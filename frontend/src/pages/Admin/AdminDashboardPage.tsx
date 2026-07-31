@@ -110,6 +110,16 @@ export function AdminDashboardPage() {
                   {stats.sales.monthly_orders} orders this month
                 </p>
               </article>
+              <article className="admin-stat-card">
+                <h2 className="admin-stat-card__label">Paid payments</h2>
+                <p className="admin-stat-card__value">{stats.payments.succeeded}</p>
+                <p className="admin-stat-card__meta">
+                  {stats.payments.pending} pending ·{' '}
+                  <Link className="auth-link" to="/admin/payments">
+                    View payments
+                  </Link>
+                </p>
+              </article>
             </div>
 
             <section className="admin-dashboard__section" aria-labelledby="live-categories-title">
@@ -161,6 +171,9 @@ export function AdminDashboardPage() {
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/orders">
             Manage orders
+          </Link>
+          <Link className="home-page__cta home-page__cta--secondary" to="/admin/payments">
+            Manage payments
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/users">
             Manage users

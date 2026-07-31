@@ -34,6 +34,11 @@ class AdminDashboardSalesStatsSerializer(serializers.Serializer):
     currency = serializers.CharField(max_length=3)
 
 
+class AdminDashboardPaymentsStatsSerializer(serializers.Serializer):
+    succeeded = serializers.IntegerField()
+    pending = serializers.IntegerField()
+
+
 class AdminDashboardCategoryBreakdownSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()
@@ -50,6 +55,7 @@ class AdminDashboardStatsSerializer(serializers.Serializer):
     plugins = AdminDashboardPluginsStatsSerializer()
     projects = AdminDashboardProjectsStatsSerializer()
     sales = AdminDashboardSalesStatsSerializer()
+    payments = AdminDashboardPaymentsStatsSerializer()
     category_breakdown = AdminDashboardCategoryBreakdownSerializer(many=True)
 
     @classmethod

@@ -1,7 +1,41 @@
 import { apiClient } from './client'
-import type { CheckoutSessionResponse } from '../types/payment'
+import type {
+  AdminPaymentDetail,
+  AdminPaymentListParams,
+  CheckoutSessionResponse,
+  PaginatedAdminPayments,
+} from '../types/payment'
 
 export async function createCheckoutSession(): Promise<CheckoutSessionResponse> {
   const { data } = await apiClient.post<CheckoutSessionResponse>('/api/payments/checkout/')
+  return data
+}
+
+function toAdminQuery(params: AdminPaymentListParams = {}): string {
+  const query = new URLSearchParams()
+  if (params.search) query.set('search', params.search)
+  if (params.status) query.set('status', params.status)
+  if (params.created_after) query.set('created_after', params.created_after)
+  if (params.created_before) query.set('created_before', params.created_before)
+  if (params.ordering) query.set('ordering', params.ordering)
+  if (params.page) query.set('page', String(params.page))
+  if (params.page_size) query.set('page_size', String(params.page_size))
+  const encoded = query.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
+export async function listAdminPayments(
+  params: AdminPaymentListParams = {},
+): Promise<PaginatedAdminPayments> {
+  const { data } = await apiClient.get<PaginatedAdminPayments>(
+    `/api/admin/payments/${toAdminQuery(params)}`,
+  )
+  return data
+}
+
+export async function getAdminPayment(paymentId: string): Promise<AdminPaymentDetail> {
+  const { data } = await apiClient.get<AdminPaymentDetail>(
+    `/api/admin/payments/${paymentId}/`,
+  )
   return data
 }

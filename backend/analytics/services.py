@@ -8,6 +8,7 @@ from django.db.models import Count, Q
 from accounts.models import User
 from categories.models import Category
 from custom_projects.models import CustomProject
+from payments.models import Payment
 from plugins.models import Plugin
 from products.models import Product
 
@@ -42,6 +43,10 @@ class DashboardStatsService:
             live=Count("id", filter=Q(is_active=True)),
         )
         plugin_counts = Plugin.objects.aggregate(total=Count("id"))
+        payment_counts = Payment.objects.aggregate(
+            succeeded=Count("id", filter=Q(status=Payment.Status.SUCCEEDED)),
+            pending=Count("id", filter=Q(status=Payment.Status.PENDING)),
+        )
         project_counts = CustomProject.objects.aggregate(
             pending=Count(
                 "id",
@@ -127,6 +132,10 @@ class DashboardStatsService:
                 "monthly_revenue": Decimal("0.00"),
                 "monthly_orders": 0,
                 "currency": cls.DEFAULT_CURRENCY,
+            },
+            "payments": {
+                "succeeded": payment_counts["succeeded"],
+                "pending": payment_counts["pending"],
             },
             "category_breakdown": category_breakdown,
         }

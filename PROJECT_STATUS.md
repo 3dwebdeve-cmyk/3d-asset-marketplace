@@ -129,7 +129,7 @@ Admin Dashboard
 • [x] Coupons (list/create/detail; percent or fixed; expiry + usage limits)
 • [x] Reviews moderation (list / hide / delete)
 • [x] Download History audit (/admin/downloads)
-• [ ] Payments (admin payments list/detail — Feature 15F)
+• [x] Payments (admin payments list/detail — Feature 15F)
 • [ ] Analytics
 Public Site Pages
 • [x] About page (/about) — studio mission, offerings, trust, CTAs
@@ -145,12 +145,19 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 8 complete. Next recommended: Feature 10 — In-app Notifications (or Feature 11 Admin Analytics / Feature 13 Docker per roadmap).
+Feature 15F (Admin Payments UI) complete. Next recommended: Feature 10 — In-app Notifications (or Feature 11 Admin Analytics / Feature 13 Docker / Feature 15G quotation payment per roadmap).
 Current Git Branch
-develop
+feature/admin-payments-ui
 Files Being Worked On
-• (none — Feature 8 shipped 2026-07-31)
+• (none — Feature 15F shipped 2026-07-31)
 Completed Features
+• Feature 15F — Admin Payments UI (2026-07-31)
+  - Backend: GET /api/admin/payments/ (filters: status, date range, search, ordering, pagination)
+  - Backend: GET /api/admin/payments/:id/ (detail + linked order summary + Stripe reference IDs only)
+  - Backend: AdminPaymentService; status aliases paid→succeeded, cancelled→expired
+  - Backend: dashboard stats include payments.succeeded / payments.pending
+  - Frontend: /admin/payments list + /admin/payments/:paymentId detail; Payments nav; dashboard paid count
+  - Tests: admin payments API (guest/customer denied); frontend list/detail/api/dashboard tests
 • Feature 8 — Order integrity hardening (2026-07-31)
   - Backend: OrderItem.title + OrderItem.slug snapshotted on admin create and cart checkout
   - Backend: migration 0002 backfills existing rows from Product/Plugin names
@@ -273,8 +280,8 @@ Pending Features
 • Feature 11 — Admin Analytics
 • Feature 13 — Docker & local/prod runtime
 • Feature 14 — Cloudflare R2 Storage
-• Feature 15 remainder — Admin Payments UI, quotation payment, PayPal/Razorpay (if still in scope), R2 signed downloads
-• Invoice PDF generation (invoice_number already exists)
+• Feature 15 remainder — quotation payment, PayPal/Razorpay (if still in scope), R2 signed downloads
+• Invoice PDF generation (invoice_number + paid-order PDF/receipt already shipped; remaining polish if any)
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
 • Waiting on manager approval for UI prototype
@@ -320,6 +327,54 @@ Important Decisions
 • Catalog download entitlement requires order_status=paid AND payment_status=paid (stricter than reviews' order_status-only check); DownloadHistory logged per file fetch; total_downloads incremented on Product/Plugin.
 • Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles/slugs use OrderItem snapshots (Feature 8).
 Daily Development Log
+Date: 2026-07-31 (Feature 15F — Admin Payments UI)
+Working Hours:
+Today's Objective: Admin payments list/detail APIs + SPA so support/finance can inspect Stripe payments without digging through orders only.
+Modules Completed: Admin payment list/detail APIs, Payments admin UI, dashboard paid count, tests, PROJECT_STATUS
+Files Created:
+• backend/payments/serializers.py
+• backend/payments/pagination.py
+• backend/payments/admin_urls.py
+• backend/payments/test_admin_payments.py
+• frontend/src/pages/Admin/AdminPaymentsPage.tsx (+ test)
+• frontend/src/pages/Admin/AdminPaymentDetailPage.tsx (+ test)
+• frontend/src/api/paymentsApi.test.ts
+Files Modified:
+• backend/payments/views.py, services.py
+• backend/config/urls.py
+• backend/analytics/services.py, serializers.py, test_dashboard_stats.py
+• frontend/src/types/payment.ts, types/dashboard.ts
+• frontend/src/api/paymentsApi.ts
+• frontend/src/App.tsx, config/adminNav.ts
+• frontend/src/pages/Admin/AdminDashboardPage.tsx (+ test)
+• PROJECT_STATUS.md
+Database Changes:
+• None (reuses existing payments table)
+API Endpoints:
+• GET /api/admin/payments/ — list + filters (admin-only)
+• GET /api/admin/payments/<uuid>/ — detail (admin-only)
+• GET /api/admin/dashboard/stats/ — now includes payments.succeeded / payments.pending
+Frontend Pages/Components Added:
+• /admin/payments — AdminPaymentsPage
+• /admin/payments/:paymentId — AdminPaymentDetailPage
+• Admin sidebar Payments link; dashboard paid-payments card
+Tests Added/Updated:
+• backend payments.test_admin_payments — list/filter/detail + RBAC (6 tests)
+• backend analytics dashboard payments counts
+• frontend AdminPaymentsPage, AdminPaymentDetailPage, paymentsApi, AdminDashboardPage
+Security Checklist:
+• Admin-only RBAC (IsAdministrator); customer/guest denied
+• No Stripe secret keys or card data exposed — session/intent IDs only
+• Input validated for status/date filters; search parameterized via ORM
+• Existing checkout/webhook behavior unchanged
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 10 — In-app Notifications (or Feature 11 Admin Analytics / Feature 15G quotation payment)
+Notes:
+• Payment model statuses remain pending/succeeded/failed/expired/refunded; UI labels map succeeded→Paid, expired→Cancelled; filters accept paid/cancelled aliases
+• No dedicated payment status-history table; detail shows created_at/updated_at only
+
 Date: 2026-07-31 (Feature 8 — Order integrity hardening)
 Working Hours:
 Today's Objective: Snapshot OrderItem title/slug; harden admin status UI; update PROJECT_STATUS after Stripe Phase 1.
@@ -2220,19 +2275,19 @@ Final Release Checklist
 • [x] Plugin Store Complete (signed CDN URLs deferred)
 • [x] Custom Project Portal Complete (non-payment)
 • [x] Customer Dashboard Complete (Stripe cart checkout live; quotation pay deferred)
-• [x] Admin Dashboard Complete (payments/analytics deferred)
-• [x] Payment System Complete (Stripe cart Phase 1; admin payments UI + quotation pay deferred)
+• [x] Admin Dashboard Complete (payments UI live; analytics deferred)
+• [x] Payment System Complete (Stripe cart Phase 1 + admin payments UI; quotation pay deferred)
 • [x] Secure Downloads Complete (local; R2 signed URLs deferred)
 • [ ] Security Testing Complete
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
 Project Completion
-Current Completion Percentage: ~65%
-Estimated Remaining Work: In-app notifications, admin analytics, Docker, Cloudflare R2, remaining payments (admin UI / quotation pay / signed CDN URLs), final QA
+Current Completion Percentage: ~67%
+Estimated Remaining Work: In-app notifications, admin analytics, Docker, Cloudflare R2, remaining payments (quotation pay / signed CDN URLs), final QA
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
-Stripe Checkout Phase 1 and Feature 8 order integrity hardening shipped 2026-07-31.
+Feature 15F Admin Payments UI shipped 2026-07-31 (Stripe checkout + Feature 8 already on develop).
 Date: 2026-07-24 (CP-MSG-05 Admin project messages UI)
 Working Hours:
 Today's Objective: Admin project messages UI on /admin/projects/:projectId

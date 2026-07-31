@@ -136,6 +136,8 @@ class AdminDashboardStatsAPITests(APITestCase):
         self.assertEqual(response.data["sales"]["monthly_revenue"], "0.00")
         self.assertEqual(response.data["sales"]["monthly_orders"], 0)
         self.assertEqual(response.data["sales"]["currency"], "USD")
+        self.assertEqual(response.data["payments"]["succeeded"], 0)
+        self.assertEqual(response.data["payments"]["pending"], 0)
         self.assertEqual(len(response.data["category_breakdown"]), 1)
         self.assertEqual(response.data["category_breakdown"][0]["slug"], "furniture")
         self.assertEqual(response.data["category_breakdown"][0]["product_count"], 2)
