@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiClient } from './client'
-import { createAdminOrder, getAdminOrder, getCustomerOrder, listAdminOrders, listCustomerOrders } from './ordersApi'
+import {
+  createAdminOrder,
+  downloadAdminOrderInvoice,
+  downloadCustomerOrderInvoice,
+  getAdminOrder,
+  getCustomerOrder,
+  listAdminOrders,
+  listCustomerOrders,
+} from './ordersApi'
 import type { AdminOrder, CustomerOrder } from '../types/order'
 
 vi.mock('./client', () => ({
@@ -174,5 +182,53 @@ describe('ordersApi', () => {
 
     expect(result.invoice_number).toBe(sampleOrder.invoice_number)
     expect(apiClient.get).toHaveBeenCalledWith(`/api/orders/${orderId}/`)
+  })
+
+  it('downloads a customer order invoice as a blob', async () => {
+    const createObjectURL = vi.fn(() => 'blob:invoice')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', {
+      createObjectURL,
+      revokeObjectURL,
+    })
+    const click = vi.fn()
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      click,
+      href: '',
+      download: '',
+    } as unknown as HTMLAnchorElement)
+    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['%PDF']) })
+
+    await downloadCustomerOrderInvoice(orderId, sampleOrder.invoice_number)
+
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/orders/${orderId}/invoice/`, {
+      responseType: 'blob',
+    })
+    expect(click).toHaveBeenCalled()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:invoice')
+  })
+
+  it('downloads an admin order invoice as a blob', async () => {
+    const createObjectURL = vi.fn(() => 'blob:admin-invoice')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', {
+      createObjectURL,
+      revokeObjectURL,
+    })
+    const click = vi.fn()
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      click,
+      href: '',
+      download: '',
+    } as unknown as HTMLAnchorElement)
+    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['%PDF']) })
+
+    await downloadAdminOrderInvoice(orderId, sampleOrder.invoice_number)
+
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/admin/orders/${orderId}/invoice/`, {
+      responseType: 'blob',
+    })
+    expect(click).toHaveBeenCalled()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:admin-invoice')
   })
 })

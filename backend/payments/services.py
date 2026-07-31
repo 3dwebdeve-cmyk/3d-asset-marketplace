@@ -12,6 +12,7 @@ from cart.services import CartService
 from coupons.services import CouponService
 from orders.entitlements import order_allows_download
 from orders.models import Order
+from orders.notifications import send_payment_receipt
 from orders.services import OrderError, OrderService
 
 from payments.models import Payment, StripeWebhookEvent
@@ -178,7 +179,7 @@ class WebhookService:
             if order.order_status == Order.OrderStatus.PENDING:
                 order = OrderService.update_order_status(order, Order.OrderStatus.PAID)
             if order.payment_status == Order.PaymentStatus.PENDING:
-                OrderService.update_payment_status(order, Order.PaymentStatus.PAID)
+                order = OrderService.update_payment_status(order, Order.PaymentStatus.PAID)
 
         purchased_keys = {
             (item.product_type, item.product_id) for item in order.items.all()
@@ -187,6 +188,8 @@ class WebhookService:
 
         if payment.coupon_id is not None:
             CouponService.increment_usage(payment.coupon)
+
+        send_payment_receipt(order)
 
     @classmethod
     def _handle_checkout_expired(cls, session: "stripe.checkout.Session") -> None:

@@ -18,6 +18,7 @@ vi.mock('../../api/ordersApi', async () => {
   return {
     ...actual,
     getCustomerOrder: vi.fn(),
+    downloadCustomerOrderInvoice: vi.fn(),
   }
 })
 
@@ -148,6 +149,29 @@ describe('CustomerOrderDetailPage', () => {
     expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(
       paidOrder.items[0].files[0].download_url,
       'hero-sword.zip',
+    )
+  })
+
+  it('hides download invoice when order is not paid', async () => {
+    renderCustomerOrderDetailPage()
+
+    await screen.findByRole('heading', { name: pendingOrder.invoice_number })
+    expect(screen.queryByRole('button', { name: /download invoice/i })).not.toBeInTheDocument()
+  })
+
+  it('shows download invoice when order is paid and downloads on click', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue(paidOrder)
+    vi.mocked(ordersApi.downloadCustomerOrderInvoice).mockResolvedValue(undefined)
+    renderCustomerOrderDetailPage()
+
+    await screen.findByRole('heading', { name: paidOrder.invoice_number })
+    const invoiceButton = screen.getByRole('button', { name: /download invoice/i })
+    expect(invoiceButton).toBeEnabled()
+    await user.click(invoiceButton)
+    expect(ordersApi.downloadCustomerOrderInvoice).toHaveBeenCalledWith(
+      paidOrder.id,
+      paidOrder.invoice_number,
     )
   })
 

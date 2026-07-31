@@ -80,3 +80,32 @@ export async function getCustomerOrder(orderId: string): Promise<CustomerOrder> 
   const { data } = await apiClient.get<CustomerOrder>(`/api/orders/${orderId}/`)
   return data
 }
+
+function triggerBlobDownload(data: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(data)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = fileName
+  anchor.click()
+  URL.revokeObjectURL(objectUrl)
+}
+
+export async function downloadCustomerOrderInvoice(
+  orderId: string,
+  invoiceNumber: string,
+): Promise<void> {
+  const { data } = await apiClient.get<Blob>(`/api/orders/${orderId}/invoice/`, {
+    responseType: 'blob',
+  })
+  triggerBlobDownload(data, `invoice-${invoiceNumber}.pdf`)
+}
+
+export async function downloadAdminOrderInvoice(
+  orderId: string,
+  invoiceNumber: string,
+): Promise<void> {
+  const { data } = await apiClient.get<Blob>(`/api/admin/orders/${orderId}/invoice/`, {
+    responseType: 'blob',
+  })
+  triggerBlobDownload(data, `invoice-${invoiceNumber}.pdf`)
+}

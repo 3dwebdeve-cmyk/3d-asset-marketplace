@@ -1,7 +1,9 @@
+from io import BytesIO
 from uuid import UUID
 
+from django.http import FileResponse
 from rest_framework import status
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -10,6 +12,8 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminOrderWriteRateThrottle
+from orders.entitlements import order_allows_download
+from orders.invoice import build_invoice_pdf, invoice_pdf_filename
 from orders.models import Order
 from orders.pagination import OrderPagination
 from orders.serializers import (
@@ -212,3 +216,37 @@ class CustomerOrderDetailView(APIView):
                 context=_detail_serializer_context(order, request),
             ).data
         )
+
+
+def _invoice_file_response(order: Order) -> FileResponse:
+    if not order_allows_download(order):
+        raise PermissionDenied(detail="Invoice is available only for paid orders.")
+    pdf_bytes = build_invoice_pdf(order)
+    return FileResponse(
+        BytesIO(pdf_bytes),
+        as_attachment=True,
+        filename=invoice_pdf_filename(order),
+        content_type="application/pdf",
+    )
+
+
+class CustomerOrderInvoiceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, order_id: UUID) -> FileResponse:
+        try:
+            order = OrderService.get_for_user(order_id, request.user)
+        except OrderError as exc:
+            raise NotFound(detail=exc.message) from exc
+        return _invoice_file_response(order)
+
+
+class AdminOrderInvoiceView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+
+    def get(self, request: Request, order_id: UUID) -> FileResponse:
+        try:
+            order = OrderService.get(order_id)
+        except OrderError as exc:
+            raise NotFound(detail=exc.message) from exc
+        return _invoice_file_response(order)

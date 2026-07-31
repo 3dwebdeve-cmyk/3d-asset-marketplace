@@ -1069,3 +1069,111 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         )
         self.assertEqual(product_row["title"], "Hero Sword")
         self.assertEqual(product_row["slug"], "hero-sword")
+
+
+class OrderInvoiceAPITests(OrderTestMixin, APITestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        cache.clear()
+        self.password = "StrongPass123!"
+        self.admin_role = Role.objects.get(role_name="Administrator")
+        self.admin_user = User.objects.create_user(
+            email="admin-invoice@example.com",
+            full_name="Admin Invoice",
+            password=self.password,
+            role=self.admin_role,
+            email_verified=True,
+        )
+        self.admin_user.is_staff = True
+        self.admin_user.save(update_fields=["is_staff", "updated_at"])
+        self.other_customer = User.objects.create_user(
+            email="other-invoice-customer@example.com",
+            full_name="Other Invoice Customer",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        self.admin_login_url = reverse("accounts:admin-login")
+        self.customer_login_url = reverse("accounts:login")
+        self.order = OrderService.create(
+            OrderCreateData(
+                user_id=self.user.pk,
+                items=(
+                    OrderItemCreateData(
+                        product_type=OrderItem.ProductType.PRODUCT,
+                        product_id=self.product.pk,
+                        quantity=1,
+                    ),
+                ),
+            )
+        )
+        self.customer_invoice_url = reverse(
+            "orders:order-invoice",
+            kwargs={"order_id": self.order.id},
+        )
+        self.admin_invoice_url = reverse(
+            "orders_admin:admin-order-invoice",
+            kwargs={"order_id": self.order.id},
+        )
+
+    def _authenticate_admin(self) -> None:
+        response = self.client.post(
+            self.admin_login_url,
+            {"email": self.admin_user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def _authenticate_customer(self, user: User | None = None) -> None:
+        account = user or self.user
+        response = self.client.post(
+            self.customer_login_url,
+            {"email": account.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+
+    def _mark_paid(self) -> None:
+        OrderService.update_order_status(self.order, Order.OrderStatus.PAID)
+        OrderService.update_payment_status(self.order, Order.PaymentStatus.PAID)
+        self.order.refresh_from_db()
+
+    def test_customer_cannot_download_invoice_when_unpaid(self) -> None:
+        self._authenticate_customer()
+        response = self.client.get(self.customer_invoice_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_customer_can_download_invoice_when_paid(self) -> None:
+        self._mark_paid()
+        self._authenticate_customer()
+        response = self.client.get(self.customer_invoice_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        disposition = response.get("Content-Disposition", "")
+        self.assertIn("attachment", disposition)
+        self.assertIn(self.order.invoice_number, disposition)
+        pdf_bytes = b"".join(response.streaming_content)
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertGreater(len(pdf_bytes), 100)
+
+    def test_other_customer_cannot_download_invoice(self) -> None:
+        self._mark_paid()
+        self._authenticate_customer(self.other_customer)
+        response = self.client.get(self.customer_invoice_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_cannot_download_invoice_when_unpaid(self) -> None:
+        self._authenticate_admin()
+        response = self.client.get(self.admin_invoice_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_download_invoice_when_paid(self) -> None:
+        self._mark_paid()
+        self._authenticate_admin()
+        response = self.client.get(self.admin_invoice_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        pdf_bytes = b"".join(response.streaming_content)
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))

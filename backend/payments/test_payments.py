@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import stripe
+from django.core import mail
 from django.core.cache import cache
 from django.test import override_settings
 from django.urls import reverse
@@ -199,6 +200,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
 class StripeWebhookTests(PaymentsTestMixin, APITestCase):
     def setUp(self) -> None:
         super().setUp()
+        mail.outbox.clear()
         self.coupon = Coupon.objects.create(
             code="SAVE5",
             discount_type=Coupon.DiscountType.FIXED,
@@ -223,6 +225,8 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             order=self.order,
             product_type=OrderItem.ProductType.PRODUCT,
             product_id=self.product.pk,
+            title="Hero Sword",
+            slug="hero-sword",
             quantity=1,
             purchase_price=Decimal("49.99"),
         )
@@ -306,3 +310,44 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             HTTP_STRIPE_SIGNATURE="test_sig",
         )
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    def test_checkout_completed_sends_payment_receipt_email(self) -> None:
+        event = _FakeEvent(
+            "evt_test_receipt",
+            "checkout.session.completed",
+            {"id": "cs_test_webhook", "payment_intent": "pi_test_receipt"},
+        )
+        response = self._post_webhook(event)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.user.email])
+        self.assertIn(self.order.invoice_number, email.subject)
+        self.assertIn("Payment received", email.subject)
+        self.assertIn(self.order.invoice_number, email.body)
+        self.assertEqual(len(email.attachments), 1)
+        filename, content, mimetype = email.attachments[0]
+        self.assertIn(self.order.invoice_number, filename)
+        self.assertEqual(mimetype, "application/pdf")
+        self.assertTrue(content.startswith(b"%PDF"))
+
+    def test_receipt_email_failure_does_not_leave_order_unpaid(self) -> None:
+        event = _FakeEvent(
+            "evt_test_receipt_fail",
+            "checkout.session.completed",
+            {"id": "cs_test_webhook", "payment_intent": "pi_test_fail"},
+        )
+        with patch(
+            "orders.notifications.EmailMessage.send",
+            side_effect=RuntimeError("smtp down"),
+        ):
+            response = self._post_webhook(event)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PAID)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
+        self.assertEqual(len(mail.outbox), 0)

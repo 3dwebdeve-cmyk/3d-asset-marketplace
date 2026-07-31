@@ -16,6 +16,7 @@ vi.mock('../../api/ordersApi', async () => {
     ...actual,
     getAdminOrder: vi.fn(),
     updateAdminOrderStatus: vi.fn(),
+    downloadAdminOrderInvoice: vi.fn(),
   }
 })
 
@@ -145,5 +146,33 @@ describe('AdminOrderDetailPage', () => {
         order_status: 'cancelled',
       })
     })
+  })
+
+  it('hides download invoice when order is not paid', async () => {
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'INV-20260728-ABCD' })
+    expect(screen.queryByRole('button', { name: /download invoice/i })).not.toBeInTheDocument()
+  })
+
+  it('shows download invoice when order is paid and downloads on click', async () => {
+    const user = userEvent.setup()
+    const paidOrder = {
+      ...sampleOrder,
+      order_status: 'paid' as const,
+      payment_status: 'paid' as const,
+    }
+    vi.mocked(ordersApi.getAdminOrder).mockResolvedValue(paidOrder)
+    vi.mocked(ordersApi.downloadAdminOrderInvoice).mockResolvedValue(undefined)
+
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'INV-20260728-ABCD' })
+    const invoiceButton = screen.getByRole('button', { name: /download invoice/i })
+    await user.click(invoiceButton)
+    expect(ordersApi.downloadAdminOrderInvoice).toHaveBeenCalledWith(
+      orderId,
+      paidOrder.invoice_number,
+    )
   })
 })
