@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { getAdminOrder, updateAdminOrderStatus } from '../../api/ordersApi'
+import {
+  downloadAdminOrderInvoice,
+  getAdminOrder,
+  updateAdminOrderStatus,
+} from '../../api/ordersApi'
+import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
@@ -39,6 +45,8 @@ function statusActionLabel(
 export function AdminOrderDetailPage() {
   const { orderId = '' } = useParams()
   const queryClient = useQueryClient()
+  const [invoiceError, setInvoiceError] = useState<string | null>(null)
+  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false)
 
   const orderQuery = useQuery({
     queryKey: ['admin', 'orders', orderId],
@@ -58,6 +66,21 @@ export function AdminOrderDetailPage() {
       toast.error(getApiErrorMessage(error, 'Could not update order status.'))
     },
   })
+
+  const onDownloadInvoice = async () => {
+    if (!orderQuery.data) return
+    setInvoiceError(null)
+    setIsDownloadingInvoice(true)
+    try {
+      await downloadAdminOrderInvoice(orderQuery.data.id, orderQuery.data.invoice_number)
+    } catch (error) {
+      setInvoiceError(
+        getApiErrorMessage(error, 'Could not download the invoice. Please try again.'),
+      )
+    } finally {
+      setIsDownloadingInvoice(false)
+    }
+  }
 
   if (orderQuery.isLoading) {
     return (
@@ -93,6 +116,8 @@ export function AdminOrderDetailPage() {
   const paymentTransitions = ALLOWED_PAYMENT_STATUS_TRANSITIONS[order.payment_status]
   const canMarkPaid =
     order.order_status === 'pending' && order.payment_status === 'pending'
+  const canDownloadInvoice =
+    order.order_status === 'paid' && order.payment_status === 'paid'
   const isUpdating = statusMutation.isPending
 
   return (
@@ -104,6 +129,16 @@ export function AdminOrderDetailPage() {
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/orders">
             Back to orders
           </Link>
+          {canDownloadInvoice ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isDownloadingInvoice}
+              onClick={() => void onDownloadInvoice()}
+            >
+              {isDownloadingInvoice ? 'Downloading…' : 'Download invoice'}
+            </Button>
+          ) : null}
           {canMarkPaid ? (
             <Button
               onClick={() =>
@@ -118,6 +153,7 @@ export function AdminOrderDetailPage() {
             </Button>
           ) : null}
         </div>
+        {invoiceError ? <Alert variant="error" message={invoiceError} /> : null}
         <p className="home-page__subtitle">
           Customer: {order.customer.full_name} ({order.customer.email})
         </p>

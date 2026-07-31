@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { downloadCatalogFileByUrl } from '../../api/downloadsApi'
-import { getCustomerOrder } from '../../api/ordersApi'
+import { downloadCustomerOrderInvoice, getCustomerOrder } from '../../api/ordersApi'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -87,6 +87,8 @@ export function CustomerOrderDetailPage() {
   const user = useAuthStore((state) => state.user)
   const isCustomerSession = isAuthenticated && !isAdministrator(user?.role)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [invoiceError, setInvoiceError] = useState<string | null>(null)
+  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false)
 
   const orderQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],
@@ -102,6 +104,21 @@ export function CustomerOrderDetailPage() {
       setDownloadError(
         getApiErrorMessage(error, 'Could not download the file. Please try again.'),
       )
+    }
+  }
+
+  const onDownloadInvoice = async () => {
+    if (!orderQuery.data) return
+    setInvoiceError(null)
+    setIsDownloadingInvoice(true)
+    try {
+      await downloadCustomerOrderInvoice(orderQuery.data.id, orderQuery.data.invoice_number)
+    } catch (error) {
+      setInvoiceError(
+        getApiErrorMessage(error, 'Could not download the invoice. Please try again.'),
+      )
+    } finally {
+      setIsDownloadingInvoice(false)
     }
   }
 
@@ -152,6 +169,8 @@ export function CustomerOrderDetailPage() {
   }
 
   const order = orderQuery.data
+  const canDownloadInvoice =
+    order.order_status === 'paid' && order.payment_status === 'paid'
 
   return (
     <main className="dashboard-page">
@@ -165,10 +184,22 @@ export function CustomerOrderDetailPage() {
           <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/downloads">
             My downloads
           </Link>
+          {canDownloadInvoice ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isDownloadingInvoice}
+              onClick={() => void onDownloadInvoice()}
+            >
+              {isDownloadingInvoice ? 'Downloading…' : 'Download invoice'}
+            </Button>
+          ) : null}
           <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
             Back to dashboard
           </Link>
         </div>
+
+        {invoiceError ? <Alert variant="error" message={invoiceError} /> : null}
 
         <div className="dashboard-card__details">
           <p>
