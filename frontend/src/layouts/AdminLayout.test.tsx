@@ -99,7 +99,7 @@ describe('AdminLayout', () => {
     )
   })
 
-  it('enables plugins, projects, and orders while keeping analytics disabled', async () => {
+  it('enables plugins, projects, orders, and analytics', async () => {
     renderAdminLayout()
 
     await waitFor(() => {
@@ -122,7 +122,10 @@ describe('AdminLayout', () => {
       'href',
       '/admin/reviews',
     )
-    expect(screen.getByText('Analytics')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('link', { name: /^analytics$/i })).toHaveAttribute(
+      'href',
+      '/admin/analytics',
+    )
   })
 
   it('signs out administrators to the admin login page', async () => {

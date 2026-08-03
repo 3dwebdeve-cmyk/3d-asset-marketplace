@@ -11,6 +11,7 @@ from custom_projects.views import (
     CustomerCustomProjectMessageListCreateView,
     CustomerCustomProjectMessageMarkReadView,
     CustomerCustomProjectQuotationAcceptView,
+    CustomerCustomProjectQuotationPayView,
 )
 
 app_name = "custom_projects"
@@ -30,6 +31,11 @@ urlpatterns = [
         "<uuid:project_id>/quotation/accept/",
         CustomerCustomProjectQuotationAcceptView.as_view(),
         name="customer-custom-project-quotation-accept",
+    ),
+    path(
+        "<uuid:project_id>/quotation/pay/",
+        CustomerCustomProjectQuotationPayView.as_view(),
+        name="customer-custom-project-quotation-pay",
     ),
     path(
         "<uuid:project_id>/files/",

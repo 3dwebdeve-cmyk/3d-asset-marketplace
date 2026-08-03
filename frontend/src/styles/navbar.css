@@ -3,10 +3,12 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  width: 100%;
 }
 
 .navbar {
   flex-shrink: 0;
+  width: 100%;
   border-bottom: 1px solid var(--border);
   background: var(--pure-white);
   text-align: left;
@@ -18,7 +20,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem 1.25rem;
-  padding: 0.875rem 1.5rem;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0.875rem clamp(1rem, 3vw, 2rem);
+  box-sizing: border-box;
 }
 
 .navbar__brand {
@@ -92,4 +98,150 @@
 .navbar__wishlist-badge {
   position: static;
   margin-left: 0.15rem;
+}
+
+.notification-bell {
+  position: relative;
+}
+
+.notification-bell__trigger {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.notification-bell__badge {
+  position: static;
+  margin-left: 0.15rem;
+}
+
+.notification-bell__panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 40;
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: min(28rem, 70vh);
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.notification-bell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.notification-bell__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.notification-bell__status {
+  margin: 0.5rem 0;
+  color: rgba(15, 23, 42, 0.7);
+  font-size: 0.9rem;
+}
+
+.notification-bell__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.notification-bell__item {
+  width: 100%;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem 0.7rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.notification-bell__item:hover,
+.notification-bell__item:focus-visible {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.notification-bell__item--unread {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.notification-bell__item-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.notification-bell__item-message,
+.notification-bell__item-time {
+  color: rgba(15, 23, 42, 0.7);
+  font-size: 0.82rem;
+}
+
+.notification-bell__footer {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.notification-page__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+}
+
+.notification-page__list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.notification-page__item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 0.45rem;
+}
+
+.notification-page__item--unread {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+.notification-page__item-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.notification-page__item-message,
+.notification-page__item-time {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.72);
+}
+
+.notification-page__item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }

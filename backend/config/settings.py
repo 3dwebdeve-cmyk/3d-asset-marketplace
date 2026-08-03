@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'coupons',
     'contact',
     'payments',
+    'notifications',
 ]
 
 MIDDLEWARE = [
@@ -228,6 +229,7 @@ REST_FRAMEWORK = {
         "admin_coupon_write": "60/min",
         "contact_form": "5/hour",
         "payment_checkout": "10/min",
+        "notification_write": "60/min",
     },
 }
 

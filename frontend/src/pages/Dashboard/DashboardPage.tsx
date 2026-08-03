@@ -97,6 +97,12 @@ export function DashboardPage() {
         <div className="dashboard-card__actions">
           <Link
             className="home-page__cta home-page__cta--secondary"
+            to="/dashboard/notifications"
+          >
+            Notifications
+          </Link>
+          <Link
+            className="home-page__cta home-page__cta--secondary"
             to="/dashboard/projects"
           >
             My projects

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import { AddToCartButton } from '../../components/cart/AddToCartButton'
 import { Button } from '../../components/ui/Button'
+import { useBuyNow } from '../../hooks/useBuyNow'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 
@@ -17,6 +18,7 @@ export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGr
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
   const addToast = useToastStore((state) => state.addToast)
+  const { buyNow, isRedirecting } = useBuyNow()
   const isSignedIn = isAuthenticated && Boolean(accessToken)
 
   const loginPath = '/login'
@@ -47,11 +49,10 @@ export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGr
         <Button
           type="button"
           className="product-detail-cta__buy"
-          disabled
-          aria-disabled="true"
-          title="Checkout is coming soon"
+          isLoading={isRedirecting}
+          onClick={() => buyNow('plugin', pluginId)}
         >
-          Buy now — coming soon
+          Buy now
         </Button>
       ) : (
         <Link
@@ -91,8 +92,8 @@ export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGr
       </div>
 
       <p className="product-detail-cta__note">
-        Checkout and downloads unlock in later releases. No package files are exposed on this
-        page.
+        Buy now adds this item to your cart and opens Stripe checkout. Package downloads unlock
+        after payment. No package files are exposed on this page.
       </p>
     </div>
   )

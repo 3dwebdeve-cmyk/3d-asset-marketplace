@@ -65,6 +65,7 @@ class OrderItem(models.Model):
     class ProductType(models.TextChoices):
         PRODUCT = "product", "Product"
         PLUGIN = "plugin", "Plugin"
+        CUSTOM_PROJECT = "custom_project", "Custom project"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.ForeignKey(

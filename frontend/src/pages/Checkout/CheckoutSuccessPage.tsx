@@ -14,6 +14,7 @@ const POLL_TIMEOUT_MS = 45_000
 export function CheckoutSuccessPage() {
   const [searchParams] = useSearchParams()
   const orderId = searchParams.get('order_id') ?? ''
+  const projectId = searchParams.get('project_id') ?? ''
   const queryClient = useQueryClient()
   const startedAtRef = useRef(Date.now())
 
@@ -35,12 +36,18 @@ export function CheckoutSuccessPage() {
   const hasTimedOut =
     Boolean(order) && order?.payment_status === 'pending' &&
     Date.now() - startedAtRef.current >= POLL_TIMEOUT_MS
+  const isQuotationCheckout = Boolean(projectId)
 
   useEffect(() => {
     if (isPaid) {
       void queryClient.invalidateQueries({ queryKey: ['cart'] })
+      if (projectId) {
+        void queryClient.invalidateQueries({
+          queryKey: ['customer', 'custom-projects'],
+        })
+      }
     }
-  }, [isPaid, queryClient])
+  }, [isPaid, projectId, queryClient])
 
   if (!orderId) {
     return (
@@ -111,12 +118,20 @@ export function CheckoutSuccessPage() {
         {isPaid ? (
           <>
             <p className="home-page__subtitle" role="status">
-              Thanks for your purchase! Your items are ready to download.
+              {isQuotationCheckout
+                ? 'Thanks for paying your quotation. Your project team can continue the work.'
+                : 'Thanks for your purchase! Your items are ready to download.'}
             </p>
             <div className="dashboard-card__actions">
-              <Link className="home-page__cta" to="/dashboard/downloads">
-                My downloads
-              </Link>
+              {isQuotationCheckout ? (
+                <Link className="home-page__cta" to={`/dashboard/projects/${projectId}`}>
+                  Back to project
+                </Link>
+              ) : (
+                <Link className="home-page__cta" to="/dashboard/downloads">
+                  My downloads
+                </Link>
+              )}
               <Link
                 className="home-page__cta home-page__cta--secondary"
                 to={`/dashboard/orders/${order.id}`}

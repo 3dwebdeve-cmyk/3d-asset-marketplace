@@ -78,3 +78,56 @@ class AdminDashboardStatsSerializer(serializers.Serializer):
         serializer = cls(data=payload)
         serializer.is_valid(raise_exception=True)
         return serializer
+
+
+class AdminAnalyticsFiltersSerializer(serializers.Serializer):
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+
+
+class AdminAnalyticsSummarySerializer(serializers.Serializer):
+    order_count = serializers.IntegerField()
+    paid_order_count = serializers.IntegerField()
+    pending_order_count = serializers.IntegerField()
+    refunded_order_count = serializers.IntegerField()
+    cancelled_order_count = serializers.IntegerField()
+    revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    average_order_value = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class AdminAnalyticsPeriodSerializer(serializers.Serializer):
+    period = serializers.CharField()
+    order_count = serializers.IntegerField()
+    revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class AdminAnalyticsTopItemSerializer(serializers.Serializer):
+    product_id = serializers.UUIDField()
+    product_type = serializers.CharField()
+    title = serializers.CharField()
+    slug = serializers.CharField(allow_blank=True)
+    quantity_sold = serializers.IntegerField()
+    order_count = serializers.IntegerField()
+    revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class AdminAnalyticsGatewaySerializer(serializers.Serializer):
+    gateway = serializers.CharField()
+    payment_count = serializers.IntegerField()
+    revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+
+class AdminAnalyticsSerializer(serializers.Serializer):
+    filters = AdminAnalyticsFiltersSerializer()
+    currency = serializers.CharField(max_length=3)
+    summary = AdminAnalyticsSummarySerializer()
+    revenue_by_period = AdminAnalyticsPeriodSerializer(many=True)
+    top_products = AdminAnalyticsTopItemSerializer(many=True)
+    top_plugins = AdminAnalyticsTopItemSerializer(many=True)
+    gateway_breakdown = AdminAnalyticsGatewaySerializer(many=True)
+
+    @classmethod
+    def from_service(cls, payload: dict) -> "AdminAnalyticsSerializer":
+        serializer = cls(data=payload)
+        serializer.is_valid(raise_exception=True)
+        return serializer

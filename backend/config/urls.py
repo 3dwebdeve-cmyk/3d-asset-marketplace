@@ -37,6 +37,8 @@ urlpatterns = [
     path('api/admin/orders/', include('orders.admin_urls')),
     path('api/admin/payments/', include('payments.admin_urls')),
     path('api/admin/dashboard/', include('analytics.admin_urls')),
+    path('api/admin/analytics/', include('analytics.analytics_urls')),
+    path('api/notifications/', include('notifications.urls')),
     path('api/wishlist/', include('wishlist.urls')),
     path('api/cart/', include('cart.urls')),
     path('api/reviews/', include('reviews.urls')),

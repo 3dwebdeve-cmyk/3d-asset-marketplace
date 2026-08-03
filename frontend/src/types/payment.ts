@@ -1,6 +1,7 @@
 export interface CheckoutSessionResponse {
   checkout_url: string
   order_id: string
+  project_id?: string
 }
 
 export type PaymentStatus =

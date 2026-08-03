@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import {
   acceptCustomerCustomProjectQuotation,
   getCustomerCustomProject,
+  payCustomerCustomProjectQuotation,
 } from '../../api/customProjectsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -99,15 +100,30 @@ function QuotationBlock({
   onAccept,
   isAccepting,
   acceptError,
+  onPay,
+  isPaying,
+  payError,
 }: {
   project: CustomerCustomProject
   onAccept: () => void
   isAccepting: boolean
   acceptError: string | null
+  onPay: () => void
+  isPaying: boolean
+  payError: string | null
 }) {
   const quotation = project.quotation
   const canAccept =
     project.status === 'quoted' && quotation?.status === 'pending'
+  const terminalProject =
+    project.status === 'completed' ||
+    project.status === 'cancelled' ||
+    project.status === 'rejected'
+  const canPay =
+    quotation?.status === 'accepted' &&
+    !terminalProject &&
+    project.payment_status !== 'paid' &&
+    project.payment_status !== 'refunded'
 
   return (
     <section className="admin-media-section" aria-labelledby="project-quote-title">
@@ -139,20 +155,28 @@ function QuotationBlock({
               </Button>
             </div>
           ) : null}
-          {quotation.status === 'accepted' && project.status !== 'completed' ? (
+          {canPay ? (
             <div className="dashboard-card__actions">
-              <Button
-                type="button"
-                disabled
-                title="Payment will be available in a future update"
-              >
-                Pay quotation (coming soon)
+              <Button type="button" isLoading={isPaying} onClick={onPay}>
+                {project.payment_status === 'pending'
+                  ? 'Continue payment'
+                  : 'Pay quotation'}
               </Button>
             </div>
+          ) : null}
+          {project.payment_status === 'paid' && quotation.status === 'accepted' ? (
+            <p className="home-page__subtitle" role="status">
+              Quotation paid. Work can proceed on this project.
+            </p>
           ) : null}
           {acceptError ? (
             <p className="form-error" role="alert">
               {acceptError}
+            </p>
+          ) : null}
+          {payError ? (
+            <p className="form-error" role="alert">
+              {payError}
             </p>
           ) : null}
         </div>
@@ -185,6 +209,13 @@ export function CustomerProjectDetailPage() {
         queryKey: ['customer', 'custom-projects'],
       })
       toast.success('Quotation accepted.')
+    },
+  })
+
+  const payMutation = useMutation({
+    mutationFn: () => payCustomerCustomProjectQuotation(projectId),
+    onSuccess: (data) => {
+      window.location.href = data.checkout_url
     },
   })
 
@@ -258,6 +289,16 @@ export function CustomerProjectDetailPage() {
                   ? getApiErrorMessage(
                       acceptMutation.error,
                       'Could not accept the quotation. Please try again.',
+                    )
+                  : null
+              }
+              onPay={() => payMutation.mutate()}
+              isPaying={payMutation.isPending}
+              payError={
+                payMutation.isError
+                  ? getApiErrorMessage(
+                      payMutation.error,
+                      'Could not start quotation payment. Please try again.',
                     )
                   : null
               }

@@ -1,10 +1,12 @@
 .auth-page {
   flex: 1;
+  width: 100%;
   display: grid;
   place-items: center;
-  padding: 2rem 1rem;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
   text-align: left;
   background: var(--bg-main);
+  box-sizing: border-box;
 }
 
 .auth-card {
