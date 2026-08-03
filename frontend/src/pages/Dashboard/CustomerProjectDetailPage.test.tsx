@@ -19,6 +19,7 @@ vi.mock('../../api/customProjectsApi', async () => {
     ...actual,
     getCustomerCustomProject: vi.fn(),
     acceptCustomerCustomProjectQuotation: vi.fn(),
+    payCustomerCustomProjectQuotation: vi.fn(),
     listCustomerProjectMessages: vi.fn(),
     createCustomerProjectMessage: vi.fn(),
     markCustomerProjectMessagesRead: vi.fn(),
@@ -463,17 +464,54 @@ describe('CustomerProjectDetailPage', () => {
     expect(screen.queryByText(/Project completed!/i)).not.toBeInTheDocument()
   })
 
-  it('shows "Pay quotation (coming soon)" when quotation is accepted and project is not completed', async () => {
+  it('shows Pay quotation when quotation is accepted and unpaid', async () => {
     vi.mocked(customProjectsApi.getCustomerCustomProject).mockResolvedValue({
       ...project,
       status: 'approved',
+      payment_status: 'unpaid',
       quotation: { ...project.quotation!, status: 'accepted' },
     })
     renderPage()
 
-    const payBtn = await screen.findByRole('button', { name: /Pay quotation/i })
+    const payBtn = await screen.findByRole('button', { name: /^Pay quotation$/i })
     expect(payBtn).toBeInTheDocument()
-    expect(payBtn).toBeDisabled()
+    expect(payBtn).toBeEnabled()
+  })
+
+  it('starts quotation checkout when Pay quotation is clicked', async () => {
+    const user = userEvent.setup()
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, href: '' },
+    })
+
+    vi.mocked(customProjectsApi.getCustomerCustomProject).mockResolvedValue({
+      ...project,
+      status: 'approved',
+      payment_status: 'unpaid',
+      quotation: { ...project.quotation!, status: 'accepted' },
+    })
+    vi.mocked(customProjectsApi.payCustomerCustomProjectQuotation).mockResolvedValue({
+      checkout_url: 'https://checkout.stripe.com/pay/cs_quote',
+      order_id: 'order-1',
+      project_id: project.id,
+    })
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /^Pay quotation$/i }))
+
+    await waitFor(() => {
+      expect(customProjectsApi.payCustomerCustomProjectQuotation).toHaveBeenCalledWith(
+        project.id,
+      )
+    })
+    expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_quote')
+
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    })
   })
 
   it('does not show pay button when project is completed', async () => {
@@ -486,6 +524,20 @@ describe('CustomerProjectDetailPage', () => {
 
     await screen.findByRole('heading', { name: 'Hero prop' })
     expect(screen.queryByRole('button', { name: /Pay quotation/i })).not.toBeInTheDocument()
+  })
+
+  it('does not show pay button when quotation is already paid', async () => {
+    vi.mocked(customProjectsApi.getCustomerCustomProject).mockResolvedValue({
+      ...project,
+      status: 'in_progress',
+      payment_status: 'paid',
+      quotation: { ...project.quotation!, status: 'accepted' },
+    })
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Hero prop' })
+    expect(screen.queryByRole('button', { name: /Pay quotation/i })).not.toBeInTheDocument()
+    expect(await screen.findByText(/Quotation paid/i)).toBeInTheDocument()
   })
 
   it('renders status badge with correct label', async () => {

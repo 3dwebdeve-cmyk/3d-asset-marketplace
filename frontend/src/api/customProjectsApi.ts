@@ -23,6 +23,7 @@ import type {
   ProjectQuotationUpsertPayload,
   ProjectQuotationUpsertResponse,
 } from '../types/customProject'
+import type { CheckoutSessionResponse } from '../types/payment'
 
 function toQuery(params: AdminCustomProjectListParams = {}): string {
   const query = new URLSearchParams()
@@ -252,6 +253,15 @@ export async function acceptCustomerCustomProjectQuotation(
 ): Promise<CustomerCustomProject> {
   const { data } = await apiClient.post<CustomerCustomProject>(
     `/api/custom-projects/${projectId}/quotation/accept/`,
+  )
+  return data
+}
+
+export async function payCustomerCustomProjectQuotation(
+  projectId: string,
+): Promise<CheckoutSessionResponse> {
+  const { data } = await apiClient.post<CheckoutSessionResponse>(
+    `/api/custom-projects/${projectId}/quotation/pay/`,
   )
   return data
 }

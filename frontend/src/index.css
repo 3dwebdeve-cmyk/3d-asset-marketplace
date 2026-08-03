@@ -62,11 +62,11 @@
 }
 
 #root {
-  width: min(1126px, 100%);
-  max-width: 100%;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   text-align: center;
-  border-inline: 1px solid var(--border);
+  border-inline: none;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -76,15 +76,20 @@
 
 .home-page {
   flex: 1;
-  display: grid;
-  place-items: center;
-  padding: 3rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  padding: clamp(2rem, 5vw, 4.5rem) clamp(1.25rem, 4vw, 3rem);
   text-align: left;
-  background: var(--bg-main);
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--action-color) 10%, transparent), transparent 42%),
+    radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--action-color) 8%, transparent), transparent 38%),
+    var(--bg-main);
 }
 
 .home-page__hero {
-  width: min(100%, 720px);
+  width: min(100%, 56rem);
 }
 
 .home-page__hero h1 {
@@ -227,31 +232,49 @@
 
 .dashboard-page {
   flex: 1;
+  width: 100%;
   display: grid;
-  place-items: center;
-  padding: 3rem 1.5rem;
+  place-items: start center;
+  padding: clamp(2rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
   text-align: left;
   background: var(--bg-main);
+  box-sizing: border-box;
 }
 
 .dashboard-card {
   width: min(100%, 720px);
-  padding: 2rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--pure-white);
   box-shadow: var(--shadow);
+  box-sizing: border-box;
 }
 
 .dashboard-card--wide {
-  width: min(100%, 960px);
+  width: min(100%, 1200px);
 }
 
 .admin-filters {
   display: grid;
-  grid-template-columns: 1fr minmax(140px, 200px);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 0.75rem;
   margin: 1.25rem 0;
+}
+
+@media (max-width: 640px) {
+  .home-page__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .home-page__cta {
+    width: 100%;
+  }
+
+  .admin-filters {
+    grid-template-columns: 1fr;
+  }
 }
 
 .admin-create-form {
@@ -784,8 +807,15 @@
   font-weight: 600;
 }
 
+html {
+  width: 100%;
+}
+
 body {
   margin: 0;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
   background: var(--bg-main);
   color: var(--text-body);
 }

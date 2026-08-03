@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as pluginsApi from '../../api/pluginsApi'
 import * as cartApi from '../../api/cartApi'
+import * as paymentsApi from '../../api/paymentsApi'
 import * as wishlistApi from '../../api/wishlistApi'
 import * as reviewsApi from '../../api/reviewsApi'
 import {
@@ -38,6 +39,16 @@ vi.mock('../../api/cartApi', async () => {
     ...actual,
     getCart: vi.fn(),
     addCartItem: vi.fn(),
+  }
+})
+
+vi.mock('../../api/paymentsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/paymentsApi')>(
+    '../../api/paymentsApi',
+  )
+  return {
+    ...actual,
+    createCheckoutSession: vi.fn(),
   }
 })
 
@@ -408,7 +419,7 @@ describe('PluginDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('button', { name: /buy now — coming soon/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^buy now$/i })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: /^add to cart$/i }))
     expect(vi.mocked(cartApi.addCartItem).mock.calls[0]?.[0]).toEqual({
       product_type: 'plugin',
@@ -420,6 +431,72 @@ describe('PluginDetailsPage', () => {
     expect(vi.mocked(wishlistApi.addWishlistItem).mock.calls[0]?.[0]).toEqual({
       product_type: 'plugin',
       product_id: pluginId,
+    })
+  })
+
+  it('starts Stripe checkout when Buy now is clicked', async () => {
+    const user = userEvent.setup()
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, href: '' },
+    })
+
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      user: testUser,
+      isAuthenticated: true,
+      postLogoutRedirect: null,
+    })
+    vi.mocked(cartApi.getCart).mockResolvedValue({
+      id: 'cart-id',
+      currency: 'USD',
+      subtotal: '0.00',
+      discount_amount: '0.00',
+      total: '0.00',
+      item_count: 0,
+      total_quantity: 0,
+      coupon: null,
+      items: [],
+    })
+    vi.mocked(cartApi.addCartItem).mockResolvedValue({
+      id: '22222222-2222-2222-2222-222222222222',
+      product_type: 'plugin',
+      product_id: pluginId,
+      quantity: 1,
+      unit_price: '19.99',
+      line_total: '19.99',
+      catalog: null,
+    })
+    vi.mocked(paymentsApi.createCheckoutSession).mockResolvedValue({
+      checkout_url: 'https://checkout.stripe.com/pay/cs_test_plugin',
+      order_id: 'order-id',
+    })
+
+    renderPluginDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /uv unwrap pro/i }),
+      ).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /^buy now$/i }))
+
+    await waitFor(() => {
+      expect(cartApi.addCartItem).toHaveBeenCalledWith({
+        product_type: 'plugin',
+        product_id: pluginId,
+        quantity: 1,
+      })
+      expect(paymentsApi.createCheckoutSession).toHaveBeenCalledTimes(1)
+      expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_test_plugin')
+    })
+
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
     })
   })
 

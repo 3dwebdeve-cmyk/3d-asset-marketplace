@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as authApi from '../api/authApi'
 import * as cartApi from '../api/cartApi'
+import * as notificationsApi from '../api/notificationsApi'
 import * as wishlistApi from '../api/wishlistApi'
 import { ProtectedRoute } from '../routes/ProtectedRoute'
 import { useAuthStore } from '../store/authStore'
@@ -33,6 +34,17 @@ vi.mock('../api/wishlistApi', async () => {
   return {
     ...actual,
     listWishlistItems: vi.fn(),
+  }
+})
+
+vi.mock('../api/notificationsApi', async () => {
+  const actual = await vi.importActual<typeof import('../api/notificationsApi')>(
+    '../api/notificationsApi',
+  )
+  return {
+    ...actual,
+    getUnreadNotificationCount: vi.fn(),
+    listNotifications: vi.fn(),
   }
 })
 
@@ -84,6 +96,15 @@ beforeEach(() => {
     coupon: null,
     items: [],
   })
+  vi.mocked(notificationsApi.getUnreadNotificationCount).mockResolvedValue({
+    unread_count: 0,
+  })
+  vi.mocked(notificationsApi.listNotifications).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
 })
 
 describe('Navbar', () => {
@@ -126,6 +147,7 @@ describe('Navbar', () => {
       'href',
       '/dashboard/downloads',
     )
+    expect(screen.getByRole('button', { name: /^notifications$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^wishlist$/i })).toHaveAttribute(
       'href',

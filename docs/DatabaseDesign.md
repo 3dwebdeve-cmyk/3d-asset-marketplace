@@ -209,7 +209,7 @@ Notifications
 Stores platform notifications. Fields
  id
  user_id
- title  message  read_status  created_at
+ title  message  link (relative deep link)  is_read  created_at  updated_at
 Custom Projects
 Stores custom modeling requests submitted by customers. Fields
  id

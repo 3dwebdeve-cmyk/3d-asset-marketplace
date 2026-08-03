@@ -18,5 +18,5 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Reviews', to: '/admin/reviews', enabled: true },
   { label: 'Downloads', to: '/admin/downloads', enabled: true },
   { label: 'Projects', to: '/admin/projects', enabled: true },
-  { label: 'Analytics', to: '/admin/analytics', enabled: false, comingSoon: true },
+  { label: 'Analytics', to: '/admin/analytics', enabled: true },
 ]

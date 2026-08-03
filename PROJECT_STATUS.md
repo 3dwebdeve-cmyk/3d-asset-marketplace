@@ -5,11 +5,11 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~65%
+Overall Completion: ~70%
 Current Development Sprint
-Current Sprint: Feature 8 – Order integrity hardening
-Sprint Goal: Snapshot order line titles/slugs; admin status transitions; safer invoices
-Sprint Status: Feature 8 complete
+Current Sprint: Feature 14 – Cloudflare R2 Storage (next)
+Sprint Goal: Move catalog media to R2; then signed downloads + batch ingest (see IMPLEMENTATION_ROADMAP.md)
+Sprint Status: Feature 10 complete; R2 / batch roadmap planned 2026-08-03
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -89,7 +89,7 @@ Sprint 7 – Orders & Downloads
 • [x] Order History (customer list/detail at /dashboard/orders)
 • [x] Order integrity hardening (Feature 8 — title/slug snapshots + admin status transitions)
 • [x] Secure Downloads (local authenticated FileResponse; order+payment must be paid)
-• [ ] Signed Download URLs
+• [ ] Signed Download URLs (Feature 14B — R2 presigned GET after entitlement)
 • [x] Download History (download_history table; customer + admin audit UI)
 Sprint 8 – Custom Project Portal
 • [x] Request Custom Project (customer API create/list/detail + reference upload)
@@ -107,7 +107,7 @@ Sprint 8 – Custom Project Portal
 • [x] Project Delivery list/download APIs (admin + owner; authenticated FileResponse; storage_path hidden)
 • [x] Admin delivery UI (upload + list/download + mark delivered/completed on /admin/projects/:id)
 • [x] Project Completion (Feature 4)
-• [ ] Quotation payment (Feature 15G — deferred)
+• [x] Quotation payment (Feature 15G — Stripe Checkout for accepted quotes)
 Sprint 9 – Dashboards
 Customer Dashboard
 • [x] Profile
@@ -115,11 +115,12 @@ Customer Dashboard
 • [x] Downloads (My Downloads library + history at /dashboard/downloads)
 • [x] Wishlist
 • [x] Reviews & Ratings (purchase-gated; admin hide/delete; aggregates on cards/detail)
+• [x] Notifications (Feature 10 — bell + /dashboard/notifications)
 • [x] My Projects
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
 • [x] Admin layout & navigation (sidebar, header, mobile menu, session shell)
-• [x] Admin home dashboard with real stats (users, products, categories, plugins, custom projects; sales placeholders)
+• [x] Admin home dashboard with real stats (users, products, categories, plugins, custom projects; monthly sales from paid orders)
 • [x] Dedicated /admin/login + customer/admin login separation
 • [x] Users (admin user CRUD)
 • [x] Product Management
@@ -130,13 +131,25 @@ Admin Dashboard
 • [x] Reviews moderation (list / hide / delete)
 • [x] Download History audit (/admin/downloads)
 • [x] Payments (admin payments list/detail — Feature 15F)
-• [ ] Analytics
+• [x] Analytics (Feature 11 — order-based revenue, top products/plugins, date filters)
+• [ ] Batch import review / QA queue (Feature 16)
 Public Site Pages
 • [x] About page (/about) — studio mission, offerings, trust, CTAs
 • [x] Contact form (/contact) — POST /api/contact/ emails admin; honeypot + rate limit
 • [x] Custom Projects landing (/custom-projects) — marketing page linking to request flow
 • [x] Site footer + navbar discovery links; login honors state.from redirect
-Sprint 10 – Testing & Deployment
+Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADMAP.md)
+• [ ] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages)
+• [ ] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET)
+• [ ] Feature 16 Phase 3 — Product SKU / Model_ID identity
+• [ ] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
+• [ ] Feature 16 Phase 5 — R2 Bridge CLI uploader (report + folders → R2)
+• [ ] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
+• [ ] Feature 16 Phase 7 — Admin import review UI
+• [ ] Feature 16 Phase 8 — QA approve / reject → publish workflow
+• [ ] Feature 16 Phase 9 — E2E: import → QA → Stripe → signed download
+• [ ] Feature 16 Phase 10 — Hardening (retries, large packages, remaining media → R2)
+Sprint 11 – Testing & Deployment
 • [ ] API Testing
 • [ ] UI Testing
 • [ ] Security Testing
@@ -145,12 +158,29 @@ Sprint 10 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 15F (Admin Payments UI) complete. Next recommended: Feature 10 — In-app Notifications (or Feature 11 Admin Analytics / Feature 13 Docker / Feature 15G quotation payment per roadmap).
+Feature 15G Quotation payment shipped. Next while waiting on Cloudflare R2: Feature 16 Phase 3–4 (SKU + contracts), Feature 13 Docker, or Feature 12 polish.
 Current Git Branch
-feature/admin-payments-ui
+feature/in-app-notifications
 Files Being Worked On
-• (none — Feature 15F shipped 2026-07-31)
+• (none — Feature 15G quotation payment complete)
 Completed Features
+• Feature 15G — Quotation payment (2026-08-03)
+  - Backend: OrderItem.product_type=custom_project; OrderService.create_from_quotation
+  - Backend: POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout Session
+  - Backend: webhook marks project payment_status=paid and approved→in_progress; expiry reverts unpaid
+  - Backend: zero-amount quotes fulfill without Stripe; receipt email reused
+  - Frontend: Pay quotation / Continue payment on project detail; success/cancel project links
+  - Tests: 8 quotation payment API tests; CustomerProjectDetailPage pay tests
+• Feature 10 — In-app Notifications (2026-08-03)
+  - Backend: notifications app (Notification model); GET list/unread-count; POST mark-one/mark-all-read
+  - Backend: emit on quotation sent, project message, delivery upload, order status change (fail-soft)
+  - Frontend: Navbar NotificationBell + /dashboard/notifications page; dashboard link
+  - Tests: 12 API/emit tests; NotificationBell + NotificationsPage + Navbar tests
+• Feature 11 — Admin Analytics (2026-08-03)
+  - Backend: GET /api/admin/analytics/ (start_date/end_date; order counts, revenue, AOV, revenue_by_period, top_products, top_plugins, gateway_breakdown)
+  - Backend: Dashboard monthly sales now query paid Orders (no placeholders)
+  - Frontend: /admin/analytics cards + tables; Analytics nav enabled
+  - Tests: 7 analytics API tests; 4 AdminAnalyticsPage + AdminLayout nav tests
 • Feature 15F — Admin Payments UI (2026-07-31)
   - Backend: GET /api/admin/payments/ (filters: status, date range, search, ordering, pagination)
   - Backend: GET /api/admin/payments/:id/ (detail + linked order summary + Stripe reference IDs only)
@@ -276,24 +306,30 @@ Completed Features
 • Public marketplace browse page (/products) UI (hero, search, category/license filters, sorting, pagination, skeletal loading, error state)
 • Public product details page (/products/:slug) — Atelier-style two-column layout using brand cream/navy/blue tokens; gallery stage, purchase card, specs table, related products, SEO, auth-aware CTAs
 Pending Features
-• Feature 10 — In-app Notifications
-• Feature 11 — Admin Analytics
+• Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 13 — Docker & local/prod runtime
-• Feature 14 — Cloudflare R2 Storage
-• Feature 15 remainder — quotation payment, PayPal/Razorpay (if still in scope), R2 signed downloads
+• Feature 14 — Cloudflare R2 Storage (public + private buckets; migrate catalog media off local MEDIA)
+• Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads)
+• Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
+• Feature 16 — Batch Catalog Ingest & QA (Model_ID/SKU, Batch Output Report + intake join, R2 Bridge CLI, import → pending_review, admin QA → publish)
+  - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md
 • Invoice PDF generation (invoice_number + paid-order PDF/receipt already shipped; remaining polish if any)
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
 • Waiting on manager approval for UI prototype
 • First Administrator must still be created via createsuperuser
+• Phase 1 intake Excel (price/thumbnail/description) still needed to freeze Feature 16 join contract alongside Batch Output Report
+• Cloudflare R2 account setup pending internal company procedures (Feature 14 blocked on access)
 Bugs
 No Known Bugs
 Technical Debt
-• Avatar/product/plugin/custom-project storage is local MEDIA_ROOT (move to S3/R2 later)
-• Product/plugin catalog downloads use authenticated FileResponse (downloads app); private /media/ prefixes still blocked in DEBUG; signed CDN URLs deferred to Cloudflare phase
+• Avatar/product/plugin/custom-project storage is local MEDIA_ROOT (Feature 14 → Cloudflare R2)
+• Product/plugin catalog downloads use authenticated FileResponse (downloads app); private /media/ prefixes still blocked in DEBUG; signed CDN/R2 URLs = Feature 14B
 • Custom-project admin reference file URLs use local MEDIA until signed entitlement downloads ship
-• Message attachment downloads use authenticated FileResponse (same private-media pattern as reference files); still local MEDIA until S3/R2
-• Project delivery downloads use authenticated FileResponse (same private-media pattern); still local MEDIA until S3/R2
+• Message attachment downloads use authenticated FileResponse (same private-media pattern as reference files); still local MEDIA until R2
+• Project delivery downloads use authenticated FileResponse (same private-media pattern); still local MEDIA until R2
+• No batch import path yet — single-product admin upload only (Feature 16)
+• No dedicated pending_review / QA reject status beyond draft/published/archived (Feature 16 Phase 8)
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
 • Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
@@ -326,7 +362,166 @@ Important Decisions
 • Coupons use dedicated coupons app; codes are uppercase unique; percent/fixed discounts capped at cart subtotal; times_used increments at Feature 15 checkout (not on apply); max_uses_per_user stored for checkout enforcement later.
 • Catalog download entitlement requires order_status=paid AND payment_status=paid (stricter than reviews' order_status-only check); DownloadHistory logged per file fetch; total_downloads incremented on Product/Plugin.
 • Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles/slugs use OrderItem snapshots (Feature 8).
+• Admin analytics (Feature 11): order-based aggregates only; revenue counts payment_status=paid; gateway_breakdown is a stable array keyed by Payment.gateway for future PayPal/Razorpay without client breaks; date range capped at 366 days.
+• In-app notifications (Feature 10): owner-scoped Notification rows; short title/message + relative deep link; emit fail-soft alongside email hooks; customer bell in Navbar; IDOR → 404 on mark-read.
+• Cloud storage: Cloudflare R2 selected (not dual-track AWS S3). Public bucket/CDN for thumbnails + preview GLBs; private bucket for paid packages. Metadata remains in PostgreSQL/Django.
+• Batch ingest: MaxScript Batch Output Report is the post-render machine contract; Phase 1 intake Excel supplies price/marketing fields; join key is Model_ID. Bridge never auto-publishes — admin QA on the website is the final gate to status=published.
+• R2 Key Prefix convention (planned): models/{Model_ID}/ — lock in Feature 16 Phase 4.
+• Recommended near-term order while R2 access is pending: Feature 16 Phase 3–4/8 (SKU + contracts + QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → rest of 16 when Cloudflare is ready.
+• Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-08-03 (Feature 15G — Quotation payment)
+Working Hours:
+Today's Objective: Enable Stripe payment for accepted custom-project quotations.
+Modules Completed: OrderItem custom_project type, create_from_quotation, quotation checkout + webhook fulfillment, customer Pay UI, tests
+Files Created:
+• backend/orders/migrations/0003_orderitem_custom_project_type.py
+• backend/payments/test_quotation_payments.py
+Files Modified:
+• backend/orders/models.py, services.py, serializers.py
+• backend/payments/services.py
+• backend/custom_projects/services.py, views.py, urls.py
+• frontend/src/api/customProjectsApi.ts, types/payment.ts
+• frontend/src/pages/Dashboard/CustomerProjectDetailPage.tsx (+ test)
+• frontend/src/pages/Checkout/CheckoutSuccessPage.tsx, CheckoutCancelPage.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• OrderItem.product_type choices include custom_project
+API Endpoints:
+• POST /api/custom-projects/<uuid>/quotation/pay/ — start Stripe Checkout (or free fulfill) [added]
+Frontend Pages/Components Added:
+• Pay quotation / Continue payment on customer project detail
+• Checkout success/cancel aware of project_id for quotation flow
+Tests Added/Updated:
+• backend payments.test_quotation_payments (8)
+• frontend CustomerProjectDetailPage pay-button tests
+Security Checklist:
+• Owner-only pay endpoint (other customers → 404)
+• PaymentCheckoutRateThrottle
+• Accepted quotation + unpaid/pending required; already paid rejected
+• Webhook idempotent; expiry reverts project payment_status pending → unpaid
+• OrderItem can_download false for custom_project lines
+Issues / Blockers:
+• None (R2 still pending company account setup)
+Next Recommended Task:
+• Feature 16 Phase 3–4 (SKU + batch contracts) or Feature 13 Docker / Feature 12 polish while waiting on R2
+Notes:
+• Reuses existing Payment↔Order model; quotation amount snapshotted on OrderItem
+
+Date: 2026-08-03 (Roadmap — R2 + Batch Ingest + QA)
+Working Hours:
+Today's Objective: Capture batch-render → R2 → admin QA → Stripe download plan in project docs.
+Modules Completed: Planning only (no code)
+Files Created:
+• IMPLEMENTATION_ROADMAP.md (10 phases, Batch Output Report contract, Cloudflare setup, Feature 14/14B/16 mapping)
+Files Modified:
+• PROJECT_MASTER_PLAN.md (R2 selected; Stage 11 cloud/batch; success criteria; admin QA role)
+• PROJECT_STATUS.md (Sprint 10 cloud/batch checklist; pending features; decisions; debt)
+Database Changes:
+• None
+API Endpoints:
+• None
+Frontend Pages/Components Added:
+• None
+Tests Added/Updated:
+• None
+Security Checklist:
+• Documented: private R2 never public; entitlement before signed GET; no auto-publish from bridge
+Issues / Blockers:
+• Need Phase 1 intake Excel to freeze price/thumbnail/description columns
+Next Recommended Task:
+• Feature 14 — Cloudflare R2 storage foundation (then Feature 14B signed downloads)
+Notes:
+• Batch Output Report template already defines Model_ID, export statuses, GLB checksum, R2 Key Prefix, QA Status lifecycle
+• v1 bridge = Python CLI; Worker/Queue optional in Phase 10
+
+Date: 2026-08-03 (Feature 10 — In-app Notifications)
+Working Hours:
+Today's Objective: DB-backed in-app notifications with workflow emits and customer bell UI.
+Modules Completed: notifications app, APIs, event hooks, NotificationBell, NotificationsPage, tests, PROJECT_STATUS
+Files Created:
+• backend/notifications/ (models, services, serializers, views, urls, pagination, apps, migrations/0001_initial, test_notifications)
+• frontend/src/types/notification.ts
+• frontend/src/api/notificationsApi.ts
+• frontend/src/components/NotificationBell.tsx (+ test)
+• frontend/src/pages/Dashboard/NotificationsPage.tsx (+ test)
+Files Modified:
+• backend/config/settings.py, urls.py
+• backend/accounts/throttles.py
+• backend/custom_projects/services.py
+• backend/orders/services.py
+• frontend/src/App.tsx, components/Navbar.tsx (+ test), pages/Dashboard/DashboardPage.tsx
+• frontend/src/styles/navbar.css
+• PROJECT_STATUS.md
+Database Changes:
+• New table `notifications` (UUID PK, user FK, title, message, link, is_read, created_at, updated_at)
+API Endpoints:
+• GET /api/notifications/ — paginated list (is_read, ordering) [added]
+• GET /api/notifications/unread-count/ [added]
+• POST /api/notifications/<uuid>/read/ — mark one read (owner-only; 404 otherwise) [added]
+• POST /api/notifications/read-all/ [added]
+Frontend Pages/Components Added:
+• Navbar NotificationBell (dropdown + unread badge)
+• /dashboard/notifications — NotificationsPage
+• Dashboard link to notifications
+Tests Added/Updated:
+• backend notifications.test_notifications (12)
+• frontend NotificationBell (4), NotificationsPage (3), Navbar notifications control
+Security Checklist:
+• Authenticated only; owner-scoped list/mark (IDOR → 404)
+• Write endpoints throttled (notification_write 60/min)
+• Bodies kept short; no quote amounts, message bodies, storage paths, or secrets
+• Frontend only navigates safe relative links (starts with /)
+• Emit helpers fail-soft and never roll back business writes
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 12 polish / Feature 13 Docker / Feature 15G quotation payment / Feature 14 R2
+Notes:
+• Celery not required for v1; creates are synchronous DB inserts
+• Assigned designer receives in-app notice for customer project messages; customers receive quotation/message/delivery/order notices
+
+Date: 2026-08-03 (Feature 11 — Admin Analytics)
+Working Hours:
+Today's Objective: Replace sales placeholders with order-based admin analytics (API + /admin/analytics UI).
+Modules Completed: AnalyticsService, admin analytics API, real dashboard monthly sales, AdminAnalyticsPage, nav enable, tests, PROJECT_STATUS
+Files Created:
+• backend/analytics/analytics_urls.py
+• backend/analytics/test_analytics.py
+• frontend/src/types/analytics.ts
+• frontend/src/api/analyticsApi.ts
+• frontend/src/pages/Admin/AdminAnalyticsPage.tsx
+• frontend/src/pages/Admin/AdminAnalyticsPage.test.tsx
+Files Modified:
+• backend/analytics/services.py, serializers.py, views.py, admin_urls.py
+• backend/config/urls.py
+• frontend/src/App.tsx, config/adminNav.ts
+• frontend/src/layouts/AdminLayout.test.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None (compute-on-read from orders / order_items / payments)
+API Endpoints:
+• GET /api/admin/analytics/ — order analytics + date filters (admin-only) [added]
+• GET /api/admin/dashboard/stats/ — sales.monthly_* now from paid orders [modified]
+Frontend Pages/Components Added:
+• /admin/analytics — AdminAnalyticsPage (summary cards, period table, top products/plugins, gateway breakdown)
+• Admin sidebar Analytics link enabled
+Tests Added/Updated:
+• backend analytics.test_analytics + existing dashboard stats (7 analytics-related tests)
+• frontend AdminAnalyticsPage (4) + AdminLayout analytics nav
+Security Checklist:
+• Admin-only RBAC (IsAuthenticated + IsAdministrator); customer/guest denied
+• Date filters validated server-side; inverted/invalid/too-wide ranges → 400
+• ORM aggregations only (no raw SQL); no secrets, storage paths, or PII dumps in response
+• gateway_breakdown exposes gateway name + counts/amounts only (no Stripe secrets)
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 10 — In-app Notifications (or Feature 12 polish / Feature 13 Docker / Feature 15G quotation payment)
+Notes:
+• Default date range is current calendar month through today when start_date/end_date omitted
+• Charts deferred (cards + tables satisfy Feature 11)
+
 Date: 2026-07-31 (Feature 15F — Admin Payments UI)
 Working Hours:
 Today's Objective: Admin payments list/detail APIs + SPA so support/finance can inspect Stripe payments without digging through orders only.
@@ -2275,19 +2470,22 @@ Final Release Checklist
 • [x] Plugin Store Complete (signed CDN URLs deferred)
 • [x] Custom Project Portal Complete (non-payment)
 • [x] Customer Dashboard Complete (Stripe cart checkout live; quotation pay deferred)
-• [x] Admin Dashboard Complete (payments UI live; analytics deferred)
-• [x] Payment System Complete (Stripe cart Phase 1 + admin payments UI; quotation pay deferred)
-• [x] Secure Downloads Complete (local; R2 signed URLs deferred)
+• [x] Admin Dashboard Complete (payments UI + analytics live)
+• [x] Payment System Complete (Stripe cart Phase 1 + admin payments UI + Feature 15G quotation pay)
+• [x] Secure Downloads Complete (local; R2 signed URLs = Feature 14B planned)
 • [ ] Security Testing Complete
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
+• [ ] Cloudflare R2 + batch ingest complete (Features 14 / 14B / 16 — see IMPLEMENTATION_ROADMAP.md)
 Project Completion
-Current Completion Percentage: ~67%
-Estimated Remaining Work: In-app notifications, admin analytics, Docker, Cloudflare R2, remaining payments (quotation pay / signed CDN URLs), final QA
+Current Completion Percentage: ~70%
+Estimated Remaining Work: Feature 14 R2, Feature 14B signed downloads, Feature 16 batch ingest & QA, Docker, quotation pay (15G), public site polish leftovers, final QA
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
-Feature 15F Admin Payments UI shipped 2026-07-31 (Stripe checkout + Feature 8 already on develop).
+Feature 10 In-app Notifications shipped 2026-08-03 (Feature 11 analytics already complete).
+R2 + Batch Catalog Ingest + QA roadmap written 2026-08-03 (IMPLEMENTATION_ROADMAP.md). Build order: 14 → 14B → 16.
+
 Date: 2026-07-24 (CP-MSG-05 Admin project messages UI)
 Working Hours:
 Today's Objective: Admin project messages UI on /admin/projects/:projectId
@@ -3089,17 +3287,19 @@ Final Release Checklist
 • [x] Marketplace Complete
 • [x] Plugin Store Complete (signed CDN URLs deferred)
 • [x] Custom Project Portal Complete (non-payment)
-• [x] Customer Dashboard Complete (checkout/payments deferred)
-• [x] Admin Dashboard Complete (payments/analytics deferred)
-• [ ] Payment System Complete
-• [x] Secure Downloads Complete
+• [x] Customer Dashboard Complete (Stripe cart checkout live; quotation pay deferred)
+• [x] Admin Dashboard Complete (payments UI + analytics live)
+• [x] Payment System Complete (Stripe cart Phase 1 + admin payments UI + Feature 15G quotation pay)
+• [x] Secure Downloads Complete (local; R2 signed URLs = Feature 14B planned)
 • [ ] Security Testing Complete
 • [ ] Performance Optimization Complete
 • [ ] Production Deployment Complete
+• [ ] Cloudflare R2 + batch ingest complete (Features 14 / 14B / 16 — see IMPLEMENTATION_ROADMAP.md)
 Project Completion
-Current Completion Percentage: ~65%
-Estimated Remaining Work: In-app notifications, admin analytics, Docker, Cloudflare R2, remaining payments (admin UI / quotation pay / signed CDN URLs), final QA
+Current Completion Percentage: ~70%
+Estimated Remaining Work: Feature 14 R2, Feature 14B signed downloads, Feature 16 batch ingest & QA, Docker, quotation pay (15G), public site polish leftovers, final QA
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
-Stripe Checkout Phase 1 and Feature 8 order integrity hardening shipped 2026-07-31.
+Feature 10 In-app Notifications shipped 2026-08-03.
+R2 + Batch Catalog Ingest + QA roadmap written 2026-08-03 (IMPLEMENTATION_ROADMAP.md). Build order: 14 → 14B → 16.

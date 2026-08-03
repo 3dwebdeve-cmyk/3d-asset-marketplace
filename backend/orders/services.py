@@ -13,6 +13,8 @@ from django.utils import timezone
 
 from accounts.models import User
 from coupons.models import Coupon
+from django.utils.text import slugify
+from notifications.services import NotificationService
 from orders.models import Order, OrderItem
 from plugins.models import Plugin
 from products.models import Product
@@ -362,6 +364,95 @@ class OrderService:
         return cls.get(order.pk), envelope.totals.discount_amount, envelope.coupon
 
     @classmethod
+    @transaction.atomic
+    def create_from_quotation(cls, user: User, project_id: UUID) -> Order:
+        """Snapshot an accepted custom-project quotation into a PENDING order."""
+        from custom_projects.models import CustomProject, ProjectQuotation
+
+        try:
+            project = CustomProject.objects.select_for_update().get(
+                pk=project_id,
+                customer=user,
+            )
+        except CustomProject.DoesNotExist as exc:
+            raise OrderError("Project not found.") from exc
+
+        if project.status in {
+            CustomProject.Status.CANCELLED,
+            CustomProject.Status.REJECTED,
+            CustomProject.Status.COMPLETED,
+        }:
+            raise OrderError("This project cannot be paid in its current status.")
+
+        if project.payment_status == CustomProject.PaymentStatus.PAID:
+            raise OrderError("This quotation has already been paid.")
+
+        try:
+            quotation = ProjectQuotation.objects.get(project_id=project.id)
+        except ProjectQuotation.DoesNotExist as exc:
+            raise OrderError("No quotation is available to pay.") from exc
+
+        if quotation.status != ProjectQuotation.Status.ACCEPTED:
+            raise OrderError(
+                "Only an accepted quotation can be paid.",
+                field="quotation",
+            )
+
+        already_paid = OrderItem.objects.filter(
+            product_type=OrderItem.ProductType.CUSTOM_PROJECT,
+            product_id=project.id,
+            order__user=user,
+            order__order_status=Order.OrderStatus.PAID,
+            order__payment_status=Order.PaymentStatus.PAID,
+        ).exists()
+        if already_paid:
+            raise OrderError("This quotation has already been paid.")
+
+        from payments.models import Payment
+
+        # Retire any prior unfinished quotation checkouts for this project.
+        pending_order_ids = list(
+            OrderItem.objects.filter(
+                product_type=OrderItem.ProductType.CUSTOM_PROJECT,
+                product_id=project.id,
+                order__user=user,
+                order__order_status=Order.OrderStatus.PENDING,
+                order__payment_status=Order.PaymentStatus.PENDING,
+            ).values_list("order_id", flat=True)
+        )
+        if pending_order_ids:
+            Order.objects.filter(pk__in=pending_order_ids).update(
+                order_status=Order.OrderStatus.CANCELLED,
+                payment_status=Order.PaymentStatus.CANCELLED,
+                updated_at=timezone.now(),
+            )
+            Payment.objects.filter(
+                order_id__in=pending_order_ids,
+                status=Payment.Status.PENDING,
+            ).update(status=Payment.Status.EXPIRED)
+
+        title = project.title.strip() or "Custom project"
+        slug = slugify(title)[:255] or None
+        amount = quotation.amount
+        currency = (quotation.currency or project.currency or "USD").upper()[:3]
+
+        order = cls._create_order_with_unique_invoice(
+            user=user,
+            total_amount=amount,
+            currency=currency,
+        )
+        OrderItem.objects.create(
+            order=order,
+            product_type=OrderItem.ProductType.CUSTOM_PROJECT,
+            product_id=project.id,
+            title=title,
+            slug=slug,
+            quantity=1,
+            purchase_price=amount,
+        )
+        return cls.get(order.pk)
+
+    @classmethod
     def _create_order_with_unique_invoice(
         cls,
         *,
@@ -396,8 +487,10 @@ class OrderService:
             valid_values=Order.OrderStatus.values,
             field="order_status",
         )
+        previous_status = order.order_status
         with transaction.atomic():
             locked = Order.objects.select_for_update().get(pk=order.pk)
+            previous_status = locked.order_status
             cls._apply_status_transition(
                 current=locked.order_status,
                 new_status=new_status,
@@ -405,9 +498,20 @@ class OrderService:
                 valid_values=Order.OrderStatus.values,
                 field="order_status",
             )
-            locked.order_status = new_status
-            locked.save(update_fields=["order_status", "updated_at"])
-        return cls.get(order.pk)
+            if locked.order_status != new_status:
+                locked.order_status = new_status
+                locked.save(update_fields=["order_status", "updated_at"])
+            order_id = locked.pk
+            status_value = new_status
+        updated = cls.get(order_id)
+        if previous_status != status_value:
+            transaction.on_commit(
+                lambda: NotificationService.notify_order_status_changed(
+                    updated,
+                    status_value,
+                )
+            )
+        return updated
 
     @classmethod
     def update_payment_status(cls, order: Order, new_status: str) -> Order:

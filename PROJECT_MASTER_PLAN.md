@@ -113,6 +113,17 @@ Administrators can manage:
   Reviews 
   Custom Projects 
   Analytics
+  Batch import review & QA approval (planned)
+
+Batch Catalog Pipeline (Phase 1 — planned)
+The company batch-renders large inventories of 3D models. Phase 1 includes an ingest path so assets are not uploaded one-by-one through the admin panel:
+  MaxScript batcher produces a Batch Output Report (Model_ID, exports, checksums, paths, QA Status)
+  Phase 1 intake Excel supplies store metadata (price, description, thumbnail mapping) joined on Model_ID
+  R2 Bridge uploads packages/previews to Cloudflare R2 under models/{Model_ID}/
+  Django creates/updates products as draft / pending_review (never auto-live)
+  Admin reviews, edits, QA-approves, then publishes
+  Stripe purchase + entitlement grants short-lived signed download URLs for paid private objects only
+Detailed phases: see IMPLEMENTATION_ROADMAP.md (Features 14, 14B, 16).
 
 Future Phases
 Phase 2
@@ -159,8 +170,10 @@ Backend
 
 Database
   PostgreSQL
-  Cloud Storage
-  AWS S3 or  Cloudflare R2
+
+Cloud Storage
+  Cloudflare R2 (selected) — public bucket/CDN for thumbnails & preview GLBs; private bucket for paid packages
+  S3-compatible API (boto3 / django-storages); signed GET URLs after purchase entitlement
          
 Search
   Meilisearch
@@ -173,7 +186,7 @@ Deployment
   Docker Compose 
   Gunicorn
   Nginx
-  Cloudflare CDN
+  Cloudflare CDN (+ R2 custom domain for public assets)
 
 Project Folder Structure
 3D-Model-Marketplace/
@@ -183,6 +196,7 @@ Project Folder Structure
  backend/
  PROJECT_MASTER_PLAN.md
  PROJECT_STATUS.md
+ IMPLEMENTATION_ROADMAP.md
  README.md
  docker-compose.yml
  .gitignore
@@ -300,6 +314,7 @@ Administrator
   Manage Custom Projects 
   View Analytics 
   Generate Reports
+  Review batch-imported products and QA-approve before publish (planned)
 
 Security Standards
 The platform shall implement: 
@@ -310,10 +325,12 @@ The platform shall implement:
   SQL Injection Protection
   Cross-Site Scripting (XSS) Protection
   Cross-Site Request Forgery (CSRF) Protection
-  Signed Download URLs  Backend Payment Verification
+  Signed Download URLs (Cloudflare R2 presigned GET after entitlement)
+  Backend Payment Verification
   Rate Limiting
   Secure File Upload Validation
   Environment Variable Management
+  Private R2 objects never publicly listable; public CDN only for previews/thumbs
 
 
 Development Roadmap
@@ -387,13 +404,25 @@ Administration
   Analytics
 
 Stage 11
+Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADMAP.md)
+  Cloudflare R2 public + private buckets
+  Signed download URLs after Stripe entitlement
+  Product SKU / Model_ID identity
+  Batch Output Report + Phase 1 intake contracts
+  R2 Bridge uploader (CLI)
+  Catalog import → pending_review
+  Admin import review + QA approve → publish
+  E2E purchase/download on R2
+  Hardening for multi-thousand inventory
+
+Stage 12
 Testing
   Unit Testing
   API Testing
   Security Testing
   Performance Testing
 
-Stage 12
+Stage 13
 Deployment 
   Docker 
   Production Server 
@@ -427,5 +456,6 @@ The project will be considered successful when:
  Customers can submit custom project requests.
   Administrators can manage the complete platform through the dashboard. 
  Payments are securely verified.  Purchased assets are delivered through secure download links. 
+ Large inventories can be batch-ingested to R2 and QA-published without one-by-one manual uploads.
  The platform performs reliably with thousands of products. 
  The architecture is ready for future expansion without significant redesign.

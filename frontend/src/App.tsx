@@ -22,6 +22,7 @@ import { MyProjectsPage } from './pages/Dashboard/MyProjectsPage'
 import { MyOrdersPage } from './pages/Dashboard/MyOrdersPage'
 import { MyDownloadsPage } from './pages/Dashboard/MyDownloadsPage'
 import { CustomerOrderDetailPage } from './pages/Dashboard/CustomerOrderDetailPage'
+import { NotificationsPage } from './pages/Dashboard/NotificationsPage'
 import { WishlistPage } from './pages/Dashboard/WishlistPage'
 import { CartPage } from './pages/Cart/CartPage'
 import { CheckoutSuccessPage } from './pages/Checkout/CheckoutSuccessPage'
@@ -129,6 +130,11 @@ const AdminDownloadsPage = lazy(() =>
     default: module.AdminDownloadsPage,
   })),
 )
+const AdminAnalyticsPage = lazy(() =>
+  import('./pages/Admin/AdminAnalyticsPage').then((module) => ({
+    default: module.AdminAnalyticsPage,
+  })),
+)
 const AdminCouponsPage = lazy(() =>
   import('./pages/Admin/AdminCouponsPage').then((module) => ({
     default: module.AdminCouponsPage,
@@ -199,6 +205,7 @@ function AppRoutes() {
             />
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/dashboard/notifications" element={<NotificationsPage />} />
               <Route path="/dashboard/projects" element={<MyProjectsPage />} />
               <Route path="/dashboard/orders" element={<MyOrdersPage />} />
               <Route path="/dashboard/downloads" element={<MyDownloadsPage />} />
@@ -267,6 +274,7 @@ function AppRoutes() {
               />
               <Route path="/admin/reviews" element={<AdminReviewsPage />} />
               <Route path="/admin/downloads" element={<AdminDownloadsPage />} />
+              <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/users/:userId" element={<AdminUserDetailPage />} />
             </Route>

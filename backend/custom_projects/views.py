@@ -14,6 +14,7 @@ from accounts.security_log import log_admin_action
 from accounts.throttles import (
     AdminCustomProjectWriteRateThrottle,
     CustomProjectWriteRateThrottle,
+    PaymentCheckoutRateThrottle,
 )
 from custom_projects.models import CustomProject, ProjectFile
 from custom_projects.pagination import CustomProjectPagination
@@ -44,6 +45,7 @@ from custom_projects.services import (
 )
 from custom_projects.upload_rules import validate_project_file_upload
 from config.media import open_stored_file
+from payments.services import CheckoutError, CheckoutService
 
 
 def _message_serializer_context(request: Request, *, scope: str) -> dict:
@@ -188,6 +190,37 @@ class CustomerCustomProjectQuotationAcceptView(APIView):
             CustomProjectCustomerDetailSerializer(detail).data,
             status=status.HTTP_200_OK,
         )
+
+
+class CustomerCustomProjectQuotationPayView(APIView):
+    """Start Stripe Checkout for an accepted custom-project quotation."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [PaymentCheckoutRateThrottle]
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            # Ownership/404 gate before Stripe session creation.
+            CustomProjectService.get_for_customer(project_id, request.user)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        try:
+            result = CheckoutService.create_quotation_checkout_session(
+                request.user,
+                project_id,
+            )
+        except CheckoutError as exc:
+            if exc.field:
+                return Response(
+                    {exc.field: [exc.message]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {"detail": exc.message, "code": "checkout_error"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(result, status=status.HTTP_201_CREATED)
 
 
 class CustomerCustomProjectFileUploadView(APIView):

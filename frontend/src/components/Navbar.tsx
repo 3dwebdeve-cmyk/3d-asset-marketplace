@@ -8,6 +8,7 @@ import { isAdministrator } from '../lib/roles'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import { useCartUiStore } from '../store/cartUiStore'
+import { NotificationBell } from './NotificationBell'
 import { Button } from './ui/Button'
 
 function formatUnreadBadge(count: number): string {
@@ -91,6 +92,7 @@ export function Navbar() {
                   <Link className="navbar__link" to="/dashboard">
                     Dashboard
                   </Link>
+                  <NotificationBell />
                   <Link className="navbar__link" to="/dashboard/projects">
                     My Projects
                   </Link>

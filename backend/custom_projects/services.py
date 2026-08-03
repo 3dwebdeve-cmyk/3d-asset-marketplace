@@ -27,6 +27,7 @@ from custom_projects.notifications import (
     ProjectMessageNotificationService,
     ProjectWorkflowNotificationService,
 )
+from notifications.services import NotificationService
 from custom_projects.storage import (
     ProjectDeliveryStorageService,
     ProjectFileStorageService,
@@ -384,6 +385,7 @@ class CustomProjectService:
         # Subsequent quote edits must not spam the customer.
         if created or became_quoted:
             ProjectWorkflowNotificationService.notify_quotation_sent(notified_project)
+            NotificationService.notify_quotation_sent(notified_project)
         return quotation
 
     @classmethod
@@ -432,6 +434,34 @@ class CustomProjectService:
         return accepted
 
     @classmethod
+    @transaction.atomic
+    def mark_quotation_paid(cls, project_id: UUID) -> CustomProject | None:
+        """Mark a custom project paid after successful quotation checkout."""
+        try:
+            project = CustomProject.objects.select_for_update().get(pk=project_id)
+        except CustomProject.DoesNotExist:
+            return None
+
+        project.payment_status = CustomProject.PaymentStatus.PAID
+        update_fields = ["payment_status", "updated_at"]
+        if project.status == CustomProject.Status.APPROVED:
+            cls._apply_status(project, CustomProject.Status.IN_PROGRESS)
+            update_fields.append("status")
+        project.save(update_fields=update_fields)
+        return project
+
+    @classmethod
+    def revert_quotation_payment_pending(cls, project_id: UUID) -> None:
+        """If checkout expired and project is still pending, revert to unpaid."""
+        CustomProject.objects.filter(
+            pk=project_id,
+            payment_status=CustomProject.PaymentStatus.PENDING,
+        ).update(
+            payment_status=CustomProject.PaymentStatus.UNPAID,
+            updated_at=timezone.now(),
+        )
+
+    @classmethod
     def list_messages(cls, project: CustomProject) -> QuerySet[ProjectMessage]:
         return (
             ProjectMessage.objects.filter(project=project)
@@ -455,8 +485,9 @@ class CustomProjectService:
             body=body,
             attachment=attachment,
         )
-        # Mail failures must not undo a successful message create.
+        # Mail / in-app failures must not undo a successful message create.
         ProjectMessageNotificationService.notify_new_message(message)
+        NotificationService.notify_project_message(message)
         return message
 
     @classmethod
@@ -742,7 +773,22 @@ class CustomProjectService:
         CustomProject.objects.filter(pk=locked.pk).update(
             updated_at=delivery.created_at,
         )
+        delivery_id = delivery.pk
+        transaction.on_commit(
+            lambda: cls._emit_delivery_uploaded_notification(delivery_id)
+        )
         return delivery
+
+    @classmethod
+    def _emit_delivery_uploaded_notification(cls, delivery_id: UUID) -> None:
+        try:
+            delivery = ProjectDelivery.objects.select_related(
+                "project",
+                "project__customer",
+            ).get(pk=delivery_id)
+        except ProjectDelivery.DoesNotExist:
+            return
+        NotificationService.notify_delivery_uploaded(delivery)
 
     @classmethod
     def _apply_status(cls, project: CustomProject, new_status: str) -> None:

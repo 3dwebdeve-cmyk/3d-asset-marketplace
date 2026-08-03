@@ -83,6 +83,8 @@ class CustomerOrderItemDetailSerializer(OrderItemDetailSerializer):
         )
 
     def get_can_download(self, obj: OrderItem) -> bool:
+        if obj.product_type == OrderItem.ProductType.CUSTOM_PROJECT:
+            return False
         order = self.context.get("order")
         if order is None:
             return False

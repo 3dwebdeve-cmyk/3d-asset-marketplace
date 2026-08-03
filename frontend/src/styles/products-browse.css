@@ -2,9 +2,9 @@
 
 .products-browse-page {
   width: 100%;
-  max-width: 1280px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
+  padding: 1.5rem clamp(1rem, 3vw, 2rem) 4rem;
   min-height: calc(100vh - 4rem);
   box-sizing: border-box;
 }

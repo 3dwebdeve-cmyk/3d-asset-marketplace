@@ -152,11 +152,12 @@ Order Items
 Stores purchased items. Fields
  id
  order_id
- product_type  product_id
+ product_type (product | plugin | custom_project)  product_id
  title (snapshotted at order create)
  slug (snapshotted at order create)
  quantity
  purchase_price
+Note: custom_project lines are created by Feature 15G quotation checkout; product_id is the CustomProject UUID. Catalog download entitlements apply only to product/plugin lines.
 Payments
 Stores payment transactions. Fields
  id
@@ -209,7 +210,7 @@ Notifications
 Stores platform notifications. Fields
  id
  user_id
- title  message  read_status  created_at
+ title  message  link (relative deep link)  is_read  created_at  updated_at
 Custom Projects
 Stores custom modeling requests submitted by customers. Fields
  id
