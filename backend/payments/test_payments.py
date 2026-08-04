@@ -483,3 +483,38 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.order.refresh_from_db()
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+
+    @patch("payments.services.stripe.checkout.Session.retrieve")
+    def test_rejects_empty_metadata_order_id(self, mock_retrieve) -> None:
+        mock_retrieve.return_value = _FakeStripeObject(
+            {
+                "id": "cs_test_confirm",
+                "status": "complete",
+                "payment_status": "paid",
+                "payment_intent": "pi_empty_meta",
+                "metadata": _FakeStripeObject({}),
+            }
+        )
+        self._authenticate()
+        response = self.client.post(
+            self.confirm_url,
+            {"order_id": str(self.order.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+
+    def test_rejects_cancelled_order(self) -> None:
+        self.order.order_status = Order.OrderStatus.CANCELLED
+        self.order.payment_status = Order.PaymentStatus.CANCELLED
+        self.order.save(update_fields=["order_status", "payment_status", "updated_at"])
+        self.payment.status = Payment.Status.EXPIRED
+        self.payment.save(update_fields=["status", "updated_at"])
+        self._authenticate()
+        response = self.client.post(
+            self.confirm_url,
+            {"order_id": str(self.order.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

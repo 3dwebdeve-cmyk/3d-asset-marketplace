@@ -156,6 +156,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
@@ -174,6 +175,11 @@ AUTH_USER_MODEL = "accounts.User"
 # Shared cache for DRF throttles across workers. Prefer Redis in production:
 # REDIS_URL=redis://127.0.0.1:6379/1
 REDIS_URL = config("REDIS_URL", default="")
+if not DEBUG and not REDIS_URL:
+    raise ImproperlyConfigured(
+        "REDIS_URL is required when DEBUG=False so rate limits and cache "
+        "are shared across workers."
+    )
 if REDIS_URL:
     CACHES = {
         "default": {

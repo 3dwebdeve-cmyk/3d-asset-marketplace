@@ -1,6 +1,11 @@
 import type { CategoryParent } from './category'
 
-export type ProductStatus = 'draft' | 'published' | 'archived'
+export type ProductStatus =
+  | 'draft'
+  | 'pending_review'
+  | 'published'
+  | 'rejected'
+  | 'archived'
 export type ProductLicenseType = 'standard' | 'extended' | 'editorial'
 
 export interface ProductImage {

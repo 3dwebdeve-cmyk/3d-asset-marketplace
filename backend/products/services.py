@@ -371,7 +371,9 @@ class ProductService:
             update_fields.append("license_type")
 
         if data.status is not None:
-            product.status = cls._normalize_status(data.status)
+            new_status = cls._normalize_status(data.status)
+            cls._validate_status_transition(product.status, new_status)
+            product.status = new_status
             update_fields.append("status")
 
         if data.clear_sku:
@@ -615,3 +617,40 @@ class ProductService:
         if status not in allowed:
             raise ProductError("Invalid status.", field="status")
         return status
+
+    @classmethod
+    def _validate_status_transition(cls, current: str, new_status: str) -> None:
+        if current == new_status:
+            return
+        allowed: dict[str, set[str]] = {
+            Product.Status.DRAFT: {
+                Product.Status.PENDING_REVIEW,
+                Product.Status.PUBLISHED,
+                Product.Status.REJECTED,
+                Product.Status.ARCHIVED,
+            },
+            Product.Status.PENDING_REVIEW: {
+                Product.Status.DRAFT,
+                Product.Status.PUBLISHED,
+                Product.Status.REJECTED,
+                Product.Status.ARCHIVED,
+            },
+            Product.Status.PUBLISHED: {
+                Product.Status.DRAFT,
+                Product.Status.ARCHIVED,
+            },
+            Product.Status.REJECTED: {
+                Product.Status.DRAFT,
+                Product.Status.PENDING_REVIEW,
+                Product.Status.ARCHIVED,
+            },
+            Product.Status.ARCHIVED: {
+                Product.Status.DRAFT,
+            },
+        }
+        next_statuses = allowed.get(current, set())
+        if new_status not in next_statuses:
+            raise ProductError(
+                f"Cannot change status from '{current}' to '{new_status}'.",
+                field="status",
+            )

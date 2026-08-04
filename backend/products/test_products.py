@@ -69,6 +69,26 @@ class ProductPublicAPITests(APITestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
 
+    def test_list_excludes_pending_review_and_rejected(self) -> None:
+        Product.objects.create(
+            category=self.category,
+            name="Pending QA Model",
+            slug="pending-qa-model",
+            price=Decimal("10.00"),
+            status=Product.Status.PENDING_REVIEW,
+        )
+        Product.objects.create(
+            category=self.category,
+            name="Rejected Model",
+            slug="rejected-model",
+            price=Decimal("10.00"),
+            status=Product.Status.REJECTED,
+        )
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        slugs = {item["slug"] for item in response.data["results"]}
+        self.assertEqual(slugs, {"oak-chair"})
+
     def test_list_filters_by_category(self) -> None:
         other = Category.objects.create(name="Vehicles", slug="vehicles")
         Product.objects.create(
@@ -245,6 +265,50 @@ class ProductAdminAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("discount_price", response.data)
+
+    def test_admin_qa_status_transitions(self) -> None:
+        self._authenticate_as_admin()
+        to_review = self.client.patch(
+            self.detail_url,
+            {"status": "pending_review"},
+            format="json",
+        )
+        self.assertEqual(to_review.status_code, status.HTTP_200_OK)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.PENDING_REVIEW)
+
+        reject = self.client.patch(
+            self.detail_url,
+            {"status": "rejected"},
+            format="json",
+        )
+        self.assertEqual(reject.status_code, status.HTTP_200_OK)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.REJECTED)
+
+        # Rejected cannot jump straight to published.
+        illegal = self.client.patch(
+            self.detail_url,
+            {"status": "published"},
+            format="json",
+        )
+        self.assertEqual(illegal.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", illegal.data)
+
+    def test_admin_filter_by_pending_review(self) -> None:
+        Product.objects.create(
+            category=self.category,
+            name="In QA",
+            slug="in-qa",
+            price=Decimal("12.00"),
+            status=Product.Status.PENDING_REVIEW,
+        )
+        self._authenticate_as_admin()
+        response = self.client.get(self.list_url, {"status": "pending_review"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {item["name"] for item in response.data["results"]}
+        self.assertIn("In QA", names)
+        self.assertNotIn(self.product.name, names)
 
     def test_admin_create_product_with_sku(self) -> None:
         self._authenticate_as_admin()

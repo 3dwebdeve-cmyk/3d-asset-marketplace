@@ -1,0 +1,9 @@
+C:/batch/out/MDL-000142/
+├── preview.glb
+├── thumbnail.jpg
+├── package.zip
+├── textures/
+│   ├── albedo.jpg
+│   └── roughness.jpg
+└── source/
+    └── model.fbx

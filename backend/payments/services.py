@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -23,8 +24,22 @@ from orders.services import OrderError, OrderService
 from payments.models import Payment, StripeWebhookEvent
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+_TERMINAL_ORDER_STATUSES = {
+    Order.OrderStatus.CANCELLED,
+    Order.OrderStatus.REFUNDED,
+}
+_TERMINAL_PAYMENT_STATUSES = {
+    Order.PaymentStatus.CANCELLED,
+    Order.PaymentStatus.REFUNDED,
+}
+_STALE_LOCAL_PAYMENT_STATUSES = {
+    Payment.Status.EXPIRED,
+    Payment.Status.FAILED,
+}
 
 PAYMENT_STATUS_FILTER_ALIASES = {
     "paid": Payment.Status.SUCCEEDED,
@@ -235,12 +250,55 @@ class CheckoutService:
         return {"checkout_url": session.url, "order_id": str(order.id)}
 
     @classmethod
+    def _expire_stripe_sessions(cls, session_ids: list[str]) -> None:
+        """Best-effort expire open Stripe Checkout Sessions (superseded checkouts)."""
+        if not settings.STRIPE_SECRET_KEY:
+            return
+        for session_id in session_ids:
+            if not session_id or session_id.startswith("free_quote_"):
+                continue
+            try:
+                stripe.checkout.Session.expire(session_id)
+            except stripe.error.StripeError as exc:
+                logger.warning(
+                    "Unable to expire superseded Stripe session %s: %s",
+                    session_id,
+                    exc,
+                )
+
+    @classmethod
+    def _expire_pending_quotation_sessions(
+        cls,
+        *,
+        user: User,
+        project_id: UUID,
+    ) -> None:
+        """Expire Stripe sessions for prior unfinished quotation checkouts."""
+        session_ids = list(
+            Payment.objects.filter(
+                order__user=user,
+                order__order_status=Order.OrderStatus.PENDING,
+                order__payment_status=Order.PaymentStatus.PENDING,
+                status=Payment.Status.PENDING,
+                order__items__product_type=OrderItem.ProductType.CUSTOM_PROJECT,
+                order__items__product_id=project_id,
+            )
+            .exclude(stripe_checkout_session_id="")
+            .values_list("stripe_checkout_session_id", flat=True)
+            .distinct()
+        )
+        cls._expire_stripe_sessions(session_ids)
+
+    @classmethod
     def create_quotation_checkout_session(
         cls,
         user: User,
         project_id: UUID,
     ) -> dict[str, str]:
         from custom_projects.models import CustomProject
+
+        # Close prior open Stripe sessions before local supersede cancels those orders.
+        cls._expire_pending_quotation_sessions(user=user, project_id=project_id)
 
         try:
             order = OrderService.create_from_quotation(user, project_id)
@@ -353,6 +411,12 @@ class CheckoutService:
         ):
             return order
 
+        if (
+            order.order_status in _TERMINAL_ORDER_STATUSES
+            or order.payment_status in _TERMINAL_PAYMENT_STATUSES
+        ):
+            raise CheckoutError("This order can no longer be confirmed.")
+
         payment = (
             Payment.objects.filter(order=order)
             .order_by("-created_at")
@@ -360,6 +424,9 @@ class CheckoutService:
         )
         if payment is None:
             raise CheckoutError("No payment found for this order.")
+
+        if payment.status in _STALE_LOCAL_PAYMENT_STATUSES:
+            raise CheckoutError("This payment session is no longer valid.")
 
         session_id = payment.stripe_checkout_session_id
         if session_id.startswith("free_quote_"):
@@ -375,9 +442,9 @@ class CheckoutService:
                 "Unable to verify payment with Stripe. Please try again.",
             ) from exc
 
-        metadata = _session_value(session, "metadata")
+        metadata = _session_value(session, "metadata") or {}
         meta_order_id = str(_session_value(metadata, "order_id") or "")
-        if meta_order_id and meta_order_id != str(order.id):
+        if meta_order_id != str(order.id):
             raise CheckoutError("Payment session does not match this order.")
 
         stripe_payment_status = str(_session_value(session, "payment_status") or "")
@@ -439,12 +506,41 @@ class WebhookService:
         if payment.status == Payment.Status.SUCCEEDED:
             return
 
+        order = payment.order
+        # Superseded / cancelled checkouts must not fulfill (stale Stripe session).
+        if (
+            payment.status in _STALE_LOCAL_PAYMENT_STATUSES
+            or order.order_status in _TERMINAL_ORDER_STATUSES
+            or order.payment_status in _TERMINAL_PAYMENT_STATUSES
+        ):
+            logger.warning(
+                "Ignoring checkout.session.completed for stale payment %s "
+                "(payment_status=%s order_status=%s payment_order_status=%s)",
+                payment.pk,
+                payment.status,
+                order.order_status,
+                order.payment_status,
+            )
+            return
+
+        if (
+            order.order_status != Order.OrderStatus.PENDING
+            or order.payment_status != Order.PaymentStatus.PENDING
+        ):
+            logger.warning(
+                "Ignoring checkout.session.completed for non-pending order %s "
+                "(order_status=%s payment_status=%s)",
+                order.pk,
+                order.order_status,
+                order.payment_status,
+            )
+            return
+
         payment_intent = _stripe_id(_session_value(session, "payment_intent"))
         payment.status = Payment.Status.SUCCEEDED
         payment.stripe_payment_intent_id = payment_intent
         payment.save(update_fields=["status", "stripe_payment_intent_id", "updated_at"])
 
-        order = payment.order
         if not order_allows_download(order):
             if order.order_status == Order.OrderStatus.PENDING:
                 order = OrderService.update_order_status(order, Order.OrderStatus.PAID)

@@ -1,5 +1,8 @@
 # Python
 .venv/
+venv/
+backend/.venv/
+backend/venv/
 __pycache__/
 *.py[cod]
 
@@ -8,6 +11,7 @@ __pycache__/
 
 # Media uploads (avatars, etc.)
 backend/media/
+backend/staticfiles/
 
 # Node
 node_modules/
@@ -18,6 +22,7 @@ build/
 
 # Logs
 *.log
+debug-*.log
 
 # Local Cursor IDE / agent workflow (do not commit)
 .cursor/skills/
