@@ -129,6 +129,34 @@ class QuotationCheckoutTests(PaymentsTestMixin, APITestCase):
         response = self.client.post(self.pay_url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @patch("payments.services.stripe.checkout.Session.expire")
+    @patch("payments.services.stripe.checkout.Session.create")
+    def test_recheckout_expires_prior_stripe_session(
+        self,
+        mock_create,
+        mock_expire,
+    ) -> None:
+        mock_create.side_effect = [
+            _fake_session("cs_quote_1"),
+            _fake_session("cs_quote_new"),
+        ]
+        self._authenticate()
+        first = self.client.post(self.pay_url)
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        old_order_id = first.data["order_id"]
+        old_payment = Payment.objects.get(order_id=old_order_id)
+        self.assertEqual(old_payment.stripe_checkout_session_id, "cs_quote_1")
+
+        second = self.client.post(self.pay_url)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(second.data["order_id"], old_order_id)
+
+        mock_expire.assert_called_with("cs_quote_1")
+        old_order = Order.objects.get(pk=old_order_id)
+        old_payment.refresh_from_db()
+        self.assertEqual(old_order.order_status, Order.OrderStatus.CANCELLED)
+        self.assertEqual(old_payment.status, Payment.Status.EXPIRED)
+
 
 @override_settings(STRIPE_WEBHOOK_SECRET="whsec_test", FRONTEND_BASE_URL="http://localhost:5173")
 class QuotationWebhookTests(PaymentsTestMixin, APITestCase):
@@ -212,3 +240,30 @@ class QuotationWebhookTests(PaymentsTestMixin, APITestCase):
         self.project.refresh_from_db()
         self.assertEqual(self.payment.status, Payment.Status.EXPIRED)
         self.assertEqual(self.project.payment_status, CustomProject.PaymentStatus.UNPAID)
+
+    def test_stale_superseded_session_does_not_fulfill(self) -> None:
+        """Old Stripe session completing after local supersede must not pay the project."""
+        self.order.order_status = Order.OrderStatus.CANCELLED
+        self.order.payment_status = Order.PaymentStatus.CANCELLED
+        self.order.save(update_fields=["order_status", "payment_status", "updated_at"])
+        self.payment.status = Payment.Status.EXPIRED
+        self.payment.save(update_fields=["status", "updated_at"])
+        self.project.payment_status = CustomProject.PaymentStatus.PENDING
+        self.project.save(update_fields=["payment_status", "updated_at"])
+
+        event = _FakeEvent(
+            "evt_quote_stale",
+            "checkout.session.completed",
+            {"id": "cs_quote_webhook", "payment_intent": "pi_stale"},
+        )
+        response = self._post_webhook(event)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.project.refresh_from_db()
+        self.assertEqual(self.order.order_status, Order.OrderStatus.CANCELLED)
+        self.assertEqual(self.payment.status, Payment.Status.EXPIRED)
+        self.assertEqual(self.project.payment_status, CustomProject.PaymentStatus.PENDING)
+        self.assertEqual(self.project.status, CustomProject.Status.APPROVED)
+        self.assertEqual(len(mail.outbox), 0)

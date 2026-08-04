@@ -20,7 +20,9 @@ PRODUCT_SKU_VALIDATOR = RegexValidator(
 class Product(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
+        PENDING_REVIEW = "pending_review", "Pending review"
         PUBLISHED = "published", "Published"
+        REJECTED = "rejected", "Rejected"
         ARCHIVED = "archived", "Archived"
 
     class LicenseType(models.TextChoices):

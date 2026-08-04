@@ -66,7 +66,7 @@ describe('downloadsApi', () => {
       createObjectURL,
       revokeObjectURL,
     })
-    const anchor = { click, href: '', download: '' } as HTMLAnchorElement
+    const anchor = { click, href: '', download: '' } as unknown as HTMLAnchorElement
     vi.spyOn(document, 'createElement').mockReturnValue(anchor)
 
     await downloadCatalogFile('product', 'prod-id', 'file-id', 'package.zip')

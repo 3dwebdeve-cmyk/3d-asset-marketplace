@@ -325,7 +325,9 @@ export function AdminProductDetailPage() {
                   }
                 >
                   <option value="draft">Draft</option>
+                  <option value="pending_review">Pending review</option>
                   <option value="published">Published</option>
+                  <option value="rejected">Rejected</option>
                   <option value="archived">Archived</option>
                 </select>
               </FormField>

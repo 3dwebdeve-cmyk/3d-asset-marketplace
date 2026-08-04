@@ -7,34 +7,10 @@ import { SiteFooter } from './components/SiteFooter'
 import { CartDrawer } from './components/cart/CartDrawer'
 import { Spinner } from './components/ui/Spinner'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
-import { AdminCategoriesPage } from './pages/Admin/AdminCategoriesPage'
-import { AdminCategoryDetailPage } from './pages/Admin/AdminCategoryDetailPage'
-import { AdminDashboardPage } from './pages/Admin/AdminDashboardPage'
-import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
-import { AdminProductDetailPage } from './pages/Admin/AdminProductDetailPage'
-import { AdminProductsPage } from './pages/Admin/AdminProductsPage'
-import { AdminUserDetailPage } from './pages/Admin/AdminUserDetailPage'
-import { AdminUsersPage } from './pages/Admin/AdminUsersPage'
-import { CustomerProjectDetailPage } from './pages/Dashboard/CustomerProjectDetailPage'
-import { CustomerProjectRequestPage } from './pages/Dashboard/CustomerProjectRequestPage'
-import { DashboardPage } from './pages/Dashboard/DashboardPage'
-import { MyProjectsPage } from './pages/Dashboard/MyProjectsPage'
-import { MyOrdersPage } from './pages/Dashboard/MyOrdersPage'
-import { MyDownloadsPage } from './pages/Dashboard/MyDownloadsPage'
-import { CustomerOrderDetailPage } from './pages/Dashboard/CustomerOrderDetailPage'
-import { NotificationsPage } from './pages/Dashboard/NotificationsPage'
-import { WishlistPage } from './pages/Dashboard/WishlistPage'
-import { CartPage } from './pages/Cart/CartPage'
-import { CheckoutSuccessPage } from './pages/Checkout/CheckoutSuccessPage'
-import { CheckoutCancelPage } from './pages/Checkout/CheckoutCancelPage'
-import { EmailVerificationPage } from './pages/EmailVerification/EmailVerificationPage'
-import { EmailVerificationResendPage } from './pages/EmailVerification/EmailVerificationResendPage'
 import { HomePage } from './pages/Home/HomePage'
 import { LoginPage } from './pages/Login/LoginPage'
-import { PasswordResetConfirmPage } from './pages/PasswordReset/PasswordResetConfirmPage'
-import { PasswordResetRequestPage } from './pages/PasswordReset/PasswordResetRequestPage'
-import { ProfilePage } from './pages/Profile/ProfilePage'
 import { RegisterPage } from './pages/Register/RegisterPage'
+import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
 import { AdminRoute } from './routes/AdminRoute'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import './App.css'
@@ -67,6 +43,150 @@ const PluginDetailsPage = lazy(() =>
 const ProductDetailsPage = lazy(() =>
   import('./pages/Products/ProductDetailsPage').then((module) => ({
     default: module.ProductDetailsPage,
+  })),
+)
+
+const PasswordResetRequestPage = lazy(() =>
+  import('./pages/PasswordReset/PasswordResetRequestPage').then((module) => ({
+    default: module.PasswordResetRequestPage,
+  })),
+)
+
+const PasswordResetConfirmPage = lazy(() =>
+  import('./pages/PasswordReset/PasswordResetConfirmPage').then((module) => ({
+    default: module.PasswordResetConfirmPage,
+  })),
+)
+
+const EmailVerificationPage = lazy(() =>
+  import('./pages/EmailVerification/EmailVerificationPage').then((module) => ({
+    default: module.EmailVerificationPage,
+  })),
+)
+
+const EmailVerificationResendPage = lazy(() =>
+  import('./pages/EmailVerification/EmailVerificationResendPage').then((module) => ({
+    default: module.EmailVerificationResendPage,
+  })),
+)
+
+const DashboardPage = lazy(() =>
+  import('./pages/Dashboard/DashboardPage').then((module) => ({
+    default: module.DashboardPage,
+  })),
+)
+
+const NotificationsPage = lazy(() =>
+  import('./pages/Dashboard/NotificationsPage').then((module) => ({
+    default: module.NotificationsPage,
+  })),
+)
+
+const MyProjectsPage = lazy(() =>
+  import('./pages/Dashboard/MyProjectsPage').then((module) => ({
+    default: module.MyProjectsPage,
+  })),
+)
+
+const MyOrdersPage = lazy(() =>
+  import('./pages/Dashboard/MyOrdersPage').then((module) => ({
+    default: module.MyOrdersPage,
+  })),
+)
+
+const MyDownloadsPage = lazy(() =>
+  import('./pages/Dashboard/MyDownloadsPage').then((module) => ({
+    default: module.MyDownloadsPage,
+  })),
+)
+
+const WishlistPage = lazy(() =>
+  import('./pages/Dashboard/WishlistPage').then((module) => ({
+    default: module.WishlistPage,
+  })),
+)
+
+const CartPage = lazy(() =>
+  import('./pages/Cart/CartPage').then((module) => ({
+    default: module.CartPage,
+  })),
+)
+
+const CheckoutSuccessPage = lazy(() =>
+  import('./pages/Checkout/CheckoutSuccessPage').then((module) => ({
+    default: module.CheckoutSuccessPage,
+  })),
+)
+
+const CheckoutCancelPage = lazy(() =>
+  import('./pages/Checkout/CheckoutCancelPage').then((module) => ({
+    default: module.CheckoutCancelPage,
+  })),
+)
+
+const CustomerProjectRequestPage = lazy(() =>
+  import('./pages/Dashboard/CustomerProjectRequestPage').then((module) => ({
+    default: module.CustomerProjectRequestPage,
+  })),
+)
+
+const CustomerProjectDetailPage = lazy(() =>
+  import('./pages/Dashboard/CustomerProjectDetailPage').then((module) => ({
+    default: module.CustomerProjectDetailPage,
+  })),
+)
+
+const CustomerOrderDetailPage = lazy(() =>
+  import('./pages/Dashboard/CustomerOrderDetailPage').then((module) => ({
+    default: module.CustomerOrderDetailPage,
+  })),
+)
+
+const ProfilePage = lazy(() =>
+  import('./pages/Profile/ProfilePage').then((module) => ({
+    default: module.ProfilePage,
+  })),
+)
+
+const AdminDashboardPage = lazy(() =>
+  import('./pages/Admin/AdminDashboardPage').then((module) => ({
+    default: module.AdminDashboardPage,
+  })),
+)
+
+const AdminCategoriesPage = lazy(() =>
+  import('./pages/Admin/AdminCategoriesPage').then((module) => ({
+    default: module.AdminCategoriesPage,
+  })),
+)
+
+const AdminCategoryDetailPage = lazy(() =>
+  import('./pages/Admin/AdminCategoryDetailPage').then((module) => ({
+    default: module.AdminCategoryDetailPage,
+  })),
+)
+
+const AdminProductsPage = lazy(() =>
+  import('./pages/Admin/AdminProductsPage').then((module) => ({
+    default: module.AdminProductsPage,
+  })),
+)
+
+const AdminProductDetailPage = lazy(() =>
+  import('./pages/Admin/AdminProductDetailPage').then((module) => ({
+    default: module.AdminProductDetailPage,
+  })),
+)
+
+const AdminUsersPage = lazy(() =>
+  import('./pages/Admin/AdminUsersPage').then((module) => ({
+    default: module.AdminUsersPage,
+  })),
+)
+
+const AdminUserDetailPage = lazy(() =>
+  import('./pages/Admin/AdminUserDetailPage').then((module) => ({
+    default: module.AdminUserDetailPage,
   })),
 )
 

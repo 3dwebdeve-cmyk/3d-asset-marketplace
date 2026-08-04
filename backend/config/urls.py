@@ -18,10 +18,12 @@ from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 
+from config.health import HealthzView
 from config.media import serve_public_media
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/healthz/', HealthzView.as_view(), name='healthz'),
     path('api/auth/', include('accounts.urls')),
     path('api/categories/', include('categories.urls')),
     path('api/admin/categories/', include('categories.admin_urls')),

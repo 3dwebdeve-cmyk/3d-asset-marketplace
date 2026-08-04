@@ -1,0 +1,7 @@
+C:/batch/out/MDL-000199/
+├── preview.glb
+├── thumbnail.jpg
+└── source/
+    └── model.fbx
+
+# Note: disk may look complete; gate still fails on Folder Match Status = Mismatch.

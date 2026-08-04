@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~70%
 Current Development Sprint
-Current Sprint: Feature 16 – Batch Catalog Ingest & QA (Phase 3 complete)
-Sprint Goal: Product SKU / Model_ID identity; then freeze batch contracts; R2 when Cloudflare access is ready
-Sprint Status: Feature 16 Phase 3 (SKU / Model_ID) shipped 2026-08-04
+Current Sprint: Feature 16 – Batch Catalog Ingest & QA (Phase 4 complete)
+Sprint Goal: Freeze batch + intake contracts; next QA statuses or R2 bridge when Cloudflare is ready
+Sprint Status: Feature 16 Phase 4 (batch + intake contracts) shipped 2026-08-04
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -142,7 +142,7 @@ Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADM
 • [ ] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages)
 • [ ] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET)
 • [x] Feature 16 Phase 3 — Product SKU / Model_ID identity
-• [ ] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
+• [x] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
 • [ ] Feature 16 Phase 5 — R2 Bridge CLI uploader (report + folders → R2)
 • [ ] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
 • [ ] Feature 16 Phase 7 — Admin import review UI
@@ -158,14 +158,19 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 16 Phase 3 (Product SKU / Model_ID identity) complete. Next: Phase 4 freeze batch + intake contracts, or Phase 8 QA statuses while R2 access is pending.
+Feature 16 Phase 4 (batch + intake contracts) complete. Next: Phase 8 QA statuses while R2 pending, or Phase 5 bridge when Cloudflare R2 is ready.
 Current Git Branch
-feature/today-features
+feature/batch-contracts-phase4
 Files Being Worked On
-• backend/products/models.py, services.py, serializers.py, views.py, admin.py, test_products.py
-• backend/products/migrations/0003_product_sku_and_import_identity.py
-• frontend/src/types/product.ts, AdminProductsPage.tsx, AdminProductDetailPage.tsx (+ tests)
+• docs/batch-ingest-contract.md
+• docs/fixtures/batch-ingest/ (happy, mismatch, gate-failures)
+• IMPLEMENTATION_ROADMAP.md, PROJECT_STATUS.md
 Completed Features
+• Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts (2026-08-04)
+  - Contract: docs/batch-ingest-contract.md (report columns, intake columns, folder layout, R2 keys, gate, upsert)
+  - Locked required-export policy: GLB Success + ≥1 of FBX/OBJ/MAX Success
+  - Fixtures: docs/fixtures/batch-ingest/ happy + mismatch + gate-failures CSVs
+  - Roadmap Input contracts + Phase 4 checkbox aligned to frozen doc
 • Feature 16 Phase 3 — Product SKU / Model_ID identity (2026-08-04)
   - Backend: Product.sku (unique nullable Model_ID), import_batch_id, import_source, glb_checksum, has_thumbnail/has_preview/has_package
   - Backend: ProductService.get_by_sku + uniqueness/normalization; admin list ?sku= + search includes sku
@@ -319,14 +324,14 @@ Pending Features
 • Feature 14 — Cloudflare R2 Storage (public + private buckets; migrate catalog media off local MEDIA)
 • Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads)
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
-• Feature 16 — Batch Catalog Ingest & QA (Phase 3 SKU done; remaining: contracts, bridge, import, QA UI/workflow, E2E, hardening)
-  - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md
+• Feature 16 — Batch Catalog Ingest & QA (Phases 3–4 done; remaining: bridge, import, QA UI/workflow, E2E, hardening)
+  - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md; contract: docs/batch-ingest-contract.md
 • Invoice PDF generation (invoice_number + paid-order PDF/receipt already shipped; remaining polish if any)
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
 • Waiting on manager approval for UI prototype
 • First Administrator must still be created via createsuperuser
-• Phase 1 intake Excel (price/thumbnail/description) still needed to freeze Feature 16 join contract alongside Batch Output Report
+• Live Phase 1 intake Excel sign-off still pending for proposed columns (Thumbnail Path / Gallery / Tags); canonical set documented in contract
 • Cloudflare R2 account setup pending internal company procedures (Feature 14 blocked on access)
 Bugs
 No Known Bugs
@@ -373,12 +378,45 @@ Important Decisions
 • Admin analytics (Feature 11): order-based aggregates only; revenue counts payment_status=paid; gateway_breakdown is a stable array keyed by Payment.gateway for future PayPal/Razorpay without client breaks; date range capped at 366 days.
 • In-app notifications (Feature 10): owner-scoped Notification rows; short title/message + relative deep link; emit fail-soft alongside email hooks; customer bell in Navbar; IDOR → 404 on mark-read.
 • Cloud storage: Cloudflare R2 selected (not dual-track AWS S3). Public bucket/CDN for thumbnails + preview GLBs; private bucket for paid packages. Metadata remains in PostgreSQL/Django.
-• Batch ingest: MaxScript Batch Output Report is the post-render machine contract; Phase 1 intake Excel supplies price/marketing fields; join key is Model_ID. Bridge never auto-publishes — admin QA on the website is the final gate to status=published.
-• R2 Key Prefix convention (planned): models/{Model_ID}/ — lock in Feature 16 Phase 4.
+• Batch ingest: MaxScript Batch Output Report is the post-render machine contract; Phase 1 intake Excel supplies price/marketing fields; join key is Model_ID. Bridge never auto-publishes — admin QA on the website is the final gate to status=published. Frozen detail: docs/batch-ingest-contract.md.
+• R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
+• Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order while R2 access is pending: Feature 16 Phase 4/8 (contracts + QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → rest of 16 when Cloudflare is ready.
+• Recommended near-term order while R2 access is pending: Feature 16 Phase 8 (QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → Phase 5+ when Cloudflare is ready.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-08-04 (Feature 16 Phase 4 — Freeze batch + intake contracts)
+Working Hours:
+Today's Objective: Lock Batch Output Report + Phase 1 intake schema, folder layout, R2 keys, and ready-to-import gate before bridge coding.
+Modules Completed: Contract doc, sample fixtures (happy / mismatch / gate-failures), roadmap + status sync
+Files Created:
+• docs/batch-ingest-contract.md
+• docs/fixtures/batch-ingest/README.md
+• docs/fixtures/batch-ingest/happy/ (CSV + folder-tree + README)
+• docs/fixtures/batch-ingest/mismatch/ (CSV + folder-tree + README)
+• docs/fixtures/batch-ingest/gate-failures/ (CSV + folder-tree + README)
+Files Modified:
+• IMPLEMENTATION_ROADMAP.md (Phase 4 ✅; Input contracts aligned; decisions locked)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• None
+Frontend Pages/Components Added:
+• None (docs-only phase)
+Tests Added/Updated:
+• Fixture CSVs for future Phase 5/6 parser tests (not executable unit tests yet)
+Security Checklist:
+• No secrets; fixture paths are local examples only
+• Contract reaffirms never auto-publish; private packages stay private R2 later
+Issues / Blockers:
+• Live intake Excel sign-off still pending for proposed Thumbnail Path / Gallery / Tags column names
+• Cloudflare R2 still blocked on company account setup (Phases 5–6, 9)
+Next Recommended Task:
+• Feature 16 Phase 8 — QA approve/reject statuses (while R2 pending), or Phase 5 bridge when R2 is ready
+Notes:
+• Required exports locked: GLB + ≥1 of FBX/OBJ/MAX; R2 prefix models/{Model_ID}/
+
 Date: 2026-08-04 (Feature 16 Phase 3 — Product SKU / Model_ID identity)
 Working Hours:
 Today's Objective: Add stable Product.sku (Model_ID) and import metadata so batch upsert can join without duplicates.
