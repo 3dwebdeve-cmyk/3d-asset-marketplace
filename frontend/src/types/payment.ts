@@ -4,6 +4,12 @@ export interface CheckoutSessionResponse {
   project_id?: string
 }
 
+export interface ConfirmCheckoutResponse {
+  order_id: string
+  payment_status: string
+  order_status: string
+}
+
 export type PaymentStatus =
   | 'pending'
   | 'succeeded'

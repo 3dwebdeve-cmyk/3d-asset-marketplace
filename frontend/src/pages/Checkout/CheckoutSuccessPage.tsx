@@ -3,10 +3,12 @@ import { useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { getCustomerOrder } from '../../api/ordersApi'
+import { confirmCheckoutSession } from '../../api/paymentsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { OrderPaymentStatusBadge } from '../../components/ui/StatusBadge'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 
 const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 45_000
@@ -17,6 +19,13 @@ export function CheckoutSuccessPage() {
   const projectId = searchParams.get('project_id') ?? ''
   const queryClient = useQueryClient()
   const startedAtRef = useRef(Date.now())
+  const confirmAttemptedRef = useRef(false)
+
+  useDocumentSeo({
+    title: 'Checkout confirmation | 3D Asset Marketplace',
+    description: 'Private checkout confirmation. This page is not indexed by search engines.',
+    robots: 'noindex, nofollow',
+  })
 
   const orderQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],
@@ -34,9 +43,28 @@ export function CheckoutSuccessPage() {
   const order = orderQuery.data
   const isPaid = order?.payment_status === 'paid'
   const hasTimedOut =
-    Boolean(order) && order?.payment_status === 'pending' &&
+    Boolean(order) &&
+    order?.payment_status === 'pending' &&
     Date.now() - startedAtRef.current >= POLL_TIMEOUT_MS
   const isQuotationCheckout = Boolean(projectId)
+
+  useEffect(() => {
+    if (!orderId || !order || order.payment_status !== 'pending' || hasTimedOut) {
+      return
+    }
+    if (confirmAttemptedRef.current) {
+      return
+    }
+    confirmAttemptedRef.current = true
+
+    void confirmCheckoutSession(orderId)
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ['orders', 'detail', orderId] })
+      })
+      .catch(() => {
+        confirmAttemptedRef.current = false
+      })
+  }, [orderId, order, hasTimedOut, queryClient])
 
   useEffect(() => {
     if (isPaid) {
@@ -147,7 +175,14 @@ export function CheckoutSuccessPage() {
               back in a moment.
             </p>
             <div className="dashboard-card__actions">
-              <Button variant="secondary" onClick={() => orderQuery.refetch()}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void confirmCheckoutSession(orderId)
+                    .then(() => orderQuery.refetch())
+                    .catch(() => orderQuery.refetch())
+                }}
+              >
                 Check again
               </Button>
               <Link

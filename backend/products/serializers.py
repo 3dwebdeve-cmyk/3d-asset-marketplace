@@ -138,6 +138,13 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "slug",
+            "sku",
+            "import_batch_id",
+            "import_source",
+            "glb_checksum",
+            "has_thumbnail",
+            "has_preview",
+            "has_package",
             "description",
             "short_description",
             "price",
@@ -222,12 +229,43 @@ class ProductCreateSerializer(serializers.Serializer):
         required=False,
         default=Product.Status.DRAFT,
     )
+    sku = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=64,
+        default=None,
+    )
+    import_batch_id = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=64,
+    )
+    import_source = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=64,
+    )
+    glb_checksum = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=64,
+    )
+    has_thumbnail = serializers.BooleanField(required=False, default=False)
+    has_preview = serializers.BooleanField(required=False, default=False)
+    has_package = serializers.BooleanField(required=False, default=False)
 
     def validate_name(self, value: str) -> str:
         normalized = value.strip()
         if len(normalized) < 2:
             raise serializers.ValidationError("Name must be at least 2 characters.")
         return normalized
+
+    def validate_sku(self, value: str | None) -> str | None:
+        return Product.normalize_sku(value)
 
     def validate(self, attrs: dict) -> dict:
         discount = attrs.get("discount_price")
@@ -278,12 +316,39 @@ class ProductUpdateSerializer(serializers.Serializer):
         required=False,
     )
     status = serializers.ChoiceField(choices=Product.Status.choices, required=False)
+    sku = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        max_length=64,
+    )
+    import_batch_id = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=64,
+    )
+    import_source = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=64,
+    )
+    glb_checksum = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=64,
+    )
+    has_thumbnail = serializers.BooleanField(required=False)
+    has_preview = serializers.BooleanField(required=False)
+    has_package = serializers.BooleanField(required=False)
 
     def validate_name(self, value: str) -> str:
         normalized = value.strip()
         if len(normalized) < 2:
             raise serializers.ValidationError("Name must be at least 2 characters.")
         return normalized
+
+    def validate_sku(self, value: str | None) -> str | None:
+        return Product.normalize_sku(value)
 
     def validate(self, attrs: dict) -> dict:
         if "discount_price" in self.initial_data and self.initial_data.get("discount_price") is None:
@@ -292,6 +357,9 @@ class ProductUpdateSerializer(serializers.Serializer):
             attrs["clear_polygon_count"] = True
         if "vertex_count" in self.initial_data and self.initial_data.get("vertex_count") is None:
             attrs["clear_vertex_count"] = True
+        if "sku" in self.initial_data and self.initial_data.get("sku") in ("", None):
+            attrs["clear_sku"] = True
+            attrs["sku"] = None
         return attrs
 
 

@@ -19,6 +19,7 @@ class ProductFileInline(admin.TabularInline):
 class ProductAdmin(admin.ModelAdmin):
     list_display = (
         "name",
+        "sku",
         "slug",
         "category",
         "price",
@@ -26,8 +27,8 @@ class ProductAdmin(admin.ModelAdmin):
         "status",
         "created_at",
     )
-    list_filter = ("status", "license_type", "category")
-    search_fields = ("name", "slug", "short_description")
+    list_filter = ("status", "license_type", "category", "has_preview", "has_package")
+    search_fields = ("name", "sku", "slug", "short_description", "import_batch_id")
     prepopulated_fields = {"slug": ("name",)}
     readonly_fields = (
         "average_rating",

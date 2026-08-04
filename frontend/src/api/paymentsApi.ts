@@ -3,11 +3,21 @@ import type {
   AdminPaymentDetail,
   AdminPaymentListParams,
   CheckoutSessionResponse,
+  ConfirmCheckoutResponse,
   PaginatedAdminPayments,
 } from '../types/payment'
 
 export async function createCheckoutSession(): Promise<CheckoutSessionResponse> {
   const { data } = await apiClient.post<CheckoutSessionResponse>('/api/payments/checkout/')
+  return data
+}
+
+export async function confirmCheckoutSession(
+  orderId: string,
+): Promise<ConfirmCheckoutResponse> {
+  const { data } = await apiClient.post<ConfirmCheckoutResponse>('/api/payments/confirm/', {
+    order_id: orderId,
+  })
   return data
 }
 

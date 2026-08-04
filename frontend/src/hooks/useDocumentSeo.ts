@@ -3,37 +3,55 @@ import { useEffect } from 'react'
 interface UseDocumentSeoOptions {
   title: string
   description: string
+  /** Optional robots directive (e.g. "noindex, nofollow" for checkout/account pages). */
+  robots?: string
 }
 
 const DEFAULT_TITLE = '3D Asset Marketplace'
 const META_DESCRIPTION_SELECTOR = 'meta[name="description"]'
+const META_ROBOTS_SELECTOR = 'meta[name="robots"]'
 
-function ensureMetaDescriptionElement(): HTMLMetaElement {
-  const existing = document.querySelector(META_DESCRIPTION_SELECTOR)
+function ensureMetaElement(name: string, selector: string): HTMLMetaElement {
+  const existing = document.querySelector(selector)
   if (existing instanceof HTMLMetaElement) {
     return existing
   }
 
   const meta = document.createElement('meta')
-  meta.name = 'description'
+  meta.name = name
   document.head.appendChild(meta)
   return meta
 }
 
-export function useDocumentSeo({ title, description }: UseDocumentSeoOptions): void {
+export function useDocumentSeo({ title, description, robots }: UseDocumentSeoOptions): void {
   useEffect(() => {
     const previousTitle = document.title
-    const meta = ensureMetaDescriptionElement()
-    const previousDescription = meta.content
+    const descriptionMeta = ensureMetaElement('description', META_DESCRIPTION_SELECTOR)
+    const previousDescription = descriptionMeta.content
+    const robotsMeta = robots
+      ? ensureMetaElement('robots', META_ROBOTS_SELECTOR)
+      : null
+    const previousRobots = robotsMeta?.content ?? null
+    const createdRobots = Boolean(robots && robotsMeta && previousRobots === '')
 
     document.title = title
-    meta.content = description
+    descriptionMeta.content = description
+    if (robotsMeta && robots) {
+      robotsMeta.content = robots
+    }
 
     return () => {
       document.title = previousTitle
-      meta.content = previousDescription
+      descriptionMeta.content = previousDescription
+      if (robotsMeta) {
+        if (createdRobots) {
+          robotsMeta.remove()
+        } else if (previousRobots !== null) {
+          robotsMeta.content = previousRobots
+        }
+      }
     }
-  }, [title, description])
+  }, [title, description, robots])
 }
 
 export function buildProductPageTitle(productName: string): string {

@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 
 from categories.models import Category
-from products.models import Product, ProductFile, ProductImage
+from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 from products.storage import ProductMediaStorageService
 from products.upload_rules import (
     validate_product_file_upload,
@@ -46,6 +46,13 @@ class ProductCreateData:
     game_ready: bool = False
     license_type: str = Product.LicenseType.STANDARD
     status: str = Product.Status.DRAFT
+    sku: str | None = None
+    import_batch_id: str = ""
+    import_source: str = ""
+    glb_checksum: str = ""
+    has_thumbnail: bool = False
+    has_preview: bool = False
+    has_package: bool = False
 
 
 @dataclass(frozen=True)
@@ -73,6 +80,14 @@ class ProductUpdateData:
     game_ready: bool | None = None
     license_type: str | None = None
     status: str | None = None
+    sku: str | None = None
+    clear_sku: bool = False
+    import_batch_id: str | None = None
+    import_source: str | None = None
+    glb_checksum: str | None = None
+    has_thumbnail: bool | None = None
+    has_preview: bool | None = None
+    has_package: bool | None = None
 
 
 class ProductService:
@@ -124,6 +139,8 @@ class ProductService:
         status: str | None = None,
         category_id: UUID | None = None,
         search: str | None = None,
+        sku: str | None = None,
+        import_batch_id: str | None = None,
         ordering: str | None = None,
     ) -> QuerySet[Product]:
         # Admin list serializers include nested media; keep prefetch.
@@ -133,6 +150,13 @@ class ProductService:
             queryset = queryset.filter(status=status)
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
+        normalized_sku = Product.normalize_sku(sku)
+        if normalized_sku is not None:
+            queryset = queryset.filter(sku=normalized_sku)
+        if import_batch_id:
+            batch = import_batch_id.strip()
+            if batch:
+                queryset = queryset.filter(import_batch_id=batch)
         query = cls._normalize_search(search)
         if query:
             queryset = queryset.filter(
@@ -140,6 +164,7 @@ class ProductService:
                 | Q(description__icontains=query)
                 | Q(short_description__icontains=query)
                 | Q(slug__icontains=query)
+                | Q(sku__icontains=query)
             )
 
         return queryset.order_by(cls._resolve_ordering(ordering))
@@ -162,6 +187,48 @@ class ProductService:
             raise ProductError("Product not found.") from exc
 
     @classmethod
+    def get_by_sku(cls, sku: str) -> Product:
+        """Lookup by Model_ID / SKU for batch upsert (idempotent re-import)."""
+        normalized = cls._require_sku(sku)
+        try:
+            return cls._base_queryset().get(sku=normalized)
+        except Product.DoesNotExist as exc:
+            raise ProductError("Product not found.", field="sku") from exc
+
+    @classmethod
+    def _require_sku(cls, value: str | None) -> str:
+        normalized = Product.normalize_sku(value)
+        if normalized is None:
+            raise ProductError("SKU is required.", field="sku")
+        if not PRODUCT_SKU_REGEX.fullmatch(normalized):
+            raise ProductError(
+                "SKU may only contain uppercase letters, digits, hyphens, and "
+                "underscores, and must start with a letter or digit.",
+                field="sku",
+            )
+        return normalized
+
+    @classmethod
+    def _validate_sku_unique(
+        cls,
+        sku: str | None,
+        *,
+        exclude_id: UUID | None = None,
+    ) -> str | None:
+        if sku is None:
+            return None
+        normalized = cls._require_sku(sku)
+        queryset = Product.objects.filter(sku=normalized)
+        if exclude_id is not None:
+            queryset = queryset.exclude(pk=exclude_id)
+        if queryset.exists():
+            raise ProductError(
+                "A product with this SKU already exists.",
+                field="sku",
+            )
+        return normalized
+
+    @classmethod
     @transaction.atomic
     def create_product(cls, data: ProductCreateData) -> Product:
         name = data.name.strip()
@@ -173,11 +240,19 @@ class ProductService:
         currency = cls._normalize_currency(data.currency)
         license_type = cls._normalize_license(data.license_type)
         status = cls._normalize_status(data.status)
+        sku = cls._validate_sku_unique(data.sku)
 
         return Product.objects.create(
             category=category,
             name=name,
             slug=Product.build_slug(name),
+            sku=sku,
+            import_batch_id=data.import_batch_id.strip()[:64],
+            import_source=data.import_source.strip()[:64],
+            glb_checksum=data.glb_checksum.strip()[:64],
+            has_thumbnail=data.has_thumbnail,
+            has_preview=data.has_preview,
+            has_package=data.has_package,
             description=data.description.strip(),
             short_description=data.short_description.strip(),
             price=data.price,
@@ -298,6 +373,31 @@ class ProductService:
         if data.status is not None:
             product.status = cls._normalize_status(data.status)
             update_fields.append("status")
+
+        if data.clear_sku:
+            product.sku = None
+            update_fields.append("sku")
+        elif data.sku is not None:
+            product.sku = cls._validate_sku_unique(data.sku, exclude_id=product.pk)
+            update_fields.append("sku")
+
+        if data.import_batch_id is not None:
+            product.import_batch_id = data.import_batch_id.strip()[:64]
+            update_fields.append("import_batch_id")
+
+        if data.import_source is not None:
+            product.import_source = data.import_source.strip()[:64]
+            update_fields.append("import_source")
+
+        if data.glb_checksum is not None:
+            product.glb_checksum = data.glb_checksum.strip()[:64]
+            update_fields.append("glb_checksum")
+
+        for field_name in ("has_thumbnail", "has_preview", "has_package"):
+            value = getattr(data, field_name)
+            if value is not None:
+                setattr(product, field_name, value)
+                update_fields.append(field_name)
 
         product.save(update_fields=list(dict.fromkeys(update_fields)))
         return cls.get_by_id(product.pk)

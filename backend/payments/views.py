@@ -82,6 +82,46 @@ class StripeWebhookView(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
+class ConfirmCheckoutSessionView(APIView):
+    """Owner-only Stripe session sync used by /checkout/success when webhooks lag."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [PaymentCheckoutRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        raw_order_id = request.data.get("order_id")
+        if not raw_order_id:
+            raise ValidationError({"order_id": ["This field is required."]})
+        try:
+            order_id = UUID(str(raw_order_id).strip())
+        except ValueError as exc:
+            raise ValidationError({"order_id": ["Invalid order_id."]}) from exc
+
+        try:
+            order = CheckoutService.confirm_checkout_session(request.user, order_id)
+        except CheckoutError as exc:
+            if exc.message == "Order not found.":
+                raise NotFound(detail=exc.message) from exc
+            if exc.field:
+                return Response(
+                    {exc.field: [exc.message]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {"detail": exc.message, "code": "checkout_confirm_error"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "order_id": str(order.id),
+                "payment_status": order.payment_status,
+                "order_status": order.order_status,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class AdminPaymentListView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
     pagination_class = PaymentPagination

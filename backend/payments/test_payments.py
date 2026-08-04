@@ -351,3 +351,135 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
         self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
         self.assertEqual(len(mail.outbox), 0)
+
+
+@override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
+class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.confirm_url = reverse("payments:confirm")
+        self.order = Order.objects.create(
+            user=self.user,
+            invoice_number="INV-CONFIRM-1",
+            total_amount=Decimal("49.99"),
+            currency="USD",
+        )
+        OrderItem.objects.create(
+            order=self.order,
+            product_type=OrderItem.ProductType.PRODUCT,
+            product_id=self.product.pk,
+            title=self.product.name,
+            slug=self.product.slug,
+            quantity=1,
+            purchase_price=Decimal("49.99"),
+        )
+        self.payment = Payment.objects.create(
+            order=self.order,
+            stripe_checkout_session_id="cs_test_confirm",
+            amount=Decimal("49.99"),
+            currency="USD",
+            status=Payment.Status.PENDING,
+        )
+
+    def test_requires_authentication(self) -> None:
+        response = self.client.post(
+            self.confirm_url,
+            {"order_id": str(self.order.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_other_users_order_returns_404(self) -> None:
+        other = User.objects.create_user(
+            email="other-confirm@example.com",
+            full_name="Other",
+            password=self.password,
+            role=self.customer_role,
+            email_verified=True,
+        )
+        login = self.client.post(
+            self.login_url,
+            {"email": other.email, "password": self.password},
+            format="json",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        response = self.client.post(
+            self.confirm_url,
+            {"order_id": str(self.order.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("payments.services.stripe.checkout.Session.retrieve")
+    def test_confirms_paid_stripe_session_and_fulfills_order(self, mock_retrieve) -> None:
+        mock_retrieve.return_value = _FakeStripeObject(
+            {
+                "id": "cs_test_confirm",
+                "status": "complete",
+                "payment_status": "paid",
+                "payment_intent": "pi_confirm_1",
+                "metadata": _FakeStripeObject({"order_id": str(self.order.pk)}),
+            }
+        )
+        self._authenticate()
+        response = self.client.post(
+            self.confirm_url,
+            {"order_id": str(self.order.pk)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["payment_status"], Order.PaymentStatus.PAID)
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PAID)
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
+        self.assertEqual(self.payment.stripe_payment_intent_id, "pi_confirm_1")
+
+    @patch("payments.services.stripe.checkout.Session.retrieve")
+    def test_unpaid_stripe_session_leaves_order_pending(self, mock_retrieve) -> None:
+        mock_retrieve.return_value = _FakeStripeObject(
+            {
+                "id": "cs_test_confirm",
+                "status": "open",
+                "payment_status": "unpaid",
+                "payment_intent": None,
+                "metadata": _FakeStripeObject({"order_id": str(self.order.pk)}),
+            }
+        )
+        self._authenticate()
+        response = self.client.post(
+            self.confirm_url,
+            {"order_id": str(self.order.pk)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["payment_status"], Order.PaymentStatus.PENDING)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+
+    @patch("payments.services.stripe.checkout.Session.retrieve")
+    def test_rejects_metadata_order_mismatch(self, mock_retrieve) -> None:
+        mock_retrieve.return_value = _FakeStripeObject(
+            {
+                "id": "cs_test_confirm",
+                "status": "complete",
+                "payment_status": "paid",
+                "payment_intent": "pi_mismatch",
+                "metadata": _FakeStripeObject(
+                    {"order_id": "00000000-0000-0000-0000-000000000099"}
+                ),
+            }
+        )
+        self._authenticate()
+        response = self.client.post(
+            self.confirm_url,
+            {"order_id": str(self.order.pk)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
