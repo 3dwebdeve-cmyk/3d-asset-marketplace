@@ -51,6 +51,13 @@ export function AdminProductDetailPage() {
       category_id: product.category.id,
       name: product.name,
       slug: product.slug,
+      sku: product.sku,
+      import_batch_id: product.import_batch_id,
+      import_source: product.import_source,
+      glb_checksum: product.glb_checksum,
+      has_thumbnail: product.has_thumbnail,
+      has_preview: product.has_preview,
+      has_package: product.has_package,
       description: product.description,
       short_description: product.short_description,
       price: product.price,
@@ -167,6 +174,20 @@ export function AdminProductDetailPage() {
                   }
                 />
               </FormField>
+              <FormField id="detail-sku" label="SKU / Model ID">
+                <Input
+                  id="detail-sku"
+                  value={form.sku ?? ''}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      sku: event.target.value || null,
+                    }))
+                  }
+                  placeholder="MDL-000142"
+                  autoComplete="off"
+                />
+              </FormField>
               <FormField id="detail-slug" label="Slug">
                 <Input
                   id="detail-slug"
@@ -174,6 +195,32 @@ export function AdminProductDetailPage() {
                   onChange={(event) =>
                     setForm((current) => ({ ...current, slug: event.target.value }))
                   }
+                />
+              </FormField>
+              <FormField id="detail-import-batch" label="Import batch ID">
+                <Input
+                  id="detail-import-batch"
+                  value={form.import_batch_id ?? ''}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      import_batch_id: event.target.value,
+                    }))
+                  }
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField id="detail-glb-checksum" label="GLB checksum (SHA256)">
+                <Input
+                  id="detail-glb-checksum"
+                  value={form.glb_checksum ?? ''}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      glb_checksum: event.target.value,
+                    }))
+                  }
+                  autoComplete="off"
                 />
               </FormField>
               <FormField id="detail-short-description" label="Short description">

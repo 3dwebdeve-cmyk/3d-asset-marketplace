@@ -112,12 +112,16 @@ class AdminProductListCreateView(APIView):
             "category_id",
         )
         search = request.query_params.get("search") or None
+        sku = request.query_params.get("sku") or None
+        import_batch_id = request.query_params.get("import_batch_id") or None
         ordering = request.query_params.get("ordering") or None
 
         queryset = ProductService.list_admin(
             status=status_filter,
             category_id=category_id,
             search=search,
+            sku=sku,
+            import_batch_id=import_batch_id,
             ordering=ordering,
         )
         paginator = self.pagination_class()
@@ -152,6 +156,13 @@ class AdminProductListCreateView(APIView):
                     game_ready=data.get("game_ready", False),
                     license_type=data.get("license_type", Product.LicenseType.STANDARD),
                     status=data.get("status", Product.Status.DRAFT),
+                    sku=data.get("sku"),
+                    import_batch_id=data.get("import_batch_id", ""),
+                    import_source=data.get("import_source", ""),
+                    glb_checksum=data.get("glb_checksum", ""),
+                    has_thumbnail=data.get("has_thumbnail", False),
+                    has_preview=data.get("has_preview", False),
+                    has_package=data.get("has_package", False),
                 )
             )
         except ProductError as exc:
@@ -221,6 +232,14 @@ class AdminProductDetailView(APIView):
                     game_ready=data.get("game_ready"),
                     license_type=data.get("license_type"),
                     status=data.get("status"),
+                    sku=data.get("sku"),
+                    clear_sku=data.get("clear_sku", False),
+                    import_batch_id=data.get("import_batch_id"),
+                    import_source=data.get("import_source"),
+                    glb_checksum=data.get("glb_checksum"),
+                    has_thumbnail=data.get("has_thumbnail"),
+                    has_preview=data.get("has_preview"),
+                    has_package=data.get("has_package"),
                 ),
             )
         except ProductError as exc:

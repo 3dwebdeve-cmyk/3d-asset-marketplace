@@ -27,6 +27,13 @@ export interface AdminProduct {
   id: string
   name: string
   slug: string
+  sku: string | null
+  import_batch_id: string
+  import_source: string
+  glb_checksum: string
+  has_thumbnail: boolean
+  has_preview: boolean
+  has_package: boolean
   description: string
   short_description: string
   price: string
@@ -74,6 +81,13 @@ export interface AdminProductCreatePayload {
   game_ready?: boolean
   license_type?: ProductLicenseType
   status?: ProductStatus
+  sku?: string | null
+  import_batch_id?: string
+  import_source?: string
+  glb_checksum?: string
+  has_thumbnail?: boolean
+  has_preview?: boolean
+  has_package?: boolean
 }
 
 export interface AdminProductUpdatePayload {
@@ -97,6 +111,13 @@ export interface AdminProductUpdatePayload {
   game_ready?: boolean
   license_type?: ProductLicenseType
   status?: ProductStatus
+  sku?: string | null
+  import_batch_id?: string
+  import_source?: string
+  glb_checksum?: string
+  has_thumbnail?: boolean
+  has_preview?: boolean
+  has_package?: boolean
 }
 
 export interface PaginatedAdminProducts {
@@ -112,6 +133,8 @@ export interface AdminProductListParams {
   status?: ProductStatus
   category_id?: string
   search?: string
+  sku?: string
+  import_batch_id?: string
   ordering?: string
 }
 

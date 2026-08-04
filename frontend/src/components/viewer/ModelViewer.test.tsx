@@ -1,14 +1,17 @@
 import { render, screen } from '@testing-library/react'
+import { Object3D } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const viewerMocks = vi.hoisted(() => ({
-  clearGltfCache: vi.fn(),
-  clonedScene: { traverse: vi.fn() },
-  disposeSceneResources: vi.fn(),
-  visible: true,
-  webglAvailable: true,
-  pixelRatio: 1.25,
-}))
+const viewerMocks = vi.hoisted(() => {
+  return {
+    scene: null as import('three').Object3D | null,
+    clearGltfCache: vi.fn(),
+    disposeSceneResources: vi.fn(),
+    visible: true,
+    webglAvailable: true,
+    pixelRatio: 1.25,
+  }
+})
 
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({
@@ -30,9 +33,7 @@ vi.mock('@react-three/drei', () => ({
   OrbitControls: () => null,
   useGLTF: Object.assign(
     () => ({
-      scene: {
-        clone: () => viewerMocks.clonedScene,
-      },
+      scene: viewerMocks.scene ?? new Object3D(),
     }),
     { clear: viewerMocks.clearGltfCache },
   ),
@@ -63,6 +64,7 @@ import { ModelViewer } from './ModelViewer'
 describe('ModelViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    viewerMocks.scene = new Object3D()
     viewerMocks.visible = true
     viewerMocks.webglAvailable = true
     viewerMocks.pixelRatio = 1.25
@@ -125,7 +127,7 @@ describe('ModelViewer', () => {
 
     unmount()
 
-    expect(viewerMocks.disposeSceneResources).toHaveBeenCalledWith(viewerMocks.clonedScene)
+    expect(viewerMocks.disposeSceneResources).toHaveBeenCalled()
     expect(viewerMocks.clearGltfCache).toHaveBeenCalledWith('https://cdn.example.com/preview.glb')
   })
 

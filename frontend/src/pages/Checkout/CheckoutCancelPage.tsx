@@ -1,10 +1,18 @@
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+
 export function CheckoutCancelPage() {
   const [searchParams] = useSearchParams()
   const orderId = searchParams.get('order_id')
   const projectId = searchParams.get('project_id')
   const isQuotationCheckout = Boolean(projectId)
+
+  useDocumentSeo({
+    title: 'Checkout cancelled | 3D Asset Marketplace',
+    description: 'Private checkout cancellation page. This page is not indexed by search engines.',
+    robots: 'noindex, nofollow',
+  })
 
   return (
     <main className="dashboard-page">

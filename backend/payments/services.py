@@ -336,6 +336,61 @@ class CheckoutService:
         }
 
     @classmethod
+    def confirm_checkout_session(cls, user: User, order_id: UUID) -> Order:
+        """Sync paid Stripe Checkout Session → order when webhooks are delayed/missing.
+
+        Security: owner-only; fulfillment only after Stripe reports payment_status=paid
+        and session metadata.order_id matches the requested order.
+        """
+        try:
+            order = Order.objects.get(pk=order_id, user=user)
+        except Order.DoesNotExist as exc:
+            raise CheckoutError("Order not found.") from exc
+
+        if (
+            order.payment_status == Order.PaymentStatus.PAID
+            and order.order_status == Order.OrderStatus.PAID
+        ):
+            return order
+
+        payment = (
+            Payment.objects.filter(order=order)
+            .order_by("-created_at")
+            .first()
+        )
+        if payment is None:
+            raise CheckoutError("No payment found for this order.")
+
+        session_id = payment.stripe_checkout_session_id
+        if session_id.startswith("free_quote_"):
+            return order
+
+        if not settings.STRIPE_SECRET_KEY:
+            raise CheckoutError("Payments are not configured. Please try again later.")
+
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+        except stripe.error.StripeError as exc:
+            raise CheckoutError(
+                "Unable to verify payment with Stripe. Please try again.",
+            ) from exc
+
+        metadata = _session_value(session, "metadata")
+        meta_order_id = str(_session_value(metadata, "order_id") or "")
+        if meta_order_id and meta_order_id != str(order.id):
+            raise CheckoutError("Payment session does not match this order.")
+
+        stripe_payment_status = str(_session_value(session, "payment_status") or "")
+
+        if stripe_payment_status != "paid":
+            return order
+
+        with transaction.atomic():
+            WebhookService._handle_checkout_completed(session)
+        order.refresh_from_db()
+        return order
+
+    @classmethod
     def _fulfill_custom_project_payment(cls, order: Order) -> None:
         from custom_projects.services import CustomProjectService
 

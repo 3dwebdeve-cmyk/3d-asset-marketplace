@@ -18,6 +18,7 @@ import type { AdminProductCreatePayload, ProductStatus } from '../../types/produ
 const emptyCreateForm: AdminProductCreatePayload = {
   category_id: '',
   name: '',
+  sku: '',
   short_description: '',
   price: '',
   currency: 'USD',
@@ -78,6 +79,7 @@ export function AdminProductsPage() {
     createMutation.mutate({
       ...createForm,
       price: formatPrice(createForm.price),
+      sku: createForm.sku?.trim() ? createForm.sku.trim() : null,
     })
   }
 
@@ -137,6 +139,20 @@ export function AdminProductsPage() {
                 }
               />
             </FormField>
+            <FormField id="create-sku" label="SKU / Model ID (optional)">
+              <Input
+                id="create-sku"
+                value={createForm.sku ?? ''}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    sku: event.target.value,
+                  }))
+                }
+                placeholder="MDL-000142"
+                autoComplete="off"
+              />
+            </FormField>
             <FormField id="create-short-description" label="Short description">
               <Input
                 id="create-short-description"
@@ -190,7 +206,7 @@ export function AdminProductsPage() {
         <div className="admin-filters">
           <Input
             aria-label="Search products"
-            placeholder="Search name or description"
+            placeholder="Search name, SKU, or description"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -225,6 +241,7 @@ export function AdminProductsPage() {
               <thead>
                 <tr>
                   <th scope="col">Name</th>
+                  <th scope="col">SKU</th>
                   <th scope="col">Category</th>
                   <th scope="col">Price</th>
                   <th scope="col">Status</th>
@@ -235,6 +252,7 @@ export function AdminProductsPage() {
                 {productsQuery.data?.results.map((product) => (
                   <tr key={product.id}>
                     <td>{product.name}</td>
+                    <td>{product.sku ?? '—'}</td>
                     <td>{product.category.name}</td>
                     <td>
                       {product.currency} {product.price}

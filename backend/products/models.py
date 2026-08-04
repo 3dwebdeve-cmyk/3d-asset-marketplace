@@ -1,9 +1,20 @@
+import re
 import uuid
 from decimal import Decimal
 
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 from django.utils.text import slugify
+
+# Stable join key for batch ingest (Batch Output Report Model_ID), e.g. MDL-000142.
+PRODUCT_SKU_REGEX = re.compile(r"^[A-Z0-9][A-Z0-9_-]*$")
+PRODUCT_SKU_VALIDATOR = RegexValidator(
+    regex=r"^[A-Z0-9][A-Z0-9_-]*$",
+    message=(
+        "SKU may only contain uppercase letters, digits, hyphens, and underscores, "
+        "and must start with a letter or digit."
+    ),
+)
 
 
 class Product(models.Model):
@@ -25,6 +36,22 @@ class Product(models.Model):
     )
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
+    # External Model_ID from batch ingest; unique when set. Blank products stay null.
+    sku = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        validators=[PRODUCT_SKU_VALIDATOR],
+        help_text="Stable external Model_ID (e.g. MDL-000142). Used for batch upsert.",
+    )
+    import_batch_id = models.CharField(max_length=64, blank=True, default="")
+    import_source = models.CharField(max_length=64, blank=True, default="")
+    glb_checksum = models.CharField(max_length=64, blank=True, default="")
+    has_thumbnail = models.BooleanField(default=False)
+    has_preview = models.BooleanField(default=False)
+    has_package = models.BooleanField(default=False)
     description = models.TextField(blank=True)
     short_description = models.CharField(max_length=500, blank=True)
     price = models.DecimalField(
@@ -77,14 +104,24 @@ class Product(models.Model):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["slug"]),
+            models.Index(fields=["sku"]),
             models.Index(fields=["name"]),
             models.Index(fields=["status"]),
             models.Index(fields=["category", "status"]),
             models.Index(fields=["price"]),
+            models.Index(fields=["import_batch_id"]),
         ]
 
     def __str__(self) -> str:
         return self.name
+
+    @staticmethod
+    def normalize_sku(value: str | None) -> str | None:
+        """Uppercase + strip; blank becomes None so unique allows many unset SKUs."""
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
 
     @staticmethod
     def build_slug(name: str, *, exclude_id: uuid.UUID | None = None) -> str:

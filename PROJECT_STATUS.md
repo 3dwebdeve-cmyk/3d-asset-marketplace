@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~70%
 Current Development Sprint
-Current Sprint: Feature 14 – Cloudflare R2 Storage (next)
-Sprint Goal: Move catalog media to R2; then signed downloads + batch ingest (see IMPLEMENTATION_ROADMAP.md)
-Sprint Status: Feature 10 complete; R2 / batch roadmap planned 2026-08-03
+Current Sprint: Feature 16 – Batch Catalog Ingest & QA (Phase 3 complete)
+Sprint Goal: Product SKU / Model_ID identity; then freeze batch contracts; R2 when Cloudflare access is ready
+Sprint Status: Feature 16 Phase 3 (SKU / Model_ID) shipped 2026-08-04
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -141,7 +141,7 @@ Public Site Pages
 Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADMAP.md)
 • [ ] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages)
 • [ ] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET)
-• [ ] Feature 16 Phase 3 — Product SKU / Model_ID identity
+• [x] Feature 16 Phase 3 — Product SKU / Model_ID identity
 • [ ] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
 • [ ] Feature 16 Phase 5 — R2 Bridge CLI uploader (report + folders → R2)
 • [ ] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
@@ -158,12 +158,20 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 15G Quotation payment shipped. Next while waiting on Cloudflare R2: Feature 16 Phase 3–4 (SKU + contracts), Feature 13 Docker, or Feature 12 polish.
+Feature 16 Phase 3 (Product SKU / Model_ID identity) complete. Next: Phase 4 freeze batch + intake contracts, or Phase 8 QA statuses while R2 access is pending.
 Current Git Branch
-feature/in-app-notifications
+feature/today-features
 Files Being Worked On
-• (none — Feature 15G quotation payment complete)
+• backend/products/models.py, services.py, serializers.py, views.py, admin.py, test_products.py
+• backend/products/migrations/0003_product_sku_and_import_identity.py
+• frontend/src/types/product.ts, AdminProductsPage.tsx, AdminProductDetailPage.tsx (+ tests)
 Completed Features
+• Feature 16 Phase 3 — Product SKU / Model_ID identity (2026-08-04)
+  - Backend: Product.sku (unique nullable Model_ID), import_batch_id, import_source, glb_checksum, has_thumbnail/has_preview/has_package
+  - Backend: ProductService.get_by_sku + uniqueness/normalization; admin list ?sku= + search includes sku
+  - Backend: Admin create/update accept sku + import metadata; blank SKU clears to null (multiple unset OK)
+  - Frontend: admin create/edit SKU fields; list shows SKU column; search placeholder includes SKU
+  - Tests: 7 new product SKU API tests (24/24 products suite); admin product UI tests updated
 • Feature 15G — Quotation payment (2026-08-03)
   - Backend: OrderItem.product_type=custom_project; OrderService.create_from_quotation
   - Backend: POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout Session
@@ -311,7 +319,7 @@ Pending Features
 • Feature 14 — Cloudflare R2 Storage (public + private buckets; migrate catalog media off local MEDIA)
 • Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads)
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
-• Feature 16 — Batch Catalog Ingest & QA (Model_ID/SKU, Batch Output Report + intake join, R2 Bridge CLI, import → pending_review, admin QA → publish)
+• Feature 16 — Batch Catalog Ingest & QA (Phase 3 SKU done; remaining: contracts, bridge, import, QA UI/workflow, E2E, hardening)
   - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md
 • Invoice PDF generation (invoice_number + paid-order PDF/receipt already shipped; remaining polish if any)
 • UI redesign pending manager prototype approval
@@ -328,7 +336,7 @@ Technical Debt
 • Custom-project admin reference file URLs use local MEDIA until signed entitlement downloads ship
 • Message attachment downloads use authenticated FileResponse (same private-media pattern as reference files); still local MEDIA until R2
 • Project delivery downloads use authenticated FileResponse (same private-media pattern); still local MEDIA until R2
-• No batch import path yet — single-product admin upload only (Feature 16)
+• No batch import path yet — single-product admin upload only (Feature 16 Phase 5–6)
 • No dedicated pending_review / QA reject status beyond draft/published/archived (Feature 16 Phase 8)
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
@@ -367,9 +375,52 @@ Important Decisions
 • Cloud storage: Cloudflare R2 selected (not dual-track AWS S3). Public bucket/CDN for thumbnails + preview GLBs; private bucket for paid packages. Metadata remains in PostgreSQL/Django.
 • Batch ingest: MaxScript Batch Output Report is the post-render machine contract; Phase 1 intake Excel supplies price/marketing fields; join key is Model_ID. Bridge never auto-publishes — admin QA on the website is the final gate to status=published.
 • R2 Key Prefix convention (planned): models/{Model_ID}/ — lock in Feature 16 Phase 4.
-• Recommended near-term order while R2 access is pending: Feature 16 Phase 3–4/8 (SKU + contracts + QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → rest of 16 when Cloudflare is ready.
+• Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
+• Recommended near-term order while R2 access is pending: Feature 16 Phase 4/8 (contracts + QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → rest of 16 when Cloudflare is ready.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-08-04 (Feature 16 Phase 3 — Product SKU / Model_ID identity)
+Working Hours:
+Today's Objective: Add stable Product.sku (Model_ID) and import metadata so batch upsert can join without duplicates.
+Modules Completed: Product identity fields, admin API create/update/filter/search by SKU, admin UI SKU fields, tests
+Files Created:
+• backend/products/migrations/0003_product_sku_and_import_identity.py
+Files Modified:
+• backend/products/models.py, services.py, serializers.py, views.py, admin.py, test_products.py
+• frontend/src/types/product.ts
+• frontend/src/pages/Admin/AdminProductsPage.tsx (+ test)
+• frontend/src/pages/Admin/AdminProductDetailPage.tsx (+ test)
+• frontend/src/pages/Admin/ProductMediaSection.test.tsx, AdminOrdersPage.test.tsx
+• IMPLEMENTATION_ROADMAP.md, PROJECT_STATUS.md
+Database Changes:
+• products.sku (unique nullable indexed CharField)
+• products.import_batch_id, import_source, glb_checksum
+• products.has_thumbnail, has_preview, has_package
+• indexes on sku and import_batch_id
+API Endpoints:
+• GET /api/admin/products/ — added query params sku, import_batch_id; search includes sku [modified]
+• POST /api/admin/products/ — accepts sku + import metadata [modified]
+• PATCH /api/admin/products/<uuid>/ — set/clear sku + import metadata [modified]
+• No endpoints added or removed
+Frontend Pages/Components Added:
+• Admin products list: SKU column + create SKU field
+• Admin product detail: SKU, import batch ID, GLB checksum fields
+Tests Added/Updated:
+• backend products.test_products — 7 new SKU tests (24/24 suite pass)
+• frontend AdminProductsPage / AdminProductDetailPage / ProductMediaSection / AdminOrdersPage mocks updated
+Security Checklist:
+• Admin-only product write/list filters (IsAdministrator + throttle unchanged)
+• SKU format validated server-side; uniqueness enforced
+• Public product serializers do not expose sku / import metadata / checksum
+• No secrets or storage paths exposed
+Issues / Blockers:
+• Phase 1 intake Excel still needed to freeze Feature 16 Phase 4 contract
+• Cloudflare R2 still blocked on company account setup (Phases 5–6, 9)
+Next Recommended Task:
+• Feature 16 Phase 4 — freeze Batch Output Report + Phase 1 intake contracts (or Phase 8 QA statuses)
+Notes:
+• Idempotent re-import: ProductService.get_by_sku; blank SKU → null so many manual products can omit Model_ID
+
 Date: 2026-08-03 (Feature 15G — Quotation payment)
 Working Hours:
 Today's Objective: Enable Stripe payment for accepted custom-project quotations.
