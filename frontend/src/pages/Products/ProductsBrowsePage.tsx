@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
 import { listPublicProducts } from '../../api/productsApi'
@@ -12,27 +12,53 @@ import { ProductCard } from './ProductCard'
 const PAGE_SIZE = 12
 
 type SortOption = '-created_at' | 'price' | '-price' | 'name' | '-name'
+type SearchEditSource = 'url' | 'input'
 
 export function ProductsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
+  const searchFromUrl = searchParams.get('search')?.trim() ?? ''
 
-  const [searchInput, setSearchInput] = useState('')
+  const [searchInput, setSearchInput] = useState(searchFromUrl)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [selectedLicense, setSelectedLicense] = useState<string>('all')
   const [sortOrdering, setSortOrdering] = useState<SortOption>('-created_at')
   const [currentPage, setCurrentPage] = useState(1)
+  // Only hero-box edits may push search → URL. Navbar/deep-links are URL → input.
+  const searchEditSourceRef = useRef<SearchEditSource>('url')
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
     setCurrentPage(1)
   }, [categoryFromUrl])
 
+  useEffect(() => {
+    searchEditSourceRef.current = 'url'
+    setSearchInput(searchFromUrl)
+    setCurrentPage(1)
+  }, [searchFromUrl])
+
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
+
+  // Push hero typing (and clears) to the URL after debounce — never clobber navbar deep-links.
+  useEffect(() => {
+    const current = searchParams.get('search')?.trim() ?? ''
+    if (debouncedSearch === current || searchEditSourceRef.current !== 'input') {
+      return
+    }
+    const nextParams = new URLSearchParams(searchParams)
+    if (debouncedSearch) {
+      nextParams.set('search', debouncedSearch.slice(0, 100))
+    } else {
+      nextParams.delete('search')
+    }
+    setSearchParams(nextParams, { replace: true })
+  }, [debouncedSearch, searchParams, setSearchParams])
 
   // Reset to page 1 whenever filters change
   const handleSearchChange = (val: string) => {
-    setSearchInput(val)
+    searchEditSourceRef.current = 'input'
+    setSearchInput(val.slice(0, 100))
     setCurrentPage(1)
   }
 
@@ -60,6 +86,7 @@ export function ProductsBrowsePage() {
   }
 
   const handleResetFilters = () => {
+    searchEditSourceRef.current = 'input'
     setSearchInput('')
     setSelectedCategoryId('')
     setSelectedLicense('all')
@@ -68,6 +95,7 @@ export function ProductsBrowsePage() {
 
     const nextParams = new URLSearchParams(searchParams)
     nextParams.delete('category')
+    nextParams.delete('search')
     setSearchParams(nextParams, { replace: true })
   }
 
@@ -78,7 +106,7 @@ export function ProductsBrowsePage() {
     staleTime: 1000 * 60 * 5,
   })
 
-  // Products Query
+  // Products Query — URL search is source of truth (navbar deep-link applies immediately).
   const {
     data: productsData,
     isLoading,
@@ -89,7 +117,7 @@ export function ProductsBrowsePage() {
       'public-products-browse',
       currentPage,
       selectedCategoryId,
-      debouncedSearch,
+      searchFromUrl,
       sortOrdering,
     ],
     queryFn: () =>
@@ -97,9 +125,10 @@ export function ProductsBrowsePage() {
         page: currentPage,
         page_size: PAGE_SIZE,
         category_id: selectedCategoryId || undefined,
-        search: debouncedSearch || undefined,
+        search: searchFromUrl || undefined,
         ordering: sortOrdering,
       }),
+    placeholderData: keepPreviousData,
   })
 
   // Optional client-side filtering for license type if backend doesn't filter license via API
