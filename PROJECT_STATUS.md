@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~70%
 Current Development Sprint
-Current Sprint: Feature 16 – Batch Catalog Ingest & QA (Phase 4 complete)
-Sprint Goal: Freeze batch + intake contracts; next QA statuses or R2 bridge when Cloudflare is ready
-Sprint Status: Feature 16 Phase 4 (batch + intake contracts) shipped 2026-08-04
+Current Sprint: Feature 12 polish – Global product search
+Sprint Goal: Site-wide product search bar (navbar) wired to public catalog search
+Sprint Status: Global product search shipped 2026-08-05
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -139,8 +139,8 @@ Public Site Pages
 • [x] Custom Projects landing (/custom-projects) — marketing page linking to request flow
 • [x] Site footer + navbar discovery links; login honors state.from redirect
 Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADMAP.md)
-• [ ] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages)
-• [ ] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET)
+• [ ] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages) — plan saved in IMPLEMENTATION_ROADMAP.md
+• [ ] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET) — plan saved in IMPLEMENTATION_ROADMAP.md 
 • [x] Feature 16 Phase 3 — Product SKU / Model_ID identity
 • [x] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
 • [ ] Feature 16 Phase 5 — R2 Bridge CLI uploader (report + folders → R2)
@@ -158,14 +158,22 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 16 Phase 4 (batch + intake contracts) complete. Next: Phase 8 QA statuses while R2 pending, or Phase 5 bridge when Cloudflare R2 is ready.
+Global product search bar in the navbar; /products?search= deep-link sync with browse page.
 Current Git Branch
-feature/batch-contracts-phase4
+feature/todays-features-and-debug
 Files Being Worked On
-• docs/batch-ingest-contract.md
-• docs/fixtures/batch-ingest/ (happy, mismatch, gate-failures)
-• IMPLEMENTATION_ROADMAP.md, PROJECT_STATUS.md
+• frontend/src/components/ProductSearchForm.tsx
+• frontend/src/components/Navbar.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.tsx
+• frontend/src/styles/navbar.css
+• PROJECT_STATUS.md
 Completed Features
+• Global product search (navbar + URL sync) (2026-08-05)
+  - Reused existing GET /api/products/?search= (no new API)
+  - ProductSearchForm in Navbar navigates to /products?search=…
+  - ProductsBrowsePage reads/writes search URL param (shareable deep links)
+  - Client max length 100 aligned with ProductService._normalize_search
+  - Tests: ProductSearchForm, Navbar search nav, browse URL search (16 related tests OK)
 • Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts (2026-08-04)
   - Contract: docs/batch-ingest-contract.md (report columns, intake columns, folder layout, R2 keys, gate, upsert)
   - Locked required-export policy: GLB Success + ≥1 of FBX/OBJ/MAX Success
@@ -321,8 +329,8 @@ Completed Features
 Pending Features
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 13 — Docker & local/prod runtime
-• Feature 14 — Cloudflare R2 Storage (public + private buckets; migrate catalog media off local MEDIA)
-• Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads)
+• Feature 14 — Cloudflare R2 Storage (public + private buckets; migrate catalog media off local MEDIA) — detailed plan in IMPLEMENTATION_ROADMAP.md (not coded yet)
+• Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads) — detailed plan in IMPLEMENTATION_ROADMAP.md (not coded yet)
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
 • Feature 16 — Batch Catalog Ingest & QA (Phases 3–4 done; remaining: bridge, import, QA UI/workflow, E2E, hardening)
   - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md; contract: docs/batch-ingest-contract.md
@@ -332,7 +340,7 @@ Current Issues / Blockers
 • Waiting on manager approval for UI prototype
 • First Administrator must still be created via createsuperuser
 • Live Phase 1 intake Excel sign-off still pending for proposed columns (Thumbnail Path / Gallery / Tags); canonical set documented in contract
-• Cloudflare R2 account setup pending internal company procedures (Feature 14 blocked on access)
+• Cloudflare R2 access available; Feature 14/14B implementation plan saved in IMPLEMENTATION_ROADMAP.md — coding not started (Phase 0 buckets/tokens/.env still required before build)
 Bugs
 No Known Bugs
 Technical Debt
@@ -385,6 +393,57 @@ Important Decisions
 • Recommended near-term order while R2 access is pending: Feature 16 Phase 8 (QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → Phase 5+ when Cloudflare is ready.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-08-05 (Feature 14/14B — R2 integration plan saved; no code)
+Working Hours:
+Today's Objective: Capture Cloudflare R2 website integration plan in IMPLEMENTATION_ROADMAP.md without building yet.
+Modules Completed: Recreated IMPLEMENTATION_ROADMAP.md with Feature 14 + 14B phases (dashboard setup, dual buckets, django-storages, entitled presigned GET, E2E); Feature 16 summary retained with link to batch-ingest contract
+Files Created:
+• IMPLEMENTATION_ROADMAP.md
+Files Modified:
+• PROJECT_STATUS.md (Sprint 10 / pending / blockers / this log)
+Database Changes:
+• None
+API Endpoints:
+• None
+Issues / Blockers:
+• Coding deferred until Phase 0 (buckets, API token, public URL, CORS, .env) and explicit build kickoff
+Next Recommended Task:
+• Phase 0 Cloudflare dashboard setup, then implement Feature 14 → 14B per IMPLEMENTATION_ROADMAP.md
+Notes:
+• Stripe pay → entitlement path already exists; plan only swaps local MEDIA / FileResponse for R2 public CDN + private presigned GET
+• Batch ingest (Feature 16 Phase 5+) still after 14/14B
+
+Date: 2026-08-05 (Global product search — navbar + browse URL sync)
+Working Hours:
+Today's Objective: Add a site-wide product search bar without duplicating catalog search APIs.
+Modules Completed: ProductSearchForm, Navbar search, ProductsBrowsePage ?search= sync, tests, status update
+Files Created:
+• frontend/src/components/ProductSearchForm.tsx
+• frontend/src/components/ProductSearchForm.test.tsx
+Files Modified:
+• frontend/src/components/Navbar.tsx (+ test)
+• frontend/src/styles/navbar.css
+• frontend/src/pages/Products/ProductsBrowsePage.tsx (+ test)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• None added/removed — reused GET /api/products/?search=
+Frontend Pages/Components Added:
+• ProductSearchForm (navbar); browse page search stays and syncs with URL
+Tests Added/Updated:
+• ProductSearchForm (2), Navbar search nav (1), ProductsBrowsePage URL search (1) — 16 related tests pass
+Security Checklist:
+• Search is plain text query only; maxLength 100; no HTML injection (React text/input binding)
+• Public list remains published-only via existing ProductService.list_public
+• No secrets, storage paths, or admin fields exposed
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Feature 16 Phase 8 remaining QA queue UI, or Feature 13 Docker / Feature 14 R2 when access ready
+Notes:
+• Browse hero search and navbar search both drive the same public catalog endpoint
+
 Date: 2026-08-04 (Feature 16 Phase 4 — Freeze batch + intake contracts)
 Working Hours:
 Today's Objective: Lock Batch Output Report + Phase 1 intake schema, folder layout, R2 keys, and ready-to-import gate before bridge coding.

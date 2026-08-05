@@ -165,6 +165,20 @@ describe('ProductsBrowsePage', () => {
     })
   })
 
+  it('applies search from the URL query string', async () => {
+    renderProductsBrowsePage('/products?search=drone')
+
+    await waitFor(() => {
+      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
+        expect.objectContaining({
+          search: 'drone',
+        }),
+      )
+    })
+
+    expect(screen.getByRole('searchbox', { name: /search 3d models/i })).toHaveValue('drone')
+  })
+
   it('sorts products by price low to high', async () => {
     const user = userEvent.setup()
     renderProductsBrowsePage()

@@ -50,7 +50,12 @@ vi.mock('../api/notificationsApi', async () => {
 
 function LocationDisplay() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 function renderNavbar(initialPath = '/') {
@@ -63,6 +68,7 @@ function renderNavbar(initialPath = '/') {
         <Routes>
           <Route path="/" element={<div>Home page</div>} />
           <Route path="/login" element={<div>Sign in page</div>} />
+          <Route path="/products" element={<div>Products page</div>} />
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<div>Dashboard page</div>} />
             <Route path="/dashboard/projects" element={<div>My projects page</div>} />
