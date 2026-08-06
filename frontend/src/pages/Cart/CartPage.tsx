@@ -26,6 +26,7 @@ export function CartPage() {
   const { startCheckout, isRedirecting } = useCheckout()
 
   const isEmpty = cart?.item_count === 0
+  const showTopActions = !isLoading && !isEmpty
 
   return (
     <main className="dashboard-page cart-page">
@@ -36,14 +37,14 @@ export function CartPage() {
           Review items before checkout. Prices reflect current catalog values.
         </p>
 
-        <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/products">
-            Browse models
-          </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
-            Browse plugins
-          </Link>
-          {cart && cart.item_count > 0 ? (
+        {showTopActions ? (
+          <div className="dashboard-card__actions">
+            <Link className="home-page__cta home-page__cta--secondary" to="/products">
+              Browse models
+            </Link>
+            <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
+              Browse plugins
+            </Link>
             <Button
               type="button"
               variant="secondary"
@@ -52,8 +53,8 @@ export function CartPage() {
             >
               Clear cart
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {isLoading ? (
           <Spinner label="Loading your cart..." />

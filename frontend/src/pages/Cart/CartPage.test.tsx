@@ -186,6 +186,8 @@ describe('CartPage', () => {
     renderCartPage()
 
     expect(await screen.findByText(/your cart is empty/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /browse models/i })).toHaveLength(1)
+    expect(screen.getAllByRole('link', { name: /browse plugins/i })).toHaveLength(1)
   })
 
   it('removes an item when remove is clicked', async () => {
