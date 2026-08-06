@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as categoriesApi from '../../api/categoriesApi'
+import * as pluginsApi from '../../api/pluginsApi'
 import * as productsApi from '../../api/productsApi'
 import * as wishlistApi from '../../api/wishlistApi'
 import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
@@ -31,6 +32,16 @@ vi.mock('../../api/categoriesApi', async () => {
   }
 })
 
+vi.mock('../../api/pluginsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/pluginsApi')>(
+    '../../api/pluginsApi',
+  )
+  return {
+    ...actual,
+    listPublicPlugins: vi.fn(),
+  }
+})
+
 vi.mock('../../api/wishlistApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/wishlistApi')>(
     '../../api/wishlistApi',
@@ -45,6 +56,7 @@ vi.mock('../../api/wishlistApi', async () => {
 
 const categoryId = '44bba207-8a0c-490d-abdf-5a383ed2111b'
 const productId = 'b3d66e20-e133-4506-a6c5-a47d2ee5cd00'
+const pluginId = 'c4e77f31-f244-5617-b58d-b58e3ff6de11'
 
 const samplePublicProducts = {
   count: 1,
@@ -87,6 +99,41 @@ const samplePublicCategories = {
   ],
 }
 
+const samplePublicPlugins = {
+  count: 1,
+  next: null,
+  previous: null,
+  results: [
+    {
+      id: pluginId,
+      name: 'Batch Exporter Pro',
+      slug: 'batch-exporter-pro',
+      short_description: 'Export tools for artists',
+      price: '19.99',
+      currency: 'USD',
+      discount_price: null,
+      thumbnail: '',
+      version: '1.0.0',
+      compatibility: 'Blender 4.0+',
+      license_type: 'standard' as const,
+      category: {
+        id: 'plugin-cat-1',
+        name: 'Utilities',
+        slug: 'utilities',
+        description: '',
+        image: '',
+        is_active: true,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+      average_rating: '4.50',
+      review_count: 2,
+      total_downloads: 40,
+      created_at: '2026-01-01T00:00:00Z',
+    },
+  ],
+}
+
 function renderProductsBrowsePage(initialPath = '/products') {
   const queryClient = createTestQueryClient()
   return render(
@@ -94,6 +141,8 @@ function renderProductsBrowsePage(initialPath = '/products') {
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/products" element={<ProductsBrowsePage />} />
+          <Route path="/plugins" element={<div>Plugins page</div>} />
+          <Route path="/custom-projects" element={<div>Custom projects page</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -105,6 +154,7 @@ beforeEach(() => {
   resetAuthStore()
   vi.mocked(productsApi.listPublicProducts).mockResolvedValue(samplePublicProducts)
   vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue(samplePublicCategories)
+  vi.mocked(pluginsApi.listPublicPlugins).mockResolvedValue(samplePublicPlugins)
   vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
     count: 0,
     next: null,
@@ -114,23 +164,29 @@ beforeEach(() => {
 })
 
 describe('ProductsBrowsePage', () => {
-  it('renders hero title and products catalog', async () => {
+  it('renders browse hub hero, modules, and product preview', async () => {
     renderProductsBrowsePage()
 
     expect(
-      screen.getByRole('heading', { name: /explore premium 3d models/i }),
+      screen.getByRole('heading', {
+        name: /the ultimate marketplace for 3d & digital assets/i,
+      }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /trending categories/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /shop 3d models/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /explore plugins/i })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
     })
 
+    expect(screen.getByText('Batch Exporter Pro')).toBeInTheDocument()
     expect(screen.getAllByText('Sci-Fi Assets').length).toBeGreaterThan(0)
     expect(screen.getByText('$39.99')).toBeInTheDocument()
     expect(screen.getByText('$49.99')).toBeInTheDocument()
   })
 
-  it('filters products by category selection', async () => {
+  it('opens full catalog when Shop 3D models is clicked', async () => {
     const user = userEvent.setup()
     renderProductsBrowsePage()
 
@@ -138,7 +194,23 @@ describe('ProductsBrowsePage', () => {
       expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
     })
 
-    await user.selectOptions(screen.getByLabelText(/category/i), categoryId)
+    await user.click(screen.getByRole('button', { name: /shop 3d models/i }))
+
+    expect(
+      screen.getByRole('heading', { name: /explore premium 3d models/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/^category$/i)).toBeInTheDocument()
+  })
+
+  it('filters products by category selection in catalog mode', async () => {
+    const user = userEvent.setup()
+    renderProductsBrowsePage('/products?view=all')
+
+    await waitFor(() => {
+      expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
+    })
+
+    await user.selectOptions(screen.getByLabelText(/^category$/i), categoryId)
 
     await waitFor(() => {
       expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
@@ -179,9 +251,9 @@ describe('ProductsBrowsePage', () => {
     expect(screen.getByRole('searchbox', { name: /search 3d models/i })).toHaveValue('drone')
   })
 
-  it('sorts products by price low to high', async () => {
+  it('sorts products by price low to high in catalog mode', async () => {
     const user = userEvent.setup()
-    renderProductsBrowsePage()
+    renderProductsBrowsePage('/products?view=all')
 
     await waitFor(() => {
       expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
@@ -206,7 +278,7 @@ describe('ProductsBrowsePage', () => {
       results: [],
     })
 
-    renderProductsBrowsePage()
+    renderProductsBrowsePage('/products?view=all')
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument()
