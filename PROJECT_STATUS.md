@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~70%
 Current Development Sprint
-Current Sprint: Feature 12 polish – Global product search
-Sprint Goal: Site-wide product search bar (navbar) wired to public catalog search
-Sprint Status: Global product search shipped 2026-08-05
+Current Sprint: Public site polish – Browse Models hub UI
+Sprint Goal: Align /products Browse Models page with discovery wireframe
+Sprint Status: Browse Models hub UI shipped 2026-08-06
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -393,6 +393,36 @@ Important Decisions
 • Recommended near-term order while R2 access is pending: Feature 16 Phase 8 (QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → Phase 5+ when Cloudflare is ready.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-08-06 (Browse Models page — wireframe hub UI)
+Working Hours:
+Today's Objective: Update /products (Browse Models) UI to match the approved discovery wireframe while keeping catalog deep-links.
+Modules Completed: ProductsBrowsePage hub layout (hero, module CTAs, trending categories, shop models rail, plugins rail); catalog mode for ?search= / ?category= / ?view=all; light brand-token restyle of products-browse.css (shared ProductCard/PluginCard)
+Files Created:
+• None
+Files Modified:
+• frontend/src/pages/Products/ProductsBrowsePage.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.test.tsx
+• frontend/src/styles/products-browse.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• None added — reused listPublicProducts, listPublicCategories, listPublicPlugins
+Frontend Pages/Components Added:
+• Hub sections on ProductsBrowsePage; CategoryTile inline; catalog mode retained for filters/pagination
+Tests Added/Updated:
+• ProductsBrowsePage.test.tsx — 8/8 passing (hub render, catalog entry, filters, URL search/category, empty, wishlist)
+Security Checklist:
+• Public list endpoints only; React text binding for names/descriptions; no HTML injection
+• Search maxLength 100; category filter uses IDs already validated server-side
+• No secrets, storage paths, or admin fields exposed
+Issues / Blockers:
+• None
+Next Recommended Task:
+• Align Navbar labels/search with wireframe header if desired; otherwise Feature 16 Phase 8 / Docker / R2 when ready
+Notes:
+• Default /products is discovery hub; full filter catalog opens via View All, Shop 3D models, search, or category
+
 Date: 2026-08-05 (Feature 14/14B — R2 integration plan saved; no code)
 Working Hours:
 Today's Objective: Capture Cloudflare R2 website integration plan in IMPLEMENTATION_ROADMAP.md without building yet.
