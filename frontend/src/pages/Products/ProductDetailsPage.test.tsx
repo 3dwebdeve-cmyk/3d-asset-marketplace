@@ -233,6 +233,27 @@ beforeEach(() => {
 })
 
 describe('ProductDetailsPage', () => {
+  it('scrolls to the top when the product page is opened', async () => {
+    const scrollTo = vi.fn()
+    Object.defineProperty(window, 'scrollTo', {
+      configurable: true,
+      writable: true,
+      value: scrollTo,
+    })
+
+    renderProductDetails()
+
+    expect(scrollTo).toHaveBeenCalled()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+  })
+
   it('loads the public product by slug and renders hero details', async () => {
     renderProductDetails()
 

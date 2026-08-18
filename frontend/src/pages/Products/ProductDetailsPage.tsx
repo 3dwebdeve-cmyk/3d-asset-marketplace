@@ -1,5 +1,6 @@
 import { isAxiosError } from 'axios'
 import { useQuery } from '@tanstack/react-query'
+import { useLayoutEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { getPublicProduct, listPublicProducts } from '../../api/productsApi'
@@ -62,6 +63,22 @@ function discountPercent(price: string, discountPrice: string): number | null {
     return null
   }
   return Math.round(((original - discounted) / original) * 100)
+}
+
+function useScrollProductPageToTop(resetKey: string): void {
+  useLayoutEffect(() => {
+    const historyObj = window.history
+    const previousRestoration = historyObj.scrollRestoration
+    if (previousRestoration !== undefined) {
+      historyObj.scrollRestoration = 'manual'
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    return () => {
+      if (previousRestoration !== undefined) {
+        historyObj.scrollRestoration = previousRestoration
+      }
+    }
+  }, [resetKey])
 }
 
 function ProductDetailSkeleton() {
@@ -311,6 +328,8 @@ export function ProductDetailsPage() {
     queryFn: () => getPublicProduct(trimmedSlug),
     enabled: Boolean(trimmedSlug),
   })
+
+  useScrollProductPageToTop(`${trimmedSlug}:${productQuery.data?.id ?? 'pending'}`)
 
   const isNotFound =
     !trimmedSlug ||
