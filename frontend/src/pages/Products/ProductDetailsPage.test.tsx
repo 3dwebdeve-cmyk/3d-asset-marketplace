@@ -272,7 +272,7 @@ describe('ProductDetailsPage', () => {
     expect(screen.getByText(/futuristic sci-fi drone asset/i)).toBeInTheDocument()
     expect(screen.getByText(/polygon count/i)).toBeInTheDocument()
     expect(screen.getByText('12,000')).toBeInTheDocument()
-    expect(screen.getByText(/^3d preview$/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /show 3d preview/i })).toBeInTheDocument()
     expect(
       screen.getByRole('img', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
@@ -301,7 +301,7 @@ describe('ProductDetailsPage', () => {
     })
 
     expect(screen.queryByTestId('lazy-model-viewer')).not.toBeInTheDocument()
-    expect(screen.getByText(/^image preview$/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /view larger image of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
@@ -377,7 +377,7 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: /^images$/i }))
+    await user.click(screen.getByRole('button', { name: /show image 1 of 2/i }))
     await user.click(
       screen.getByRole('button', { name: /view larger image of cyberpunk drone 3d/i }),
     )
