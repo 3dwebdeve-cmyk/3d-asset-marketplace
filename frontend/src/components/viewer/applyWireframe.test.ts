@@ -1,7 +1,7 @@
 import {
   BoxGeometry,
-  Color,
   Group,
+  LineBasicMaterial,
   LineSegments,
   Mesh,
   MeshStandardMaterial,
@@ -39,7 +39,9 @@ describe('applyWireframe', () => {
     expect(overlays).toHaveLength(1)
     expect(overlays[0].geometry).toBeInstanceOf(WireframeGeometry)
     expect(overlayChildren(nested)).toHaveLength(1)
-    expect((overlays[0].material as { color: Color }).color.getHex()).toBe(0x111111)
+    const lineMaterial = overlays[0].material
+    expect(lineMaterial).toBeInstanceOf(LineBasicMaterial)
+    expect((lineMaterial as LineBasicMaterial).color.getHex()).toBe(0x111111)
 
     applyWireframe(root, false)
 
