@@ -17,6 +17,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
 from custom_projects.models import CustomProject, ProjectDelivery, ProjectMessage, ProjectQuotation
+from config.media import media_relative_path
 
 
 def _png_bytes() -> bytes:
@@ -494,7 +495,7 @@ class CustomProjectFileUploadTests(APITestCase):
         )
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
         project_file = self.project.files.get()
-        relative = project_file.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(project_file.storage_path)
 
         public = self.client.get(f"/media/{relative}")
         self.assertEqual(public.status_code, status.HTTP_404_NOT_FOUND)
@@ -1209,7 +1210,7 @@ class CustomProjectMessageAttachmentAPITests(APITestCase):
         from custom_projects.models import ProjectMessageAttachment
 
         attachment = ProjectMessageAttachment.objects.get(pk=attachment_id)
-        relative = attachment.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(attachment.storage_path)
         public = self.client.get(f"/media/{relative}")
         self.assertEqual(public.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -1371,7 +1372,8 @@ class CustomProjectMessageAttachmentRiskScenarioTests(APITestCase):
         message_id = created.data["id"]
         attachment_id = created.data["attachments"][0]["id"]
         attachment = ProjectMessageAttachment.objects.get(pk=attachment_id)
-        relative = attachment.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(attachment.storage_path)
+        self.assertIsNotNone(relative)
         from django.core.files.storage import default_storage
 
         default_storage.delete(relative)
@@ -2098,7 +2100,7 @@ class ProjectDeliveryRiskScenarioTests(APITestCase):
             project=self.project,
             uploaded_by=self.admin_user,
             file_name="bad.glb",
-            storage_path="not-a-url",
+            storage_path="../secret.zip",
             file_size=1,
             version=3,
         )
@@ -2200,7 +2202,9 @@ class ProjectDeliveryUploadAPITests(APITestCase):
         self.assertNotIn("storage_path", response.data)
         self.assertEqual(self.project.deliveries.count(), 1)
         delivery = self.project.deliveries.get()
-        self.assertIn("/media/custom_projects/deliveries/", delivery.storage_path)
+        self.assertTrue(
+            delivery.storage_path.startswith("custom_projects/deliveries/")
+        )
 
     def test_admin_can_set_explicit_version(self) -> None:
         self._authenticate_admin()
@@ -2299,7 +2303,7 @@ class ProjectDeliveryUploadAPITests(APITestCase):
         )
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
         delivery = ProjectDelivery.objects.get(pk=created.data["id"])
-        relative = delivery.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(delivery.storage_path)
         self.client.credentials()
         public = self.client.get(f"/media/{relative}")
         self.assertEqual(public.status_code, status.HTTP_404_NOT_FOUND)
@@ -2510,7 +2514,7 @@ class ProjectDeliveryCrashRiskScenarioTests(APITestCase):
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
         self.assertNotIn("storage_path", created.data)
         delivery = ProjectDelivery.objects.get(pk=created.data["id"])
-        relative = delivery.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(delivery.storage_path)
         self.client.credentials()
         public = self.client.get(f"/media/{relative}")
         self._assert_not_crash(public, allowed=(404,))
@@ -2709,7 +2713,7 @@ class ProjectDeliveryListDownloadAPITests(APITestCase):
 
     def test_private_media_still_blocked_after_authenticated_download(self) -> None:
         delivery = self._create_stored_delivery(version=1, name="private-dl.zip")
-        relative = delivery.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(delivery.storage_path)
         self._authenticate_admin()
         ok = self.client.get(
             reverse(
@@ -2946,7 +2950,8 @@ class ProjectDeliveryListDownloadCrashRiskScenarioTests(APITestCase):
     def test_deleted_disk_file_and_private_media_do_not_crash(self) -> None:
         """Hypothesis B/E: missing on-disk file and direct media URL must not 500."""
         delivery = self._create_zip_delivery(project=self.project, version=3)
-        relative = delivery.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(delivery.storage_path)
+        self.assertIsNotNone(relative)
         from django.core.files.storage import default_storage
 
         if default_storage.exists(relative):

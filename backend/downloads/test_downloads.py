@@ -15,6 +15,7 @@ from orders.models import Order
 from orders.services import OrderCreateData, OrderItemCreateData, OrderService
 from plugins.models import Plugin, PluginCategory, PluginFile
 from products.models import Product, ProductFile
+from config.media import media_relative_path
 
 
 class DownloadAPITests(APITestCase):
@@ -417,7 +418,7 @@ class DownloadAPITests(APITestCase):
     def test_private_media_still_blocked_after_authenticated_download(self) -> None:
         product_file = self._upload_product_file()
         self.create_paid_order(self.customer)
-        relative = product_file.storage_path.split("/media/", maxsplit=1)[1]
+        relative = media_relative_path(product_file.storage_path)
         download_url = reverse(
             "downloads:product-file-download",
             kwargs={"product_id": self.product.pk, "file_id": product_file.pk},

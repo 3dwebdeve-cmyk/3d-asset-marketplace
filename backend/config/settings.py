@@ -10,8 +10,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import sys
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 from decouple import Config, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
@@ -57,6 +59,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'storages',
     'accounts',
     'categories',
     'products',
@@ -161,6 +164,76 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 PUBLIC_API_BASE_URL = config("PUBLIC_API_BASE_URL", default="http://127.0.0.1:8000")
+
+# Cloudflare R2 (Feature 14). All values required before named S3 backends activate.
+R2_ACCOUNT_ID = config("R2_ACCOUNT_ID", default="").strip()
+R2_ACCESS_KEY_ID = config("R2_ACCESS_KEY_ID", default="").strip()
+R2_SECRET_ACCESS_KEY = config("R2_SECRET_ACCESS_KEY", default="").strip()
+R2_ENDPOINT_URL = config("R2_ENDPOINT_URL", default="").strip()
+R2_PUBLIC_BUCKET = config("R2_PUBLIC_BUCKET", default="").strip()
+R2_PRIVATE_BUCKET = config("R2_PRIVATE_BUCKET", default="").strip()
+R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
+if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
+    R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+_running_tests = "test" in sys.argv or "pytest" in " ".join(sys.argv).lower()
+R2_ENABLED = (not _running_tests) and all(
+    (
+        R2_ACCOUNT_ID,
+        R2_ACCESS_KEY_ID,
+        R2_SECRET_ACCESS_KEY,
+        R2_ENDPOINT_URL,
+        R2_PUBLIC_BUCKET,
+        R2_PRIVATE_BUCKET,
+        R2_PUBLIC_BASE_URL,
+    )
+)
+
+_filesystem_storage = {
+    "BACKEND": "django.core.files.storage.FileSystemStorage",
+}
+_s3_common = {
+    "access_key": R2_ACCESS_KEY_ID,
+    "secret_key": R2_SECRET_ACCESS_KEY,
+    "endpoint_url": R2_ENDPOINT_URL,
+    "region_name": "auto",
+    "default_acl": None,
+    "file_overwrite": False,
+    "addressing_style": "path",
+    "signature_version": "s3v4",
+}
+if R2_ENABLED:
+    STORAGES = {
+        "default": _filesystem_storage,
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+        "public": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                **_s3_common,
+                "bucket_name": R2_PUBLIC_BUCKET,
+                "querystring_auth": False,
+            },
+        },
+        "private": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                **_s3_common,
+                "bucket_name": R2_PRIVATE_BUCKET,
+                "querystring_auth": True,
+            },
+        },
+    }
+else:
+    STORAGES = {
+        "default": _filesystem_storage,
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+        "public": _filesystem_storage,
+        "private": _filesystem_storage,
+    }
 
 STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
 STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
@@ -281,12 +354,18 @@ CORS_ALLOW_CREDENTIALS = False
 
 # Backend/API CSP. The separately deployed frontend host must emit its own CSP
 # header at the CDN or web-server layer.
+_csp_img_src = [CSP.SELF, "data:"]
+if R2_ENABLED:
+    _r2_parsed = urlparse(R2_PUBLIC_BASE_URL)
+    if _r2_parsed.scheme and _r2_parsed.netloc:
+        _csp_img_src.append(f"{_r2_parsed.scheme}://{_r2_parsed.netloc}")
+
 SECURE_CSP = {
     "default-src": [CSP.SELF],
     # Django's built-in administrator currently emits small inline scripts.
     "script-src": [CSP.SELF, CSP.UNSAFE_INLINE],
     "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
-    "img-src": [CSP.SELF, "data:"],
+    "img-src": _csp_img_src,
     "font-src": [CSP.SELF],
     "connect-src": [CSP.SELF],
     "object-src": [CSP.NONE],

@@ -6,6 +6,8 @@ from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 from django.utils.text import slugify
 
+from config.validators import validate_storage_path
+
 # Stable join key for batch ingest (Batch Output Report Model_ID), e.g. MDL-000142.
 PRODUCT_SKU_REGEX = re.compile(r"^[A-Z0-9][A-Z0-9_-]*$")
 PRODUCT_SKU_VALIDATOR = RegexValidator(
@@ -177,7 +179,7 @@ class ProductFile(models.Model):
     file_name = models.CharField(max_length=255)
     file_format = models.CharField(max_length=32)
     file_size = models.PositiveBigIntegerField()
-    storage_path = models.URLField()
+    storage_path = models.CharField(max_length=512, validators=[validate_storage_path])
     version = models.CharField(max_length=64, default="1.0")
     is_preview = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
