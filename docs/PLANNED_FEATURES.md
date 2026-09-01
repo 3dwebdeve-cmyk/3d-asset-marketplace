@@ -25,7 +25,7 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 ```text
 1. Feature 13 — Docker (local/prod runtime)
 2. Feature 12 — Public site polish (remaining)
-3. Feature 14 — Cloudflare R2 (public + private buckets)
+3. Feature 14 — Cloudflare R2 (public + private buckets) — **Done**
 4. Feature 14B — Signed R2 download URLs
 5. Feature 16 Phase 6 — Catalog Import API (marketplace repo)
 6. Feature 16 Phases 7–8 — Admin import QA UI + publish workflow
@@ -55,12 +55,12 @@ Detailed plan: [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md)
 
 | Item | Status |
 |------|--------|
-| Phase 0 — R2 buckets, API token, public URL, CORS, `.env` | Planned |
-| `django-storages` + `boto3` dual backends (public + private) | Planned |
-| Product/plugin uploads → correct bucket | Planned |
-| Public preview URLs via `R2_PUBLIC_BASE_URL` | Planned |
-| Local filesystem fallback when R2 unset (dev/CI) | Planned |
-| Migrate off local `MEDIA_ROOT` for catalog media | Planned |
+| Phase 0 — R2 buckets, API token, public URL, CORS, `.env` | **Done** (app reads env; local filesystem if unset) |
+| `django-storages` + `boto3` dual backends (public + private) | **Done** |
+| Product/plugin uploads → correct bucket | **Done** |
+| Public preview URLs via `R2_PUBLIC_BASE_URL` | **Done** |
+| Local filesystem fallback when R2 unset (dev/CI) | **Done** |
+| Migrate off local `MEDIA_ROOT` for catalog media | Partial — new uploads use R2 when configured; existing local files still served |
 
 **Decisions (locked):**
 
@@ -163,7 +163,7 @@ From [PROJECT_STATUS.md](../PROJECT_STATUS.md) — addressed by planned features
 
 | Debt | Resolved by |
 |------|-------------|
-| Local `MEDIA_ROOT` for catalog media | Feature 14 |
+| Local `MEDIA_ROOT` for catalog media | Feature 14 (new uploads when R2 env set; legacy files remain local) |
 | `FileResponse` downloads from disk | Feature 14B |
 | No batch import path (admin one-by-one only) | Feature 16 Phase 6 + catalog-bridge |
 | Docker Compose not production-ready | Feature 13 |
@@ -242,7 +242,6 @@ Architecture plan: Cursor plan `catalog_bridge_exe` (copy to `docs/catalog-bridg
 
 | Priority | Feature | Effort (rough) |
 |----------|---------|----------------|
-| High | Feature 14 — R2 storage | Large |
 | High | Feature 14B — Signed downloads | Medium |
 | High | Feature 16 Phase 6 — Import API | Medium |
 | High | catalog-bridge desktop app | Large (separate repo) |

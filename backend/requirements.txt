@@ -7,3 +7,5 @@ python-decouple==3.8
 Pillow==12.3.0
 stripe==15.4.0
 reportlab==4.4.10
+django-storages==1.14.6
+boto3==1.40.21

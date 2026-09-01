@@ -6,9 +6,11 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
-from django.core.files.storage import default_storage
+from django.core.files.storage import Storage, default_storage
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.views.static import serve
+
+from config.storages import get_private_storage, get_public_storage
 
 # Preview images, thumbnails, and avatars stay publicly readable.
 # Paid packages and private project references must use authenticated downloads.
@@ -21,16 +23,22 @@ PUBLIC_MEDIA_PREFIXES = (
 
 
 def media_relative_path(storage_path: str) -> str | None:
-    """Resolve a stored URL or relative key to a path under MEDIA_ROOT."""
+    """Resolve a stored URL or relative key to an object key / MEDIA relative path."""
     if not storage_path:
         return None
 
     value = storage_path.strip()
-    media_marker = "/media/"
-    if media_marker in value:
-        relative = value.split(media_marker, maxsplit=1)[1]
+    public_base = str(getattr(settings, "R2_PUBLIC_BASE_URL", "") or "").rstrip("/")
+    if public_base and (
+        value == public_base or value.startswith(f"{public_base}/")
+    ):
+        relative = value[len(public_base) :].lstrip("/")
     else:
-        relative = value.lstrip("/")
+        media_marker = "/media/"
+        if media_marker in value:
+            relative = value.split(media_marker, maxsplit=1)[1]
+        else:
+            relative = value.lstrip("/")
 
     if not relative or ".." in relative or relative.startswith(("/", "\\")):
         return None
@@ -52,23 +60,38 @@ def is_public_media_path(relative: str) -> bool:
     return any(relative.startswith(prefix) for prefix in PUBLIC_MEDIA_PREFIXES)
 
 
+def storage_for_relative(relative: str) -> Storage:
+    if is_public_media_path(relative):
+        return get_public_storage()
+    return get_private_storage()
+
+
 def open_stored_file(storage_path: str) -> FileResponse:
     relative = media_relative_path(storage_path)
     if relative is None:
         raise Http404("File not found.")
 
-    try:
-        exists = default_storage.exists(relative)
-    except (OSError, SuspiciousFileOperation, ValueError):
-        raise Http404("File not found.") from None
+    candidates: list[Storage] = [storage_for_relative(relative)]
+    primary = candidates[0]
+    if primary is not default_storage:
+        candidates.append(default_storage)
 
-    if not exists:
+    handle = None
+    for storage in candidates:
+        try:
+            exists = storage.exists(relative)
+        except (OSError, SuspiciousFileOperation, ValueError):
+            continue
+        if not exists:
+            continue
+        try:
+            handle = storage.open(relative, "rb")
+            break
+        except (OSError, SuspiciousFileOperation, ValueError, FileNotFoundError):
+            continue
+
+    if handle is None:
         raise Http404("File not found.")
-
-    try:
-        handle = default_storage.open(relative, "rb")
-    except (OSError, SuspiciousFileOperation, ValueError, FileNotFoundError):
-        raise Http404("File not found.") from None
 
     filename = Path(relative).name
     return FileResponse(handle, as_attachment=True, filename=filename)

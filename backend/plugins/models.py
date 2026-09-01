@@ -5,6 +5,8 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 
+from config.validators import validate_storage_path
+
 
 def _build_unique_slug(
     model: type[models.Model],
@@ -215,7 +217,7 @@ class PluginFile(models.Model):
     file_name = models.CharField(max_length=255)
     file_format = models.CharField(max_length=16)
     file_size = models.PositiveBigIntegerField()
-    storage_path = models.URLField()
+    storage_path = models.CharField(max_length=512, validators=[validate_storage_path])
     version = models.CharField(max_length=64, default="1.0")
     is_primary = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

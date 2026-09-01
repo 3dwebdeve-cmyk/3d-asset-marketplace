@@ -5,6 +5,8 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
+from config.validators import validate_storage_path
+
 
 class CustomProject(models.Model):
     class Status(models.TextChoices):
@@ -103,7 +105,7 @@ class ProjectFile(models.Model):
         default=FileType.OTHER,
     )
     file_name = models.CharField(max_length=255)
-    storage_path = models.URLField()
+    storage_path = models.CharField(max_length=512, validators=[validate_storage_path])
     file_size = models.PositiveBigIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -134,7 +136,7 @@ class ProjectDelivery(models.Model):
         related_name="custom_project_deliveries",
     )
     file_name = models.CharField(max_length=255)
-    storage_path = models.URLField()
+    storage_path = models.CharField(max_length=512, validators=[validate_storage_path])
     file_size = models.PositiveBigIntegerField(default=0)
     version = models.PositiveIntegerField(
         default=1,
@@ -241,7 +243,7 @@ class ProjectMessageAttachment(models.Model):
         related_name="attachments",
     )
     file_name = models.CharField(max_length=255)
-    storage_path = models.URLField()
+    storage_path = models.CharField(max_length=512, validators=[validate_storage_path])
     file_size = models.PositiveBigIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~70%
 Current Development Sprint
-Current Sprint: Public site polish – Browse Models hub UI
-Sprint Goal: Align /products Browse Models page with discovery wireframe
-Sprint Status: Browse Models hub UI shipped 2026-08-06
+Current Sprint: Feature 14 — Cloudflare R2 foundation
+Sprint Goal: Dual public/private R2 backends with local MEDIA fallback
+Sprint Status: Feature 14 coded 2026-09-01
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -139,7 +139,7 @@ Public Site Pages
 • [x] Custom Projects landing (/custom-projects) — marketing page linking to request flow
 • [x] Site footer + navbar discovery links; login honors state.from redirect
 Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADMAP.md)
-• [ ] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages) — plan saved in IMPLEMENTATION_ROADMAP.md
+• [x] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages)
 • [ ] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET) — plan saved in IMPLEMENTATION_ROADMAP.md 
 • [x] Feature 16 Phase 3 — Product SKU / Model_ID identity
 • [x] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
@@ -158,16 +158,24 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Global product search bar in the navbar; /products?search= deep-link sync with browse page.
+Feature 14 — Cloudflare R2 dual backends (public CDN URLs + private object keys).
 Current Git Branch
-feature/todays-features-and-debug
+feature/2026-08-28
 Files Being Worked On
-• frontend/src/components/ProductSearchForm.tsx
-• frontend/src/components/Navbar.tsx
-• frontend/src/pages/Products/ProductsBrowsePage.tsx
-• frontend/src/styles/navbar.css
+• backend/config/settings.py
+• backend/config/storages.py
+• backend/config/media.py
+• backend/products/storage.py
+• backend/accounts/storage.py
 • PROJECT_STATUS.md
 Completed Features
+• Feature 14 — Cloudflare R2 foundation (2026-09-01)
+  - Named STORAGES public/private; S3/R2 only when all R2_* env vars are set
+  - Images/previews/avatars → 3dam-public (R2_PUBLIC_BASE_URL); packages/project files → 3dam-private keys
+  - Downloads still stream via FileResponse (Feature 14B signed URLs next)
+  - storage_path CharField(max_length=512); migrations products 0005, plugins 0004, custom_projects 0008
+  - Tests: products/test_storage.py routing + existing upload/download suites
+
 • Global product search (navbar + URL sync) (2026-08-05)
   - Reused existing GET /api/products/?search= (no new API)
   - ProductSearchForm in Navbar navigates to /products?search=…
@@ -329,8 +337,7 @@ Completed Features
 Pending Features
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 13 — Docker & local/prod runtime
-• Feature 14 — Cloudflare R2 Storage (public + private buckets; migrate catalog media off local MEDIA) — detailed plan in IMPLEMENTATION_ROADMAP.md (not coded yet)
-• Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads) — detailed plan in IMPLEMENTATION_ROADMAP.md (not coded yet)
+• Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads)
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
 • Feature 16 — Batch Catalog Ingest & QA (Phases 3–4 done; remaining: bridge, import, QA UI/workflow, E2E, hardening)
   - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md; contract: docs/batch-ingest-contract.md
@@ -340,15 +347,13 @@ Current Issues / Blockers
 • Waiting on manager approval for UI prototype
 • First Administrator must still be created via createsuperuser
 • Live Phase 1 intake Excel sign-off still pending for proposed columns (Thumbnail Path / Gallery / Tags); canonical set documented in contract
-• Cloudflare R2 access available; Feature 14/14B implementation plan saved in IMPLEMENTATION_ROADMAP.md — coding not started (Phase 0 buckets/tokens/.env still required before build)
+• Cloudflare R2 buckets exist; put R2_* keys in backend/.env to send new uploads to R2 (local MEDIA if unset)
 Bugs
 No Known Bugs
 Technical Debt
-• Avatar/product/plugin/custom-project storage is local MEDIA_ROOT (Feature 14 → Cloudflare R2)
-• Product/plugin catalog downloads use authenticated FileResponse (downloads app); private /media/ prefixes still blocked in DEBUG; signed CDN/R2 URLs = Feature 14B
-• Custom-project admin reference file URLs use local MEDIA until signed entitlement downloads ship
-• Message attachment downloads use authenticated FileResponse (same private-media pattern as reference files); still local MEDIA until R2
-• Project delivery downloads use authenticated FileResponse (same private-media pattern); still local MEDIA until R2
+• New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA files remain until migrated
+• Product/plugin catalog downloads still use authenticated FileResponse (downloads app); signed R2 URLs = Feature 14B
+• Custom-project / message / delivery downloads still FileResponse (private R2 keys when R2 on; 14B for presigned GET)
 • No batch import path yet — single-product admin upload only (Feature 16 Phase 5–6)
 • No dedicated pending_review / QA reject status beyond draft/published/archived (Feature 16 Phase 8)
 • Docker Compose not production-ready
@@ -390,9 +395,53 @@ Important Decisions
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order while R2 access is pending: Feature 16 Phase 8 (QA statuses), Feature 13 Docker, Feature 12 polish; then Feature 14 → 14B → Phase 5+ when Cloudflare is ready.
+• Recommended near-term order: Feature 14B signed downloads, then Feature 16 Phase 6 Import API.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-09-01 (Feature 14 — Cloudflare R2 foundation)
+Working Hours:
+Today's Objective: Wire Django to 3dam-public and 3dam-private with local MEDIA fallback when R2 env is unset.
+Modules Completed: Dual named storages; public CDN URLs for images/previews/avatars; private object keys for packages and custom-project files; FileResponse still used for entitled downloads
+Files Created:
+• backend/config/storages.py
+• backend/config/validators.py
+• backend/products/test_storage.py
+• backend/.env.example
+• backend/products/migrations/0005_productfile_storage_path_charfield.py
+• backend/plugins/migrations/0004_pluginfile_storage_path_charfield.py
+• backend/custom_projects/migrations/0008_storage_path_charfield.py
+Files Modified:
+• backend/config/settings.py
+• backend/config/media.py
+• backend/products/storage.py
+• backend/accounts/storage.py
+• backend/products/models.py
+• backend/plugins/models.py
+• backend/custom_projects/models.py
+• backend/requirements.txt
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• storage_path URLField → CharField(max_length=512) on product_files, plugin_files, custom project file/delivery/attachment tables
+API Endpoints:
+• None added — existing upload/download routes now persist to R2 when configured
+Frontend Pages/Components Added:
+• None
+Tests Added/Updated:
+• products/test_storage.py — public vs private routing, R2 URL builder, open_stored_file
+• Download and custom-project tests resolve stored keys without requiring /media/ URLs
+Security Checklist:
+• Paid packages never written to R2_PUBLIC_BASE_URL
+• storage_path still omitted from public APIs
+• R2 credentials only in env; .env.example has empty placeholders
+• Path traversal rejected on storage_path and media_relative_path
+Issues / Blockers:
+• Set R2_* in backend/.env to use live buckets; Feature 14B still needed for presigned downloads
+Next Recommended Task:
+• Feature 14B — signed download URLs for private R2 objects
+Notes:
+• CI/tests keep filesystem storage because R2 env is unset
+
 Date: 2026-08-06 (Browse Models page — wireframe hub UI)
 Working Hours:
 Today's Objective: Update /products (Browse Models) UI to match the approved discovery wireframe while keeping catalog deep-links.

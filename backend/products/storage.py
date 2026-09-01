@@ -1,21 +1,25 @@
-"""Local product media storage that returns a URL reference (cloud-ready shape)."""
+"""Product media storage: public bucket for previews/images, private for packages."""
 
 from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from urllib.parse import urljoin
 
-from django.conf import settings
-from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import UploadedFile
+
+from config.media import is_public_media_path, media_relative_path
+from config.storages import (
+    build_public_media_url,
+    get_private_storage,
+    get_public_storage,
+)
 
 
 class ProductMediaStorageService:
-    """Persist product media bytes and return a public URL reference."""
+    """Persist product media bytes and return a URL (public) or object key (private)."""
 
     IMAGE_PREFIX = "products/images/"
-    # Interactive GLB/glTF previews (publicly readable in DEBUG via media serve).
+    # Interactive GLB/glTF previews (publicly readable).
     PREVIEW_PREFIX = "products/previews/"
     # Paid / downloadable packages (private — authenticated download endpoints only).
     FILE_PREFIX = "products/files/"
@@ -28,53 +32,39 @@ class ProductMediaStorageService:
     @classmethod
     def save_image(cls, product_id: str, uploaded: UploadedFile, extension: str) -> str:
         key = cls.build_storage_key(cls.IMAGE_PREFIX, str(product_id), extension)
-        saved_path = default_storage.save(key, uploaded)
+        saved_path = get_public_storage().save(key, uploaded)
         return cls.build_public_url(saved_path)
 
     @classmethod
     def save_preview(cls, product_id: str, uploaded: UploadedFile, extension: str) -> str:
         key = cls.build_storage_key(cls.PREVIEW_PREFIX, str(product_id), extension)
-        saved_path = default_storage.save(key, uploaded)
+        saved_path = get_public_storage().save(key, uploaded)
         return cls.build_public_url(saved_path)
 
     @classmethod
     def save_file(cls, product_id: str, uploaded: UploadedFile, extension: str) -> str:
         key = cls.build_storage_key(cls.FILE_PREFIX, str(product_id), extension)
-        saved_path = default_storage.save(key, uploaded)
-        return cls.build_public_url(saved_path)
+        return get_private_storage().save(key, uploaded)
 
     @classmethod
     def build_public_url(cls, storage_path: str) -> str:
-        media_url = settings.MEDIA_URL
-        if media_url.startswith("http://") or media_url.startswith("https://"):
-            return urljoin(
-                media_url if media_url.endswith("/") else f"{media_url}/",
-                storage_path,
-            )
-
-        base = getattr(settings, "PUBLIC_API_BASE_URL", "http://127.0.0.1:8000").rstrip(
-            "/"
-        )
-        relative = f"{media_url.rstrip('/')}/{storage_path.lstrip('/')}"
-        return f"{base}{relative}"
+        return build_public_media_url(storage_path)
 
     @classmethod
     def delete_if_managed(cls, media_url: str, *, prefix: str) -> None:
         if not media_url:
             return
 
-        media_marker = "/media/"
-        if media_marker not in media_url:
+        relative = media_relative_path(media_url)
+        if relative is None or not relative.startswith(prefix):
             return
 
-        relative = media_url.split(media_marker, maxsplit=1)[1]
-        if not relative or ".." in relative or relative.startswith(("/", "\\")):
-            return
-
-        if not relative.startswith(prefix):
-            return
-
-        if default_storage.exists(relative):
-            default_storage.delete(relative)
+        storage = (
+            get_public_storage()
+            if is_public_media_path(relative)
+            else get_private_storage()
+        )
+        if storage.exists(relative):
+            storage.delete(relative)
 
         _ = Path(relative)
