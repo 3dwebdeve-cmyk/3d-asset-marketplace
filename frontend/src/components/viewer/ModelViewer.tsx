@@ -1,9 +1,10 @@
-import { Suspense, useEffect, useMemo } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
+import { applyWireframe } from './applyWireframe'
 import { disposeSceneResources } from './disposeSceneResources'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
@@ -50,7 +51,7 @@ export function fitPreviewScene(source: THREE.Object3D, targetSize = 1.8): THREE
   return root
 }
 
-function PreviewModel({ url }: { url: string }) {
+function PreviewModel({ url, wireframe }: { url: string; wireframe: boolean }) {
   const { scene } = useGLTF(url)
   const fitted = useMemo(() => fitPreviewScene(scene), [scene])
 
@@ -60,6 +61,13 @@ function PreviewModel({ url }: { url: string }) {
       useGLTF.clear(url)
     }
   }, [fitted, url])
+
+  useEffect(() => {
+    applyWireframe(fitted, wireframe)
+    return () => {
+      applyWireframe(fitted, false)
+    }
+  }, [fitted, wireframe])
 
   return <primitive object={fitted} />
 }
@@ -107,6 +115,8 @@ function ModelViewerCanvas({
   visible: boolean
   pixelRatio: number
 }) {
+  const [wireframe, setWireframe] = useState(false)
+
   return (
     <div className="model-viewer" role="img" aria-label={ariaLabel}>
       <Canvas
@@ -119,7 +129,7 @@ function ModelViewerCanvas({
         <color attach="background" args={['#eceff4']} />
         <StudioLights />
         <Suspense fallback={null}>
-          <PreviewModel key={modelUrl} url={modelUrl} />
+          <PreviewModel key={modelUrl} url={modelUrl} wireframe={wireframe} />
         </Suspense>
         <OrbitControls
           makeDefault
@@ -130,6 +140,17 @@ function ModelViewerCanvas({
           maxPolarAngle={Math.PI * 0.92}
         />
       </Canvas>
+      <button
+        type="button"
+        className={`model-viewer__wireframe-btn${
+          wireframe ? ' model-viewer__wireframe-btn--active' : ''
+        }`}
+        aria-pressed={wireframe}
+        aria-label="Wireframe"
+        onClick={() => setWireframe((current) => !current)}
+      >
+        Wireframe
+      </button>
       <ViewerProgressOverlay />
     </div>
   )

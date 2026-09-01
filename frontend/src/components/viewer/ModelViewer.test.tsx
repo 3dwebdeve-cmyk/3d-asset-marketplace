@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Object3D } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -83,6 +84,10 @@ describe('ModelViewer', () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-dpr', '1.25')
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'always')
+    expect(screen.getByRole('button', { name: 'Wireframe' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {
@@ -92,6 +97,7 @@ describe('ModelViewer', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent(/3d preview unavailable/i)
     expect(screen.queryByTestId('r3f-canvas')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Wireframe' })).not.toBeInTheDocument()
 
     rerender(
       <ModelViewer
@@ -143,5 +149,23 @@ describe('ModelViewer', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent(/webgl is unavailable/i)
     expect(screen.queryByTestId('r3f-canvas')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Wireframe' })).not.toBeInTheDocument()
+  })
+
+  it('toggles the Wireframe button pressed state', async () => {
+    const user = userEvent.setup()
+    render(
+      <ModelViewer
+        modelUrl="https://cdn.example.com/preview.glb"
+        ariaLabel="Interactive 3D preview of Demo Asset"
+      />,
+    )
+
+    const button = screen.getByRole('button', { name: 'Wireframe' })
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(button)
+
+    expect(button).toHaveAttribute('aria-pressed', 'true')
   })
 })

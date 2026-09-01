@@ -155,49 +155,6 @@ export function ProductImageGallery({
   return (
     <div className="product-detail-gallery">
       <div className="product-detail-stage">
-        <div className="product-detail-stage__chrome">
-          <span className="product-detail-stage__badge">
-            {showModelStage ? '3D preview' : 'Image preview'}
-          </span>
-          <div className="product-detail-stage__mode">
-            {hasSafePreviewModel ? (
-              <button
-                type="button"
-                className={`product-detail-stage__mode-btn${
-                  showModelStage ? ' product-detail-stage__mode-btn--active' : ''
-                }`}
-                onClick={() => setViewMode('model')}
-                aria-pressed={showModelStage}
-              >
-                3D
-              </button>
-            ) : null}
-            {galleryImages.length > 0 ? (
-              <button
-                type="button"
-                className={`product-detail-stage__mode-btn${
-                  !showModelStage ? ' product-detail-stage__mode-btn--active' : ''
-                }`}
-                onClick={() => setViewMode('image')}
-                aria-pressed={!showModelStage}
-              >
-                Images
-              </button>
-            ) : null}
-            {!hasSafePreviewModel && galleryImages.length === 0 ? (
-              <span className="product-detail-stage__hint">Preview coming soon</span>
-            ) : (
-              <span className="product-detail-stage__hint">
-                {showModelStage
-                  ? 'Drag to orbit · scroll to zoom'
-                  : activeImage && !activeFailed
-                    ? 'Click to zoom'
-                    : 'Preview coming soon'}
-              </span>
-            )}
-          </div>
-        </div>
-
         {showModelStage ? (
           <div className="product-detail-stage__viewer">
             <LazyModelViewer
@@ -214,7 +171,7 @@ export function ProductImageGallery({
             <p className="product-detail-stage__empty-title">No preview image</p>
             <p className="product-detail-stage__empty-body">
               {hasSafePreviewModel
-                ? 'Switch to 3D to view the interactive preview model.'
+                ? 'Use the 3D thumbnail to view the interactive preview model.'
                 : 'No preview image or model is available for this product yet.'}
             </p>
           </div>
@@ -239,6 +196,21 @@ export function ProductImageGallery({
 
       {galleryImages.length > 0 ? (
         <ul className="product-detail-gallery__thumbs" aria-label="Product image thumbnails">
+          {hasSafePreviewModel ? (
+            <li>
+              <button
+                type="button"
+                className={`product-detail-gallery__thumb${
+                  showModelStage ? ' product-detail-gallery__thumb--active' : ''
+                }`}
+                onClick={() => setViewMode('model')}
+                aria-label="Show 3D preview"
+                aria-current={showModelStage ? 'true' : undefined}
+              >
+                <span className="product-detail-gallery__thumb-3d">3D</span>
+              </button>
+            </li>
+          ) : null}
           {galleryImages.map((image, index) => {
             const failed = imgErrorIds.has(image.id)
             return (
