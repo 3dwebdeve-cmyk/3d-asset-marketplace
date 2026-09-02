@@ -1,32 +1,46 @@
+import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { AuthModal } from '../../components/auth/AuthModal'
 import { useAuthStore } from '../../store/authStore'
-import { resetAuthStore } from '../../test/test-utils'
+import { useAuthUiStore } from '../../store/authUiStore'
+import { createTestQueryClient, resetAuthStore, resetAuthUiStore } from '../../test/test-utils'
 import { HomePage } from './HomePage'
 
 function renderHomePage() {
+  const queryClient = createTestQueryClient()
   return render(
-    <MemoryRouter>
-      <HomePage />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <HomePage />
+        <AuthModal />
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
 beforeEach(() => {
   resetAuthStore()
+  resetAuthUiStore()
 })
 
 describe('HomePage', () => {
-  it('shows sign-in and register links when signed out', () => {
+  it('shows sign-in and register actions when signed out', async () => {
+    const user = userEvent.setup()
     renderHomePage()
 
-    expect(screen.getByRole('link', { name: /create account/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: /go to dashboard/i }),
     ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+    expect(useAuthUiStore.getState().isOpen).toBe(true)
+    expect(screen.getByRole('heading', { name: /create an account/i })).toBeInTheDocument()
   })
 
   it('shows the dashboard link when signed in', () => {
@@ -42,6 +56,6 @@ describe('HomePage', () => {
     expect(
       screen.getByRole('link', { name: /go to dashboard/i }),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /create account/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /create account/i })).not.toBeInTheDocument()
   })
 })

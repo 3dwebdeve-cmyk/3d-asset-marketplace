@@ -1,5 +1,6 @@
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
+import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
@@ -76,9 +77,9 @@ export function PasswordResetConfirmPage() {
         ) : null}
 
         <p className="auth-card__footer">
-          <Link className="auth-link" to="/login">
+          <AuthEntryButton mode="login" className="auth-link auth-link--button">
             Back to sign in
-          </Link>
+          </AuthEntryButton>
         </p>
       </section>
     </main>

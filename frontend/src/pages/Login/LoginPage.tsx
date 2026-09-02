@@ -1,54 +1,26 @@
-import { useEffect } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useLayoutEffect } from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
 
-import { Alert } from '../../components/ui/Alert'
-import { Button } from '../../components/ui/Button'
-import { FormField } from '../../components/ui/FormField'
-import { Input } from '../../components/ui/Input'
+import { safePostLoginPath } from '../../lib/safePostLoginPath'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
-import { useLoginForm } from './useLoginForm'
-
-function safePostLoginPath(fromPathname: unknown): string | null {
-  if (typeof fromPathname !== 'string' || !fromPathname.startsWith('/')) {
-    return null
-  }
-  // Prevent open redirects to external URLs or protocol-relative paths.
-  if (fromPathname.startsWith('//') || fromPathname.includes('\\')) {
-    return null
-  }
-  return fromPathname
-}
+import { useAuthUiStore } from '../../store/authUiStore'
 
 export function LoginPage() {
-  const navigate = useNavigate()
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
+  const openAuthModal = useAuthUiStore((state) => state.open)
   const redirectFrom = safePostLoginPath(
     (location.state as { from?: { pathname?: string } } | null)?.from?.pathname,
   )
-  const {
-    register,
-    handleSubmit,
-    errors,
-    isSubmitting,
-    serverError,
-    emailNotVerified,
-    isSuccess,
-    onSubmit,
-  } = useLoginForm()
 
-  useEffect(() => {
-    if (!isSuccess) {
+  useLayoutEffect(() => {
+    if (isAuthenticated) {
       return
     }
-
-    const role = useAuthStore.getState().user?.role
-    navigate(isAdministrator(role) ? '/admin' : (redirectFrom ?? '/dashboard'), {
-      replace: true,
-    })
-  }, [isSuccess, navigate, redirectFrom])
+    openAuthModal({ mode: 'login', returnTo: redirectFrom })
+  }, [isAuthenticated, openAuthModal, redirectFrom])
 
   if (isAuthenticated && isAdministrator(user?.role)) {
     return <Navigate to="/admin" replace />
@@ -58,82 +30,5 @@ export function LoginPage() {
     return <Navigate to={redirectFrom ?? '/dashboard'} replace />
   }
 
-  const showAdminLoginHint =
-    Boolean(serverError) &&
-    serverError?.toLowerCase().includes('admin sign-in')
-
-  return (
-    <main className="auth-page">
-      <section className="auth-card" aria-labelledby="login-title">
-        <header className="auth-card__header">
-          <p className="auth-card__eyebrow">3D Asset Marketplace</p>
-          <h1 id="login-title">Sign in</h1>
-          <p className="auth-card__subtitle">
-            Welcome back. Sign in to access your account and purchases.
-          </p>
-        </header>
-
-        {serverError ? <Alert variant="error" message={serverError} /> : null}
-
-        {showAdminLoginHint ? (
-          <p className="auth-card__footer">
-            <Link className="auth-link" to="/admin/login">
-              Go to admin sign in
-            </Link>
-          </p>
-        ) : null}
-
-        {emailNotVerified ? (
-          <p className="auth-card__footer">
-            <Link className="auth-link" to="/verify-email/resend">
-              Resend verification email
-            </Link>
-          </p>
-        ) : null}
-
-        <form className="auth-form" onSubmit={handleSubmit(onSubmit)} noValidate>
-          <FormField id="email" label="Email address" error={errors.email?.message}>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              hasError={Boolean(errors.email)}
-              aria-invalid={Boolean(errors.email)}
-              aria-describedby={errors.email ? 'email-error' : undefined}
-              {...register('email')}
-            />
-          </FormField>
-
-          <FormField id="password" label="Password" error={errors.password?.message}>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              hasError={Boolean(errors.password)}
-              aria-invalid={Boolean(errors.password)}
-              aria-describedby={errors.password ? 'password-error' : undefined}
-              {...register('password')}
-            />
-          </FormField>
-
-          <Button type="submit" isLoading={isSubmitting}>
-            Sign in
-          </Button>
-        </form>
-
-        <p className="auth-card__footer">
-          <Link className="auth-link" to="/forgot-password">
-            Forgot password?
-          </Link>
-        </p>
-
-        <p className="auth-card__footer">
-          Don&apos;t have an account?{' '}
-          <Link className="auth-link" to="/register">
-            Create one
-          </Link>
-        </p>
-      </section>
-    </main>
-  )
+  return <Navigate to="/" replace />
 }

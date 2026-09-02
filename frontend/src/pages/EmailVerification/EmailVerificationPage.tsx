@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 
+import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { Alert } from '../../components/ui/Alert'
 import { Spinner } from '../../components/ui/Spinner'
 import { useEmailVerification } from './useEmailVerification'
@@ -34,9 +35,9 @@ export function EmailVerificationPage() {
 
         <p className="auth-card__footer">
           {successMessage ? (
-            <Link className="auth-link" to="/login">
+            <AuthEntryButton mode="login" className="auth-link auth-link--button">
               Continue to sign in
-            </Link>
+            </AuthEntryButton>
           ) : (
             <Link className="auth-link" to="/verify-email/resend">
               Resend verification email

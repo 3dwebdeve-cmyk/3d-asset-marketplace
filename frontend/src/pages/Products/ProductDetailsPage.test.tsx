@@ -403,15 +403,9 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: /sign in to add to cart/i })).toHaveAttribute(
-      'href',
-      '/login',
-    )
-    expect(screen.getByRole('link', { name: /sign in to add to wishlist/i })).toHaveAttribute(
-      'href',
-      '/login',
-    )
-    expect(screen.getByRole('link', { name: /sign in to buy/i })).toHaveAttribute('href', '/login')
+    expect(screen.getByRole('button', { name: /sign in to add to cart/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in to add to wishlist/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in to buy/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
   })
 

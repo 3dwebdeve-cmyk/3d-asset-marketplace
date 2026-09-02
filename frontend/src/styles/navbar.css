@@ -59,6 +59,13 @@
   text-decoration: none;
 }
 
+button.navbar__link {
+  border: none;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
 .navbar__link:hover {
   color: var(--text-heading);
   text-decoration: underline;

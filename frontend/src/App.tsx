@@ -5,6 +5,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { Navbar } from './components/Navbar'
 import { SiteFooter } from './components/SiteFooter'
 import { CartDrawer } from './components/cart/CartDrawer'
+import { AuthModal } from './components/auth/AuthModal'
 import { Spinner } from './components/ui/Spinner'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
 import { HomePage } from './pages/Home/HomePage'
@@ -295,6 +296,7 @@ function AppRoutes() {
     <>
       {!hideMainNavbar ? <Navbar /> : null}
       <CartDrawer />
+      <AuthModal />
       <div className="app-shell">
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>

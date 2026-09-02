@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 
+import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { useWishlist } from '../../hooks/useWishlist'
 import type { WishlistProductType } from '../../types/wishlist'
 import { Button } from '../ui/Button'
@@ -22,34 +23,33 @@ export function WishlistToggle({
   const location = useLocation()
   const { isSignedIn, isWishlisted, toggle, isPending } = useWishlist()
 
-  const loginPath = '/login'
-  const loginState = { from: location }
+  const returnTo = location.pathname
   const wishlisted = isWishlisted(productType, productId)
 
   if (!isSignedIn) {
     if (variant === 'icon') {
       return (
-        <Link
-          to={loginPath}
-          state={loginState}
+        <AuthEntryButton
+          mode="login"
+          returnTo={returnTo}
           className={`product-card__wishlist product-card__wishlist--guest ${className ?? ''}`.trim()}
           aria-label={`Sign in to add ${productName} to wishlist`}
         >
           <span className="product-card__wishlist-icon" aria-hidden="true">
             ♡
           </span>
-        </Link>
+        </AuthEntryButton>
       )
     }
 
     return (
-      <Link
-        to={loginPath}
-        state={loginState}
+      <AuthEntryButton
+        mode="login"
+        returnTo={returnTo}
         className="ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link"
       >
         Sign in to add to wishlist
-      </Link>
+      </AuthEntryButton>
     )
   }
 

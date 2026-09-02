@@ -1,14 +1,22 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as authApi from '../../api/authApi'
-import { createTestQueryClient, resetAuthStore, resetToastStore, testUser } from '../../test/test-utils'
-import { useAuthStore } from '../../store/authStore'
-import { LoginPage } from './LoginPage'
+import { AuthModal } from '../../components/auth/AuthModal'
 import { Toaster } from '../../components/ui/Toaster'
+import { useAuthStore } from '../../store/authStore'
+import { useAuthUiStore } from '../../store/authUiStore'
+import {
+  createTestQueryClient,
+  resetAuthStore,
+  resetAuthUiStore,
+  resetToastStore,
+  testUser,
+} from '../../test/test-utils'
+import { LoginPage } from './LoginPage'
 
 vi.mock('../../api/authApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/authApi')>('../../api/authApi')
@@ -29,11 +37,14 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
+          <Route path="/" element={<div>Home</div>} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<div>Forgot password page</div>} />
           <Route path="/dashboard" element={<div>Dashboard</div>} />
           <Route path="/dashboard/projects/new" element={<div>New project</div>} />
           <Route path="/admin" element={<div>Admin home</div>} />
         </Routes>
+        <AuthModal />
         <LocationDisplay />
         <Toaster />
       </MemoryRouter>
@@ -44,11 +55,12 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
 beforeEach(() => {
   vi.clearAllMocks()
   resetAuthStore()
+  resetAuthUiStore()
   resetToastStore()
 })
 
 describe('LoginPage redirect', () => {
-  it('redirects customers to state.from after successful login', async () => {
+  it('opens the login modal on home and redirects customers to state.from after successful login', async () => {
     const user = userEvent.setup()
     vi.mocked(authApi.loginUser).mockResolvedValue({
       access: 'access-token',
@@ -61,9 +73,18 @@ describe('LoginPage redirect', () => {
       state: { from: { pathname: '/dashboard/projects/new' } },
     })
 
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/')
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
     await user.type(screen.getByLabelText(/email address/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await user.click(
+      within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
+        name: /sign in/i,
+      }),
+    )
 
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/projects/new')
@@ -98,12 +119,70 @@ describe('LoginPage redirect', () => {
 
     renderLogin('/login')
 
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
+    })
+    expect(screen.getByLabelText(/remember me/i)).toBeChecked()
+
     await user.type(screen.getByLabelText(/email address/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await user.click(
+      within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
+        name: /sign in/i,
+      }),
+    )
 
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent('/dashboard')
     })
+  })
+
+  it('keeps the session out of localStorage when Remember me is unchecked', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authApi.loginUser).mockResolvedValue({
+      access: 'access-token',
+      refresh: 'refresh-token',
+      user: testUser,
+    })
+
+    renderLogin('/login')
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/email address/i), testUser.email)
+    await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
+    await user.click(screen.getByLabelText(/remember me/i))
+    await user.click(
+      within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
+        name: /sign in/i,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/dashboard')
+    })
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(useAuthStore.getState().rememberSession).toBe(false)
+    expect(localStorage.getItem('auth-storage')).not.toMatch(/access-token/)
+  })
+
+  it('navigates to forgot password when the link is clicked', async () => {
+    const user = userEvent.setup()
+
+    renderLogin('/login')
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/forgot-password')
+      expect(screen.getByText('Forgot password page')).toBeInTheDocument()
+    })
+    expect(useAuthUiStore.getState().isOpen).toBe(false)
   })
 })

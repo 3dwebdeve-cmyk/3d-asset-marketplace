@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
+import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { useAuthStore } from '../../store/authStore'
 
 export function HomePage() {
@@ -33,12 +34,16 @@ export function HomePage() {
             </Link>
           ) : (
             <>
-              <Link className="home-page__cta" to="/register">
+              <AuthEntryButton mode="register" returnTo="/" className="home-page__cta">
                 Create account
-              </Link>
-              <Link className="home-page__cta home-page__cta--secondary" to="/login">
+              </AuthEntryButton>
+              <AuthEntryButton
+                mode="login"
+                returnTo="/"
+                className="home-page__cta home-page__cta--secondary"
+              >
                 Sign in
-              </Link>
+              </AuthEntryButton>
             </>
           )}
         </div>
