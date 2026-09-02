@@ -35,9 +35,15 @@ export function useLoginForm(): UseLoginFormResult {
   })
 
   const mutation = useMutation({
-    mutationFn: loginUser,
-    onSuccess: (data: LoginResponse) => {
-      setSession({ access: data.access, refresh: data.refresh, user: data.user })
+    mutationFn: async (values: LoginFormValues) => {
+      const data = await loginUser({
+        email: values.email,
+        password: values.password,
+      })
+      return { data, remember: values.remember_me }
+    },
+    onSuccess: ({ data, remember }: { data: LoginResponse; remember: boolean }) => {
+      setSession({ access: data.access, refresh: data.refresh, user: data.user }, { remember })
       queryClient.setQueryData(['auth', 'me', data.access], data.user)
       if (data.user.role === 'Administrator') {
         queryClient.setQueryData(['auth', 'admin', 'me', data.access], data.user)
@@ -62,10 +68,7 @@ export function useLoginForm(): UseLoginFormResult {
       return
     }
 
-    mutation.mutate({
-      email: parsed.data.email,
-      password: parsed.data.password,
-    })
+    mutation.mutate(parsed.data)
   }
 
   return {

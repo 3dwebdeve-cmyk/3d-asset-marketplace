@@ -19,9 +19,11 @@ interface AuthState {
   refreshToken: string | null
   user: AuthUser | null
   isAuthenticated: boolean
+  /** When false, tokens stay in memory only and are not written to localStorage. */
+  rememberSession: boolean
   /** One-shot redirect used after intentional sign-out. Not persisted. */
   postLogoutRedirect: string | null
-  setSession: (session: AuthSession) => void
+  setSession: (session: AuthSession, options?: { remember?: boolean }) => void
   setUser: (user: AuthUser) => void
   updateAccessToken: (access: string) => void
   updateTokens: (tokens: { access: string; refresh?: string }) => void
@@ -36,13 +38,15 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       user: null,
       isAuthenticated: false,
+      rememberSession: true,
       postLogoutRedirect: null,
-      setSession: ({ access, refresh, user }) =>
+      setSession: ({ access, refresh, user }, options) =>
         set({
           accessToken: access,
           refreshToken: refresh,
           user,
           isAuthenticated: true,
+          rememberSession: options?.remember !== false,
           postLogoutRedirect: null,
         }),
       setUser: (user) => set({ user }),
@@ -58,18 +62,25 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: null,
           user: null,
           isAuthenticated: false,
+          rememberSession: true,
           postLogoutRedirect: options?.redirectTo ?? null,
         }),
       clearPostLogoutRedirect: () => set({ postLogoutRedirect: null }),
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-      }),
+      partialize: (state) => {
+        if (state.rememberSession === false) {
+          return { rememberSession: false as const }
+        }
+        return {
+          accessToken: state.accessToken,
+          refreshToken: state.refreshToken,
+          user: state.user,
+          isAuthenticated: state.isAuthenticated,
+          rememberSession: true as const,
+        }
+      },
     },
   ),
 )

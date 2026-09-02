@@ -36,8 +36,8 @@
   --code-bg: var(--bg-section);
   --social-bg: var(--bg-section);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Poppins', system-ui, 'Segoe UI', sans-serif;
+  --heading: 'Poppins', system-ui, 'Segoe UI', sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
   font: 18px/145% var(--sans);
@@ -133,6 +133,16 @@
   color: var(--pure-white);
   font-weight: 600;
   text-decoration: none;
+}
+
+button.home-page__cta {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+}
+
+button.home-page__cta--secondary {
+  border: 1px solid var(--accent-border);
 }
 
 .home-page__cta--secondary {

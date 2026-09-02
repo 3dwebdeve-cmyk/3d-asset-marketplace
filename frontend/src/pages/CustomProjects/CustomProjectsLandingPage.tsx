@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
@@ -39,18 +40,22 @@ export function CustomProjectsLandingPage() {
                 Open admin projects
               </Link>
             ) : (
-              <Link
+              <AuthEntryButton
+                mode="login"
+                returnTo={REQUEST_PATH}
                 className="home-page__cta"
-                to="/login"
-                state={{ from: { pathname: REQUEST_PATH } }}
               >
                 Sign in to request a project
-              </Link>
+              </AuthEntryButton>
             )}
             {!isAuthenticated ? (
-              <Link className="home-page__cta home-page__cta--secondary" to="/register">
+              <AuthEntryButton
+                mode="register"
+                returnTo={REQUEST_PATH}
+                className="home-page__cta home-page__cta--secondary"
+              >
                 Create an account
-              </Link>
+              </AuthEntryButton>
             ) : null}
             <Link className="home-page__cta home-page__cta--secondary" to="/contact">
               Ask a question first

@@ -8,9 +8,10 @@ import * as authApi from '../api/authApi'
 import * as cartApi from '../api/cartApi'
 import * as notificationsApi from '../api/notificationsApi'
 import * as wishlistApi from '../api/wishlistApi'
+import { AuthModal } from './auth/AuthModal'
 import { ProtectedRoute } from '../routes/ProtectedRoute'
 import { useAuthStore } from '../store/authStore'
-import { createTestQueryClient, resetAuthStore, testUser } from '../test/test-utils'
+import { createTestQueryClient, resetAuthStore, resetAuthUiStore, testUser } from '../test/test-utils'
 import { Navbar } from './Navbar'
 
 vi.mock('../api/authApi', async () => {
@@ -76,6 +77,7 @@ function renderNavbar(initialPath = '/') {
             <Route path="/profile" element={<div>Profile page</div>} />
           </Route>
         </Routes>
+        <AuthModal />
         <LocationDisplay />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -84,6 +86,7 @@ function renderNavbar(initialPath = '/') {
 
 beforeEach(() => {
   resetAuthStore()
+  resetAuthUiStore()
   vi.clearAllMocks()
   vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
     count: 0,
@@ -117,8 +120,8 @@ describe('Navbar', () => {
   it('shows Sign in and Register when logged out', () => {
     renderNavbar()
 
-    expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /register/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^about$/i })).toHaveAttribute('href', '/about')
     expect(screen.getByRole('link', { name: /^contact$/i })).toHaveAttribute('href', '/contact')
     expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
@@ -246,6 +249,6 @@ describe('Navbar', () => {
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
     expect(authApi.logoutUser).toHaveBeenCalledWith('refresh-token')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    expect(screen.getByRole('link', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 })

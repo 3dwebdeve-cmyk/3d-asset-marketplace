@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 
+import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { useCart } from '../../hooks/useCart'
 import type { CartProductType } from '../../types/cart'
 import { Button } from '../ui/Button'
@@ -20,19 +21,18 @@ export function AddToCartButton({
   const location = useLocation()
   const { isSignedIn, isInCart, add, isPending } = useCart()
 
-  const loginPath = '/login'
-  const loginState = { from: location }
+  const returnTo = location.pathname
   const inCart = isInCart(productType, productId)
 
   if (!isSignedIn) {
     return (
-      <Link
-        to={loginPath}
-        state={loginState}
+      <AuthEntryButton
+        mode="login"
+        returnTo={returnTo}
         className={`ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link ${className ?? ''}`.trim()}
       >
         Sign in to add to cart
-      </Link>
+      </AuthEntryButton>
     )
   }
 

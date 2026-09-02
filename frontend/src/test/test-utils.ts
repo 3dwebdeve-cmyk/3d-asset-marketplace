@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 
 import { useAuthStore } from '../store/authStore'
+import { useAuthUiStore } from '../store/authUiStore'
 import { useToastStore } from '../store/toastStore'
 import type { AuthUser } from '../types/auth'
 
@@ -20,14 +21,23 @@ export function resetAuthStore(): void {
     accessToken: null,
     refreshToken: null,
     user: null,
-    isAuthenticated: false,
-    postLogoutRedirect: null,
+      isAuthenticated: false,
+      rememberSession: true,
+      postLogoutRedirect: null,
   })
   localStorage.clear()
 }
 
 export function resetToastStore(): void {
   useToastStore.setState({ toasts: [] })
+}
+
+export function resetAuthUiStore(): void {
+  useAuthUiStore.setState({
+    isOpen: false,
+    mode: 'login',
+    returnTo: null,
+  })
 }
 
 export const testUser: AuthUser = {

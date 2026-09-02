@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Link } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { z } from 'zod'
+
+import { AuthEntryButton } from '../auth/AuthEntryButton'
 
 import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/ErrorState'
@@ -45,6 +47,7 @@ export function ReviewsSection({
   averageRating,
   reviewCount,
 }: ReviewsSectionProps) {
+  const location = useLocation()
   const [page, setPage] = useState(1)
   const {
     isSignedIn,
@@ -138,9 +141,13 @@ export function ReviewsSection({
       <div className="product-detail-reviews__form-panel">
         {!isSignedIn ? (
           <p className="product-detail-reviews__gate">
-            <Link to="/login" className="auth-link">
+            <AuthEntryButton
+              mode="login"
+              returnTo={location.pathname}
+              className="auth-link auth-link--button"
+            >
               Sign in
-            </Link>{' '}
+            </AuthEntryButton>{' '}
             to leave a review after purchasing this item.
           </p>
         ) : isEligibilityLoading ? (

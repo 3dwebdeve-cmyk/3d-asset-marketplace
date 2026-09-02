@@ -158,17 +158,28 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 14 — Cloudflare R2 dual backends (public CDN URLs + private object keys).
+Customer Sign In / Register as a global popup instead of standalone pages.
 Current Git Branch
-feature/2026-08-28
+feature/today-2-9-26
 Files Being Worked On
-• backend/config/settings.py
-• backend/config/storages.py
-• backend/config/media.py
-• backend/products/storage.py
-• backend/accounts/storage.py
+• frontend/src/components/auth/AuthModal.tsx
+• frontend/src/store/authUiStore.ts
+• frontend/src/pages/Login/LoginPage.tsx
+• frontend/src/pages/Register/RegisterPage.tsx
+• frontend/src/components/Navbar.tsx
 • PROJECT_STATUS.md
 Completed Features
+• Customer auth popup (2026-09-02)
+  - Sign in and Register open a dialog on the current page (navbar, home, product/plugin CTAs, wishlist, reviews, custom projects)
+  - /login and /register remain shortcuts that open the popup on home and honor ProtectedRoute state.from
+  - Register still does not auto-login (email verification); admin login stays /admin/login
+  - returnTo is sanitized against open redirects; modal state is not persisted
+• Customer Sign In / Register UI restyle (2026-09-02)
+  - Shared Sign In / Register pill tabs; icon fields; show/hide password
+  - Remember me on Sign In (unchecked = in-memory session, not localStorage)
+  - Register collects optional phone and country (same fields as POST /api/auth/register/)
+  - Phone and country stay optional on the API
+  - Admin login, password reset, contact, and profile still use the original auth-card layout
 • Feature 14 — Cloudflare R2 foundation (2026-09-01)
   - Named STORAGES public/private; S3/R2 only when all R2_* env vars are set
   - Images/previews/avatars → 3dam-public (R2_PUBLIC_BASE_URL); packages/project files → 3dam-private keys

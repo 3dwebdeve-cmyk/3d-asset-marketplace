@@ -1,9 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { logoutUser } from '../api/authApi'
 import { getCart } from '../api/cartApi'
 import { listWishlistItems } from '../api/wishlistApi'
+import { AuthEntryButton } from './auth/AuthEntryButton'
 import { isAdministrator } from '../lib/roles'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
@@ -18,6 +19,7 @@ function formatUnreadBadge(count: number): string {
 
 export function Navbar() {
   const navigate = useNavigate()
+  const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   const refreshToken = useAuthStore((state) => state.refreshToken)
@@ -144,12 +146,20 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Link className="navbar__link" to="/login">
+              <AuthEntryButton
+                mode="login"
+                returnTo={location.pathname}
+                className="navbar__link"
+              >
                 Sign in
-              </Link>
-              <Link className="navbar__link navbar__link--primary" to="/register">
+              </AuthEntryButton>
+              <AuthEntryButton
+                mode="register"
+                returnTo={location.pathname}
+                className="navbar__link navbar__link--primary"
+              >
                 Register
-              </Link>
+              </AuthEntryButton>
             </>
           )}
         </div>

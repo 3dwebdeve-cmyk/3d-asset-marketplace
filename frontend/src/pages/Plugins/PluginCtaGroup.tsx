@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 
+import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import { AddToCartButton } from '../../components/cart/AddToCartButton'
 import { Button } from '../../components/ui/Button'
@@ -20,9 +21,7 @@ export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGr
   const addToast = useToastStore((state) => state.addToast)
   const { buyNow, isRedirecting } = useBuyNow()
   const isSignedIn = isAuthenticated && Boolean(accessToken)
-
-  const loginPath = '/login'
-  const loginState = { from: location }
+  const returnTo = location.pathname
 
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/plugins/${pluginSlug}`
@@ -55,13 +54,13 @@ export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGr
           Buy now
         </Button>
       ) : (
-        <Link
-          to={loginPath}
-          state={loginState}
+        <AuthEntryButton
+          mode="login"
+          returnTo={returnTo}
           className="ui-button ui-button--primary product-detail-cta__buy product-detail-cta__link"
         >
           Sign in to buy
-        </Link>
+        </AuthEntryButton>
       )}
 
       <div className="product-detail-cta__secondary">
