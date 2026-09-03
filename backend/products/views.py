@@ -11,9 +11,11 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminProductWriteRateThrottle
+from products.catalog_import import CatalogImportService
 from products.models import Product
 from products.pagination import ProductPagination
 from products.serializers import (
+    CatalogImportEnvelopeSerializer,
     ProductAdminSerializer,
     ProductCreateSerializer,
     ProductDetailPublicSerializer,
@@ -395,3 +397,30 @@ class AdminProductFileDetailView(APIView):
             target_id=str(product.pk),
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminCatalogImportView(APIView):
+    """POST /api/admin/products/import/ — batch upsert pending_review by Model_ID/SKU."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request) -> Response:
+        serializer = CatalogImportEnvelopeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        batch = CatalogImportService.import_batch(
+            import_batch_id=data["import_batch_id"],
+            import_source=data.get("import_source") or "catalog-bridge",
+            items=data["items"],
+            actor_id=str(request.user.pk),
+        )
+
+        log_admin_action(
+            action="catalog_import",
+            actor_id=str(request.user.pk),
+            target_id=data["import_batch_id"],
+        )
+        return Response(batch.to_dict(), status=status.HTTP_200_OK)

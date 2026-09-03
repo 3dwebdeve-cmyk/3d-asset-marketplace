@@ -1,9 +1,11 @@
 from decimal import Decimal
 from io import BytesIO
+from unittest.mock import patch
 from zipfile import ZipFile
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -466,3 +468,154 @@ class DownloadAPITests(APITestCase):
         item = response.data["items"][0]
         self.assertFalse(item["can_download"])
         self.assertEqual(item["files"], [])
+
+    @override_settings(R2_ENABLED=True, R2_SIGNED_URL_EXPIRY=300)
+    @patch("downloads.services.generate_private_presigned_url")
+    @patch("downloads.services.get_private_storage")
+    def test_paid_owner_receives_signed_json_when_r2_has_object(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        product_file = self._upload_product_file()
+        self.create_paid_order(self.customer)
+        mock_get_private_storage.return_value.exists.return_value = True
+        mock_presign.return_value = (
+            "https://acc.r2.cloudflarestorage.com/3dam-private/products/files/pack.zip"
+            "?X-Amz-Signature=test"
+        )
+        url = reverse(
+            "downloads:product-file-download",
+            kwargs={"product_id": self.product.pk, "file_id": product_file.pk},
+        )
+        self.authenticate()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["download_url"],
+            mock_presign.return_value,
+        )
+        self.assertEqual(response.data["expires_in"], 300)
+        self.assertEqual(response.data["file_name"], product_file.file_name)
+        self.assertNotIn("storage_path", response.data)
+        mock_presign.assert_called_once()
+        self.assertEqual(DownloadHistory.objects.count(), 1)
+
+    @override_settings(R2_ENABLED=True)
+    @patch("downloads.services.generate_private_presigned_url")
+    @patch("downloads.services.get_private_storage")
+    def test_r2_miss_falls_back_to_local_stream(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        product_file = self._upload_product_file()
+        self.create_paid_order(self.customer)
+        mock_get_private_storage.return_value.exists.return_value = False
+        url = reverse(
+            "downloads:product-file-download",
+            kwargs={"product_id": self.product.pk, "file_id": product_file.pk},
+        )
+        self.authenticate()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = b"".join(response.streaming_content)
+        self.assertIn(b"PK", content)
+        mock_presign.assert_not_called()
+
+    @override_settings(R2_ENABLED=True)
+    @patch("downloads.services.generate_private_presigned_url")
+    @patch("downloads.services.get_private_storage")
+    def test_r2_and_local_missing_returns_404_without_history(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        product_file = ProductFile.objects.create(
+            product=self.product,
+            file_name="ghost.zip",
+            file_format="zip",
+            file_size=12,
+            storage_path=f"products/files/{self.product.pk}/missing.zip",
+            is_preview=False,
+        )
+        self.create_paid_order(self.customer)
+        mock_get_private_storage.return_value.exists.return_value = False
+        url = reverse(
+            "downloads:product-file-download",
+            kwargs={"product_id": self.product.pk, "file_id": product_file.pk},
+        )
+        self.authenticate()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(DownloadHistory.objects.count(), 0)
+        mock_presign.assert_not_called()
+
+    @override_settings(R2_ENABLED=True)
+    @patch("downloads.services.generate_private_presigned_url")
+    @patch("downloads.services.get_private_storage")
+    def test_non_owner_still_404_when_r2_enabled(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        product_file = self._upload_product_file()
+        self.create_paid_order(self.customer)
+        mock_get_private_storage.return_value.exists.return_value = True
+        mock_presign.return_value = "https://example.test/signed"
+        url = reverse(
+            "downloads:product-file-download",
+            kwargs={"product_id": self.product.pk, "file_id": product_file.pk},
+        )
+        self.authenticate(self.other_customer)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        mock_presign.assert_not_called()
+
+    @override_settings(R2_ENABLED=True)
+    @patch("downloads.services.generate_private_presigned_url")
+    @patch("downloads.services.get_private_storage")
+    def test_paid_owner_receives_signed_json_for_plugin(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        plugin_file = self._upload_plugin_file()
+        self.create_paid_order(
+            self.customer,
+            product_type="plugin",
+            product_id=self.plugin.pk,
+        )
+        mock_get_private_storage.return_value.exists.return_value = True
+        mock_presign.return_value = "https://acc.r2.cloudflarestorage.com/plugin.zip?X-Amz-Signature=p"
+        url = reverse(
+            "downloads:plugin-file-download",
+            kwargs={"plugin_id": self.plugin.pk, "file_id": plugin_file.pk},
+        )
+        self.authenticate()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["download_url"], mock_presign.return_value)
+        self.assertEqual(response.data["file_name"], plugin_file.file_name)
+        self.assertNotIn("storage_path", response.data)
+
+    def test_missing_file_does_not_record_history(self) -> None:
+        product_file = ProductFile.objects.create(
+            product=self.product,
+            file_name="ghost.zip",
+            file_format="zip",
+            file_size=12,
+            storage_path=(
+                f"http://127.0.0.1:8000/media/products/files/{self.product.pk}/missing.zip"
+            ),
+            is_preview=False,
+        )
+        self.create_paid_order(self.customer)
+        url = reverse(
+            "downloads:product-file-download",
+            kwargs={"product_id": self.product.pk, "file_id": product_file.pk},
+        )
+        self.authenticate()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(DownloadHistory.objects.count(), 0)

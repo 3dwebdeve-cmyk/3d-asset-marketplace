@@ -26,8 +26,8 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 1. Feature 13 — Docker (local/prod runtime)
 2. Feature 12 — Public site polish (remaining)
 3. Feature 14 — Cloudflare R2 (public + private buckets) — **Done**
-4. Feature 14B — Signed R2 download URLs
-5. Feature 16 Phase 6 — Catalog Import API (marketplace repo)
+4. Feature 14B — Signed R2 download URLs — **Done**
+5. Feature 16 Phase 6 — Catalog Import API (marketplace repo) — **Done**
 6. Feature 16 Phases 7–8 — Admin import QA UI + publish workflow
 7. catalog-bridge — Desktop .exe (separate repo; depends on 14 + Phase 6)
 8. Feature 16 Phases 9–10 — E2E + hardening
@@ -73,12 +73,12 @@ Detailed plan: [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md)
 
 | Item | Status |
 |------|--------|
-| Entitlement check → presigned GET on private bucket | Planned |
-| JSON response `{ download_url, expires_in, file_name }` | Planned |
-| Frontend download flow update (`downloadsApi.ts`) | Planned |
-| Replace local `FileResponse` for catalog packages in prod | Planned |
+| Entitlement check → presigned GET on private bucket | **Done** |
+| JSON response `{ download_url, expires_in, file_name }` | **Done** |
+| Frontend download flow update (`downloadsApi.ts`) | **Done** |
+| Replace local `FileResponse` for catalog packages in prod | **Done** when R2 object exists; local stream remains fallback |
 
-**Technical debt this resolves:** product/plugin/custom-project/delivery files still on local disk today.
+**Technical debt this resolves:** catalog product/plugin packages download via presigned private GET instead of Django streaming. Custom-project / delivery files still use FileResponse.
 
 ---
 
@@ -91,7 +91,7 @@ Contract: [batch-ingest-contract.md](batch-ingest-contract.md)
 | 3 | Product SKU / `Model_ID` identity | **Done** | marketplace |
 | 4 | Freeze Batch Output Report + intake contracts | **Done** | marketplace |
 | 5 | Bridge uploader (Excel + folders → R2 split) | Planned | **separate `catalog-bridge` project** |
-| 6 | Catalog Import API (`pending_review` upsert by SKU) | Planned | marketplace |
+| 6 | Catalog Import API (`pending_review` upsert by SKU) | **Done** | marketplace |
 | 7 | Admin import review UI (batch filter, QA queue) | Planned | marketplace |
 | 8 | QA approve / reject → publish workflow | Partial — statuses exist; dedicated queue UI pending | marketplace |
 | 9 | E2E: import → admin QA → publish → Stripe → signed download | Planned | both |
@@ -164,8 +164,8 @@ From [PROJECT_STATUS.md](../PROJECT_STATUS.md) — addressed by planned features
 | Debt | Resolved by |
 |------|-------------|
 | Local `MEDIA_ROOT` for catalog media | Feature 14 (new uploads when R2 env set; legacy files remain local) |
-| `FileResponse` downloads from disk | Feature 14B |
-| No batch import path (admin one-by-one only) | Feature 16 Phase 6 + catalog-bridge |
+| `FileResponse` downloads from disk | Feature 14B (R2 objects); local leftover files still stream |
+| No batch import path (admin one-by-one only) | Feature 16 Phase 6 **Done**; catalog-bridge (Phase 5) still needed |
 | Docker Compose not production-ready | Feature 13 |
 | Admin audit logging | Not yet scoped — consider pre-launch |
 | Custom-project / message / delivery files on local disk | Feature 14B pattern (later phase) |
@@ -196,7 +196,7 @@ From PROJECT_STATUS final gates:
 - [x] Customer dashboard
 - [x] Admin dashboard (orders, payments, analytics, moderation)
 - [x] Stripe payments + webhooks
-- [x] Secure downloads (local; R2 signed URLs pending 14B)
+- [x] Secure downloads (local stream fallback; R2 signed URLs = Feature 14B)
 - [x] Reviews, wishlist, notifications, coupons
 
 ---
@@ -242,10 +242,8 @@ Architecture plan: Cursor plan `catalog_bridge_exe` (copy to `docs/catalog-bridg
 
 | Priority | Feature | Effort (rough) |
 |----------|---------|----------------|
-| High | Feature 14B — Signed downloads | Medium |
-| High | Feature 16 Phase 6 — Import API | Medium |
-| High | catalog-bridge desktop app | Large (separate repo) |
 | High | Feature 16 Phases 7–8 — Admin QA queue | Medium |
+| High | catalog-bridge desktop app | Large (separate repo) |
 | High | Feature 13 — Docker + deployment | Medium |
 | Medium | Feature 16 Phases 9–10 — E2E + hardening | Medium |
 | Medium | Sprint 11 — Security & performance QA | Medium |

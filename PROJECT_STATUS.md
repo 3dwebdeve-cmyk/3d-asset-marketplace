@@ -5,11 +5,11 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~70%
+Overall Completion: ~73%
 Current Development Sprint
-Current Sprint: Feature 14 — Cloudflare R2 foundation
-Sprint Goal: Dual public/private R2 backends with local MEDIA fallback
-Sprint Status: Feature 14 coded 2026-09-01
+Current Sprint: Feature 16 Phase 6 — Catalog Import API
+Sprint Goal: Administrator JSON import upserts products as pending_review by Model_ID/SKU (no auto-publish)
+Sprint Status: Feature 16 Phase 6 coded 2026-09-03
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -52,7 +52,7 @@ Sprint 5 – Plugin Store
 • [x] Plugin Categories (backend APIs)
 • [x] Plugin Listing (backend API)
 • [x] Plugin Details (backend API)
-• [x] Plugin Downloads (authenticated local FileResponse; purchase-gated)
+• [x] Plugin Downloads (authenticated; purchase-gated; R2 signed JSON when private object exists)
 • [x] Plugin Search (backend API)
 • [x] Public Plugin Browse Page (/plugins) — Feature 3A complete
   - Public TypeScript types (PublicPlugin, PublicPluginDetail, etc.)
@@ -88,8 +88,8 @@ Sprint 7 – Orders & Downloads
 • [x] Orders admin UI (Feature 21 — list/detail/create SPA)
 • [x] Order History (customer list/detail at /dashboard/orders)
 • [x] Order integrity hardening (Feature 8 — title/slug snapshots + admin status transitions)
-• [x] Secure Downloads (local authenticated FileResponse; order+payment must be paid)
-• [ ] Signed Download URLs (Feature 14B — R2 presigned GET after entitlement)
+• [x] Secure Downloads (authenticated; order+payment must be paid)
+• [x] Signed Download URLs (Feature 14B — R2 presigned GET after entitlement; local FileResponse fallback)
 • [x] Download History (download_history table; customer + admin audit UI)
 Sprint 8 – Custom Project Portal
 • [x] Request Custom Project (customer API create/list/detail + reference upload)
@@ -140,11 +140,11 @@ Public Site Pages
 • [x] Site footer + navbar discovery links; login honors state.from redirect
 Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADMAP.md)
 • [x] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages)
-• [ ] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET) — plan saved in IMPLEMENTATION_ROADMAP.md 
+• [x] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET JSON) 
 • [x] Feature 16 Phase 3 — Product SKU / Model_ID identity
 • [x] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
 • [ ] Feature 16 Phase 5 — R2 Bridge CLI uploader (report + folders → R2)
-• [ ] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
+• [x] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
 • [ ] Feature 16 Phase 7 — Admin import review UI
 • [ ] Feature 16 Phase 8 — QA approve / reject → publish workflow
 • [ ] Feature 16 Phase 9 — E2E: import → QA → Stripe → signed download
@@ -158,17 +158,31 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Customer Sign In / Register as a global popup instead of standalone pages.
+Feature 16 Phase 6 — Catalog Import API (pending_review upsert by SKU).
 Current Git Branch
-feature/today-2-9-26
+feature/today-3-9-26
 Files Being Worked On
-• frontend/src/components/auth/AuthModal.tsx
-• frontend/src/store/authUiStore.ts
-• frontend/src/pages/Login/LoginPage.tsx
-• frontend/src/pages/Register/RegisterPage.tsx
-• frontend/src/components/Navbar.tsx
+• backend/products/catalog_import.py
+• backend/products/serializers.py
+• backend/products/views.py
+• backend/products/urls.py
+• backend/products/test_catalog_import.py
 • PROJECT_STATUS.md
+• docs/PLANNED_FEATURES.md
 Completed Features
+• Feature 16 Phase 6 — Catalog Import API (2026-09-03)
+  - POST /api/admin/products/import/ — administrator JWT; batch JSON upsert by Model_ID → Product.sku
+  - Ready-to-import gate per row (contract §E); mixed skip/create/update returns 200
+  - Creates/updates as pending_review only; skips published/archived SKUs; never auto-publishes
+  - Public thumb/preview via build_public_media_url; private package.zip on ProductFile.storage_path only
+  - Gallery replace-all; single paid ProductFile sync; category resolve by name (optional subcategory child)
+  - Tests: 13 catalog import + existing products suite (40 total) OK
+• Feature 14B — Signed R2 download URLs (2026-09-03)
+  - After entitlement + history write, private R2 objects return JSON { download_url, expires_in, file_name }
+  - Filesystem / leftover local packages still stream via FileResponse
+  - Frontend opens signed https URLs via temporary anchor; keeps blob path for local streams
+  - Entitlements and order detail still expose only the authenticated API download path (no storage_path)
+  - Tests: signed JSON happy path, plugin signed JSON, local fallback, missing file without history, non-owner 404, frontend JSON vs blob + javascript: rejection
 • Customer auth popup (2026-09-02)
   - Sign in and Register open a dialog on the current page (navbar, home, product/plugin CTAs, wishlist, reviews, custom projects)
   - /login and /register remain shortcuts that open the popup on home and honor ProtectedRoute state.from
@@ -348,9 +362,8 @@ Completed Features
 Pending Features
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 13 — Docker & local/prod runtime
-• Feature 14B — Signed R2 download URLs (replace local FileResponse for entitled catalog downloads)
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
-• Feature 16 — Batch Catalog Ingest & QA (Phases 3–4 done; remaining: bridge, import, QA UI/workflow, E2E, hardening)
+• Feature 16 — Batch Catalog Ingest & QA (Phases 3–4 + 6 done; remaining: bridge, QA UI/workflow, E2E, hardening)
   - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md; contract: docs/batch-ingest-contract.md
 • Invoice PDF generation (invoice_number + paid-order PDF/receipt already shipped; remaining polish if any)
 • UI redesign pending manager prototype approval
@@ -363,9 +376,8 @@ Bugs
 No Known Bugs
 Technical Debt
 • New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA files remain until migrated
-• Product/plugin catalog downloads still use authenticated FileResponse (downloads app); signed R2 URLs = Feature 14B
-• Custom-project / message / delivery downloads still FileResponse (private R2 keys when R2 on; 14B for presigned GET)
-• No batch import path yet — single-product admin upload only (Feature 16 Phase 5–6)
+• Custom-project / message / delivery downloads still FileResponse (private R2 keys when R2 on; same presign pattern later)
+• Catalog Import API done (Phase 6); catalog-bridge uploader (Phase 5) still required for disk→R2
 • No dedicated pending_review / QA reject status beyond draft/published/archived (Feature 16 Phase 8)
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
@@ -406,9 +418,90 @@ Important Decisions
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order: Feature 14B signed downloads, then Feature 16 Phase 6 Import API.
+• Recommended near-term order: catalog-bridge (Phase 5) + Feature 16 Phase 7–8 QA queue UI (Phase 6 Import API done).
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-09-03 (Feature 16 Phase 6 — Catalog Import API)
+Working Hours:
+Today's Objective: Add administrator JSON Catalog Import API that upserts products by Model_ID/SKU as pending_review after R2 upload (no auto-publish).
+Modules Completed: CatalogImportService (gate + upsert + media pointers); POST /api/admin/products/import/; envelope serializers; admin audit log
+Files Created:
+• backend/products/catalog_import.py
+• backend/products/test_catalog_import.py
+Files Modified:
+• backend/products/serializers.py
+• backend/products/views.py
+• backend/products/urls.py
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• POST /api/admin/products/import/ — batch upsert; 200 with per-row created/updated/skipped/failed; 401/403/400 for auth/envelope
+Frontend Pages/Components Added:
+• None (Phase 7 QA UI later)
+Tests Added/Updated:
+• products.test_catalog_import: auth, happy create, re-import update, mismatch/gate skips, published/archived skip, category unmapped, public exclusion, path traversal, rejected→pending_review, storage_path omitted on public detail
+• Related products.test_products + catalog import: 40 tests OK
+Security Checklist:
+• IsAdministrator + JWT; AdminProductWriteRateThrottle; no bridge role trust
+• Object keys validated via media_relative_path (reject .. / absolute); package never on public URL fields
+• Never sets status=published; pending_review excluded from public browse
+• log_admin_action(catalog_import); no secrets in responses/logs
+Issues / Blockers:
+• Phase 5 catalog-bridge (separate repo) still needed to upload R2 + call this API
+• Phase 7–8 admin QA queue / publish UI still pending
+Next Recommended Task:
+• Feature 16 Phase 7 — Admin import review UI (batch filter / QA queue)
+Notes:
+• Website import status is pending_review (Phase 6); contract §F draft wording superseded for this API only — gate columns unchanged
+
+Date: 2026-09-03 (Feature 14B — Signed R2 download URLs)
+Working Hours:
+Today's Objective: Replace Django FileResponse proxy for private R2 catalog packages with entitlement-gated presigned GET JSON.
+Modules Completed: Private-bucket presign helper; DownloadService signed vs stream delivery; frontend JSON/blob download client
+Files Created:
+• None
+Files Modified:
+• backend/config/storages.py
+• backend/config/settings.py
+• backend/.env.example
+• backend/downloads/services.py
+• backend/downloads/views.py
+• backend/downloads/serializers.py
+• backend/downloads/test_downloads.py
+• backend/products/test_storage.py
+• frontend/src/api/downloadsApi.ts
+• frontend/src/api/downloadsApi.test.ts
+• frontend/src/types/download.ts
+• IMPLEMENTATION_ROADMAP.md
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• GET /api/downloads/products/<id>/files/<id>/download/ — JSON { download_url, expires_in, file_name } when the private R2 object exists; FileResponse otherwise
+• GET /api/downloads/plugins/<id>/files/<id>/download/ — same dual response
+Frontend Pages/Components Added:
+• None — My Downloads and order detail reuse downloadCatalogFile / downloadCatalogFileByUrl
+Tests Added/Updated:
+• downloads API: signed JSON (product + plugin), local fallback, missing file without history, non-owner 404 with R2 on
+• storage helpers: expiry clamp, Content-Disposition sanitization, boto3 presign params
+• downloadsApi.ts: blob path, signed JSON path, javascript: URL rejection
+Security Checklist:
+• Entitlement (paid order + paid payment) still required; unauthenticated 401; non-owner 404
+• DownloadRateThrottle unchanged (30/min)
+• storage_path never returned; entitlements still use API download paths
+• Presigned URL expiry clamped 60–3600s (default 300); Content-Disposition filename sanitized
+• Frontend only follows http(s) signed URLs
+• Signed URLs are not written to logs
+Issues / Blockers:
+• Custom-project / delivery / message attachment signed URLs remain out of scope
+• Live R2 E2E (Stripe pay → browser download from private bucket) needs R2_* in backend/.env
+Next Recommended Task:
+• Feature 16 Phase 7 — Admin import review UI (batch filter / QA queue)
+Notes:
+• Local/CI remain FileResponse because tests force R2_ENABLED off unless overridden
+
 Date: 2026-09-01 (Feature 14 — Cloudflare R2 foundation)
 Working Hours:
 Today's Objective: Wire Django to 3dam-public and 3dam-private with local MEDIA fallback when R2 env is unset.

@@ -173,6 +173,7 @@ R2_ENDPOINT_URL = config("R2_ENDPOINT_URL", default="").strip()
 R2_PUBLIC_BUCKET = config("R2_PUBLIC_BUCKET", default="").strip()
 R2_PRIVATE_BUCKET = config("R2_PRIVATE_BUCKET", default="").strip()
 R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
+R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=300, cast=int)
 if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
     R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 

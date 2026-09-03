@@ -381,3 +381,160 @@ class ProductFileUploadSerializer(serializers.Serializer):
     def validate_file(self, value):
         validate_product_file_upload(value)
         return value
+
+
+class CatalogImportExportsSerializer(serializers.Serializer):
+    glb = serializers.CharField(required=False, allow_blank=True, default="")
+    fbx = serializers.CharField(required=False, allow_blank=True, default="")
+    obj = serializers.CharField(required=False, allow_blank=True, default="")
+    gltf = serializers.CharField(required=False, allow_blank=True, default="")
+    max = serializers.CharField(required=False, allow_blank=True, default="")
+    glb_size = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        required=False,
+        allow_null=True,
+    )
+    fbx_size = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        required=False,
+        allow_null=True,
+    )
+    obj_size = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        required=False,
+        allow_null=True,
+    )
+    gltf_size = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        required=False,
+        allow_null=True,
+    )
+    max_size = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        required=False,
+        allow_null=True,
+    )
+
+
+class CatalogImportMediaSerializer(serializers.Serializer):
+    thumbnail_key = serializers.CharField(required=False, allow_blank=True, default="")
+    preview_key = serializers.CharField(required=False, allow_blank=True, default="")
+    package_key = serializers.CharField(required=False, allow_blank=True, default="")
+    package_file_name = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="package.zip",
+        max_length=255,
+    )
+    package_file_format = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="zip",
+        max_length=32,
+    )
+    package_file_size = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    gallery_keys = serializers.ListField(
+        child=serializers.CharField(allow_blank=False, max_length=512),
+        required=False,
+        default=list,
+        max_length=50,
+    )
+
+
+class CatalogImportItemSerializer(serializers.Serializer):
+    model_id = serializers.CharField(required=False, allow_blank=True, default="", max_length=64)
+    name = serializers.CharField(required=False, allow_blank=True, default="", max_length=255)
+    category = serializers.CharField(required=False, allow_blank=True, default="", max_length=255)
+    subcategory = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=255,
+    )
+    price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
+    currency = serializers.CharField(required=False, allow_blank=True, default="USD", max_length=3)
+    discount_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
+    short_description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=500,
+    )
+    description = serializers.CharField(required=False, allow_blank=True, default="")
+    license_type = serializers.ChoiceField(
+        choices=Product.LicenseType.choices,
+        required=False,
+        default=Product.LicenseType.STANDARD,
+    )
+    rigged = serializers.BooleanField(required=False, default=False)
+    animated = serializers.BooleanField(required=False, default=False)
+    pbr_ready = serializers.BooleanField(required=False, default=False)
+    game_ready = serializers.BooleanField(required=False, default=False)
+    software_used = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=255,
+    )
+    polygon_count = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    glb_checksum = serializers.CharField(required=False, allow_blank=True, default="", max_length=64)
+    qa_status = serializers.CharField(required=False, allow_blank=True, default="", max_length=64)
+    folder_match_status = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=32,
+    )
+    r2_key_prefix = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=128,
+    )
+    exports = CatalogImportExportsSerializer(required=False)
+    media = CatalogImportMediaSerializer(required=False)
+
+    def validate(self, attrs: dict) -> dict:
+        if "exports" not in attrs or attrs.get("exports") is None:
+            attrs["exports"] = {}
+        if "media" not in attrs or attrs.get("media") is None:
+            attrs["media"] = {}
+        return attrs
+
+
+class CatalogImportEnvelopeSerializer(serializers.Serializer):
+    import_batch_id = serializers.CharField(max_length=64, trim_whitespace=True)
+    import_source = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="catalog-bridge",
+        max_length=64,
+        trim_whitespace=True,
+    )
+    items = CatalogImportItemSerializer(many=True, allow_empty=False)
+
+    def validate_import_batch_id(self, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("import_batch_id is required.")
+        return normalized
+
+    def validate_items(self, value: list) -> list:
+        if len(value) > 500:
+            raise serializers.ValidationError("A batch may contain at most 500 items.")
+        return value
