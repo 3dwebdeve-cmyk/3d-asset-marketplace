@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from botocore.exceptions import BotoCoreError, ClientError
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import SuspiciousFileOperation
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import F, QuerySet
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 
-from config.media import open_stored_file
+from config.media import media_relative_path, open_stored_file
+from config.storages import (
+    generate_private_presigned_url,
+    get_private_storage,
+    signed_url_expiry_seconds,
+)
 from downloads.models import DownloadHistory
 from orders.entitlements import user_owns_catalog_item
 from orders.models import Order, OrderItem
@@ -17,6 +27,7 @@ from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 PRODUCT_TYPE_PRODUCT = DownloadHistory.ProductType.PRODUCT
 PRODUCT_TYPE_PLUGIN = DownloadHistory.ProductType.PLUGIN
@@ -180,32 +191,36 @@ class DownloadService:
             raise DownloadError("File not found.") from exc
 
     @classmethod
-    def stream_product_file(cls, user: User, product_id: UUID, file_id: UUID) -> FileResponse:
+    def stream_product_file(
+        cls, user: User, product_id: UUID, file_id: UUID
+    ) -> FileResponse | dict[str, Any]:
         file_row = cls.get_product_file(product_id, file_id)
         if not user_owns_catalog_item(user, PRODUCT_TYPE_PRODUCT, product_id):
             raise DownloadError("File not found.")
-        cls._record_download(
+        return cls._deliver_owned_file(
             user=user,
             product_type=PRODUCT_TYPE_PRODUCT,
             product_id=product_id,
             file_id=file_row.id,
             file_name=file_row.file_name,
+            storage_path=file_row.storage_path,
         )
-        return cls._stream_file(file_row.storage_path, file_row.file_name)
 
     @classmethod
-    def stream_plugin_file(cls, user: User, plugin_id: UUID, file_id: UUID) -> FileResponse:
+    def stream_plugin_file(
+        cls, user: User, plugin_id: UUID, file_id: UUID
+    ) -> FileResponse | dict[str, Any]:
         file_row = cls.get_plugin_file(plugin_id, file_id)
         if not user_owns_catalog_item(user, PRODUCT_TYPE_PLUGIN, plugin_id):
             raise DownloadError("File not found.")
-        cls._record_download(
+        return cls._deliver_owned_file(
             user=user,
             product_type=PRODUCT_TYPE_PLUGIN,
             product_id=plugin_id,
             file_id=file_row.id,
             file_name=file_row.file_name,
+            storage_path=file_row.storage_path,
         )
-        return cls._stream_file(file_row.storage_path, file_row.file_name)
 
     @classmethod
     def list_downloadable_files_for_item(
@@ -325,6 +340,72 @@ class DownloadService:
                 Plugin.objects.filter(pk=product_id).update(
                     total_downloads=F("total_downloads") + 1
                 )
+
+    @classmethod
+    def _deliver_owned_file(
+        cls,
+        *,
+        user: User,
+        product_type: str,
+        product_id: UUID,
+        file_id: UUID,
+        file_name: str,
+        storage_path: str,
+    ) -> FileResponse | dict[str, Any]:
+        relative = media_relative_path(storage_path)
+        if relative is None:
+            raise DownloadError("File not found.")
+
+        use_signed = cls._private_r2_object_exists(relative)
+        if not use_signed and not cls._local_object_exists(relative):
+            raise DownloadError("File not found.")
+
+        cls._record_download(
+            user=user,
+            product_type=product_type,
+            product_id=product_id,
+            file_id=file_id,
+            file_name=file_name,
+        )
+        logger.info(
+            "catalog_download user_id=%s product_type=%s product_id=%s file_id=%s mode=%s",
+            user.pk,
+            product_type,
+            product_id,
+            file_id,
+            "signed" if use_signed else "stream",
+        )
+        if use_signed:
+            try:
+                download_url = generate_private_presigned_url(relative, file_name=file_name)
+            except (BotoCoreError, ClientError, OSError, ValueError, RuntimeError):
+                logger.exception("r2_presign_failed product_type=%s file_id=%s", product_type, file_id)
+                raise DownloadError("File not found.") from None
+            return {
+                "download_url": download_url,
+                "expires_in": signed_url_expiry_seconds(),
+                "file_name": file_name,
+            }
+        try:
+            return cls._stream_file(storage_path, file_name)
+        except Http404 as exc:
+            raise DownloadError("File not found.") from exc
+
+    @classmethod
+    def _private_r2_object_exists(cls, relative: str) -> bool:
+        if not getattr(settings, "R2_ENABLED", False):
+            return False
+        try:
+            return bool(get_private_storage().exists(relative))
+        except (OSError, SuspiciousFileOperation, ValueError):
+            return False
+
+    @classmethod
+    def _local_object_exists(cls, relative: str) -> bool:
+        try:
+            return bool(default_storage.exists(relative))
+        except (OSError, SuspiciousFileOperation, ValueError):
+            return False
 
     @classmethod
     def _stream_file(cls, storage_path: str, file_name: str) -> FileResponse:

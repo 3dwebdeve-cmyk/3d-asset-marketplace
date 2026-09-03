@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from django.http import FileResponse
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -12,6 +13,7 @@ from downloads.pagination import DownloadPagination
 from downloads.serializers import (
     DownloadEntitlementSerializer,
     DownloadHistorySerializer,
+    SignedDownloadSerializer,
 )
 from downloads.services import DownloadError, DownloadService
 
@@ -64,22 +66,28 @@ class ProductFileDownloadView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_classes = [DownloadRateThrottle]
 
-    def get(self, request: Request, product_id: UUID, file_id: UUID):
+    def get(self, request: Request, product_id: UUID, file_id: UUID) -> FileResponse | Response:
         try:
-            return DownloadService.stream_product_file(request.user, product_id, file_id)
+            result = DownloadService.stream_product_file(request.user, product_id, file_id)
         except DownloadError as exc:
             raise NotFound(detail=exc.message) from exc
+        if isinstance(result, dict):
+            return Response(SignedDownloadSerializer(result).data)
+        return result
 
 
 class PluginFileDownloadView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_classes = [DownloadRateThrottle]
 
-    def get(self, request: Request, plugin_id: UUID, file_id: UUID):
+    def get(self, request: Request, plugin_id: UUID, file_id: UUID) -> FileResponse | Response:
         try:
-            return DownloadService.stream_plugin_file(request.user, plugin_id, file_id)
+            result = DownloadService.stream_plugin_file(request.user, plugin_id, file_id)
         except DownloadError as exc:
             raise NotFound(detail=exc.message) from exc
+        if isinstance(result, dict):
+            return Response(SignedDownloadSerializer(result).data)
+        return result
 
 
 class AdminDownloadHistoryListView(APIView):

@@ -3,6 +3,7 @@ import type {
   DownloadEntitlement,
   DownloadHistoryListParams,
   PaginatedDownloadHistory,
+  SignedDownloadResponse,
 } from '../types/download'
 import { apiClient } from './client'
 
@@ -60,29 +61,117 @@ export function buildCatalogDownloadPath(
   return `/api/downloads/plugins/${productId}/files/${fileId}/download/`
 }
 
+function headerValue(headers: unknown, name: string): string {
+  if (!headers || typeof headers !== 'object') {
+    return ''
+  }
+  const record = headers as Record<string, unknown> & { get?: (key: string) => unknown }
+  if (typeof record.get === 'function') {
+    const fromGet = record.get(name)
+    if (typeof fromGet === 'string') {
+      return fromGet
+    }
+  }
+  const direct = record[name]
+  if (typeof direct === 'string') {
+    return direct
+  }
+  const lower = record[name.toLowerCase()]
+  if (typeof lower === 'string') {
+    return lower
+  }
+  return ''
+}
+
+function isSignedDownloadPayload(value: unknown): value is SignedDownloadResponse {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.download_url === 'string' &&
+    typeof record.expires_in === 'number' &&
+    typeof record.file_name === 'string'
+  )
+}
+
+function assertSafeRemoteDownloadUrl(url: string): void {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new Error('Invalid download URL.')
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('Invalid download URL.')
+  }
+}
+
+function triggerAnchorDownload(href: string, fileName: string): void {
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.download = fileName
+  anchor.rel = 'noopener noreferrer'
+  anchor.target = '_blank'
+  anchor.click()
+}
+
+function triggerBlobDownload(data: Blob, fileName: string): void {
+  const objectUrl = URL.createObjectURL(data)
+  triggerAnchorDownload(objectUrl, fileName)
+  URL.revokeObjectURL(objectUrl)
+}
+
+async function parseSignedDownload(data: Blob): Promise<SignedDownloadResponse> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(await data.text())
+  } catch {
+    throw new Error('Could not download the file. Please try again.')
+  }
+  if (!isSignedDownloadPayload(parsed)) {
+    throw new Error('Could not download the file. Please try again.')
+  }
+  return parsed
+}
+
+async function fetchCatalogDownload(downloadUrl: string, fileName: string): Promise<void> {
+  const response = await apiClient.get<Blob | SignedDownloadResponse>(downloadUrl, {
+    responseType: 'blob',
+  })
+  const contentType = headerValue(response.headers, 'content-type')
+  const payload = response.data
+
+  if (isSignedDownloadPayload(payload)) {
+    assertSafeRemoteDownloadUrl(payload.download_url)
+    triggerAnchorDownload(payload.download_url, payload.file_name || fileName)
+    return
+  }
+
+  if (payload instanceof Blob && contentType.toLowerCase().includes('application/json')) {
+    const signed = await parseSignedDownload(payload)
+    assertSafeRemoteDownloadUrl(signed.download_url)
+    triggerAnchorDownload(signed.download_url, signed.file_name || fileName)
+    return
+  }
+
+  if (payload instanceof Blob) {
+    triggerBlobDownload(payload, fileName)
+    return
+  }
+
+  throw new Error('Could not download the file. Please try again.')
+}
+
 export async function downloadCatalogFile(
   productType: 'product' | 'plugin',
   productId: string,
   fileId: string,
   fileName: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(buildCatalogDownloadPath(productType, productId, fileId), {
-    responseType: 'blob',
-  })
-  const objectUrl = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(objectUrl)
+  await fetchCatalogDownload(buildCatalogDownloadPath(productType, productId, fileId), fileName)
 }
 
 export async function downloadCatalogFileByUrl(downloadUrl: string, fileName: string): Promise<void> {
-  const { data } = await apiClient.get<Blob>(downloadUrl, { responseType: 'blob' })
-  const objectUrl = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(objectUrl)
+  await fetchCatalogDownload(downloadUrl, fileName)
 }

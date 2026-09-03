@@ -90,3 +90,9 @@ class OrderItemDownloadFileSerializer(serializers.Serializer):
         if request is not None:
             return request.build_absolute_uri(path)
         return path
+
+
+class SignedDownloadSerializer(serializers.Serializer):
+    download_url = serializers.CharField()
+    expires_in = serializers.IntegerField(min_value=1)
+    file_name = serializers.CharField()

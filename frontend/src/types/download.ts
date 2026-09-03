@@ -57,3 +57,9 @@ export interface OrderItemDownloadFile {
   version: string
   download_url: string
 }
+
+export interface SignedDownloadResponse {
+  download_url: string
+  expires_in: number
+  file_name: string
+}

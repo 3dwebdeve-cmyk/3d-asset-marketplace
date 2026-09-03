@@ -1,6 +1,7 @@
 from django.urls import path
 
 from products.views import (
+    AdminCatalogImportView,
     AdminProductDetailView,
     AdminProductFileDetailView,
     AdminProductFileUploadView,
@@ -20,6 +21,7 @@ public_urlpatterns = [
 
 admin_urlpatterns = [
     path("", AdminProductListCreateView.as_view(), name="admin-products"),
+    path("import/", AdminCatalogImportView.as_view(), name="admin-catalog-import"),
     path(
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),

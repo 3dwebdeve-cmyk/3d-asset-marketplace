@@ -17,6 +17,7 @@ vi.mock('./client', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.restoreAllMocks()
 })
 
 describe('downloadsApi', () => {
@@ -58,15 +59,14 @@ describe('downloadsApi', () => {
   })
 
   it('downloads catalog files as blobs', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['zip']) })
-    const click = vi.fn()
-    const revokeObjectURL = vi.fn()
-    const createObjectURL = vi.fn(() => 'blob:mock')
-    vi.stubGlobal('URL', {
-      createObjectURL,
-      revokeObjectURL,
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob(['zip']),
+      headers: { 'content-type': 'application/zip' },
     })
-    const anchor = { click, href: '', download: '' } as unknown as HTMLAnchorElement
+    const click = vi.fn()
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock')
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchor = { click, href: '', download: '', rel: '', target: '' } as unknown as HTMLAnchorElement
     vi.spyOn(document, 'createElement').mockReturnValue(anchor)
 
     await downloadCatalogFile('product', 'prod-id', 'file-id', 'package.zip')
@@ -76,6 +76,55 @@ describe('downloadsApi', () => {
       { responseType: 'blob' },
     )
     expect(click).toHaveBeenCalled()
+    expect(createObjectURL).toHaveBeenCalled()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock')
+  })
+
+  it('opens a signed JSON download_url without treating it as a blob', async () => {
+    const signedUrl =
+      'https://acc.r2.cloudflarestorage.com/3dam-private/products/files/pack.zip?X-Amz-Signature=abc'
+    const payload = JSON.stringify({
+      download_url: signedUrl,
+      expires_in: 300,
+      file_name: 'hero.zip',
+    })
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob([payload], { type: 'application/json' }),
+      headers: { 'content-type': 'application/json' },
+    })
+    const click = vi.fn()
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+    const anchor = {
+      click,
+      href: '',
+      download: '',
+      rel: '',
+      target: '',
+    } as unknown as HTMLAnchorElement
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+
+    await downloadCatalogFile('product', 'prod-id', 'file-id', 'package.zip')
+
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(anchor.href).toBe(signedUrl)
+    expect(anchor.download).toBe('hero.zip')
+    expect(anchor.target).toBe('_blank')
+    expect(click).toHaveBeenCalled()
+  })
+
+  it('rejects non-http signed URLs', async () => {
+    const payload = JSON.stringify({
+      download_url: 'javascript:alert(1)',
+      expires_in: 300,
+      file_name: 'hero.zip',
+    })
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob([payload], { type: 'application/json' }),
+      headers: { 'content-type': 'application/json' },
+    })
+
+    await expect(
+      downloadCatalogFile('product', 'prod-id', 'file-id', 'package.zip'),
+    ).rejects.toThrow('Invalid download URL.')
   })
 })

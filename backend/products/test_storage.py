@@ -1,5 +1,6 @@
 from pathlib import Path
 import tempfile
+from unittest.mock import patch
 
 from django.core.files.storage import default_storage, storages
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -7,7 +8,14 @@ from django.http import Http404
 from django.test import SimpleTestCase, override_settings
 
 from config.media import media_relative_path, open_stored_file
-from config.storages import build_public_media_url, get_private_storage, get_public_storage
+from config.storages import (
+    build_public_media_url,
+    content_disposition_filename,
+    generate_private_presigned_url,
+    get_private_storage,
+    get_public_storage,
+    signed_url_expiry_seconds,
+)
 from products.storage import ProductMediaStorageService
 
 
@@ -103,6 +111,48 @@ class DualStorageRoutingTests(SimpleTestCase):
     def test_open_missing_private_key_is_404(self) -> None:
         with self.assertRaises(Http404):
             open_stored_file("products/files/missing/nope.zip")
+
+
+class SignedUrlHelperTests(SimpleTestCase):
+    def test_expiry_is_clamped(self) -> None:
+        with override_settings(R2_SIGNED_URL_EXPIRY=12):
+            self.assertEqual(signed_url_expiry_seconds(), 60)
+        with override_settings(R2_SIGNED_URL_EXPIRY=99999):
+            self.assertEqual(signed_url_expiry_seconds(), 3600)
+        with override_settings(R2_SIGNED_URL_EXPIRY=300):
+            self.assertEqual(signed_url_expiry_seconds(), 300)
+
+    def test_content_disposition_filename_strips_quotes_and_newlines(self) -> None:
+        self.assertEqual(content_disposition_filename('pack".zip\n'), "pack.zip")
+        self.assertEqual(content_disposition_filename("   "), "download")
+
+    def test_presign_requires_r2(self) -> None:
+        with override_settings(R2_ENABLED=False):
+            with self.assertRaises(RuntimeError):
+                generate_private_presigned_url("products/files/a.zip", file_name="a.zip")
+
+    @override_settings(
+        R2_ENABLED=True,
+        R2_ENDPOINT_URL="https://acc.r2.cloudflarestorage.com",
+        R2_ACCESS_KEY_ID="key",
+        R2_SECRET_ACCESS_KEY="secret",
+        R2_PRIVATE_BUCKET="3dam-private",
+        R2_SIGNED_URL_EXPIRY=180,
+    )
+    @patch("config.storages.boto3.client")
+    def test_presign_uses_private_bucket_and_expiry(self, mock_client) -> None:
+        mock_client.return_value.generate_presigned_url.return_value = (
+            "https://acc.r2.cloudflarestorage.com/3dam-private/products/files/a.zip?X-Amz-Signature=abc"
+        )
+        url = generate_private_presigned_url("products/files/a.zip", file_name='hero.zip')
+        self.assertTrue(url.startswith("https://"))
+        self.assertNotIn("storage_path", url)
+        mock_client.return_value.generate_presigned_url.assert_called_once()
+        _, kwargs = mock_client.return_value.generate_presigned_url.call_args
+        self.assertEqual(kwargs["ExpiresIn"], 180)
+        self.assertEqual(kwargs["Params"]["Bucket"], "3dam-private")
+        self.assertEqual(kwargs["Params"]["Key"], "products/files/a.zip")
+        self.assertIn("attachment; filename=", kwargs["Params"]["ResponseContentDisposition"])
 
 
 class StorageHandlerReloadTests(SimpleTestCase):
