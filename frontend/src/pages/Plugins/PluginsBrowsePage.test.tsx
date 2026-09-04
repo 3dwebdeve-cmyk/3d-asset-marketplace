@@ -40,7 +40,16 @@ const samplePublicPlugins = {
       average_rating: '4.90',
       review_count: 0,
       total_downloads: 340,
-      category: { id: categoryId, name: 'Rigging Tools', slug: 'rigging-tools', description: '', image: '', is_active: true, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+      category: {
+        id: categoryId,
+        name: 'Rigging Tools',
+        slug: 'rigging-tools',
+        description: '',
+        image: '',
+        is_active: true,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
       created_at: '2026-01-01T00:00:00Z',
     },
   ],
@@ -87,9 +96,7 @@ describe('PluginsBrowsePage', () => {
   it('renders hero title and plugin list', async () => {
     renderPluginsBrowsePage()
 
-    expect(
-      screen.getByRole('heading', { name: /discover 3d software plugins/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^plugins$/i })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()
@@ -189,6 +196,6 @@ describe('PluginsBrowsePage', () => {
       expect(screen.getByRole('heading', { name: /no plugins found/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('button', { name: /clear filters/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
   })
 })

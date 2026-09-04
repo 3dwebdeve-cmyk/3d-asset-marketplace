@@ -65,6 +65,19 @@ def _parse_status_filter(value: str | None) -> str | None:
     return normalized
 
 
+def _parse_bool_filter(value: str | None) -> bool | None:
+    """Parse optional boolean query params. Invalid values are ignored."""
+    if value is None or value.strip() == "":
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes"}:
+        return True
+    if normalized in {"0", "false", "no"}:
+        return False
+    # Ignore invalid values rather than 400 — keeps browse URLs resilient.
+    return None
+
+
 class ProductListView(APIView):
     permission_classes = [AllowAny]
     pagination_class = ProductPagination
@@ -76,11 +89,19 @@ class ProductListView(APIView):
         )
         search = request.query_params.get("search") or None
         ordering = request.query_params.get("ordering") or None
+        animated = _parse_bool_filter(request.query_params.get("animated"))
+        rigged = _parse_bool_filter(request.query_params.get("rigged"))
+        pbr_ready = _parse_bool_filter(request.query_params.get("pbr_ready"))
+        game_ready = _parse_bool_filter(request.query_params.get("game_ready"))
 
         queryset = ProductService.list_public(
             category_id=category_id,
             search=search,
             ordering=ordering,
+            animated=animated,
+            rigged=rigged,
+            pbr_ready=pbr_ready,
+            game_ready=game_ready,
         )
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)

@@ -9,7 +9,7 @@ interface WishlistToggleProps {
   productType: WishlistProductType
   productId: string
   productName: string
-  variant?: 'chip' | 'icon'
+  variant?: 'chip' | 'icon' | 'full'
   className?: string
 }
 
@@ -32,12 +32,24 @@ export function WishlistToggle({
         <AuthEntryButton
           mode="login"
           returnTo={returnTo}
-          className={`product-card__wishlist product-card__wishlist--guest ${className ?? ''}`.trim()}
+          className={`product-card__wishlist product-card__wishlist--guest product-detail-stage__overlay-btn ${className ?? ''}`.trim()}
           aria-label={`Sign in to add ${productName} to wishlist`}
         >
           <span className="product-card__wishlist-icon" aria-hidden="true">
             ♡
           </span>
+        </AuthEntryButton>
+      )
+    }
+
+    if (variant === 'full') {
+      return (
+        <AuthEntryButton
+          mode="login"
+          returnTo={returnTo}
+          className={`ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link ${className ?? ''}`.trim()}
+        >
+          Sign in to add to wishlist
         </AuthEntryButton>
       )
     }
@@ -59,7 +71,7 @@ export function WishlistToggle({
     return (
       <button
         type="button"
-        className={`product-card__wishlist ${wishlisted ? 'product-card__wishlist--active' : ''} ${className ?? ''}`.trim()}
+        className={`product-card__wishlist product-detail-stage__overlay-btn ${wishlisted ? 'product-card__wishlist--active product-detail-stage__overlay-btn--active' : ''} ${className ?? ''}`.trim()}
         aria-label={`${label} for ${productName}`}
         aria-pressed={wishlisted}
         disabled={isPending}
@@ -71,6 +83,24 @@ export function WishlistToggle({
           {wishlisted ? '♥' : '♡'}
         </span>
       </button>
+    )
+  }
+
+  if (variant === 'full') {
+    return (
+      <Button
+        type="button"
+        variant="secondary"
+        className={`product-detail-cta__full ${className ?? ''}`.trim()}
+        aria-pressed={wishlisted}
+        isLoading={isPending}
+        onClick={() => {
+          toggle(productType, productId)
+        }}
+      >
+        <span aria-hidden="true">{wishlisted ? '♥' : '♡'}</span>{' '}
+        {wishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+      </Button>
     )
   }
 

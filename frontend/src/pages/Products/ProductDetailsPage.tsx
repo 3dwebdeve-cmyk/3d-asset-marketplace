@@ -9,6 +9,7 @@ import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import {
   buildProductMetaDescription,
   buildProductPageTitle,
@@ -84,7 +85,6 @@ function useScrollProductPageToTop(resetKey: string): void {
 function ProductDetailSkeleton() {
   return (
     <div className="product-detail-skeleton" aria-label="Loading product details" aria-busy="true">
-      <div className="product-detail-skeleton__breadcrumb" />
       <div className="product-detail-skeleton__layout">
         <div className="product-detail-skeleton__gallery" />
         <div className="product-detail-skeleton__info">
@@ -107,8 +107,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
     hasDiscount && product.discount_price
       ? discountPercent(product.price, product.discount_price)
       : null
-  const browseCategoryHref = `/products?category=${encodeURIComponent(product.category.id)}`
-  const licenses: ProductLicenseType[] = ['standard', 'extended', 'editorial']
+  const browseCategoryHref = `/3d-models?category=${encodeURIComponent(product.category.id)}`
 
   const relatedQuery = useQuery({
     queryKey: ['public-products-related', product.category.id, product.id],
@@ -126,28 +125,44 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
 
   return (
     <>
-      <div className="product-detail-layout">
-        <div className="product-detail-layout__media">
-          <nav className="product-detail-breadcrumb" aria-label="Breadcrumb">
-            <ol className="product-detail-breadcrumb__list">
-              <li>
-                <Link to="/">Home</Link>
-              </li>
-              <li>
-                <Link to="/products">3D Models</Link>
-              </li>
-              <li>
-                <Link to={browseCategoryHref}>{product.category.name}</Link>
-              </li>
-              <li aria-current="page">{product.name}</li>
-            </ol>
-          </nav>
+      <header className="product-hub-detail__header">
+        <div className="product-hub-detail__header-text">
+          <p className="product-hub-detail__eyebrow">{product.category.name}</p>
+          <h1 className="product-hub-detail__title">{product.name}</h1>
+          <div className="product-hub-detail__meta">
+            <RatingDisplay
+              averageRating={product.average_rating}
+              reviewCount={product.review_count}
+              variant="detail"
+              className=""
+            />
+            <span aria-hidden="true"> · </span>
+            <span>{product.total_downloads.toLocaleString()} downloads</span>
+          </div>
+        </div>
+        <Link to="/3d-models" className="product-hub-detail__close">
+          ✕ Close
+        </Link>
+      </header>
 
+      <div className="product-detail-layout product-hub-detail__layout">
+        <div className="product-detail-layout__media">
           <ProductImageGallery
             productName={product.name}
             thumbnail={product.thumbnail}
             images={product.images}
             previewModelUrl={product.preview_model}
+            previewVideoUrl={product.preview_video}
+            showStageChrome
+            showPreviewModeThumbs={false}
+            stageOverlays={
+              <WishlistToggle
+                productType="product"
+                productId={product.id}
+                productName={product.name}
+                variant="icon"
+              />
+            }
           />
 
           <p className="product-detail-media-note">
@@ -156,103 +171,57 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
           </p>
         </div>
 
-        <aside className="product-detail-purchase" aria-label="Product purchase details">
-          <p className="product-detail-purchase__eyebrow">{product.category.name}</p>
-          <h1 className="product-detail-purchase__title">{product.name}</h1>
-
-          <div className="product-detail-purchase__meta">
-            <span className="product-detail-purchase__rating">
-              <RatingDisplay
-                averageRating={product.average_rating}
-                reviewCount={product.review_count}
-                variant="detail"
-                className=""
-              />
-              <span aria-hidden="true"> · </span>
-              {product.total_downloads.toLocaleString()} downloads
-            </span>
-            <span className="product-detail-badge product-detail-badge--available">Available</span>
-          </div>
-
-          <div className="product-detail-purchase__price">
-            {hasDiscount && product.discount_price ? (
-              <>
-                <span className="product-detail-purchase__price-current">
-                  {formatMoney(product.discount_price, product.currency)}
-                </span>
-                <span className="product-detail-purchase__price-original">
-                  {formatMoney(product.price, product.currency)}
-                </span>
-                {salePercent !== null ? (
-                  <span className="product-detail-badge product-detail-badge--sale">
-                    -{salePercent}%
-                  </span>
-                ) : (
-                  <span className="product-detail-badge product-detail-badge--sale">Sale</span>
-                )}
-              </>
-            ) : (
-              <span className="product-detail-purchase__price-current">
-                {formatMoney(product.price, product.currency)}
-              </span>
-            )}
-          </div>
-          <p className="product-detail-purchase__price-note">
-            Price includes {licenseLabel(product.license_type).toLowerCase()} license ·{' '}
-            {product.currency}
-          </p>
-
-          {product.short_description.trim() ? (
-            <p className="product-detail-purchase__summary">{product.short_description}</p>
-          ) : null}
-
-          <div className="product-detail-license" role="group" aria-label="License type">
-            {licenses.map((license) => {
-              const selected = product.license_type === license
-              return (
-                <span
-                  key={license}
-                  className={`product-detail-license__option${
-                    selected ? ' product-detail-license__option--selected' : ''
-                  }`}
-                  aria-current={selected ? 'true' : undefined}
-                >
-                  {licenseLabel(license)}
-                  {selected ? ` · ${formatMoney(
-                    hasDiscount && product.discount_price
-                      ? product.discount_price
-                      : product.price,
-                    product.currency,
-                  )}` : null}
-                </span>
-              )
-            })}
-          </div>
-
-          <ProductCtaGroup
-            productId={product.id}
-            productName={product.name}
-            productSlug={product.slug}
-          />
+        <aside className="product-hub-detail__aside" aria-label="Product purchase details">
           <ProductSpecs product={product} />
+
+          <div className="product-hub-detail__purchase">
+            <div className="product-hub-detail__purchase-row">
+              <div className="product-hub-detail__purchase-info">
+                <div className="product-detail-purchase__price">
+                  {hasDiscount && product.discount_price ? (
+                    <>
+                      <span className="product-detail-purchase__price-current">
+                        {formatMoney(product.discount_price, product.currency)}
+                      </span>
+                      <span className="product-detail-purchase__price-original">
+                        {formatMoney(product.price, product.currency)}
+                      </span>
+                      {salePercent !== null ? (
+                        <span className="product-detail-badge product-detail-badge--sale">
+                          -{salePercent}%
+                        </span>
+                      ) : (
+                        <span className="product-detail-badge product-detail-badge--sale">Sale</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="product-detail-purchase__price-current">
+                      {formatMoney(product.price, product.currency)}
+                    </span>
+                  )}
+                </div>
+
+                <p className="product-hub-detail__license">
+                  <span className="product-hub-detail__license-check" aria-hidden="true">
+                    ✓
+                  </span>
+                  {licenseLabel(product.license_type)} License
+                </p>
+              </div>
+
+              <ProductCtaGroup
+                productId={product.id}
+                productName={product.name}
+                productSlug={product.slug}
+              />
+            </div>
+
+            {product.short_description.trim() ? (
+              <p className="product-detail-purchase__summary">{product.short_description}</p>
+            ) : null}
+          </div>
         </aside>
       </div>
-
-      <section
-        className="product-detail-description"
-        aria-labelledby="product-description-heading"
-      >
-        <h2 id="product-description-heading" className="product-detail-section-title">
-          Description
-        </h2>
-        {product.description.trim() ? (
-          <p className="product-detail-description__body">{product.description}</p>
-        ) : (
-          <p className="product-detail-description__body product-detail-description__body--empty">
-            No full description provided for this product.
-          </p>
-        )}
-      </section>
 
       <ReviewsSection
         productType="product"
@@ -260,6 +229,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
         catalogSlug={product.slug}
         averageRating={product.average_rating}
         reviewCount={product.review_count}
+        layout="hub"
       />
 
       <section className="product-detail-related" aria-labelledby="product-related-heading">
@@ -302,7 +272,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             title="No similar products yet"
             description={`There are no other published products in ${product.category.name} right now.`}
             action={
-              <Link to="/products" className="ui-button ui-button--secondary">
+              <Link to="/3d-models" className="ui-button ui-button--secondary">
                 Browse all products
               </Link>
             }
@@ -352,13 +322,13 @@ export function ProductDetailsPage() {
   })
 
   return (
-    <main className="product-detail-page">
+    <main className="product-detail-page product-hub-detail">
       {!trimmedSlug || isNotFound ? (
         <EmptyState
           title="Product not found"
           description="This product is unavailable, unpublished, or the link may be incorrect."
           action={
-            <Link to="/products" className="ui-button ui-button--primary">
+            <Link to="/3d-models" className="ui-button ui-button--primary">
               Back to products
             </Link>
           }

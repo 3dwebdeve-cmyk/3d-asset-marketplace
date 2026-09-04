@@ -72,6 +72,7 @@ const samplePublicProducts = {
       currency: 'USD',
       discount_price: '39.99',
       thumbnail: '',
+      software_used: 'Blender',
       category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
       license_type: 'standard' as const,
       average_rating: '4.80',
@@ -141,6 +142,7 @@ function renderProductsBrowsePage(initialPath = '/products') {
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/products" element={<ProductsBrowsePage />} />
+          <Route path="/3d-models" element={<div>3D Models catalog page</div>} />
           <Route path="/plugins" element={<div>Plugins page</div>} />
           <Route path="/custom-projects" element={<div>Custom projects page</div>} />
         </Routes>
@@ -182,106 +184,44 @@ describe('ProductsBrowsePage', () => {
 
     expect(screen.getByText('Batch Exporter Pro')).toBeInTheDocument()
     expect(screen.getAllByText('Sci-Fi Assets').length).toBeGreaterThan(0)
-    expect(screen.getByText('$39.99')).toBeInTheDocument()
-    expect(screen.getByText('$49.99')).toBeInTheDocument()
+    expect(screen.getByText('$ 39.99')).toBeInTheDocument()
+    expect(screen.getByText('$ 49.99')).toBeInTheDocument()
   })
 
-  it('opens full catalog when Shop 3D models is clicked', async () => {
-    const user = userEvent.setup()
+  it('links Shop 3D models to the dedicated /3d-models catalog', async () => {
     renderProductsBrowsePage()
 
     await waitFor(() => {
       expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: /shop 3d models/i }))
-
-    expect(
-      screen.getByRole('heading', { name: /explore premium 3d models/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText(/^category$/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /shop 3d models/i })).toHaveAttribute(
+      'href',
+      '/3d-models',
+    )
   })
 
-  it('filters products by category selection in catalog mode', async () => {
-    const user = userEvent.setup()
-    renderProductsBrowsePage('/products?view=all')
-
-    await waitFor(() => {
-      expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
-    })
-
-    await user.selectOptions(screen.getByLabelText(/^category$/i), categoryId)
-
-    await waitFor(() => {
-      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category_id: categoryId,
-        }),
-      )
-    })
-  })
-
-  it('applies category filter from the URL query string', async () => {
+  it('redirects old catalog query URLs to /3d-models', async () => {
     renderProductsBrowsePage(`/products?category=${encodeURIComponent(categoryId)}`)
 
     await waitFor(() => {
-      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          category_id: categoryId,
-        }),
-      )
-    })
-
-    await waitFor(() => {
-      expect(screen.getByLabelText(/^category$/i)).toHaveValue(categoryId)
+      expect(screen.getByText('3D Models catalog page')).toBeInTheDocument()
     })
   })
 
-  it('applies search from the URL query string', async () => {
+  it('redirects view=all catalog mode to /3d-models', async () => {
+    renderProductsBrowsePage('/products?view=all')
+
+    await waitFor(() => {
+      expect(screen.getByText('3D Models catalog page')).toBeInTheDocument()
+    })
+  })
+
+  it('redirects search catalog URLs to /3d-models', async () => {
     renderProductsBrowsePage('/products?search=drone')
 
     await waitFor(() => {
-      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          search: 'drone',
-        }),
-      )
-    })
-
-    expect(screen.getByRole('searchbox', { name: /search 3d models/i })).toHaveValue('drone')
-  })
-
-  it('sorts products by price low to high in catalog mode', async () => {
-    const user = userEvent.setup()
-    renderProductsBrowsePage('/products?view=all')
-
-    await waitFor(() => {
-      expect(screen.getByText('Cyberpunk Drone 3D')).toBeInTheDocument()
-    })
-
-    await user.selectOptions(screen.getByLabelText(/sort by/i), 'price')
-
-    await waitFor(() => {
-      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ordering: 'price',
-        }),
-      )
-    })
-  })
-
-  it('shows empty state when no products match filters', async () => {
-    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
-      count: 0,
-      next: null,
-      previous: null,
-      results: [],
-    })
-
-    renderProductsBrowsePage('/products?view=all')
-
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument()
+      expect(screen.getByText('3D Models catalog page')).toBeInTheDocument()
     })
   })
 

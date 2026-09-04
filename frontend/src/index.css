@@ -40,6 +40,20 @@
   --heading: 'Poppins', system-ui, 'Segoe UI', sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
+  /* Exact client banner art — show full image, no crop */
+  --site-hero-image: url('/images/site-hero-banner.jpg');
+  --site-hero-aspect: 4096 / 984;
+  --site-hero-overlay: linear-gradient(
+    105deg,
+    rgba(8, 14, 28, 0.45) 0%,
+    rgba(8, 14, 28, 0.1) 48%,
+    rgba(8, 14, 28, 0) 100%
+  );
+
+  /* Full-bleed layout: stretch content; keep ~1in side margins */
+  --site-gutter: clamp(0.75rem, 4vw, 1in);
+  --site-max-width: none;
+
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light;
@@ -74,27 +88,63 @@
   background: var(--bg-main);
 }
 
+.site-hero-banner {
+  position: relative;
+  display: grid;
+  grid-template: 1fr / 1fr;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: var(--site-hero-aspect);
+  overflow: hidden;
+  background-color: #050814;
+  color: #fff;
+}
+
+.site-hero-banner__image {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  object-position: center center;
+  display: block;
+}
+
+.site-hero-banner__overlay {
+  grid-area: 1 / 1;
+  pointer-events: none;
+  background: var(--site-hero-overlay);
+}
+
+.site-hero-banner > *:not(.site-hero-banner__image):not(.site-hero-banner__overlay) {
+  grid-area: 1 / 1;
+  z-index: 1;
+  position: relative;
+}
+
 .home-page {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
   width: 100%;
-  padding: clamp(2rem, 5vw, 4.5rem) clamp(1.25rem, 4vw, 3rem);
   text-align: left;
-  background:
-    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--action-color) 10%, transparent), transparent 42%),
-    radial-gradient(circle at 88% 12%, color-mix(in srgb, var(--action-color) 8%, transparent), transparent 38%),
-    var(--bg-main);
 }
 
 .home-page__hero {
+  width: 100%;
+  padding: clamp(2.5rem, 6vw, 4.5rem) 0;
+}
+
+.home-page__hero-inner {
   width: min(100%, 56rem);
+  margin: 0;
+  padding: 0 var(--site-gutter);
+  box-sizing: border-box;
 }
 
 .home-page__hero h1 {
-  margin: 0.5rem 0 1rem;
-  font-size: clamp(2rem, 4.5vw, 3.25rem);
+  margin: 0.25rem 0 0.5rem;
+  font-size: clamp(1.5rem, 3vw, 2rem);
   line-height: 1.2;
   letter-spacing: -0.02em;
   font-weight: 600;
@@ -102,18 +152,18 @@
 }
 
 .home-page__eyebrow {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.35rem;
   font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--primary-accent);
+  color: var(--text-muted, #5a6478);
 }
 
 .home-page__subtitle {
-  margin: 0 0 1.5rem;
+  margin: 0 0 0.75rem;
   max-width: 42rem;
-  line-height: 1.6;
+  line-height: 1.5;
   color: var(--text-body);
 }
 
@@ -245,7 +295,7 @@ button.home-page__cta--secondary {
   width: 100%;
   display: grid;
   place-items: start center;
-  padding: clamp(2rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
+  padding: clamp(2rem, 4vw, 3rem) var(--site-gutter);
   text-align: left;
   background: var(--bg-main);
   box-sizing: border-box;
@@ -262,7 +312,8 @@ button.home-page__cta--secondary {
 }
 
 .dashboard-card--wide {
-  width: min(100%, 1200px);
+  width: 100%;
+  max-width: none;
 }
 
 .admin-filters {

@@ -154,6 +154,7 @@ const relatedList = {
       currency: 'USD',
       discount_price: '39.99',
       thumbnail: '',
+      software_used: 'Blender',
       category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
       license_type: 'standard' as const,
       average_rating: '4.80',
@@ -170,6 +171,7 @@ const relatedList = {
       currency: 'USD',
       discount_price: null,
       thumbnail: '',
+      software_used: 'Maya',
       category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
       license_type: 'extended' as const,
       average_rating: '4.20',
@@ -189,6 +191,7 @@ function renderProductDetails(initialPath = '/products/cyberpunk-drone-3d') {
           <Route path="/products/:slug" element={<ProductDetailsPage />} />
           <Route path="/login" element={<div>Login page</div>} />
           <Route path="/products" element={<div>Browse page</div>} />
+          <Route path="/3d-models" element={<div>3D Models catalog page</div>} />
         </Routes>
         <Toaster />
       </MemoryRouter>
@@ -266,23 +269,24 @@ describe('ProductDetailsPage', () => {
     })
 
     expect(productsApi.getPublicProduct).toHaveBeenCalledWith('cyberpunk-drone-3d')
-    expect(screen.getByText(/standard · \$39\.99/i)).toBeInTheDocument()
+    expect(screen.getByText(/standard license/i)).toBeInTheDocument()
     expect(screen.getByText(/-20%/i)).toBeInTheDocument()
-    expect(screen.getByText(/^available$/i)).toBeInTheDocument()
     expect(screen.getByText(/futuristic sci-fi drone asset/i)).toBeInTheDocument()
-    expect(screen.getByText(/polygon count/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /technical specs/i })).toBeInTheDocument()
+    expect(screen.getByText(/^polygons$/i)).toBeInTheDocument()
     expect(screen.getByText('12,000')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show 3d preview/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /close/i })).toHaveAttribute('href', '/3d-models')
+    expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
     expect(
       screen.getByRole('img', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('lazy-model-viewer')).toBeInTheDocument()
     expect(document.title).toContain('Cyberpunk Drone 3D')
 
-    const categoryLinks = screen.getAllByRole('link', { name: 'Sci-Fi Assets' })
-    expect(categoryLinks[0]).toHaveAttribute(
+    const browseCategory = screen.getByRole('link', { name: /browse sci-fi assets/i })
+    expect(browseCategory).toHaveAttribute(
       'href',
-      `/products?category=${encodeURIComponent(categoryId)}`,
+      `/3d-models?category=${encodeURIComponent(categoryId)}`,
     )
   })
 
@@ -344,7 +348,7 @@ describe('ProductDetailsPage', () => {
 
     expect(screen.getByRole('link', { name: /back to products/i })).toHaveAttribute(
       'href',
-      '/products',
+      '/3d-models',
     )
   })
 
@@ -403,8 +407,12 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('button', { name: /sign in to add to cart/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /sign in to add to wishlist/i })).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /sign in to add to cart/i }).length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in to buy/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
   })
@@ -445,14 +453,15 @@ describe('ProductDetailsPage', () => {
     })
 
     expect(screen.getByRole('button', { name: /^buy now$/i })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: /^add to cart$/i }))
+    await user.click(screen.getByRole('button', { name: /add to cart/i }))
     expect(vi.mocked(cartApi.addCartItem).mock.calls[0]?.[0]).toEqual({
       product_type: 'product',
       product_id: productId,
       quantity: 1,
     })
-    const wishlistButtons = screen.getAllByRole('button', { name: /^add to wishlist$/i })
-    await user.click(wishlistButtons[0])
+    await user.click(
+      screen.getByRole('button', { name: /add to wishlist for cyberpunk drone 3d/i }),
+    )
     expect(vi.mocked(wishlistApi.addWishlistItem).mock.calls[0]?.[0]).toEqual({
       product_type: 'product',
       product_id: productId,

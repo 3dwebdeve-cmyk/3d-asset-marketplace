@@ -164,6 +164,7 @@ export interface PublicProduct {
   currency: string
   discount_price: string | null
   thumbnail: string
+  software_used: string
   category: CategoryParent
   license_type: ProductLicenseType
   average_rating: string
@@ -224,4 +225,8 @@ export interface PublicProductListParams {
   category_id?: string
   search?: string
   ordering?: string
+  animated?: boolean
+  rigged?: boolean
+  pbr_ready?: boolean
+  game_ready?: boolean
 }
