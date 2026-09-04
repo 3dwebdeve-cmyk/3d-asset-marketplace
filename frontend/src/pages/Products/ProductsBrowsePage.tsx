@@ -8,14 +8,11 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { CategoryPublic } from '../../types/category'
-import type { ProductLicenseType } from '../../types/product'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
 
-const PAGE_SIZE = 12
 const HUB_PREVIEW_SIZE = 6
 
-type SortOption = '-created_at' | 'price' | '-price' | 'name' | '-name'
 type SearchEditSource = 'url' | 'input'
 
 function scrollRail(rail: HTMLElement | null, direction: -1 | 1) {
@@ -82,9 +79,6 @@ export function ProductsBrowsePage() {
 
   const [searchInput, setSearchInput] = useState(searchFromUrl)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
-  const [selectedLicense, setSelectedLicense] = useState<string>('all')
-  const [sortOrdering, setSortOrdering] = useState<SortOption>('-created_at')
-  const [currentPage, setCurrentPage] = useState(1)
   const searchEditSourceRef = useRef<SearchEditSource>('url')
 
   const categoriesRailRef = useRef<HTMLDivElement>(null)
@@ -93,13 +87,11 @@ export function ProductsBrowsePage() {
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
-    setCurrentPage(1)
   }, [categoryFromUrl])
 
   useEffect(() => {
     searchEditSourceRef.current = 'url'
     setSearchInput(searchFromUrl)
-    setCurrentPage(1)
   }, [searchFromUrl])
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
@@ -121,53 +113,16 @@ export function ProductsBrowsePage() {
   const handleSearchChange = (val: string) => {
     searchEditSourceRef.current = 'input'
     setSearchInput(val.slice(0, 100))
-    setCurrentPage(1)
   }
 
   const handleCategoryChange = (catId: string) => {
     setSelectedCategoryId(catId)
-    setCurrentPage(1)
 
     const nextParams = new URLSearchParams(searchParams)
     if (catId) {
       nextParams.set('category', catId)
     } else {
       nextParams.delete('category')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
-
-  const handleLicenseChange = (license: string) => {
-    setSelectedLicense(license)
-    setCurrentPage(1)
-  }
-
-  const handleSortChange = (sort: SortOption) => {
-    setSortOrdering(sort)
-    setCurrentPage(1)
-  }
-
-  const exitCatalogMode = () => {
-    searchEditSourceRef.current = 'input'
-    setSearchInput('')
-    setSelectedCategoryId('')
-    setSelectedLicense('all')
-    setSortOrdering('-created_at')
-    setCurrentPage(1)
-    setSearchParams({}, { replace: true })
-  }
-
-  const handleResetFilters = () => {
-    searchEditSourceRef.current = 'input'
-    setSearchInput('')
-    setSelectedCategoryId('')
-    setSelectedLicense('all')
-    setSortOrdering('-created_at')
-    setCurrentPage(1)
-
-    const nextParams = new URLSearchParams()
-    if (viewAll) {
-      nextParams.set('view', 'all')
     }
     setSearchParams(nextParams, { replace: true })
   }
@@ -184,23 +139,15 @@ export function ProductsBrowsePage() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: [
-      'public-products-browse',
-      isCatalogMode ? currentPage : 1,
-      isCatalogMode ? selectedCategoryId : '',
-      isCatalogMode ? searchFromUrl : '',
-      isCatalogMode ? sortOrdering : '-created_at',
-      isCatalogMode ? 'catalog' : 'hub',
-    ],
+    queryKey: ['public-products-browse', 'hub'],
     queryFn: () =>
       listPublicProducts({
-        page: isCatalogMode ? currentPage : 1,
-        page_size: isCatalogMode ? PAGE_SIZE : HUB_PREVIEW_SIZE,
-        category_id: isCatalogMode ? selectedCategoryId || undefined : undefined,
-        search: isCatalogMode ? searchFromUrl || undefined : undefined,
-        ordering: isCatalogMode ? sortOrdering : '-created_at',
+        page: 1,
+        page_size: HUB_PREVIEW_SIZE,
+        ordering: '-created_at',
       }),
     placeholderData: keepPreviousData,
+    enabled: !isCatalogMode,
   })
 
   const {
@@ -219,21 +166,7 @@ export function ProductsBrowsePage() {
     enabled: !isCatalogMode,
   })
 
-  const filteredProducts = useMemo(() => {
-    if (!productsData?.results) return []
-    if (!isCatalogMode || selectedLicense === 'all') return productsData.results
-
-    return productsData.results.filter(
-      (product) => product.license_type === (selectedLicense as ProductLicenseType),
-    )
-  }, [productsData, selectedLicense, isCatalogMode])
-
-  const totalPages = Math.ceil((productsData?.count ?? 0) / PAGE_SIZE)
-  const isFiltered =
-    Boolean(searchInput) ||
-    Boolean(selectedCategoryId) ||
-    selectedLicense !== 'all' ||
-    sortOrdering !== '-created_at'
+  const filteredProducts = useMemo(() => productsData?.results ?? [], [productsData])
 
   const categories = categoriesData?.results ?? []
   const plugins = pluginsData?.results ?? []

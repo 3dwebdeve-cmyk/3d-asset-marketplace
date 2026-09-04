@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { logoutUser } from '../api/authApi'
@@ -29,7 +30,6 @@ export function Navbar() {
   const openCartDrawer = useCartUiStore((state) => state.openDrawer)
 
   const isPluginsRoute = location.pathname.toLowerCase().startsWith('/plugins')
-  const isModelsRoute = location.pathname.toLowerCase().startsWith('/3d-models')
   const [categoryId, setCategoryId] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [accountOpen, setAccountOpen] = useState(false)
