@@ -77,6 +77,7 @@ class ProductListPublicSerializer(serializers.ModelSerializer):
             "currency",
             "discount_price",
             "thumbnail",
+            "software_used",
             "category",
             "license_type",
             "average_rating",

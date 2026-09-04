@@ -114,6 +114,49 @@ class ProductPublicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
 
+    def test_list_search_matches_software_used(self) -> None:
+        self.published.software_used = "Blender 4.x"
+        self.published.save(update_fields=["software_used", "updated_at"])
+        Product.objects.create(
+            category=self.category,
+            name="Maya Character",
+            slug="maya-character",
+            price=Decimal("40.00"),
+            software_used="Maya 2024",
+            status=Product.Status.PUBLISHED,
+        )
+
+        response = self.client.get(self.list_url, {"search": "Blender"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
+        self.assertEqual(response.data["results"][0]["software_used"], "Blender 4.x")
+
+    def test_list_filters_by_rigged(self) -> None:
+        self.published.rigged = True
+        self.published.save(update_fields=["rigged", "updated_at"])
+        Product.objects.create(
+            category=self.category,
+            name="Static Prop",
+            slug="static-prop",
+            price=Decimal("15.00"),
+            rigged=False,
+            status=Product.Status.PUBLISHED,
+        )
+
+        response = self.client.get(self.list_url, {"rigged": "1"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
+
+    def test_list_ignores_invalid_bool_filter(self) -> None:
+        response = self.client.get(self.list_url, {"rigged": "maybe"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+
     def test_detail_returns_published_product_without_storage_path(self) -> None:
         response = self.client.get(self.detail_url)
 

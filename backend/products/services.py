@@ -114,6 +114,10 @@ class ProductService:
         category_id: UUID | None = None,
         search: str | None = None,
         ordering: str | None = None,
+        animated: bool | None = None,
+        rigged: bool | None = None,
+        pbr_ready: bool | None = None,
+        game_ready: bool | None = None,
     ) -> QuerySet[Product]:
         # Public list responses do not serialize images or files.
         queryset = Product.objects.select_related("category").filter(
@@ -128,7 +132,17 @@ class ProductService:
                 Q(name__icontains=query)
                 | Q(description__icontains=query)
                 | Q(short_description__icontains=query)
+                | Q(software_used__icontains=query)
             )
+
+        if animated is not None:
+            queryset = queryset.filter(animated=animated)
+        if rigged is not None:
+            queryset = queryset.filter(rigged=rigged)
+        if pbr_ready is not None:
+            queryset = queryset.filter(pbr_ready=pbr_ready)
+        if game_ready is not None:
+            queryset = queryset.filter(game_ready=game_ready)
 
         return queryset.order_by(cls._resolve_ordering(ordering))
 

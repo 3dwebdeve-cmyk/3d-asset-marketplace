@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 
 import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
+import { isSafePreviewVideoUrl } from '../../components/viewer/isSafePreviewVideoUrl'
 import type { ProductImage } from '../../types/product'
 
 interface GalleryImage {
@@ -10,13 +11,17 @@ interface GalleryImage {
   alt: string
 }
 
-type StageViewMode = 'model' | 'image'
+type StageViewMode = 'model' | 'image' | 'video'
 
 interface ProductImageGalleryProps {
   productName: string
   thumbnail: string
   images: ProductImage[]
   previewModelUrl: string
+  previewVideoUrl?: string
+  showStageChrome?: boolean
+  showPreviewModeThumbs?: boolean
+  stageOverlays?: ReactNode
 }
 
 function buildGalleryImages(
@@ -55,29 +60,44 @@ export function ProductImageGallery({
   thumbnail,
   images,
   previewModelUrl,
+  previewVideoUrl = '',
+  showStageChrome = false,
+  showPreviewModeThumbs = true,
+  stageOverlays,
 }: ProductImageGalleryProps) {
   const galleryId = useId()
   const hasSafePreviewModel = isSafePreviewModelUrl(previewModelUrl)
+  const hasSafePreviewVideo = isSafePreviewVideoUrl(previewVideoUrl)
   const galleryImages = useMemo(
     () => buildGalleryImages(productName, thumbnail, images),
     [productName, thumbnail, images],
   )
 
-  const [viewMode, setViewMode] = useState<StageViewMode>(
-    hasSafePreviewModel ? 'model' : 'image',
-  )
+  const [viewMode, setViewMode] = useState<StageViewMode>(() => {
+    if (hasSafePreviewModel) return 'model'
+    if (hasSafePreviewVideo) return 'video'
+    return 'image'
+  })
   const [activeIndex, setActiveIndex] = useState(0)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [imgErrorIds, setImgErrorIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
-    setViewMode(hasSafePreviewModel ? 'model' : 'image')
-  }, [hasSafePreviewModel, previewModelUrl])
+    if (hasSafePreviewModel) {
+      setViewMode('model')
+    } else if (hasSafePreviewVideo) {
+      setViewMode('video')
+    } else {
+      setViewMode('image')
+    }
+  }, [hasSafePreviewModel, hasSafePreviewVideo, previewModelUrl, previewVideoUrl])
 
   const safeIndex = galleryImages.length === 0 ? 0 : Math.min(activeIndex, galleryImages.length - 1)
   const activeImage = galleryImages[safeIndex] ?? null
   const activeFailed = activeImage ? imgErrorIds.has(activeImage.id) : true
   const showModelStage = hasSafePreviewModel && viewMode === 'model'
+  const showVideoStage = hasSafePreviewVideo && viewMode === 'video'
+  const showImageStage = !showModelStage && !showVideoStage
 
   const markFailed = useCallback((id: string) => {
     setImgErrorIds((current) => {
@@ -106,6 +126,7 @@ export function ProductImageGallery({
       return
     }
     setActiveIndex((current) => (current - 1 + galleryImages.length) % galleryImages.length)
+    setViewMode('image')
   }, [galleryImages.length])
 
   const showNext = useCallback(() => {
@@ -113,6 +134,7 @@ export function ProductImageGallery({
       return
     }
     setActiveIndex((current) => (current + 1) % galleryImages.length)
+    setViewMode('image')
   }, [galleryImages.length])
 
   const selectImage = useCallback((index: number) => {
@@ -152,6 +174,11 @@ export function ProductImageGallery({
     }
   }, [lightboxOpen, closeLightbox, showPrevious, showNext])
 
+  const counterLabel =
+    showImageStage && galleryImages.length > 0
+      ? `${safeIndex + 1} / ${galleryImages.length}`
+      : null
+
   return (
     <div className="product-detail-gallery">
       <div className="product-detail-stage">
@@ -162,6 +189,19 @@ export function ProductImageGallery({
               ariaLabel={`Interactive 3D preview of ${productName}`}
             />
           </div>
+        ) : showVideoStage ? (
+          <div className="product-detail-stage__video-wrap">
+            <video
+              className="product-detail-stage__video"
+              src={previewVideoUrl.trim()}
+              controls
+              playsInline
+              preload="metadata"
+              aria-label={`Preview video of ${productName}`}
+            >
+              Your browser does not support this preview video.
+            </video>
+          </div>
         ) : !activeImage || activeFailed ? (
           <div
             className="product-detail-stage__empty"
@@ -171,8 +211,10 @@ export function ProductImageGallery({
             <p className="product-detail-stage__empty-title">No preview image</p>
             <p className="product-detail-stage__empty-body">
               {hasSafePreviewModel
-                ? 'Use the 3D thumbnail to view the interactive preview model.'
-                : 'No preview image or model is available for this product yet.'}
+                ? 'Interactive preview model is loading when available.'
+                : hasSafePreviewVideo
+                  ? 'Preview video is available when provided.'
+                  : 'No preview image or model is available for this product yet.'}
             </p>
           </div>
         ) : (
@@ -192,11 +234,43 @@ export function ProductImageGallery({
             />
           </button>
         )}
+
+        {showStageChrome && counterLabel ? (
+          <span className="product-detail-stage__counter" aria-live="polite">
+            {counterLabel}
+          </span>
+        ) : null}
+
+        {showStageChrome && stageOverlays ? (
+          <div className="product-detail-stage__overlays">{stageOverlays}</div>
+        ) : null}
+
+        {showStageChrome && showImageStage && galleryImages.length > 1 ? (
+          <>
+            <button
+              type="button"
+              className="product-detail-stage__nav product-detail-stage__nav--prev"
+              onClick={showPrevious}
+              aria-label="Previous image"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="product-detail-stage__nav product-detail-stage__nav--next"
+              onClick={showNext}
+              aria-label="Next image"
+            >
+              ›
+            </button>
+          </>
+        ) : null}
       </div>
 
-      {galleryImages.length > 0 ? (
+      {galleryImages.length > 0 ||
+      (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo)) ? (
         <ul className="product-detail-gallery__thumbs" aria-label="Product image thumbnails">
-          {hasSafePreviewModel ? (
+          {showPreviewModeThumbs && hasSafePreviewModel ? (
             <li>
               <button
                 type="button"
@@ -211,6 +285,21 @@ export function ProductImageGallery({
               </button>
             </li>
           ) : null}
+          {showPreviewModeThumbs && hasSafePreviewVideo ? (
+            <li>
+              <button
+                type="button"
+                className={`product-detail-gallery__thumb${
+                  showVideoStage ? ' product-detail-gallery__thumb--active' : ''
+                }`}
+                onClick={() => setViewMode('video')}
+                aria-label="Show preview video"
+                aria-current={showVideoStage ? 'true' : undefined}
+              >
+                <span className="product-detail-gallery__thumb-3d">Video</span>
+              </button>
+            </li>
+          ) : null}
           {galleryImages.map((image, index) => {
             const failed = imgErrorIds.has(image.id)
             return (
@@ -218,13 +307,13 @@ export function ProductImageGallery({
                 <button
                   type="button"
                   className={`product-detail-gallery__thumb${
-                    !showModelStage && index === safeIndex
+                    showImageStage && index === safeIndex
                       ? ' product-detail-gallery__thumb--active'
                       : ''
                   }`}
                   onClick={() => selectImage(index)}
                   aria-label={`Show image ${index + 1} of ${galleryImages.length}`}
-                  aria-current={!showModelStage && index === safeIndex ? 'true' : undefined}
+                  aria-current={showImageStage && index === safeIndex ? 'true' : undefined}
                   disabled={failed}
                 >
                   {failed ? (

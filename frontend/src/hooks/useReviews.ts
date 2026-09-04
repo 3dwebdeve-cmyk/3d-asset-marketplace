@@ -10,12 +10,15 @@ import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import type { ReviewCreatePayload, ReviewProductType } from '../types/review'
 
+export type ReviewOrdering = 'created_at' | '-created_at' | 'rating' | '-rating'
+
 interface UseReviewsOptions {
   productType: ReviewProductType
   productId: string
   catalogSlug?: string
   page?: number
   pageSize?: number
+  ordering?: ReviewOrdering
 }
 
 export function useReviews({
@@ -24,6 +27,7 @@ export function useReviews({
   catalogSlug,
   page = 1,
   pageSize = 10,
+  ordering = '-created_at',
 }: UseReviewsOptions) {
   const queryClient = useQueryClient()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -31,14 +35,14 @@ export function useReviews({
   const isSignedIn = isAuthenticated && Boolean(accessToken)
 
   const listQuery = useQuery({
-    queryKey: ['reviews', productType, productId, page, pageSize],
+    queryKey: ['reviews', productType, productId, page, pageSize, ordering],
     queryFn: () =>
       listReviews({
         product_type: productType,
         product_id: productId,
         page,
         page_size: pageSize,
-        ordering: '-created_at',
+        ordering,
       }),
     enabled: Boolean(productId),
   })

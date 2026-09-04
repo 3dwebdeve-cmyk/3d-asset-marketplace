@@ -106,7 +106,7 @@ export function NotificationBell() {
     <div className="notification-bell" ref={rootRef}>
       <button
         type="button"
-        className="navbar__link navbar__link--with-badge notification-bell__trigger"
+        className="navbar__icon-btn notification-bell__trigger"
         aria-label={
           unreadCount > 0
             ? `Notifications, ${unreadCount} unread`
@@ -117,7 +117,18 @@ export function NotificationBell() {
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
       >
-        Notifications
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+        >
+          <path d="M6 9a6 6 0 0 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" />
+          <path d="M10 20a2 2 0 0 0 4 0" />
+        </svg>
         {unreadCount > 0 ? (
           <span
             className="project-unread-badge notification-bell__badge"

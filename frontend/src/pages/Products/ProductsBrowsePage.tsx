@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
 import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
@@ -8,14 +8,11 @@ import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { CategoryPublic } from '../../types/category'
-import type { ProductLicenseType } from '../../types/product'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
 
-const PAGE_SIZE = 12
 const HUB_PREVIEW_SIZE = 6
 
-type SortOption = '-created_at' | 'price' | '-price' | 'name' | '-name'
 type SearchEditSource = 'url' | 'input'
 
 function scrollRail(rail: HTMLElement | null, direction: -1 | 1) {
@@ -63,17 +60,25 @@ function CategoryTile({
 }
 
 export function ProductsBrowsePage() {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const viewAll = searchParams.get('view') === 'all'
   const isCatalogMode = Boolean(searchFromUrl || categoryFromUrl || viewAll)
 
+  // Old /products catalog mode is replaced by /3d-models — redirect there.
+  useEffect(() => {
+    if (!isCatalogMode) return
+    const next = new URLSearchParams()
+    if (searchFromUrl) next.set('search', searchFromUrl)
+    if (categoryFromUrl) next.set('category', categoryFromUrl)
+    const qs = next.toString()
+    navigate(qs ? `/3d-models?${qs}` : '/3d-models', { replace: true })
+  }, [isCatalogMode, searchFromUrl, categoryFromUrl, navigate])
+
   const [searchInput, setSearchInput] = useState(searchFromUrl)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
-  const [selectedLicense, setSelectedLicense] = useState<string>('all')
-  const [sortOrdering, setSortOrdering] = useState<SortOption>('-created_at')
-  const [currentPage, setCurrentPage] = useState(1)
   const searchEditSourceRef = useRef<SearchEditSource>('url')
 
   const categoriesRailRef = useRef<HTMLDivElement>(null)
@@ -82,13 +87,11 @@ export function ProductsBrowsePage() {
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
-    setCurrentPage(1)
   }, [categoryFromUrl])
 
   useEffect(() => {
     searchEditSourceRef.current = 'url'
     setSearchInput(searchFromUrl)
-    setCurrentPage(1)
   }, [searchFromUrl])
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
@@ -110,59 +113,16 @@ export function ProductsBrowsePage() {
   const handleSearchChange = (val: string) => {
     searchEditSourceRef.current = 'input'
     setSearchInput(val.slice(0, 100))
-    setCurrentPage(1)
   }
 
   const handleCategoryChange = (catId: string) => {
     setSelectedCategoryId(catId)
-    setCurrentPage(1)
 
     const nextParams = new URLSearchParams(searchParams)
     if (catId) {
       nextParams.set('category', catId)
     } else {
       nextParams.delete('category')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
-
-  const handleLicenseChange = (license: string) => {
-    setSelectedLicense(license)
-    setCurrentPage(1)
-  }
-
-  const handleSortChange = (sort: SortOption) => {
-    setSortOrdering(sort)
-    setCurrentPage(1)
-  }
-
-  const openFullCatalog = () => {
-    const nextParams = new URLSearchParams(searchParams)
-    nextParams.set('view', 'all')
-    setSearchParams(nextParams, { replace: true })
-  }
-
-  const exitCatalogMode = () => {
-    searchEditSourceRef.current = 'input'
-    setSearchInput('')
-    setSelectedCategoryId('')
-    setSelectedLicense('all')
-    setSortOrdering('-created_at')
-    setCurrentPage(1)
-    setSearchParams({}, { replace: true })
-  }
-
-  const handleResetFilters = () => {
-    searchEditSourceRef.current = 'input'
-    setSearchInput('')
-    setSelectedCategoryId('')
-    setSelectedLicense('all')
-    setSortOrdering('-created_at')
-    setCurrentPage(1)
-
-    const nextParams = new URLSearchParams()
-    if (viewAll) {
-      nextParams.set('view', 'all')
     }
     setSearchParams(nextParams, { replace: true })
   }
@@ -179,23 +139,15 @@ export function ProductsBrowsePage() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: [
-      'public-products-browse',
-      isCatalogMode ? currentPage : 1,
-      isCatalogMode ? selectedCategoryId : '',
-      isCatalogMode ? searchFromUrl : '',
-      isCatalogMode ? sortOrdering : '-created_at',
-      isCatalogMode ? 'catalog' : 'hub',
-    ],
+    queryKey: ['public-products-browse', 'hub'],
     queryFn: () =>
       listPublicProducts({
-        page: isCatalogMode ? currentPage : 1,
-        page_size: isCatalogMode ? PAGE_SIZE : HUB_PREVIEW_SIZE,
-        category_id: isCatalogMode ? selectedCategoryId || undefined : undefined,
-        search: isCatalogMode ? searchFromUrl || undefined : undefined,
-        ordering: isCatalogMode ? sortOrdering : '-created_at',
+        page: 1,
+        page_size: HUB_PREVIEW_SIZE,
+        ordering: '-created_at',
       }),
     placeholderData: keepPreviousData,
+    enabled: !isCatalogMode,
   })
 
   const {
@@ -214,21 +166,7 @@ export function ProductsBrowsePage() {
     enabled: !isCatalogMode,
   })
 
-  const filteredProducts = useMemo(() => {
-    if (!productsData?.results) return []
-    if (!isCatalogMode || selectedLicense === 'all') return productsData.results
-
-    return productsData.results.filter(
-      (product) => product.license_type === (selectedLicense as ProductLicenseType),
-    )
-  }, [productsData, selectedLicense, isCatalogMode])
-
-  const totalPages = Math.ceil((productsData?.count ?? 0) / PAGE_SIZE)
-  const isFiltered =
-    Boolean(searchInput) ||
-    Boolean(selectedCategoryId) ||
-    selectedLicense !== 'all' ||
-    sortOrdering !== '-created_at'
+  const filteredProducts = useMemo(() => productsData?.results ?? [], [productsData])
 
   const categories = categoriesData?.results ?? []
   const plugins = pluginsData?.results ?? []
@@ -271,13 +209,15 @@ export function ProductsBrowsePage() {
         <div className="browse-hub__toolbar">{searchBar(true)}</div>
 
         <section className="browse-hub-hero" aria-labelledby="browse-hub-heading">
-          <h1 id="browse-hub-heading" className="browse-hub-hero__title">
-            The Ultimate Marketplace for 3D &amp; Digital Assets
-          </h1>
-          <p className="browse-hub-hero__subtitle">
-            Discover, create and bring ideas to life with high-quality 3D models, materials,
-            textures and tools — all in one place.
-          </p>
+          <div className="browse-hub-hero__content">
+            <h1 id="browse-hub-heading" className="browse-hub-hero__title">
+              The Ultimate Marketplace for 3D &amp; Digital Assets
+            </h1>
+            <p className="browse-hub-hero__subtitle">
+              Discover, create and bring ideas to life with high-quality 3D models, materials,
+              textures and tools — all in one place.
+            </p>
+          </div>
         </section>
 
         <section className="browse-module-cards" aria-label="Marketplace modules">
@@ -293,9 +233,9 @@ export function ProductsBrowsePage() {
             <p className="browse-module-card__text">
               Explore high quality 3D models in all categories.
             </p>
-            <Button type="button" onClick={openFullCatalog}>
+            <Link className="browse-module-card__cta" to="/3d-models">
               Shop 3D models
-            </Button>
+            </Link>
           </article>
 
           <article className="browse-module-card">
@@ -338,13 +278,9 @@ export function ProductsBrowsePage() {
               Trending Categories
             </h2>
             <div className="browse-rail-section__actions">
-              <button
-                type="button"
-                className="browse-rail-section__view-all"
-                onClick={openFullCatalog}
-              >
+              <Link className="browse-rail-section__view-all" to="/3d-models">
                 View All
-              </button>
+              </Link>
               <div className="browse-rail-section__nav">
                 <button
                   type="button"
@@ -373,7 +309,9 @@ export function ProductsBrowsePage() {
                 <CategoryTile
                   key={category.id}
                   category={category}
-                  onSelect={handleCategoryChange}
+                  onSelect={(id) => {
+                    navigate(`/3d-models?category=${encodeURIComponent(id)}`)
+                  }}
                 />
               ))
             )}
@@ -386,13 +324,9 @@ export function ProductsBrowsePage() {
               Shop 3D Models
             </h2>
             <div className="browse-rail-section__actions">
-              <button
-                type="button"
-                className="browse-rail-section__view-all"
-                onClick={openFullCatalog}
-              >
+              <Link className="browse-rail-section__view-all" to="/3d-models">
                 View All
-              </button>
+              </Link>
               <div className="browse-rail-section__nav">
                 <button
                   type="button"
@@ -505,175 +439,10 @@ export function ProductsBrowsePage() {
     )
   }
 
+  // Catalog mode redirects to /3d-models in the effect above.
   return (
-    <main className="products-browse-page">
-      <section className="products-browse-hero">
-        <div className="products-browse-hero__container">
-          <button type="button" className="products-browse-hero__back" onClick={exitCatalogMode}>
-            ← Back to browse
-          </button>
-          <h1 className="products-browse-hero__title">Explore Premium 3D Models</h1>
-          <p className="products-browse-hero__subtitle">
-            High-fidelity 3D assets crafted for game design, architecture, rendering, and visual
-            effects.
-          </p>
-          {searchBar(false)}
-        </div>
-      </section>
-
-      <div className="products-browse-content">
-        <aside className="products-browse-sidebar">
-          <div className="products-browse-sidebar__header">
-            <h2 className="products-browse-sidebar__title">Filters</h2>
-            {isFiltered && (
-              <button
-                type="button"
-                className="products-browse-sidebar__reset"
-                onClick={handleResetFilters}
-              >
-                Reset All
-              </button>
-            )}
-          </div>
-
-          <div className="products-filter-group">
-            <label htmlFor="category-select" className="products-filter-group__label">
-              Category
-            </label>
-            <select
-              id="category-select"
-              value={selectedCategoryId}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="products-filter-group__select"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="products-filter-group">
-            <label htmlFor="license-select" className="products-filter-group__label">
-              License Type
-            </label>
-            <select
-              id="license-select"
-              value={selectedLicense}
-              onChange={(e) => handleLicenseChange(e.target.value)}
-              className="products-filter-group__select"
-            >
-              <option value="all">All Licenses</option>
-              <option value="standard">Standard License</option>
-              <option value="extended">Extended License</option>
-              <option value="editorial">Editorial License</option>
-            </select>
-          </div>
-
-          <div className="products-filter-group">
-            <label htmlFor="sort-select" className="products-filter-group__label">
-              Sort By
-            </label>
-            <select
-              id="sort-select"
-              value={sortOrdering}
-              onChange={(e) => handleSortChange(e.target.value as SortOption)}
-              className="products-filter-group__select"
-            >
-              <option value="-created_at">Newest First</option>
-              <option value="price">Price: Low to High</option>
-              <option value="-price">Price: High to Low</option>
-              <option value="name">Name: A to Z</option>
-              <option value="-name">Name: Z to A</option>
-            </select>
-          </div>
-        </aside>
-
-        <section className="products-browse-main">
-          <div className="products-browse-toolbar">
-            <p className="products-browse-toolbar__count">
-              {isLoading ? (
-                'Loading assets...'
-              ) : (
-                <>
-                  Showing <strong>{filteredProducts.length}</strong> of{' '}
-                  <strong>{productsData?.count ?? 0}</strong> products
-                </>
-              )}
-            </p>
-          </div>
-
-          {isLoading ? (
-            <div className="products-grid products-grid--skeleton" aria-label="Loading products">
-              {Array.from({ length: 6 }).map((_, idx) => (
-                <div key={idx} className="product-card-skeleton">
-                  <div className="product-card-skeleton__media" />
-                  <div className="product-card-skeleton__body">
-                    <div className="product-card-skeleton__line product-card-skeleton__line--short" />
-                    <div className="product-card-skeleton__line" />
-                    <div className="product-card-skeleton__line product-card-skeleton__line--medium" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : isError ? (
-            <div className="products-error-state">
-              <h3>Failed to load products</h3>
-              <p>We encountered an issue fetching models from the marketplace catalog.</p>
-              <Button variant="secondary" onClick={() => refetch()}>
-                Try Again
-              </Button>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="products-empty-state">
-              <div className="products-empty-state__icon" aria-hidden="true">
-                🔍
-              </div>
-              <h3>No 3D Models Found</h3>
-              <p>
-                Try adjusting your search query, clearing filters, or choosing a different category.
-              </p>
-              {isFiltered && (
-                <Button variant="secondary" onClick={handleResetFilters}>
-                  Clear All Filters
-                </Button>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="products-grid">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-
-              {totalPages > 1 && (
-                <nav className="products-pagination" aria-label="Pagination Navigation">
-                  <Button
-                    variant="secondary"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <span className="products-pagination__info">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Next
-                  </Button>
-                </nav>
-              )}
-            </>
-          )}
-        </section>
-      </div>
+    <main className="products-browse-page" aria-busy="true">
+      <p className="plugins-browse-toolbar__count">Opening 3D models…</p>
     </main>
   )
 }

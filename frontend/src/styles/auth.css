@@ -3,7 +3,7 @@
   width: 100%;
   display: grid;
   place-items: center;
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
+  padding: clamp(1.5rem, 4vw, 3rem) var(--site-gutter);
   text-align: left;
   background: var(--bg-main);
   box-sizing: border-box;
@@ -455,7 +455,7 @@
   z-index: 1100;
   display: grid;
   place-items: center;
-  padding: clamp(1rem, 3vw, 2rem);
+  padding: var(--site-gutter);
   box-sizing: border-box;
 }
 

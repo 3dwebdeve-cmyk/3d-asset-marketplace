@@ -12,7 +12,7 @@ export function AboutPage() {
   return (
     <main className="marketing-page">
       <div className="marketing-page__inner">
-        <section className="marketing-page__hero" aria-labelledby="about-title">
+        <header className="marketing-page__intro" aria-labelledby="about-title">
           <p className="marketing-page__eyebrow">About the studio</p>
           <h1 id="about-title">Premium 3D assets and custom design, under one roof</h1>
           <p className="marketing-page__lead">
@@ -20,7 +20,7 @@ export function AboutPage() {
             creators who need bespoke design work through a clear project portal — from brief to
             delivery.
           </p>
-        </section>
+        </header>
 
         <section className="marketing-section" aria-labelledby="about-mission">
           <h2 id="about-mission">Our mission</h2>

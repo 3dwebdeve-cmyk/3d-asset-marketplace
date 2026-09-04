@@ -1,34 +1,51 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
+import { SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { PluginOrdering } from '../../types/plugin'
 import { PluginCard } from './PluginCard'
 
 const PAGE_SIZE = 12
 
+const COMPAT_CHIPS = ['Blender', 'Maya', '3ds Max', 'Cinema 4D'] as const
+
+type ViewMode = 'grid' | 'list'
+
 export function PluginsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
+  const searchFromUrl = searchParams.get('search')?.trim() ?? ''
 
-  const [searchInput, setSearchInput] = useState('')
+  const [searchInput, setSearchInput] = useState(searchFromUrl)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [sortOrdering, setSortOrdering] = useState<PluginOrdering>('-created_at')
   const [currentPage, setCurrentPage] = useState(1)
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
     setCurrentPage(1)
   }, [categoryFromUrl])
 
+  useEffect(() => {
+    setSearchInput(searchFromUrl)
+    setCurrentPage(1)
+  }, [searchFromUrl])
+
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
 
-  const handleSearchChange = (val: string) => {
-    setSearchInput(val)
-    setCurrentPage(1)
+  const setSearchInUrl = (value: string) => {
+    const nextParams = new URLSearchParams(searchParams)
+    const trimmed = value.trim().slice(0, 100)
+    if (trimmed) {
+      nextParams.set('search', trimmed)
+    } else {
+      nextParams.delete('search')
+    }
+    setSearchParams(nextParams, { replace: true })
   }
 
   const handleCategoryChange = (catId: string) => {
@@ -49,6 +66,12 @@ export function PluginsBrowsePage() {
     setCurrentPage(1)
   }
 
+  const handleCompatChip = (term: string) => {
+    setSearchInput(term)
+    setCurrentPage(1)
+    setSearchInUrl(term)
+  }
+
   const handleResetFilters = () => {
     setSearchInput('')
     setSelectedCategoryId('')
@@ -57,6 +80,7 @@ export function PluginsBrowsePage() {
 
     const nextParams = new URLSearchParams(searchParams)
     nextParams.delete('category')
+    nextParams.delete('search')
     setSearchParams(nextParams, { replace: true })
   }
 
@@ -90,58 +114,66 @@ export function PluginsBrowsePage() {
   })
 
   const plugins = pluginsData?.results ?? []
-  const totalPages = Math.ceil((pluginsData?.count ?? 0) / PAGE_SIZE)
+  const totalCount = pluginsData?.count ?? 0
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
   const isFiltered =
     Boolean(searchInput) || Boolean(selectedCategoryId) || sortOrdering !== '-created_at'
 
+  const selectedCategoryName = useMemo(() => {
+    if (!selectedCategoryId) return null
+    return categoriesData?.results.find((cat) => cat.id === selectedCategoryId)?.name ?? null
+  }, [categoriesData?.results, selectedCategoryId])
+
+  const heroTitle = selectedCategoryName ?? 'Plugins'
+  const crumbTail = selectedCategoryName ?? 'All plugins'
+
   return (
-    <main className="products-browse-page">
-      <section className="products-browse-hero">
-        <div className="products-browse-hero__container">
-          <span className="products-browse-hero__badge">Plugin Store</span>
-          <h1 className="products-browse-hero__title">Discover 3D Software Plugins</h1>
-          <p className="products-browse-hero__subtitle">
+    <main className="plugins-browse">
+      <section className="plugins-browse-hero site-hero-banner">
+        <SiteHeroImage />
+        <div className="site-hero-banner__overlay" />
+        <div className="plugins-browse-hero__container">
+          <nav className="plugins-browse-hero__crumbs" aria-label="Breadcrumb">
+            <Link to="/">Home</Link>
+            <span aria-hidden="true">›</span>
+            <Link to="/plugins">Plugins</Link>
+            <span aria-hidden="true">›</span>
+            <span>{crumbTail}</span>
+          </nav>
+
+          <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
+
+          <p className="plugins-browse-hero__subtitle">
             Professional plugins for Blender, Maya, Cinema 4D, and more. Supercharge your 3D
             workflow with tools built by industry experts.
           </p>
-
-          <div className="products-browse-search">
-            <Input
-              type="search"
-              placeholder="Search plugins by name or keyword..."
-              value={searchInput}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="products-browse-search__input"
-              aria-label="Search plugins"
-            />
-          </div>
         </div>
       </section>
 
-      <div className="products-browse-content">
-        <aside className="products-browse-sidebar">
-          <div className="products-browse-sidebar__header">
-            <h2 className="products-browse-sidebar__title">Filters</h2>
-            {isFiltered && (
+      <div className="plugins-browse__body">
+        <aside className="plugins-filters" aria-label="Plugin filters">
+          <div className="plugins-filters__header">
+            <h2 className="plugins-filters__title">FILTERS</h2>
+            {isFiltered ? (
               <button
                 type="button"
-                className="products-browse-sidebar__reset"
+                className="plugins-filters__reset"
                 onClick={handleResetFilters}
               >
-                Reset All
+                Clear Filters
               </button>
-            )}
+            ) : null}
           </div>
 
-          <div className="products-filter-group">
-            <label htmlFor="plugin-category-select" className="products-filter-group__label">
+          <div className="plugins-filters__group">
+            <label htmlFor="plugin-category-select" className="plugins-filters__label">
               Category
             </label>
             <select
               id="plugin-category-select"
               value={selectedCategoryId}
               onChange={(e) => handleCategoryChange(e.target.value)}
-              className="products-filter-group__select"
+              className="plugins-filters__select"
             >
               <option value="">All Categories</option>
               {categoriesData?.results.map((cat) => (
@@ -152,41 +184,89 @@ export function PluginsBrowsePage() {
             </select>
           </div>
 
-          <div className="products-filter-group">
-            <label htmlFor="plugin-sort-select" className="products-filter-group__label">
-              Sort By
-            </label>
-            <select
-              id="plugin-sort-select"
-              value={sortOrdering}
-              onChange={(e) => handleSortChange(e.target.value as PluginOrdering)}
-              className="products-filter-group__select"
+          <div className="plugins-filters__group">
+            <p className="plugins-filters__label" id="plugin-compat-label">
+              Compatibility
+            </p>
+            <div
+              className="plugins-filters__chips"
+              role="group"
+              aria-labelledby="plugin-compat-label"
             >
-              <option value="-created_at">Newest First</option>
-              <option value="price">Price: Low to High</option>
-              <option value="-price">Price: High to Low</option>
-              <option value="name">Name: A to Z</option>
-              <option value="-name">Name: Z to A</option>
-            </select>
+              {COMPAT_CHIPS.map((term) => {
+                const active = searchInput.trim().toLowerCase() === term.toLowerCase()
+                return (
+                  <button
+                    key={term}
+                    type="button"
+                    className={`plugins-filters__chip${active ? ' plugins-filters__chip--active' : ''}`}
+                    onClick={() => handleCompatChip(term)}
+                    aria-pressed={active}
+                  >
+                    {term}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </aside>
 
-        <section className="products-browse-main">
-          <div className="products-browse-toolbar">
-            <p className="products-browse-toolbar__count">
-              {isLoading ? (
-                'Loading plugins...'
-              ) : (
-                <>
-                  Showing <strong>{plugins.length}</strong> of{' '}
-                  <strong>{pluginsData?.count ?? 0}</strong> plugins
-                </>
-              )}
-            </p>
+        <section className="plugins-browse-main">
+          <div className="plugins-browse-toolbar">
+            <div className="plugins-browse-toolbar__controls">
+              <label className="plugins-browse-toolbar__sort" htmlFor="plugin-sort-select">
+                <span>Sort by:</span>
+                <select
+                  id="plugin-sort-select"
+                  value={sortOrdering}
+                  onChange={(e) => handleSortChange(e.target.value as PluginOrdering)}
+                  className="plugins-filters__select plugins-filters__select--compact"
+                >
+                  <option value="-created_at">Newest First</option>
+                  <option value="price">Price: Low to High</option>
+                  <option value="-price">Price: High to Low</option>
+                  <option value="name">Name: A to Z</option>
+                  <option value="-name">Name: Z to A</option>
+                </select>
+              </label>
+
+              <div className="plugins-browse-view" role="group" aria-label="View mode">
+                <button
+                  type="button"
+                  className={`plugins-browse-view__btn${viewMode === 'grid' ? ' plugins-browse-view__btn--active' : ''}`}
+                  onClick={() => setViewMode('grid')}
+                  aria-pressed={viewMode === 'grid'}
+                  aria-label="Grid view"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" />
+                    <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" />
+                    <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" />
+                    <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className={`plugins-browse-view__btn${viewMode === 'list' ? ' plugins-browse-view__btn--active' : ''}`}
+                  onClick={() => setViewMode('list')}
+                  aria-pressed={viewMode === 'list'}
+                  aria-label="List view"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <rect x="1" y="2" width="14" height="2.5" rx="0.5" fill="currentColor" />
+                    <rect x="1" y="6.75" width="14" height="2.5" rx="0.5" fill="currentColor" />
+                    <rect x="1" y="11.5" width="14" height="2.5" rx="0.5" fill="currentColor" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
           {isLoading ? (
-            <div className="products-grid products-grid--skeleton" aria-label="Loading plugins">
+            <div
+              className={`plugins-grid${viewMode === 'list' ? ' plugins-grid--list' : ''}`}
+              aria-label="Loading plugins"
+            >
               {Array.from({ length: 6 }).map((_, idx) => (
                 <div key={idx} className="product-card-skeleton">
                   <div className="product-card-skeleton__media" />
@@ -199,7 +279,7 @@ export function PluginsBrowsePage() {
               ))}
             </div>
           ) : isError ? (
-            <div className="products-error-state">
+            <div className="plugins-browse-state">
               <h3>Failed to load plugins</h3>
               <p>We encountered an issue fetching plugins from the store.</p>
               <Button variant="secondary" onClick={() => refetch()}>
@@ -207,31 +287,30 @@ export function PluginsBrowsePage() {
               </Button>
             </div>
           ) : plugins.length === 0 ? (
-            <div className="products-empty-state">
-              <div className="products-empty-state__icon" aria-hidden="true">
-                🔍
-              </div>
+            <div className="plugins-browse-state">
               <h3>No Plugins Found</h3>
               <p>
                 Try adjusting your search query, clearing filters, or choosing a different
                 category.
               </p>
-              {isFiltered && (
+              {isFiltered ? (
                 <Button variant="secondary" onClick={handleResetFilters}>
                   Clear Filters
                 </Button>
-              )}
+              ) : null}
             </div>
           ) : (
             <>
-              <div className="products-grid">
+              <div
+                className={`plugins-grid${viewMode === 'list' ? ' plugins-grid--list' : ''}`}
+              >
                 {plugins.map((plugin) => (
                   <PluginCard key={plugin.id} plugin={plugin} />
                 ))}
               </div>
 
-              {totalPages > 1 && (
-                <nav className="products-pagination" aria-label="Pagination Navigation">
+              {totalPages > 1 ? (
+                <nav className="plugins-pagination" aria-label="Pagination Navigation">
                   <Button
                     variant="secondary"
                     disabled={currentPage <= 1}
@@ -239,7 +318,7 @@ export function PluginsBrowsePage() {
                   >
                     Previous
                   </Button>
-                  <span className="products-pagination__info">
+                  <span className="plugins-pagination__info">
                     Page {currentPage} of {totalPages}
                   </span>
                   <Button
@@ -250,7 +329,7 @@ export function PluginsBrowsePage() {
                     Next
                   </Button>
                 </nav>
-              )}
+              ) : null}
             </>
           )}
         </section>

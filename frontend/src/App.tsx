@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Navbar } from './components/Navbar'
+import { SiteBenefitsBanner } from './components/SiteBenefitsBanner'
 import { SiteFooter } from './components/SiteFooter'
 import { CartDrawer } from './components/cart/CartDrawer'
 import { AuthModal } from './components/auth/AuthModal'
@@ -19,7 +20,9 @@ import './styles/auth.css'
 import './styles/admin-layout.css'
 import './styles/navbar.css'
 import './styles/products-browse.css'
+import './styles/plugins-browse.css'
 import './styles/product-details.css'
+import './styles/product-hub-details.css'
 import './styles/cart.css'
 import './styles/marketing.css'
 
@@ -32,6 +35,12 @@ const ProductsBrowsePage = lazy(() =>
 const PluginsBrowsePage = lazy(() =>
   import('./pages/Plugins/PluginsBrowsePage').then((module) => ({
     default: module.PluginsBrowsePage,
+  })),
+)
+
+const ModelsBrowsePage = lazy(() =>
+  import('./pages/Models/ModelsBrowsePage').then((module) => ({
+    default: module.ModelsBrowsePage,
   })),
 )
 
@@ -308,6 +317,8 @@ function AppRoutes() {
             <Route path="/Products" element={<ProductsBrowsePage />} />
             <Route path="/products/:slug" element={<ProductDetailsPage />} />
             <Route path="/Products/:slug" element={<ProductDetailsPage />} />
+            <Route path="/3d-models" element={<ModelsBrowsePage />} />
+            <Route path="/3D-models" element={<ModelsBrowsePage />} />
             <Route path="/plugins" element={<PluginsBrowsePage />} />
             <Route path="/Plugins" element={<PluginsBrowsePage />} />
             <Route path="/plugins/:slug" element={<PluginDetailsPage />} />
@@ -403,7 +414,12 @@ function AppRoutes() {
           </Routes>
         </Suspense>
       </div>
-      {!hideSiteFooter ? <SiteFooter /> : null}
+      {!hideSiteFooter ? (
+        <>
+          <SiteBenefitsBanner />
+          <SiteFooter />
+        </>
+      ) : null}
     </>
   )
 }

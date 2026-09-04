@@ -2,9 +2,9 @@
 
 .product-detail-page {
   width: 100%;
-  max-width: 1440px;
+  max-width: var(--site-max-width);
   margin: 0 auto;
-  padding: 1.5rem clamp(1rem, 3vw, 2rem) 4rem;
+  padding: 1.5rem var(--site-gutter) 4rem;
   min-height: calc(100vh - 4rem);
   box-sizing: border-box;
   text-align: left;
@@ -173,7 +173,8 @@
 .model-viewer__wireframe-btn {
   position: absolute;
   top: 0.7rem;
-  right: 0.7rem;
+  left: 0.7rem;
+  right: auto;
   z-index: 3;
   margin: 0;
   padding: 0.28rem 0.7rem;

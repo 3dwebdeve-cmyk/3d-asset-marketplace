@@ -15,37 +15,39 @@ export function HomePage() {
   return (
     <main className="home-page">
       <section className="home-page__hero">
-        <p className="home-page__eyebrow">3D Asset Marketplace</p>
-        <h1>Premium 3D assets for creators worldwide</h1>
-        <p className="home-page__subtitle">
-          Browse models, purchase plugins, and request custom design work from one
-          platform.
-        </p>
-        <div className="home-page__actions">
-          <Link className="home-page__cta" to="/products">
-            Browse Marketplace
-          </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/custom-projects">
-            Request custom work
-          </Link>
-          {isAuthenticated ? (
-            <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
-              Go to dashboard
+        <div className="home-page__hero-inner">
+          <p className="home-page__eyebrow">3D Asset Marketplace</p>
+          <h1>Premium 3D assets for creators worldwide</h1>
+          <p className="home-page__subtitle">
+            Browse models, purchase plugins, and request custom design work from one
+            platform.
+          </p>
+          <div className="home-page__actions">
+            <Link className="home-page__cta" to="/products">
+              Browse Marketplace
             </Link>
-          ) : (
-            <>
-              <AuthEntryButton mode="register" returnTo="/" className="home-page__cta">
-                Create account
-              </AuthEntryButton>
-              <AuthEntryButton
-                mode="login"
-                returnTo="/"
-                className="home-page__cta home-page__cta--secondary"
-              >
-                Sign in
-              </AuthEntryButton>
-            </>
-          )}
+            <Link className="home-page__cta home-page__cta--secondary" to="/custom-projects">
+              Request custom work
+            </Link>
+            {isAuthenticated ? (
+              <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
+                Go to dashboard
+              </Link>
+            ) : (
+              <>
+                <AuthEntryButton mode="register" returnTo="/" className="home-page__cta">
+                  Create account
+                </AuthEntryButton>
+                <AuthEntryButton
+                  mode="login"
+                  returnTo="/"
+                  className="home-page__cta home-page__cta--secondary"
+                >
+                  Sign in
+                </AuthEntryButton>
+              </>
+            )}
+          </div>
         </div>
       </section>
     </main>

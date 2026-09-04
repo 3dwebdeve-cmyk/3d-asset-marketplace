@@ -1,7 +1,6 @@
 import { useLocation } from 'react-router-dom'
 
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
-import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import { AddToCartButton } from '../../components/cart/AddToCartButton'
 import { Button } from '../../components/ui/Button'
 import { useBuyNow } from '../../hooks/useBuyNow'
@@ -43,57 +42,45 @@ export function ProductCtaGroup({ productId, productName, productSlug }: Product
   }
 
   return (
-    <div className="product-detail-cta">
-      {isSignedIn ? (
-        <Button
-          type="button"
-          className="product-detail-cta__buy"
-          isLoading={isRedirecting}
-          onClick={() => buyNow('product', productId)}
-        >
-          Buy now
-        </Button>
-      ) : (
-        <AuthEntryButton
-          mode="login"
-          returnTo={returnTo}
-          className="ui-button ui-button--primary product-detail-cta__buy product-detail-cta__link"
-        >
-          Sign in to buy
-        </AuthEntryButton>
-      )}
+    <div className="product-detail-cta product-detail-cta--buybox">
+      <div className="product-detail-cta__actions">
+        {isSignedIn ? (
+          <Button
+            type="button"
+            className="product-detail-cta__full"
+            isLoading={isRedirecting}
+            onClick={() => buyNow('product', productId)}
+          >
+            Buy Now
+          </Button>
+        ) : (
+          <AuthEntryButton
+            mode="login"
+            returnTo={returnTo}
+            className="ui-button ui-button--primary product-detail-cta__full product-detail-cta__link"
+          >
+            Sign in to buy
+          </AuthEntryButton>
+        )}
 
-      <div className="product-detail-cta__secondary">
         <AddToCartButton
           productType="product"
           productId={productId}
           productName={productName}
+          variant="full"
         />
-
-        <WishlistToggle
-          productType="product"
-          productId={productId}
-          productName={productName}
-          variant="chip"
-        />
-
-        <Button
-          type="button"
-          variant="secondary"
-          className="product-detail-cta__chip"
-          onClick={() => {
-            void handleShare()
-          }}
-          aria-label={`Share link for ${productName}`}
-        >
-          Share
-        </Button>
       </div>
 
-      <p className="product-detail-cta__note">
-        Buy now adds this item to your cart and opens Stripe checkout. Package downloads unlock
-        after payment. No package files are exposed on this page.
-      </p>
+      <button
+        type="button"
+        className="product-detail-cta__share-link"
+        onClick={() => {
+          void handleShare()
+        }}
+        aria-label={`Share link for ${productName}`}
+      >
+        Share
+      </button>
     </div>
   )
 }

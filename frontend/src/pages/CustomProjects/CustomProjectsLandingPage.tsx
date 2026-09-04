@@ -22,7 +22,7 @@ export function CustomProjectsLandingPage() {
   return (
     <main className="marketing-page">
       <div className="marketing-page__inner">
-        <section className="marketing-page__hero" aria-labelledby="custom-projects-title">
+        <header className="marketing-page__intro" aria-labelledby="custom-projects-title">
           <p className="marketing-page__eyebrow">Custom design services</p>
           <h1 id="custom-projects-title">Custom 3D projects, from concept to delivery</h1>
           <p className="marketing-page__lead">
@@ -61,7 +61,7 @@ export function CustomProjectsLandingPage() {
               Ask a question first
             </Link>
           </div>
-        </section>
+        </header>
 
         <section className="marketing-section" aria-labelledby="how-it-works">
           <h2 id="how-it-works">How it works</h2>

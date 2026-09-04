@@ -1,12 +1,14 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as authApi from '../api/authApi'
 import * as cartApi from '../api/cartApi'
+import * as categoriesApi from '../api/categoriesApi'
 import * as notificationsApi from '../api/notificationsApi'
+import * as pluginsApi from '../api/pluginsApi'
 import * as wishlistApi from '../api/wishlistApi'
 import { AuthModal } from './auth/AuthModal'
 import { ProtectedRoute } from '../routes/ProtectedRoute'
@@ -49,6 +51,24 @@ vi.mock('../api/notificationsApi', async () => {
   }
 })
 
+vi.mock('../api/categoriesApi', async () => {
+  const actual = await vi.importActual<typeof import('../api/categoriesApi')>(
+    '../api/categoriesApi',
+  )
+  return {
+    ...actual,
+    listPublicCategories: vi.fn(),
+  }
+})
+
+vi.mock('../api/pluginsApi', async () => {
+  const actual = await vi.importActual<typeof import('../api/pluginsApi')>('../api/pluginsApi')
+  return {
+    ...actual,
+    listPublicPluginCategories: vi.fn(),
+  }
+})
+
 function LocationDisplay() {
   const location = useLocation()
   return (
@@ -70,6 +90,8 @@ function renderNavbar(initialPath = '/') {
           <Route path="/" element={<div>Home page</div>} />
           <Route path="/login" element={<div>Sign in page</div>} />
           <Route path="/products" element={<div>Products page</div>} />
+          <Route path="/3d-models" element={<div>3D Models page</div>} />
+          <Route path="/plugins" element={<div>Plugins page</div>} />
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<div>Dashboard page</div>} />
             <Route path="/dashboard/projects" element={<div>My projects page</div>} />
@@ -82,6 +104,11 @@ function renderNavbar(initialPath = '/') {
       </MemoryRouter>
     </QueryClientProvider>,
   )
+}
+
+async function openAccountMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /hi,/i }))
+  return screen.getByRole('menu')
 }
 
 beforeEach(() => {
@@ -114,6 +141,18 @@ beforeEach(() => {
     previous: null,
     results: [],
   })
+  vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(pluginsApi.listPublicPluginCategories).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
 })
 
 describe('Navbar', () => {
@@ -128,11 +167,15 @@ describe('Navbar', () => {
       'href',
       '/custom-projects',
     )
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/products')
+    expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute('href', '/3d-models')
+    expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
   })
 
-  it('shows user name, Dashboard, My Projects, My Orders, My Downloads, Wishlist, Profile, and Sign out when logged in', () => {
+  it('shows user menu with Dashboard, My Projects, My Orders, My Downloads, Wishlist, Profile, and Sign out when logged in', async () => {
+    const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -142,30 +185,33 @@ describe('Navbar', () => {
 
     renderNavbar()
 
-    expect(screen.getByText(testUser.full_name)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /my projects/i })).toHaveAttribute(
+    const firstName = testUser.full_name.trim().split(/\s+/)[0]
+    expect(screen.getByText(`Hi, ${firstName}`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^notifications$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
+
+    const menu = await openAccountMenu(user)
+    expect(within(menu).getByRole('menuitem', { name: /dashboard/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /my projects/i })).toHaveAttribute(
       'href',
       '/dashboard/projects',
     )
-    expect(screen.getByRole('link', { name: /my orders/i })).toHaveAttribute(
+    expect(within(menu).getByRole('menuitem', { name: /my orders/i })).toHaveAttribute(
       'href',
       '/dashboard/orders',
     )
-    expect(screen.getByRole('link', { name: /my downloads/i })).toHaveAttribute(
+    expect(within(menu).getByRole('menuitem', { name: /my downloads/i })).toHaveAttribute(
       'href',
       '/dashboard/downloads',
     )
-    expect(screen.getByRole('button', { name: /^notifications$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^wishlist$/i })).toHaveAttribute(
+    expect(within(menu).getByRole('menuitem', { name: /^wishlist/i })).toHaveAttribute(
       'href',
       '/dashboard/wishlist',
     )
-    expect(screen.getByRole('link', { name: /profile/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /sign in/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /^register$/i })).not.toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /profile/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^register$/i })).not.toBeInTheDocument()
   })
 
   it('shows a cart count badge when the customer has items in cart', async () => {
@@ -193,6 +239,7 @@ describe('Navbar', () => {
   })
 
   it('shows a wishlist count badge when the customer has saved items', async () => {
+    const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -208,10 +255,12 @@ describe('Navbar', () => {
 
     renderNavbar()
 
-    expect(await screen.findByLabelText('3 saved items')).toHaveTextContent('3')
+    const menu = await openAccountMenu(user)
+    expect(await within(menu).findByLabelText('3 saved items')).toHaveTextContent('3')
   })
 
-  it('shows Admin and Profile for administrators', () => {
+  it('shows Admin and Profile for administrators', async () => {
+    const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -221,11 +270,12 @@ describe('Navbar', () => {
 
     renderNavbar()
 
-    expect(screen.getByRole('link', { name: /^admin$/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /profile/i })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /my projects/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /my orders/i })).not.toBeInTheDocument()
+    const menu = await openAccountMenu(user)
+    expect(within(menu).getByRole('menuitem', { name: /^admin$/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /profile/i })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /dashboard/i })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /my projects/i })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /my orders/i })).not.toBeInTheDocument()
   })
 
   it('navigates to the home page after sign out from a protected route', async () => {
@@ -240,7 +290,8 @@ describe('Navbar', () => {
     renderNavbar('/dashboard')
     expect(screen.getByText('Dashboard page')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /sign out/i }))
+    const menu = await openAccountMenu(user)
+    await user.click(within(menu).getByRole('menuitem', { name: /sign out/i }))
 
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
