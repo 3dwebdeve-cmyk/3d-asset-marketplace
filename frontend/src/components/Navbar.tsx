@@ -227,7 +227,17 @@ export function Navbar() {
                   aria-haspopup="menu"
                   onClick={() => setAccountOpen((open) => !open)}
                 >
-                  <span className="navbar__account-avatar" aria-hidden="true" />
+                  {user?.avatar ? (
+                    <img
+                      className="navbar__account-avatar"
+                      src={user.avatar}
+                      alt=""
+                      width={26}
+                      height={26}
+                    />
+                  ) : (
+                    <span className="navbar__account-avatar" aria-hidden="true" />
+                  )}
                   <span>Hi, {firstName}</span>
                   <span className="navbar__account-caret" aria-hidden="true">
                     ▾

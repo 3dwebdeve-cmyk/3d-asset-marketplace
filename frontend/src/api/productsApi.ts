@@ -3,6 +3,7 @@ import type {
   AdminProduct,
   AdminProductCreatePayload,
   AdminProductListParams,
+  AdminProductRejectPayload,
   AdminProductUpdatePayload,
   PaginatedAdminProducts,
   PaginatedPublicProducts,
@@ -63,6 +64,31 @@ export async function updateAdminProduct(
 export async function archiveAdminProduct(productId: string): Promise<AdminProduct> {
   const response = await apiClient.delete<AdminProduct>(
     `/api/admin/products/${productId}/`,
+  )
+  return response.data
+}
+
+export async function approveAdminProduct(productId: string): Promise<AdminProduct> {
+  const response = await apiClient.post<AdminProduct>(
+    `/api/admin/products/${productId}/approve/`,
+  )
+  return response.data
+}
+
+export async function rejectAdminProduct(
+  productId: string,
+  payload: AdminProductRejectPayload,
+): Promise<AdminProduct> {
+  const response = await apiClient.post<AdminProduct>(
+    `/api/admin/products/${productId}/reject/`,
+    payload,
+  )
+  return response.data
+}
+
+export async function requeueAdminProduct(productId: string): Promise<AdminProduct> {
+  const response = await apiClient.post<AdminProduct>(
+    `/api/admin/products/${productId}/requeue/`,
   )
   return response.data
 }

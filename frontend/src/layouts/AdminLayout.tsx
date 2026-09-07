@@ -64,32 +64,55 @@ export function AdminLayout() {
 
         <nav id={navId} className="admin-sidebar__nav" aria-label="Admin sections">
           <ul className="admin-sidebar__list">
-            {adminNavItems.map((item) => (
-              <li key={item.to}>
-                {item.enabled ? (
-                  <NavLink
-                    to={item.to}
-                    end={item.end}
-                    className={({ isActive }) =>
-                      `admin-sidebar__link${isActive ? ' admin-sidebar__link--active' : ''}`
-                    }
-                    onClick={() => setIsMobileNavOpen(false)}
-                  >
-                    {item.label}
-                  </NavLink>
-                ) : (
-                  <span
-                    className="admin-sidebar__link admin-sidebar__link--disabled"
-                    aria-disabled="true"
-                  >
-                    {item.label}
-                    {item.comingSoon ? (
-                      <span className="admin-sidebar__badge">Soon</span>
-                    ) : null}
-                  </span>
-                )}
-              </li>
-            ))}
+            {adminNavItems.map((item) => {
+              const [itemPath, itemQuery] = item.to.split('?')
+              const currentParams = new URLSearchParams(location.search)
+              let isActive = false
+              if (itemQuery) {
+                const expected = new URLSearchParams(itemQuery)
+                isActive =
+                  location.pathname === itemPath &&
+                  [...expected.entries()].every(
+                    ([key, value]) => currentParams.get(key) === value,
+                  )
+              } else if (itemPath === '/admin/products') {
+                isActive =
+                  (location.pathname === '/admin/products' ||
+                    location.pathname.startsWith('/admin/products/')) &&
+                  currentParams.get('status') !== 'pending_review'
+              } else if (item.end) {
+                isActive = location.pathname === itemPath
+              } else {
+                isActive =
+                  location.pathname === itemPath ||
+                  location.pathname.startsWith(`${itemPath}/`)
+              }
+
+              return (
+                <li key={item.to}>
+                  {item.enabled ? (
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      className={`admin-sidebar__link${isActive ? ' admin-sidebar__link--active' : ''}`}
+                      onClick={() => setIsMobileNavOpen(false)}
+                    >
+                      {item.label}
+                    </NavLink>
+                  ) : (
+                    <span
+                      className="admin-sidebar__link admin-sidebar__link--disabled"
+                      aria-disabled="true"
+                    >
+                      {item.label}
+                      {item.comingSoon ? (
+                        <span className="admin-sidebar__badge">Soon</span>
+                      ) : null}
+                    </span>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </nav>
       </aside>

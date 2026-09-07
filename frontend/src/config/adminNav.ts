@@ -9,6 +9,7 @@ export interface AdminNavItem {
 export const adminNavItems: AdminNavItem[] = [
   { label: 'Dashboard', to: '/admin', end: true, enabled: true },
   { label: 'Products', to: '/admin/products', enabled: true },
+  { label: 'QA queue', to: '/admin/products?status=pending_review', enabled: true },
   { label: 'Plugins', to: '/admin/plugins', enabled: true },
   { label: 'Categories', to: '/admin/categories', enabled: true },
   { label: 'Users', to: '/admin/users', enabled: true },

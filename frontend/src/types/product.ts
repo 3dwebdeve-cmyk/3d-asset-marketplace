@@ -59,11 +59,20 @@ export interface AdminProduct {
   review_count: number
   total_downloads: number
   status: ProductStatus
+  reject_reason: string
+  qa_notes: string
+  reviewed_at: string | null
+  reviewed_by: string | null
   category: CategoryParent
   images: ProductImage[]
   files: ProductFile[]
   created_at: string
   updated_at: string
+}
+
+export interface AdminProductRejectPayload {
+  reason: string
+  qa_notes?: string
 }
 
 export interface AdminProductCreatePayload {

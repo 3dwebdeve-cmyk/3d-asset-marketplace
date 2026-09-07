@@ -211,6 +211,9 @@ button.navbar__link {
   height: 1.65rem;
   border-radius: 999px;
   background: linear-gradient(135deg, #2563eb, #60a5fa);
+  object-fit: cover;
+  display: block;
+  flex-shrink: 0;
 }
 
 .navbar__account-caret {

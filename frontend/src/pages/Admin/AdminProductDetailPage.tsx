@@ -5,8 +5,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { listAdminCategories } from '../../api/categoriesApi'
 import {
+  approveAdminProduct,
   archiveAdminProduct,
   getAdminProduct,
+  rejectAdminProduct,
+  requeueAdminProduct,
   updateAdminProduct,
 } from '../../api/productsApi'
 import { Alert } from '../../components/ui/Alert'
@@ -30,6 +33,9 @@ export function AdminProductDetailPage() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<AdminProductUpdatePayload>({})
   const [formError, setFormError] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [qaNotes, setQaNotes] = useState('')
+  const [qaError, setQaError] = useState<string | null>(null)
 
   const productQuery = useQuery({
     queryKey: ['admin', 'products', productId],
@@ -109,10 +115,64 @@ export function AdminProductDetailPage() {
     },
   })
 
+  const approveMutation = useMutation({
+    mutationFn: () => approveAdminProduct(productId),
+    onSuccess: async () => {
+      toast.success('Product approved and published')
+      setQaError(null)
+      await invalidateProduct()
+    },
+    onError: (error) => {
+      setQaError(getApiErrorMessage(error, 'Could not approve product.'))
+    },
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: () =>
+      rejectAdminProduct(productId, {
+        reason: rejectReason.trim(),
+        ...(qaNotes.trim() ? { qa_notes: qaNotes.trim() } : {}),
+      }),
+    onSuccess: async () => {
+      toast.success('Product rejected')
+      setQaError(null)
+      setRejectReason('')
+      setQaNotes('')
+      await invalidateProduct()
+    },
+    onError: (error) => {
+      setQaError(getApiErrorMessage(error, 'Could not reject product.'))
+    },
+  })
+
+  const requeueMutation = useMutation({
+    mutationFn: () => requeueAdminProduct(productId),
+    onSuccess: async () => {
+      toast.success('Product requeued for review')
+      setQaError(null)
+      await invalidateProduct()
+    },
+    onError: (error) => {
+      setQaError(getApiErrorMessage(error, 'Could not requeue product.'))
+    },
+  })
+
+  const qaPending =
+    approveMutation.isPending || rejectMutation.isPending || requeueMutation.isPending
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
     saveMutation.mutate(form)
+  }
+
+  const onReject = () => {
+    if (!rejectReason.trim()) {
+      setQaError('Reject reason is required.')
+      return
+    }
+    setQaError(null)
+    rejectMutation.mutate()
   }
 
   const categoryOptions = categoriesQuery.data?.results ?? []
@@ -127,6 +187,12 @@ export function AdminProductDetailPage() {
         <div className="dashboard-card__actions">
           <Link className="home-page__cta home-page__cta--secondary" to="/admin/products">
             Back to products
+          </Link>
+          <Link
+            className="home-page__cta home-page__cta--secondary"
+            to="/admin/products?status=pending_review"
+          >
+            QA queue
           </Link>
         </div>
 
@@ -144,6 +210,101 @@ export function AdminProductDetailPage() {
           />
         ) : product ? (
           <>
+            {(product.status === 'pending_review' || product.status === 'rejected') && (
+              <div className="admin-create-form" aria-labelledby="admin-product-qa-title">
+                <h2 id="admin-product-qa-title">Import QA</h2>
+                {qaError ? <Alert variant="error" message={qaError} /> : null}
+
+                {product.status === 'pending_review' ? (
+                  <>
+                    <p className="home-page__subtitle">
+                      This product is pending review. Approve publishes it; reject requires a
+                      reason.
+                    </p>
+                    {product.reject_reason ? (
+                      <p className="home-page__subtitle">
+                        Prior reject reason: {product.reject_reason}
+                      </p>
+                    ) : null}
+                    <FormField id="qa-reject-reason" label="Reject reason">
+                      <Input
+                        id="qa-reject-reason"
+                        value={rejectReason}
+                        onChange={(event) => setRejectReason(event.target.value)}
+                        disabled={qaPending}
+                        autoComplete="off"
+                      />
+                    </FormField>
+                    <FormField id="qa-notes" label="QA notes (optional)">
+                      <textarea
+                        id="qa-notes"
+                        className="ui-input"
+                        rows={3}
+                        value={qaNotes}
+                        onChange={(event) => setQaNotes(event.target.value)}
+                        disabled={qaPending}
+                      />
+                    </FormField>
+                    <div className="dashboard-card__actions">
+                      <Button
+                        type="button"
+                        isLoading={approveMutation.isPending}
+                        disabled={qaPending}
+                        onClick={() => {
+                          setQaError(null)
+                          approveMutation.mutate()
+                        }}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        isLoading={rejectMutation.isPending}
+                        disabled={qaPending}
+                        onClick={onReject}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
+
+                {product.status === 'rejected' ? (
+                  <>
+                    {product.reject_reason ? (
+                      <p className="home-page__subtitle">
+                        Reject reason: {product.reject_reason}
+                      </p>
+                    ) : null}
+                    {product.qa_notes ? (
+                      <p className="home-page__subtitle">QA notes: {product.qa_notes}</p>
+                    ) : null}
+                    <div className="dashboard-card__actions">
+                      <Button
+                        type="button"
+                        isLoading={requeueMutation.isPending}
+                        disabled={qaPending}
+                        onClick={() => {
+                          setQaError(null)
+                          requeueMutation.mutate()
+                        }}
+                      >
+                        Requeue
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
+
+                {product.reviewed_at ? (
+                  <p className="home-page__subtitle">
+                    Reviewed at: {new Date(product.reviewed_at).toLocaleString()}
+                    {product.reviewed_by ? ` · Reviewer: ${product.reviewed_by}` : ''}
+                  </p>
+                ) : null}
+              </div>
+            )}
+
             <form className="admin-create-form" onSubmit={onSubmit} noValidate>
               {formError ? <Alert variant="error" message={formError} /> : null}
               <FormField id="detail-category" label="Category">

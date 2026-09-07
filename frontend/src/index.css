@@ -870,6 +870,15 @@ button.home-page__cta--secondary {
 
 html {
   width: 100%;
+  /* Keep page scroll; hide the browser scrollbar chrome */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 body {

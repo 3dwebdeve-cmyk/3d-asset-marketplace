@@ -65,6 +65,10 @@ describe('AdminLayout', () => {
     expect(screen.getByRole('navigation', { name: /admin sections/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^dashboard$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^products$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^qa queue$/i })).toHaveAttribute(
+      'href',
+      '/admin/products?status=pending_review',
+    )
     expect(screen.getByRole('link', { name: /^categories$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^users$/i })).toBeInTheDocument()
 

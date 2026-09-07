@@ -34,8 +34,8 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     return []
   })
 
-  if (messages[0]) {
-    return messages[0]
+  if (messages.length > 0) {
+    return messages.join(' ')
   }
 
   if (status === 429) {
