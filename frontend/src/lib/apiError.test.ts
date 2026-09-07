@@ -58,4 +58,14 @@ describe('getApiErrorMessage', () => {
       'A user with this email already exists.',
     )
   })
+
+  it('joins multiple field errors for publish-gate responses', () => {
+    const error = axiosError(400, {
+      sku: ['SKU is required before publish.'],
+      files: ['At least one sellable package file is required before publish.'],
+    })
+    expect(getApiErrorMessage(error, 'fallback')).toBe(
+      'SKU is required before publish. At least one sellable package file is required before publish.',
+    )
+  })
 })

@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~73%
 Current Development Sprint
-Current Sprint: Feature 16 Phase 8 — QA approve / reject → publish workflow
-Sprint Goal: Admin approve/reject/requeue APIs with publish gates; import never auto-publishes
-Sprint Status: Feature 16 Phase 8 backend coded 2026-09-07
+Current Sprint: Feature 16 Phase 7 — Admin import QA queue UI
+Sprint Goal: Admin Products list/detail Approve / Reject / Requeue UI over Phase 8 APIs
+Sprint Status: Feature 16 Phase 7 UI coded 2026-09-07
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -132,7 +132,7 @@ Admin Dashboard
 • [x] Download History audit (/admin/downloads)
 • [x] Payments (admin payments list/detail — Feature 15F)
 • [x] Analytics (Feature 11 — order-based revenue, top products/plugins, date filters)
-• [ ] Batch import review / QA queue (Feature 16)
+• [x] Batch import review / QA queue (Feature 16 Phase 7)
 Public Site Pages
 • [x] About page (/about) — studio mission, offerings, trust, CTAs
 • [x] Contact form (/contact) — POST /api/contact/ emails admin; honeypot + rate limit
@@ -143,10 +143,10 @@ Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADM
 • [x] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET JSON) 
 • [x] Feature 16 Phase 3 — Product SKU / Model_ID identity
 • [x] Feature 16 Phase 4 — Freeze Batch Output Report + Phase 1 intake contracts
-• [ ] Feature 16 Phase 5 — R2 Bridge CLI uploader (report + folders → R2)
+• [x] Feature 16 Phase 5 — R2 Bridge CLI uploader (local R2 ingest done; desktop .exe polish separate)
 • [x] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
-• [ ] Feature 16 Phase 7 — Admin import review UI
-• [x] Feature 16 Phase 8 — QA approve / reject → publish workflow (backend API; Phase 7 UI still pending)
+• [x] Feature 16 Phase 7 — Admin import review UI
+• [x] Feature 16 Phase 8 — QA approve / reject → publish workflow (backend API)
 • [ ] Feature 16 Phase 9 — E2E: import → QA → Stripe → signed download
 • [ ] Feature 16 Phase 10 — Hardening (retries, large packages, remaining media → R2)
 Sprint 11 – Testing & Deployment
@@ -158,20 +158,23 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 16 Phase 8 — QA approve / reject → publish workflow (backend).
+Feature 16 Phase 7 — Admin import QA queue UI.
 Current Git Branch
 feature/today-7-9-26
 Files Being Worked On
-• backend/products/models.py
-• backend/products/services.py
-• backend/products/serializers.py
-• backend/products/views.py
-• backend/products/urls.py
-• backend/products/migrations/0006_product_qa_review_metadata.py
-• backend/products/test_product_qa.py
+• frontend/src/types/product.ts
+• frontend/src/api/productsApi.ts
+• frontend/src/pages/Admin/AdminProductsPage.tsx
+• frontend/src/pages/Admin/AdminProductDetailPage.tsx
+• frontend/src/config/adminNav.ts
+• frontend/src/layouts/AdminLayout.tsx
 • PROJECT_STATUS.md
 • docs/PLANNED_FEATURES.md
 Completed Features
+• Feature 16 Phase 7 — Admin import QA queue UI (2026-09-07)
+  - Products list: status + import_batch_id filters; QA queue shortcut (?status=pending_review)
+  - Detail: Approve / Reject (reason required) / Requeue via dedicated endpoints
+  - Publish-gate field errors surfaced in QA panel; public pages still omit reject_reason
 • Feature 16 Phase 8 — QA approve / reject → publish workflow (2026-09-07)
   - QA metadata: reject_reason, qa_notes, reviewed_at, reviewed_by (admin serializers only)
   - POST approve / reject / requeue admin endpoints with ProductService publish gates
@@ -371,7 +374,7 @@ Pending Features
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 13 — Docker & local/prod runtime
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
-• Feature 16 — Batch Catalog Ingest & QA (Phases 3–4 + 6 done; remaining: bridge, QA UI/workflow, E2E, hardening)
+• Feature 16 — Batch Catalog Ingest & QA (Phases 3–8 done; remaining: E2E Phase 9, hardening Phase 10; desktop bridge polish optional)
   - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md; contract: docs/batch-ingest-contract.md
 • Invoice PDF generation (invoice_number + paid-order PDF/receipt already shipped; remaining polish if any)
 • UI redesign pending manager prototype approval
@@ -385,8 +388,7 @@ No Known Bugs
 Technical Debt
 • New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA files remain until migrated
 • Custom-project / message / delivery downloads still FileResponse (private R2 keys when R2 on; same presign pattern later)
-• Catalog Import API done (Phase 6); catalog-bridge uploader (Phase 5) still required for disk→R2
-• Phase 8 backend approve/reject/requeue done; Phase 7 Admin QA queue UI still pending
+• Catalog Import API + local R2 ingest (Phases 5–6) and Admin QA UI + approve/reject backend (Phases 7–8) done
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
 • Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
@@ -426,9 +428,44 @@ Important Decisions
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order: catalog-bridge (Phase 5) + Feature 16 Phase 7 Admin QA queue UI (Phase 8 backend publish gate done).
+• Recommended near-term order: Feature 16 Phase 9 E2E (import → QA → Stripe → signed download), or Feature 13 Docker.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-09-07 (Feature 16 Phase 7 — Admin import QA queue UI)
+Working Hours:
+Today's Objective: Ship simple admin UI to filter pending_review / import_batch_id and Approve / Reject / Requeue imported products.
+Modules Completed: Admin products list filters + QA queue shortcut; detail QA action panel; API helpers; Vitest
+Files Created:
+• frontend/src/api/productsApi.test.ts
+Files Modified:
+• frontend/src/types/product.ts
+• frontend/src/api/productsApi.ts
+• frontend/src/pages/Admin/AdminProductsPage.tsx
+• frontend/src/pages/Admin/AdminProductDetailPage.tsx
+• frontend/src/pages/Admin/AdminProductsPage.test.tsx
+• frontend/src/pages/Admin/AdminProductDetailPage.test.tsx
+• frontend/src/config/adminNav.ts
+• frontend/src/layouts/AdminLayout.tsx
+• frontend/src/lib/apiError.ts
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• Uses existing POST /api/admin/products/<uuid>/approve|reject|requeue/
+Frontend Pages/Components Added:
+• QA queue nav + Products list filters; Import QA panel on product detail
+Tests Added/Updated:
+• productsApi QA helpers; AdminProductsPage batch/status filters; AdminProductDetailPage approve/reject/requeue
+Security Checklist:
+• Reject reason only on admin detail; approve uses dedicated endpoint (not PATCH published)
+Issues / Blockers:
+• None for Phase 7 UI
+Next Recommended Task:
+• Feature 16 Phase 9 — E2E import → QA → Stripe → signed download
+Notes:
+• Phase 5 local R2 ingest treated as done; desktop catalog-bridge .exe polish remains separate.
+
 Date: 2026-09-07 (Feature 16 Phase 8 — QA approve / reject → publish)
 Working Hours:
 Today's Objective: Finish backend QA publish gate — approve/reject/requeue with publish-ready validation; keep import non-publishing.

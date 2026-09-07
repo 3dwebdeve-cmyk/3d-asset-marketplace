@@ -179,7 +179,7 @@ describe('Navbar', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
-      user: testUser,
+      user: { ...testUser, avatar: 'https://cdn.example.com/avatar.jpg' },
       isAuthenticated: true,
     })
 
@@ -187,6 +187,10 @@ describe('Navbar', () => {
 
     const firstName = testUser.full_name.trim().split(/\s+/)[0]
     expect(screen.getByText(`Hi, ${firstName}`)).toBeInTheDocument()
+    expect(document.querySelector('.navbar__account-avatar')).toHaveAttribute(
+      'src',
+      'https://cdn.example.com/avatar.jpg',
+    )
     expect(screen.getByRole('button', { name: /^notifications$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
 

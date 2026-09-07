@@ -119,6 +119,10 @@ const sampleProduct = {
   review_count: 0,
   total_downloads: 0,
   status: 'published' as const,
+  reject_reason: '',
+  qa_notes: '',
+  reviewed_at: null,
+  reviewed_by: null,
   category: {
     id: '44bba207-8a0c-490d-abdf-5a383ed2111b',
     name: 'Furniture',

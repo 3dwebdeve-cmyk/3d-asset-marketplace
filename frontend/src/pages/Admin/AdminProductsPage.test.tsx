@@ -43,7 +43,7 @@ const sampleProducts = {
       name: 'Oak Chair',
       slug: 'oak-chair',
       sku: 'MDL-000142',
-      import_batch_id: '',
+      import_batch_id: '2026-09-03-run-01',
       import_source: '',
       glb_checksum: '',
       has_thumbnail: false,
@@ -68,7 +68,11 @@ const sampleProducts = {
       average_rating: '0.00',
       review_count: 0,
       total_downloads: 0,
-      status: 'published' as const,
+      status: 'pending_review' as const,
+      reject_reason: '',
+      qa_notes: '',
+      reviewed_at: null,
+      reviewed_by: null,
       category: { id: categoryId, name: 'Furniture', slug: 'furniture' },
       images: [],
       files: [],
@@ -97,11 +101,11 @@ const sampleCategories = {
   ],
 }
 
-function renderProductsPage() {
+function renderProductsPage(initialEntry = '/admin/products') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/admin/products']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/admin/products" element={<AdminProductsPage />} />
           <Route path="/admin" element={<div>Admin Dashboard</div>} />
@@ -128,11 +132,45 @@ describe('AdminProductsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Oak Chair')).toBeInTheDocument()
     })
-    expect(screen.getByText('Furniture')).toBeInTheDocument()
+    expect(screen.getByText('MDL-000142')).toBeInTheDocument()
+    expect(screen.getByText('pending_review')).toBeInTheDocument()
+    expect(screen.getByText('2026-09-03-run-01')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /manage/i })).toHaveAttribute(
       'href',
       `/admin/products/${productId}`,
     )
+  })
+
+  it('filters by pending_review from the QA queue URL', async () => {
+    renderProductsPage('/admin/products?status=pending_review')
+
+    await waitFor(() => {
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'pending_review' }),
+      )
+    })
+    expect(screen.getByRole('heading', { name: /qa queue/i })).toBeInTheDocument()
+  })
+
+  it('filters by import_batch_id', async () => {
+    const user = userEvent.setup()
+    renderProductsPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+    })
+
+    await user.type(
+      screen.getByLabelText(/filter by import batch id/i),
+      '2026-09-03-run-01',
+    )
+    await user.click(screen.getByRole('button', { name: /filter batch/i }))
+
+    await waitFor(() => {
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ import_batch_id: '2026-09-03-run-01' }),
+      )
+    })
   })
 
   it('creates a product from the inline form', async () => {

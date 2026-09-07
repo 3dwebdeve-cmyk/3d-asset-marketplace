@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { listAdminCategories } from '../../api/categoriesApi'
 import { createAdminProduct, listAdminProducts } from '../../api/productsApi'
@@ -36,18 +36,26 @@ function formatPrice(value: string): string {
 export function AdminProductsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const statusFilter = searchParams.get('status')?.trim() ?? ''
+  const importBatchFilter = searchParams.get('import_batch_id')?.trim() ?? ''
+  const [batchInput, setBatchInput] = useState(importBatchFilter)
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<AdminProductCreatePayload>(emptyCreateForm)
   const [createError, setCreateError] = useState<string | null>(null)
 
   const productsQuery = useQuery({
-    queryKey: ['admin', 'products', { search, status: statusFilter }],
+    queryKey: [
+      'admin',
+      'products',
+      { search, status: statusFilter, import_batch_id: importBatchFilter },
+    ],
     queryFn: () =>
       listAdminProducts({
         search: search || undefined,
         status: (statusFilter || undefined) as ProductStatus | undefined,
+        import_batch_id: importBatchFilter || undefined,
         page_size: 50,
         ordering: '-created_at',
       }),
@@ -73,6 +81,26 @@ export function AdminProductsPage() {
     },
   })
 
+  const updateFilters = (next: { status?: string; import_batch_id?: string }) => {
+    const params = new URLSearchParams(searchParams)
+    if (next.status !== undefined) {
+      if (next.status) {
+        params.set('status', next.status)
+      } else {
+        params.delete('status')
+      }
+    }
+    if (next.import_batch_id !== undefined) {
+      const batch = next.import_batch_id.trim()
+      if (batch) {
+        params.set('import_batch_id', batch)
+      } else {
+        params.delete('import_batch_id')
+      }
+    }
+    setSearchParams(params)
+  }
+
   const onCreateSubmit = (event: FormEvent) => {
     event.preventDefault()
     setCreateError(null)
@@ -83,7 +111,13 @@ export function AdminProductsPage() {
     })
   }
 
+  const onBatchFilterSubmit = (event: FormEvent) => {
+    event.preventDefault()
+    updateFilters({ import_batch_id: batchInput })
+  }
+
   const categoryOptions = categoriesQuery.data?.results ?? []
+  const isQaQueue = statusFilter === 'pending_review'
 
   return (
     <main className="dashboard-page">
@@ -92,15 +126,34 @@ export function AdminProductsPage() {
         aria-labelledby="admin-products-title"
       >
         <p className="home-page__eyebrow">Administrator</p>
-        <h1 id="admin-products-title">Products</h1>
+        <h1 id="admin-products-title">{isQaQueue ? 'QA queue' : 'Products'}</h1>
         <p className="home-page__subtitle">
-          Create and manage marketplace 3D assets.
+          {isQaQueue
+            ? 'Review imported products pending approve or reject.'
+            : 'Create and manage marketplace 3D assets.'}
         </p>
 
         <div className="dashboard-card__actions">
           <Button type="button" onClick={() => setShowCreate((value) => !value)}>
             {showCreate ? 'Hide create form' : 'Create product'}
           </Button>
+          {isQaQueue ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => updateFilters({ status: '' })}
+            >
+              All products
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => updateFilters({ status: 'pending_review' })}
+            >
+              QA queue
+            </Button>
+          )}
         </div>
 
         {showCreate ? (
@@ -216,7 +269,7 @@ export function AdminProductsPage() {
             className="ui-input"
             aria-label="Filter by status"
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
+            onChange={(event) => updateFilters({ status: event.target.value })}
           >
             <option value="">All statuses</option>
             <option value="draft">Draft</option>
@@ -225,6 +278,18 @@ export function AdminProductsPage() {
             <option value="rejected">Rejected</option>
             <option value="archived">Archived</option>
           </select>
+          <form className="admin-filters" onSubmit={onBatchFilterSubmit}>
+            <Input
+              aria-label="Filter by import batch ID"
+              placeholder="Import batch ID"
+              value={batchInput}
+              onChange={(event) => setBatchInput(event.target.value)}
+              autoComplete="off"
+            />
+            <Button type="submit" variant="secondary">
+              Filter batch
+            </Button>
+          </form>
         </div>
 
         {productsQuery.isLoading ? (
@@ -246,9 +311,9 @@ export function AdminProductsPage() {
                 <tr>
                   <th scope="col">Name</th>
                   <th scope="col">SKU</th>
-                  <th scope="col">Category</th>
-                  <th scope="col">Price</th>
                   <th scope="col">Status</th>
+                  <th scope="col">Import batch</th>
+                  <th scope="col">Price</th>
                   <th scope="col">Actions</th>
                 </tr>
               </thead>
@@ -257,11 +322,11 @@ export function AdminProductsPage() {
                   <tr key={product.id}>
                     <td>{product.name}</td>
                     <td>{product.sku ?? '—'}</td>
-                    <td>{product.category.name}</td>
+                    <td>{product.status}</td>
+                    <td>{product.import_batch_id || '—'}</td>
                     <td>
                       {product.currency} {product.price}
                     </td>
-                    <td>{product.status}</td>
                     <td>
                       <Link
                         className="auth-link"
