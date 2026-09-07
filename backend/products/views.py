@@ -24,6 +24,7 @@ from products.serializers import (
     ProductImageSerializer,
     ProductImageUploadSerializer,
     ProductListPublicSerializer,
+    ProductRejectSerializer,
     ProductUpdateSerializer,
 )
 from products.services import (
@@ -35,6 +36,8 @@ from products.services import (
 
 
 def _product_error_response(exc: ProductError) -> Response:
+    if exc.errors:
+        return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
     if exc.field:
         return Response(
             {exc.field: [exc.message]},
@@ -445,3 +448,99 @@ class AdminCatalogImportView(APIView):
             target_id=data["import_batch_id"],
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)
+
+
+class AdminProductApproveView(APIView):
+    """POST /api/admin/products/<id>/approve/ — pending_review → published."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request, product_id: UUID) -> Response:
+        try:
+            product = ProductService.get_by_id(product_id)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+
+        try:
+            updated = ProductService.approve_product(product, reviewer=request.user)
+        except ProductError as exc:
+            return _product_error_response(exc)
+
+        log_admin_action(
+            action="product_approve",
+            actor_id=str(request.user.pk),
+            target_id=str(updated.pk),
+        )
+        return Response(
+            ProductAdminSerializer(updated).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminProductRejectView(APIView):
+    """POST /api/admin/products/<id>/reject/ — pending_review → rejected."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request, product_id: UUID) -> Response:
+        try:
+            product = ProductService.get_by_id(product_id)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+
+        serializer = ProductRejectSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            updated = ProductService.reject_product(
+                product,
+                reviewer=request.user,
+                reason=data["reason"],
+                qa_notes=data["qa_notes"] if "qa_notes" in data else None,
+            )
+        except ProductError as exc:
+            return _product_error_response(exc)
+
+        log_admin_action(
+            action="product_reject",
+            actor_id=str(request.user.pk),
+            target_id=str(updated.pk),
+        )
+        return Response(
+            ProductAdminSerializer(updated).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminProductRequeueView(APIView):
+    """POST /api/admin/products/<id>/requeue/ — rejected → pending_review."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request, product_id: UUID) -> Response:
+        try:
+            product = ProductService.get_by_id(product_id)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+
+        try:
+            updated = ProductService.requeue_product(product)
+        except ProductError as exc:
+            return _product_error_response(exc)
+
+        log_admin_action(
+            action="product_requeue",
+            actor_id=str(request.user.pk),
+            target_id=str(updated.pk),
+        )
+        return Response(
+            ProductAdminSerializer(updated).data,
+            status=status.HTTP_200_OK,
+        )

@@ -132,6 +132,11 @@ class ProductAdminSerializer(serializers.ModelSerializer):
     category_id = serializers.UUIDField(write_only=True, required=False)
     images = ProductImageSerializer(many=True, read_only=True)
     files = ProductFileAdminSerializer(many=True, read_only=True)
+    reviewed_by = serializers.UUIDField(
+        source="reviewed_by_id",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = Product
@@ -166,6 +171,10 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "review_count",
             "total_downloads",
             "status",
+            "reject_reason",
+            "qa_notes",
+            "reviewed_at",
+            "reviewed_by",
             "category",
             "category_id",
             "images",
@@ -181,9 +190,27 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "average_rating",
             "review_count",
             "total_downloads",
+            "reject_reason",
+            "qa_notes",
+            "reviewed_at",
+            "reviewed_by",
             "created_at",
             "updated_at",
         )
+
+
+class ProductRejectSerializer(serializers.Serializer):
+    reason = serializers.CharField(trim_whitespace=True, allow_blank=False)
+    qa_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+    )
+
+    def validate_reason(self, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Reject reason is required.")
+        return normalized
 
 
 class ProductCreateSerializer(serializers.Serializer):

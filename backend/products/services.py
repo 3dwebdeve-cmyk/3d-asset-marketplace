@@ -8,6 +8,7 @@ from uuid import UUID
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
+from django.utils import timezone
 
 from categories.models import Category
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
@@ -19,9 +20,16 @@ from products.upload_rules import (
 
 
 class ProductError(Exception):
-    def __init__(self, message: str, field: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        field: str | None = None,
+        *,
+        errors: dict[str, list[str]] | None = None,
+    ) -> None:
         self.message = message
         self.field = field
+        self.errors = errors
         super().__init__(message)
 
 
@@ -93,7 +101,7 @@ class ProductUpdateData:
 class ProductService:
     @classmethod
     def _base_queryset(cls) -> QuerySet[Product]:
-        return Product.objects.select_related("category").prefetch_related(
+        return Product.objects.select_related("category", "reviewed_by").prefetch_related(
             Prefetch("images", queryset=ProductImage.objects.order_by("display_order")),
             Prefetch("files", queryset=ProductFile.objects.order_by("-is_preview")),
         )
@@ -255,13 +263,19 @@ class ProductService:
         license_type = cls._normalize_license(data.license_type)
         status = cls._normalize_status(data.status)
         sku = cls._validate_sku_unique(data.sku)
+        import_batch_id = data.import_batch_id.strip()[:64]
+        if status == Product.Status.PUBLISHED and import_batch_id:
+            raise ProductError(
+                "Imported products must be published via the approve endpoint.",
+                field="status",
+            )
 
         return Product.objects.create(
             category=category,
             name=name,
             slug=Product.build_slug(name),
             sku=sku,
-            import_batch_id=data.import_batch_id.strip()[:64],
+            import_batch_id=import_batch_id,
             import_source=data.import_source.strip()[:64],
             glb_checksum=data.glb_checksum.strip()[:64],
             has_thumbnail=data.has_thumbnail,
@@ -387,6 +401,15 @@ class ProductService:
         if data.status is not None:
             new_status = cls._normalize_status(data.status)
             cls._validate_status_transition(product.status, new_status)
+            # Imported batch rows must use the dedicated approve endpoint to publish.
+            if (
+                new_status == Product.Status.PUBLISHED
+                and product.import_batch_id.strip()
+            ):
+                raise ProductError(
+                    "Imported products must be published via the approve endpoint.",
+                    field="status",
+                )
             product.status = new_status
             update_fields.append("status")
 
@@ -425,6 +448,130 @@ class ProductService:
             product,
             ProductUpdateData(status=Product.Status.ARCHIVED),
         )
+
+    @classmethod
+    def _validate_publish_ready(cls, product: Product) -> None:
+        """Conservative publish gates for the QA approve path (Feature 16 Phase 8).
+
+        Aligned with docs/batch-ingest-contract.md sellability needs: identity,
+        pricing, category, web preview, and at least one paid package file.
+        Manual draft→published via admin create/PATCH is unchanged.
+        """
+        errors: dict[str, list[str]] = {}
+
+        if not product.sku:
+            errors["sku"] = ["SKU is required before publish."]
+
+        name = (product.name or "").strip()
+        if len(name) < 2:
+            errors["name"] = ["Name must be at least 2 characters."]
+
+        if product.category_id is None:
+            errors["category"] = ["Category is required before publish."]
+        elif not Category.objects.filter(pk=product.category_id, is_active=True).exists():
+            errors["category"] = ["Category not found or inactive."]
+
+        if product.price is None or product.price < Decimal("0.00"):
+            errors["price"] = ["A valid non-negative price is required."]
+
+        has_sellable_package = ProductFile.objects.filter(
+            product=product,
+            is_preview=False,
+        ).exists()
+        if not has_sellable_package:
+            errors["files"] = [
+                "At least one sellable package file is required before publish."
+            ]
+
+        if not (product.preview_model or "").strip():
+            errors["preview_model"] = ["Preview model is required before publish."]
+
+        if errors:
+            raise ProductError(
+                "Product is not ready to publish.",
+                errors=errors,
+            )
+
+    @classmethod
+    @transaction.atomic
+    def approve_product(cls, product: Product, *, reviewer) -> Product:
+        """pending_review → published with publish gates. Clears reject_reason."""
+        if product.status != Product.Status.PENDING_REVIEW:
+            raise ProductError(
+                f"Cannot approve product with status '{product.status}'.",
+                field="status",
+            )
+        cls._validate_status_transition(product.status, Product.Status.PUBLISHED)
+        cls._validate_publish_ready(product)
+
+        product.status = Product.Status.PUBLISHED
+        product.reviewed_at = timezone.now()
+        product.reviewed_by = reviewer
+        # Clear prior rejection text on approve; qa_notes retained for audit.
+        product.reject_reason = ""
+        product.save(
+            update_fields=[
+                "status",
+                "reviewed_at",
+                "reviewed_by",
+                "reject_reason",
+                "updated_at",
+            ]
+        )
+        return cls.get_by_id(product.pk)
+
+    @classmethod
+    @transaction.atomic
+    def reject_product(
+        cls,
+        product: Product,
+        *,
+        reviewer,
+        reason: str,
+        qa_notes: str | None = None,
+    ) -> Product:
+        """pending_review → rejected. Stores reject_reason + review metadata."""
+        if product.status != Product.Status.PENDING_REVIEW:
+            raise ProductError(
+                f"Cannot reject product with status '{product.status}'.",
+                field="status",
+            )
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise ProductError("Reject reason is required.", field="reason")
+
+        cls._validate_status_transition(product.status, Product.Status.REJECTED)
+
+        product.status = Product.Status.REJECTED
+        product.reject_reason = normalized_reason
+        product.reviewed_at = timezone.now()
+        product.reviewed_by = reviewer
+        update_fields = [
+            "status",
+            "reject_reason",
+            "reviewed_at",
+            "reviewed_by",
+            "updated_at",
+        ]
+        if qa_notes is not None:
+            product.qa_notes = qa_notes.strip()
+            update_fields.append("qa_notes")
+        product.save(update_fields=update_fields)
+        return cls.get_by_id(product.pk)
+
+    @classmethod
+    @transaction.atomic
+    def requeue_product(cls, product: Product) -> Product:
+        """rejected → pending_review. Keeps reject_reason until next reject/approve."""
+        if product.status != Product.Status.REJECTED:
+            raise ProductError(
+                f"Cannot requeue product with status '{product.status}'.",
+                field="status",
+            )
+        cls._validate_status_transition(product.status, Product.Status.PENDING_REVIEW)
+        product.status = Product.Status.PENDING_REVIEW
+        product.save(update_fields=["status", "updated_at"])
+        return cls.get_by_id(product.pk)
 
     @classmethod
     @transaction.atomic

@@ -2,12 +2,15 @@ from django.urls import path
 
 from products.views import (
     AdminCatalogImportView,
+    AdminProductApproveView,
     AdminProductDetailView,
     AdminProductFileDetailView,
     AdminProductFileUploadView,
     AdminProductImageDetailView,
     AdminProductImageUploadView,
     AdminProductListCreateView,
+    AdminProductRejectView,
+    AdminProductRequeueView,
     ProductDetailView,
     ProductListView,
 )
@@ -26,6 +29,21 @@ admin_urlpatterns = [
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),
         name="admin-product-detail",
+    ),
+    path(
+        "<uuid:product_id>/approve/",
+        AdminProductApproveView.as_view(),
+        name="admin-product-approve",
+    ),
+    path(
+        "<uuid:product_id>/reject/",
+        AdminProductRejectView.as_view(),
+        name="admin-product-reject",
+    ),
+    path(
+        "<uuid:product_id>/requeue/",
+        AdminProductRequeueView.as_view(),
+        name="admin-product-requeue",
     ),
     path(
         "<uuid:product_id>/images/",

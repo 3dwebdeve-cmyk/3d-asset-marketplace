@@ -2,6 +2,7 @@ import re
 import uuid
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 from django.utils.text import slugify
@@ -99,6 +100,17 @@ class Product(models.Model):
         choices=Status.choices,
         default=Status.DRAFT,
         db_index=True,
+    )
+    # QA review metadata (admin-only; never auto-set by import/bridge).
+    reject_reason = models.TextField(blank=True, default="")
+    qa_notes = models.TextField(blank=True, default="")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_products",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
