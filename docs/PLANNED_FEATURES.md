@@ -28,7 +28,7 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 3. Feature 14 — Cloudflare R2 (public + private buckets) — **Done**
 4. Feature 14B — Signed R2 download URLs — **Done**
 5. Feature 16 Phase 6 — Catalog Import API (marketplace repo) — **Done**
-6. Feature 16 Phases 7–8 — Admin import QA UI + publish workflow
+6. Feature 16 Phase 8 — QA approve / reject → publish workflow (backend) — **Done**; Phase 7 Admin QA UI still pending
 7. catalog-bridge — Desktop .exe (separate repo; depends on 14 + Phase 6)
 8. Feature 16 Phases 9–10 — E2E + hardening
 9. Sprint 11 — Testing, security, performance, deployment
@@ -93,7 +93,7 @@ Contract: [batch-ingest-contract.md](batch-ingest-contract.md)
 | 5 | Bridge uploader (Excel + folders → R2 split) | Planned | **separate `catalog-bridge` project** |
 | 6 | Catalog Import API (`pending_review` upsert by SKU) | **Done** | marketplace |
 | 7 | Admin import review UI (batch filter, QA queue) | Planned | marketplace |
-| 8 | QA approve / reject → publish workflow | Partial — statuses exist; dedicated queue UI pending | marketplace |
+| 8 | QA approve / reject → publish workflow | **Done** (backend API; Phase 7 UI still pending) | marketplace |
 | 9 | E2E: import → admin QA → publish → Stripe → signed download | Planned | both |
 | 10 | Hardening (retries, large packages, media migration) | Planned | both |
 
@@ -242,7 +242,7 @@ Architecture plan: Cursor plan `catalog_bridge_exe` (copy to `docs/catalog-bridg
 
 | Priority | Feature | Effort (rough) |
 |----------|---------|----------------|
-| High | Feature 16 Phases 7–8 — Admin QA queue | Medium |
+| High | Feature 16 Phase 7 — Admin QA queue UI | Medium |
 | High | catalog-bridge desktop app | Large (separate repo) |
 | High | Feature 13 — Docker + deployment | Medium |
 | Medium | Feature 16 Phases 9–10 — E2E + hardening | Medium |

@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~73%
 Current Development Sprint
-Current Sprint: Feature 16 Phase 6 — Catalog Import API
-Sprint Goal: Administrator JSON import upserts products as pending_review by Model_ID/SKU (no auto-publish)
-Sprint Status: Feature 16 Phase 6 coded 2026-09-03
+Current Sprint: Feature 16 Phase 8 — QA approve / reject → publish workflow
+Sprint Goal: Admin approve/reject/requeue APIs with publish gates; import never auto-publishes
+Sprint Status: Feature 16 Phase 8 backend coded 2026-09-07
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -146,7 +146,7 @@ Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADM
 • [ ] Feature 16 Phase 5 — R2 Bridge CLI uploader (report + folders → R2)
 • [x] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
 • [ ] Feature 16 Phase 7 — Admin import review UI
-• [ ] Feature 16 Phase 8 — QA approve / reject → publish workflow
+• [x] Feature 16 Phase 8 — QA approve / reject → publish workflow (backend API; Phase 7 UI still pending)
 • [ ] Feature 16 Phase 9 — E2E: import → QA → Stripe → signed download
 • [ ] Feature 16 Phase 10 — Hardening (retries, large packages, remaining media → R2)
 Sprint 11 – Testing & Deployment
@@ -158,18 +158,26 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 16 Phase 6 — Catalog Import API (pending_review upsert by SKU).
+Feature 16 Phase 8 — QA approve / reject → publish workflow (backend).
 Current Git Branch
-feature/today-3-9-26
+feature/today-7-9-26
 Files Being Worked On
-• backend/products/catalog_import.py
+• backend/products/models.py
+• backend/products/services.py
 • backend/products/serializers.py
 • backend/products/views.py
 • backend/products/urls.py
-• backend/products/test_catalog_import.py
+• backend/products/migrations/0006_product_qa_review_metadata.py
+• backend/products/test_product_qa.py
 • PROJECT_STATUS.md
 • docs/PLANNED_FEATURES.md
 Completed Features
+• Feature 16 Phase 8 — QA approve / reject → publish workflow (2026-09-07)
+  - QA metadata: reject_reason, qa_notes, reviewed_at, reviewed_by (admin serializers only)
+  - POST approve / reject / requeue admin endpoints with ProductService publish gates
+  - Imported (import_batch_id) products cannot PATCH/create as published; must use approve
+  - Manual draft→published admin create/update unchanged; public catalog still published-only
+  - Tests: test_product_qa + existing products / catalog_import suites
 • Feature 16 Phase 6 — Catalog Import API (2026-09-03)
   - POST /api/admin/products/import/ — administrator JWT; batch JSON upsert by Model_ID → Product.sku
   - Ready-to-import gate per row (contract §E); mixed skip/create/update returns 200
@@ -378,7 +386,7 @@ Technical Debt
 • New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA files remain until migrated
 • Custom-project / message / delivery downloads still FileResponse (private R2 keys when R2 on; same presign pattern later)
 • Catalog Import API done (Phase 6); catalog-bridge uploader (Phase 5) still required for disk→R2
-• No dedicated pending_review / QA reject status beyond draft/published/archived (Feature 16 Phase 8)
+• Phase 8 backend approve/reject/requeue done; Phase 7 Admin QA queue UI still pending
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
 • Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
@@ -418,9 +426,45 @@ Important Decisions
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order: catalog-bridge (Phase 5) + Feature 16 Phase 7–8 QA queue UI (Phase 6 Import API done).
+• Recommended near-term order: catalog-bridge (Phase 5) + Feature 16 Phase 7 Admin QA queue UI (Phase 8 backend publish gate done).
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-09-07 (Feature 16 Phase 8 — QA approve / reject → publish)
+Working Hours:
+Today's Objective: Finish backend QA publish gate — approve/reject/requeue with publish-ready validation; keep import non-publishing.
+Modules Completed: Product QA metadata fields; ProductService.approve/reject/requeue + publish gates; admin POST endpoints; tests
+Files Created:
+• backend/products/migrations/0006_product_qa_review_metadata.py
+• backend/products/test_product_qa.py
+Files Modified:
+• backend/products/models.py
+• backend/products/services.py
+• backend/products/serializers.py
+• backend/products/views.py
+• backend/products/urls.py
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• products.Product: reject_reason, qa_notes, reviewed_at, reviewed_by (FK SET_NULL)
+API Endpoints:
+• POST /api/admin/products/<uuid>/approve/ — pending_review → published (publish gates); clears reject_reason
+• POST /api/admin/products/<uuid>/reject/ — body {reason, qa_notes?}; pending_review → rejected
+• POST /api/admin/products/<uuid>/requeue/ — rejected → pending_review (keeps reject_reason)
+Frontend Pages/Components Added:
+• None (Phase 7 QA UI still pending)
+Tests Added/Updated:
+• products.test_product_qa: import→approve→public; reject+hidden; gate failures; non-admin 403; invalid transitions; requeue→approve; manual publish path; public omits QA fields
+Security Checklist:
+• IsAdministrator + JWT; never expose reject_reason/reviewed_by on public serializers
+• Import still never sets published; imported rows must use approve (not PATCH status)
+• log_admin_action product_approve / product_reject / product_requeue
+Issues / Blockers:
+• Phase 7 Admin import review UI still pending
+Next Recommended Task:
+• Feature 16 Phase 7 — Admin import review UI (batch filter / QA queue)
+Notes:
+• On approve: reject_reason cleared; qa_notes retained. On requeue: reject_reason kept until next reject/approve.
+
 Date: 2026-09-03 (Feature 16 Phase 6 — Catalog Import API)
 Working Hours:
 Today's Objective: Add administrator JSON Catalog Import API that upserts products by Model_ID/SKU as pending_review after R2 upload (no auto-publish).
