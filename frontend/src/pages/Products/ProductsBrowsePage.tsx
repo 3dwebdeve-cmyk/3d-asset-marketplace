@@ -4,16 +4,13 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
 import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
+import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
-import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { CategoryPublic } from '../../types/category'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
 
 const HUB_PREVIEW_SIZE = 6
-
-type SearchEditSource = 'url' | 'input'
 
 function scrollRail(rail: HTMLElement | null, direction: -1 | 1) {
   if (!rail) return
@@ -61,7 +58,7 @@ function CategoryTile({
 
 export function ProductsBrowsePage() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const viewAll = searchParams.get('view') === 'all'
@@ -77,55 +74,9 @@ export function ProductsBrowsePage() {
     navigate(qs ? `/3d-models?${qs}` : '/3d-models', { replace: true })
   }, [isCatalogMode, searchFromUrl, categoryFromUrl, navigate])
 
-  const [searchInput, setSearchInput] = useState(searchFromUrl)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
-  const searchEditSourceRef = useRef<SearchEditSource>('url')
-
   const categoriesRailRef = useRef<HTMLDivElement>(null)
   const productsRailRef = useRef<HTMLDivElement>(null)
   const pluginsRailRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    setSelectedCategoryId(categoryFromUrl)
-  }, [categoryFromUrl])
-
-  useEffect(() => {
-    searchEditSourceRef.current = 'url'
-    setSearchInput(searchFromUrl)
-  }, [searchFromUrl])
-
-  const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
-
-  useEffect(() => {
-    const current = searchParams.get('search')?.trim() ?? ''
-    if (debouncedSearch === current || searchEditSourceRef.current !== 'input') {
-      return
-    }
-    const nextParams = new URLSearchParams(searchParams)
-    if (debouncedSearch) {
-      nextParams.set('search', debouncedSearch.slice(0, 100))
-    } else {
-      nextParams.delete('search')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }, [debouncedSearch, searchParams, setSearchParams])
-
-  const handleSearchChange = (val: string) => {
-    searchEditSourceRef.current = 'input'
-    setSearchInput(val.slice(0, 100))
-  }
-
-  const handleCategoryChange = (catId: string) => {
-    setSelectedCategoryId(catId)
-
-    const nextParams = new URLSearchParams(searchParams)
-    if (catId) {
-      nextParams.set('category', catId)
-    } else {
-      nextParams.delete('category')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
 
   const { data: categoriesData } = useQuery({
     queryKey: ['public-categories-list'],
@@ -171,54 +122,10 @@ export function ProductsBrowsePage() {
   const categories = categoriesData?.results ?? []
   const plugins = pluginsData?.results ?? []
 
-  const searchBar = (includeCategory: boolean) => (
-    <div className="browse-search-bar">
-      {includeCategory ? (
-        <label className="browse-search-bar__category-label" htmlFor="browse-category-select">
-          <span className="visually-hidden">Category</span>
-          <select
-            id="browse-category-select"
-            value={selectedCategoryId}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className="browse-search-bar__category"
-            aria-label="Category"
-          >
-            <option value="">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-      <Input
-        type="search"
-        placeholder="Search 3D models, plugins..."
-        value={searchInput}
-        onChange={(e) => handleSearchChange(e.target.value)}
-        className="browse-search-bar__input"
-        aria-label="Search 3D models"
-      />
-    </div>
-  )
-
   if (!isCatalogMode) {
     return (
       <main className="products-browse-page products-browse-page--hub">
-        <div className="browse-hub__toolbar">{searchBar(true)}</div>
-
-        <section className="browse-hub-hero" aria-labelledby="browse-hub-heading">
-          <div className="browse-hub-hero__content">
-            <h1 id="browse-hub-heading" className="browse-hub-hero__title">
-              The Ultimate Marketplace for 3D &amp; Digital Assets
-            </h1>
-            <p className="browse-hub-hero__subtitle">
-              Discover, create and bring ideas to life with high-quality 3D models, materials,
-              textures and tools — all in one place.
-            </p>
-          </div>
-        </section>
+        <MarketplaceHero />
 
         <section className="browse-module-cards" aria-label="Marketplace modules">
           <article className="browse-module-card">
@@ -231,7 +138,7 @@ export function ProductsBrowsePage() {
             </div>
             <h2 className="browse-module-card__title">3D Models</h2>
             <p className="browse-module-card__text">
-              Explore high quality 3D models in all categories.
+              Explore high quality production-ready 3D models in all categories.
             </p>
             <Link className="browse-module-card__cta" to="/3d-models">
               Shop 3D models
@@ -247,9 +154,9 @@ export function ProductsBrowsePage() {
                 <path d="M9 14h6" />
               </svg>
             </div>
-            <h2 className="browse-module-card__title">Plugins</h2>
+            <h2 className="browse-module-card__title">Plugins &amp; Tools</h2>
             <p className="browse-module-card__text">
-              Power up your workflow with professional plugins and tools.
+              Power up your workflow with professional Blender and Unreal plugins.
             </p>
             <Link className="browse-module-card__cta" to="/plugins">
               Explore Plugins
@@ -264,7 +171,7 @@ export function ProductsBrowsePage() {
             </div>
             <h2 className="browse-module-card__title">Inquiry Portal</h2>
             <p className="browse-module-card__text">
-              Have a specific requirement? Our team is here to help.
+              Have a specific custom asset requirement? Contact our VFX artist team.
             </p>
             <Link className="browse-module-card__cta" to="/custom-projects">
               Submit an Inquiry
@@ -272,10 +179,13 @@ export function ProductsBrowsePage() {
           </article>
         </section>
 
-        <section className="browse-rail-section" aria-labelledby="trending-categories-heading">
+        <section
+          className="browse-rail-section browse-rail-section--categories"
+          aria-labelledby="explore-categories-heading"
+        >
           <div className="browse-rail-section__header">
-            <h2 id="trending-categories-heading" className="browse-rail-section__title">
-              Trending Categories
+            <h2 id="explore-categories-heading" className="browse-rail-section__title">
+              Explore 3D Categories
             </h2>
             <div className="browse-rail-section__actions">
               <Link className="browse-rail-section__view-all" to="/3d-models">

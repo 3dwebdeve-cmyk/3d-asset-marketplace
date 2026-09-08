@@ -1,6 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as categoriesApi from '../../api/categoriesApi'
@@ -134,6 +135,19 @@ const samplePublicPlugins = {
   ],
 }
 
+function ModelsCatalogRoute() {
+  const location = useLocation()
+  return (
+    <>
+      <div>3D Models catalog page</div>
+      <div data-testid="location">
+        {location.pathname}
+        {location.search}
+      </div>
+    </>
+  )
+}
+
 function renderProductsBrowsePage(initialPath = '/products') {
   const queryClient = createTestQueryClient()
   return render(
@@ -141,7 +155,7 @@ function renderProductsBrowsePage(initialPath = '/products') {
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/products" element={<ProductsBrowsePage />} />
-          <Route path="/3d-models" element={<div>3D Models catalog page</div>} />
+          <Route path="/3d-models" element={<ModelsCatalogRoute />} />
           <Route path="/plugins" element={<div>Plugins page</div>} />
           <Route path="/custom-projects" element={<div>Custom projects page</div>} />
         </Routes>
@@ -170,10 +184,10 @@ describe('ProductsBrowsePage', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: /the ultimate marketplace for 3d & digital assets/i,
+        name: /world's largest 3d model marketplace/i,
       }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /trending categories/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /explore 3d categories/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /shop 3d models/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /explore plugins/i })).toBeInTheDocument()
 
@@ -185,6 +199,18 @@ describe('ProductsBrowsePage', () => {
     expect(screen.getAllByText('Sci-Fi Assets').length).toBeGreaterThan(0)
     expect(screen.getByText('$ 39.99')).toBeInTheDocument()
     expect(screen.getByText('$ 49.99')).toBeInTheDocument()
+  })
+
+  it('searches the 3D models route from the reference hero', async () => {
+    const user = userEvent.setup()
+    renderProductsBrowsePage()
+
+    await user.type(screen.getByRole('searchbox', { name: /search 3d models/i }), 'drone')
+    await user.click(screen.getByRole('button', { name: /search marketplace/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?search=drone')
+    })
   })
 
   it('links Shop 3D models to the dedicated /3d-models catalog', async () => {

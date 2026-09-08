@@ -29,14 +29,19 @@ export function Navbar() {
   const clearSession = useAuthStore((state) => state.clearSession)
   const openCartDrawer = useCartUiStore((state) => state.openDrawer)
 
-  const isPluginsRoute = location.pathname.toLowerCase().startsWith('/plugins')
+  const currentPath = location.pathname.toLowerCase()
+  const isPluginsRoute = currentPath.startsWith('/plugins')
+  const isMarketplaceHome = currentPath === '/products'
   const [categoryId, setCategoryId] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [accountOpen, setAccountOpen] = useState(false)
+  const [exploreOpen, setExploreOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null)
+  const exploreRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setAccountOpen(false)
+    setExploreOpen(false)
     setCategoryId('')
     setSearchInput('')
   }, [location.pathname])
@@ -51,6 +56,26 @@ export function Navbar() {
     document.addEventListener('mousedown', onPointerDown)
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [accountOpen])
+
+  useEffect(() => {
+    if (!exploreOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!exploreRef.current?.contains(event.target as Node)) {
+        setExploreOpen(false)
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExploreOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [exploreOpen])
 
   const productCategoriesQuery = useQuery({
     queryKey: ['navbar-product-categories'],
@@ -111,59 +136,131 @@ export function Navbar() {
   const firstName = user?.full_name?.trim().split(/\s+/)[0] || 'User'
 
   return (
-    <header className="navbar">
+    <header className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}`}>
       <nav className="navbar__inner" aria-label="Main">
-        <Link className="navbar__brand" to="/">
-          3D HUB
-        </Link>
+        <div className="navbar__start">
+          <Link className="navbar__brand" to="/">
+            3D HUB
+          </Link>
 
-        <form className="navbar__search" onSubmit={handleSearchSubmit} role="search">
-          <label className="navbar__search-cat-label" htmlFor="navbar-category-select">
-            <span className="visually-hidden">All Categories</span>
-            <select
-              id="navbar-category-select"
-              className="navbar__search-cat"
-              value={categoryId}
-              onChange={(event) => setCategoryId(event.target.value)}
-              aria-label="All Categories"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <input
-            type="search"
-            className="navbar__search-input"
-            placeholder={isPluginsRoute ? 'Search plugins...' : 'Search 3D models...'}
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            aria-label={isPluginsRoute ? 'Search plugins' : 'Search 3D models'}
-          />
-          <button type="submit" className="navbar__search-submit" aria-label="Search">
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              aria-hidden="true"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-3.5-3.5" />
-            </svg>
-          </button>
-        </form>
+          {isMarketplaceHome ? (
+            <>
+              <div className="navbar__explore" ref={exploreRef}>
+                <button
+                  type="button"
+                  className="navbar__explore-trigger"
+                  aria-expanded={exploreOpen}
+                  aria-haspopup="menu"
+                  onClick={() => setExploreOpen((open) => !open)}
+                >
+                  Explore
+                  <span aria-hidden="true">⌄</span>
+                </button>
+                {exploreOpen ? (
+                  <div className="navbar__explore-menu" role="menu" aria-label="Explore categories">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="navbar__explore-item"
+                      onClick={() => {
+                        setExploreOpen(false)
+                        navigate('/3d-models')
+                      }}
+                    >
+                      <span className="navbar__explore-badge" aria-hidden="true">
+                        ◫
+                      </span>
+                      All Categories
+                    </button>
+                    {categories.map((category) => (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="navbar__explore-item"
+                        key={category.id}
+                        onClick={() => {
+                          setExploreOpen(false)
+                          navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
+                        }}
+                      >
+                        {category.image ? (
+                          <img
+                            className="navbar__explore-image"
+                            src={category.image}
+                            alt=""
+                          />
+                        ) : (
+                          <span className="navbar__explore-badge" aria-hidden="true">
+                            {category.name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        {category.name}
+                      </button>
+                    ))}
+                    {productCategoriesQuery.isLoading ? (
+                      <p className="navbar__explore-status">Loading categories…</p>
+                    ) : null}
+                    {productCategoriesQuery.isError ? (
+                      <p className="navbar__explore-status">Categories could not be loaded.</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        {!isMarketplaceHome ? (
+          <form className="navbar__search" onSubmit={handleSearchSubmit} role="search">
+            <label className="navbar__search-cat-label" htmlFor="navbar-category-select">
+              <span className="visually-hidden">All Categories</span>
+              <select
+                id="navbar-category-select"
+                className="navbar__search-cat"
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+                aria-label="All Categories"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input
+              type="search"
+              className="navbar__search-input"
+              placeholder={isPluginsRoute ? 'Search plugins...' : 'Search 3D models...'}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              aria-label={isPluginsRoute ? 'Search plugins' : 'Search 3D models'}
+            />
+            <button type="submit" className="navbar__search-submit" aria-label="Search">
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-3.5-3.5" />
+              </svg>
+            </button>
+          </form>
+        ) : null}
 
         <div className="navbar__actions">
           <div className="navbar__primary-links">
-            <Link className="navbar__link" to="/products">
-              Home
-            </Link>
+            {!isMarketplaceHome ? (
+              <Link className="navbar__link" to="/products">
+                Home
+              </Link>
+            ) : null}
             <Link className="navbar__link" to="/3d-models">
               3D Model
             </Link>
@@ -181,8 +278,13 @@ export function Navbar() {
             </Link>
           </div>
 
-          {isAuthenticated ? (
-            <>
+          <div
+            className={`navbar__account-actions${
+              !isAuthenticated ? ' navbar__account-actions--guest' : ''
+            }`}
+          >
+            {isAuthenticated ? (
+              <>
               {isAdministrator(user?.role) ? null : (
                 <>
                   <NotificationBell />
@@ -336,21 +438,61 @@ export function Navbar() {
                   </div>
                 ) : null}
               </div>
-            </>
-          ) : (
-            <>
-              <AuthEntryButton mode="login" returnTo={location.pathname} className="navbar__link">
-                Sign in
-              </AuthEntryButton>
-              <AuthEntryButton
-                mode="register"
-                returnTo={location.pathname}
-                className="navbar__link navbar__link--primary"
-              >
-                Register
-              </AuthEntryButton>
-            </>
-          )}
+              </>
+            ) : (
+              <>
+                <div className="navbar__guest-auth-pill">
+                  <AuthEntryButton mode="login" returnTo={location.pathname} className="navbar__link">
+                    {isMarketplaceHome ? 'Login' : 'Sign in'}
+                  </AuthEntryButton>
+                  <AuthEntryButton
+                    mode="register"
+                    returnTo={location.pathname}
+                    className="navbar__link navbar__link--primary"
+                  >
+                    {isMarketplaceHome ? 'Signup' : 'Register'}
+                  </AuthEntryButton>
+                </div>
+                {isMarketplaceHome ? (
+                  <>
+                    <Link className="navbar__home-utility" to="/contact" aria-label="Messages">
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        aria-hidden="true"
+                      >
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <path d="m4 7 8 6 8-6" />
+                      </svg>
+                    </Link>
+                    <AuthEntryButton
+                      mode="login"
+                      returnTo={location.pathname}
+                      className="navbar__home-utility"
+                      aria-label="Account"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="8" r="3" />
+                        <path d="M5.5 20c.8-4 3-6 6.5-6s5.7 2 6.5 6" />
+                      </svg>
+                    </AuthEntryButton>
+                  </>
+                ) : null}
+              </>
+            )}
+          </div>
         </div>
       </nav>
     </header>

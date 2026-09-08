@@ -156,6 +156,55 @@ beforeEach(() => {
 })
 
 describe('Navbar', () => {
+  it('uses the white marketplace header and existing categories on /products', async () => {
+    const user = userEvent.setup()
+    const categoryId = '44bba207-8a0c-490d-abdf-5a383ed2111b'
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: categoryId,
+          name: 'Furniture',
+          slug: 'furniture',
+          description: '',
+          image: '',
+          parent: null,
+          created_at: '2026-09-08T00:00:00Z',
+        },
+      ],
+    })
+
+    renderNavbar('/products')
+
+    expect(document.querySelector('.navbar')).toHaveClass('navbar--marketplace-home')
+    expect(screen.queryByRole('search')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /for business/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^home$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute(
+      'href',
+      '/3d-models',
+    )
+    expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
+      'href',
+      '/custom-projects',
+    )
+    expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^signup$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^messages$/i })).toHaveAttribute('href', '/contact')
+    expect(screen.getByRole('button', { name: /^account$/i })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^explore/i }))
+    await user.click(
+      await screen.findByRole('menuitem', { name: /furniture/i }),
+    )
+
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      `/3d-models?category=${categoryId}`,
+    )
+  })
+
   it('shows Sign in and Register when logged out', () => {
     renderNavbar()
 
