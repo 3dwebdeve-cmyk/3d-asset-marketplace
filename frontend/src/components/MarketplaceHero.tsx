@@ -1,34 +1,37 @@
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import { listPublicCategories } from '../api/categoriesApi'
+const TRENDING_TAGS = [
+  { label: '3D Models', search: '' },
+  { label: '3D character', search: '3D character' },
+  { label: 'Game Environment', search: 'Game Environment' },
+  { label: 'Low Poly', search: 'Low Poly' },
+  { label: 'Sci-Fi Vehicles', search: 'Sci-Fi Vehicles' },
+] as const
+
+const SORT_PILLS = [
+  { label: 'Newest', ordering: '-created_at' },
+  { label: 'Top Selling', ordering: '-total_downloads' },
+  { label: 'Trending', ordering: '-review_count' },
+] as const
 
 export function MarketplaceHero() {
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
 
-  const categoriesQuery = useQuery({
-    queryKey: ['home-product-categories'],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
-  })
-
-  const categories = categoriesQuery.data?.results ?? []
-
-  const navigateToModels = (search: string, categoryId: string) => {
+  const navigateToModels = (search: string, ordering = '') => {
     const params = new URLSearchParams()
     const query = search.trim().slice(0, 100)
     if (query) params.set('search', query)
-    if (categoryId) params.set('category', categoryId)
+    if (ordering) params.set('ordering', ordering)
     const queryString = params.toString()
     navigate(queryString ? `/3d-models?${queryString}` : '/3d-models')
   }
 
   const onSearchSubmit = (event: FormEvent) => {
     event.preventDefault()
-    navigateToModels(searchInput, '')
+    navigateToModels(searchInput)
   }
 
   return (
@@ -45,14 +48,14 @@ export function MarketplaceHero() {
           <span className="home-marketplace-search__leading" aria-hidden="true">
             <svg
               viewBox="0 0 24 24"
-              width="17"
-              height="17"
+              width="18"
+              height="18"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.6"
+              strokeWidth="1.8"
             >
-              <path d="m12 2 8 4.5v11L12 22l-8-4.5v-11z" />
-              <path d="m4.5 6.8 7.5 4.3 7.5-4.3M12 11v10.4" />
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.6-3.6" />
             </svg>
           </span>
           <input
@@ -83,20 +86,46 @@ export function MarketplaceHero() {
           </button>
         </form>
 
-        {categories.length > 0 ? (
-          <div className="home-marketplace-trending" aria-label="Browse categories">
-            <span>Trending:</span>
-            {categories.slice(0, 10).map((category) => (
-              <button
-                type="button"
-                key={category.id}
-                onClick={() => navigateToModels('', category.id)}
+        <div className="home-marketplace-trending" aria-label="Trending searches">
+          <span>Trending:</span>
+          {TRENDING_TAGS.map((tag) => (
+            <button
+              type="button"
+              key={tag.label}
+              onClick={() => navigateToModels(tag.search)}
+            >
+              <svg
+                viewBox="0 0 16 16"
+                width="11"
+                height="11"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                aria-hidden="true"
               >
-                ↗ {category.name}
-              </button>
-            ))}
-          </div>
-        ) : null}
+                <path d="M4 12 12 4M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              {tag.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="home-marketplace-sort" role="group" aria-label="Sort 3D models">
+          {SORT_PILLS.map((pill) => (
+            <button
+              type="button"
+              key={pill.label}
+              className={
+                pill.label === 'Trending'
+                  ? 'home-marketplace-sort__btn home-marketplace-sort__btn--active'
+                  : 'home-marketplace-sort__btn'
+              }
+              onClick={() => navigateToModels('', pill.ordering)}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   )

@@ -201,6 +201,16 @@ describe('ModelsBrowsePage', () => {
     })
   })
 
+  it('applies ordering from the URL query', async () => {
+    renderModelsBrowsePage('/3d-models?ordering=-total_downloads')
+
+    await waitFor(() => {
+      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ ordering: '-total_downloads' }),
+      )
+    })
+  })
+
   it('shows empty state when no models match filters', async () => {
     vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
       count: 0,

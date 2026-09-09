@@ -22,7 +22,20 @@ const TRAIT_CHIPS: { key: TraitKey; label: string }[] = [
 ]
 
 type ViewMode = 'grid' | 'list'
-type SortOption = '-created_at' | 'price' | '-price' | 'name' | '-name'
+const SORT_OPTIONS = [
+  '-created_at',
+  'price',
+  '-price',
+  'name',
+  '-name',
+  '-total_downloads',
+  '-review_count',
+] as const
+type SortOption = (typeof SORT_OPTIONS)[number]
+
+function readSortFromUrl(raw: string): SortOption {
+  return (SORT_OPTIONS as readonly string[]).includes(raw) ? (raw as SortOption) : '-created_at'
+}
 
 function readTraitFromUrl(searchParams: URLSearchParams, key: TraitKey): boolean {
   const raw = searchParams.get(key)?.trim().toLowerCase() ?? ''
@@ -33,6 +46,7 @@ export function ModelsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
+  const sortFromUrl = readSortFromUrl(searchParams.get('ordering')?.trim() ?? '')
 
   const riggedFromUrl = readTraitFromUrl(searchParams, 'rigged')
   const animatedFromUrl = readTraitFromUrl(searchParams, 'animated')
@@ -41,7 +55,7 @@ export function ModelsBrowsePage() {
 
   const [searchInput, setSearchInput] = useState(searchFromUrl)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
-  const [sortOrdering, setSortOrdering] = useState<SortOption>('-created_at')
+  const [sortOrdering, setSortOrdering] = useState<SortOption>(sortFromUrl)
   const [currentPage, setCurrentPage] = useState(1)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [traits, setTraits] = useState<Record<TraitKey, boolean>>({
@@ -60,6 +74,11 @@ export function ModelsBrowsePage() {
     setSearchInput(searchFromUrl)
     setCurrentPage(1)
   }, [searchFromUrl])
+
+  useEffect(() => {
+    setSortOrdering(sortFromUrl)
+    setCurrentPage(1)
+  }, [sortFromUrl])
 
   useEffect(() => {
     setTraits({
@@ -100,6 +119,14 @@ export function ModelsBrowsePage() {
   const handleSortChange = (sort: SortOption) => {
     setSortOrdering(sort)
     setCurrentPage(1)
+
+    const nextParams = new URLSearchParams(searchParams)
+    if (sort === '-created_at') {
+      nextParams.delete('ordering')
+    } else {
+      nextParams.set('ordering', sort)
+    }
+    setSearchParams(nextParams, { replace: true })
   }
 
   const handleSoftwareChip = (term: string) => {
@@ -141,6 +168,7 @@ export function ModelsBrowsePage() {
     nextParams.delete('animated')
     nextParams.delete('pbr_ready')
     nextParams.delete('game_ready')
+    nextParams.delete('ordering')
     setSearchParams(nextParams, { replace: true })
   }
 
@@ -322,10 +350,12 @@ export function ModelsBrowsePage() {
                 <select
                   id="model-sort-select"
                   value={sortOrdering}
-                  onChange={(e) => handleSortChange(e.target.value as SortOption)}
+                  onChange={(e) => handleSortChange(readSortFromUrl(e.target.value))}
                   className="plugins-filters__select plugins-filters__select--compact"
                 >
                   <option value="-created_at">Newest First</option>
+                  <option value="-total_downloads">Top Selling</option>
+                  <option value="-review_count">Trending</option>
                   <option value="price">Price: Low to High</option>
                   <option value="-price">Price: High to Low</option>
                   <option value="name">Name: A to Z</option>

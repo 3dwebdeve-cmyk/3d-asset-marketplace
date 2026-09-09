@@ -724,6 +724,10 @@ class ProductService:
             "-price",
             "created_at",
             "-created_at",
+            "total_downloads",
+            "-total_downloads",
+            "review_count",
+            "-review_count",
         }
         if ordering and ordering in allowed:
             return ordering

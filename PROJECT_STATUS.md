@@ -7,9 +7,9 @@ Project Type: International Digital Marketplace for 3D Models, Plugins, and Cust
 Project Progress
 Overall Completion: ~73%
 Current Development Sprint
-Current Sprint: Feature 16 Phase 7 — Admin import QA queue UI
-Sprint Goal: Admin Products list/detail Approve / Reject / Requeue UI over Phase 8 APIs
-Sprint Status: Feature 16 Phase 7 UI coded 2026-09-07
+Current Sprint: Public site polish — Marketplace home
+Sprint Goal: Match approved marketplace home hero and service-card designs
+Sprint Status: Marketplace hero (search, trending tags, sort pills) and three-column service strip matched to approved home mock 2026-09-09
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -158,19 +158,26 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Feature 16 Phase 7 — Admin import QA queue UI.
+Match the approved Explore 3D Categories grid using only existing backend categories.
 Current Git Branch
 feature/today-7-9-26
 Files Being Worked On
-• frontend/src/types/product.ts
-• frontend/src/api/productsApi.ts
-• frontend/src/pages/Admin/AdminProductsPage.tsx
-• frontend/src/pages/Admin/AdminProductDetailPage.tsx
-• frontend/src/config/adminNav.ts
-• frontend/src/layouts/AdminLayout.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.test.tsx
+• frontend/src/styles/products-browse.css
 • PROJECT_STATUS.md
-• docs/PLANNED_FEATURES.md
 Completed Features
+• Marketplace Explore 3D Categories grid redesign (2026-09-09)
+  - Reused GET /api/categories/ and renders only returned backend categories
+  - Category images remain backend-driven with a safe visual fallback
+  - Four-column desktop grid with responsive two- and one-column layouts
+  - Existing category-ID filtering route preserved and tested
+  - Tests: ProductsBrowsePage 8/8; frontend lint and production build passed
+• Marketplace home module-card redesign (2026-09-09)
+  - Reused the existing three-card section and internal routes
+  - Matched the approved white layout, neutral dividers, illustrated icons, and pill CTAs
+  - Added responsive stacked cards and verified all three destination links
+  - Tests: ProductsBrowsePage 7/7; frontend lint and production build passed
 • Feature 16 Phase 7 — Admin import QA queue UI (2026-09-07)
   - Products list: status + import_batch_id filters; QA queue shortcut (?status=pending_review)
   - Detail: Approve / Reject (reason required) / Requeue via dedicated endpoints
@@ -2868,6 +2875,124 @@ Lessons Learned:
 • Soft-delete is safer than hard delete for marketplace accounts
 Next Development Task:
 • Categories Django app + admin CRUD
+Date: 2026-09-09
+Working Hours:
+Today's Objective: Custom Projects landing page visual polish
+Modules Completed: Custom Projects hero, process cards, and request-type card grid
+Files Created:
+• frontend/public/images/custom-projects-hero.jpg
+Files Modified:
+• frontend/src/pages/CustomProjects/CustomProjectsLandingPage.tsx
+• frontend/src/styles/marketing.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Modified:
+• /custom-projects — redesigned hero, “How it works,” and “What you can request” sections
+Verification:
+• CustomProjectsLandingPage focused tests passed (3/3)
+• Frontend lint and production build passed
+• Security review found no medium, high, or critical issues
+Problems Encountered:
+• Wide process-card row initially expanded the constrained parent grid and required independent centering
+Solutions Implemented:
+• Reused the existing page-scoped card/icon patterns and centered full-width row technique
+Lessons Learned:
+• Oversized grid children should remain min-width: 0 and center their internal row independently
+Next Development Task:
+• Continue manager-approved Custom Projects page polish
+Date: 2026-09-09
+Working Hours:
+Today's Objective: Marketplace home module cards below the hero banner
+Modules Completed: Three-card marketplace navigation section visual redesign
+Files Created:
+• None
+Files Modified:
+• frontend/src/pages/Products/ProductsBrowsePage.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.test.tsx
+• frontend/src/styles/products-browse.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Modified:
+• /products — redesigned 3D Models, Plugins & Tools, and Inquiry Portal cards
+Verification:
+• ProductsBrowsePage focused tests passed (7/7)
+• Frontend lint passed with two pre-existing Fast Refresh warnings outside touched files
+• Frontend production build passed
+• Security checklist manually reviewed; presentation-only changes add no input, networking, or HTML injection
+Risks or Blockers:
+• Automated security review could not complete after two attempts because its connection was interrupted
+Solutions Implemented:
+• Reused existing semantic articles, React Router links, and XSS-safe inline SVG markup
+Lessons Learned:
+• The existing module structure supported the approved design without adding another component
+Next Development Task:
+• Visually confirm the section at target desktop and mobile viewport sizes
+Date: 2026-09-09
+Working Hours:
+Today's Objective: Explore 3D Categories visual redesign
+Modules Completed: Backend-driven responsive category image grid
+Files Created:
+• None
+Files Modified:
+• frontend/src/pages/Products/ProductsBrowsePage.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.test.tsx
+• frontend/src/styles/products-browse.css
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None; reused GET /api/categories/
+Frontend Pages Modified:
+• /products — Explore 3D Categories grid
+Verification:
+• ProductsBrowsePage focused tests passed (8/8)
+• Frontend lint passed with two pre-existing Fast Refresh warnings outside touched files
+• Frontend production build passed
+Security:
+• Category names remain escaped React text; image URLs still come from the existing public category API
+Risks or Blockers:
+• Categories without backend images use the existing gradient fallback
+Next Development Task:
+• Continue manager-approved marketplace home polish
+Date: 2026-09-09
+Working Hours:
+Today's Objective: Match the approved marketplace home mock (hero + service cards)
+Modules Completed: Centered hero with trending tags and sort pills; three-column service strip
+Files Created:
+• None
+Files Modified:
+• frontend/src/components/MarketplaceHero.tsx
+• frontend/src/styles/home.css
+• frontend/src/pages/Products/ProductsBrowsePage.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.test.tsx
+• frontend/src/styles/products-browse.css
+• frontend/src/pages/Models/ModelsBrowsePage.tsx
+• frontend/src/pages/Models/ModelsBrowsePage.test.tsx
+• backend/products/services.py
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None; public product list ordering now also accepts total_downloads and review_count
+Frontend Pages Modified:
+• /products — hero and service cards under the header
+• /3d-models — honors ordering query from the home sort pills
+Verification:
+• ProductsBrowsePage and ModelsBrowsePage focused tests passed (20/20)
+• oxlint passed on touched frontend source files
+Security:
+• Search queries remain length-capped; sort values are allowlisted on the backend and frontend
+• Card copy and trending labels are static React text, not HTML
+Risks or Blockers:
+• Browser interaction tools were not available; visual check should be confirmed at desktop and mobile viewports
+Next Development Task:
+• Visually confirm the hero and service strip against the approved mock
 Deployment Checklist
 • [ ] Backend Stable
 • [ ] Frontend Stable
