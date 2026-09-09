@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -213,7 +213,31 @@ describe('ProductsBrowsePage', () => {
     })
   })
 
-  it('links Shop 3D models to the dedicated /3d-models catalog', async () => {
+  it('searches a trending tag from the marketplace hero', async () => {
+    const user = userEvent.setup()
+    renderProductsBrowsePage()
+
+    await user.click(screen.getByRole('button', { name: /low poly/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?search=Low+Poly')
+    })
+  })
+
+  it('opens the models catalog from hero sort pills', async () => {
+    const user = userEvent.setup()
+    renderProductsBrowsePage()
+
+    await user.click(screen.getByRole('button', { name: /^newest$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/3d-models?ordering=-created_at',
+      )
+    })
+  })
+
+  it('links each marketplace module to its existing destination', async () => {
     renderProductsBrowsePage()
 
     await waitFor(() => {
@@ -224,6 +248,45 @@ describe('ProductsBrowsePage', () => {
       'href',
       '/3d-models',
     )
+    expect(screen.getByRole('link', { name: /explore plugins/i })).toHaveAttribute(
+      'href',
+      '/plugins',
+    )
+    expect(screen.getByRole('link', { name: /submit an inquiry/i })).toHaveAttribute(
+      'href',
+      '/custom-projects',
+    )
+    expect(
+      screen.getByText('Explore high-quality production-ready 3D models in all categories.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Power-up your workflow with professional Blender and Unreal plugins.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('Have a specific custom asset requirement? Contact our VFX artist team.'),
+    ).toBeInTheDocument()
+  })
+
+  it('renders backend categories and filters the existing models route', async () => {
+    const user = userEvent.setup()
+    renderProductsBrowsePage()
+
+    const categorySection = screen.getByRole('region', {
+      name: /explore 3d categories/i,
+    })
+    const categoryButton = await within(categorySection).findByRole('button', {
+      name: /browse sci-fi assets 3d models/i,
+    })
+
+    expect(within(categorySection).getAllByRole('button')).toHaveLength(1)
+
+    await user.click(categoryButton)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        `/3d-models?category=${categoryId}`,
+      )
+    })
   })
 
   it('redirects old catalog query URLs to /3d-models', async () => {
