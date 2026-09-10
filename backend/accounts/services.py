@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 from django.conf import settings
@@ -21,6 +22,7 @@ from accounts.storage import AvatarStorageService
 from accounts.upload_rules import validate_avatar_upload
 
 password_reset_token_generator = PasswordResetTokenGenerator()
+dev_mail_logger = logging.getLogger("accounts.dev_mail")
 
 
 class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
@@ -285,6 +287,14 @@ class EmailVerificationService:
             recipient_list=[user.email],
             fail_silently=False,
         )
+        # Local DX: console EmailBackend already prints the message; this line
+        # is easy to copy from `runserver` when SMTP is not configured.
+        if settings.DEBUG:
+            dev_mail_logger.warning(
+                "EMAIL VERIFICATION LINK for %s:\n%s",
+                user.email,
+                verification_link,
+            )
 
     @classmethod
     def resend_verification(cls, email: str) -> None:
@@ -321,10 +331,18 @@ class EmailVerificationService:
             log_email_verification(action="confirm_failure", email=user.email)
             raise AuthenticationError("Invalid or expired email verification link.")
 
+        cls.mark_verified(user, action="confirm_success")
+        return user
+
+    @classmethod
+    def mark_verified(cls, user: User, *, action: str = "mark_verified") -> User:
+        """Mark an active user verified (confirm link, admin, or management command)."""
+        if user.email_verified:
+            return user
         user.email_verified = True
         user.save(update_fields=["email_verified", "updated_at"])
         log_email_verification(
-            action="confirm_success",
+            action=action,
             email=user.email,
             user_id=str(user.pk),
         )

@@ -52,7 +52,9 @@ export function AuthRegisterPanel({
           message={`Welcome, ${registeredUser.full_name}. Check your email to verify your account before signing in.`}
         />
         <p className="auth-card__hint">
-          We sent a verification link to {registeredUser.email}.
+          We sent a verification link to {registeredUser.email}. Locally, copy the
+          labeled link from the backend terminal, or ask an admin to mark the
+          account verified.
         </p>
         <p className="auth-card__footer">
           <button

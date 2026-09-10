@@ -20,6 +20,9 @@ PUBLIC_MEDIA_PREFIXES = (
     "plugins/images/",
     "avatars/",
 )
+# Feature 16 public objects live under models/{Model_ID}/; package.zip stays private.
+BATCH_PUBLIC_PREFIX = "models/"
+BATCH_PRIVATE_FILENAMES = frozenset({"package.zip"})
 
 
 def media_relative_path(storage_path: str) -> str | None:
@@ -56,8 +59,17 @@ def media_relative_path(storage_path: str) -> str | None:
     return normalized
 
 
+def is_batch_private_object(relative: str) -> bool:
+    return Path(relative.replace("\\", "/")).name.lower() in BATCH_PRIVATE_FILENAMES
+
+
 def is_public_media_path(relative: str) -> bool:
-    return any(relative.startswith(prefix) for prefix in PUBLIC_MEDIA_PREFIXES)
+    normalized = relative.replace("\\", "/")
+    if any(normalized.startswith(prefix) for prefix in PUBLIC_MEDIA_PREFIXES):
+        return True
+    return normalized.startswith(BATCH_PUBLIC_PREFIX) and not is_batch_private_object(
+        normalized
+    )
 
 
 def storage_for_relative(relative: str) -> Storage:

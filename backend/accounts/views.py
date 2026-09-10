@@ -427,6 +427,7 @@ class AdminUserDetailView(APIView):
                     country=serializer.validated_data.get("country"),
                     role_name=serializer.validated_data.get("role"),
                     is_active=serializer.validated_data.get("is_active"),
+                    email_verified=serializer.validated_data.get("email_verified"),
                 ),
             )
         except AdminUserError as exc:

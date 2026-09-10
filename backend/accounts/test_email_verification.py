@@ -148,3 +148,83 @@ class EmailVerificationAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 0)
+
+
+class EmailVerificationDevDxTests(APITestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        self.customer_role = Role.objects.get(role_name="Customer")
+        self.password = "StrongPass123!"
+        self.user = User.objects.create_user(
+            email="dx-user@example.com",
+            full_name="DX User",
+            password=self.password,
+            role=self.customer_role,
+        )
+        self.register_url = reverse("accounts:register")
+        self.login_url = reverse("accounts:login")
+
+    def test_register_logs_verification_link_when_debug(self) -> None:
+        from django.test import override_settings
+
+        with override_settings(DEBUG=True):
+            with self.assertLogs("accounts.dev_mail", level="WARNING") as captured:
+                response = self.client.post(
+                    self.register_url,
+                    {
+                        "full_name": "Console Customer",
+                        "email": "console.verify@example.com",
+                        "password": "StrongPass123!",
+                        "password_confirm": "StrongPass123!",
+                    },
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        joined = "\n".join(captured.output)
+        self.assertIn("EMAIL VERIFICATION LINK", joined)
+        self.assertIn("/verify-email/", joined)
+
+    def test_register_does_not_log_verification_link_when_debug_false(self) -> None:
+        from django.test import override_settings
+
+        with override_settings(DEBUG=False):
+            with self.assertNoLogs("accounts.dev_mail", level="WARNING"):
+                response = self.client.post(
+                    self.register_url,
+                    {
+                        "full_name": "Prod Customer",
+                        "email": "prod.verify@example.com",
+                        "password": "StrongPass123!",
+                        "password_confirm": "StrongPass123!",
+                    },
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_verify_email_command_allows_login(self) -> None:
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        self.assertFalse(self.user.email_verified)
+        out = StringIO()
+        call_command("verify_email", self.user.email, stdout=out)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.email_verified)
+        self.assertIn("email_verified", out.getvalue())
+
+        login = self.client.post(
+            self.login_url,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+
+    def test_verify_email_command_rejects_unknown_user(self) -> None:
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            call_command("verify_email", "missing@example.com")

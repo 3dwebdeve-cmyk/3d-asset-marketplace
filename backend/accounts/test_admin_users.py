@@ -123,6 +123,21 @@ class AdminUserCRUDAPITests(APITestCase):
         self.customer_user.refresh_from_db()
         self.assertFalse(self.customer_user.is_active)
 
+    def test_admin_can_mark_email_verified(self) -> None:
+        self.customer_user.email_verified = False
+        self.customer_user.save(update_fields=["email_verified", "updated_at"])
+        self._authenticate_as(self.admin_user.email)
+
+        patch = self.client.patch(
+            self._detail_url(self.customer_user.id),
+            {"email_verified": True},
+            format="json",
+        )
+        self.assertEqual(patch.status_code, status.HTTP_200_OK)
+        self.assertTrue(patch.data["email_verified"])
+        self.customer_user.refresh_from_db()
+        self.assertTrue(self.customer_user.email_verified)
+
     def test_cannot_deactivate_self(self) -> None:
         self._authenticate_as(self.admin_user.email)
 

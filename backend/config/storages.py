@@ -2,15 +2,35 @@
 
 from __future__ import annotations
 
+import logging
 import re
+import time
+from collections.abc import Callable
+from typing import TypeVar
 from urllib.parse import urljoin
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
 from django.core.files.storage import Storage, default_storage, storages
 
 _FILENAME_UNSAFE = re.compile(r'["\\\r\n]')
+logger = logging.getLogger("config.storages")
+
+T = TypeVar("T")
+
+R2_CLIENT_RETRY_ATTEMPTS = 4
+STORAGE_OP_RETRY_ATTEMPTS = 3
+_RETRYABLE_S3_CODES = frozenset(
+    {
+        "SlowDown",
+        "InternalError",
+        "ServiceUnavailable",
+        "RequestTimeout",
+        "RequestTimeTooSkewed",
+    }
+)
 
 
 def get_public_storage() -> Storage:
@@ -61,6 +81,62 @@ def content_disposition_filename(file_name: str) -> str:
     return (cleaned or "download")[:200]
 
 
+def boto_retry_config() -> Config:
+    """S3 client config with standard retries for transient R2 failures."""
+    return Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "path"},
+        retries={"max_attempts": R2_CLIENT_RETRY_ATTEMPTS, "mode": "standard"},
+        connect_timeout=5,
+        read_timeout=60,
+    )
+
+
+def is_retryable_storage_error(exc: BaseException) -> bool:
+    if isinstance(exc, ClientError):
+        code = str(exc.response.get("Error", {}).get("Code", ""))
+        http = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+        return code in _RETRYABLE_S3_CODES or http in {429, 500, 502, 503, 504}
+    if isinstance(exc, BotoCoreError):
+        return True
+    return isinstance(exc, OSError)
+
+
+def call_with_storage_retries(
+    operation: Callable[[], T],
+    *,
+    attempts: int = STORAGE_OP_RETRY_ATTEMPTS,
+) -> T:
+    last: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return operation()
+        except Exception as exc:
+            last = exc
+            if attempt >= attempts or not is_retryable_storage_error(exc):
+                raise
+            logger.warning(
+                "storage_retry attempt=%s/%s error=%s",
+                attempt,
+                attempts,
+                exc.__class__.__name__,
+            )
+            time.sleep(0.05 * attempt)
+    assert last is not None
+    raise last
+
+
+def private_s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=str(settings.R2_ENDPOINT_URL),
+        aws_access_key_id=str(settings.R2_ACCESS_KEY_ID),
+        aws_secret_access_key=str(settings.R2_SECRET_ACCESS_KEY),
+        region_name="auto",
+        config=boto_retry_config(),
+    )
+
+
 def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
     """Short-lived GET URL for a private R2 object. Never call when R2 is off."""
     if not getattr(settings, "R2_ENABLED", False):
@@ -70,22 +146,19 @@ def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
     if not key or ".." in key:
         raise ValueError("Invalid object key.")
 
-    client = boto3.client(
-        "s3",
-        endpoint_url=str(settings.R2_ENDPOINT_URL),
-        aws_access_key_id=str(settings.R2_ACCESS_KEY_ID),
-        aws_secret_access_key=str(settings.R2_SECRET_ACCESS_KEY),
-        region_name="auto",
-        config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
-    )
-    return client.generate_presigned_url(
-        "get_object",
-        Params={
-            "Bucket": str(settings.R2_PRIVATE_BUCKET),
-            "Key": key,
-            "ResponseContentDisposition": (
-                f'attachment; filename="{content_disposition_filename(file_name)}"'
-            ),
-        },
-        ExpiresIn=signed_url_expiry_seconds(),
-    )
+    client = private_s3_client()
+
+    def _presign() -> str:
+        return client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": str(settings.R2_PRIVATE_BUCKET),
+                "Key": key,
+                "ResponseContentDisposition": (
+                    f'attachment; filename="{content_disposition_filename(file_name)}"'
+                ),
+            },
+            ExpiresIn=signed_url_expiry_seconds(),
+        )
+
+    return call_with_storage_retries(_presign)

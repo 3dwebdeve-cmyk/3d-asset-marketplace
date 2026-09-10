@@ -41,6 +41,7 @@ export function AdminUserDetailPage() {
       country: userQuery.data.country,
       role: userQuery.data.role as AdminUserUpdatePayload['role'],
       is_active: userQuery.data.is_active,
+      email_verified: userQuery.data.email_verified,
     })
   }, [userQuery.data])
 
@@ -162,6 +163,22 @@ export function AdminUserDetailPage() {
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+              </select>
+            </FormField>
+            <FormField id="detail-email-verified" label="Email verification">
+              <select
+                id="detail-email-verified"
+                className="ui-input"
+                value={form.email_verified ? 'verified' : 'unverified'}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    email_verified: event.target.value === 'verified',
+                  }))
+                }
+              >
+                <option value="verified">Verified</option>
+                <option value="unverified">Unverified</option>
               </select>
             </FormField>
             <div className="dashboard-card__actions">

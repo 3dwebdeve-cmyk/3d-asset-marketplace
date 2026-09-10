@@ -192,6 +192,7 @@ export function AdminUsersPage() {
                   <th scope="col">Name</th>
                   <th scope="col">Email</th>
                   <th scope="col">Role</th>
+                  <th scope="col">Verified</th>
                   <th scope="col">Status</th>
                   <th scope="col">Actions</th>
                 </tr>
@@ -202,6 +203,7 @@ export function AdminUsersPage() {
                     <td>{user.full_name}</td>
                     <td>{user.email}</td>
                     <td>{user.role}</td>
+                    <td>{user.email_verified ? 'Yes' : 'No'}</td>
                     <td>{user.is_active ? 'Active' : 'Inactive'}</td>
                     <td>
                       <Link className="auth-link" to={`/admin/users/${user.id}`}>

@@ -31,6 +31,7 @@ class AdminUserUpdateData:
     country: str | None = None
     role_name: str | None = None
     is_active: bool | None = None
+    email_verified: bool | None = None
 
 
 class AdminUserService:
@@ -142,6 +143,16 @@ class AdminUserService:
                 is_active=data.is_active,
             )
             update_fields.append("is_active")
+
+        if data.email_verified is not None:
+            if data.email_verified:
+                EmailVerificationService.mark_verified(
+                    target,
+                    action="admin_api_mark_verified",
+                )
+            else:
+                target.email_verified = False
+                update_fields.append("email_verified")
 
         target.save(update_fields=list(dict.fromkeys(update_fields)))
         return target

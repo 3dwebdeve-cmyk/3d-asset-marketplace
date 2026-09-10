@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
 from accounts.models import Role, User, UserProfile
+from accounts.services import EmailVerificationService
 
 
 @admin.register(Role)
@@ -21,7 +22,21 @@ class UserAdmin(DjangoUserAdmin):
     list_display = ("email", "full_name", "role", "email_verified", "is_active", "created_at")
     list_filter = ("role", "email_verified", "is_active", "is_staff")
     search_fields = ("email", "full_name")
+    actions = ("mark_email_verified",)
     inlines = [UserProfileInline]
+
+    @admin.action(description="Mark selected users as email verified")
+    def mark_email_verified(self, request, queryset) -> None:
+        updated = 0
+        for user in queryset.filter(email_verified=False, is_active=True):
+            EmailVerificationService.mark_verified(user, action="admin_mark_verified")
+            updated += 1
+        skipped = queryset.count() - updated
+        self.message_user(
+            request,
+            f"Marked {updated} user(s) as email verified"
+            + (f" ({skipped} skipped)." if skipped else "."),
+        )
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),

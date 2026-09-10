@@ -404,6 +404,16 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        "accounts.dev_mail": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "config.storages": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 

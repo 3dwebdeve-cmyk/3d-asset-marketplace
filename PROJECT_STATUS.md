@@ -5,11 +5,11 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~73%
+Overall Completion: ~76%
 Current Development Sprint
-Current Sprint: Public site polish — Marketplace home
-Sprint Goal: Match approved marketplace home hero and service-card designs
-Sprint Status: Marketplace hero (search, trending tags, sort pills) and three-column service strip matched to approved home mock 2026-09-09
+Current Sprint: Phase 1 — Team & product stability
+Sprint Goal: Coworkers can register/verify/login locally; import → QA → pay → download is covered by tests
+Sprint Status: Teammate email-verify DX, complete backend/.env.example, Feature 16 Phases 9–10 (E2E + R2 retries/media migration) shipped 2026-09-10
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -147,8 +147,8 @@ Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADM
 • [x] Feature 16 Phase 6 — Catalog import API/job (create pending_review products)
 • [x] Feature 16 Phase 7 — Admin import review UI
 • [x] Feature 16 Phase 8 — QA approve / reject → publish workflow (backend API)
-• [ ] Feature 16 Phase 9 — E2E: import → QA → Stripe → signed download
-• [ ] Feature 16 Phase 10 — Hardening (retries, large packages, remaining media → R2)
+• [x] Feature 16 Phase 9 — E2E: import → QA → Stripe → entitled download (API test)
+• [x] Feature 16 Phase 10 — Hardening (R2 retries, batch public media, leftover media → R2 command)
 Sprint 11 – Testing & Deployment
 • [ ] API Testing
 • [ ] UI Testing
@@ -158,15 +158,25 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Match the approved Explore 3D Categories grid using only existing backend categories.
+Phase 1 team & product stability — teammate login/verify DX, Feature 16 Phases 9–10, critical-path tests.
 Current Git Branch
-feature/today-7-9-26
+feature/today-10-9-26
 Files Being Worked On
-• frontend/src/pages/Products/ProductsBrowsePage.tsx
-• frontend/src/pages/Products/ProductsBrowsePage.test.tsx
-• frontend/src/styles/products-browse.css
+• backend/.env.example
+• backend/accounts/services.py
+• backend/accounts/management/commands/verify_email.py
+• backend/products/test_catalog_commerce_e2e.py
+• backend/config/media.py
+• backend/config/storages.py
+• backend/config/media_migration.py
 • PROJECT_STATUS.md
 Completed Features
+• Phase 1 team & product stability (2026-09-10)
+  - Console EMAIL VERIFICATION LINK when DEBUG=True; `python manage.py verify_email`; Django admin action; SPA /admin/users email_verified
+  - backend/.env.example completed (DB, FRONTEND_BASE_URL, CORS, Stripe, email, Redis-only-when-DEBUG=False, R2 optional)
+  - Feature 16 Phase 9: API E2E import → QA approve → cart/checkout → webhook → entitled download
+  - Feature 16 Phase 10: boto3/storage retries, models/{SKU}/ public media except package.zip, migrate_local_media_to_r2
+  - Tests: 100 backend (auth/import/QA/checkout/download/E2E/storage); frontend AuthModal+Register 7/7; oxlint clean on touched files
 • Marketplace Explore 3D Categories grid redesign (2026-09-09)
   - Reused GET /api/categories/ and renders only returned backend categories
   - Category images remain backend-driven with a safe visual fallback
@@ -381,7 +391,7 @@ Pending Features
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 13 — Docker & local/prod runtime
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
-• Feature 16 — Batch Catalog Ingest & QA (Phases 3–8 done; remaining: E2E Phase 9, hardening Phase 10; desktop bridge polish optional)
+• Feature 16 — Batch Catalog Ingest & QA (Phases 3–10 done in this repo; desktop bridge .exe polish optional / separate repo)
   - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md; contract: docs/batch-ingest-contract.md
 • Invoice PDF generation (invoice_number + paid-order PDF/receipt already shipped; remaining polish if any)
 • UI redesign pending manager prototype approval
@@ -393,9 +403,9 @@ Current Issues / Blockers
 Bugs
 No Known Bugs
 Technical Debt
-• New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA files remain until migrated
+• New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA can be copied with `python manage.py migrate_local_media_to_r2`
 • Custom-project / message / delivery downloads still FileResponse (private R2 keys when R2 on; same presign pattern later)
-• Catalog Import API + local R2 ingest (Phases 5–6) and Admin QA UI + approve/reject backend (Phases 7–8) done
+• Catalog Import API + QA + E2E (Phases 5–10) done in this repo; desktop bridge .exe polish is a separate repo
 • Docker Compose not production-ready
 • Admin audit logging not yet implemented
 • Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
@@ -420,7 +430,7 @@ Important Decisions
 • Quotation accept: customer-only endpoint (IsAuthenticated, not IsAdministrator); requires project status=quoted and quotation.status=pending; transitions project to approved and quotation to accepted atomically; notifies staff after commit; other customers get 404 (not 403).
 • Project deliveries use a dedicated ProjectDelivery model (not ProjectFile); version is a positive integer per project with a unique (project, version) constraint; admin upload reuses validate_project_file_upload + private deliveries/ storage prefix; API responses never include storage_path; customers have no delivery upload route; list/download is admin or project-owner only (other customers → 404; customers on admin routes → 403).
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
-• Email verification required for customer login; admins/superusers auto-verified.
+• Email verification required for customer login; admins/superusers auto-verified. Local DX: console EmailBackend + DEBUG log of the verification URL; `manage.py verify_email`; Django admin action; SPA admin PATCH email_verified.
 • React Three Fiber selected for 3D previews.
 • Public product detail CTAs gate checkout as coming soon; wishlist and cart are live for authenticated customers; guests are prompted to sign in; Share copies the public /products/:slug URL only.
 • Wishlist uses dedicated wishlist app (WishlistItem); product_type is product or plugin; only published catalog items can be added; owner-only list/add/remove (IDOR → 404); write endpoints throttled; no payment dependency.
@@ -435,9 +445,71 @@ Important Decisions
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order: Feature 16 Phase 9 E2E (import → QA → Stripe → signed download), or Feature 13 Docker.
+• Recommended near-term order: Feature 13 Docker, then Sprint 11 security/performance/deployment.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-09-10 (Phase 1 — Team & product stability)
+Working Hours:
+Today's Objective: Teammate login/verify DX; complete backend/.env.example; Feature 16 Phases 9–10; protect auth/checkout/download with tests.
+Modules Completed: Console verification link; verify_email command; Django admin + SPA email_verified; .env.example; import→QA→pay→download E2E; R2 retries; batch public media; leftover media migration command
+Files Created:
+• backend/accounts/management/__init__.py
+• backend/accounts/management/commands/__init__.py
+• backend/accounts/management/commands/verify_email.py
+• backend/products/management/__init__.py
+• backend/products/management/commands/__init__.py
+• backend/products/management/commands/migrate_local_media_to_r2.py
+• backend/config/media_migration.py
+• backend/products/test_catalog_commerce_e2e.py
+• backend/products/test_media_migration.py
+Files Modified:
+• backend/.env.example
+• frontend/.env.example
+• backend/accounts/services.py
+• backend/accounts/admin.py
+• backend/accounts/admin_user_service.py
+• backend/accounts/serializers.py
+• backend/accounts/views.py
+• backend/accounts/test_email_verification.py
+• backend/accounts/test_admin_users.py
+• backend/config/settings.py
+• backend/config/media.py
+• backend/config/storages.py
+• backend/downloads/services.py
+• backend/products/test_storage.py
+• frontend/src/types/auth.ts
+• frontend/src/pages/Admin/AdminUserDetailPage.tsx
+• frontend/src/pages/Admin/AdminUsersPage.tsx
+• frontend/src/components/auth/AuthRegisterPanel.tsx
+• frontend/src/components/auth/AuthModal.test.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• PATCH /api/admin/users/:id/ — accepts email_verified (existing route)
+Frontend Pages/Components Added:
+• Admin users list Verified column; user detail Email verification select; register success local-dev hint
+Tests Added/Updated:
+• Email verification DEBUG log + verify_email command + no token log when DEBUG=False
+• Admin PATCH email_verified
+• Feature 16 Phase 9 E2E (import → QA → checkout → webhook → download)
+• Batch public media paths; R2 retry helper; leftover media migration
+• Existing catalog import/QA/checkout/download suites still pass (100 targeted backend tests)
+Security Checklist:
+• Verification URLs logged only when DEBUG=True
+• Emails redacted in security logs; tokens not logged in production
+• package.zip under models/{SKU}/ remains private
+• Webhook still signature-verified; downloads still entitlement-gated
+• migrate_local_media_to_r2 refuses to run unless R2_ENABLED
+Issues / Blockers:
+• Live Stripe sandbox checkout not exercised in this session (API E2E mocks Stripe)
+• Redis still required only when DEBUG=False
+Next Recommended Task:
+• Feature 13 — Docker (local/prod compose, Gunicorn, env templates)
+Notes:
+• Coworker local verify: copy EMAIL VERIFICATION LINK from runserver, or `python manage.py verify_email you@example.com`, or Django admin / SPA admin.
+• Keep FRONTEND_BASE_URL aligned with the Vite origin (localhost vs 127.0.0.1).
+
 Date: 2026-09-07 (Feature 16 Phase 7 — Admin import QA queue UI)
 Working Hours:
 Today's Objective: Ship simple admin UI to filter pending_review / import_batch_id and Approve / Reject / Requeue imported products.
