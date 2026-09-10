@@ -16,6 +16,7 @@ from django.http import FileResponse, Http404
 
 from config.media import media_relative_path, open_stored_file
 from config.storages import (
+    call_with_storage_retries,
     generate_private_presigned_url,
     get_private_storage,
     signed_url_expiry_seconds,
@@ -377,7 +378,9 @@ class DownloadService:
         )
         if use_signed:
             try:
-                download_url = generate_private_presigned_url(relative, file_name=file_name)
+                download_url = call_with_storage_retries(
+                    lambda: generate_private_presigned_url(relative, file_name=file_name)
+                )
             except (BotoCoreError, ClientError, OSError, ValueError, RuntimeError):
                 logger.exception("r2_presign_failed product_type=%s file_id=%s", product_type, file_id)
                 raise DownloadError("File not found.") from None
@@ -396,8 +399,10 @@ class DownloadService:
         if not getattr(settings, "R2_ENABLED", False):
             return False
         try:
-            return bool(get_private_storage().exists(relative))
-        except (OSError, SuspiciousFileOperation, ValueError):
+            return bool(
+                call_with_storage_retries(lambda: get_private_storage().exists(relative))
+            )
+        except (OSError, SuspiciousFileOperation, ValueError, BotoCoreError, ClientError):
             return False
 
     @classmethod

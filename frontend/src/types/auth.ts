@@ -128,6 +128,7 @@ export interface AdminUserUpdatePayload {
   country?: string
   role?: 'Customer' | 'Administrator'
   is_active?: boolean
+  email_verified?: boolean
 }
 
 export interface PaginatedAdminUsers {

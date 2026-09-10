@@ -256,6 +256,7 @@ class AdminUserUpdateSerializer(serializers.Serializer):
         required=False,
     )
     is_active = serializers.BooleanField(required=False)
+    email_verified = serializers.BooleanField(required=False)
 
     def validate_full_name(self, value: str) -> str:
         normalized = value.strip()

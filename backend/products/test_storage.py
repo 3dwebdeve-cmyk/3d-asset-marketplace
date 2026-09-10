@@ -7,13 +7,17 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import Http404
 from django.test import SimpleTestCase, override_settings
 
-from config.media import media_relative_path, open_stored_file
+from config.media import is_public_media_path, media_relative_path, open_stored_file
 from config.storages import (
+    R2_CLIENT_RETRY_ATTEMPTS,
+    boto_retry_config,
     build_public_media_url,
+    call_with_storage_retries,
     content_disposition_filename,
     generate_private_presigned_url,
     get_private_storage,
     get_public_storage,
+    is_retryable_storage_error,
     signed_url_expiry_seconds,
 )
 from products.storage import ProductMediaStorageService
@@ -47,6 +51,14 @@ class MediaPathTests(SimpleTestCase):
             "products/files/a.zip",
         )
         self.assertIsNone(media_relative_path("../secret.zip"))
+
+    def test_batch_ingest_public_keys_exclude_package(self) -> None:
+        self.assertTrue(is_public_media_path("models/MDL-000142/thumbnail.jpg"))
+        self.assertTrue(is_public_media_path("models/MDL-000142/preview.glb"))
+        self.assertTrue(is_public_media_path("models/MDL-000142/gallery/01.jpg"))
+        self.assertFalse(is_public_media_path("models/MDL-000142/package.zip"))
+        self.assertFalse(is_public_media_path("products/files/a.zip"))
+        self.assertTrue(is_public_media_path("products/images/x.png"))
 
     @override_settings(R2_PUBLIC_BASE_URL="https://pub-test.r2.dev")
     def test_strips_public_r2_base_url(self) -> None:
@@ -153,6 +165,36 @@ class SignedUrlHelperTests(SimpleTestCase):
         self.assertEqual(kwargs["Params"]["Bucket"], "3dam-private")
         self.assertEqual(kwargs["Params"]["Key"], "products/files/a.zip")
         self.assertIn("attachment; filename=", kwargs["Params"]["ResponseContentDisposition"])
+        config = mock_client.call_args.kwargs["config"]
+        self.assertEqual(config.retries["max_attempts"], R2_CLIENT_RETRY_ATTEMPTS)
+
+    def test_boto_retry_config_uses_standard_mode(self) -> None:
+        config = boto_retry_config()
+        self.assertEqual(config.retries["max_attempts"], R2_CLIENT_RETRY_ATTEMPTS)
+        self.assertEqual(config.retries["mode"], "standard")
+
+    def test_storage_retries_transient_errors(self) -> None:
+        calls = {"n": 0}
+
+        def flaky() -> str:
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise OSError("temporary")
+            return "ok"
+
+        self.assertEqual(call_with_storage_retries(flaky), "ok")
+        self.assertEqual(calls["n"], 3)
+
+    def test_non_retryable_client_error_is_not_retried(self) -> None:
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {"Error": {"Code": "AccessDenied", "Message": "no"}, "ResponseMetadata": {"HTTPStatusCode": 403}},
+            "GetObject",
+        )
+        self.assertFalse(is_retryable_storage_error(error))
+        with self.assertRaises(ClientError):
+            call_with_storage_retries(lambda: (_ for _ in ()).throw(error), attempts=3)
 
 
 class StorageHandlerReloadTests(SimpleTestCase):

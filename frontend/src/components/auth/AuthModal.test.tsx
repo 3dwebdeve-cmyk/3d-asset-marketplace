@@ -113,6 +113,7 @@ describe('AuthModal', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /account created/i })).toBeInTheDocument()
     })
+    expect(screen.getByText(/backend terminal/i)).toBeInTheDocument()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 })
