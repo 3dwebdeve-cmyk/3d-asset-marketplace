@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 interface FormFieldProps {
   id: string
-  label: string
+  label: ReactNode
   error?: string
   children: ReactNode
 }

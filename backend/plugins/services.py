@@ -12,6 +12,7 @@ from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
 from plugins.storage import PluginMediaStorageService
 from plugins.upload_rules import ValidatedPluginFileUpload
 from products.upload_rules import ValidatedProductImageUpload
+from search.indexer import sync_plugin
 
 
 class PluginError(Exception):
@@ -291,7 +292,7 @@ class PluginService:
     def create_plugin(cls, data: PluginCreateData) -> Plugin:
         name = cls._normalize_name(data.name)
         cls._validate_pricing(data.price, data.discount_price)
-        return Plugin.objects.create(
+        plugin = Plugin.objects.create(
             category=cls._resolve_category(data.category_id),
             name=name,
             slug=Plugin.build_slug(name),
@@ -307,6 +308,8 @@ class PluginService:
             license_type=cls._normalize_license(data.license_type),
             status=cls._normalize_status(data.status),
         )
+        sync_plugin(plugin)
+        return plugin
 
     @classmethod
     @transaction.atomic
@@ -364,7 +367,9 @@ class PluginService:
             plugin.status = cls._normalize_status(data.status)
             update_fields.append("status")
         plugin.save(update_fields=list(dict.fromkeys(update_fields)))
-        return cls.get_by_id(plugin.pk)
+        updated = cls.get_by_id(plugin.pk)
+        sync_plugin(updated)
+        return updated
 
     @classmethod
     def archive_plugin(cls, plugin: Plugin) -> Plugin:

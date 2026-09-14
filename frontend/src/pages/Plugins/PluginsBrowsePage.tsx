@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
-import { SiteHeroImage } from '../../components/SiteHeroImage'
+import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { PluginOrdering } from '../../types/plugin'
 import { PluginCard } from './PluginCard'
@@ -130,7 +130,7 @@ export function PluginsBrowsePage() {
   return (
     <main className="plugins-browse">
       <section className="plugins-browse-hero site-hero-banner">
-        <SiteHeroImage />
+        <SiteHeroImage src={PLUGINS_HERO_IMAGE_SRC} />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
           <nav className="plugins-browse-hero__crumbs" aria-label="Breadcrumb">

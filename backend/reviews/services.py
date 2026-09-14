@@ -12,6 +12,7 @@ from orders.models import Order, OrderItem
 from plugins.models import Plugin
 from products.models import Product
 from reviews.models import Review
+from search.indexer import sync_plugin_by_id, sync_product_by_id
 
 User = get_user_model()
 
@@ -254,12 +255,14 @@ class ReviewService:
                 average_rating=average,
                 review_count=count,
             )
+            sync_product_by_id(product_id)
             return
 
         Plugin.objects.filter(pk=product_id).update(
             average_rating=average,
             review_count=count,
         )
+        sync_plugin_by_id(product_id)
 
     @classmethod
     def _normalize_product_type(cls, product_type: str) -> str:

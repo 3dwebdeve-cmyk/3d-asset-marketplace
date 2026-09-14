@@ -20,13 +20,14 @@
   min-height: calc(100vh - 4rem);
   box-sizing: border-box;
   text-align: left;
+  background: #ffffff;
 }
 
 .products-browse-page--hub {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  background: #f6f3ed;
+  background: #ffffff;
 }
 
 /* Search bar (hub + catalog) */

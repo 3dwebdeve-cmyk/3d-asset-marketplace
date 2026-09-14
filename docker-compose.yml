@@ -1,0 +1,20 @@
+# Meilisearch only — not the full Feature 13 app stack.
+# From the repo root:
+#   docker compose up meilisearch
+# Then in backend/.env:
+#   MEILI_URL=http://127.0.0.1:7700
+#   MEILI_MASTER_KEY=dev_master_key_change_me
+
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.11.3
+    ports:
+      - "7700:7700"
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_master_key_change_me}
+      MEILI_ENV: development
+    volumes:
+      - meili_data:/meili_data
+
+volumes:
+  meili_data:

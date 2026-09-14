@@ -33,6 +33,8 @@ from products.services import (
     ProductService,
     ProductUpdateData,
 )
+from search.pagination import paginated_list_response, parse_page
+from search.services import hydrate_products, normalize_query, search_published_products
 
 
 def _product_error_response(exc: ProductError) -> Response:
@@ -97,6 +99,33 @@ class ProductListView(APIView):
         pbr_ready = _parse_bool_filter(request.query_params.get("pbr_ready"))
         game_ready = _parse_bool_filter(request.query_params.get("game_ready"))
 
+        paginator = self.pagination_class()
+        query = normalize_query(search)
+        if query:
+            page, page_size = parse_page(request, paginator)
+            search_page = search_published_products(
+                query=query,
+                page=page,
+                page_size=page_size,
+                category_id=category_id,
+                ordering=ordering,
+                animated=animated,
+                rigged=rigged,
+                pbr_ready=pbr_ready,
+                game_ready=game_ready,
+            )
+            if search_page is not None:
+                items = hydrate_products(search_page.ids)
+                return paginated_list_response(
+                    request,
+                    paginator=paginator,
+                    items=items,
+                    total=search_page.estimated_total,
+                    page=page,
+                    page_size=page_size,
+                    serializer_class=ProductListPublicSerializer,
+                )
+
         queryset = ProductService.list_public(
             category_id=category_id,
             search=search,
@@ -106,7 +135,6 @@ class ProductListView(APIView):
             pbr_ready=pbr_ready,
             game_ready=game_ready,
         )
-        paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
         serializer = ProductListPublicSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)

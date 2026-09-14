@@ -3,7 +3,7 @@
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   min-height: 100svh;
   text-align: left;
-  background: var(--bg-main);
+  background: #ffffff;
 }
 
 .admin-layout--centered {

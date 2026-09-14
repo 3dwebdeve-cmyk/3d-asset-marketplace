@@ -6,12 +6,12 @@
   --hub-border: #e5e7eb;
   --hub-muted: #64748b;
   --hub-text: #0f172a;
-  --hub-bg: #f4f6fb;
+  --hub-bg: #ffffff;
   --hub-card: #ffffff;
   --hub-radius: 12px;
   --hub-gold: #f59e0b;
 
-  /* Full-bleed so side margins match the page (not the global cream body) */
+  /* Full-bleed so side margins match the page */
   width: 100%;
   max-width: none;
   margin: 0;
