@@ -32,6 +32,8 @@ vi.mock('@react-three/fiber', () => ({
 
 vi.mock('@react-three/drei', () => ({
   OrbitControls: () => null,
+  Environment: ({ children }: { children?: import('react').ReactNode }) => <>{children}</>,
+  Lightformer: () => null,
   useGLTF: Object.assign(
     () => ({
       scene: viewerMocks.scene ?? new Object3D(),

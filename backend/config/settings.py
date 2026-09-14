@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'contact',
     'payments',
     'notifications',
+    'search',
 ]
 
 MIDDLEWARE = [
@@ -268,6 +269,11 @@ else:
             "LOCATION": "marketplace-default",
         }
     }
+
+# Optional Meilisearch for public catalog search. Blank → Postgres icontains fallback.
+# MEILI_URL=http://127.0.0.1:7700
+MEILI_URL = config("MEILI_URL", default="")
+MEILI_MASTER_KEY = config("MEILI_MASTER_KEY", default="")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

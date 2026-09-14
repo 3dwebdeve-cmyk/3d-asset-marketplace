@@ -1,4 +1,4 @@
-/* Public Product Details — brand tokens (cream / navy / action blue) */
+/* Public Product Details — brand tokens */
 
 .product-detail-page {
   width: 100%;
@@ -9,7 +9,7 @@
   box-sizing: border-box;
   text-align: left;
   color: var(--text-main);
-  background: var(--bg-primary);
+  background: #ffffff;
 }
 
 .product-detail-layout {

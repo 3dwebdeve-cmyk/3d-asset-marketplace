@@ -9,15 +9,15 @@
   --action-color: #1d4d7a; /* Brand Blue — buttons, links, actions */
 
   /* Existing app tokens mapped to the palette */
-  --bg-main: var(--bg-primary);
-  --bg-section: var(--bg-card);
-  --bg-surface: var(--bg-card);
+  --bg-main: #ffffff;
+  --bg-section: #ffffff;
+  --bg-surface: #ffffff;
   --primary-accent: var(--action-color);
   --text-primary: var(--text-main);
   --text-heading: var(--text-main);
   --text-body: var(--text-main);
   --text-secondary: color-mix(in srgb, var(--text-main) 72%, var(--bg-primary));
-  --pure-white: var(--bg-card);
+  --pure-white: #ffffff;
 
   /* Derived roles — opacity/mixes of the palette only */
   --border: color-mix(in srgb, var(--action-color) 22%, var(--bg-card));
@@ -69,6 +69,12 @@
   }
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 #root:has(.admin-layout) {
   width: 100%;
   max-width: none;
@@ -85,7 +91,7 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  background: var(--bg-main);
+  background: #ffffff;
 }
 
 .site-hero-banner {
@@ -177,6 +183,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  max-width: 100%;
   padding: 0.875rem 1.25rem;
   border-radius: 10px;
   background: var(--primary-accent);
@@ -297,7 +305,7 @@ button.home-page__cta--secondary {
   place-items: start center;
   padding: clamp(2rem, 4vw, 3rem) var(--site-gutter);
   text-align: left;
-  background: var(--bg-main);
+  background: #ffffff;
   box-sizing: border-box;
 }
 
@@ -886,7 +894,7 @@ body {
   width: 100%;
   min-width: 0;
   overflow-x: hidden;
-  background: var(--bg-main);
+  background: #ffffff;
   color: var(--text-body);
 }
 

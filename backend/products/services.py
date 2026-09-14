@@ -17,6 +17,7 @@ from products.upload_rules import (
     validate_product_file_upload,
     validate_product_image_upload,
 )
+from search.indexer import sync_product
 
 
 class ProductError(Exception):
@@ -270,7 +271,7 @@ class ProductService:
                 field="status",
             )
 
-        return Product.objects.create(
+        product = Product.objects.create(
             category=category,
             name=name,
             slug=Product.build_slug(name),
@@ -299,6 +300,8 @@ class ProductService:
             license_type=license_type,
             status=status,
         )
+        sync_product(product)
+        return product
 
     @classmethod
     @transaction.atomic
@@ -439,7 +442,9 @@ class ProductService:
                 update_fields.append(field_name)
 
         product.save(update_fields=list(dict.fromkeys(update_fields)))
-        return cls.get_by_id(product.pk)
+        updated = cls.get_by_id(product.pk)
+        sync_product(updated)
+        return updated
 
     @classmethod
     @transaction.atomic
@@ -518,7 +523,9 @@ class ProductService:
                 "updated_at",
             ]
         )
-        return cls.get_by_id(product.pk)
+        approved = cls.get_by_id(product.pk)
+        sync_product(approved)
+        return approved
 
     @classmethod
     @transaction.atomic
@@ -557,7 +564,9 @@ class ProductService:
             product.qa_notes = qa_notes.strip()
             update_fields.append("qa_notes")
         product.save(update_fields=update_fields)
-        return cls.get_by_id(product.pk)
+        rejected = cls.get_by_id(product.pk)
+        sync_product(rejected)
+        return rejected
 
     @classmethod
     @transaction.atomic
@@ -571,7 +580,9 @@ class ProductService:
         cls._validate_status_transition(product.status, Product.Status.PENDING_REVIEW)
         product.status = Product.Status.PENDING_REVIEW
         product.save(update_fields=["status", "updated_at"])
-        return cls.get_by_id(product.pk)
+        requeued = cls.get_by_id(product.pk)
+        sync_product(requeued)
+        return requeued
 
     @classmethod
     @transaction.atomic

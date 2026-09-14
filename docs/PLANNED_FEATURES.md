@@ -131,14 +131,14 @@ Contract: [batch-ingest-contract.md](batch-ingest-contract.md)
 
 ---
 
-## 6. Search (future / master plan)
+## 6. Search
 
 | Item | Status | Notes |
 |------|--------|-------|
-| **Meilisearch** | Not started | Listed in master plan; no `backend/search` app yet |
-| Current search | **Done** | PostgreSQL `icontains` on `/api/products/?search=` + navbar deep links |
+| **Meilisearch** | **Done** (public catalog) | `backend/search` indexes published products/plugins; `GET /api/products/?search=` and `/api/plugins/?search=` hydrate from Postgres. `MEILI_URL` optional; Postgres `icontains` fallback when unset or down. `python manage.py reindex_search` |
+| Current search UX | **Done** | Navbar + `/3d-models?search=` / `/plugins?search=` (unchanged) |
 
-Meilisearch is **not** on the critical path for Phase 1 release but is planned for scale.
+Later (not this slice): dedicated Search page, typeahead, product tags, requiring Meili when `DEBUG=False`, Celery indexing.
 
 ---
 
@@ -249,7 +249,7 @@ Architecture plan: Cursor plan `catalog_bridge_exe` (copy to `docs/catalog-bridg
 | Low | Feature 12 — Remaining UI polish | Small–medium |
 | Low | Invoice PDF polish | Small |
 | Low | 3D viewer fullscreen | Small |
-| Later | Meilisearch | Large |
+| Later | Search extras (typeahead, Search page, tags) | Medium |
 | Later | Phase 2 / Phase 3 roadmap | Future |
 
 ---

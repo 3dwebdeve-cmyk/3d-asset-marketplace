@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, useGLTF, useProgress } from '@react-three/drei'
+import { Environment, Lightformer, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -20,10 +20,23 @@ export interface ModelViewerProps {
 function StudioLights() {
   return (
     <>
-      <ambientLight intensity={0.45} />
-      <hemisphereLight args={['#f5f7fb', '#8a909c', 0.55]} />
-      <directionalLight position={[4.5, 8, 3.5]} intensity={1.15} castShadow={false} />
-      <directionalLight position={[-3.5, 2.5, -4]} intensity={0.35} castShadow={false} />
+      <ambientLight intensity={0.72} />
+      <hemisphereLight args={['#ffffff', '#a8b0bc', 0.78]} />
+      <directionalLight position={[4.5, 8, 3.5]} intensity={1.45} castShadow={false} />
+      <directionalLight position={[-3.5, 2.5, -4]} intensity={0.55} castShadow={false} />
+      <directionalLight position={[1.5, 3.5, 6]} intensity={0.4} castShadow={false} />
+      <Environment background={false} environmentIntensity={1.15}>
+        <Lightformer
+          intensity={1.8}
+          position={[0, 6, 0]}
+          scale={[12, 12, 1]}
+          rotation-x={Math.PI / 2}
+          color="#ffffff"
+        />
+        <Lightformer intensity={2.2} position={[-7, 2, 1]} scale={[5, 10, 1]} color="#eef3ff" />
+        <Lightformer intensity={1.6} position={[7, 3, 2]} scale={[4, 8, 1]} color="#fff6ee" />
+        <Lightformer intensity={1.15} position={[0, 1.5, -7]} scale={[10, 5, 1]} color="#ffffff" />
+      </Environment>
     </>
   )
 }
@@ -123,10 +136,14 @@ function ModelViewerCanvas({
         className="model-viewer__canvas"
         camera={{ position: [0, 1.1, 3.2], fov: 42, near: 0.1, far: 200 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        onCreated={({ gl }) => {
+          gl.toneMapping = THREE.ACESFilmicToneMapping
+          gl.toneMappingExposure = 1.18
+        }}
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        <color attach="background" args={['#eceff4']} />
+        <color attach="background" args={['#f4f6fa']} />
         <StudioLights />
         <Suspense fallback={null}>
           <PreviewModel key={modelUrl} url={modelUrl} wireframe={wireframe} />

@@ -18,11 +18,11 @@ vi.mock('../../api/contactApi', async () => {
   }
 })
 
-function renderContactPage() {
+function renderContactPage(initialEntry = '/contact') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <ContactPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -35,15 +35,41 @@ beforeEach(() => {
 })
 
 describe('ContactPage', () => {
-  it('renders the contact form', () => {
+  it('renders the enquiry layout and form', () => {
     renderContactPage()
 
-    expect(screen.getByRole('heading', { name: /contact the studio/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        name: /enquire about 3d models, plugins or custom work/i,
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /send us an enquiry/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/your name/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/company \/ studio/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/^subject$/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/^message$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^phone/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/enquiry type/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^subject/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/your message/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /send message/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /what can you enquire about/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/we're happy to help with anything related to our 3d assets and tools/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/questions about our models, formats, licenses, or compatibility/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /frequently asked questions/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('prefills email from the query string', () => {
+    renderContactPage('/contact?email=alex%40example.com')
+
+    expect(screen.getByLabelText(/email address/i)).toHaveValue('alex@example.com')
   })
 
   it('shows validation errors for empty submit', async () => {
@@ -53,6 +79,10 @@ describe('ContactPage', () => {
     await user.click(screen.getByRole('button', { name: /send message/i }))
 
     expect(await screen.findByText(/name must be at least 2 characters/i)).toBeInTheDocument()
+    expect(screen.getByText(/select an enquiry type/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/please agree to the privacy policy to continue/i),
+    ).toBeInTheDocument()
     expect(contactApi.submitContactForm).not.toHaveBeenCalled()
   })
 
@@ -65,20 +95,49 @@ describe('ContactPage', () => {
     renderContactPage()
 
     await user.type(screen.getByLabelText(/your name/i), 'Alex Creator')
+    await user.type(screen.getByLabelText(/company \/ studio/i), 'Studio North')
     await user.type(screen.getByLabelText(/email address/i), 'alex@example.com')
-    await user.type(screen.getByLabelText(/^subject$/i), 'Custom project question')
+    await user.type(screen.getByLabelText(/^phone/i), '9876543210')
+    await user.selectOptions(screen.getByLabelText(/enquiry type/i), 'Custom 3D Modeling')
+    await user.type(screen.getByLabelText(/^subject/i), 'Custom project question')
     await user.type(
-      screen.getByLabelText(/^message$/i),
+      screen.getByLabelText(/your message/i),
       'I would like to know more about timelines.',
     )
+    await user.click(screen.getByRole('checkbox', { name: /privacy policy/i }))
     await user.click(screen.getByRole('button', { name: /send message/i }))
 
     await waitFor(() => {
       expect(contactApi.submitContactForm).toHaveBeenCalled()
     })
+
+    const payload = vi.mocked(contactApi.submitContactForm).mock.calls[0]?.[0]
+    expect(payload).toEqual(
+      expect.objectContaining({
+        name: 'Alex Creator',
+        email: 'alex@example.com',
+        subject: 'Custom project question',
+      }),
+    )
+    expect(payload?.message).toContain('Enquiry type: Custom 3D Modeling')
+    expect(payload?.message).toContain('Company / Studio: Studio North')
+    expect(payload?.message).toContain('Phone: +91 9876543210')
     expect(
       await screen.findByText(/message sent — we'll reply by email/i),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /send message/i })).not.toBeInTheDocument()
+  })
+
+  it('toggles FAQ answers', async () => {
+    const user = userEvent.setup()
+    renderContactPage()
+
+    expect(screen.getByText(/we usually reply within 24 hours/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /can you create a custom 3d model/i }))
+
+    expect(
+      screen.getByText(/share your brief here or start a custom project request/i),
+    ).toBeInTheDocument()
   })
 })

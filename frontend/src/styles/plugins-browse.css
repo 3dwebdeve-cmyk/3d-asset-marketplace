@@ -4,7 +4,7 @@
 .models-browse {
   width: 100%;
   text-align: left;
-  background: var(--bg-main);
+  background: #ffffff;
 }
 
 .plugins-browse-hero {

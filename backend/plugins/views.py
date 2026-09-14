@@ -37,6 +37,8 @@ from plugins.services import (
     PluginService,
     PluginUpdateData,
 )
+from search.pagination import paginated_list_response, parse_page
+from search.services import hydrate_plugins, normalize_query, search_published_plugins
 
 
 def _error_response(exc: PluginError) -> Response:
@@ -114,15 +116,40 @@ class PluginListView(APIView):
     pagination_class = PluginPagination
 
     def get(self, request: Request) -> Response:
-        queryset = PluginService.list_public(
-            category_id=_parse_uuid(
-                request.query_params.get("category_id"),
-                "category_id",
-            ),
-            search=request.query_params.get("search") or None,
-            ordering=request.query_params.get("ordering") or None,
+        category_id = _parse_uuid(
+            request.query_params.get("category_id"),
+            "category_id",
         )
+        search = request.query_params.get("search") or None
+        ordering = request.query_params.get("ordering") or None
         paginator = self.pagination_class()
+        query = normalize_query(search)
+        if query:
+            page, page_size = parse_page(request, paginator)
+            search_page = search_published_plugins(
+                query=query,
+                page=page,
+                page_size=page_size,
+                category_id=category_id,
+                ordering=ordering,
+            )
+            if search_page is not None:
+                items = hydrate_plugins(search_page.ids)
+                return paginated_list_response(
+                    request,
+                    paginator=paginator,
+                    items=items,
+                    total=search_page.estimated_total,
+                    page=page,
+                    page_size=page_size,
+                    serializer_class=PluginListPublicSerializer,
+                )
+
+        queryset = PluginService.list_public(
+            category_id=category_id,
+            search=search,
+            ordering=ordering,
+        )
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(
             PluginListPublicSerializer(page, many=True).data
