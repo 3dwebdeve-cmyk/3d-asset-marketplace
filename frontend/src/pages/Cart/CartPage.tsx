@@ -39,7 +39,7 @@ export function CartPage() {
 
         {showTopActions ? (
           <div className="dashboard-card__actions">
-            <Link className="home-page__cta home-page__cta--secondary" to="/products">
+            <Link className="home-page__cta home-page__cta--secondary" to="/">
               Browse models
             </Link>
             <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
@@ -79,7 +79,7 @@ export function CartPage() {
               Your cart is empty. Add products or plugins to get started.
             </p>
             <div className="dashboard-card__actions">
-              <Link className="home-page__cta" to="/products">
+              <Link className="home-page__cta" to="/">
                 Browse models
               </Link>
               <Link className="home-page__cta home-page__cta--secondary" to="/plugins">

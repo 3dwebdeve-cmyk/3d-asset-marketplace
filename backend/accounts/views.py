@@ -22,6 +22,7 @@ from accounts.serializers import (
     ChangePasswordSerializer,
     EmailVerificationConfirmSerializer,
     EmailVerificationResendSerializer,
+    GoogleLoginSerializer,
     LoginSerializer,
     LogoutSerializer,
     PasswordResetConfirmSerializer,
@@ -85,6 +86,32 @@ class LoginView(APIView):
                     {"detail": exc.message, "code": exc.code},
                     status=status.HTTP_403_FORBIDDEN,
                 )
+            raise AuthenticationFailed(exc.message) from exc
+
+        tokens = AuthenticationService.build_tokens(user)
+        payload = {
+            **tokens,
+            "user": UserResponseSerializer(user).data,
+        }
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class GoogleLoginView(APIView):
+    """Exchange a Google ID token for marketplace customer JWTs."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = GoogleLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            user = AuthenticationService.authenticate_google_customer(
+                serializer.validated_data["id_token"]
+            )
+        except AuthenticationError as exc:
+            log_auth_failure(scope="google_login", email=None)
             raise AuthenticationFailed(exc.message) from exc
 
         tokens = AuthenticationService.build_tokens(user)

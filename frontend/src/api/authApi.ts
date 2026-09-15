@@ -30,6 +30,13 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResponse> {
   return response.data
 }
 
+export async function loginWithGoogle(idToken: string): Promise<LoginResponse> {
+  const response = await apiClient.post<LoginResponse>('/api/auth/google/', {
+    id_token: idToken,
+  })
+  return response.data
+}
+
 export async function adminLoginUser(payload: LoginPayload): Promise<LoginResponse> {
   const response = await apiClient.post<LoginResponse>('/api/auth/admin/login/', payload)
   return response.data

@@ -4,8 +4,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AuthIconField } from './AuthIconField'
 import { AuthModeTabs } from './AuthModeTabs'
 import { AuthSubmitArrow } from './AuthSubmitArrow'
+import { GoogleSignInButton } from './GoogleSignInButton'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
+import { useGoogleLogin } from '../../hooks/useGoogleLogin'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
 import { useAuthUiStore } from '../../store/authUiStore'
@@ -34,9 +36,15 @@ export function AuthLoginPanel({
     isSuccess,
     onSubmit,
   } = useLoginForm()
+  const {
+    isSubmitting: isGoogleSubmitting,
+    serverError: googleError,
+    isSuccess: isGoogleSuccess,
+    signInWithGoogle,
+  } = useGoogleLogin()
 
   useEffect(() => {
-    if (!isSuccess) {
+    if (!isSuccess && !isGoogleSuccess) {
       return
     }
 
@@ -45,10 +53,11 @@ export function AuthLoginPanel({
     navigate(isAdministrator(role) ? '/admin' : (returnTo ?? '/dashboard'), {
       replace: true,
     })
-  }, [closeAuthModal, isSuccess, navigate, returnTo])
+  }, [closeAuthModal, isGoogleSuccess, isSuccess, navigate, returnTo])
 
   const showAdminLoginHint =
-    Boolean(serverError) && serverError?.toLowerCase().includes('admin sign-in')
+    Boolean(serverError || googleError) &&
+    (serverError ?? googleError)?.toLowerCase().includes('admin sign-in')
 
   const handleForgotPassword = () => {
     closeAuthModal()
@@ -68,6 +77,8 @@ export function AuthLoginPanel({
     setMode('register')
   }
 
+  const displayError = serverError ?? googleError
+
   return (
     <>
       <AuthModeTabs active="login" />
@@ -79,7 +90,7 @@ export function AuthLoginPanel({
         </p>
       </header>
 
-      {serverError ? <Alert variant="error" message={serverError} /> : null}
+      {displayError ? <Alert variant="error" message={displayError} /> : null}
 
       {showAdminLoginHint ? (
         <p className="auth-card__footer">
@@ -96,6 +107,16 @@ export function AuthLoginPanel({
           </button>
         </p>
       ) : null}
+
+      <GoogleSignInButton
+        onCredential={signInWithGoogle}
+        disabled={isSubmitting || isGoogleSubmitting}
+        text="continue_with"
+      />
+
+      <div className="auth-divider" role="separator" aria-label="or">
+        <span>or</span>
+      </div>
 
       <form
         className="auth-form"
@@ -149,7 +170,11 @@ export function AuthLoginPanel({
           </button>
         </div>
 
-        <Button type="submit" className="auth-submit" isLoading={isSubmitting}>
+        <Button
+          type="submit"
+          className="auth-submit"
+          isLoading={isSubmitting || isGoogleSubmitting}
+        >
           Sign In
           <AuthSubmitArrow />
         </Button>

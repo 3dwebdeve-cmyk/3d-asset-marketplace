@@ -1,10 +1,15 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { AuthIconField } from './AuthIconField'
 import { AuthModeTabs } from './AuthModeTabs'
 import { AuthSubmitArrow } from './AuthSubmitArrow'
+import { GoogleSignInButton } from './GoogleSignInButton'
 import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
+import { useGoogleLogin } from '../../hooks/useGoogleLogin'
+import { isAdministrator } from '../../lib/roles'
+import { useAuthStore } from '../../store/authStore'
 import { useAuthUiStore } from '../../store/authUiStore'
 import { useRegisterForm } from '../../pages/Register/useRegisterForm'
 
@@ -19,6 +24,7 @@ export function AuthRegisterPanel({
 }: AuthRegisterPanelProps) {
   const navigate = useNavigate()
   const closeAuthModal = useAuthUiStore((state) => state.close)
+  const returnTo = useAuthUiStore((state) => state.returnTo)
   const setMode = useAuthUiStore((state) => state.setMode)
   const {
     register,
@@ -29,6 +35,24 @@ export function AuthRegisterPanel({
     registeredUser,
     onSubmit,
   } = useRegisterForm()
+  const {
+    isSubmitting: isGoogleSubmitting,
+    serverError: googleError,
+    isSuccess: isGoogleSuccess,
+    signInWithGoogle,
+  } = useGoogleLogin()
+
+  useEffect(() => {
+    if (!isGoogleSuccess) {
+      return
+    }
+
+    const role = useAuthStore.getState().user?.role
+    closeAuthModal()
+    navigate(isAdministrator(role) ? '/admin' : (returnTo ?? '/dashboard'), {
+      replace: true,
+    })
+  }, [closeAuthModal, isGoogleSuccess, navigate, returnTo])
 
   const handleResendVerification = () => {
     closeAuthModal()
@@ -78,6 +102,8 @@ export function AuthRegisterPanel({
     )
   }
 
+  const displayError = serverError ?? googleError
+
   return (
     <>
       <AuthModeTabs active="register" />
@@ -89,7 +115,17 @@ export function AuthRegisterPanel({
         </p>
       </header>
 
-      {serverError ? <Alert variant="error" message={serverError} /> : null}
+      {displayError ? <Alert variant="error" message={displayError} /> : null}
+
+      <GoogleSignInButton
+        onCredential={signInWithGoogle}
+        disabled={isSubmitting || isGoogleSubmitting}
+        text="signup_with"
+      />
+
+      <div className="auth-divider" role="separator" aria-label="or">
+        <span>or</span>
+      </div>
 
       <form
         className="auth-form"
@@ -181,7 +217,11 @@ export function AuthRegisterPanel({
           {...register('password_confirm')}
         />
 
-        <Button type="submit" className="auth-submit" isLoading={isSubmitting}>
+        <Button
+          type="submit"
+          className="auth-submit"
+          isLoading={isSubmitting || isGoogleSubmitting}
+        >
           Create Account
           <AuthSubmitArrow />
         </Button>

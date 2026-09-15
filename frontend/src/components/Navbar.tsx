@@ -31,7 +31,7 @@ export function Navbar() {
 
   const currentPath = location.pathname.toLowerCase()
   const isPluginsRoute = currentPath.startsWith('/plugins')
-  const isMarketplaceHome = currentPath === '/products'
+  const isMarketplaceHome = currentPath === '/'
   const [categoryId, setCategoryId] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [accountOpen, setAccountOpen] = useState(false)
@@ -257,7 +257,7 @@ export function Navbar() {
         <div className="navbar__actions">
           <div className="navbar__primary-links">
             {!isMarketplaceHome ? (
-              <Link className="navbar__link" to="/products">
+              <Link className="navbar__link" to="/">
                 Home
               </Link>
             ) : null}

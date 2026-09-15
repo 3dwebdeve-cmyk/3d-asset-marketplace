@@ -21,7 +21,7 @@ class UserAdmin(DjangoUserAdmin):
     ordering = ("email",)
     list_display = ("email", "full_name", "role", "email_verified", "is_active", "created_at")
     list_filter = ("role", "email_verified", "is_active", "is_staff")
-    search_fields = ("email", "full_name")
+    search_fields = ("email", "full_name", "google_id")
     actions = ("mark_email_verified",)
     inlines = [UserProfileInline]
 
@@ -39,7 +39,7 @@ class UserAdmin(DjangoUserAdmin):
         )
 
     fieldsets = (
-        (None, {"fields": ("email", "password")}),
+        (None, {"fields": ("email", "password", "google_id")}),
         ("Personal info", {"fields": ("full_name", "phone", "country", "avatar")}),
         ("Permissions", {"fields": ("role", "email_verified", "is_active", "is_staff", "is_superuser")}),
         ("Important dates", {"fields": ("last_login", "created_at", "updated_at")}),

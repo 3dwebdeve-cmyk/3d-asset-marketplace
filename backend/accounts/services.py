@@ -155,6 +155,92 @@ class AuthenticationService:
             "access": str(refresh.access_token),
         }
 
+    @classmethod
+    @transaction.atomic
+    def authenticate_google_customer(cls, id_token: str) -> User:
+        """Verify a Google ID token and return (or create) a customer user."""
+        client_id = getattr(settings, "GOOGLE_OAUTH_CLIENT_ID", "").strip()
+        if not client_id:
+            raise AuthenticationError("Google sign-in is not configured.")
+
+        try:
+            from google.auth.transport import requests as google_requests
+            from google.oauth2 import id_token as google_id_token
+
+            payload = google_id_token.verify_oauth2_token(
+                id_token,
+                google_requests.Request(),
+                audience=client_id,
+                # Local Windows clocks are often a few seconds behind Google.
+                clock_skew_in_seconds=60,
+            )
+        except ImportError as exc:
+            raise AuthenticationError(
+                "Google sign-in is temporarily unavailable."
+            ) from exc
+        except ValueError as exc:
+            raise AuthenticationError("Invalid Google sign-in token.") from exc
+
+        issuer = payload.get("iss")
+        if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
+            raise AuthenticationError("Invalid Google sign-in token.")
+
+        google_sub = str(payload.get("sub") or "").strip()
+        email = str(payload.get("email") or "").strip().lower()
+        if not google_sub or not email:
+            raise AuthenticationError("Google account is missing required profile data.")
+
+        if not payload.get("email_verified"):
+            raise AuthenticationError("Google email address is not verified.")
+
+        full_name = str(payload.get("name") or "").strip() or email.split("@")[0]
+        picture = str(payload.get("picture") or "").strip()
+
+        user = User.objects.select_related("role").filter(google_id=google_sub).first()
+        if user is None:
+            user = User.objects.select_related("role").filter(email=email).first()
+
+        if user is not None:
+            if not user.is_active:
+                raise AuthenticationError("This account is inactive.")
+            if cls.is_administrator(user):
+                raise AuthenticationError(
+                    "Administrators must use the admin sign-in page."
+                )
+            if user.google_id and user.google_id != google_sub:
+                raise AuthenticationError(
+                    "This email is already linked to a different Google account."
+                )
+
+            update_fields: list[str] = []
+            if not user.google_id:
+                user.google_id = google_sub
+                update_fields.append("google_id")
+            if not user.email_verified:
+                user.email_verified = True
+                update_fields.append("email_verified")
+            if picture and not user.avatar:
+                user.avatar = picture
+                update_fields.append("avatar")
+            if update_fields:
+                update_fields.append("updated_at")
+                user.save(update_fields=update_fields)
+            return user
+
+        role = RegistrationService._get_customer_role()
+        user = User(
+            email=email,
+            full_name=full_name[:255],
+            role=role,
+            google_id=google_sub,
+            email_verified=True,
+            avatar=picture[:200] if picture else "",
+        )
+        user.set_unusable_password()
+        user.save()
+        UserProfile.objects.create(user=user)
+        return user
+
     @staticmethod
     def blacklist_refresh_token(
         refresh_token: str,

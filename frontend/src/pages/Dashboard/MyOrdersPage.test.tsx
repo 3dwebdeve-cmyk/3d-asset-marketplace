@@ -93,7 +93,7 @@ describe('MyOrdersPage', () => {
     expect(await screen.findByText(/you have no orders yet/i)).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /browse models/i })[0]).toHaveAttribute(
       'href',
-      '/products',
+      '/',
     )
   })
 

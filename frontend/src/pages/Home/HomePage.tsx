@@ -23,7 +23,7 @@ export function HomePage() {
             platform.
           </p>
           <div className="home-page__actions">
-            <Link className="home-page__cta" to="/products">
+            <Link className="home-page__cta" to="/">
               Browse Marketplace
             </Link>
             <Link className="home-page__cta home-page__cta--secondary" to="/custom-projects">

@@ -156,7 +156,7 @@ beforeEach(() => {
 })
 
 describe('Navbar', () => {
-  it('uses the white marketplace header and existing categories on /products', async () => {
+  it('uses the white marketplace header and existing categories on home', async () => {
     const user = userEvent.setup()
     const categoryId = '44bba207-8a0c-490d-abdf-5a383ed2111b'
     vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
@@ -176,7 +176,7 @@ describe('Navbar', () => {
       ],
     })
 
-    renderNavbar('/products')
+    renderNavbar('/')
 
     expect(document.querySelector('.navbar')).toHaveClass('navbar--marketplace-home')
     expect(screen.queryByRole('search')).not.toBeInTheDocument()
@@ -206,7 +206,7 @@ describe('Navbar', () => {
   })
 
   it('shows Sign in and Register when logged out', () => {
-    renderNavbar()
+    renderNavbar('/about')
 
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
@@ -216,7 +216,7 @@ describe('Navbar', () => {
       'href',
       '/custom-projects',
     )
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/products')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute('href', '/3d-models')
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
@@ -353,6 +353,6 @@ describe('Navbar', () => {
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
     expect(authApi.logoutUser).toHaveBeenCalledWith('refresh-token')
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
   })
 })
