@@ -8,7 +8,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   const status = error.response?.status
-  const data = error.response?.data
+  const data = error.response?.data as unknown
 
   if (!data) {
     if (status === 429) {
@@ -17,11 +17,28 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     return fallback
   }
 
-  if (typeof data.detail === 'string' && data.detail.trim()) {
-    return data.detail
+  // Django DEBUG HTML (or other non-JSON bodies) must not be treated as field maps.
+  if (typeof data === 'string') {
+    if (status === 404) {
+      return 'Service endpoint not found. Please restart the backend and try again.'
+    }
+    if (status === 500) {
+      return 'Server error during sign-in. Please try again.'
+    }
+    return fallback
   }
 
-  const messages = Object.entries(data).flatMap(([key, value]) => {
+  if (typeof data !== 'object' || data === null) {
+    return fallback
+  }
+
+  const payload = data as ApiErrorResponse
+
+  if (typeof payload.detail === 'string' && payload.detail.trim()) {
+    return payload.detail
+  }
+
+  const messages = Object.entries(payload).flatMap(([key, value]) => {
     if (key === 'code') {
       return []
     }

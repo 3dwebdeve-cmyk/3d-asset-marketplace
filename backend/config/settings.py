@@ -383,6 +383,7 @@ SECURE_CSP = {
 SECURE_CSP_REPORT_ONLY = {}
 
 FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="http://localhost:5173")
+GOOGLE_OAUTH_CLIENT_ID = config("GOOGLE_OAUTH_CLIENT_ID", default="")
 
 LOGGING = {
     "version": 1,

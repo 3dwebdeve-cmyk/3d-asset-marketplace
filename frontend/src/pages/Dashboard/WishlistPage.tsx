@@ -217,7 +217,7 @@ export function WishlistPage() {
           <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
             Back to dashboard
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/products">
+          <Link className="home-page__cta home-page__cta--secondary" to="/">
             Browse models
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
@@ -262,7 +262,7 @@ export function WishlistPage() {
               Your wishlist is empty. Browse the marketplace to save items for later.
             </p>
             <div className="dashboard-card__actions">
-              <Link className="home-page__cta" to="/products">
+              <Link className="home-page__cta" to="/">
                 Browse models
               </Link>
               <Link className="home-page__cta home-page__cta--secondary" to="/plugins">

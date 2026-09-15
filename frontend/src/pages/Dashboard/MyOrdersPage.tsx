@@ -95,7 +95,7 @@ export function MyOrdersPage() {
           <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
             Back to dashboard
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/products">
+          <Link className="home-page__cta home-page__cta--secondary" to="/">
             Browse models
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
@@ -129,7 +129,7 @@ export function MyOrdersPage() {
               You have no orders yet. Browse the marketplace to find models and plugins.
             </p>
             <div className="dashboard-card__actions">
-              <Link className="home-page__cta" to="/products">
+              <Link className="home-page__cta" to="/">
                 Browse models
               </Link>
               <Link className="home-page__cta home-page__cta--secondary" to="/plugins">

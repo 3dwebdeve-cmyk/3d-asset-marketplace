@@ -81,6 +81,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     full_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
+    google_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     country = models.CharField(max_length=100, blank=True)
     avatar = models.URLField(blank=True)

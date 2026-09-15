@@ -98,7 +98,7 @@ describe('WishlistPage', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /browse models/i })[0]).toHaveAttribute(
       'href',
-      '/products',
+      '/',
     )
   })
 

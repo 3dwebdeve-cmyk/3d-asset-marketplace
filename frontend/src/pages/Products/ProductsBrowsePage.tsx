@@ -21,57 +21,7 @@ interface BrowseService {
   description: string
   path: string
   buttonText: string
-  icon: IconComponent
-}
-
-function ModelsIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 72 72" fill="none" className={className} aria-hidden="true">
-      <path
-        d="m18 24 18-11 18 11v22L36 57 18 46Z"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="m18 24 18 11 18-11M36 35v22"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function PluginsIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 72 72" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M29.2 14.8 31 21.2a14 14 0 0 1 4.8 2l6-3.7 5.2 5.2-3.7 6a14 14 0 0 1 2 4.8l6.4 1.8v7.4l-6.4 1.8a14 14 0 0 1-2 4.8l3.7 6-5.2 5.2-6-3.7a14 14 0 0 1-4.8 2l-1.8 6.4h-7.4l-1.8-6.4a14 14 0 0 1-4.8-2l-6 3.7-5.2-5.2 3.7-6a14 14 0 0 1-2-4.8l-6.4-1.8v-7.4l6.4-1.8a14 14 0 0 1 2-4.8l-3.7-6 5.2-5.2 6 3.7a14 14 0 0 1 4.8-2l1.8-6.4h7.4Z"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <circle cx="36" cy="36" r="8" stroke="currentColor" strokeWidth="2.2" />
-    </svg>
-  )
-}
-
-function InquiryIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 72 72" fill="none" className={className} aria-hidden="true">
-      <circle cx="36" cy="36" r="22" stroke="currentColor" strokeWidth="2.2" />
-      <path
-        d="M24 30h24a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H37l-7 6v-6h-6a5 5 0 0 1-5-5V35a5 5 0 0 1 5-5Z"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <circle cx="30" cy="40" r="1.7" fill="currentColor" />
-      <circle cx="36" cy="40" r="1.7" fill="currentColor" />
-      <circle cx="42" cy="40" r="1.7" fill="currentColor" />
-    </svg>
-  )
+  iconSrc: string
 }
 
 function FurnitureIcon({ className }: IconProps) {
@@ -167,22 +117,22 @@ const BROWSE_SERVICES: BrowseService[] = [
     title: '3D Models',
     description: 'Explore high-quality production-ready 3D models in all categories.',
     path: '/3d-models',
-    buttonText: 'Shop 3D models',
-    icon: ModelsIcon,
+    buttonText: 'Shop 3D Models',
+    iconSrc: '/images/home/icon-3d-models.png',
   },
   {
     title: 'Plugins & Tools',
     description: 'Power-up your workflow with professional Blender and Unreal plugins.',
     path: '/plugins',
     buttonText: 'Explore Plugins',
-    icon: PluginsIcon,
+    iconSrc: '/images/home/icon-plugins.png',
   },
   {
     title: 'Inquiry Portal',
-    description: 'Have a specific custom asset requirement? Contact our VFX artist team.',
+    description: 'Have a specific custom asset requirement? Our team is here to help.',
     path: '/custom-projects',
     buttonText: 'Submit an Inquiry',
-    icon: InquiryIcon,
+    iconSrc: '/images/home/icon-inquiry.png',
   },
 ]
 
@@ -193,8 +143,6 @@ function scrollRail(rail: HTMLElement | null, direction: -1 | 1) {
 }
 
 function ServiceCard({ service }: { service: BrowseService }) {
-  const IconComponent = service.icon
-
   return (
     <article className="browse-service-card">
       <div className="browse-service-card__copy">
@@ -205,7 +153,13 @@ function ServiceCard({ service }: { service: BrowseService }) {
         </Link>
       </div>
       <div className="browse-service-card__art" aria-hidden="true">
-        <IconComponent className="browse-service-card__icon" />
+        <img
+          src={service.iconSrc}
+          alt=""
+          className="browse-service-card__icon-img"
+          loading="lazy"
+          decoding="async"
+        />
       </div>
     </article>
   )
@@ -334,12 +288,15 @@ export function ProductsBrowsePage() {
 
         <section
           className="browse-rail-section browse-rail-section--categories"
-          aria-labelledby="explore-categories-heading"
+          aria-labelledby="trending-categories-heading"
         >
           <div className="browse-rail-section__header">
-            <h2 id="explore-categories-heading" className="browse-rail-section__title">
-              Explore 3D Categories
+            <h2 id="trending-categories-heading" className="browse-rail-section__title">
+              Trending Categories
             </h2>
+            <Link className="browse-rail-section__view-all" to="/3d-models">
+              View All
+            </Link>
           </div>
           <div className="browse-category-grid">
             {categories.length === 0 ? (

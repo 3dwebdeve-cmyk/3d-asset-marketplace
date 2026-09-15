@@ -70,6 +70,10 @@ class LoginSerializer(serializers.Serializer):
         return value.strip().lower()
 
 
+class GoogleLoginSerializer(serializers.Serializer):
+    id_token = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
+
+
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField(write_only=True, trim_whitespace=False)
 

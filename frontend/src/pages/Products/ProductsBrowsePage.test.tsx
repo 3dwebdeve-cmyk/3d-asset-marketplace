@@ -187,7 +187,7 @@ describe('ProductsBrowsePage', () => {
         name: /world's largest 3d model marketplace/i,
       }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /explore 3d categories/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /trending categories/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /shop 3d models/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /explore plugins/i })).toBeInTheDocument()
 
@@ -263,7 +263,7 @@ describe('ProductsBrowsePage', () => {
       screen.getByText('Power-up your workflow with professional Blender and Unreal plugins.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Have a specific custom asset requirement? Contact our VFX artist team.'),
+      screen.getByText('Have a specific custom asset requirement? Our team is here to help.'),
     ).toBeInTheDocument()
   })
 
@@ -272,7 +272,7 @@ describe('ProductsBrowsePage', () => {
     renderProductsBrowsePage()
 
     const categorySection = screen.getByRole('region', {
-      name: /explore 3d categories/i,
+      name: /trending categories/i,
     })
     const categoryButton = await within(categorySection).findByRole('button', {
       name: /browse sci-fi assets 3d models/i,

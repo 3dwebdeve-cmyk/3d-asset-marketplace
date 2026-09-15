@@ -4,7 +4,7 @@
   display: grid;
   place-items: center;
   min-height: clamp(26rem, 42vw, 34rem);
-  padding: clamp(2.4rem, 5vw, 4rem) var(--site-gutter) clamp(4.5rem, 8vw, 6.5rem);
+  padding: clamp(2.4rem, 5vw, 4rem) var(--site-gutter) clamp(2.6rem, 5vw, 3.5rem);
   box-sizing: border-box;
   overflow: hidden;
   color: #fff;

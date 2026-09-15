@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Object3D } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +7,6 @@ const viewerMocks = vi.hoisted(() => {
   return {
     scene: null as import('three').Object3D | null,
     clearGltfCache: vi.fn(),
-    disposeSceneResources: vi.fn(),
     visible: true,
     webglAvailable: true,
     pixelRatio: 1.25,
@@ -28,11 +27,22 @@ vi.mock('@react-three/fiber', () => ({
       {children}
     </div>
   ),
+  useThree: () => ({ scene: new Object3D() }),
 }))
 
 vi.mock('@react-three/drei', () => ({
   OrbitControls: () => null,
-  Environment: ({ children }: { children?: import('react').ReactNode }) => <>{children}</>,
+  Environment: ({
+    files,
+    children,
+  }: {
+    files?: string
+    children?: import('react').ReactNode
+  }) => (
+    <div data-testid="viewer-environment" data-files={files ?? ''}>
+      {children}
+    </div>
+  ),
   Lightformer: () => null,
   useGLTF: Object.assign(
     () => ({
@@ -41,10 +51,6 @@ vi.mock('@react-three/drei', () => ({
     { clear: viewerMocks.clearGltfCache },
   ),
   useProgress: () => ({ active: false, progress: 100, loaded: 1, total: 1 }),
-}))
-
-vi.mock('./disposeSceneResources', () => ({
-  disposeSceneResources: viewerMocks.disposeSceneResources,
 }))
 
 vi.mock('./isWebGLAvailable', () => ({
@@ -71,6 +77,12 @@ describe('ModelViewer', () => {
     viewerMocks.visible = true
     viewerMocks.webglAvailable = true
     viewerMocks.pixelRatio = 1.25
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+      }),
+    )
   })
 
   it('mounts a canvas region for a safe preview model URL', () => {
@@ -90,6 +102,46 @@ describe('ModelViewer', () => {
       'aria-pressed',
       'false',
     )
+  })
+
+  it('renders environment controls and defaults to Studio HDRI', async () => {
+    render(
+      <ModelViewer
+        modelUrl="https://cdn.example.com/preview.glb"
+        ariaLabel="Interactive 3D preview of Demo Asset"
+      />,
+    )
+
+    expect(screen.getByRole('radio', { name: 'Studio' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.queryByRole('radio', { name: 'Sky' })).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
+        'data-files',
+        '/hdri/studio_small_08_1k.hdr',
+      )
+    })
+  })
+
+  it('switches HDRI environment when user selects a different option', async () => {
+    const user = userEvent.setup()
+    render(
+      <ModelViewer
+        modelUrl="https://cdn.example.com/preview.glb"
+        ariaLabel="Interactive 3D preview of Demo Asset"
+      />,
+    )
+
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
+
+    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'true')
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
+        'data-files',
+        '/hdri/forest_slope_1k.hdr',
+      )
+    })
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {
@@ -125,7 +177,7 @@ describe('ModelViewer', () => {
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'never')
   })
 
-  it('disposes scene resources and clears GLTF cache on unmount', () => {
+  it('does not dispose shared GLTF resources on unmount', () => {
     const { unmount } = render(
       <ModelViewer
         modelUrl="https://cdn.example.com/preview.glb"
@@ -135,8 +187,9 @@ describe('ModelViewer', () => {
 
     unmount()
 
-    expect(viewerMocks.disposeSceneResources).toHaveBeenCalled()
-    expect(viewerMocks.clearGltfCache).toHaveBeenCalledWith('https://cdn.example.com/preview.glb')
+    // clone(true) shares geometries with the useGLTF cache; clearing/disposing on
+    // Suspense remounts would leave an empty canvas.
+    expect(viewerMocks.clearGltfCache).not.toHaveBeenCalled()
   })
 
   it('shows WebGL fallback when WebGL is unavailable', () => {
@@ -166,6 +219,7 @@ describe('ModelViewer', () => {
     const button = screen.getByRole('button', { name: 'Wireframe' })
     expect(button).toHaveAttribute('aria-pressed', 'false')
 
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
     await user.click(button)
 
     expect(button).toHaveAttribute('aria-pressed', 'true')

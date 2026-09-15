@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Navbar } from './components/Navbar'
@@ -9,7 +9,6 @@ import { CartDrawer } from './components/cart/CartDrawer'
 import { AuthModal } from './components/auth/AuthModal'
 import { Spinner } from './components/ui/Spinner'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
-import { HomePage } from './pages/Home/HomePage'
 import { LoginPage } from './pages/Login/LoginPage'
 import { RegisterPage } from './pages/Register/RegisterPage'
 import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
@@ -26,6 +25,7 @@ import './styles/product-details.css'
 import './styles/product-hub-details.css'
 import './styles/cart.css'
 import './styles/marketing.css'
+import './styles/about.css'
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
@@ -310,12 +310,12 @@ function AppRoutes() {
       <div className="app-shell">
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<ProductsBrowsePage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
-            <Route path="/products" element={<ProductsBrowsePage />} />
-            <Route path="/Products" element={<ProductsBrowsePage />} />
+            <Route path="/products" element={<Navigate to="/" replace />} />
+            <Route path="/Products" element={<Navigate to="/" replace />} />
             <Route path="/products/:slug" element={<ProductDetailsPage />} />
             <Route path="/Products/:slug" element={<ProductDetailsPage />} />
             <Route path="/3d-models" element={<ModelsBrowsePage />} />
