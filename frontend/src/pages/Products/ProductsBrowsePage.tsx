@@ -232,7 +232,7 @@ export function ProductsBrowsePage() {
   const pluginsRailRef = useRef<HTMLDivElement>(null)
 
   const { data: categoriesData } = useQuery({
-    queryKey: ['public-categories-list'],
+    queryKey: ['public-categories-list', { page_size: 100 }],
     queryFn: () => listPublicCategories({ page_size: 100 }),
     staleTime: 1000 * 60 * 5,
   })

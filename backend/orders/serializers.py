@@ -95,10 +95,14 @@ class CustomerOrderItemDetailSerializer(OrderItemDetailSerializer):
         if order is None or not order_allows_download(order):
             return []
 
-        file_rows = DownloadService.list_downloadable_files_for_item(
-            obj.product_type,
-            obj.product_id,
-        )
+        downloadable_files = self.context.get("downloadable_files")
+        if isinstance(downloadable_files, dict):
+            file_rows = downloadable_files.get((obj.product_type, obj.product_id), [])
+        else:
+            file_rows = DownloadService.list_downloadable_files_for_item(
+                obj.product_type,
+                obj.product_id,
+            )
         request = self.context.get("request")
         return OrderItemDownloadFileSerializer(
             [

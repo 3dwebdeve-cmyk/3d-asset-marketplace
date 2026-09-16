@@ -2,11 +2,18 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useAuthStore } from '../../store/authStore'
 
 export function HomePage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const clearPostLogoutRedirect = useAuthStore((state) => state.clearPostLogoutRedirect)
+
+  useDocumentSeo({
+    title: '3D Asset Marketplace',
+    description:
+      'Premium 3D models, plugins, and custom design services for creators worldwide.',
+  })
 
   useEffect(() => {
     clearPostLogoutRedirect()
@@ -23,7 +30,7 @@ export function HomePage() {
             platform.
           </p>
           <div className="home-page__actions">
-            <Link className="home-page__cta" to="/">
+            <Link className="home-page__cta" to="/home">
               Browse Marketplace
             </Link>
             <Link className="home-page__cta home-page__cta--secondary" to="/custom-projects">

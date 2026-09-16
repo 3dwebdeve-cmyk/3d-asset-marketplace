@@ -113,17 +113,17 @@ Administrators can manage:
   Reviews 
   Custom Projects 
   Analytics
-  Batch import review & QA approval (planned)
+  Batch import review & QA approval (shipped in marketplace repo)
 
-Batch Catalog Pipeline (Phase 1 — planned)
-The company batch-renders large inventories of 3D models. Phase 1 includes an ingest path so assets are not uploaded one-by-one through the admin panel:
+Batch Catalog Pipeline (Phase 1 — shipped in marketplace; bridge .exe polish separate)
+The company batch-renders large inventories of 3D models. Phase 1 ingest path (Features 14 / 14B / 16) is implemented in this repo:
   MaxScript batcher produces a Batch Output Report (Model_ID, exports, checksums, paths, QA Status)
   Phase 1 intake Excel supplies store metadata (price, description, thumbnail mapping) joined on Model_ID
   R2 Bridge uploads packages/previews to Cloudflare R2 under models/{Model_ID}/
   Django creates/updates products as draft / pending_review (never auto-live)
   Admin reviews, edits, QA-approves, then publishes
   Stripe purchase + entitlement grants short-lived signed download URLs for paid private objects only
-Detailed phases: see IMPLEMENTATION_ROADMAP.md (Features 14, 14B, 16).
+Detailed phases: see IMPLEMENTATION_ROADMAP.md (Features 14, 14B, 16 — marked done 2026-09-16 code scan). Remaining Phase 1 infra: Feature 13 Docker + Sprint 11 production QA.
 
 Future Phases
 Phase 2

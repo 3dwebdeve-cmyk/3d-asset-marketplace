@@ -34,12 +34,18 @@ vi.mock('@react-three/drei', () => ({
   OrbitControls: () => null,
   Environment: ({
     files,
+    backgroundBlurriness,
     children,
   }: {
     files?: string
+    backgroundBlurriness?: number
     children?: import('react').ReactNode
   }) => (
-    <div data-testid="viewer-environment" data-files={files ?? ''}>
+    <div
+      data-testid="viewer-environment"
+      data-files={files ?? ''}
+      data-background-blurriness={backgroundBlurriness ?? ''}
+    >
       {children}
     </div>
   ),
@@ -120,6 +126,10 @@ describe('ModelViewer', () => {
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
         'data-files',
         '/hdri/studio_small_08_1k.hdr',
+      )
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
+        'data-background-blurriness',
+        '0.65',
       )
     })
   })

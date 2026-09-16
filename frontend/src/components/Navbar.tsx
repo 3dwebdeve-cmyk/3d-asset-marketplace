@@ -31,7 +31,9 @@ export function Navbar() {
 
   const currentPath = location.pathname.toLowerCase()
   const isPluginsRoute = currentPath.startsWith('/plugins')
-  const isMarketplaceHome = currentPath === '/'
+  // Landing (/) and marketplace home hub (/home) use the branded overlay nav.
+  const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
+  const isHomeHub = currentPath === '/home'
   const [categoryId, setCategoryId] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [accountOpen, setAccountOpen] = useState(false)
@@ -78,14 +80,14 @@ export function Navbar() {
   }, [exploreOpen])
 
   const productCategoriesQuery = useQuery({
-    queryKey: ['navbar-product-categories'],
+    queryKey: ['public-categories-list', { page_size: 100 }],
     queryFn: () => listPublicCategories({ page_size: 100 }),
     staleTime: 1000 * 60 * 5,
     enabled: !isPluginsRoute,
   })
 
   const pluginCategoriesQuery = useQuery({
-    queryKey: ['navbar-plugin-categories'],
+    queryKey: ['public-plugin-categories-list', { page_size: 100, is_active: true }],
     queryFn: () => listPublicPluginCategories({ page_size: 100, is_active: true }),
     staleTime: 1000 * 60 * 5,
     enabled: isPluginsRoute,
@@ -103,7 +105,7 @@ export function Navbar() {
   })
 
   const cartCountQuery = useQuery({
-    queryKey: ['cart', 'count'],
+    queryKey: ['cart'],
     queryFn: getCart,
     enabled: isAuthenticated && !isAdministrator(user?.role),
     select: (data) => data.total_quantity,
@@ -256,11 +258,13 @@ export function Navbar() {
 
         <div className="navbar__actions">
           <div className="navbar__primary-links">
-            {!isMarketplaceHome ? (
-              <Link className="navbar__link" to="/">
-                Home
-              </Link>
-            ) : null}
+            <Link
+              className="navbar__link"
+              to="/home"
+              aria-current={isHomeHub ? 'page' : undefined}
+            >
+              Home
+            </Link>
             <Link className="navbar__link" to="/3d-models">
               3D Model
             </Link>

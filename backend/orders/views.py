@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminOrderWriteRateThrottle
+from downloads.services import DownloadService
 from orders.entitlements import order_allows_download
 from orders.invoice import build_invoice_pdf, invoice_pdf_filename
 from orders.models import Order
@@ -60,10 +61,16 @@ def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | Non
 def _detail_serializer_context(order: Order, request: Request | None = None) -> dict:
     items = list(order.items.all())
     snapshots = OrderService.build_catalog_snapshots(items)
+    downloadable_files = {}
+    if order_allows_download(order):
+        downloadable_files = DownloadService.list_downloadable_files_for_items(
+            [(item.product_type, item.product_id) for item in items]
+        )
     context = {
         "catalog_titles": {key: title for key, (title, _slug) in snapshots.items()},
         "catalog_slugs": {key: slug for key, (_title, slug) in snapshots.items()},
         "order": order,
+        "downloadable_files": downloadable_files,
     }
     if request is not None:
         context["request"] = request

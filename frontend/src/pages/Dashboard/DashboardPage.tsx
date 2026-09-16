@@ -15,6 +15,7 @@ import { useChangePasswordForm } from './useChangePasswordForm'
 
 export function DashboardPage() {
   const navigate = useNavigate()
+  const accessToken = useAuthStore((state) => state.accessToken)
   const refreshToken = useAuthStore((state) => state.refreshToken)
   const storedUser = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
@@ -22,8 +23,10 @@ export function DashboardPage() {
   const [showChangePassword, setShowChangePassword] = useState(false)
 
   const currentUserQuery = useQuery({
-    queryKey: ['auth', 'me'],
+    queryKey: ['auth', 'me', accessToken],
     queryFn: getCurrentUser,
+    enabled: Boolean(accessToken),
+    staleTime: 5 * 60 * 1000,
   })
 
   useEffect(() => {

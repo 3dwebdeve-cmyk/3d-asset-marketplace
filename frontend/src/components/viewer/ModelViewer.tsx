@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useState } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import { Canvas } from '@react-three/fiber'
 import { Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
@@ -30,19 +30,6 @@ function SceneLights({
   showBackground: boolean
   backgroundBlur: number
 }) {
-  const { scene } = useThree()
-
-  useEffect(() => {
-    // Blur the visible HDRI backdrop only. This does NOT affect reflections (scene.environment).
-    // NOTE: `backgroundBlurriness` is a three.js scene property (supported in modern versions).
-    ;(scene as unknown as { backgroundBlurriness?: number }).backgroundBlurriness =
-      showBackground && environmentFile ? backgroundBlur : 0
-
-    return () => {
-      ;(scene as unknown as { backgroundBlurriness?: number }).backgroundBlurriness = 0
-    }
-  }, [backgroundBlur, environmentFile, scene, showBackground])
-
   return (
     <>
       {/* Keep fill lights low so the key-light shadow stays readable. */}
@@ -52,7 +39,7 @@ function SceneLights({
         position={[5.2, 9.5, 4.2]}
         intensity={1.35 * lightMultiplier}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-bias={-0.00015}
         shadow-normalBias={0.035}
         shadow-radius={3}
@@ -79,10 +66,13 @@ function SceneLights({
         // Own Suspense so HDRI load does not remount/tear down PreviewModel
         // (Canvas wraps all children in one Suspense boundary).
         <Suspense fallback={null}>
+          {/* Blur must be passed to drei Environment — it applies background in useLayoutEffect;
+              a separate useEffect often runs before the HDRI texture exists and gets reset to 0. */}
           <Environment
             files={environmentFile}
             background={showBackground}
             environmentIntensity={environmentIntensity}
+            backgroundBlurriness={showBackground ? backgroundBlur : 0}
           />
         </Suspense>
       ) : null}
@@ -154,6 +144,12 @@ function PreviewModel({
     texture.needsUpdate = true
     return texture
   }, [])
+
+  useEffect(() => {
+    return () => {
+      groundAlphaMap?.dispose()
+    }
+  }, [groundAlphaMap])
   const ground = useMemo(() => {
     const box = new THREE.Box3().setFromObject(fitted)
     if (box.isEmpty()) {

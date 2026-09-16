@@ -5,11 +5,18 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as authApi from '../../api/authApi'
+import { useAuthStore } from '../../store/authStore'
 import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
 import { DashboardPage } from './DashboardPage'
 
 function renderDashboard(initialPath = '/dashboard') {
   const queryClient = createTestQueryClient()
+  useAuthStore.setState({
+    accessToken: 'test-access-token',
+    refreshToken: 'test-refresh-token',
+    user: testUser,
+    isAuthenticated: true,
+  })
 
   return render(
     <QueryClientProvider client={queryClient}>

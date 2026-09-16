@@ -129,8 +129,33 @@ class ProductService:
         game_ready: bool | None = None,
     ) -> QuerySet[Product]:
         # Public list responses do not serialize images or files.
-        queryset = Product.objects.select_related("category").filter(
-            status=Product.Status.PUBLISHED
+        # Defer heavy detail/admin-only columns to shrink list payload SQL.
+        queryset = (
+            Product.objects.select_related("category")
+            .filter(status=Product.Status.PUBLISHED)
+            .defer(
+                "description",
+                "preview_model",
+                "preview_video",
+                "polygon_count",
+                "vertex_count",
+                "animated",
+                "rigged",
+                "pbr_ready",
+                "game_ready",
+                "sku",
+                "import_batch_id",
+                "import_source",
+                "glb_checksum",
+                "has_thumbnail",
+                "has_preview",
+                "has_package",
+                "reject_reason",
+                "qa_notes",
+                "reviewed_at",
+                "reviewed_by",
+                "status",
+            )
         )
 
         if category_id is not None:

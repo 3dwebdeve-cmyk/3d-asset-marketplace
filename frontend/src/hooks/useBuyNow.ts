@@ -27,10 +27,7 @@ export function useBuyNow() {
           quantity: 1,
         })
       }
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['cart'] }),
-        queryClient.invalidateQueries({ queryKey: ['cart', 'count'] }),
-      ])
+      await queryClient.invalidateQueries({ queryKey: ['cart'] })
       return createCheckoutSession()
     },
     onSuccess: (data) => {

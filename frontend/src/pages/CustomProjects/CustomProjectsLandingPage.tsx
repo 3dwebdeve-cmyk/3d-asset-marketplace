@@ -1,6 +1,10 @@
 import { Link } from 'react-router-dom'
 
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
+import {
+  CUSTOM_PROJECTS_HERO_IMAGE_SRC,
+  SiteHeroImage,
+} from '../../components/SiteHeroImage'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
@@ -21,14 +25,12 @@ export function CustomProjectsLandingPage() {
 
   return (
     <main className="marketing-page custom-projects-page">
-      <header className="custom-projects-hero" aria-labelledby="custom-projects-title">
-        <div className="custom-projects-hero__overlay" />
+      <header
+        className="custom-projects-hero site-hero-banner"
+        aria-labelledby="custom-projects-title"
+      >
+        <SiteHeroImage src={CUSTOM_PROJECTS_HERO_IMAGE_SRC} width={4216} height={992} />
         <div className="custom-projects-hero__content">
-          <nav className="custom-projects-hero__breadcrumb" aria-label="Breadcrumb">
-            <Link to="/">Home</Link>
-            <span aria-hidden="true">›</span>
-            <span>Custom Projects</span>
-          </nav>
           <h1 id="custom-projects-title">Custom 3D projects, from concept to delivery</h1>
           <p className="custom-projects-hero__lead">
             Need something that&apos;s not in the catalog? Tell us what you need, get a clear

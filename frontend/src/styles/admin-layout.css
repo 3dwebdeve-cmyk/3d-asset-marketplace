@@ -276,6 +276,7 @@
     transform: translateX(-105%);
     transition: transform 0.2s ease;
     box-shadow: var(--shadow);
+    overflow-y: auto;
   }
 
   .admin-sidebar--open {
@@ -284,5 +285,27 @@
 
   .admin-header__menu-button {
     display: inline-flex;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-layout--centered {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .admin-header {
+    gap: 0.65rem;
+  }
+
+  .admin-header__actions {
+    gap: 0.5rem;
+  }
+
+  .admin-layout__content .dashboard-page {
+    padding: 0.85rem;
+  }
+
+  .admin-stat-card__value {
+    font-size: 1.45rem;
   }
 }

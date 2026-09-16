@@ -16,8 +16,9 @@
   width: 100%;
   max-width: var(--site-max-width);
   margin: 0;
-  padding: 0.85rem var(--site-gutter);
+  padding: clamp(1.75rem, 3vw, 2.75rem) var(--site-gutter);
   box-sizing: border-box;
+  text-align: left;
 }
 
 .plugins-browse-hero__crumbs {
@@ -25,34 +26,59 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.72);
 }
 
 .plugins-browse-hero__crumbs a {
-  color: rgba(255, 255, 255, 0.85);
+  color: inherit;
   text-decoration: none;
 }
 
 .plugins-browse-hero__crumbs a:hover {
+  color: #fff;
   text-decoration: underline;
 }
 
 .plugins-browse-hero__title {
-  margin: 0 0 0.4rem;
-  font-size: clamp(1.5rem, 3vw, 2rem);
+  margin: 0 0 0.85rem;
+  max-width: min(100%, 22ch);
+  font-size: clamp(1.7rem, 3.2vw, 2.85rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   color: #fff;
 }
 
 .plugins-browse-hero__subtitle {
   margin: 0;
-  max-width: 40rem;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.78);
+  max-width: min(100%, 42rem);
+  font-size: clamp(0.92rem, 1.4vw, 1.02rem);
+  font-weight: 400;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* 3D Models — dark banner art → white Contact-style typography */
+.models-browse .plugins-browse-hero__crumbs {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.models-browse .plugins-browse-hero__crumbs a {
+  color: inherit;
+}
+
+.models-browse .plugins-browse-hero__crumbs a:hover {
+  color: #fff;
+}
+
+.models-browse .plugins-browse-hero__title {
+  color: #fff;
+}
+
+.models-browse .plugins-browse-hero__subtitle {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .plugins-browse__body {
@@ -245,6 +271,16 @@
 @media (max-width: 640px) {
   .plugins-grid {
     grid-template-columns: 1fr;
+  }
+
+  .plugins-grid--list .product-card {
+    grid-template-columns: 1fr;
+  }
+
+  .plugins-grid--list .product-card__media {
+    min-height: 160px;
+    aspect-ratio: 16 / 10;
+    height: auto;
   }
 }
 

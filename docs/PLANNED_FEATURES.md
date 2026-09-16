@@ -2,8 +2,8 @@
 
 **Purpose:** Single checklist of work remaining to finish **Phase 1** of the platform.  
 **Sources:** [PROJECT_STATUS.md](../PROJECT_STATUS.md), [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md), [docs/batch-ingest-contract.md](batch-ingest-contract.md)  
-**Last scanned:** 2026-08-27  
-**Overall completion (per PROJECT_STATUS):** ~70%
+**Last scanned:** 2026-09-16 (codebase + routes + deps + tests)  
+**Overall completion (per PROJECT_STATUS):** ~82%
 
 ---
 
@@ -20,114 +20,80 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 
 ---
 
-## Recommended build order
+## Recommended build order (remaining)
 
 ```text
-1. Feature 13 — Docker (local/prod runtime)
-2. Feature 12 — Public site polish (remaining)
-3. Feature 14 — Cloudflare R2 (public + private buckets) — **Done**
-4. Feature 14B — Signed R2 download URLs — **Done**
-5. Feature 16 Phase 6 — Catalog Import API (marketplace repo) — **Done**
-6. Feature 16 Phase 8 — QA approve / reject → publish workflow (backend) — **Done**
-7. Feature 16 Phase 7 — Admin QA queue UI — **Done**
-8. Feature 16 Phases 9–10 — E2E + hardening
-9. Sprint 11 — Testing, security, performance, deployment
+1. Feature 13 — Docker (app + DB + Gunicorn + Nginx; compose today is Meilisearch-only)
+2. Feature 12 — Public site polish (legal pages, viewer fullscreen, footer newsletter)
+3. Sprint 11 — Formal API/UI/security/performance testing + production deployment
+4. catalog-bridge Windows .exe polish (separate repo)
+5. Optional / later — Search extras, product tags, Celery, DB activity-log UI
 ```
 
 ---
 
 ## 1. Infrastructure & deployment
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Feature 13 — Docker** | Planned | Production-ready `docker-compose.yml`, Gunicorn, Nginx, env templates |
-| **Configure Docker** (Sprint 1) | Not done | Local + prod container workflow |
-| **Production deployment** (Sprint 11) | Planned | Server setup, Cloudflare CDN, monitoring |
-| **Backend / frontend / DB stability gates** | Open | Final release checklist items still unchecked |
+| Feature | Status | Evidence / notes |
+|---------|--------|------------------|
+| **Feature 13 — Docker** | **Not done** | Root `docker-compose.yml` = Meilisearch only; **no Dockerfile** for app |
+| **Configure Docker** (Sprint 1) | **Not done** | Local + prod container workflow missing |
+| **Production deployment** (Sprint 11) | **Not done** | Server, CDN, monitoring not signed off |
+| **Backend / frontend / DB stability gates** | **Open** | Final release checklist still unchecked |
 
 ---
 
-## 2. Cloud storage (Feature 14 + 14B)
+## 2. Cloud storage (Feature 14 + 14B) — Done in code
 
-Detailed plan: [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md)
-
-### Feature 14 — Cloudflare R2 foundation
-
-| Item | Status |
-|------|--------|
-| Phase 0 — R2 buckets, API token, public URL, CORS, `.env` | **Done** (app reads env; local filesystem if unset) |
-| `django-storages` + `boto3` dual backends (public + private) | **Done** |
-| Product/plugin uploads → correct bucket | **Done** |
-| Public preview URLs via `R2_PUBLIC_BASE_URL` | **Done** |
-| Local filesystem fallback when R2 unset (dev/CI) | **Done** |
-| Migrate off local `MEDIA_ROOT` for catalog media | Partial — new uploads use R2 when configured; existing local files still served |
-
-**Decisions (locked):**
-
-- **Public bucket:** thumbnails, preview GLB, gallery images
-- **Private bucket:** paid `package.zip` (never public)
-- Admin-upload keys: `products/images/`, `products/previews/`, `products/files/`
-- Batch-upload keys: `models/{Model_ID}/` (Feature 16)
-
-### Feature 14B — Signed download URLs
-
-| Item | Status |
-|------|--------|
-| Entitlement check → presigned GET on private bucket | **Done** |
-| JSON response `{ download_url, expires_in, file_name }` | **Done** |
-| Frontend download flow update (`downloadsApi.ts`) | **Done** |
-| Replace local `FileResponse` for catalog packages in prod | **Done** when R2 object exists; local stream remains fallback |
-
-**Technical debt this resolves:** catalog product/plugin packages download via presigned private GET instead of Django streaming. Custom-project / delivery files still use FileResponse.
+| Item | Status | Evidence |
+|------|--------|----------|
+| Dual R2 backends + local fallback | **Done** | `backend/config/storages.py`, `django-storages` + `boto3` in requirements |
+| Entitlement → private presigned GET JSON | **Done** | `backend/downloads/services.py` |
+| Media migration command | **Done** (ops) | `migrate_local_media_to_r2` — legacy local files may still exist until run |
+| Custom-project / delivery files on R2 | **Later** | Still local / FileResponse pattern |
 
 ---
 
-## 3. Batch catalog ingest (Feature 16)
+## 3. Batch catalog ingest (Feature 16) — Done in marketplace repo
 
-Contract: [batch-ingest-contract.md](batch-ingest-contract.md)
+| Phase | Work | Status | Evidence |
+|-------|------|--------|----------|
+| 3 | Product SKU / `Model_ID` | **Done** | `Product.sku`, `import_batch_id` |
+| 4 | Frozen contracts + fixtures | **Done** | `docs/batch-ingest-contract.md`, fixtures |
+| 5 | Bridge uploader | **Done** (local); **.exe polish separate** | catalog-bridge repo |
+| 6 | Catalog Import API | **Done** | `backend/products/catalog_import.py` + tests |
+| 7 | Admin QA queue UI | **Done** | `/admin/products?status=pending_review` |
+| 8 | Approve / reject → publish | **Done** | Admin product detail QA actions |
+| 9 | API E2E import → pay → download | **Done** | `test_catalog_commerce_e2e.py` |
+| 10 | Hardening (retries, migration) | **Done** | storages retries + migrate command |
 
-| Phase | Work | Status | Repo |
-|-------|------|--------|------|
-| 3 | Product SKU / `Model_ID` identity | **Done** | marketplace |
-| 4 | Freeze Batch Output Report + intake contracts | **Done** | marketplace |
-| 5 | Bridge uploader (Excel + folders → R2 split) | **Done** (local R2 ingest; desktop .exe polish separate) | catalog-bridge |
-| 6 | Catalog Import API (`pending_review` upsert by SKU) | **Done** | marketplace |
-| 7 | Admin import review UI (batch filter, QA queue) | **Done** | marketplace |
-| 8 | QA approve / reject → publish workflow | **Done** (backend API + Phase 7 UI) | marketplace |
-| 9 | E2E: import → admin QA → publish → Stripe → signed download | Planned | both |
-| 10 | Hardening (retries, large packages, media migration) | Planned | both |
-
-**Hard rules (non-negotiable):**
-
-1. `Model_ID` = `Product.sku` — only join key
-2. Bridge/import **never** sets `status=published`
-3. Paid packages **never** in public R2
-4. Admin QA on website is the final publish gate
-
-**Blockers / inputs:**
-
-- Live Phase 1 intake Excel sign-off for proposed columns (Thumbnail Path, Gallery, Tags)
-- R2 credentials (Feature 14) before bridge E2E
+**Still open outside marketplace app code:** live intake Excel sign-off; desktop bridge `.exe` polish; browser E2E (not just API).
 
 ---
 
 ## 4. Commerce & documents
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Invoice generation** (Sprint 6) | Deferred | `invoice_number` exists; formal PDF invoices — partial receipt email shipped |
-| **PayPal / Razorpay** (Feature 15 remainder) | Out of scope unless revived | Stripe is primary gateway |
+| Feature | Status | Evidence |
+|---------|--------|----------|
+| **Invoice PDF** | **Done** | `orders/invoice.py`, customer/admin `/invoice/` routes, receipt email attach, UI download buttons |
+| **Stripe cart + quotation pay** | **Done** | `payments/`, Feature 15G tests |
+| **PayPal / Razorpay** | Out of scope | Unless revived |
 
 ---
 
-## 5. UI / UX polish (Feature 12)
+## 5. UI / UX polish (Feature 12) — remaining
 
-| Item | Status | Description |
-|------|--------|-------------|
-| Public site & navigation polish | Partial | About, Contact, Custom Projects landing, footer, global search — shipped |
+| Item | Status | Notes |
+|------|--------|-------|
+| About / Contact / Custom Projects / footer nav | **Done** | Public routes exist |
+| Plugin buy / cart / wishlist CTAs | **Done** | `PluginCtaGroup` uses Buy now + AddToCart (not “coming soon”) |
 | UI redesign from manager prototype | **Blocked** | Waiting on manager approval |
-| 3D viewer fullscreen mode (Sprint 4) | Deferred polish | Optional |
-| Admin `import_batch_id` filter in products UI | **Done** (Phase 7) | `/admin/products?import_batch_id=` + status filter |
+| 3D viewer fullscreen | **Not done** | No `requestFullscreen` in viewer |
+| Legal pages (Privacy, Terms, Licensing) | **Not done** | Footer links go to `/contact` |
+| Newsletter subscribe | **Not done** | Footer form navigates to `/contact` only |
+| Dedicated Search page / typeahead / tags | **Later** | Meilisearch live; no `ProductTag` model |
+| Customer Settings page | **Not done** | Profile only; no `/settings` route |
+| Orphan `HomePage` | Cleanup | Home route uses `ProductsBrowsePage` |
 
 ---
 
@@ -135,10 +101,9 @@ Contract: [batch-ingest-contract.md](batch-ingest-contract.md)
 
 | Item | Status | Notes |
 |------|--------|-------|
-| **Meilisearch** | **Done** (public catalog) | `backend/search` indexes published products/plugins; `GET /api/products/?search=` and `/api/plugins/?search=` hydrate from Postgres. `MEILI_URL` optional; Postgres `icontains` fallback when unset or down. `python manage.py reindex_search` |
-| Current search UX | **Done** | Navbar + `/3d-models?search=` / `/plugins?search=` (unchanged) |
-
-Later (not this slice): dedicated Search page, typeahead, product tags, requiring Meili when `DEBUG=False`, Celery indexing.
+| **Meilisearch** | **Done** | `backend/search`; Postgres fallback; `docker compose up meilisearch` |
+| Navbar + browse `?search=` | **Done** | |
+| Later extras | Planned | Dedicated Search page, typeahead, tags, require Meili when `DEBUG=False`, Celery indexing |
 
 ---
 
@@ -146,39 +111,32 @@ Later (not this slice): dedicated Search page, typeahead, product tags, requirin
 
 | Item | Status |
 |------|--------|
-| API testing (formal suite / coverage goals) | Planned |
-| UI testing (E2E beyond unit tests) | Planned |
-| Security testing | Planned |
-| Performance optimization | Planned |
-| Production testing | Planned |
-| Security review (final checklist) | Open |
-
-**Existing today:** extensive Vitest/pytest unit tests per module; not a full formal QA sprint.
+| Unit / API tests | **Extensive** (~35 backend `test_*.py`, ~85 frontend Vitest files) |
+| Formal API testing sign-off | **Open** |
+| Browser E2E (Playwright/Cypress suite) | **Not done** (no project E2E suite; API E2E only) |
+| Security testing | **Open** |
+| Performance optimization | **Open** |
+| Production testing | **Open** |
 
 ---
 
-## 8. Technical debt to clear before production
+## 8. Technical debt before production
 
-From [PROJECT_STATUS.md](../PROJECT_STATUS.md) — addressed by planned features above:
-
-| Debt | Resolved by |
-|------|-------------|
-| Local `MEDIA_ROOT` for catalog media | Feature 14 (new uploads when R2 env set; legacy files remain local) |
-| `FileResponse` downloads from disk | Feature 14B (R2 objects); local leftover files still stream |
-| No batch import path (admin one-by-one only) | Feature 16 Phases 5–7 **Done** (local R2 ingest + import API + QA UI) |
-| Docker Compose not production-ready | Feature 13 |
-| Admin audit logging | Not yet scoped — consider pre-launch |
-| Custom-project / message / delivery files on local disk | Feature 14B pattern (later phase) |
+| Debt | Status |
+|------|--------|
+| Docker Compose not production-ready | **Open** — Feature 13 |
+| Legacy catalog media still on local disk | **Partial** — migrate command exists |
+| Custom-project files on local disk | **Later** |
+| Admin audit as DB Activity Logs UI | **Not done** — `log_admin_action` → logger only |
+| Celery async jobs | **Not installed** (Redis used for cache/rate limits when set) |
 
 ---
 
-## 9. Final release checklist (unchecked)
+## 9. Final release checklist
 
-From PROJECT_STATUS final gates:
-
-- [ ] Backend stable
-- [ ] Frontend stable
-- [ ] Database stable
+- [ ] Backend stable (production sign-off)
+- [ ] Frontend stable (production sign-off)
+- [ ] Database stable (production sign-off)
 - [ ] Payments tested (formal sign-off)
 - [ ] Security reviewed
 - [ ] Docker ready
@@ -186,24 +144,24 @@ From PROJECT_STATUS final gates:
 - [ ] Security testing complete
 - [ ] Performance optimization complete
 - [ ] Production deployment complete
-- [ ] **Cloudflare R2 + batch ingest complete** (Features 14, 14B, 16)
 
 **Already complete (major modules):**
 
 - [x] Marketplace (browse, details, 3D viewer, cart, checkout)
-- [x] Plugin store
+- [x] Plugin store (incl. cart/buy CTAs)
 - [x] Custom project portal (incl. quotation Stripe pay — Feature 15G)
 - [x] Customer dashboard
-- [x] Admin dashboard (orders, payments, analytics, moderation)
+- [x] Admin dashboard (orders, payments, analytics, moderation, QA queue)
 - [x] Stripe payments + webhooks
-- [x] Secure downloads (local stream fallback; R2 signed URLs = Feature 14B)
+- [x] Secure downloads (R2 signed URLs + local fallback)
+- [x] Invoice PDF + receipt email
 - [x] Reviews, wishlist, notifications, coupons
+- [x] Cloudflare R2 + batch ingest (Features 14 / 14B / 16 in marketplace repo)
+- [x] Meilisearch public catalog search
 
 ---
 
 ## 10. Future phases (out of Phase 1 scope)
-
-From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md) — **not required to finish current release:**
 
 ### Phase 2
 
@@ -232,9 +190,7 @@ The desktop Windows `.exe` for company batch upload is **not** in this repo.
 | Responsibility | Repo |
 |----------------|------|
 | Import API, R2 config, admin QA, public website | `3d-asset-marketplace` |
-| Excel + models folder picker, batch QA UI, R2 upload, call Import API | `catalog-bridge` (new) |
-
-Architecture plan: Cursor plan `catalog_bridge_exe` (copy to `docs/catalog-bridge-architecture.md` when ready).
+| Excel + models folder picker, batch QA UI, R2 upload, call Import API | `catalog-bridge` (separate) |
 
 ---
 
@@ -242,14 +198,13 @@ Architecture plan: Cursor plan `catalog_bridge_exe` (copy to `docs/catalog-bridg
 
 | Priority | Feature | Effort (rough) |
 |----------|---------|----------------|
-| High | Feature 16 Phases 9–10 — E2E + hardening | Medium |
-| High | Feature 13 — Docker + deployment | Medium |
+| **High** | Feature 13 — Docker + Gunicorn + Nginx | Medium |
+| **High** | Sprint 11 — Security, performance, deploy, formal QA | Medium–Large |
 | Medium | catalog-bridge desktop .exe polish | Large (separate repo) |
-| Medium | Sprint 11 — Security & performance QA | Medium |
-| Low | Feature 12 — Remaining UI polish | Small–medium |
-| Low | Invoice PDF polish | Small |
-| Low | 3D viewer fullscreen | Small |
-| Later | Search extras (typeahead, Search page, tags) | Medium |
+| Medium | Feature 12 — Legal pages, newsletter, viewer fullscreen | Small–medium |
+| Low | Search extras (typeahead, Search page, tags) | Medium |
+| Low | Celery / DB activity-log UI / Settings page | Medium |
+| Blocked | Manager UI redesign | Waiting approval |
 | Later | Phase 2 / Phase 3 roadmap | Future |
 
 ---

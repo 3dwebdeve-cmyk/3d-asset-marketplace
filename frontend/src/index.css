@@ -42,7 +42,7 @@
 
   /* Exact client banner art — show full image, no crop */
   --site-hero-image: url('/images/site-hero-banner.jpg');
-  --site-hero-aspect: 4096 / 984;
+  --site-hero-aspect: 4224 / 992;
   --site-hero-overlay: linear-gradient(
     105deg,
     rgba(8, 14, 28, 0.45) 0%,
@@ -50,11 +50,14 @@
     rgba(8, 14, 28, 0) 100%
   );
 
-  /* Full-bleed layout: stretch content; keep ~1in side margins */
-  --site-gutter: clamp(0.75rem, 4vw, 1in);
+  /* Full-bleed layout; fluid gutters for ~6" phones through ~22" desktops */
+  --site-gutter: clamp(0.75rem, 3.2vw, 1.25rem);
   --site-max-width: none;
 
-  font: 19px/145% var(--sans);
+  /* ~15px on 360px phones → ~19px on large desktops */
+  font-size: clamp(15px, 0.28vw + 14.1px, 19px);
+  line-height: 145%;
+  font-family: var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light;
   color: var(--text-body);
@@ -64,8 +67,12 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  @media (max-width: 1024px) {
-    font-size: 17px;
+  @media (max-width: 480px) {
+    --site-gutter: 0.75rem;
+  }
+
+  @media (min-width: 1600px) {
+    --site-gutter: clamp(1rem, 2.2vw, 1.5rem);
   }
 }
 
@@ -73,6 +80,18 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+img,
+video,
+iframe {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
 }
 
 #root:has(.admin-layout) {
@@ -102,6 +121,7 @@
   height: auto;
   min-height: 0;
   max-height: none;
+  /* Intrinsic image ratio — full banner, no crop/stretch */
   aspect-ratio: var(--site-hero-aspect);
   overflow: hidden;
   background-color: #050814;
@@ -112,7 +132,7 @@
   grid-area: 1 / 1;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: contain;
   object-position: center center;
   display: block;
 }
@@ -343,6 +363,24 @@ button.home-page__cta--secondary {
 
   .admin-filters {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-page {
+    padding: 1.25rem var(--site-gutter) 2rem;
+  }
+
+  .dashboard-card {
+    padding: 1rem;
+    border-radius: 12px;
+  }
+
+  .admin-table {
+    font-size: 0.875rem;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 0.55rem 0.4rem;
   }
 }
 

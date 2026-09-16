@@ -144,77 +144,61 @@
   display: grid;
   grid-template: 1fr / 1fr;
   width: 100%;
-  min-height: clamp(17.5rem, 27.35vw, 32rem);
+  /* Height comes from .site-hero-banner aspect-ratio — no crop/stretch */
+  min-height: 0;
   overflow: hidden;
-  background-color: #06101f;
-  background-image: url('/images/custom-projects-hero.jpg');
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  color: #fff;
+  background-color: #f3f4f6;
+  background-image: none;
+  color: #111827;
 }
 
-.custom-projects-hero__overlay,
 .custom-projects-hero__content {
   grid-area: 1 / 1;
-}
-
-.custom-projects-hero__overlay {
-  z-index: 1;
-  pointer-events: none;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(3, 10, 22, 0.96) 0%,
-      rgba(3, 10, 22, 0.78) 43%,
-      rgba(3, 10, 22, 0.08) 74%
-    ),
-    linear-gradient(0deg, rgba(3, 10, 22, 0.18), rgba(3, 10, 22, 0.18));
-}
-
-.custom-projects-hero__content {
   z-index: 2;
   align-self: center;
   width: 100%;
-  max-width: 52rem;
-  padding: 1.5rem clamp(5rem, 11.25vw, 15rem);
+  max-width: none;
+  padding: clamp(1.75rem, 3vw, 2.75rem) var(--site-gutter);
   box-sizing: border-box;
+  text-align: left;
 }
 
 .custom-projects-hero__breadcrumb {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.55rem;
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.66);
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
+  color: rgba(17, 24, 39, 0.72);
 }
 
 .custom-projects-hero__breadcrumb a {
-  color: rgba(255, 255, 255, 0.82);
+  color: inherit;
   text-decoration: none;
 }
 
 .custom-projects-hero__breadcrumb a:hover {
+  color: #111827;
   text-decoration: underline;
 }
 
 .custom-projects-hero h1 {
-  max-width: 31rem;
-  margin: 0 0 0.65rem;
-  font-size: clamp(1.75rem, 3vw, 3rem);
-  line-height: 1.1;
-  letter-spacing: -0.035em;
+  max-width: min(100%, 22ch);
+  margin: 0 0 0.85rem;
+  font-size: clamp(1.7rem, 3.2vw, 2.85rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   font-weight: 700;
-  color: #fff;
+  color: #111827;
 }
 
 .custom-projects-hero__lead {
-  max-width: 36rem;
+  max-width: min(100%, 42rem);
   margin: 0;
-  font-size: 0.9rem;
+  font-size: clamp(0.92rem, 1.4vw, 1.02rem);
+  font-weight: 400;
   line-height: 1.55;
-  color: rgba(255, 255, 255, 0.88);
+  color: rgba(17, 24, 39, 0.82);
 }
 
 .custom-projects-hero__actions {
@@ -236,14 +220,14 @@
 
 .custom-projects-hero__actions .home-page__cta--secondary,
 .custom-projects-hero__actions button.home-page__cta--secondary {
-  border-color: rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  border-color: rgba(17, 24, 39, 0.18);
+  background: rgba(17, 24, 39, 0.04);
+  color: #111827;
 }
 
 .custom-projects-hero__actions .home-page__cta--secondary:hover {
-  border-color: rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(17, 24, 39, 0.32);
+  background: rgba(17, 24, 39, 0.08);
 }
 
 .custom-projects-process {
@@ -624,32 +608,16 @@
   display: grid;
   grid-template: 1fr / 1fr;
   width: 100%;
-  min-height: clamp(15rem, 24vw, 22rem);
+  /* Height comes from .site-hero-banner aspect-ratio — no crop/stretch */
+  min-height: 0;
   overflow: hidden;
   background-color: #06101f;
-  background-image: url('/images/custom-projects-hero.jpg');
-  background-position: center 35%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  color: #fff;
+  background-image: none;
+  color: #111827;
 }
 
-.enquiry-hero__overlay,
 .enquiry-hero__content {
   grid-area: 1 / 1;
-}
-
-.enquiry-hero__overlay {
-  z-index: 1;
-  pointer-events: none;
-  background:
-    linear-gradient(
-      90deg,
-      rgba(3, 10, 22, 0.94) 0%,
-      rgba(3, 10, 22, 0.72) 48%,
-      rgba(3, 10, 22, 0.28) 100%
-    ),
-    linear-gradient(0deg, rgba(3, 10, 22, 0.2), rgba(3, 10, 22, 0.2));
 }
 
 .enquiry-hero__content {
@@ -668,7 +636,7 @@
   align-items: center;
   margin-bottom: 1rem;
   font-size: 0.82rem;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(17, 24, 39, 0.72);
 }
 
 .enquiry-hero__breadcrumb a {
@@ -677,7 +645,7 @@
 }
 
 .enquiry-hero__breadcrumb a:hover {
-  color: #fff;
+  color: #111827;
   text-decoration: underline;
 }
 
@@ -688,11 +656,11 @@
   line-height: 1.15;
   letter-spacing: -0.03em;
   font-weight: 700;
-  color: #fff;
+  color: #111827;
 }
 
 .enquiry-hero h1 span {
-  color: color-mix(in srgb, var(--action-color) 55%, #7dd3fc);
+  color: #111827;
 }
 
 .enquiry-hero__lead {
@@ -700,7 +668,7 @@
   max-width: min(100%, 42rem);
   font-size: clamp(0.92rem, 1.4vw, 1.02rem);
   line-height: 1.55;
-  color: rgba(255, 255, 255, 0.82);
+  color: rgba(17, 24, 39, 0.82);
 }
 
 .enquiry-page__inner {
@@ -1537,16 +1505,7 @@
   }
 
   .enquiry-hero {
-    min-height: 16.5rem;
-  }
-
-  .enquiry-hero__overlay {
-    background: linear-gradient(
-      90deg,
-      rgba(3, 10, 22, 0.94) 0%,
-      rgba(3, 10, 22, 0.82) 62%,
-      rgba(3, 10, 22, 0.45) 100%
-    );
+    min-height: 0;
   }
 
   .enquiry-hero__content,
@@ -1826,6 +1785,32 @@
   }
 }
 
+@media (max-width: 420px) {
+  .site-footer {
+    padding: 1.75rem var(--site-gutter) 1.25rem;
+  }
+
+  .site-footer__inner {
+    gap: 1.5rem;
+  }
+
+  .site-footer__subscribe {
+    border-radius: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .site-footer__subscribe-btn {
+    flex: 1 1 100%;
+    border-radius: 0;
+  }
+
+  .site-footer__bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}
+
 @media (max-width: 640px) {
   .marketing-page {
     padding: 1.75rem 1rem 2.5rem;
@@ -1841,22 +1826,12 @@
   }
 
   .custom-projects-hero {
-    min-height: 26rem;
-    background-position: 66% center;
-  }
-
-  .custom-projects-hero__overlay {
-    background: linear-gradient(
-      90deg,
-      rgba(3, 10, 22, 0.96) 0%,
-      rgba(3, 10, 22, 0.84) 58%,
-      rgba(3, 10, 22, 0.38) 100%
-    );
+    min-height: 0;
   }
 
   .custom-projects-hero__content {
-    max-width: 31rem;
-    padding-block: 2rem;
+    max-width: none;
+    padding-block: 1.5rem;
     padding-inline: var(--site-gutter);
   }
 

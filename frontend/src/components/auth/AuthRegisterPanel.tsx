@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { AuthIconField } from './AuthIconField'
 import { AuthModeTabs } from './AuthModeTabs'
@@ -18,6 +18,15 @@ interface AuthRegisterPanelProps {
   onSwitchToLogin?: () => void
 }
 
+function passwordSecurityScore(password: string): number {
+  let score = 0
+  if (password.length >= 8) score += 1
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 1
+  if (/\d/.test(password)) score += 1
+  if (/[^A-Za-z0-9]/.test(password)) score += 1
+  return score
+}
+
 export function AuthRegisterPanel({
   titleId = 'auth-register-title',
   onSwitchToLogin,
@@ -26,9 +35,12 @@ export function AuthRegisterPanel({
   const closeAuthModal = useAuthUiStore((state) => state.close)
   const returnTo = useAuthUiStore((state) => state.returnTo)
   const setMode = useAuthUiStore((state) => state.setMode)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [termsError, setTermsError] = useState<string | null>(null)
   const {
     register,
     handleSubmit,
+    watch,
     errors,
     isSubmitting,
     serverError,
@@ -41,6 +53,12 @@ export function AuthRegisterPanel({
     isSuccess: isGoogleSuccess,
     signInWithGoogle,
   } = useGoogleLogin()
+
+  const passwordValue = watch('password') ?? ''
+  const securityScore = useMemo(
+    () => passwordSecurityScore(passwordValue),
+    [passwordValue],
+  )
 
   useEffect(() => {
     if (!isGoogleSuccess) {
@@ -109,9 +127,9 @@ export function AuthRegisterPanel({
       <AuthModeTabs active="register" />
 
       <header className="auth-card__header">
-        <h1 id={titleId}>Create an account</h1>
+        <h1 id={titleId}>Create Studio Account</h1>
         <p className="auth-card__subtitle">
-          Join 3D Asset Marketplace to publish, purchase, and manage 3D assets.
+          Join technical artists, environment modelers, and VFX leads.
         </p>
       </header>
 
@@ -120,26 +138,32 @@ export function AuthRegisterPanel({
       <GoogleSignInButton
         onCredential={signInWithGoogle}
         disabled={isSubmitting || isGoogleSubmitting}
-        text="signup_with"
+        text="continue_with"
       />
 
-      <div className="auth-divider" role="separator" aria-label="or">
-        <span>or</span>
+      <div className="auth-divider" role="separator" aria-label="or use email credential">
+        <span>Or use email credential</span>
       </div>
 
       <form
         className="auth-form"
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit((values) => {
+          if (!acceptedTerms) {
+            setTermsError('Please accept the terms to continue.')
+            return
+          }
+          setTermsError(null)
+          onSubmit(values)
+        })}
         noValidate
         aria-labelledby={titleId}
       >
         <AuthIconField
           id="auth-full_name"
           label="Full Name"
-          icon="user"
           type="text"
           autoComplete="name"
-          placeholder="John Doe"
+          placeholder="e.g., John Doe"
           hasError={Boolean(errors.full_name)}
           error={errors.full_name?.message}
           aria-invalid={Boolean(errors.full_name)}
@@ -149,11 +173,10 @@ export function AuthRegisterPanel({
 
         <AuthIconField
           id="auth-register-email"
-          label="Email Address"
-          icon="mail"
+          label="Email ID"
           type="email"
           autoComplete="email"
-          placeholder="name@company.com"
+          placeholder="artist@studio.com"
           hasError={Boolean(errors.email)}
           error={errors.email?.message}
           aria-invalid={Boolean(errors.email)}
@@ -163,11 +186,10 @@ export function AuthRegisterPanel({
 
         <AuthIconField
           id="auth-phone"
-          label="Phone (optional)"
-          icon="phone"
+          label="Phone Number"
           type="tel"
           autoComplete="tel"
-          placeholder="+91 98765 43210"
+          placeholder="+1 (555) 000-0000"
           hasError={Boolean(errors.phone)}
           error={errors.phone?.message}
           aria-invalid={Boolean(errors.phone)}
@@ -178,7 +200,6 @@ export function AuthRegisterPanel({
         <AuthIconField
           id="auth-country"
           label="Country (optional)"
-          icon="globe"
           type="text"
           autoComplete="country-name"
           placeholder="India"
@@ -192,20 +213,41 @@ export function AuthRegisterPanel({
         <AuthIconField
           id="auth-register-password"
           label="Password"
-          icon="lock"
           revealable
           autoComplete="new-password"
           hasError={Boolean(errors.password)}
           error={errors.password?.message}
           aria-invalid={Boolean(errors.password)}
-          aria-describedby={errors.password ? 'auth-register-password-error' : undefined}
+          aria-describedby={
+            errors.password ? 'auth-register-password-error' : 'auth-password-score'
+          }
           {...register('password')}
         />
+
+        <div
+          className="auth-password-score"
+          id="auth-password-score"
+          aria-live="polite"
+        >
+          <div className="auth-password-score__bars" aria-hidden="true">
+            {[0, 1, 2, 3].map((index) => (
+              <span
+                key={index}
+                className={`auth-password-score__bar${
+                  index < securityScore ? ' auth-password-score__bar--active' : ''
+                }`}
+              />
+            ))}
+          </div>
+          <div className="auth-password-score__meta">
+            <span>Security Score</span>
+            <span>At least 8 characters</span>
+          </div>
+        </div>
 
         <AuthIconField
           id="auth-password_confirm"
           label="Confirm Password"
-          icon="lock"
           revealable
           autoComplete="new-password"
           hasError={Boolean(errors.password_confirm)}
@@ -217,26 +259,46 @@ export function AuthRegisterPanel({
           {...register('password_confirm')}
         />
 
+        <label className="auth-check" htmlFor="auth-terms">
+          <input
+            id="auth-terms"
+            type="checkbox"
+            className="auth-check__input"
+            checked={acceptedTerms}
+            onChange={(event) => {
+              setAcceptedTerms(event.target.checked)
+              if (event.target.checked) {
+                setTermsError(null)
+              }
+            }}
+          />
+          <span className="auth-check__label">
+            I agree to 3D Hub&apos;s{' '}
+            <Link className="auth-link" to="/about" onClick={closeAuthModal}>
+              Terms of Service
+            </Link>
+            , Royalty-Free Agreement, and{' '}
+            <Link className="auth-link" to="/about" onClick={closeAuthModal}>
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
+        {termsError ? (
+          <p className="form-field__error" role="alert">
+            {termsError}
+          </p>
+        ) : null}
+
         <Button
           type="submit"
           className="auth-submit"
           isLoading={isSubmitting || isGoogleSubmitting}
         >
-          Create Account
+          Create free studio account
           <AuthSubmitArrow />
         </Button>
       </form>
-
-      <p className="auth-card__footer auth-card__footer--center">
-        Already have an account?{' '}
-        <button
-          type="button"
-          className="auth-link auth-link--underline auth-link--button"
-          onClick={handleSwitchToLogin}
-        >
-          Sign in here
-        </button>
-      </p>
     </>
   )
 }

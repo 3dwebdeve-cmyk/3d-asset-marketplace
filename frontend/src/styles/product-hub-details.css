@@ -195,6 +195,40 @@
     height: min(52vh, 420px);
     min-height: 300px;
   }
+
+  .product-hub-detail__header {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .product-hub-detail.product-detail-page {
+    padding: 1rem var(--site-gutter) 2.5rem;
+  }
+
+  .product-hub-detail__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .product-hub-detail__close {
+    align-self: flex-end;
+  }
+
+  .product-hub-detail .product-detail-stage,
+  .product-hub-detail .product-detail-stage__main,
+  .product-hub-detail .product-detail-stage__empty,
+  .product-hub-detail .product-detail-stage__viewer,
+  .product-hub-detail .product-detail-stage__video-wrap {
+    min-height: 240px;
+  }
+
+  .product-hub-detail .product-detail-stage__image,
+  .product-hub-detail .product-detail-stage__viewer .model-viewer {
+    height: min(46vh, 320px);
+    min-height: 220px;
+  }
 }
 
 .product-hub-detail .product-detail-stage__counter {

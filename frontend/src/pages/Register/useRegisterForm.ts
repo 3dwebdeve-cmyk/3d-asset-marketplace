@@ -14,6 +14,7 @@ import {
 interface UseRegisterFormResult {
   register: ReturnType<typeof useForm<RegisterFormValues>>['register']
   handleSubmit: ReturnType<typeof useForm<RegisterFormValues>>['handleSubmit']
+  watch: ReturnType<typeof useForm<RegisterFormValues>>['watch']
   errors: ReturnType<typeof useForm<RegisterFormValues>>['formState']['errors']
   isSubmitting: boolean
   serverError: string | null
@@ -25,6 +26,7 @@ export function useRegisterForm(): UseRegisterFormResult {
   const {
     register,
     handleSubmit,
+    watch,
     setError,
     formState: { errors },
   } = useForm<RegisterFormValues>({
@@ -83,6 +85,7 @@ export function useRegisterForm(): UseRegisterFormResult {
   return {
     register,
     handleSubmit,
+    watch,
     errors,
     isSubmitting: mutation.isPending,
     serverError: mutation.isError

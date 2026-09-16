@@ -43,6 +43,15 @@ describe('HomePage', () => {
     expect(screen.getByRole('heading', { name: /create an account/i })).toBeInTheDocument()
   })
 
+  it('links Browse Marketplace to the home hub', () => {
+    renderHomePage()
+
+    expect(screen.getByRole('link', { name: /browse marketplace/i })).toHaveAttribute(
+      'href',
+      '/home',
+    )
+  })
+
   it('shows the dashboard link when signed in', () => {
     useAuthStore.setState({
       accessToken: 'access-token',

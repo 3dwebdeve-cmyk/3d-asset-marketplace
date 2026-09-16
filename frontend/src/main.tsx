@@ -6,7 +6,17 @@ import './styles/toast.css'
 import App from './App.tsx'
 import { Toaster } from './components/ui/Toaster'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Catalog and dashboard reads change infrequently; avoid refetch storms on focus/remount.
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

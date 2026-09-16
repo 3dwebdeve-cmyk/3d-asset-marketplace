@@ -287,4 +287,18 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .cart-drawer__panel {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .cart-line-item {
+    grid-template-columns: 1fr;
+  }
+
+  .cart-line-item__media {
+    max-width: 7.5rem;
+  }
 }

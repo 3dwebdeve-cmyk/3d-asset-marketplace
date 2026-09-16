@@ -78,11 +78,11 @@ describe('LoginPage redirect', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
 
-    await user.type(screen.getByLabelText(/email address/i), testUser.email)
+    await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
     await user.click(
       within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
-        name: /sign in/i,
+        name: /sign in to 3d hub/i,
       }),
     )
 
@@ -122,13 +122,13 @@ describe('LoginPage redirect', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
     })
-    expect(screen.getByLabelText(/remember me/i)).toBeChecked()
+    expect(screen.getByLabelText(/remember this device/i)).toBeChecked()
 
-    await user.type(screen.getByLabelText(/email address/i), testUser.email)
+    await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
     await user.click(
       within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
-        name: /sign in/i,
+        name: /sign in to 3d hub/i,
       }),
     )
 
@@ -151,12 +151,12 @@ describe('LoginPage redirect', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
 
-    await user.type(screen.getByLabelText(/email address/i), testUser.email)
+    await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-    await user.click(screen.getByLabelText(/remember me/i))
+    await user.click(screen.getByLabelText(/remember this device/i))
     await user.click(
       within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
-        name: /sign in/i,
+        name: /sign in to 3d hub/i,
       }),
     )
 

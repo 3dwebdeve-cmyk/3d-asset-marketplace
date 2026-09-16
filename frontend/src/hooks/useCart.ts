@@ -31,18 +31,8 @@ export function useCart() {
     enabled: isSignedIn,
   })
 
-  const countQuery = useQuery({
-    queryKey: ['cart', 'count'],
-    queryFn: getCart,
-    enabled: isSignedIn,
-    select: (data) => data.total_quantity,
-  })
-
   const invalidateCart = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['cart'] }),
-      queryClient.invalidateQueries({ queryKey: ['cart', 'count'] }),
-    ])
+    await queryClient.invalidateQueries({ queryKey: ['cart'] })
   }, [queryClient])
 
   const addMutation = useMutation({
@@ -93,7 +83,6 @@ export function useCart() {
     mutationFn: (code: string) => applyCartCoupon({ code }),
     onSuccess: async (cart) => {
       queryClient.setQueryData(['cart'], cart)
-      await queryClient.invalidateQueries({ queryKey: ['cart', 'count'] })
       toast.success('Coupon applied.')
     },
     onError: (error) => {
@@ -105,7 +94,6 @@ export function useCart() {
     mutationFn: removeCartCoupon,
     onSuccess: async (cart) => {
       queryClient.setQueryData(['cart'], cart)
-      await queryClient.invalidateQueries({ queryKey: ['cart', 'count'] })
       toast.success('Coupon removed.')
     },
     onError: (error) => {
@@ -191,7 +179,7 @@ export function useCart() {
 
   return {
     cart: cartQuery.data,
-    count: countQuery.data ?? 0,
+    count: cartQuery.data?.total_quantity ?? 0,
     isInCart,
     add,
     updateQuantity,
@@ -199,7 +187,7 @@ export function useCart() {
     clear,
     applyCoupon,
     removeCoupon,
-    isLoading: cartQuery.isLoading || countQuery.isLoading,
+    isLoading: cartQuery.isLoading,
     isPending,
     isSignedIn,
     isError: cartQuery.isError,

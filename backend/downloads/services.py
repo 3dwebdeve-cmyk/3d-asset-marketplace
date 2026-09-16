@@ -230,41 +230,63 @@ class DownloadService:
         product_type: str,
         product_id: UUID,
     ) -> list[CatalogFileRef]:
-        if product_type == PRODUCT_TYPE_PRODUCT:
-            rows = ProductFile.objects.filter(product_id=product_id, is_preview=False).order_by(
-                "-created_at"
-            )
-            return [
-                CatalogFileRef(
-                    product_type=product_type,
-                    product_id=product_id,
-                    file_id=row.id,
-                    file_name=row.file_name,
-                    file_format=row.file_format,
-                    file_size=row.file_size,
-                    version=row.version,
-                    storage_path=row.storage_path,
-                )
-                for row in rows
-            ]
-        if product_type == PRODUCT_TYPE_PLUGIN:
-            rows = PluginFile.objects.filter(plugin_id=product_id).order_by(
-                "-is_primary", "-created_at"
-            )
-            return [
-                CatalogFileRef(
-                    product_type=product_type,
-                    product_id=product_id,
-                    file_id=row.id,
-                    file_name=row.file_name,
-                    file_format=row.file_format,
-                    file_size=row.file_size,
-                    version=row.version,
-                    storage_path=row.storage_path,
-                )
-                for row in rows
-            ]
-        return []
+        return cls.list_downloadable_files_for_items(
+            [(product_type, product_id)]
+        ).get((product_type, product_id), [])
+
+    @classmethod
+    def list_downloadable_files_for_items(
+        cls,
+        keys: list[tuple[str, UUID]],
+    ) -> dict[tuple[str, UUID], list[CatalogFileRef]]:
+        """Batch-load downloadable files for many order lines (avoids N+1)."""
+        result: dict[tuple[str, UUID], list[CatalogFileRef]] = {
+            key: [] for key in keys
+        }
+        product_ids = [product_id for ptype, product_id in keys if ptype == PRODUCT_TYPE_PRODUCT]
+        plugin_ids = [product_id for ptype, product_id in keys if ptype == PRODUCT_TYPE_PLUGIN]
+
+        if product_ids:
+            for row in ProductFile.objects.filter(
+                product_id__in=product_ids,
+                is_preview=False,
+            ).order_by("-created_at"):
+                key = (PRODUCT_TYPE_PRODUCT, row.product_id)
+                if key in result:
+                    result[key].append(
+                        CatalogFileRef(
+                            product_type=PRODUCT_TYPE_PRODUCT,
+                            product_id=row.product_id,
+                            file_id=row.id,
+                            file_name=row.file_name,
+                            file_format=row.file_format,
+                            file_size=row.file_size,
+                            version=row.version,
+                            storage_path=row.storage_path,
+                        )
+                    )
+
+        if plugin_ids:
+            for row in PluginFile.objects.filter(plugin_id__in=plugin_ids).order_by(
+                "-is_primary",
+                "-created_at",
+            ):
+                key = (PRODUCT_TYPE_PLUGIN, row.plugin_id)
+                if key in result:
+                    result[key].append(
+                        CatalogFileRef(
+                            product_type=PRODUCT_TYPE_PLUGIN,
+                            product_id=row.plugin_id,
+                            file_id=row.id,
+                            file_name=row.file_name,
+                            file_format=row.file_format,
+                            file_size=row.file_size,
+                            version=row.version,
+                            storage_path=row.storage_path,
+                        )
+                    )
+
+        return result
 
     @classmethod
     def _serialize_file_metadata(
@@ -287,11 +309,14 @@ class DownloadService:
 
     @classmethod
     def _latest_downloads_by_file(cls, user: User) -> dict[UUID, Any]:
-        seen: dict[UUID, Any] = {}
-        for row in DownloadHistory.objects.filter(user=user).order_by("-downloaded_at"):
-            if row.file_id not in seen:
-                seen[row.file_id] = row.downloaded_at
-        return seen
+        from django.db.models import Max
+
+        rows = (
+            DownloadHistory.objects.filter(user=user)
+            .values("file_id")
+            .annotate(last_downloaded_at=Max("downloaded_at"))
+        )
+        return {row["file_id"]: row["last_downloaded_at"] for row in rows}
 
     @classmethod
     def _find_matching_order(

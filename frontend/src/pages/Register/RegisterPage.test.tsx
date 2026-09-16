@@ -61,12 +61,13 @@ describe('RegisterPage', () => {
     })
 
     await user.type(screen.getByLabelText(/full name/i), 'Ada Lovelace')
-    await user.type(screen.getByLabelText(/email address/i), 'Ada@Example.com')
-    await user.type(screen.getByLabelText(/phone \(optional\)/i), '+91 98765 43210')
+    await user.type(screen.getByLabelText(/email id/i), 'Ada@Example.com')
+    await user.type(screen.getByLabelText(/phone number/i), '+91 98765 43210')
     await user.type(screen.getByLabelText(/country \(optional\)/i), 'India')
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
     await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
+    await user.click(screen.getByLabelText(/i agree to 3d hub/i))
+    await user.click(screen.getByRole('button', { name: /create free studio account/i }))
 
     await waitFor(() => {
       expect(authApi.registerUser).toHaveBeenCalled()
