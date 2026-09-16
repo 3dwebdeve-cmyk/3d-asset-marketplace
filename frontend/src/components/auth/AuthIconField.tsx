@@ -1,6 +1,4 @@
-import { useState, type InputHTMLAttributes } from 'react'
-
-import { FormField } from '../ui/FormField'
+import { useState, type InputHTMLAttributes, type ReactNode } from 'react'
 
 type AuthFieldIcon = 'user' | 'mail' | 'lock' | 'phone' | 'globe'
 
@@ -8,7 +6,9 @@ interface AuthIconFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
   id: string
   label: string
   error?: string
-  icon: AuthFieldIcon
+  icon?: AuthFieldIcon
+  showIcon?: boolean
+  labelAside?: ReactNode
   hasError?: boolean
   revealable?: boolean
 }
@@ -83,7 +83,9 @@ export function AuthIconField({
   id,
   label,
   error,
-  icon,
+  icon = 'mail',
+  showIcon = false,
+  labelAside,
   revealable = false,
   type = 'text',
   hasError = false,
@@ -94,11 +96,23 @@ export function AuthIconField({
   const inputType = revealable ? (visible ? 'text' : 'password') : type
 
   return (
-    <FormField id={id} label={label} error={error}>
-      <div className={`auth-icon-field${revealable ? ' auth-icon-field--revealable' : ''}`}>
-        <span className="auth-icon-field__icon">
-          <FieldIcon name={icon} />
-        </span>
+    <div className="form-field">
+      <div className="form-field__label-row">
+        <label htmlFor={id} className="form-field__label">
+          {label}
+        </label>
+        {labelAside}
+      </div>
+      <div
+        className={`auth-icon-field${revealable ? ' auth-icon-field--revealable' : ''}${
+          showIcon ? ' auth-icon-field--with-icon' : ''
+        }`}
+      >
+        {showIcon ? (
+          <span className="auth-icon-field__icon">
+            <FieldIcon name={icon} />
+          </span>
+        ) : null}
         <input
           id={id}
           type={inputType}
@@ -130,6 +144,11 @@ export function AuthIconField({
           </button>
         ) : null}
       </div>
-    </FormField>
+      {error ? (
+        <p id={`${id}-error`} className="form-field__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
   )
 }

@@ -6,6 +6,10 @@ import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
+import {
+  CONTACT_HERO_IMAGE_SRC,
+  SiteHeroImage,
+} from '../../components/SiteHeroImage'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { ENQUIRY_TYPES } from './contactSchema'
 import { PhoneCountrySelect } from './PhoneCountrySelect'
@@ -155,16 +159,9 @@ export function ContactPage() {
 
   return (
     <main className="marketing-page enquiry-page">
-      <header className="enquiry-hero" aria-labelledby="enquiry-title">
-        <div className="enquiry-hero__overlay" />
+      <header className="enquiry-hero site-hero-banner" aria-labelledby="enquiry-title">
+        <SiteHeroImage src={CONTACT_HERO_IMAGE_SRC} width={4216} height={992} />
         <div className="enquiry-hero__content">
-          <nav className="enquiry-hero__breadcrumb" aria-label="Breadcrumb">
-            <Link to="/">Home</Link>
-            <span aria-hidden="true">›</span>
-            <span>Support</span>
-            <span aria-hidden="true">›</span>
-            <span>Enquiry</span>
-          </nav>
           <h1 id="enquiry-title">
             Enquire About 3D Models, Plugins or <span>Custom Work</span>.
           </h1>

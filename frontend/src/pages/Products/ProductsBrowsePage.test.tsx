@@ -148,13 +148,13 @@ function ModelsCatalogRoute() {
   )
 }
 
-function renderProductsBrowsePage(initialPath = '/products') {
+function renderProductsBrowsePage(initialPath = '/home') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
-          <Route path="/products" element={<ProductsBrowsePage />} />
+          <Route path="/home" element={<ProductsBrowsePage />} />
           <Route path="/3d-models" element={<ModelsCatalogRoute />} />
           <Route path="/plugins" element={<div>Plugins page</div>} />
           <Route path="/custom-projects" element={<div>Custom projects page</div>} />
@@ -290,7 +290,7 @@ describe('ProductsBrowsePage', () => {
   })
 
   it('redirects old catalog query URLs to /3d-models', async () => {
-    renderProductsBrowsePage(`/products?category=${encodeURIComponent(categoryId)}`)
+    renderProductsBrowsePage(`/home?category=${encodeURIComponent(categoryId)}`)
 
     await waitFor(() => {
       expect(screen.getByText('3D Models catalog page')).toBeInTheDocument()
@@ -298,7 +298,7 @@ describe('ProductsBrowsePage', () => {
   })
 
   it('redirects view=all catalog mode to /3d-models', async () => {
-    renderProductsBrowsePage('/products?view=all')
+    renderProductsBrowsePage('/home?view=all')
 
     await waitFor(() => {
       expect(screen.getByText('3D Models catalog page')).toBeInTheDocument()
@@ -306,7 +306,7 @@ describe('ProductsBrowsePage', () => {
   })
 
   it('redirects search catalog URLs to /3d-models', async () => {
-    renderProductsBrowsePage('/products?search=drone')
+    renderProductsBrowsePage('/home?search=drone')
 
     await waitFor(() => {
       expect(screen.getByText('3D Models catalog page')).toBeInTheDocument()

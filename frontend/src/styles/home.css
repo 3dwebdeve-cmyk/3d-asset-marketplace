@@ -46,11 +46,11 @@
   max-width: 34rem;
   margin: 0 0 clamp(1.1rem, 2.2vw, 1.55rem);
   color: #fff;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(2.05rem, 4vw, 3.15rem);
-  font-weight: 600;
-  line-height: 1.12;
-  letter-spacing: -0.035em;
+  font-family: var(--heading, 'Poppins', system-ui, sans-serif);
+  font-size: clamp(1.7rem, 3.2vw, 2.85rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.42);
 }
 
@@ -181,8 +181,8 @@
 
 @media (max-width: 700px) {
   .home-marketplace-hero {
-    min-height: 28rem;
-    padding-block: 3.2rem 4.5rem;
+    min-height: 24rem;
+    padding-block: 2.75rem 3.5rem;
     background-attachment: scroll;
     background-position: center;
     background-size: cover;
@@ -190,9 +190,48 @@
 
   .home-marketplace-hero h1 {
     max-width: 22rem;
+    font-size: clamp(1.55rem, 6.5vw, 2.15rem);
   }
 
   .home-marketplace-search {
     grid-template-columns: 2.75rem minmax(0, 1fr) 3.1rem;
+    min-height: 2.85rem;
+    width: 100%;
+  }
+
+  .home-marketplace-search__input {
+    font-size: 0.875rem;
+  }
+
+  .home-marketplace-trending {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .home-marketplace-hero {
+    min-height: 22rem;
+    padding-inline: var(--site-gutter);
+    padding-block: 2.25rem 3rem;
+  }
+
+  .home-marketplace-hero h1 {
+    font-size: clamp(1.4rem, 7vw, 1.85rem);
+    line-height: 1.15;
+  }
+
+  .home-marketplace-search {
+    grid-template-columns: 2.4rem minmax(0, 1fr) 2.85rem;
+    border-radius: 0.85rem;
+  }
+
+  .home-marketplace-search__submit {
+    border-radius: 0.65rem;
+  }
+
+  .home-marketplace-sort__btn {
+    min-height: 2rem;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.8rem;
   }
 }

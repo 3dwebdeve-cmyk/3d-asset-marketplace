@@ -845,6 +845,29 @@ button.product-detail-cta__link {
   .product-detail-stage__image {
     height: min(52vh, 380px);
   }
+
+  .product-detail-cta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .product-detail-cta__secondary {
+    flex-wrap: wrap;
+  }
+
+  .product-detail-page {
+    padding-inline: var(--site-gutter);
+  }
+}
+
+@media (max-width: 420px) {
+  .product-detail-stage {
+    min-height: 260px;
+  }
+
+  .product-detail-stage__image {
+    height: min(46vh, 300px);
+  }
 }
 
 .product-detail-reviews {

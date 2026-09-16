@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
 import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
@@ -85,7 +85,7 @@ export function PluginsBrowsePage() {
   }
 
   const { data: categoriesData } = useQuery({
-    queryKey: ['public-plugin-categories-list'],
+    queryKey: ['public-plugin-categories-list', { page_size: 100, is_active: true }],
     queryFn: () => listPublicPluginCategories({ page_size: 100, is_active: true }),
     staleTime: 1000 * 60 * 5,
   })
@@ -111,6 +111,7 @@ export function PluginsBrowsePage() {
         search: debouncedSearch || undefined,
         ordering: sortOrdering,
       }),
+    placeholderData: keepPreviousData,
   })
 
   const plugins = pluginsData?.results ?? []
@@ -125,22 +126,13 @@ export function PluginsBrowsePage() {
   }, [categoriesData?.results, selectedCategoryId])
 
   const heroTitle = selectedCategoryName ?? 'Plugins'
-  const crumbTail = selectedCategoryName ?? 'All plugins'
 
   return (
     <main className="plugins-browse">
       <section className="plugins-browse-hero site-hero-banner">
-        <SiteHeroImage src={PLUGINS_HERO_IMAGE_SRC} />
+        <SiteHeroImage src={PLUGINS_HERO_IMAGE_SRC} width={4224} height={992} />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
-          <nav className="plugins-browse-hero__crumbs" aria-label="Breadcrumb">
-            <Link to="/">Home</Link>
-            <span aria-hidden="true">›</span>
-            <Link to="/plugins">Plugins</Link>
-            <span aria-hidden="true">›</span>
-            <span>{crumbTail}</span>
-          </nav>
-
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
           <p className="plugins-browse-hero__subtitle">

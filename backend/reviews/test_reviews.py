@@ -164,6 +164,37 @@ class ReviewAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.data["code"], "not_purchased")
 
+    def test_create_review_requires_payment_status_paid(self) -> None:
+        """Order marked paid without payment_status=paid must not unlock reviews."""
+        order = OrderService.create(
+            OrderCreateData(
+                user_id=self.customer.pk,
+                items=(
+                    OrderItemCreateData(
+                        product_type="product",
+                        product_id=self.product.pk,
+                        quantity=1,
+                    ),
+                ),
+            )
+        )
+        OrderService.update_order_status(order, Order.OrderStatus.PAID)
+        self.authenticate()
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_type": "product",
+                "product_id": str(self.product.pk),
+                "rating": 5,
+                "review_text": "Should be blocked",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "not_purchased")
+
     def test_create_review_after_paid_order_updates_aggregates(self) -> None:
         self.create_paid_order(self.customer)
         self.authenticate()

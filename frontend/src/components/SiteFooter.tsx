@@ -46,14 +46,14 @@ export function SiteFooter() {
         <nav className="site-footer__columns" aria-label="Footer">
           <div className="site-footer__col">
             <h2 className="site-footer__heading">Marketplace</h2>
+            <Link className="site-footer__link" to="/home">
+              Home
+            </Link>
             <Link className="site-footer__link" to="/3d-models">
               3D Models
             </Link>
             <Link className="site-footer__link" to="/plugins">
               Plugins
-            </Link>
-            <Link className="site-footer__link" to="/3d-models">
-              Browse Catalog
             </Link>
             <Link className="site-footer__link" to="/custom-projects">
               Custom Projects

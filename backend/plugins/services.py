@@ -211,9 +211,17 @@ class PluginService:
         # Public list responses do not serialize images or files. Avoid loading
         # media collections for every row; detail/admin serializers still use
         # the media-prefetching base queryset.
-        queryset = Plugin.objects.select_related("category").filter(
-            status=Plugin.Status.PUBLISHED,
-            category__is_active=True,
+        queryset = (
+            Plugin.objects.select_related("category")
+            .filter(
+                status=Plugin.Status.PUBLISHED,
+                category__is_active=True,
+            )
+            .defer(
+                "description",
+                "documentation_url",
+                "status",
+            )
         )
         return cls._filter_list(
             queryset,

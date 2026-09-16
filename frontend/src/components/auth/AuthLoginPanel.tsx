@@ -20,12 +20,10 @@ interface AuthLoginPanelProps {
 
 export function AuthLoginPanel({
   titleId = 'auth-login-title',
-  onSwitchToRegister,
 }: AuthLoginPanelProps) {
   const navigate = useNavigate()
   const closeAuthModal = useAuthUiStore((state) => state.close)
   const returnTo = useAuthUiStore((state) => state.returnTo)
-  const setMode = useAuthUiStore((state) => state.setMode)
   const {
     register,
     handleSubmit,
@@ -69,14 +67,6 @@ export function AuthLoginPanel({
     void navigate('/verify-email/resend')
   }
 
-  const handleSwitchToRegister = () => {
-    if (onSwitchToRegister) {
-      onSwitchToRegister()
-      return
-    }
-    setMode('register')
-  }
-
   const displayError = serverError ?? googleError
 
   return (
@@ -86,7 +76,7 @@ export function AuthLoginPanel({
       <header className="auth-card__header">
         <h1 id={titleId}>Welcome back</h1>
         <p className="auth-card__subtitle">
-          Sign in to access your 3D assets, licenses, and downloads.
+          Sign in to access your 3D assets, project briefs, and licenses.
         </p>
       </header>
 
@@ -102,7 +92,11 @@ export function AuthLoginPanel({
 
       {emailNotVerified ? (
         <p className="auth-card__footer">
-          <button type="button" className="auth-link auth-link--button" onClick={handleResendVerification}>
+          <button
+            type="button"
+            className="auth-link auth-link--button"
+            onClick={handleResendVerification}
+          >
             Resend verification email
           </button>
         </p>
@@ -114,8 +108,8 @@ export function AuthLoginPanel({
         text="continue_with"
       />
 
-      <div className="auth-divider" role="separator" aria-label="or">
-        <span>or</span>
+      <div className="auth-divider" role="separator" aria-label="or use email credential">
+        <span>Or use email credential</span>
       </div>
 
       <form
@@ -126,11 +120,10 @@ export function AuthLoginPanel({
       >
         <AuthIconField
           id="auth-email"
-          label="Email Address"
-          icon="mail"
+          label="Email ID"
           type="email"
           autoComplete="email"
-          placeholder="name@company.com"
+          placeholder="artist@studio.com"
           hasError={Boolean(errors.email)}
           error={errors.email?.message}
           aria-invalid={Boolean(errors.email)}
@@ -141,55 +134,43 @@ export function AuthLoginPanel({
         <AuthIconField
           id="auth-password"
           label="Password"
-          icon="lock"
           revealable
           autoComplete="current-password"
           hasError={Boolean(errors.password)}
           error={errors.password?.message}
           aria-invalid={Boolean(errors.password)}
           aria-describedby={errors.password ? 'auth-password-error' : undefined}
+          labelAside={
+            <button
+              type="button"
+              className="auth-link auth-form__forgot auth-link--button"
+              onClick={handleForgotPassword}
+            >
+              Forgot password?
+            </button>
+          }
           {...register('password')}
         />
 
-        <div className="auth-form__options">
-          <label className="auth-check" htmlFor="auth-remember_me">
-            <input
-              id="auth-remember_me"
-              type="checkbox"
-              className="auth-check__input"
-              {...register('remember_me')}
-            />
-            <span className="auth-check__label">Remember me</span>
-          </label>
-          <button
-            type="button"
-            className="auth-link auth-form__forgot auth-link--button"
-            onClick={handleForgotPassword}
-          >
-            Forgot password?
-          </button>
-        </div>
+        <label className="auth-check" htmlFor="auth-remember_me">
+          <input
+            id="auth-remember_me"
+            type="checkbox"
+            className="auth-check__input"
+            {...register('remember_me')}
+          />
+          <span className="auth-check__label">Remember this device for 30 days</span>
+        </label>
 
         <Button
           type="submit"
           className="auth-submit"
           isLoading={isSubmitting || isGoogleSubmitting}
         >
-          Sign In
+          Sign in to 3D Hub
           <AuthSubmitArrow />
         </Button>
       </form>
-
-      <p className="auth-card__footer auth-card__footer--center">
-        Don&apos;t have an account?{' '}
-        <button
-          type="button"
-          className="auth-link auth-link--underline auth-link--button"
-          onClick={handleSwitchToRegister}
-        >
-          Register here
-        </button>
-      </p>
     </>
   )
 }

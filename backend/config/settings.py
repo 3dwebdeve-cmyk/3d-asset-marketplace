@@ -121,6 +121,12 @@ DATABASES = {
         "PASSWORD": config("DB_PASSWORD"),
         "HOST": config("DB_HOST", default="localhost"),
         "PORT": config("DB_PORT", default="5432"),
+        # Reuse DB connections across requests (0 during tests to avoid sticky connections).
+        "CONN_MAX_AGE": (
+            0
+            if "test" in sys.argv
+            else config("DB_CONN_MAX_AGE", default=60, cast=int)
+        ),
     }
 }
 

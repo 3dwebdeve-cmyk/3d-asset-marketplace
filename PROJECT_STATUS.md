@@ -5,11 +5,11 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~76%
+Overall Completion: ~83%
 Current Development Sprint
-Current Sprint: Phase 1 — Team & product stability
-Sprint Goal: Coworkers can register/verify/login locally; import → QA → pay → download is covered by tests
-Sprint Status: Teammate email-verify DX, complete backend/.env.example, Feature 16 Phases 9–10 (E2E + R2 retries/media migration) shipped 2026-09-10
+Current Sprint: Phase 1 — Production readiness
+Sprint Goal: Feature 13 Docker + Sprint 11 formal QA / security / deployment (performance code pass done 2026-09-16)
+Sprint Status: Performance hardening pass complete; Docker + formal security/E2E/deploy remain open
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -17,7 +17,7 @@ Sprint 1 – Project Setup
 • [x] Create Django Project
 • [x] Create React Project
 • [x] Configure PostgreSQL
-• [ ] Configure Docker
+• [ ] Configure Docker (Feature 13 — compose is Meilisearch-only; no app Dockerfile)
 • [x] Configure GitHub Repository
 • [x] Connect Frontend & Backend
 • [x] Initial Project Commit
@@ -80,7 +80,7 @@ Sprint 6 – Shopping & Payments
 • [x] Coupons / Discount codes (admin CRUD + cart apply)
 • [x] Checkout (cart → pending order → Stripe Checkout Session)
 • [x] Stripe Integration (Phase 1 — Checkout Sessions + webhook fulfillment)
-• [ ] Invoice Generation (invoice_number exists; PDF / formal invoices deferred)
+• [x] Invoice Generation (on-the-fly PDF via reportlab; customer + admin download; receipt email attachment)
 • [x] Payment Verification (Stripe webhook signature + idempotent event store)
 Sprint 7 – Orders & Downloads
 • [x] Orders (Phase 15A — data model + service layer)
@@ -138,7 +138,7 @@ Public Site Pages
 • [x] Contact form (/contact) — POST /api/contact/ emails admin; honeypot + rate limit
 • [x] Custom Projects landing (/custom-projects) — marketing page linking to request flow
 • [x] Site footer + navbar discovery links; login honors state.from redirect
-Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADMAP.md)
+Sprint 10 – Cloud Storage & Batch Ingest (complete in marketplace repo — see IMPLEMENTATION_ROADMAP.md)
 • [x] Feature 14 — Cloudflare R2 storage foundation (public + private buckets; django-storages)
 • [x] Feature 14B — Signed R2 download URLs (entitlement → short-lived presigned GET JSON) 
 • [x] Feature 16 Phase 3 — Product SKU / Model_ID identity
@@ -150,27 +150,39 @@ Sprint 10 – Cloud Storage & Batch Ingest (planned — see IMPLEMENTATION_ROADM
 • [x] Feature 16 Phase 9 — E2E: import → QA → Stripe → entitled download (API test)
 • [x] Feature 16 Phase 10 — Hardening (R2 retries, batch public media, leftover media → R2 command)
 Sprint 11 – Testing & Deployment
-• [ ] API Testing
-• [ ] UI Testing
+• [ ] API Testing (formal coverage / sign-off — unit/API suites already extensive)
+• [ ] UI Testing (browser E2E; Vitest unit tests already extensive)
 • [ ] Security Testing
-• [ ] Performance Optimization
+• [x] Performance Optimization (Sprint 11 pass 2026-09-16 — query/cache/viewer; formal load/E2E still open)
 • [ ] Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Phase 1 team & product stability — teammate login/verify DX, Feature 16 Phases 9–10, critical-path tests.
+Sprint 11 performance + security hardening pass; next = Feature 13 Docker, then formal QA/deployment.
 Current Git Branch
-feature/today-10-9-26
+feature-2026-09-16
 Files Being Worked On
-• backend/.env.example
-• backend/accounts/services.py
-• backend/accounts/management/commands/verify_email.py
-• backend/products/test_catalog_commerce_e2e.py
-• backend/config/media.py
-• backend/config/storages.py
-• backend/config/media_migration.py
+• frontend/src/main.tsx
+• frontend/src/hooks/useCart.ts
+• frontend/src/components/viewer/ModelViewer.tsx
+• backend/products/services.py
+• backend/plugins/services.py
+• backend/reviews/services.py
+• backend/downloads/services.py
+• backend/orders/views.py
+• backend/orders/serializers.py
+• backend/config/settings.py
 • PROJECT_STATUS.md
 Completed Features
+• Sprint 11 performance / security hardening pass (2026-09-16)
+  - Frontend: QueryClient defaults (staleTime/gcTime/retry); shared cart + category query keys; keepPreviousData on Models/Plugins browse; ModelViewer ground texture dispose + 1024 shadow maps
+  - Backend: public product/plugin list `.defer()`; batched order-detail downloadable files (N+1 fix); download history Max annotate; DB CONN_MAX_AGE
+  - Security: reviews purchase gate now requires payment_status=paid via `user_owns_catalog_item` (aligned with downloads)
+  - Tests: new review entitlement case; targeted frontend suites + build OK; reviews/products/orders suites green
+• Code scan & status reconciliation (2026-09-16)
+  - Confirmed in code: R2 dual buckets + presigned downloads, catalog import + QA UI, invoice PDF download + receipt email, Meilisearch, Stripe cart + quotation pay, plugin cart CTAs live
+  - Confirmed missing: app Docker/Gunicorn/Nginx, browser E2E suite, legal pages, newsletter API, 3D fullscreen, Celery, DB activity-log UI, product tags, dedicated Search page
+  - Docs refreshed: PROJECT_STATUS, PLANNED_FEATURES, IMPLEMENTATION_ROADMAP, MASTER_PLAN batch section
 • Phase 1 team & product stability (2026-09-10)
   - Console EMAIL VERIFICATION LINK when DEBUG=True; `python manage.py verify_email`; Django admin action; SPA /admin/users email_verified
   - backend/.env.example completed (DB, FRONTEND_BASE_URL, CORS, Stripe, email, Redis-only-when-DEBUG=False, R2 optional)
@@ -448,6 +460,48 @@ Important Decisions
 • Recommended near-term order: Feature 13 Docker, then Sprint 11 security/performance/deployment.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-09-16 (Sprint 11 — Performance + security hardening)
+Working Hours:
+Today's Objective: Optimise production codebase safely; fix entitlement gap; reduce duplicate fetches and N+1 queries.
+Modules Completed: TanStack Query defaults/shared keys; public catalog SQL defer; order-detail file batching; review entitlement alignment; ModelViewer GPU cleanup
+Files Created:
+• None
+Files Modified:
+• frontend/src/main.tsx
+• frontend/src/hooks/useCart.ts
+• frontend/src/hooks/useBuyNow.ts
+• frontend/src/components/Navbar.tsx
+• frontend/src/components/viewer/ModelViewer.tsx
+• frontend/src/pages/Models/ModelsBrowsePage.tsx
+• frontend/src/pages/Plugins/PluginsBrowsePage.tsx
+• frontend/src/pages/Products/ProductsBrowsePage.tsx
+• frontend/src/pages/Dashboard/DashboardPage.tsx
+• frontend/src/pages/Dashboard/DashboardPage.test.tsx
+• backend/products/services.py
+• backend/plugins/services.py
+• backend/reviews/services.py
+• backend/reviews/test_reviews.py
+• backend/downloads/services.py
+• backend/orders/views.py
+• backend/orders/serializers.py
+• backend/config/settings.py
+• backend/.env.example
+• backend/coupons/models.py
+• PROJECT_STATUS.md
+Database Changes:
+• None (CONN_MAX_AGE setting only; no migrations)
+API Endpoints Added:
+• None
+Frontend Pages Created:
+• None
+Problems Encountered:
+• useGLTF.clear on unmount conflicts with intentional shared-cache design (Suspense remounts) — skipped after existing test guard
+Solutions Implemented:
+• Reused `orders.entitlements.user_owns_catalog_item` for reviews; batched `DownloadService.list_downloadable_files_for_items` for order detail
+Lessons Learned:
+• Align all purchase gates on one entitlement helper; prefer shared React Query keys over parallel fetches of the same endpoint
+Next Development Task:
+• Feature 13 Docker / Gunicorn / Nginx; formal Sprint 11 security testing & deployment
 Date: 2026-09-10 (Phase 1 — Team & product stability)
 Working Hours:
 Today's Objective: Teammate login/verify DX; complete backend/.env.example; Feature 16 Phases 9–10; protect auth/checkout/download with tests.
@@ -3066,34 +3120,36 @@ Risks or Blockers:
 Next Development Task:
 • Visually confirm the hero and service strip against the approved mock
 Deployment Checklist
-• [ ] Backend Stable
-• [ ] Frontend Stable
-• [ ] Database Stable
-• [ ] Payments Tested
-• [x] Downloads Tested
+• [ ] Backend Stable (formal production sign-off)
+• [ ] Frontend Stable (formal production sign-off)
+• [ ] Database Stable (formal production sign-off)
+• [ ] Payments Tested (formal production sign-off; Stripe flows + unit/API tests exist)
+• [x] Downloads Tested (unit/API + R2 signed path covered)
 • [ ] Security Reviewed
-• [ ] Docker Ready
+• [ ] Docker Ready (Feature 13)
 • [ ] Production Ready
 Final Release Checklist
 • [x] Marketplace Complete
-• [x] Plugin Store Complete (signed CDN URLs deferred)
-• [x] Custom Project Portal Complete (non-payment)
-• [x] Customer Dashboard Complete (Stripe cart checkout live; quotation pay deferred)
-• [x] Admin Dashboard Complete (payments UI + analytics live)
-• [x] Payment System Complete (Stripe cart Phase 1 + admin payments UI + Feature 15G quotation pay)
-• [x] Secure Downloads Complete (local; R2 signed URLs = Feature 14B planned)
+• [x] Plugin Store Complete (R2 signed downloads when private object exists)
+• [x] Custom Project Portal Complete (incl. Feature 15G quotation pay)
+• [x] Customer Dashboard Complete
+• [x] Admin Dashboard Complete (payments UI + analytics + QA queue)
+• [x] Payment System Complete (Stripe cart + webhooks + Feature 15G)
+• [x] Secure Downloads Complete (R2 presigned JSON + local FileResponse fallback)
+• [x] Invoice PDF Complete (customer/admin download + receipt email)
+• [x] Cloudflare R2 + batch ingest complete in marketplace repo (Features 14 / 14B / 16 Phases 3–10)
 • [ ] Security Testing Complete
-• [ ] Performance Optimization Complete
+• [x] Performance Optimization Complete (code-level pass 2026-09-16; formal load testing still open)
 • [ ] Production Deployment Complete
-• [ ] Cloudflare R2 + batch ingest complete (Features 14 / 14B / 16 — see IMPLEMENTATION_ROADMAP.md)
+• [ ] Feature 13 Docker / Gunicorn / Nginx stack
 Project Completion
-Current Completion Percentage: ~70%
-Estimated Remaining Work: Feature 14 R2, Feature 14B signed downloads, Feature 16 batch ingest & QA, Docker, quotation pay (15G), public site polish leftovers, final QA
+Current Completion Percentage: ~83%
+Estimated Remaining Work: Feature 13 Docker, Sprint 11 formal security/E2E/deploy, public polish (legal pages, fullscreen, search extras), catalog-bridge .exe polish (separate repo), optional Celery / activity-log UI / product tags
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
+Code scan 2026-09-16: outdated “R2/batch planned / ~70%” checklist blocks reconciled to match codebase.
 Feature 10 In-app Notifications shipped 2026-08-03 (Feature 11 analytics already complete).
-R2 + Batch Catalog Ingest + QA roadmap written 2026-08-03 (IMPLEMENTATION_ROADMAP.md). Build order: 14 → 14B → 16.
 
 Date: 2026-07-24 (CP-MSG-05 Admin project messages UI)
 Working Hours:
@@ -3884,31 +3940,34 @@ Lessons Learned:
 Next Development Task:
 • Categories Django app + admin CRUD
 Deployment Checklist
-• [ ] Backend Stable
-• [ ] Frontend Stable
-• [ ] Database Stable
-• [ ] Payments Tested
-• [x] Downloads Tested
+• [ ] Backend Stable (formal production sign-off)
+• [ ] Frontend Stable (formal production sign-off)
+• [ ] Database Stable (formal production sign-off)
+• [ ] Payments Tested (formal production sign-off; Stripe flows + unit/API tests exist)
+• [x] Downloads Tested (unit/API + R2 signed path covered)
 • [ ] Security Reviewed
-• [ ] Docker Ready
+• [ ] Docker Ready (Feature 13)
 • [ ] Production Ready
 Final Release Checklist
 • [x] Marketplace Complete
-• [x] Plugin Store Complete (signed CDN URLs deferred)
-• [x] Custom Project Portal Complete (non-payment)
-• [x] Customer Dashboard Complete (Stripe cart checkout live; quotation pay deferred)
-• [x] Admin Dashboard Complete (payments UI + analytics live)
-• [x] Payment System Complete (Stripe cart Phase 1 + admin payments UI + Feature 15G quotation pay)
-• [x] Secure Downloads Complete (local; R2 signed URLs = Feature 14B planned)
+• [x] Plugin Store Complete (R2 signed downloads when private object exists)
+• [x] Custom Project Portal Complete (incl. Feature 15G quotation pay)
+• [x] Customer Dashboard Complete
+• [x] Admin Dashboard Complete (payments UI + analytics + QA queue)
+• [x] Payment System Complete (Stripe cart + webhooks + Feature 15G)
+• [x] Secure Downloads Complete (R2 presigned JSON + local FileResponse fallback)
+• [x] Invoice PDF Complete (customer/admin download + receipt email)
+• [x] Cloudflare R2 + batch ingest complete in marketplace repo (Features 14 / 14B / 16 Phases 3–10)
 • [ ] Security Testing Complete
-• [ ] Performance Optimization Complete
+• [x] Performance Optimization Complete (code-level pass 2026-09-16; formal load testing still open)
 • [ ] Production Deployment Complete
-• [ ] Cloudflare R2 + batch ingest complete (Features 14 / 14B / 16 — see IMPLEMENTATION_ROADMAP.md)
+• [ ] Feature 13 Docker / Gunicorn / Nginx stack
 Project Completion
-Current Completion Percentage: ~70%
-Estimated Remaining Work: Feature 14 R2, Feature 14B signed downloads, Feature 16 batch ingest & QA, Docker, quotation pay (15G), public site polish leftovers, final QA
+Current Completion Percentage: ~83%
+Estimated Remaining Work: Feature 13 Docker, Sprint 11 formal security/E2E/deploy, public polish (legal pages, fullscreen, search extras), catalog-bridge .exe polish (separate repo), optional Celery / activity-log UI / product tags
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
+Code scan 2026-09-16: outdated “R2/batch planned / ~70%” checklist blocks reconciled to match codebase.
 Feature 10 In-app Notifications shipped 2026-08-03.
-R2 + Batch Catalog Ingest + QA roadmap written 2026-08-03 (IMPLEMENTATION_ROADMAP.md). Build order: 14 → 14B → 16.
+R2 + Batch Catalog Ingest shipped in marketplace repo (Features 14 / 14B / 16).

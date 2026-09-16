@@ -181,7 +181,7 @@ describe('Navbar', () => {
     expect(document.querySelector('.navbar')).toHaveClass('navbar--marketplace-home')
     expect(screen.queryByRole('search')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /for business/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /^home$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
     expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute(
       'href',
       '/3d-models',
@@ -216,7 +216,7 @@ describe('Navbar', () => {
       'href',
       '/custom-projects',
     )
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
     expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute('href', '/3d-models')
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()

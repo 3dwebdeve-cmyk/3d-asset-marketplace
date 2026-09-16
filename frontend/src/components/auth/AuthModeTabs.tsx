@@ -27,7 +27,7 @@ export function AuthModeTabs({ active }: AuthModeTabsProps) {
         aria-current={active === 'register' ? 'true' : undefined}
         onClick={() => setMode('register')}
       >
-        Register
+        Create Account
       </button>
     </nav>
   )

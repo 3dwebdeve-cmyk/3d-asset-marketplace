@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Avg, Count, Q, QuerySet
 
-from orders.models import Order, OrderItem
+from orders.entitlements import user_owns_catalog_item
 from plugins.models import Plugin
 from products.models import Product
 from reviews.models import Review
@@ -191,12 +191,8 @@ class ReviewService:
         product_type: str,
         product_id: UUID,
     ) -> bool:
-        return OrderItem.objects.filter(
-            order__user=user,
-            order__order_status=Order.OrderStatus.PAID,
-            product_type=product_type,
-            product_id=product_id,
-        ).exists()
+        # Same entitlement gate as downloads — both order and payment must be paid.
+        return user_owns_catalog_item(user, product_type, product_id)
 
     @classmethod
     def build_catalog_titles(

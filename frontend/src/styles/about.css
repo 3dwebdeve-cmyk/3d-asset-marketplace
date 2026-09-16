@@ -60,7 +60,7 @@
 /* Hero — same banner height/aspect as 3D Models and Plugins */
 .about-hero.site-hero-banner {
   background-color: #eef1f5;
-  color: #122033;
+  color: #111827;
 }
 
 .about-hero .site-hero-banner__image {
@@ -68,7 +68,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: contain;
 }
 
 .about-hero__content {
@@ -80,36 +80,44 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 0.55rem var(--site-gutter);
+  padding: clamp(1.75rem, 3vw, 2.75rem) var(--site-gutter);
   box-sizing: border-box;
+  text-align: left;
 }
 
 .about-hero__copy {
   justify-self: start;
-  max-width: min(38rem, 52vw);
+  max-width: min(42rem, 100%);
 }
 
 .about-hero .about-eyebrow {
-  margin-bottom: 0.3rem;
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: rgba(17, 24, 39, 0.72);
 }
 
 .about-hero__copy h1 {
-  font-size: clamp(1.25rem, 2.2vw, 1.75rem);
-  line-height: 1.12;
-  font-weight: 800;
-  color: #101828;
+  margin: 0 0 0.85rem;
+  max-width: min(100%, 22ch);
+  font-size: clamp(1.7rem, 3.2vw, 2.85rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: #111827;
 }
 
 .about-hero__lead {
-  margin-top: 0.25rem;
-  max-width: 36rem;
-  font-size: 0.82rem;
-  line-height: 1.4;
-  color: #526074;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  margin: 0;
+  max-width: min(100%, 42rem);
+  font-size: clamp(0.92rem, 1.4vw, 1.02rem);
+  font-weight: 400;
+  line-height: 1.55;
+  color: rgba(17, 24, 39, 0.82);
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+  overflow: visible;
 }
 
 .about-hero__stats {
@@ -147,23 +155,17 @@
   color: #6b7380;
 }
 
-@media (max-width: 900px) {
-  .about-hero__lead {
-    display: none;
-  }
-}
-
 @media (max-width: 720px) {
   .about-hero__stats {
     display: none;
   }
 
   .about-hero__copy h1 {
-    font-size: clamp(1rem, 4.5vw, 1.25rem);
+    font-size: clamp(1.45rem, 6.5vw, 1.9rem);
   }
 
   .about-hero__content {
-    padding: 0.4rem var(--site-gutter);
+    padding: 1.25rem var(--site-gutter);
   }
 }
 

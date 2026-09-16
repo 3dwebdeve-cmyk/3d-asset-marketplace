@@ -1,0 +1,88 @@
+/**
+ * Cross-cutting responsive refinements for ~6" phones (~360px)
+ * through ~22" desktops (~1920px+). Layout/CSS only — no behavior changes.
+ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+#root,
+.app-shell {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-shell > main,
+.app-shell > .admin-layout {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Horizontal scroll regions must not expand the page */
+.browse-rail,
+.admin-table-wrap,
+.navbar__primary-links {
+  max-width: 100%;
+}
+
+/* —— Phones / small phablets (~6"–7", ≤480px) —— */
+@media (max-width: 480px) {
+  /* Keep intrinsic banner ratio — do not crop on small screens */
+  .site-hero-banner {
+    aspect-ratio: var(--site-hero-aspect);
+    min-height: 0;
+  }
+
+  .site-hero-banner__image {
+    object-fit: contain;
+    min-height: 0;
+  }
+
+  h1 {
+    font-size: clamp(1.45rem, 7.2vw, 2rem);
+    margin: 1rem 0;
+  }
+
+  .notification-page__item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notification-page__item-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+/* —— Large tablets / small laptops —— */
+@media (max-width: 900px) {
+  .admin-layout__content .dashboard-page {
+    padding: 1.15rem;
+  }
+
+  .admin-header {
+    flex-wrap: wrap;
+    padding: 0.85rem 1rem;
+  }
+
+  .admin-header__user {
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* —— Comfortable reading width on very wide (~22"+) monitors —— */
+@media (min-width: 1800px) {
+  .marketing-page__inner {
+    width: min(100%, 1100px);
+  }
+
+  .dashboard-card:not(.dashboard-card--wide) {
+    width: min(100%, 800px);
+  }
+}

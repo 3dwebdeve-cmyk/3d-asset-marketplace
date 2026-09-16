@@ -70,10 +70,10 @@ describe('AuthModal', () => {
 
     renderAuthModal()
 
-    await user.click(screen.getByRole('button', { name: /^register$/i }))
+    await user.click(screen.getByRole('button', { name: /^create account$/i }))
 
     expect(useAuthUiStore.getState().mode).toBe('register')
-    expect(screen.getByRole('heading', { name: /create an account/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /create studio account/i })).toBeInTheDocument()
   })
 
   it('closes on Escape', async () => {
@@ -105,10 +105,11 @@ describe('AuthModal', () => {
     renderAuthModal()
 
     await user.type(screen.getByLabelText(/full name/i), 'Ada Lovelace')
-    await user.type(screen.getByLabelText(/email address/i), 'ada@example.com')
+    await user.type(screen.getByLabelText(/email id/i), 'ada@example.com')
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
     await user.type(screen.getByLabelText(/confirm password/i), 'StrongPass123!')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
+    await user.click(screen.getByLabelText(/i agree to 3d hub/i))
+    await user.click(screen.getByRole('button', { name: /create free studio account/i }))
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /account created/i })).toBeInTheDocument()

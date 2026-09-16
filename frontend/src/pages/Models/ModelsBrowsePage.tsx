@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
 import { listPublicProducts } from '../../api/productsApi'
 import { Button } from '../../components/ui/Button'
@@ -173,7 +173,7 @@ export function ModelsBrowsePage() {
   }
 
   const { data: categoriesData } = useQuery({
-    queryKey: ['public-product-categories-list'],
+    queryKey: ['public-categories-list', { page_size: 100 }],
     queryFn: () => listPublicCategories({ page_size: 100 }),
     staleTime: 1000 * 60 * 5,
   })
@@ -207,6 +207,7 @@ export function ModelsBrowsePage() {
         pbr_ready: traits.pbr_ready || undefined,
         game_ready: traits.game_ready || undefined,
       }),
+    placeholderData: keepPreviousData,
   })
 
   const products = productsData?.results ?? []
@@ -225,7 +226,6 @@ export function ModelsBrowsePage() {
   }, [categoriesData?.results, selectedCategoryId])
 
   const heroTitle = selectedCategoryName ?? '3D Model'
-  const crumbTail = selectedCategoryName ?? 'All models'
 
   return (
     <main className="plugins-browse models-browse">
@@ -233,14 +233,6 @@ export function ModelsBrowsePage() {
         <SiteHeroImage />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
-          <nav className="plugins-browse-hero__crumbs" aria-label="Breadcrumb">
-            <Link to="/">Home</Link>
-            <span aria-hidden="true">›</span>
-            <Link to="/3d-models">3D Model</Link>
-            <span aria-hidden="true">›</span>
-            <span>{crumbTail}</span>
-          </nav>
-
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
           <p className="plugins-browse-hero__subtitle">

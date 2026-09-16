@@ -26,6 +26,7 @@ import './styles/product-hub-details.css'
 import './styles/cart.css'
 import './styles/marketing.css'
 import './styles/about.css'
+import './styles/responsive.css'
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
@@ -295,6 +296,12 @@ const CustomProjectsLandingPage = lazy(() =>
   })),
 )
 
+const HomePage = lazy(() =>
+  import('./pages/Home/HomePage').then((module) => ({
+    default: module.HomePage,
+  })),
+)
+
 function AppRoutes() {
   const location = useLocation()
   const hideMainNavbar =
@@ -310,18 +317,20 @@ function AppRoutes() {
       <div className="app-shell">
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
-            <Route path="/" element={<ProductsBrowsePage />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/home" element={<ProductsBrowsePage />} />
+            <Route path="/Home" element={<Navigate to="/home" replace />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
-            <Route path="/products" element={<Navigate to="/" replace />} />
-            <Route path="/Products" element={<Navigate to="/" replace />} />
+            <Route path="/products" element={<Navigate to="/home" replace />} />
+            <Route path="/Products" element={<Navigate to="/home" replace />} />
             <Route path="/products/:slug" element={<ProductDetailsPage />} />
             <Route path="/Products/:slug" element={<ProductDetailsPage />} />
             <Route path="/3d-models" element={<ModelsBrowsePage />} />
-            <Route path="/3D-models" element={<ModelsBrowsePage />} />
+            <Route path="/3D-models" element={<Navigate to="/3d-models" replace />} />
             <Route path="/plugins" element={<PluginsBrowsePage />} />
-            <Route path="/Plugins" element={<PluginsBrowsePage />} />
+            <Route path="/Plugins" element={<Navigate to="/plugins" replace />} />
             <Route path="/plugins/:slug" element={<PluginDetailsPage />} />
             <Route path="/Plugins/:slug" element={<PluginDetailsPage />} />
             <Route path="/register" element={<RegisterPage />} />
