@@ -40,7 +40,7 @@ describe('HomePage', () => {
 
     await user.click(screen.getByRole('button', { name: /create account/i }))
     expect(useAuthUiStore.getState().isOpen).toBe(true)
-    expect(screen.getByRole('heading', { name: /create an account/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /create studio account/i })).toBeInTheDocument()
   })
 
   it('links Browse Marketplace to the home hub', () => {
