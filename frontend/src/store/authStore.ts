@@ -5,7 +5,6 @@ import type { AuthUser } from '../types/auth'
 
 interface AuthSession {
   access: string
-  refresh: string
   user: AuthUser
 }
 
@@ -16,17 +15,19 @@ interface ClearSessionOptions {
 
 interface AuthState {
   accessToken: string | null
-  refreshToken: string | null
   user: AuthUser | null
   isAuthenticated: boolean
-  /** When false, tokens stay in memory only and are not written to localStorage. */
+  /**
+   * Login preference only (checkbox default). Never persists tokens —
+   * refresh lives in an httpOnly cookie; access stays in memory.
+   */
   rememberSession: boolean
   /** One-shot redirect used after intentional sign-out. Not persisted. */
   postLogoutRedirect: string | null
   setSession: (session: AuthSession, options?: { remember?: boolean }) => void
+  restoreAccess: (access: string) => void
   setUser: (user: AuthUser) => void
   updateAccessToken: (access: string) => void
-  updateTokens: (tokens: { access: string; refresh?: string }) => void
   clearSession: (options?: ClearSessionOptions) => void
   clearPostLogoutRedirect: () => void
 }
@@ -35,31 +36,29 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       accessToken: null,
-      refreshToken: null,
       user: null,
       isAuthenticated: false,
       rememberSession: true,
       postLogoutRedirect: null,
-      setSession: ({ access, refresh, user }, options) =>
+      setSession: ({ access, user }, options) =>
         set({
           accessToken: access,
-          refreshToken: refresh,
           user,
           isAuthenticated: true,
           rememberSession: options?.remember !== false,
           postLogoutRedirect: null,
         }),
+      restoreAccess: (access) =>
+        set({
+          accessToken: access,
+          isAuthenticated: true,
+          postLogoutRedirect: null,
+        }),
       setUser: (user) => set({ user }),
       updateAccessToken: (access) => set({ accessToken: access }),
-      updateTokens: ({ access, refresh }) =>
-        set((state) => ({
-          accessToken: access,
-          refreshToken: refresh ?? state.refreshToken,
-        })),
       clearSession: (options) =>
         set({
           accessToken: null,
-          refreshToken: null,
           user: null,
           isAuthenticated: false,
           rememberSession: true,
@@ -69,18 +68,9 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => {
-        if (state.rememberSession === false) {
-          return { rememberSession: false as const }
-        }
-        return {
-          accessToken: state.accessToken,
-          refreshToken: state.refreshToken,
-          user: state.user,
-          isAuthenticated: state.isAuthenticated,
-          rememberSession: true as const,
-        }
-      },
+      partialize: (state) => ({
+        rememberSession: state.rememberSession,
+      }),
     },
   ),
 )

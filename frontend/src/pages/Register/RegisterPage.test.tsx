@@ -80,7 +80,7 @@ describe('RegisterPage', () => {
       phone: '+91 98765 43210',
       country: 'India',
     })
-    expect(screen.getByRole('heading', { name: /account created/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /check your email/i })).toBeInTheDocument()
   })
 
   it('switches to login mode from the Sign In tab', async () => {

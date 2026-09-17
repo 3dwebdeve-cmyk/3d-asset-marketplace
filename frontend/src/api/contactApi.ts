@@ -12,6 +12,6 @@ export interface ContactFormPayload {
 export async function submitContactForm(
   payload: ContactFormPayload,
 ): Promise<{ detail: string }> {
-  const response = await apiClient.post<{ detail: string }>('/api/contact/', payload)
+  const response = await apiClient.post<{ detail: string }>('/api/v1/contact/', payload)
   return response.data
 }

@@ -20,16 +20,16 @@ export async function listWishlistItems(
   params: WishlistListParams = {},
 ): Promise<PaginatedWishlistItems> {
   const { data } = await apiClient.get<PaginatedWishlistItems>(
-    `/api/wishlist/${toWishlistQuery(params)}`,
+    `/api/v1/wishlist/${toWishlistQuery(params)}`,
   )
   return data
 }
 
 export async function addWishlistItem(payload: WishlistAddPayload): Promise<WishlistItem> {
-  const { data } = await apiClient.post<WishlistItem>('/api/wishlist/', payload)
+  const { data } = await apiClient.post<WishlistItem>('/api/v1/wishlist/', payload)
   return data
 }
 
 export async function removeWishlistItem(itemId: string): Promise<void> {
-  await apiClient.delete(`/api/wishlist/${itemId}/`)
+  await apiClient.delete(`/api/v1/wishlist/${itemId}/`)
 }

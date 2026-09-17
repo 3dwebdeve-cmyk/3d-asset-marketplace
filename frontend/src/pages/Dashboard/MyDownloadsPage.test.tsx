@@ -34,7 +34,7 @@ const entitlement: DownloadEntitlement = {
       file_format: 'zip',
       file_size: 2048,
       version: '1.0',
-      download_url: '/api/downloads/products/cccccccc-cccc-cccc-cccc-cccccccccccc/files/dddddddd-dddd-dddd-dddd-dddddddddddd/download/',
+      download_url: '/api/v1/downloads/products/cccccccc-cccc-cccc-cccc-cccccccccccc/files/dddddddd-dddd-dddd-dddd-dddddddddddd/download/',
       last_downloaded_at: null,
     },
   ],
@@ -56,7 +56,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({
     accessToken: 'access-token',
-    refreshToken: 'refresh-token',
     user: testUser,
     isAuthenticated: true,
   })

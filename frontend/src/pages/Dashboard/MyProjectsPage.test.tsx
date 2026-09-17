@@ -141,7 +141,7 @@ describe('MyProjectsPage', () => {
   it('disables previous on the first page and enables next when more pages exist', async () => {
     vi.mocked(customProjectsApi.listCustomerCustomProjects).mockResolvedValue({
       count: 21,
-      next: 'http://127.0.0.1:8000/api/custom-projects/?page=2',
+      next: 'http://127.0.0.1:8000/api/v1/custom-projects/?page=2',
       previous: null,
       results: [project],
     })
@@ -175,14 +175,14 @@ describe('MyProjectsPage', () => {
     vi.mocked(customProjectsApi.listCustomerCustomProjects)
       .mockResolvedValueOnce({
         count: 21,
-        next: 'http://127.0.0.1:8000/api/custom-projects/?page=2',
+        next: 'http://127.0.0.1:8000/api/v1/custom-projects/?page=2',
         previous: null,
         results: [project],
       })
       .mockResolvedValueOnce({
         count: 1,
         next: null,
-        previous: 'http://127.0.0.1:8000/api/custom-projects/?page=1',
+        previous: 'http://127.0.0.1:8000/api/v1/custom-projects/?page=1',
         results: [],
       })
       .mockResolvedValueOnce({

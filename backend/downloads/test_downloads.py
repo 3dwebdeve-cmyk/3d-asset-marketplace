@@ -470,8 +470,8 @@ class DownloadAPITests(APITestCase):
         self.assertEqual(item["files"], [])
 
     @override_settings(R2_ENABLED=True, R2_SIGNED_URL_EXPIRY=300)
-    @patch("downloads.services.generate_private_presigned_url")
-    @patch("downloads.services.get_private_storage")
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
     def test_paid_owner_receives_signed_json_when_r2_has_object(
         self,
         mock_get_private_storage,
@@ -502,8 +502,8 @@ class DownloadAPITests(APITestCase):
         self.assertEqual(DownloadHistory.objects.count(), 1)
 
     @override_settings(R2_ENABLED=True)
-    @patch("downloads.services.generate_private_presigned_url")
-    @patch("downloads.services.get_private_storage")
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
     def test_r2_miss_falls_back_to_local_stream(
         self,
         mock_get_private_storage,
@@ -524,8 +524,8 @@ class DownloadAPITests(APITestCase):
         mock_presign.assert_not_called()
 
     @override_settings(R2_ENABLED=True)
-    @patch("downloads.services.generate_private_presigned_url")
-    @patch("downloads.services.get_private_storage")
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
     def test_r2_and_local_missing_returns_404_without_history(
         self,
         mock_get_private_storage,
@@ -552,8 +552,8 @@ class DownloadAPITests(APITestCase):
         mock_presign.assert_not_called()
 
     @override_settings(R2_ENABLED=True)
-    @patch("downloads.services.generate_private_presigned_url")
-    @patch("downloads.services.get_private_storage")
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
     def test_non_owner_still_404_when_r2_enabled(
         self,
         mock_get_private_storage,
@@ -573,8 +573,8 @@ class DownloadAPITests(APITestCase):
         mock_presign.assert_not_called()
 
     @override_settings(R2_ENABLED=True)
-    @patch("downloads.services.generate_private_presigned_url")
-    @patch("downloads.services.get_private_storage")
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
     def test_paid_owner_receives_signed_json_for_plugin(
         self,
         mock_get_private_storage,

@@ -1,3 +1,5 @@
+import logging
+
 import stripe
 from django.conf import settings
 from rest_framework import status
@@ -8,8 +10,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from uuid import UUID
 
-from accounts.permissions import IsAdministrator
+from accounts.permissions import IsAdministrator, IsEmailVerified
 from accounts.throttles import PaymentCheckoutRateThrottle
+from config.sentry import capture_webhook_failure
 from payments.pagination import PaymentPagination
 from payments.serializers import AdminPaymentDetailSerializer, AdminPaymentListSerializer
 from payments.services import (
@@ -20,6 +23,8 @@ from payments.services import (
     CheckoutService,
     WebhookService,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | None:
@@ -32,7 +37,7 @@ def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | Non
 
 
 class CreateCheckoutSessionView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [PaymentCheckoutRateThrottle]
 
     def post(self, request: Request) -> Response:
@@ -61,6 +66,11 @@ class StripeWebhookView(APIView):
         sig_header = request.META.get("HTTP_STRIPE_SIGNATURE", "")
 
         if not settings.STRIPE_WEBHOOK_SECRET:
+            capture_webhook_failure(
+                "Stripe webhook secret is not configured",
+                reason="secret_missing",
+                level="error",
+            )
             return Response(
                 {"detail": "Webhook not configured."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -73,19 +83,41 @@ class StripeWebhookView(APIView):
                 settings.STRIPE_WEBHOOK_SECRET,
             )
         except (ValueError, stripe.error.SignatureVerificationError):
+            capture_webhook_failure(
+                "Stripe webhook signature verification failed",
+                reason="invalid_signature",
+                level="warning",
+            )
             return Response(
                 {"detail": "Invalid webhook payload or signature."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        WebhookService.handle_event(event)
+        try:
+            WebhookService.handle_event(event)
+        except Exception as exc:
+            logger.exception(
+                "stripe_webhook_handler_failed event_type=%s",
+                getattr(event, "type", None),
+            )
+            capture_webhook_failure(
+                "Stripe webhook handler failed",
+                reason="handler_exception",
+                level="error",
+                event_type=getattr(event, "type", None),
+                exc=exc,
+            )
+            return Response(
+                {"detail": "Webhook processing failed."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         return Response(status=status.HTTP_200_OK)
 
 
 class ConfirmCheckoutSessionView(APIView):
     """Owner-only Stripe session sync used by /checkout/success when webhooks lag."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [PaymentCheckoutRateThrottle]
 
     def post(self, request: Request) -> Response:

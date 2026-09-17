@@ -1125,7 +1125,7 @@ class CustomProjectMessageAttachmentAPITests(APITestCase):
         self.assertEqual(attachment["file_name"], "sketch.png")
         self.assertNotIn("storage_path", attachment)
         self.assertIn("download_url", attachment)
-        self.assertIn("/api/custom-projects/", attachment["download_url"])
+        self.assertIn("/api/v1/custom-projects/", attachment["download_url"])
         self.assertIn("/attachments/", attachment["download_url"])
         self.assertIn("/download/", attachment["download_url"])
 
@@ -1240,7 +1240,7 @@ class CustomProjectMessageAttachmentAPITests(APITestCase):
         admin_listed = self.client.get(self.admin_messages_url)
         self.assertEqual(admin_listed.status_code, status.HTTP_200_OK)
         admin_attachment = admin_listed.data["results"][0]["attachments"][0]
-        self.assertIn("/api/admin/custom-projects/", admin_attachment["download_url"])
+        self.assertIn("/api/v1/admin/custom-projects/", admin_attachment["download_url"])
         self.assertNotIn("storage_path", admin_attachment)
 
     def test_admin_can_send_message_with_attachment(self) -> None:
@@ -2614,7 +2614,7 @@ class ProjectDeliveryListDownloadAPITests(APITestCase):
         for item in results:
             self.assertNotIn("storage_path", item)
             self.assertIn("download_url", item)
-            self.assertIn("/api/admin/custom-projects/", item["download_url"])
+            self.assertIn("/api/v1/admin/custom-projects/", item["download_url"])
             self.assertIn("/deliveries/", item["download_url"])
             self.assertIn("/download/", item["download_url"])
 
@@ -2627,7 +2627,7 @@ class ProjectDeliveryListDownloadAPITests(APITestCase):
         item = response.data["results"][0]
         self.assertEqual(item["id"], str(delivery.id))
         self.assertNotIn("storage_path", item)
-        self.assertIn("/api/custom-projects/", item["download_url"])
+        self.assertIn("/api/v1/custom-projects/", item["download_url"])
         self.assertIn(f"/deliveries/{delivery.id}/download/", item["download_url"])
 
     def test_other_customer_cannot_list_deliveries(self) -> None:
@@ -2710,6 +2710,55 @@ class ProjectDeliveryListDownloadAPITests(APITestCase):
             )
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_settings(R2_ENABLED=True, R2_SIGNED_URL_EXPIRY=300)
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
+    def test_delivery_download_returns_signed_json_when_r2_has_object(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        delivery = self._create_stored_delivery(version=1, name="signed-dl.zip")
+        mock_get_private_storage.return_value.exists.return_value = True
+        mock_presign.return_value = (
+            "https://acc.r2.cloudflarestorage.com/3dam-private/"
+            "custom_projects/deliveries/pack.zip?X-Amz-Signature=test"
+        )
+        customer_download = reverse(
+            "custom_projects:customer-custom-project-delivery-download",
+            kwargs={"project_id": self.project.id, "delivery_id": delivery.id},
+        )
+        self._authenticate_customer()
+        response = self.client.get(customer_download)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["download_url"], mock_presign.return_value)
+        self.assertEqual(response.data["expires_in"], 300)
+        self.assertEqual(response.data["file_name"], delivery.file_name)
+        self.assertNotIn("storage_path", response.data)
+        mock_presign.assert_called_once()
+
+    @override_settings(R2_ENABLED=True)
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
+    def test_delivery_download_falls_back_to_stream_when_r2_misses(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        delivery = self._create_stored_delivery(version=1, name="local-fallback.zip")
+        mock_get_private_storage.return_value.exists.return_value = False
+        admin_download = reverse(
+            "custom_projects_admin:admin-custom-project-delivery-download",
+            kwargs={"project_id": self.project.id, "delivery_id": delivery.id},
+        )
+        self._authenticate_admin()
+        response = self.client.get(admin_download)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.get("Content-Disposition", "").startswith("attachment"))
+        content = b"".join(response.streaming_content)
+        self.assertIn(b"PK", content)
+        mock_presign.assert_not_called()
 
     def test_private_media_still_blocked_after_authenticated_download(self) -> None:
         delivery = self._create_stored_delivery(version=1, name="private-dl.zip")
@@ -2927,7 +2976,7 @@ class ProjectDeliveryListDownloadCrashRiskScenarioTests(APITestCase):
         """Hypothesis E: unknown project / other customer must 404, not 500."""
         unknown = "00000000-0000-0000-0000-000000000077"
         self._authenticate_admin()
-        admin_list = self.client.get(f"/api/admin/custom-projects/{unknown}/deliveries/")
+        admin_list = self.client.get(f"/api/v1/admin/custom-projects/{unknown}/deliveries/")
         self._assert_not_crash(admin_list, allowed=(404,))
         self.assertEqual(admin_list.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -3226,7 +3275,7 @@ class ProjectCompletionGuardTests(APITestCase):
 
 
 class ReferenceFileDeleteTests(APITestCase):
-    """Tests for DELETE /api/custom-projects/<id>/files/<file_id>/."""
+    """Tests for DELETE /api/v1/custom-projects/<id>/files/<file_id>/."""
 
     def setUp(self) -> None:
         cache.clear()

@@ -72,11 +72,6 @@ export function AuthRegisterPanel({
     })
   }, [closeAuthModal, isGoogleSuccess, navigate, returnTo])
 
-  const handleResendVerification = () => {
-    closeAuthModal()
-    void navigate('/verify-email/resend')
-  }
-
   const handleSwitchToLogin = () => {
     if (onSwitchToLogin) {
       onSwitchToLogin()
@@ -88,24 +83,21 @@ export function AuthRegisterPanel({
   if (registeredUser) {
     return (
       <>
-        <h1 id={titleId}>Account created</h1>
+        <h1 id={titleId}>Check your email</h1>
         <Alert
           variant="success"
-          message={`Welcome, ${registeredUser.full_name}. Check your email to verify your account before signing in.`}
+          message={`Welcome, ${registeredUser.full_name}. We sent a verification link to ${registeredUser.email}.`}
         />
         <p className="auth-card__hint">
-          We sent a verification link to {registeredUser.email}. Locally, copy the
-          labeled link from the backend terminal, or ask an admin to mark the
-          account verified.
-        </p>
-        <p className="auth-card__footer">
-          <button
-            type="button"
-            className="auth-link auth-link--button"
-            onClick={handleResendVerification}
+          Open the link to verify your email, then sign in. Didn&apos;t get it?{' '}
+          <Link
+            className="auth-link"
+            to="/verify-email/resend"
+            onClick={() => closeAuthModal()}
           >
             Resend verification email
-          </button>
+          </Link>
+          .
         </p>
         <p className="auth-card__footer">
           <button

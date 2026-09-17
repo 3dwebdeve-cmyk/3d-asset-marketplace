@@ -5,22 +5,12 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from botocore.exceptions import BotoCoreError, ClientError
-from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import SuspiciousFileOperation
-from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import F, QuerySet
-from django.http import FileResponse, Http404
+from django.http import FileResponse
 
-from config.media import media_relative_path, open_stored_file
-from config.storages import (
-    call_with_storage_retries,
-    generate_private_presigned_url,
-    get_private_storage,
-    signed_url_expiry_seconds,
-)
+from config.media import PrivateFileNotFound, resolve_private_download
 from downloads.models import DownloadHistory
 from orders.entitlements import user_owns_catalog_item
 from orders.models import Order, OrderItem
@@ -62,9 +52,13 @@ class DownloadService:
         file_id: UUID,
     ) -> str:
         if product_type == PRODUCT_TYPE_PRODUCT:
-            return f"/api/downloads/products/{product_id}/files/{file_id}/download/"
+            return (
+                f"/api/v1/downloads/products/{product_id}/files/{file_id}/download/"
+            )
         if product_type == PRODUCT_TYPE_PLUGIN:
-            return f"/api/downloads/plugins/{product_id}/files/{file_id}/download/"
+            return (
+                f"/api/v1/downloads/plugins/{product_id}/files/{file_id}/download/"
+            )
         raise DownloadError("Invalid product type.")
 
     @classmethod
@@ -381,13 +375,10 @@ class DownloadService:
         file_name: str,
         storage_path: str,
     ) -> FileResponse | dict[str, Any]:
-        relative = media_relative_path(storage_path)
-        if relative is None:
-            raise DownloadError("File not found.")
-
-        use_signed = cls._private_r2_object_exists(relative)
-        if not use_signed and not cls._local_object_exists(relative):
-            raise DownloadError("File not found.")
+        try:
+            result = resolve_private_download(storage_path, file_name=file_name)
+        except PrivateFileNotFound as exc:
+            raise DownloadError("File not found.") from exc
 
         cls._record_download(
             user=user,
@@ -402,46 +393,6 @@ class DownloadService:
             product_type,
             product_id,
             file_id,
-            "signed" if use_signed else "stream",
+            "signed" if isinstance(result, dict) else "stream",
         )
-        if use_signed:
-            try:
-                download_url = call_with_storage_retries(
-                    lambda: generate_private_presigned_url(relative, file_name=file_name)
-                )
-            except (BotoCoreError, ClientError, OSError, ValueError, RuntimeError):
-                logger.exception("r2_presign_failed product_type=%s file_id=%s", product_type, file_id)
-                raise DownloadError("File not found.") from None
-            return {
-                "download_url": download_url,
-                "expires_in": signed_url_expiry_seconds(),
-                "file_name": file_name,
-            }
-        try:
-            return cls._stream_file(storage_path, file_name)
-        except Http404 as exc:
-            raise DownloadError("File not found.") from exc
-
-    @classmethod
-    def _private_r2_object_exists(cls, relative: str) -> bool:
-        if not getattr(settings, "R2_ENABLED", False):
-            return False
-        try:
-            return bool(
-                call_with_storage_retries(lambda: get_private_storage().exists(relative))
-            )
-        except (OSError, SuspiciousFileOperation, ValueError, BotoCoreError, ClientError):
-            return False
-
-    @classmethod
-    def _local_object_exists(cls, relative: str) -> bool:
-        try:
-            return bool(default_storage.exists(relative))
-        except (OSError, SuspiciousFileOperation, ValueError):
-            return False
-
-    @classmethod
-    def _stream_file(cls, storage_path: str, file_name: str) -> FileResponse:
-        response = open_stored_file(storage_path)
-        response["Content-Disposition"] = f'attachment; filename="{file_name}"'
-        return response
+        return result

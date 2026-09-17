@@ -13,7 +13,6 @@ import { isAdministrator } from '../lib/roles'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import { useCartUiStore } from '../store/cartUiStore'
-import { NotificationBell } from './NotificationBell'
 
 function formatUnreadBadge(count: number): string {
   if (count > 99) return '99+'
@@ -25,7 +24,6 @@ export function Navbar() {
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
-  const refreshToken = useAuthStore((state) => state.refreshToken)
   const clearSession = useAuthStore((state) => state.clearSession)
   const openCartDrawer = useCartUiStore((state) => state.openDrawer)
 
@@ -112,11 +110,7 @@ export function Navbar() {
   })
 
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      if (refreshToken) {
-        await logoutUser(refreshToken)
-      }
-    },
+    mutationFn: () => logoutUser(),
     onSettled: () => {
       clearSession({ redirectTo: '/' })
       toast.success('Signed out')
@@ -291,7 +285,6 @@ export function Navbar() {
               <>
               {isAdministrator(user?.role) ? null : (
                 <>
-                  <NotificationBell />
                   <button
                     type="button"
                     className="navbar__icon-btn navbar__cart-button"

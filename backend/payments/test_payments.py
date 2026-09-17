@@ -195,6 +195,28 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Order.objects.count(), 0)
 
+    @override_settings(
+        E2E_STRIPE_SIMULATE=True,
+        STRIPE_SECRET_KEY="sk_test_e2e_dummy",
+        FRONTEND_BASE_URL="http://localhost:8080",
+    )
+    def test_e2e_simulate_returns_success_url_without_stripe_api(self) -> None:
+        self._authenticate()
+        self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
+
+        with patch("payments.services.stripe.checkout.Session.create") as mock_create:
+            response = self.client.post(self.checkout_url)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mock_create.assert_not_called()
+        order = Order.objects.get(pk=response.data["order_id"])
+        self.assertIn(
+            f"/checkout/success?order_id={order.id}",
+            response.data["checkout_url"],
+        )
+        payment = Payment.objects.get(order=order)
+        self.assertTrue(payment.stripe_checkout_session_id.startswith("cs_test_e2e_"))
+
 
 @override_settings(STRIPE_WEBHOOK_SECRET="whsec_test")
 class StripeWebhookTests(PaymentsTestMixin, APITestCase):
@@ -504,6 +526,30 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.order.refresh_from_db()
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+
+    @override_settings(
+        E2E_STRIPE_SIMULATE=True,
+        STRIPE_SECRET_KEY="sk_test_e2e_dummy",
+    )
+    def test_e2e_simulate_confirm_fulfills_without_stripe_retrieve(self) -> None:
+        self.payment.stripe_checkout_session_id = "cs_test_e2e_confirm_fixture"
+        self.payment.save(update_fields=["stripe_checkout_session_id", "updated_at"])
+        self._authenticate()
+
+        with patch("payments.services.stripe.checkout.Session.retrieve") as mock_retrieve:
+            response = self.client.post(
+                self.confirm_url,
+                {"order_id": str(self.order.pk)},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_retrieve.assert_not_called()
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PAID)
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
 
     def test_rejects_cancelled_order(self) -> None:
         self.order.order_status = Order.OrderStatus.CANCELLED

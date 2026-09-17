@@ -27,7 +27,6 @@ from custom_projects.notifications import (
     ProjectMessageNotificationService,
     ProjectWorkflowNotificationService,
 )
-from notifications.services import NotificationService
 from custom_projects.storage import (
     ProjectDeliveryStorageService,
     ProjectFileStorageService,
@@ -385,7 +384,6 @@ class CustomProjectService:
         # Subsequent quote edits must not spam the customer.
         if created or became_quoted:
             ProjectWorkflowNotificationService.notify_quotation_sent(notified_project)
-            NotificationService.notify_quotation_sent(notified_project)
         return quotation
 
     @classmethod
@@ -485,9 +483,8 @@ class CustomProjectService:
             body=body,
             attachment=attachment,
         )
-        # Mail / in-app failures must not undo a successful message create.
+        # Mail failures must not undo a successful message create.
         ProjectMessageNotificationService.notify_new_message(message)
-        NotificationService.notify_project_message(message)
         return message
 
     @classmethod
@@ -773,22 +770,7 @@ class CustomProjectService:
         CustomProject.objects.filter(pk=locked.pk).update(
             updated_at=delivery.created_at,
         )
-        delivery_id = delivery.pk
-        transaction.on_commit(
-            lambda: cls._emit_delivery_uploaded_notification(delivery_id)
-        )
         return delivery
-
-    @classmethod
-    def _emit_delivery_uploaded_notification(cls, delivery_id: UUID) -> None:
-        try:
-            delivery = ProjectDelivery.objects.select_related(
-                "project",
-                "project__customer",
-            ).get(pk=delivery_id)
-        except ProjectDelivery.DoesNotExist:
-            return
-        NotificationService.notify_delivery_uploaded(delivery)
 
     @classmethod
     def _apply_status(cls, project: CustomProject, new_status: str) -> None:

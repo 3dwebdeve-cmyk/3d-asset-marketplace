@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getCurrentUser } from '../api/authApi'
+import { getCurrentUser, refreshAccessToken } from '../api/authApi'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import {
@@ -16,6 +16,7 @@ import { useSessionBootstrap } from './useSessionBootstrap'
 
 vi.mock('../api/authApi', () => ({
   getCurrentUser: vi.fn(),
+  refreshAccessToken: vi.fn(),
 }))
 
 vi.mock('../lib/toast', () => ({
@@ -29,6 +30,7 @@ vi.mock('../lib/toast', () => ({
 }))
 
 const mockedGetCurrentUser = vi.mocked(getCurrentUser)
+const mockedRefreshAccessToken = vi.mocked(refreshAccessToken)
 const mockedToastError = vi.mocked(toast.error)
 
 function createWrapper() {
@@ -42,16 +44,37 @@ beforeEach(() => {
   resetAuthStore()
   resetToastStore()
   vi.clearAllMocks()
+  mockedRefreshAccessToken.mockRejectedValue(new Error('no cookie'))
 })
 
 describe('useSessionBootstrap', () => {
-  it('is ready immediately and skips the API when no token is stored', () => {
+  it('is ready as guest when silent refresh finds no cookie', async () => {
     const { result } = renderHook(() => useSessionBootstrap(), {
       wrapper: createWrapper(),
     })
 
-    expect(result.current).toBe(true)
+    await waitFor(() => expect(result.current).toBe(true))
+    expect(mockedRefreshAccessToken).toHaveBeenCalled()
     expect(mockedGetCurrentUser).not.toHaveBeenCalled()
+  })
+
+  it('restores access from the refresh cookie then loads /me/', async () => {
+    mockedRefreshAccessToken.mockResolvedValue({ access: 'cookie-access' })
+    mockedGetCurrentUser.mockResolvedValue(testUser)
+
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    expect(result.current).toBe(false)
+
+    await waitFor(() => expect(result.current).toBe(true))
+
+    expect(mockedRefreshAccessToken).toHaveBeenCalled()
+    expect(mockedGetCurrentUser).toHaveBeenCalledTimes(1)
+    expect(useAuthStore.getState().accessToken).toBe('cookie-access')
+    expect(useAuthStore.getState().user).toEqual(testUser)
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
   it('stays ready when a token appears after a logged-out bootstrap (login flow)', async () => {
@@ -61,12 +84,11 @@ describe('useSessionBootstrap', () => {
       wrapper: createWrapper(),
     })
 
-    expect(result.current).toBe(true)
+    await waitFor(() => expect(result.current).toBe(true))
 
     act(() => {
       useAuthStore.getState().setSession({
         access: 'fresh-access',
-        refresh: 'fresh-refresh',
         user: testUser,
       })
     })
@@ -78,10 +100,9 @@ describe('useSessionBootstrap', () => {
     expect(result.current).toBe(true)
   })
 
-  it('hydrates the store with the fresh user when the token is valid', async () => {
+  it('hydrates the store with the fresh user when an in-memory token is already present', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: null,
       isAuthenticated: true,
     })
@@ -95,6 +116,7 @@ describe('useSessionBootstrap', () => {
 
     await waitFor(() => expect(result.current).toBe(true))
 
+    expect(mockedRefreshAccessToken).not.toHaveBeenCalled()
     expect(mockedGetCurrentUser).toHaveBeenCalledTimes(1)
     expect(useAuthStore.getState().user).toEqual(testUser)
     expect(useAuthStore.getState().isAuthenticated).toBe(true)
@@ -103,7 +125,6 @@ describe('useSessionBootstrap', () => {
   it('clears the session and shows a session-expired toast when token validation fails', async () => {
     useAuthStore.setState({
       accessToken: 'stale-token',
-      refreshToken: 'stale-refresh',
       user: testUser,
       isAuthenticated: true,
     })

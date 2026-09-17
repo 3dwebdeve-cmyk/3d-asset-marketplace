@@ -1,7 +1,8 @@
 """Contact form email delivery.
 
 Policy: email delivery failures never block a successful API response.
-Failures are logged. Sender name/email are included so staff can reply.
+Emails are enqueued on Celery. Failures are logged. Sender name/email are
+included so staff can reply.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from django.template.loader import render_to_string
 
 from accounts.models import User
 from accounts.services import AuthenticationService
+from config.celery_utils import enqueue_after_commit
 
 logger = logging.getLogger("contact.notifications")
 
@@ -71,6 +73,25 @@ class ContactService:
             logger.warning("contact_form_email_skipped reason=no_admin_recipients")
             return cls.SUCCESS_DETAIL
 
+        from contact.tasks import send_contact_submission_task
+
+        enqueue_after_commit(
+            send_contact_submission_task,
+            data.name,
+            data.email,
+            data.subject,
+            data.message,
+        )
+        return cls.SUCCESS_DETAIL
+
+    @classmethod
+    def deliver(cls, data: ContactSubmissionData) -> None:
+        """Send contact email now. Raises on SMTP failure for Celery retries."""
+        recipients = cls._configured_recipients()
+        if not recipients:
+            logger.warning("contact_form_email_skipped reason=no_admin_recipients")
+            return
+
         safe_name = cls._safe_email_text(data.name)
         safe_subject = cls._safe_email_text(data.subject)
         safe_email = cls._safe_email_text(data.email)
@@ -84,22 +105,14 @@ class ContactService:
             },
         ).strip() + "\n"
 
-        try:
-            send_mail(
-                subject=f"Contact form: {safe_subject}",
-                message=body,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=recipients,
-                fail_silently=False,
-            )
-            logger.info(
-                "contact_form_email_sent recipient_count=%s",
-                len(recipients),
-            )
-        except Exception:
-            logger.exception(
-                "contact_form_email_failed recipient_count=%s",
-                len(recipients),
-            )
-
-        return cls.SUCCESS_DETAIL
+        send_mail(
+            subject=f"Contact form: {safe_subject}",
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=recipients,
+            fail_silently=False,
+        )
+        logger.info(
+            "contact_form_email_sent recipient_count=%s",
+            len(recipients),
+        )

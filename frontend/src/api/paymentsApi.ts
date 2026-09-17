@@ -8,14 +8,14 @@ import type {
 } from '../types/payment'
 
 export async function createCheckoutSession(): Promise<CheckoutSessionResponse> {
-  const { data } = await apiClient.post<CheckoutSessionResponse>('/api/payments/checkout/')
+  const { data } = await apiClient.post<CheckoutSessionResponse>('/api/v1/payments/checkout/')
   return data
 }
 
 export async function confirmCheckoutSession(
   orderId: string,
 ): Promise<ConfirmCheckoutResponse> {
-  const { data } = await apiClient.post<ConfirmCheckoutResponse>('/api/payments/confirm/', {
+  const { data } = await apiClient.post<ConfirmCheckoutResponse>('/api/v1/payments/confirm/', {
     order_id: orderId,
   })
   return data
@@ -38,14 +38,14 @@ export async function listAdminPayments(
   params: AdminPaymentListParams = {},
 ): Promise<PaginatedAdminPayments> {
   const { data } = await apiClient.get<PaginatedAdminPayments>(
-    `/api/admin/payments/${toAdminQuery(params)}`,
+    `/api/v1/admin/payments/${toAdminQuery(params)}`,
   )
   return data
 }
 
 export async function getAdminPayment(paymentId: string): Promise<AdminPaymentDetail> {
   const { data } = await apiClient.get<AdminPaymentDetail>(
-    `/api/admin/payments/${paymentId}/`,
+    `/api/v1/admin/payments/${paymentId}/`,
   )
   return data
 }

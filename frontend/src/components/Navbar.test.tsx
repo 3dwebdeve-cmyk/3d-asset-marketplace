@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as authApi from '../api/authApi'
 import * as cartApi from '../api/cartApi'
 import * as categoriesApi from '../api/categoriesApi'
-import * as notificationsApi from '../api/notificationsApi'
 import * as pluginsApi from '../api/pluginsApi'
 import * as wishlistApi from '../api/wishlistApi'
 import { AuthModal } from './auth/AuthModal'
@@ -37,17 +36,6 @@ vi.mock('../api/wishlistApi', async () => {
   return {
     ...actual,
     listWishlistItems: vi.fn(),
-  }
-})
-
-vi.mock('../api/notificationsApi', async () => {
-  const actual = await vi.importActual<typeof import('../api/notificationsApi')>(
-    '../api/notificationsApi',
-  )
-  return {
-    ...actual,
-    getUnreadNotificationCount: vi.fn(),
-    listNotifications: vi.fn(),
   }
 })
 
@@ -131,15 +119,6 @@ beforeEach(() => {
     total_quantity: 0,
     coupon: null,
     items: [],
-  })
-  vi.mocked(notificationsApi.getUnreadNotificationCount).mockResolvedValue({
-    unread_count: 0,
-  })
-  vi.mocked(notificationsApi.listNotifications).mockResolvedValue({
-    count: 0,
-    next: null,
-    previous: null,
-    results: [],
   })
   vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
     count: 0,
@@ -227,7 +206,6 @@ describe('Navbar', () => {
     const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: { ...testUser, avatar: 'https://cdn.example.com/avatar.jpg' },
       isAuthenticated: true,
     })
@@ -240,7 +218,6 @@ describe('Navbar', () => {
       'src',
       'https://cdn.example.com/avatar.jpg',
     )
-    expect(screen.getByRole('button', { name: /^notifications$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
 
     const menu = await openAccountMenu(user)
@@ -270,7 +247,6 @@ describe('Navbar', () => {
   it('shows a cart count badge when the customer has items in cart', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
     })
@@ -295,7 +271,6 @@ describe('Navbar', () => {
     const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
     })
@@ -316,7 +291,6 @@ describe('Navbar', () => {
     const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: { ...testUser, role: 'Administrator', email: 'admin@example.com' },
       isAuthenticated: true,
     })
@@ -335,7 +309,6 @@ describe('Navbar', () => {
     const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
     })
@@ -351,7 +324,7 @@ describe('Navbar', () => {
     })
     expect(screen.getByText('Home page')).toBeInTheDocument()
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
-    expect(authApi.logoutUser).toHaveBeenCalledWith('refresh-token')
+    expect(authApi.logoutUser).toHaveBeenCalledWith()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
     expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
   })

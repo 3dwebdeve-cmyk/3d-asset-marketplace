@@ -47,6 +47,20 @@ def log_password_reset(
     )
 
 
+def log_password_change(
+    *,
+    action: str,
+    email: str | None = None,
+    user_id: str | None = None,
+) -> None:
+    security_logger.info(
+        "password_change action=%s email=%s user_id=%s",
+        action,
+        _redact_email(email),
+        user_id or "-",
+    )
+
+
 def log_email_verification(
     *,
     action: str,

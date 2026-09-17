@@ -18,35 +18,35 @@ import type {
 export async function listPublicProducts(
   params: PublicProductListParams = {},
 ): Promise<PaginatedPublicProducts> {
-  const response = await apiClient.get<PaginatedPublicProducts>('/api/products/', {
+  const response = await apiClient.get<PaginatedPublicProducts>('/api/v1/products/', {
     params,
   })
   return response.data
 }
 
 export async function getPublicProduct(slug: string): Promise<PublicProductDetail> {
-  const response = await apiClient.get<PublicProductDetail>(`/api/products/${slug}/`)
+  const response = await apiClient.get<PublicProductDetail>(`/api/v1/products/${slug}/`)
   return response.data
 }
 
 export async function listAdminProducts(
   params: AdminProductListParams = {},
 ): Promise<PaginatedAdminProducts> {
-  const response = await apiClient.get<PaginatedAdminProducts>('/api/admin/products/', {
+  const response = await apiClient.get<PaginatedAdminProducts>('/api/v1/admin/products/', {
     params,
   })
   return response.data
 }
 
 export async function getAdminProduct(productId: string): Promise<AdminProduct> {
-  const response = await apiClient.get<AdminProduct>(`/api/admin/products/${productId}/`)
+  const response = await apiClient.get<AdminProduct>(`/api/v1/admin/products/${productId}/`)
   return response.data
 }
 
 export async function createAdminProduct(
   payload: AdminProductCreatePayload,
 ): Promise<AdminProduct> {
-  const response = await apiClient.post<AdminProduct>('/api/admin/products/', payload)
+  const response = await apiClient.post<AdminProduct>('/api/v1/admin/products/', payload)
   return response.data
 }
 
@@ -55,7 +55,7 @@ export async function updateAdminProduct(
   payload: AdminProductUpdatePayload,
 ): Promise<AdminProduct> {
   const response = await apiClient.patch<AdminProduct>(
-    `/api/admin/products/${productId}/`,
+    `/api/v1/admin/products/${productId}/`,
     payload,
   )
   return response.data
@@ -63,14 +63,14 @@ export async function updateAdminProduct(
 
 export async function archiveAdminProduct(productId: string): Promise<AdminProduct> {
   const response = await apiClient.delete<AdminProduct>(
-    `/api/admin/products/${productId}/`,
+    `/api/v1/admin/products/${productId}/`,
   )
   return response.data
 }
 
 export async function approveAdminProduct(productId: string): Promise<AdminProduct> {
   const response = await apiClient.post<AdminProduct>(
-    `/api/admin/products/${productId}/approve/`,
+    `/api/v1/admin/products/${productId}/approve/`,
   )
   return response.data
 }
@@ -80,7 +80,7 @@ export async function rejectAdminProduct(
   payload: AdminProductRejectPayload,
 ): Promise<AdminProduct> {
   const response = await apiClient.post<AdminProduct>(
-    `/api/admin/products/${productId}/reject/`,
+    `/api/v1/admin/products/${productId}/reject/`,
     payload,
   )
   return response.data
@@ -88,7 +88,7 @@ export async function rejectAdminProduct(
 
 export async function requeueAdminProduct(productId: string): Promise<AdminProduct> {
   const response = await apiClient.post<AdminProduct>(
-    `/api/admin/products/${productId}/requeue/`,
+    `/api/v1/admin/products/${productId}/requeue/`,
   )
   return response.data
 }
@@ -103,7 +103,7 @@ export async function uploadProductImage(
   formData.append('is_primary', String(payload.is_primary ?? false))
 
   const response = await apiClient.post<ProductImage>(
-    `/api/admin/products/${productId}/images/`,
+    `/api/v1/admin/products/${productId}/images/`,
     formData,
   )
   return response.data
@@ -113,7 +113,7 @@ export async function deleteProductImage(
   productId: string,
   imageId: string,
 ): Promise<void> {
-  await apiClient.delete(`/api/admin/products/${productId}/images/${imageId}/`)
+  await apiClient.delete(`/api/v1/admin/products/${productId}/images/${imageId}/`)
 }
 
 export async function uploadProductFile(
@@ -126,7 +126,7 @@ export async function uploadProductFile(
   formData.append('is_preview', String(payload.is_preview ?? false))
 
   const response = await apiClient.post<ProductFile>(
-    `/api/admin/products/${productId}/files/`,
+    `/api/v1/admin/products/${productId}/files/`,
     formData,
   )
   return response.data
@@ -136,5 +136,5 @@ export async function deleteProductFile(
   productId: string,
   fileId: string,
 ): Promise<void> {
-  await apiClient.delete(`/api/admin/products/${productId}/files/${fileId}/`)
+  await apiClient.delete(`/api/v1/admin/products/${productId}/files/${fileId}/`)
 }

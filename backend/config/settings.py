@@ -15,14 +15,21 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
-from decouple import Config, RepositoryEnv
+from decouple import Config, RepositoryEmpty, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-config = Config(RepositoryEnv(BASE_DIR / ".env"))
+# Prefer process environment (Docker / CI). Fall back to backend/.env when present.
+# Config() requires a repository; RepositoryEmpty still lets Config read os.environ.
+_env_path = BASE_DIR / ".env"
+config = (
+    Config(RepositoryEnv(str(_env_path)))
+    if _env_path.is_file()
+    else Config(RepositoryEmpty())
+)
 
 
 # Quick-start development settings - unsuitable for production
@@ -74,14 +81,16 @@ INSTALLED_APPS = [
     'coupons',
     'contact',
     'payments',
-    'notifications',
     'search',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.csp.ContentSecurityPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    # Rewrite /api/* → /api/v1/* before CommonMiddleware/APPEND_SLASH resolution.
+    'config.legacy_api.LegacyApiPathAliasMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -210,12 +219,17 @@ _s3_common = {
     "addressing_style": "path",
     "signature_version": "s3v4",
 }
+_staticfiles_storage = {
+    "BACKEND": (
+        "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        if not DEBUG
+        else "django.contrib.staticfiles.storage.StaticFilesStorage"
+    ),
+}
 if R2_ENABLED:
     STORAGES = {
         "default": _filesystem_storage,
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-        },
+        "staticfiles": _staticfiles_storage,
         "public": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
@@ -236,9 +250,7 @@ if R2_ENABLED:
 else:
     STORAGES = {
         "default": _filesystem_storage,
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-        },
+        "staticfiles": _staticfiles_storage,
         "public": _filesystem_storage,
         "private": _filesystem_storage,
     }
@@ -246,6 +258,21 @@ else:
 STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
 STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
 STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
+
+# Browser E2E / Compose overlay only. Never enable with live Stripe keys.
+# When True, checkout returns the SPA success URL and confirm fulfills locally
+# (same path as a verified checkout.session.completed webhook).
+E2E_STRIPE_SIMULATE = config("E2E_STRIPE_SIMULATE", cast=bool, default=False)
+if E2E_STRIPE_SIMULATE:
+    _stripe_secret = STRIPE_SECRET_KEY or ""
+    if _stripe_secret.startswith("sk_live_"):
+        raise ImproperlyConfigured(
+            "E2E_STRIPE_SIMULATE cannot be used with live Stripe secret keys."
+        )
+    if _stripe_secret and not _stripe_secret.startswith("sk_test_"):
+        raise ImproperlyConfigured(
+            "E2E_STRIPE_SIMULATE requires an empty STRIPE_SECRET_KEY or sk_test_ key."
+        )
 
 # Upload limits: avatars stay small; product images/files may be larger.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52 * 1024 * 1024
@@ -275,6 +302,27 @@ else:
             "LOCATION": "marketplace-default",
         }
     }
+
+# Celery — broker shares REDIS_URL. Without Redis (local DEBUG) or under tests,
+# tasks run eagerly in-process so email still works without a worker.
+CELERY_BROKER_URL = REDIS_URL or "memory://"
+CELERY_RESULT_BACKEND = None
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_TRACK_STARTED = False
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_ALWAYS_EAGER = _running_tests or not bool(REDIS_URL)
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_TASK_DEFAULT_RETRY_DELAY = 60
+# Under tests: no retries (avoids backoff sleeps); enqueue still fail-soft.
+CELERY_TASK_ANNOTATIONS = {
+    "*": {
+        "max_retries": 0 if _running_tests else 5,
+    },
+}
 
 # Optional Meilisearch for public catalog search. Blank → Postgres icontains fallback.
 # MEILI_URL=http://127.0.0.1:7700
@@ -321,7 +369,6 @@ REST_FRAMEWORK = {
         "admin_coupon_write": "60/min",
         "contact_form": "5/hour",
         "payment_checkout": "10/min",
-        "notification_write": "60/min",
     },
 }
 
@@ -334,6 +381,23 @@ SIMPLE_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+
+# Refresh JWT is delivered only via httpOnly cookie (never in JSON).
+JWT_REFRESH_COOKIE_NAME = config("JWT_REFRESH_COOKIE_NAME", default="refresh_token")
+JWT_REFRESH_REMEMBER_COOKIE_NAME = config(
+    "JWT_REFRESH_REMEMBER_COOKIE_NAME",
+    default="refresh_remember",
+)
+# Canonical + legacy auth share Path=/api/ while /api/ aliases remain.
+# After removing unversioned aliases, tighten to /api/v1/auth/.
+JWT_REFRESH_COOKIE_PATH = config("JWT_REFRESH_COOKIE_PATH", default="/api/")
+JWT_REFRESH_COOKIE_SAMESITE = config("JWT_REFRESH_COOKIE_SAMESITE", default="Lax")
+# None → Secure when DEBUG is False; override explicitly for reverse-proxy HTTPS locally.
+_jwt_refresh_secure = str(config("JWT_REFRESH_COOKIE_SECURE", default="")).strip().lower()
+if _jwt_refresh_secure in {"", "none"}:
+    JWT_REFRESH_COOKIE_SECURE = None
+else:
+    JWT_REFRESH_COOKIE_SECURE = _jwt_refresh_secure in {"1", "true", "yes", "on"}
 
 # Production hardening (applied when DEBUG is False).
 if not DEBUG:
@@ -363,7 +427,8 @@ CORS_ALLOWED_ORIGINS = config(
     default="http://localhost:5173,http://127.0.0.1:5173",
     cast=lambda value: [origin.strip() for origin in value.split(",") if origin.strip()],
 )
-CORS_ALLOW_CREDENTIALS = False
+# Required for SPA cookie-based refresh (same-origin via Nginx/Vite proxy preferred).
+CORS_ALLOW_CREDENTIALS = True
 
 # Backend/API CSP. The separately deployed frontend host must emit its own CSP
 # header at the CDN or web-server layer.
@@ -455,3 +520,25 @@ EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+
+# --- Sentry (optional; no-op when SENTRY_DSN is blank) ---
+SENTRY_DSN = config("SENTRY_DSN", default="").strip()
+SENTRY_ENVIRONMENT = config(
+    "SENTRY_ENVIRONMENT",
+    default="development" if DEBUG else "production",
+)
+SENTRY_RELEASE = config("SENTRY_RELEASE", default="").strip()
+SENTRY_TRACES_SAMPLE_RATE = config(
+    "SENTRY_TRACES_SAMPLE_RATE",
+    default="0.0" if DEBUG else "0.1",
+    cast=float,
+)
+if SENTRY_DSN:
+    from config.sentry import init_sentry
+
+    init_sentry(
+        dsn=SENTRY_DSN,
+        environment=SENTRY_ENVIRONMENT,
+        release=SENTRY_RELEASE or None,
+        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
+    )

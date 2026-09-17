@@ -27,20 +27,20 @@ export async function listAdminOrders(
   params: AdminOrderListParams = {},
 ): Promise<PaginatedAdminOrders> {
   const { data } = await apiClient.get<PaginatedAdminOrders>(
-    `/api/admin/orders/${toQuery(params)}`,
+    `/api/v1/admin/orders/${toQuery(params)}`,
   )
   return data
 }
 
 export async function getAdminOrder(orderId: string): Promise<AdminOrder> {
-  const { data } = await apiClient.get<AdminOrder>(`/api/admin/orders/${orderId}/`)
+  const { data } = await apiClient.get<AdminOrder>(`/api/v1/admin/orders/${orderId}/`)
   return data
 }
 
 export async function createAdminOrder(
   payload: AdminOrderCreatePayload,
 ): Promise<AdminOrder> {
-  const { data } = await apiClient.post<AdminOrder>('/api/admin/orders/', payload)
+  const { data } = await apiClient.post<AdminOrder>('/api/v1/admin/orders/', payload)
   return data
 }
 
@@ -49,7 +49,7 @@ export async function updateAdminOrderStatus(
   payload: AdminOrderStatusUpdatePayload,
 ): Promise<AdminOrder> {
   const { data } = await apiClient.patch<AdminOrder>(
-    `/api/admin/orders/${orderId}/`,
+    `/api/v1/admin/orders/${orderId}/`,
     payload,
   )
   return data
@@ -71,13 +71,13 @@ export async function listCustomerOrders(
   params: CustomerOrderListParams = {},
 ): Promise<PaginatedCustomerOrders> {
   const { data } = await apiClient.get<PaginatedCustomerOrders>(
-    `/api/orders/${toCustomerQuery(params)}`,
+    `/api/v1/orders/${toCustomerQuery(params)}`,
   )
   return data
 }
 
 export async function getCustomerOrder(orderId: string): Promise<CustomerOrder> {
-  const { data } = await apiClient.get<CustomerOrder>(`/api/orders/${orderId}/`)
+  const { data } = await apiClient.get<CustomerOrder>(`/api/v1/orders/${orderId}/`)
   return data
 }
 
@@ -94,7 +94,7 @@ export async function downloadCustomerOrderInvoice(
   orderId: string,
   invoiceNumber: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(`/api/orders/${orderId}/invoice/`, {
+  const { data } = await apiClient.get<Blob>(`/api/v1/orders/${orderId}/invoice/`, {
     responseType: 'blob',
   })
   triggerBlobDownload(data, `invoice-${invoiceNumber}.pdf`)
@@ -104,7 +104,7 @@ export async function downloadAdminOrderInvoice(
   orderId: string,
   invoiceNumber: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(`/api/admin/orders/${orderId}/invoice/`, {
+  const { data } = await apiClient.get<Blob>(`/api/v1/admin/orders/${orderId}/invoice/`, {
     responseType: 'blob',
   })
   triggerBlobDownload(data, `invoice-${invoiceNumber}.pdf`)

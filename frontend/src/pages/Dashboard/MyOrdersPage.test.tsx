@@ -50,7 +50,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({
     accessToken: 'access-token',
-    refreshToken: 'refresh-token',
     user: testUser,
     isAuthenticated: true,
   })

@@ -51,7 +51,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({
     accessToken: 'access-token',
-    refreshToken: 'refresh-token',
     user: adminUser,
     isAuthenticated: true,
   })
@@ -145,7 +144,7 @@ describe('AdminLayout', () => {
     await waitFor(() => {
       expect(screen.getByText('Admin login page')).toBeInTheDocument()
     })
-    expect(authApi.logoutUser).toHaveBeenCalledWith('refresh-token')
+    expect(authApi.logoutUser).toHaveBeenCalledWith()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 })

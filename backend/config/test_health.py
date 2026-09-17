@@ -53,3 +53,17 @@ class RedisProductionGuardTests(SimpleTestCase):
 
     def test_static_root_configured(self) -> None:
         self.assertTrue(str(settings.STATIC_ROOT).endswith("staticfiles"))
+
+    def test_whitenoise_middleware_enabled(self) -> None:
+        self.assertIn(
+            "whitenoise.middleware.WhiteNoiseMiddleware",
+            settings.MIDDLEWARE,
+        )
+        self.assertEqual(
+            settings.MIDDLEWARE[0],
+            "django.middleware.security.SecurityMiddleware",
+        )
+        self.assertEqual(
+            settings.MIDDLEWARE[1],
+            "whitenoise.middleware.WhiteNoiseMiddleware",
+        )

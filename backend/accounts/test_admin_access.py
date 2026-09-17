@@ -79,7 +79,7 @@ class AdministratorAccessAPITests(APITestCase):
 
         self.assertEqual(data["user"]["role"], "Administrator")
         self.assertIn("access", data)
-        self.assertIn("refresh", data)
+        self.assertNotIn("refresh", data)
 
     def test_admin_login_rejects_customer(self) -> None:
         response = self.client.post(

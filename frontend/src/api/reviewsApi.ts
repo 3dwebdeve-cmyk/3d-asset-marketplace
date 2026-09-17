@@ -35,12 +35,12 @@ function toAdminQuery(params: AdminReviewListParams = {}): string {
 }
 
 export async function listReviews(params: ReviewListParams): Promise<PaginatedReviews> {
-  const { data } = await apiClient.get<PaginatedReviews>(`/api/reviews/${toListQuery(params)}`)
+  const { data } = await apiClient.get<PaginatedReviews>(`/api/v1/reviews/${toListQuery(params)}`)
   return data
 }
 
 export async function createReview(payload: ReviewCreatePayload): Promise<Review> {
-  const { data } = await apiClient.post<Review>('/api/reviews/', payload)
+  const { data } = await apiClient.post<Review>('/api/v1/reviews/', payload)
   return data
 }
 
@@ -52,7 +52,7 @@ export async function getMyReview(
     product_type: productType,
     product_id: productId,
   })
-  const { data } = await apiClient.get<Review>(`/api/reviews/mine/?${query.toString()}`)
+  const { data } = await apiClient.get<Review>(`/api/v1/reviews/mine/?${query.toString()}`)
   return data
 }
 
@@ -65,7 +65,7 @@ export async function getReviewEligibility(
     product_id: productId,
   })
   const { data } = await apiClient.get<ReviewEligibility>(
-    `/api/reviews/eligibility/?${query.toString()}`,
+    `/api/v1/reviews/eligibility/?${query.toString()}`,
   )
   return data
 }
@@ -74,7 +74,7 @@ export async function listAdminReviews(
   params: AdminReviewListParams = {},
 ): Promise<PaginatedAdminReviews> {
   const { data } = await apiClient.get<PaginatedAdminReviews>(
-    `/api/admin/reviews/${toAdminQuery(params)}`,
+    `/api/v1/admin/reviews/${toAdminQuery(params)}`,
   )
   return data
 }
@@ -83,12 +83,12 @@ export async function updateAdminReviewHidden(
   reviewId: string,
   isHidden: boolean,
 ): Promise<AdminReview> {
-  const { data } = await apiClient.patch<AdminReview>(`/api/admin/reviews/${reviewId}/`, {
+  const { data } = await apiClient.patch<AdminReview>(`/api/v1/admin/reviews/${reviewId}/`, {
     is_hidden: isHidden,
   })
   return data
 }
 
 export async function deleteAdminReview(reviewId: string): Promise<void> {
-  await apiClient.delete(`/api/admin/reviews/${reviewId}/`)
+  await apiClient.delete(`/api/v1/admin/reviews/${reviewId}/`)
 }

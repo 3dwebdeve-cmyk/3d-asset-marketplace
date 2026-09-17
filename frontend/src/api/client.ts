@@ -10,7 +10,11 @@ import type { RefreshResponse } from '../types/auth'
 
 const SESSION_EXPIRED_TOAST_ID = 'session-expired'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
+/** Empty = same-origin `/api/v1` (Vite proxy locally, Nginx in Docker). */
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+
+/** Canonical REST API version prefix. */
+export const API_PREFIX = '/api/v1'
 
 interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
@@ -20,6 +24,7 @@ let refreshRequest: Promise<string> | null = null
 
 export const apiClient = axios.create({
   baseURL: apiBaseUrl,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,52 +47,52 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
-async function requestFreshAccessToken(refreshToken: string): Promise<{
-  access: string
-  refresh?: string
-}> {
+async function requestFreshAccessToken(): Promise<string> {
   const response = await axios.post<RefreshResponse>(
-    `${apiBaseUrl}/api/auth/token/refresh/`,
-    { refresh: refreshToken },
+    `${apiBaseUrl}${API_PREFIX}/auth/token/refresh/`,
+    {},
     {
+      withCredentials: true,
       headers: {
         'Content-Type': 'application/json',
       },
     },
   )
-  return {
-    access: response.data.access,
-    refresh: response.data.refresh,
-  }
+  return response.data.access
 }
 
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined
-    const { refreshToken, updateTokens, clearSession } = useAuthStore.getState()
+    const { updateAccessToken, clearSession, isAuthenticated, accessToken } =
+      useAuthStore.getState()
 
     if (
       error.response?.status !== 401 ||
       !originalRequest ||
       originalRequest._retry ||
-      !refreshToken ||
-      originalRequest.url?.includes('/api/auth/token/refresh/')
+      originalRequest.url?.includes(`${API_PREFIX}/auth/token/refresh/`)
     ) {
+      return Promise.reject(error)
+    }
+
+    // Only attempt cookie refresh when we believe a session may exist.
+    if (!isAuthenticated && !accessToken) {
       return Promise.reject(error)
     }
 
     originalRequest._retry = true
 
     try {
-      refreshRequest ??= requestFreshAccessToken(refreshToken).then((tokens) => {
-        updateTokens(tokens)
-        return tokens.access
+      refreshRequest ??= requestFreshAccessToken().then((access) => {
+        updateAccessToken(access)
+        return access
       })
-      const accessToken = await refreshRequest
+      const newAccess = await refreshRequest
 
       const headers = AxiosHeaders.from(originalRequest.headers)
-      headers.set('Authorization', `Bearer ${accessToken}`)
+      headers.set('Authorization', `Bearer ${newAccess}`)
       originalRequest.headers = headers
 
       return apiClient(originalRequest)

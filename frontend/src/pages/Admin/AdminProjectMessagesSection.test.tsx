@@ -96,7 +96,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({
     accessToken: 'access-token',
-    refreshToken: 'refresh-token',
     user: adminUser,
     isAuthenticated: true,
   })
@@ -368,7 +367,7 @@ describe('AdminProjectMessagesSection', () => {
           id: '55555555-5555-5555-5555-555555555555',
           file_name: 'refs.zip',
           file_size: 4096,
-          download_url: `/api/admin/custom-projects/${projectId}/messages/${customerMessage.id}/attachments/55555555-5555-5555-5555-555555555555/download/`,
+          download_url: `/api/v1/admin/custom-projects/${projectId}/messages/${customerMessage.id}/attachments/55555555-5555-5555-5555-555555555555/download/`,
           created_at: '2026-01-10T11:00:00Z',
           updated_at: '2026-01-10T11:00:00Z',
         },

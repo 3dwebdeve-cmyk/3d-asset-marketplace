@@ -87,7 +87,3 @@ class ContactFormRateThrottle(AnonRateThrottle):
 
 class PaymentCheckoutRateThrottle(UserRateThrottle):
     scope = "payment_checkout"
-
-
-class NotificationWriteRateThrottle(UserRateThrottle):
-    scope = "notification_write"

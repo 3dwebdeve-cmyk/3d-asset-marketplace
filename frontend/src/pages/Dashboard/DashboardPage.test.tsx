@@ -13,7 +13,6 @@ function renderDashboard(initialPath = '/dashboard') {
   const queryClient = createTestQueryClient()
   useAuthStore.setState({
     accessToken: 'test-access-token',
-    refreshToken: 'test-refresh-token',
     user: testUser,
     isAuthenticated: true,
   })

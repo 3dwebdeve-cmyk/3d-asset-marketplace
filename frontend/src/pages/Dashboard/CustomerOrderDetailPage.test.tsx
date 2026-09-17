@@ -79,7 +79,7 @@ const paidOrder: CustomerOrder = {
           file_size: 2048,
           version: '1.0',
           download_url:
-            '/api/downloads/products/cccccccc-cccc-cccc-cccc-cccccccccccc/files/dddddddd-dddd-dddd-dddd-dddddddddddd/download/',
+            '/api/v1/downloads/products/cccccccc-cccc-cccc-cccc-cccccccccccc/files/dddddddd-dddd-dddd-dddd-dddddddddddd/download/',
         },
       ],
     },
@@ -104,7 +104,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({
     accessToken: 'access-token',
-    refreshToken: 'refresh-token',
     user: testUser,
     isAuthenticated: true,
   })

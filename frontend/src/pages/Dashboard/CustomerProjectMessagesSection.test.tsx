@@ -88,7 +88,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({
     accessToken: 'access-token',
-    refreshToken: 'refresh-token',
     user: testUser,
     isAuthenticated: true,
   })
@@ -484,7 +483,7 @@ describe('CustomerProjectMessagesSection', () => {
           id: '55555555-5555-5555-5555-555555555555',
           file_name: 'sketch.png',
           file_size: 2048,
-          download_url: `/api/custom-projects/${projectId}/messages/${customerMessage.id}/attachments/55555555-5555-5555-5555-555555555555/download/`,
+          download_url: `/api/v1/custom-projects/${projectId}/messages/${customerMessage.id}/attachments/55555555-5555-5555-5555-555555555555/download/`,
           created_at: '2026-01-10T10:00:00Z',
           updated_at: '2026-01-10T10:00:00Z',
         },

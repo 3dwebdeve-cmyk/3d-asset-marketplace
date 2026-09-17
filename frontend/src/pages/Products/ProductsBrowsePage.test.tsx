@@ -316,7 +316,6 @@ describe('ProductsBrowsePage', () => {
   it('shows wishlist toggle on product cards for authenticated users', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
       postLogoutRedirect: null,

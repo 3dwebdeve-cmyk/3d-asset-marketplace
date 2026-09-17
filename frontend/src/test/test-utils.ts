@@ -19,11 +19,10 @@ export function createTestQueryClient(): QueryClient {
 export function resetAuthStore(): void {
   useAuthStore.setState({
     accessToken: null,
-    refreshToken: null,
     user: null,
-      isAuthenticated: false,
-      rememberSession: true,
-      postLogoutRedirect: null,
+    isAuthenticated: false,
+    rememberSession: true,
+    postLogoutRedirect: null,
   })
   localStorage.clear()
 }

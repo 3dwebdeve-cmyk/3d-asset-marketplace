@@ -39,11 +39,12 @@ export function useLoginForm(): UseLoginFormResult {
       const data = await loginUser({
         email: values.email,
         password: values.password,
+        remember_me: values.remember_me,
       })
       return { data, remember: values.remember_me }
     },
     onSuccess: ({ data, remember }: { data: LoginResponse; remember: boolean }) => {
-      setSession({ access: data.access, refresh: data.refresh, user: data.user }, { remember })
+      setSession({ access: data.access, user: data.user }, { remember })
       queryClient.setQueryData(['auth', 'me', data.access], data.user)
       if (data.user.role === 'Administrator') {
         queryClient.setQueryData(['auth', 'admin', 'me', data.access], data.user)

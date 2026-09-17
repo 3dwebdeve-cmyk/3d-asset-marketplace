@@ -25,19 +25,19 @@ import type {
 export async function listPublicPlugins(
   params: PublicPluginListParams = {},
 ): Promise<PaginatedPublicPlugins> {
-  const response = await apiClient.get<PaginatedPublicPlugins>('/api/plugins/', { params })
+  const response = await apiClient.get<PaginatedPublicPlugins>('/api/v1/plugins/', { params })
   return response.data
 }
 
 export async function getPublicPlugin(slug: string): Promise<PublicPluginDetail> {
-  const response = await apiClient.get<PublicPluginDetail>(`/api/plugins/${slug}/`)
+  const response = await apiClient.get<PublicPluginDetail>(`/api/v1/plugins/${slug}/`)
   return response.data
 }
 
 export async function listPublicPluginCategories(
   params: PublicPluginCategoryListParams = {},
 ): Promise<PaginatedPluginCategories> {
-  const response = await apiClient.get<PaginatedPluginCategories>('/api/plugin-categories/', {
+  const response = await apiClient.get<PaginatedPluginCategories>('/api/v1/plugin-categories/', {
     params,
   })
   return response.data
@@ -46,19 +46,19 @@ export async function listPublicPluginCategories(
 export async function listAdminPlugins(
   params: AdminPluginListParams = {},
 ): Promise<PaginatedAdminPlugins> {
-  const response = await apiClient.get<PaginatedAdminPlugins>('/api/admin/plugins/', { params })
+  const response = await apiClient.get<PaginatedAdminPlugins>('/api/v1/admin/plugins/', { params })
   return response.data
 }
 
 export async function getAdminPlugin(pluginId: string): Promise<AdminPlugin> {
-  const response = await apiClient.get<AdminPlugin>(`/api/admin/plugins/${pluginId}/`)
+  const response = await apiClient.get<AdminPlugin>(`/api/v1/admin/plugins/${pluginId}/`)
   return response.data
 }
 
 export async function createAdminPlugin(
   payload: AdminPluginCreatePayload,
 ): Promise<AdminPlugin> {
-  const response = await apiClient.post<AdminPlugin>('/api/admin/plugins/', payload)
+  const response = await apiClient.post<AdminPlugin>('/api/v1/admin/plugins/', payload)
   return response.data
 }
 
@@ -67,14 +67,14 @@ export async function updateAdminPlugin(
   payload: AdminPluginUpdatePayload,
 ): Promise<AdminPlugin> {
   const response = await apiClient.patch<AdminPlugin>(
-    `/api/admin/plugins/${pluginId}/`,
+    `/api/v1/admin/plugins/${pluginId}/`,
     payload,
   )
   return response.data
 }
 
 export async function archiveAdminPlugin(pluginId: string): Promise<AdminPlugin> {
-  const response = await apiClient.delete<AdminPlugin>(`/api/admin/plugins/${pluginId}/`)
+  const response = await apiClient.delete<AdminPlugin>(`/api/v1/admin/plugins/${pluginId}/`)
   return response.data
 }
 
@@ -82,7 +82,7 @@ export async function listAdminPluginCategories(
   params: PluginCategoryListParams = {},
 ): Promise<PaginatedPluginCategories> {
   const response = await apiClient.get<PaginatedPluginCategories>(
-    '/api/admin/plugin-categories/',
+    '/api/v1/admin/plugin-categories/',
     { params },
   )
   return response.data
@@ -104,7 +104,7 @@ export async function listAllAdminPluginCategories(): Promise<PluginCategory[]> 
 
 export async function getAdminPluginCategory(categoryId: string): Promise<PluginCategory> {
   const response = await apiClient.get<PluginCategory>(
-    `/api/admin/plugin-categories/${categoryId}/`,
+    `/api/v1/admin/plugin-categories/${categoryId}/`,
   )
   return response.data
 }
@@ -113,7 +113,7 @@ export async function createAdminPluginCategory(
   payload: PluginCategoryCreatePayload,
 ): Promise<PluginCategory> {
   const response = await apiClient.post<PluginCategory>(
-    '/api/admin/plugin-categories/',
+    '/api/v1/admin/plugin-categories/',
     payload,
   )
   return response.data
@@ -124,7 +124,7 @@ export async function updateAdminPluginCategory(
   payload: PluginCategoryUpdatePayload,
 ): Promise<PluginCategory> {
   const response = await apiClient.patch<PluginCategory>(
-    `/api/admin/plugin-categories/${categoryId}/`,
+    `/api/v1/admin/plugin-categories/${categoryId}/`,
     payload,
   )
   return response.data
@@ -134,7 +134,7 @@ export async function deactivateAdminPluginCategory(
   categoryId: string,
 ): Promise<PluginCategory> {
   const response = await apiClient.delete<PluginCategory>(
-    `/api/admin/plugin-categories/${categoryId}/`,
+    `/api/v1/admin/plugin-categories/${categoryId}/`,
   )
   return response.data
 }
@@ -148,14 +148,14 @@ export async function uploadPluginImage(
   formData.append('display_order', String(payload.display_order ?? 0))
   formData.append('is_primary', String(payload.is_primary ?? false))
   const response = await apiClient.post<PluginImage>(
-    `/api/admin/plugins/${pluginId}/images/`,
+    `/api/v1/admin/plugins/${pluginId}/images/`,
     formData,
   )
   return response.data
 }
 
 export async function deletePluginImage(pluginId: string, imageId: string): Promise<void> {
-  await apiClient.delete(`/api/admin/plugins/${pluginId}/images/${imageId}/`)
+  await apiClient.delete(`/api/v1/admin/plugins/${pluginId}/images/${imageId}/`)
 }
 
 export async function uploadPluginFile(
@@ -167,12 +167,12 @@ export async function uploadPluginFile(
   formData.append('version', payload.version ?? '1.0')
   formData.append('is_primary', String(payload.is_primary ?? false))
   const response = await apiClient.post<PluginFile>(
-    `/api/admin/plugins/${pluginId}/files/`,
+    `/api/v1/admin/plugins/${pluginId}/files/`,
     formData,
   )
   return response.data
 }
 
 export async function deletePluginFile(pluginId: string, fileId: string): Promise<void> {
-  await apiClient.delete(`/api/admin/plugins/${pluginId}/files/${fileId}/`)
+  await apiClient.delete(`/api/v1/admin/plugins/${pluginId}/files/${fileId}/`)
 }

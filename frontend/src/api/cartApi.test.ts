@@ -67,7 +67,7 @@ describe('cartApi', () => {
 
     const result = await getCart()
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/cart/')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/cart/')
     expect(result.id).toBe(cartId)
   })
 
@@ -79,7 +79,7 @@ describe('cartApi', () => {
       product_id: productId,
     })
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/cart/', {
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/cart/', {
       product_type: 'product',
       product_id: productId,
     })
@@ -93,7 +93,7 @@ describe('cartApi', () => {
 
     const result = await updateCartItemQuantity(itemId, { quantity: 3 })
 
-    expect(apiClient.patch).toHaveBeenCalledWith(`/api/cart/items/${itemId}/`, {
+    expect(apiClient.patch).toHaveBeenCalledWith(`/api/v1/cart/items/${itemId}/`, {
       quantity: 3,
     })
     expect(result.quantity).toBe(3)
@@ -104,7 +104,7 @@ describe('cartApi', () => {
 
     await removeCartItem(itemId)
 
-    expect(apiClient.delete).toHaveBeenCalledWith(`/api/cart/items/${itemId}/`)
+    expect(apiClient.delete).toHaveBeenCalledWith(`/api/v1/cart/items/${itemId}/`)
   })
 
   it('clears the cart', async () => {
@@ -112,7 +112,7 @@ describe('cartApi', () => {
 
     await clearCart()
 
-    expect(apiClient.delete).toHaveBeenCalledWith('/api/cart/')
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/cart/')
   })
 
   it('applies a coupon', async () => {
@@ -130,7 +130,7 @@ describe('cartApi', () => {
 
     const result = await applyCartCoupon({ code: 'SAVE10' })
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/cart/coupon/', { code: 'SAVE10' })
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/cart/coupon/', { code: 'SAVE10' })
     expect(result.coupon?.code).toBe('SAVE10')
   })
 
@@ -139,7 +139,7 @@ describe('cartApi', () => {
 
     const result = await removeCartCoupon()
 
-    expect(apiClient.delete).toHaveBeenCalledWith('/api/cart/coupon/')
+    expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/cart/coupon/')
     expect(result.coupon).toBeNull()
   })
 })

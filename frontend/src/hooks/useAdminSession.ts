@@ -11,7 +11,6 @@ import { useAuthStore } from '../store/authStore'
 export function useAdminSession() {
   const navigate = useNavigate()
   const accessToken = useAuthStore((state) => state.accessToken)
-  const refreshToken = useAuthStore((state) => state.refreshToken)
   const storedUser = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
   const clearSession = useAuthStore((state) => state.clearSession)
@@ -48,11 +47,7 @@ export function useAdminSession() {
   }, [adminUserQuery.isError, adminUserQuery.error, clearSession, navigate])
 
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      if (refreshToken) {
-        await logoutUser(refreshToken)
-      }
-    },
+    mutationFn: () => logoutUser(),
     onSettled: () => {
       clearSession({ redirectTo: '/admin/login' })
       toast.success('Signed out')

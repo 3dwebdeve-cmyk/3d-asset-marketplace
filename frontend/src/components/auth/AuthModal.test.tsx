@@ -112,9 +112,9 @@ describe('AuthModal', () => {
     await user.click(screen.getByRole('button', { name: /create free studio account/i }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /account created/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /check your email/i })).toBeInTheDocument()
     })
-    expect(screen.getByText(/backend terminal/i)).toBeInTheDocument()
+    expect(screen.getByText(/verification link/i)).toBeInTheDocument()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 })

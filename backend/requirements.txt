@@ -11,3 +11,8 @@ reportlab==4.4.10
 django-storages==1.14.6
 boto3==1.40.21
 meilisearch==0.34.1
+gunicorn==23.0.0
+whitenoise==6.9.0
+celery==5.5.3
+redis==5.2.1
+sentry-sdk[django]==2.38.0

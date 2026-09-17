@@ -36,7 +36,7 @@ describe('pluginsApi', () => {
       .mockResolvedValueOnce({
         data: {
           count: 101,
-          next: 'http://api.test/api/admin/plugin-categories/?page=2',
+          next: 'http://api.test/api/v1/admin/plugin-categories/?page=2',
           previous: null,
           results: [category('1')],
         },
@@ -45,7 +45,7 @@ describe('pluginsApi', () => {
         data: {
           count: 101,
           next: null,
-          previous: 'http://api.test/api/admin/plugin-categories/?page=1',
+          previous: 'http://api.test/api/v1/admin/plugin-categories/?page=1',
           results: [category('101')],
         },
       })
@@ -55,12 +55,12 @@ describe('pluginsApi', () => {
     expect(result.map((item) => item.id)).toEqual(['1', '101'])
     expect(apiClient.get).toHaveBeenNthCalledWith(
       1,
-      '/api/admin/plugin-categories/',
+      '/api/v1/admin/plugin-categories/',
       { params: { page: 1, page_size: 100 } },
     )
     expect(apiClient.get).toHaveBeenNthCalledWith(
       2,
-      '/api/admin/plugin-categories/',
+      '/api/v1/admin/plugin-categories/',
       { params: { page: 2, page_size: 100 } },
     )
   })

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core import mail
 from django.core.cache import cache
 from django.urls import reverse
@@ -109,8 +110,9 @@ class PasswordResetAPITests(APITestCase):
 
         refresh_response = self.client.post(
             self.refresh_url,
-            {"refresh": refresh},
+            {},
             format="json",
+            HTTP_COOKIE=f"{settings.JWT_REFRESH_COOKIE_NAME}={refresh}",
         )
         self.assertEqual(refresh_response.status_code, status.HTTP_401_UNAUTHORIZED)
 

@@ -2,15 +2,30 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+from typing import Any
 
+from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import Storage, default_storage
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.views.static import serve
 
-from config.storages import get_private_storage, get_public_storage
+from config.storages import (
+    call_with_storage_retries,
+    generate_private_presigned_url,
+    get_private_storage,
+    get_public_storage,
+    signed_url_expiry_seconds,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class PrivateFileNotFound(Exception):
+    """Raised when a private object key cannot be resolved for download."""
 
 # Preview images, thumbnails, and avatars stay publicly readable.
 # Paid packages and private project references must use authenticated downloads.
@@ -107,6 +122,60 @@ def open_stored_file(storage_path: str) -> FileResponse:
 
     filename = Path(relative).name
     return FileResponse(handle, as_attachment=True, filename=filename)
+
+
+def private_r2_object_exists(relative: str) -> bool:
+    if not getattr(settings, "R2_ENABLED", False):
+        return False
+    try:
+        return bool(
+            call_with_storage_retries(lambda: get_private_storage().exists(relative))
+        )
+    except (OSError, SuspiciousFileOperation, ValueError, BotoCoreError, ClientError):
+        return False
+
+
+def local_object_exists(relative: str) -> bool:
+    try:
+        return bool(default_storage.exists(relative))
+    except (OSError, SuspiciousFileOperation, ValueError):
+        return False
+
+
+def resolve_private_download(
+    storage_path: str,
+    *,
+    file_name: str,
+) -> FileResponse | dict[str, Any]:
+    """Prefer short-lived R2 signed JSON; stream via FileResponse for local/dev."""
+    relative = media_relative_path(storage_path)
+    if relative is None:
+        raise PrivateFileNotFound()
+
+    use_signed = private_r2_object_exists(relative)
+    if not use_signed and not local_object_exists(relative):
+        raise PrivateFileNotFound()
+
+    if use_signed:
+        try:
+            download_url = call_with_storage_retries(
+                lambda: generate_private_presigned_url(relative, file_name=file_name)
+            )
+        except (BotoCoreError, ClientError, OSError, ValueError, RuntimeError):
+            logger.exception("r2_presign_failed key=%s", relative)
+            raise PrivateFileNotFound() from None
+        return {
+            "download_url": download_url,
+            "expires_in": signed_url_expiry_seconds(),
+            "file_name": file_name,
+        }
+
+    try:
+        response = open_stored_file(storage_path)
+    except Http404 as exc:
+        raise PrivateFileNotFound() from exc
+    response["Content-Disposition"] = f'attachment; filename="{file_name}"'
+    return response
 
 
 def serve_public_media(request: HttpRequest, path: str) -> HttpResponse:

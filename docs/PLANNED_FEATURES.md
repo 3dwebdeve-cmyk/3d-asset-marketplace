@@ -2,8 +2,8 @@
 
 **Purpose:** Single checklist of work remaining to finish **Phase 1** of the platform.  
 **Sources:** [PROJECT_STATUS.md](../PROJECT_STATUS.md), [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md), [docs/batch-ingest-contract.md](batch-ingest-contract.md)  
-**Last scanned:** 2026-09-16 (codebase + routes + deps + tests)  
-**Overall completion (per PROJECT_STATUS):** ~82%
+**Last scanned:** 2026-09-17 (Production checklist runbook)  
+**Overall completion (per PROJECT_STATUS):** ~85%
 
 ---
 
@@ -23,11 +23,10 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 ## Recommended build order (remaining)
 
 ```text
-1. Feature 13 — Docker (app + DB + Gunicorn + Nginx; compose today is Meilisearch-only)
+1. Sprint 11 — Execute docs/PRODUCTION_CHECKLIST.md on staging/prod + remaining formal QA
 2. Feature 12 — Public site polish (legal pages, viewer fullscreen, footer newsletter)
-3. Sprint 11 — Formal API/UI/security/performance testing + production deployment
-4. catalog-bridge Windows .exe polish (separate repo)
-5. Optional / later — Search extras, product tags, Celery, DB activity-log UI
+3. catalog-bridge Windows .exe polish (separate repo)
+4. Optional / later — Search extras, product tags, DB activity-log UI
 ```
 
 ---
@@ -36,10 +35,11 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 
 | Feature | Status | Evidence / notes |
 |---------|--------|------------------|
-| **Feature 13 — Docker** | **Not done** | Root `docker-compose.yml` = Meilisearch only; **no Dockerfile** for app |
-| **Configure Docker** (Sprint 1) | **Not done** | Local + prod container workflow missing |
-| **Production deployment** (Sprint 11) | **Not done** | Server, CDN, monitoring not signed off |
-| **Backend / frontend / DB stability gates** | **Open** | Final release checklist still unchecked |
+| **Feature 13 — Docker** | **Done** (2026-09-17) | `backend/Dockerfile` (Gunicorn), `frontend/Dockerfile` (Nginx), Compose: web/worker/postgres/redis/meilisearch/frontend; healthz wired |
+| **Configure Docker** (Sprint 1) | **Done** | Root `.env.example` + `docker compose up --build` |
+| **Production checklist runbook** | **Done** (2026-09-17) | [`docs/PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) — env gates, `check --deploy`, backup drill, webhook, worker/mail, rollback |
+| **Production deployment** (Sprint 11) | **Not done** | Live host cutover / CDN / monitoring sign-off still open (execute runbook) |
+| **Backend / frontend / DB stability gates** | **Open** | Final release checklist still unchecked until runbook executed on host |
 
 ---
 
@@ -67,7 +67,7 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 | 9 | API E2E import → pay → download | **Done** | `test_catalog_commerce_e2e.py` |
 | 10 | Hardening (retries, migration) | **Done** | storages retries + migrate command |
 
-**Still open outside marketplace app code:** live intake Excel sign-off; desktop bridge `.exe` polish; browser E2E (not just API).
+**Still open outside marketplace app code:** live intake Excel sign-off; desktop bridge `.exe` polish.
 
 ---
 
@@ -113,7 +113,7 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 |------|--------|
 | Unit / API tests | **Extensive** (~35 backend `test_*.py`, ~85 frontend Vitest files) |
 | Formal API testing sign-off | **Open** |
-| Browser E2E (Playwright/Cypress suite) | **Not done** (no project E2E suite; API E2E only) |
+| Browser E2E (Playwright/Cypress suite) | **Done** (Playwright against Compose; `e2e/` + CI `e2e` job) |
 | Security testing | **Open** |
 | Performance optimization | **Open** |
 | Production testing | **Open** |
@@ -124,11 +124,11 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 
 | Debt | Status |
 |------|--------|
-| Docker Compose not production-ready | **Open** — Feature 13 |
+| Docker Compose not production-ready | **Closed** — Feature 13 (2026-09-17); live deploy still Sprint 11 |
 | Legacy catalog media still on local disk | **Partial** — migrate command exists |
 | Custom-project files on local disk | **Later** |
 | Admin audit as DB Activity Logs UI | **Not done** — `log_admin_action` → logger only |
-| Celery async jobs | **Not installed** (Redis used for cache/rate limits when set) |
+| Celery async email | **Shipped** — Redis broker; Compose `worker`; Stripe fulfillment stays in-process |
 
 ---
 
@@ -139,7 +139,7 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 - [ ] Database stable (production sign-off)
 - [ ] Payments tested (formal sign-off)
 - [ ] Security reviewed
-- [ ] Docker ready
+- [x] Docker ready
 - [ ] Production ready
 - [ ] Security testing complete
 - [ ] Performance optimization complete
@@ -198,12 +198,12 @@ The desktop Windows `.exe` for company batch upload is **not** in this repo.
 
 | Priority | Feature | Effort (rough) |
 |----------|---------|----------------|
-| **High** | Feature 13 — Docker + Gunicorn + Nginx | Medium |
-| **High** | Sprint 11 — Security, performance, deploy, formal QA | Medium–Large |
+| **High** | Sprint 11 — Execute production checklist on staging/prod host | Medium (ops) |
+| **High** | Sprint 11 — Remaining formal security / load QA | Medium–Large |
 | Medium | catalog-bridge desktop .exe polish | Large (separate repo) |
 | Medium | Feature 12 — Legal pages, newsletter, viewer fullscreen | Small–medium |
 | Low | Search extras (typeahead, Search page, tags) | Medium |
-| Low | Celery / DB activity-log UI / Settings page | Medium |
+| Low | DB activity-log UI / Settings page | Medium |
 | Blocked | Manager UI redesign | Waiting approval |
 | Later | Phase 2 / Phase 3 roadmap | Future |
 
@@ -213,6 +213,7 @@ The desktop Windows `.exe` for company batch upload is **not** in this repo.
 
 | Document | Purpose |
 |----------|---------|
+| [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) | Production env, deploy checks, backup, webhook, rollback |
 | [PROJECT_STATUS.md](../PROJECT_STATUS.md) | Day-to-day progress, sprints, daily log |
 | [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md) | Vision, modules, future phases |
 | [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md) | R2 + batch ingest implementation detail |

@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import FileResponse
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -9,13 +10,15 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsAdministrator
+from accounts.permissions import IsAdministrator, IsEmailVerified
 from accounts.security_log import log_admin_action
 from accounts.throttles import (
     AdminCustomProjectWriteRateThrottle,
     CustomProjectWriteRateThrottle,
+    DownloadRateThrottle,
     PaymentCheckoutRateThrottle,
 )
+from config.media import PrivateFileNotFound, resolve_private_download
 from custom_projects.models import CustomProject, ProjectFile
 from custom_projects.pagination import CustomProjectPagination
 from custom_projects.serializers import (
@@ -44,7 +47,7 @@ from custom_projects.services import (
     ProjectQuotationData,
 )
 from custom_projects.upload_rules import validate_project_file_upload
-from config.media import open_stored_file
+from downloads.serializers import SignedDownloadSerializer
 from payments.services import CheckoutError, CheckoutService
 
 
@@ -60,6 +63,17 @@ def _delivery_serializer_context(request: Request, *, scope: str) -> dict:
         "request": request,
         "delivery_download_scope": scope,
     }
+
+
+def _private_download_response(storage_path: str, file_name: str) -> FileResponse | Response:
+    """After authz: signed R2 JSON when available, else local FileResponse stream."""
+    try:
+        result = resolve_private_download(storage_path, file_name=file_name)
+    except PrivateFileNotFound as exc:
+        raise NotFound(detail="File not found.") from exc
+    if isinstance(result, dict):
+        return Response(SignedDownloadSerializer(result).data)
+    return result
 
 
 def _create_project_message(
@@ -125,7 +139,7 @@ def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | Non
 
 
 class CustomerCustomProjectListCreateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [CustomProjectWriteRateThrottle]
     pagination_class = CustomProjectPagination
 
@@ -171,7 +185,7 @@ class CustomerCustomProjectDetailView(APIView):
 class CustomerCustomProjectQuotationAcceptView(APIView):
     """Customer accepts a pending quotation for their own project."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [CustomProjectWriteRateThrottle]
 
     def post(self, request: Request, project_id: UUID) -> Response:
@@ -195,7 +209,7 @@ class CustomerCustomProjectQuotationAcceptView(APIView):
 class CustomerCustomProjectQuotationPayView(APIView):
     """Start Stripe Checkout for an accepted custom-project quotation."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [PaymentCheckoutRateThrottle]
 
     def post(self, request: Request, project_id: UUID) -> Response:
@@ -388,6 +402,7 @@ class AdminCustomProjectDetailView(APIView):
 
 class AdminCustomProjectFileDownloadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [DownloadRateThrottle]
 
     def get(self, request: Request, project_id: UUID, file_id: UUID):
         try:
@@ -397,7 +412,7 @@ class AdminCustomProjectFileDownloadView(APIView):
             raise NotFound(detail=exc.message) from exc
         except ProjectFile.DoesNotExist as exc:
             raise NotFound(detail="File not found.") from exc
-        return open_stored_file(project_file.storage_path)
+        return _private_download_response(project_file.storage_path, project_file.file_name)
 
 
 class AdminCustomProjectQuotationView(APIView):
@@ -503,6 +518,7 @@ class AdminCustomProjectDeliveryListCreateView(APIView):
 
 class AdminCustomProjectDeliveryDownloadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [DownloadRateThrottle]
 
     def get(self, request: Request, project_id: UUID, delivery_id: UUID):
         try:
@@ -517,7 +533,7 @@ class AdminCustomProjectDeliveryDownloadView(APIView):
             actor_id=str(request.user.id),
             target_id=str(delivery.id),
         )
-        return open_stored_file(delivery.storage_path)
+        return _private_download_response(delivery.storage_path, delivery.file_name)
 
 
 class CustomerCustomProjectDeliveryListView(APIView):
@@ -547,6 +563,7 @@ class CustomerCustomProjectDeliveryDownloadView(APIView):
     """Project owner can download deliverables for their own project."""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [DownloadRateThrottle]
 
     def get(self, request: Request, project_id: UUID, delivery_id: UUID):
         try:
@@ -557,7 +574,7 @@ class CustomerCustomProjectDeliveryDownloadView(APIView):
             )
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
-        return open_stored_file(delivery.storage_path)
+        return _private_download_response(delivery.storage_path, delivery.file_name)
 
 
 class CustomerCustomProjectMessageListCreateView(APIView):
@@ -596,6 +613,7 @@ class CustomerCustomProjectMessageListCreateView(APIView):
 
 class CustomerCustomProjectMessageAttachmentDownloadView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [DownloadRateThrottle]
 
     def get(
         self,
@@ -613,7 +631,7 @@ class CustomerCustomProjectMessageAttachmentDownloadView(APIView):
             )
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
-        return open_stored_file(attachment.storage_path)
+        return _private_download_response(attachment.storage_path, attachment.file_name)
 
 
 class CustomerCustomProjectMessageMarkReadView(APIView):
@@ -684,6 +702,7 @@ class AdminCustomProjectMessageListCreateView(APIView):
 
 class AdminCustomProjectMessageAttachmentDownloadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [DownloadRateThrottle]
 
     def get(
         self,
@@ -700,7 +719,7 @@ class AdminCustomProjectMessageAttachmentDownloadView(APIView):
             )
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
-        return open_stored_file(attachment.storage_path)
+        return _private_download_response(attachment.storage_path, attachment.file_name)
 
 
 class AdminCustomProjectMessageMarkReadView(APIView):

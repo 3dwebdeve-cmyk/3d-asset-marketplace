@@ -1,5 +1,5 @@
-import logging
 from dataclasses import dataclass
+import logging
 
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -17,7 +17,11 @@ from rest_framework_simplejwt.token_blacklist.models import (
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import Role, User, UserProfile
-from accounts.security_log import log_email_verification, log_password_reset
+from accounts.security_log import (
+    log_email_verification,
+    log_password_change,
+    log_password_reset,
+)
 from accounts.storage import AvatarStorageService
 from accounts.upload_rules import validate_avatar_upload
 
@@ -78,6 +82,7 @@ class RegistrationService:
             role=role,
             phone=data.phone,
             country=data.country,
+            email_verified=False,
         )
 
         UserProfile.objects.create(
@@ -265,6 +270,12 @@ class AuthenticationService:
 
     @staticmethod
     def change_password(user: User, current_password: str, new_password: str) -> None:
+        if not user.email_verified:
+            raise AuthenticationError(
+                "Please verify your email address before changing your password.",
+                code="email_not_verified",
+            )
+
         if not user.check_password(current_password):
             raise AuthenticationError("Current password is incorrect.")
 
@@ -276,16 +287,63 @@ class AuthenticationService:
         user.set_password(new_password)
         user.save(update_fields=["password", "updated_at"])
         AuthenticationService.blacklist_all_refresh_tokens(user)
+        log_password_change(
+            action="change_success",
+            email=user.email,
+            user_id=str(user.pk),
+        )
+
+        from accounts.tasks import send_password_changed_task
+        from config.celery_utils import enqueue_after_commit
+
+        enqueue_after_commit(send_password_changed_task, str(user.pk))
+
+    @classmethod
+    def deliver_password_changed(cls, user: User) -> None:
+        """Notify the account owner that their password was changed."""
+        if not user.is_active or not (user.email or "").strip():
+            return
+
+        frontend_base = getattr(
+            settings,
+            "FRONTEND_BASE_URL",
+            "http://localhost:5173",
+        ).rstrip("/")
+        reset_link = f"{frontend_base}/forgot-password"
+
+        send_mail(
+            subject="Your 3D Asset Marketplace password was changed",
+            message=(
+                "Your account password was just changed.\n\n"
+                "If you made this change, no further action is needed.\n"
+                "If you did not, reset your password immediately:\n"
+                f"{reset_link}\n"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
 
 
 class PasswordResetService:
     @classmethod
     def request_reset(cls, email: str) -> None:
-        """Send a reset email when the account exists. Always no-op-safe for unknowns."""
+        """Enqueue a reset email when the account exists. Always no-op-safe for unknowns."""
         normalized = email.strip().lower()
         log_password_reset(action="request", email=normalized)
         user = User.objects.filter(email=normalized, is_active=True).first()
         if user is None:
+            return
+
+        from accounts.tasks import send_password_reset_task
+        from config.celery_utils import enqueue_after_commit
+
+        enqueue_after_commit(send_password_reset_task, str(user.pk))
+
+    @classmethod
+    def deliver_reset(cls, user: User) -> None:
+        """Build and send a password reset email. Raises on SMTP failure."""
+        if not user.is_active or not (user.email or "").strip():
             return
 
         uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
@@ -354,11 +412,26 @@ class EmailVerificationService:
     def _build_verification_link(user: User) -> str:
         uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
         token = email_verification_token_generator.make_token(user)
-        return f"{EmailVerificationService._frontend_base_url()}/verify-email/{uid}/{token}"
+        return (
+            f"{EmailVerificationService._frontend_base_url()}"
+            f"/verify-email/{uid}/{token}"
+        )
 
     @classmethod
     def send_verification(cls, user: User) -> None:
+        """Enqueue a verification email when the account is active and unverified."""
         if user.email_verified or not user.is_active:
+            return
+
+        from accounts.tasks import send_email_verification_task
+        from config.celery_utils import enqueue_after_commit
+
+        enqueue_after_commit(send_email_verification_task, str(user.pk))
+
+    @classmethod
+    def deliver_verification(cls, user: User) -> None:
+        """Build and send a verification email. Raises on SMTP failure."""
+        if user.email_verified or not user.is_active or not (user.email or "").strip():
             return
 
         verification_link = cls._build_verification_link(user)
@@ -384,7 +457,7 @@ class EmailVerificationService:
 
     @classmethod
     def resend_verification(cls, email: str) -> None:
-        """Send verification email when the account exists and is unverified."""
+        """Enqueue verification email when the account exists and is unverified."""
         normalized = email.strip().lower()
         log_email_verification(action="resend", email=normalized)
         user = User.objects.filter(

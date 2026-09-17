@@ -88,12 +88,6 @@ const DashboardPage = lazy(() =>
   })),
 )
 
-const NotificationsPage = lazy(() =>
-  import('./pages/Dashboard/NotificationsPage').then((module) => ({
-    default: module.NotificationsPage,
-  })),
-)
-
 const MyProjectsPage = lazy(() =>
   import('./pages/Dashboard/MyProjectsPage').then((module) => ({
     default: module.MyProjectsPage,
@@ -342,13 +336,9 @@ function AppRoutes() {
               element={<PasswordResetConfirmPage />}
             />
             <Route path="/verify-email/resend" element={<EmailVerificationResendPage />} />
-            <Route
-              path="/verify-email/:uid/:token"
-              element={<EmailVerificationPage />}
-            />
+            <Route path="/verify-email/:uid/:token" element={<EmailVerificationPage />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/dashboard/notifications" element={<NotificationsPage />} />
               <Route path="/dashboard/projects" element={<MyProjectsPage />} />
               <Route path="/dashboard/orders" element={<MyOrdersPage />} />
               <Route path="/dashboard/downloads" element={<MyDownloadsPage />} />

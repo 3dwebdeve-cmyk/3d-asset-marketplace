@@ -66,7 +66,7 @@ describe('customProjectsApi customer endpoints', () => {
 
     await listCustomerCustomProjects()
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/custom-projects/')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/custom-projects/')
   })
 
   it('lists customer projects with pagination query params', async () => {
@@ -96,7 +96,7 @@ describe('customProjectsApi customer endpoints', () => {
 
     const result = await listCustomerCustomProjects({ page: 2, page_size: 20 })
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/custom-projects/?page=2&page_size=20')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/custom-projects/?page=2&page_size=20')
     expect(result.count).toBe(1)
     expect(result.results[0]?.title).toBe('Hero prop')
   })
@@ -106,7 +106,7 @@ describe('customProjectsApi customer endpoints', () => {
 
     const result = await getCustomerCustomProject(projectId)
 
-    expect(apiClient.get).toHaveBeenCalledWith(`/api/custom-projects/${projectId}/`)
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/v1/custom-projects/${projectId}/`)
     expect(result).toEqual(detail)
   })
 
@@ -130,7 +130,7 @@ describe('customProjectsApi customer endpoints', () => {
     const result = await acceptCustomerCustomProjectQuotation(projectId)
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/quotation/accept/`,
+      `/api/v1/custom-projects/${projectId}/quotation/accept/`,
     )
     expect(result).toEqual(accepted)
   })
@@ -146,7 +146,7 @@ describe('customProjectsApi customer endpoints', () => {
       currency: 'USD',
     })
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/custom-projects/', {
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/custom-projects/', {
       title: 'Hero prop',
       description: 'Stylized sci-fi crate with baked lighting.',
       category: 'Props',
@@ -182,7 +182,7 @@ describe('customProjectsApi customer endpoints', () => {
     })
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/messages/?page=1&page_size=100`,
+      `/api/v1/custom-projects/${projectId}/messages/?page=1&page_size=100`,
     )
     expect(result.results[0]?.body).toBe('Hello studio')
   })
@@ -195,7 +195,7 @@ describe('customProjectsApi customer endpoints', () => {
     await listCustomerProjectMessages(projectId)
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/messages/`,
+      `/api/v1/custom-projects/${projectId}/messages/`,
     )
   })
 
@@ -222,7 +222,7 @@ describe('customProjectsApi customer endpoints', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/messages/`,
+      `/api/v1/custom-projects/${projectId}/messages/`,
       { body: 'Need revision' },
     )
     expect(result).toEqual(message)
@@ -240,7 +240,7 @@ describe('customProjectsApi customer endpoints', () => {
           id: '44444444-4444-4444-4444-444444444444',
           file_name: 'sketch.png',
           file_size: 3,
-          download_url: `/api/custom-projects/${projectId}/messages/22222222-2222-2222-2222-222222222222/attachments/44444444-4444-4444-4444-444444444444/download/`,
+          download_url: `/api/v1/custom-projects/${projectId}/messages/22222222-2222-2222-2222-222222222222/attachments/44444444-4444-4444-4444-444444444444/download/`,
           created_at: '2026-01-01T00:00:00Z',
           updated_at: '2026-01-01T00:00:00Z',
         },
@@ -283,7 +283,7 @@ describe('customProjectsApi customer endpoints', () => {
     const result = await markCustomerProjectMessagesRead(projectId)
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/messages/read/`,
+      `/api/v1/custom-projects/${projectId}/messages/read/`,
     )
     expect(result).toEqual(readState)
   })
@@ -310,7 +310,7 @@ describe('customProjectsApi admin message endpoints', () => {
     })
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/admin/custom-projects/${projectId}/messages/?page=1&page_size=100`,
+      `/api/v1/admin/custom-projects/${projectId}/messages/?page=1&page_size=100`,
     )
     expect(result.results[0]?.body).toBe('We can deliver next week')
   })
@@ -323,7 +323,7 @@ describe('customProjectsApi admin message endpoints', () => {
     await listAdminProjectMessages(projectId)
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/admin/custom-projects/${projectId}/messages/`,
+      `/api/v1/admin/custom-projects/${projectId}/messages/`,
     )
   })
 
@@ -350,7 +350,7 @@ describe('customProjectsApi admin message endpoints', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/admin/custom-projects/${projectId}/messages/`,
+      `/api/v1/admin/custom-projects/${projectId}/messages/`,
       { body: 'Please share the CAD file' },
     )
     expect(result).toEqual(message)
@@ -375,7 +375,7 @@ describe('customProjectsApi admin message endpoints', () => {
     const result = await markAdminProjectMessagesRead(projectId)
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/admin/custom-projects/${projectId}/messages/read/`,
+      `/api/v1/admin/custom-projects/${projectId}/messages/read/`,
     )
     expect(result).toEqual(readState)
   })
@@ -400,7 +400,7 @@ describe('customProjectsApi customer file upload', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/files/`,
+      `/api/v1/custom-projects/${projectId}/files/`,
       expect.any(FormData),
       { onUploadProgress: undefined },
     )
@@ -420,7 +420,7 @@ describe('customProjectsApi customer delivery endpoints', () => {
     file_size: 4096,
     version: 1,
     notes: 'Ready for review',
-    download_url: `http://localhost/api/custom-projects/${projectId}/deliveries/77777777-7777-7777-7777-777777777777/download/`,
+    download_url: `http://localhost/api/v1/custom-projects/${projectId}/deliveries/77777777-7777-7777-7777-777777777777/download/`,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   }
@@ -436,7 +436,7 @@ describe('customProjectsApi customer delivery endpoints', () => {
     })
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/deliveries/?page=1&page_size=50`,
+      `/api/v1/custom-projects/${projectId}/deliveries/?page=1&page_size=50`,
     )
     expect(result.results[0]?.file_name).toBe('final.zip')
   })
@@ -452,22 +452,57 @@ describe('customProjectsApi customer delivery endpoints', () => {
     const originalCreateElement = document.createElement.bind(document)
     vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
       if (tagName === 'a') {
-        return { click, download: '', href: '' } as unknown as HTMLAnchorElement
+        return { click, download: '', href: '', rel: '', target: '' } as unknown as HTMLAnchorElement
       }
       return originalCreateElement(tagName)
     })
-    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['zip']) })
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob(['zip']),
+      headers: { 'content-type': 'application/zip' },
+    })
 
     await downloadCustomerProjectDelivery(projectId, delivery.id, delivery.file_name)
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/custom-projects/${projectId}/deliveries/${delivery.id}/download/`,
+      `/api/v1/custom-projects/${projectId}/deliveries/${delivery.id}/download/`,
       { responseType: 'blob' },
     )
     expect(createObjectURL).toHaveBeenCalled()
     expect(click).toHaveBeenCalled()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:customer-delivery')
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('opens a signed JSON URL for customer project delivery downloads', async () => {
+    const signedUrl =
+      'https://acc.r2.cloudflarestorage.com/3dam-private/deliveries/pack.zip?X-Amz-Signature=abc'
+    const payload = JSON.stringify({
+      download_url: signedUrl,
+      expires_in: 300,
+      file_name: 'final.zip',
+    })
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob([payload], { type: 'application/json' }),
+      headers: { 'content-type': 'application/json' },
+    })
+    const click = vi.fn()
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL')
+    const anchor = {
+      click,
+      href: '',
+      download: '',
+      rel: '',
+      target: '',
+    } as unknown as HTMLAnchorElement
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+
+    await downloadCustomerProjectDelivery(projectId, delivery.id, delivery.file_name)
+
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(anchor.href).toBe(signedUrl)
+    expect(anchor.download).toBe('final.zip')
+    expect(click).toHaveBeenCalled()
     vi.restoreAllMocks()
   })
 })
@@ -481,7 +516,7 @@ describe('customProjectsApi admin delivery endpoints', () => {
     version: 1,
     notes: 'Ready for review',
     uploaded_by_email: 'admin@example.com',
-    download_url: `http://localhost/api/admin/custom-projects/${projectId}/deliveries/55555555-5555-5555-5555-555555555555/download/`,
+    download_url: `http://localhost/api/v1/admin/custom-projects/${projectId}/deliveries/55555555-5555-5555-5555-555555555555/download/`,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   }
@@ -497,7 +532,7 @@ describe('customProjectsApi admin delivery endpoints', () => {
     })
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/admin/custom-projects/${projectId}/deliveries/?page=1&page_size=50`,
+      `/api/v1/admin/custom-projects/${projectId}/deliveries/?page=1&page_size=50`,
     )
     expect(result.results[0]?.file_name).toBe('final.zip')
   })
@@ -513,7 +548,7 @@ describe('customProjectsApi admin delivery endpoints', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/admin/custom-projects/${projectId}/deliveries/`,
+      `/api/v1/admin/custom-projects/${projectId}/deliveries/`,
       expect.any(FormData),
     )
     const [, payload] = vi.mocked(apiClient.post).mock.calls[0] ?? []
@@ -536,16 +571,19 @@ describe('customProjectsApi admin delivery endpoints', () => {
     const originalCreateElement = document.createElement.bind(document)
     vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
       if (tagName === 'a') {
-        return { click, download: '', href: '' } as unknown as HTMLAnchorElement
+        return { click, download: '', href: '', rel: '', target: '' } as unknown as HTMLAnchorElement
       }
       return originalCreateElement(tagName)
     })
-    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['zip']) })
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob(['zip']),
+      headers: { 'content-type': 'application/zip' },
+    })
 
     await downloadAdminProjectDelivery(projectId, delivery.id, delivery.file_name)
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/admin/custom-projects/${projectId}/deliveries/${delivery.id}/download/`,
+      `/api/v1/admin/custom-projects/${projectId}/deliveries/${delivery.id}/download/`,
       { responseType: 'blob' },
     )
     expect(createObjectURL).toHaveBeenCalled()
