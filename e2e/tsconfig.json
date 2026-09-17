@@ -1,12 +1,16 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "lib": ["ES2022"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
-    "types": ["node"],
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "typeRoots": ["./node_modules/@types"]
   },
   "include": ["playwright.config.ts", "helpers/**/*.ts", "tests/**/*.ts"]
 }
