@@ -11,6 +11,27 @@ import urllib.request
 
 import psycopg2
 
+
+def wait_for_http(url: str, timeout: int = 60) -> None:
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as response:
+                if 200 <= response.status < 300:
+                    return
+        except (
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            TimeoutError,
+        ):
+            pass
+
+        time.sleep(1)
+
+    raise RuntimeError(f"service did not become ready: {url}")
+
+
 host = os.environ.get("DB_HOST", "localhost")
 port = int(os.environ.get("DB_PORT", "5432"))
 name = os.environ["DB_NAME"]
@@ -39,19 +60,12 @@ while True:
 
 meili_url = os.environ.get("MEILI_URL", "").rstrip("/")
 if meili_url:
-    health_url = f"{meili_url}/health"
-    meili_deadline = time.monotonic() + 60
-    while True:
-        try:
-            with urllib.request.urlopen(health_url, timeout=3) as response:
-                if 200 <= response.status < 300:
-                    print(f"meilisearch ready at {meili_url}", flush=True)
-                    break
-        except (urllib.error.URLError, TimeoutError) as exc:
-            if time.monotonic() >= meili_deadline:
-                print(f"meilisearch not ready: {exc}", file=sys.stderr, flush=True)
-                sys.exit(1)
-            time.sleep(1)
+    try:
+        wait_for_http(f"{meili_url}/health")
+        print(f"meilisearch ready at {meili_url}", flush=True)
+    except RuntimeError as exc:
+        print(f"meilisearch not ready: {exc}", file=sys.stderr, flush=True)
+        sys.exit(1)
 PY
 
 python manage.py migrate --noinput

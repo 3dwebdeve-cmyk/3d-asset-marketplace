@@ -43,7 +43,16 @@ services:
       MEILI_ENV: ${MEILI_ENV:-production}
     volumes:
       - meili_data:/meili_data
-    # Image is minimal (no curl/wget); web /api/healthz/ probes Meilisearch after boot.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://127.0.0.1:7700/health >/dev/null || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
     restart: unless-stopped
 
   web:
@@ -102,7 +111,7 @@ services:
       redis:
         condition: service_healthy
       meilisearch:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - media_data:/app/media
     healthcheck:
