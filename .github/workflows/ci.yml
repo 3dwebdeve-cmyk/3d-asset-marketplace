@@ -84,6 +84,8 @@ jobs:
             'CORS_ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080' \
             'PUBLIC_API_BASE_URL=http://localhost:8080' \
             'SECURE_SSL_REDIRECT=False' \
+            'JWT_REFRESH_COOKIE_SECURE=False' \
+            'CSRF_TRUSTED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080' \
             'DB_NAME=marketplace' \
             'DB_USER=marketplace' \
             'DB_PASSWORD=ci-e2e-db-password' \

@@ -15,7 +15,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
-from decouple import Config, RepositoryEnv
+from decouple import Config, RepositoryEmpty, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
 
@@ -23,11 +23,12 @@ from django.utils.csp import CSP
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Prefer process environment (Docker / CI). Fall back to backend/.env when present.
+# Config() requires a repository; RepositoryEmpty still lets Config read os.environ.
 _env_path = BASE_DIR / ".env"
 config = (
     Config(RepositoryEnv(str(_env_path)))
     if _env_path.is_file()
-    else Config()
+    else Config(RepositoryEmpty())
 )
 
 
