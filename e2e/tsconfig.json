@@ -1,16 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "es2022",
     "lib": ["ES2022"],
-    "module": "ESNext",
+    "module": "esnext",
     "moduleResolution": "bundler",
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
     "moduleDetection": "force",
-    "isolatedModules": true,
-    "typeRoots": ["./node_modules/@types"]
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"]
   },
   "include": ["playwright.config.ts", "helpers/**/*.ts", "tests/**/*.ts"]
 }
