@@ -14,7 +14,6 @@ from django.utils import timezone
 from accounts.models import User
 from coupons.models import Coupon
 from django.utils.text import slugify
-from notifications.services import NotificationService
 from orders.models import Order, OrderItem
 from plugins.models import Plugin
 from products.models import Product
@@ -487,10 +486,8 @@ class OrderService:
             valid_values=Order.OrderStatus.values,
             field="order_status",
         )
-        previous_status = order.order_status
         with transaction.atomic():
             locked = Order.objects.select_for_update().get(pk=order.pk)
-            previous_status = locked.order_status
             cls._apply_status_transition(
                 current=locked.order_status,
                 new_status=new_status,
@@ -502,16 +499,7 @@ class OrderService:
                 locked.order_status = new_status
                 locked.save(update_fields=["order_status", "updated_at"])
             order_id = locked.pk
-            status_value = new_status
-        updated = cls.get(order_id)
-        if previous_status != status_value:
-            transaction.on_commit(
-                lambda: NotificationService.notify_order_status_changed(
-                    updated,
-                    status_value,
-                )
-            )
-        return updated
+        return cls.get(order_id)
 
     @classmethod
     def update_payment_status(cls, order: Order, new_status: str) -> Order:

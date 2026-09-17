@@ -20,7 +20,7 @@ export function useGoogleLogin(): UseGoogleLoginResult {
   const mutation = useMutation({
     mutationFn: (idToken: string) => loginWithGoogle(idToken),
     onSuccess: (data: LoginResponse) => {
-      setSession({ access: data.access, refresh: data.refresh, user: data.user }, { remember: true })
+      setSession({ access: data.access, user: data.user }, { remember: true })
       queryClient.setQueryData(['auth', 'me', data.access], data.user)
       const firstName = data.user.full_name?.split(' ')[0]
       toast.success(firstName ? `Signed in. Welcome, ${firstName}!` : 'Signed in with Google')

@@ -16,6 +16,12 @@ backend/staticfiles/
 # Node
 node_modules/
 
+# Playwright E2E
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+e2e/playwright/.cache/
+
 # Build
 dist/
 build/

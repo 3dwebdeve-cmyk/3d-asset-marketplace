@@ -382,7 +382,6 @@ describe('PluginDetailsPage', () => {
     const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
       postLogoutRedirect: null,
@@ -438,7 +437,6 @@ describe('PluginDetailsPage', () => {
 
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
       postLogoutRedirect: null,

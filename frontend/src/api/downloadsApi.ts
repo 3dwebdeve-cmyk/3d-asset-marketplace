@@ -28,7 +28,7 @@ function toHistoryQuery(params: DownloadHistoryListParams | AdminDownloadHistory
 }
 
 export async function listDownloadEntitlements(): Promise<DownloadEntitlement[]> {
-  const { data } = await apiClient.get<DownloadEntitlement[]>('/api/downloads/entitlements/')
+  const { data } = await apiClient.get<DownloadEntitlement[]>('/api/v1/downloads/entitlements/')
   return data
 }
 
@@ -36,7 +36,7 @@ export async function listDownloadHistory(
   params: DownloadHistoryListParams = {},
 ): Promise<PaginatedDownloadHistory> {
   const { data } = await apiClient.get<PaginatedDownloadHistory>(
-    `/api/downloads/history/${toHistoryQuery(params)}`,
+    `/api/v1/downloads/history/${toHistoryQuery(params)}`,
   )
   return data
 }
@@ -45,7 +45,7 @@ export async function listAdminDownloadHistory(
   params: AdminDownloadHistoryListParams = {},
 ): Promise<PaginatedDownloadHistory> {
   const { data } = await apiClient.get<PaginatedDownloadHistory>(
-    `/api/admin/downloads/history/${toHistoryQuery(params)}`,
+    `/api/v1/admin/downloads/history/${toHistoryQuery(params)}`,
   )
   return data
 }
@@ -56,9 +56,9 @@ export function buildCatalogDownloadPath(
   fileId: string,
 ): string {
   if (productType === 'product') {
-    return `/api/downloads/products/${productId}/files/${fileId}/download/`
+    return `/api/v1/downloads/products/${productId}/files/${fileId}/download/`
   }
-  return `/api/downloads/plugins/${productId}/files/${fileId}/download/`
+  return `/api/v1/downloads/plugins/${productId}/files/${fileId}/download/`
 }
 
 function headerValue(headers: unknown, name: string): string {

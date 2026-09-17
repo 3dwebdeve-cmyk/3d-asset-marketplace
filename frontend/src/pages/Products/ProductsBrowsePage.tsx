@@ -292,7 +292,7 @@ export function ProductsBrowsePage() {
         >
           <div className="browse-rail-section__header">
             <h2 id="trending-categories-heading" className="browse-rail-section__title">
-              Trending Categories
+              Explore 3D Categories
             </h2>
             <Link className="browse-rail-section__view-all" to="/3d-models">
               View All

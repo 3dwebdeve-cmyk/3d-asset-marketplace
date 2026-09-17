@@ -421,7 +421,6 @@ describe('ProductDetailsPage', () => {
     const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
       postLogoutRedirect: null,
@@ -478,7 +477,6 @@ describe('ProductDetailsPage', () => {
 
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
       postLogoutRedirect: null,

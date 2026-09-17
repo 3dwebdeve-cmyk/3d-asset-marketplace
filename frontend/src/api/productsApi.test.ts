@@ -39,7 +39,7 @@ describe('productsApi QA helpers', () => {
       page_size: 50,
     })
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/admin/products/', {
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/admin/products/', {
       params: {
         status: 'pending_review',
         import_batch_id: '2026-09-03-run-01',
@@ -54,7 +54,7 @@ describe('productsApi QA helpers', () => {
     await approveAdminProduct(productId)
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/admin/products/${productId}/approve/`,
+      `/api/v1/admin/products/${productId}/approve/`,
     )
   })
 
@@ -69,7 +69,7 @@ describe('productsApi QA helpers', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/admin/products/${productId}/reject/`,
+      `/api/v1/admin/products/${productId}/reject/`,
       { reason: 'Missing package', qa_notes: 'Need zip' },
     )
   })
@@ -82,7 +82,7 @@ describe('productsApi QA helpers', () => {
     await requeueAdminProduct(productId)
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/admin/products/${productId}/requeue/`,
+      `/api/v1/admin/products/${productId}/requeue/`,
     )
   })
 })

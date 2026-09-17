@@ -94,7 +94,7 @@ describe('ordersApi', () => {
 
     expect(result.count).toBe(1)
     expect(apiClient.get).toHaveBeenCalledWith(
-      `/api/admin/orders/?search=INV&order_status=pending&payment_status=pending&customer_id=${customerId}&ordering=-created_at&page=1&page_size=20`,
+      `/api/v1/admin/orders/?search=INV&order_status=pending&payment_status=pending&customer_id=${customerId}&ordering=-created_at&page=1&page_size=20`,
     )
   })
 
@@ -104,7 +104,7 @@ describe('ordersApi', () => {
     const result = await getAdminOrder(orderId)
 
     expect(result.invoice_number).toBe(sampleOrder.invoice_number)
-    expect(apiClient.get).toHaveBeenCalledWith(`/api/admin/orders/${orderId}/`)
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/v1/admin/orders/${orderId}/`)
   })
 
   it('creates an admin order', async () => {
@@ -118,7 +118,7 @@ describe('ordersApi', () => {
     const result = await createAdminOrder(payload)
 
     expect(result.id).toBe(orderId)
-    expect(apiClient.post).toHaveBeenCalledWith('/api/admin/orders/', payload)
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/orders/', payload)
   })
 
   it('lists customer orders with filters and pagination', async () => {
@@ -154,7 +154,7 @@ describe('ordersApi', () => {
 
     expect(result.count).toBe(1)
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/orders/?search=INV&order_status=pending&payment_status=pending&ordering=-created_at&page=1&page_size=20',
+      '/api/v1/orders/?search=INV&order_status=pending&payment_status=pending&ordering=-created_at&page=1&page_size=20',
     )
   })
 
@@ -181,7 +181,7 @@ describe('ordersApi', () => {
     const result = await getCustomerOrder(orderId)
 
     expect(result.invoice_number).toBe(sampleOrder.invoice_number)
-    expect(apiClient.get).toHaveBeenCalledWith(`/api/orders/${orderId}/`)
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/v1/orders/${orderId}/`)
   })
 
   it('downloads a customer order invoice as a blob', async () => {
@@ -201,7 +201,7 @@ describe('ordersApi', () => {
 
     await downloadCustomerOrderInvoice(orderId, sampleOrder.invoice_number)
 
-    expect(apiClient.get).toHaveBeenCalledWith(`/api/orders/${orderId}/invoice/`, {
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/v1/orders/${orderId}/invoice/`, {
       responseType: 'blob',
     })
     expect(click).toHaveBeenCalled()
@@ -225,7 +225,7 @@ describe('ordersApi', () => {
 
     await downloadAdminOrderInvoice(orderId, sampleOrder.invoice_number)
 
-    expect(apiClient.get).toHaveBeenCalledWith(`/api/admin/orders/${orderId}/invoice/`, {
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/v1/admin/orders/${orderId}/invoice/`, {
       responseType: 'blob',
     })
     expect(click).toHaveBeenCalled()

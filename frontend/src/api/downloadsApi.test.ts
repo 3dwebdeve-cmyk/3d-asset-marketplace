@@ -24,7 +24,7 @@ describe('downloadsApi', () => {
   it('lists entitlements', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: [] })
     await listDownloadEntitlements()
-    expect(apiClient.get).toHaveBeenCalledWith('/api/downloads/entitlements/')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/downloads/entitlements/')
   })
 
   it('lists customer history with query params', async () => {
@@ -32,7 +32,7 @@ describe('downloadsApi', () => {
       data: { count: 0, next: null, previous: null, results: [] },
     })
     await listDownloadHistory({ page: 2, page_size: 10 })
-    expect(apiClient.get).toHaveBeenCalledWith('/api/downloads/history/?page=2&page_size=10')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/downloads/history/?page=2&page_size=10')
   })
 
   it('lists admin history with filters', async () => {
@@ -45,16 +45,16 @@ describe('downloadsApi', () => {
       ordering: '-downloaded_at',
     })
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/admin/downloads/history/?user_email=buyer%40example.com&product_type=product&ordering=-downloaded_at',
+      '/api/v1/admin/downloads/history/?user_email=buyer%40example.com&product_type=product&ordering=-downloaded_at',
     )
   })
 
   it('builds product and plugin download paths', () => {
     expect(buildCatalogDownloadPath('product', 'prod-id', 'file-id')).toBe(
-      '/api/downloads/products/prod-id/files/file-id/download/',
+      '/api/v1/downloads/products/prod-id/files/file-id/download/',
     )
     expect(buildCatalogDownloadPath('plugin', 'plugin-id', 'file-id')).toBe(
-      '/api/downloads/plugins/plugin-id/files/file-id/download/',
+      '/api/v1/downloads/plugins/plugin-id/files/file-id/download/',
     )
   })
 
@@ -72,7 +72,7 @@ describe('downloadsApi', () => {
     await downloadCatalogFile('product', 'prod-id', 'file-id', 'package.zip')
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/downloads/products/prod-id/files/file-id/download/',
+      '/api/v1/downloads/products/prod-id/files/file-id/download/',
       { responseType: 'blob' },
     )
     expect(click).toHaveBeenCalled()

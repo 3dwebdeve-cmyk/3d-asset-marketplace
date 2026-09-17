@@ -51,7 +51,6 @@ describe('AdminLoginPage', () => {
   it('redirects administrators who are already signed in', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: { ...testUser, role: 'Administrator', email: 'admin@example.com' },
       isAuthenticated: true,
     })
@@ -65,7 +64,6 @@ describe('AdminLoginPage', () => {
     const user = userEvent.setup()
     vi.mocked(authApi.adminLoginUser).mockResolvedValue({
       access: 'access-token',
-      refresh: 'refresh-token',
       user: { ...testUser, role: 'Administrator', email: 'admin@example.com' },
     })
 
@@ -82,6 +80,7 @@ describe('AdminLoginPage', () => {
     expect(vi.mocked(authApi.adminLoginUser).mock.calls[0]?.[0]).toEqual({
       email: 'admin@example.com',
       password: 'StrongPass123!',
+      remember_me: true,
     })
   })
 })

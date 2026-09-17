@@ -59,7 +59,6 @@ describe('AdminRoute', () => {
   it('redirects customers away from the admin shell', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
     })
@@ -73,7 +72,6 @@ describe('AdminRoute', () => {
   it('allows administrators into the admin shell', async () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: adminUser,
       isAuthenticated: true,
     })

@@ -46,7 +46,9 @@ class ProjectFileSerializer(serializers.ModelSerializer):
 
     def get_download_url(self, obj: ProjectFile) -> str:
         request = self.context.get("request")
-        path = f"/api/admin/custom-projects/{obj.project_id}/files/{obj.id}/download/"
+        path = (
+            f"/api/v1/admin/custom-projects/{obj.project_id}/files/{obj.id}/download/"
+        )
         if request is not None:
             return request.build_absolute_uri(path)
         return path
@@ -305,11 +307,11 @@ class ProjectDeliverySerializer(serializers.ModelSerializer):
         project_id = self.context.get("project_id") or obj.project_id
         if scope == "customer":
             path = (
-                f"/api/custom-projects/{project_id}/deliveries/{obj.id}/download/"
+                f"/api/v1/custom-projects/{project_id}/deliveries/{obj.id}/download/"
             )
         else:
             path = (
-                f"/api/admin/custom-projects/{project_id}/deliveries/"
+                f"/api/v1/admin/custom-projects/{project_id}/deliveries/"
                 f"{obj.id}/download/"
             )
         if request is not None:
@@ -351,12 +353,12 @@ class ProjectMessageAttachmentSerializer(serializers.ModelSerializer):
         project_id = self.context.get("project_id") or obj.message.project_id
         if scope == "admin":
             path = (
-                f"/api/admin/custom-projects/{project_id}/messages/"
+                f"/api/v1/admin/custom-projects/{project_id}/messages/"
                 f"{obj.message_id}/attachments/{obj.id}/download/"
             )
         else:
             path = (
-                f"/api/custom-projects/{project_id}/messages/"
+                f"/api/v1/custom-projects/{project_id}/messages/"
                 f"{obj.message_id}/attachments/{obj.id}/download/"
             )
         if request is not None:

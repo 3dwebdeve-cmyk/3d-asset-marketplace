@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { downloadCatalogFileByUrl } from './downloadsApi'
 import type {
   AdminCustomProject,
   AdminCustomProjectCreatePayload,
@@ -50,7 +51,7 @@ export async function listCustomerCustomProjects(
   params: CustomerCustomProjectListParams = {},
 ): Promise<PaginatedCustomerCustomProjects> {
   const { data } = await apiClient.get<PaginatedCustomerCustomProjects>(
-    `/api/custom-projects/${toCustomerListQuery(params)}`,
+    `/api/v1/custom-projects/${toCustomerListQuery(params)}`,
   )
   return data
 }
@@ -59,7 +60,7 @@ export async function getCustomerCustomProject(
   projectId: string,
 ): Promise<CustomerCustomProject> {
   const { data } = await apiClient.get<CustomerCustomProject>(
-    `/api/custom-projects/${projectId}/`,
+    `/api/v1/custom-projects/${projectId}/`,
   )
   return data
 }
@@ -68,7 +69,7 @@ export async function createCustomerCustomProject(
   payload: CustomerCustomProjectCreatePayload,
 ): Promise<CustomerCustomProject> {
   const { data } = await apiClient.post<CustomerCustomProject>(
-    '/api/custom-projects/',
+    '/api/v1/custom-projects/',
     payload,
   )
   return data
@@ -87,7 +88,7 @@ export async function listCustomerProjectMessages(
   params: ProjectMessageListParams = {},
 ): Promise<PaginatedProjectMessages> {
   const { data } = await apiClient.get<PaginatedProjectMessages>(
-    `/api/custom-projects/${projectId}/messages/${toMessageListQuery(params)}`,
+    `/api/v1/custom-projects/${projectId}/messages/${toMessageListQuery(params)}`,
   )
   return data
 }
@@ -101,13 +102,13 @@ export async function createCustomerProjectMessage(
     formData.append('body', payload.body)
     formData.append('file', payload.file)
     const { data } = await apiClient.post<ProjectMessage>(
-      `/api/custom-projects/${projectId}/messages/`,
+      `/api/v1/custom-projects/${projectId}/messages/`,
       formData,
     )
     return data
   }
   const { data } = await apiClient.post<ProjectMessage>(
-    `/api/custom-projects/${projectId}/messages/`,
+    `/api/v1/custom-projects/${projectId}/messages/`,
     { body: payload.body },
   )
   return data
@@ -119,23 +120,17 @@ export async function downloadCustomerProjectMessageAttachment(
   attachmentId: string,
   fileName: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(
-    `/api/custom-projects/${projectId}/messages/${messageId}/attachments/${attachmentId}/download/`,
-    { responseType: 'blob' },
+  await downloadCatalogFileByUrl(
+    `/api/v1/custom-projects/${projectId}/messages/${messageId}/attachments/${attachmentId}/download/`,
+    fileName,
   )
-  const objectUrl = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(objectUrl)
 }
 
 export async function markCustomerProjectMessagesRead(
   projectId: string,
 ): Promise<ProjectMessageReadState> {
   const { data } = await apiClient.post<ProjectMessageReadState>(
-    `/api/custom-projects/${projectId}/messages/read/`,
+    `/api/v1/custom-projects/${projectId}/messages/read/`,
   )
   return data
 }
@@ -145,7 +140,7 @@ export async function listAdminProjectMessages(
   params: ProjectMessageListParams = {},
 ): Promise<PaginatedProjectMessages> {
   const { data } = await apiClient.get<PaginatedProjectMessages>(
-    `/api/admin/custom-projects/${projectId}/messages/${toMessageListQuery(params)}`,
+    `/api/v1/admin/custom-projects/${projectId}/messages/${toMessageListQuery(params)}`,
   )
   return data
 }
@@ -159,13 +154,13 @@ export async function createAdminProjectMessage(
     formData.append('body', payload.body)
     formData.append('file', payload.file)
     const { data } = await apiClient.post<ProjectMessage>(
-      `/api/admin/custom-projects/${projectId}/messages/`,
+      `/api/v1/admin/custom-projects/${projectId}/messages/`,
       formData,
     )
     return data
   }
   const { data } = await apiClient.post<ProjectMessage>(
-    `/api/admin/custom-projects/${projectId}/messages/`,
+    `/api/v1/admin/custom-projects/${projectId}/messages/`,
     { body: payload.body },
   )
   return data
@@ -177,23 +172,17 @@ export async function downloadAdminProjectMessageAttachment(
   attachmentId: string,
   fileName: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(
-    `/api/admin/custom-projects/${projectId}/messages/${messageId}/attachments/${attachmentId}/download/`,
-    { responseType: 'blob' },
+  await downloadCatalogFileByUrl(
+    `/api/v1/admin/custom-projects/${projectId}/messages/${messageId}/attachments/${attachmentId}/download/`,
+    fileName,
   )
-  const objectUrl = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(objectUrl)
 }
 
 export async function markAdminProjectMessagesRead(
   projectId: string,
 ): Promise<ProjectMessageReadState> {
   const { data } = await apiClient.post<ProjectMessageReadState>(
-    `/api/admin/custom-projects/${projectId}/messages/read/`,
+    `/api/v1/admin/custom-projects/${projectId}/messages/read/`,
   )
   return data
 }
@@ -202,7 +191,7 @@ export async function listAdminCustomProjects(
   params: AdminCustomProjectListParams = {},
 ): Promise<PaginatedCustomProjects> {
   const { data } = await apiClient.get<PaginatedCustomProjects>(
-    `/api/admin/custom-projects/${toQuery(params)}`,
+    `/api/v1/admin/custom-projects/${toQuery(params)}`,
   )
   return data
 }
@@ -211,7 +200,7 @@ export async function getAdminCustomProject(
   projectId: string,
 ): Promise<AdminCustomProject> {
   const { data } = await apiClient.get<AdminCustomProject>(
-    `/api/admin/custom-projects/${projectId}/`,
+    `/api/v1/admin/custom-projects/${projectId}/`,
   )
   return data
 }
@@ -220,7 +209,7 @@ export async function createAdminCustomProject(
   payload: AdminCustomProjectCreatePayload,
 ): Promise<AdminCustomProject> {
   const { data } = await apiClient.post<AdminCustomProject>(
-    '/api/admin/custom-projects/',
+    '/api/v1/admin/custom-projects/',
     payload,
   )
   return data
@@ -231,7 +220,7 @@ export async function updateAdminCustomProject(
   payload: AdminCustomProjectUpdatePayload,
 ): Promise<AdminCustomProject> {
   const { data } = await apiClient.patch<AdminCustomProject>(
-    `/api/admin/custom-projects/${projectId}/`,
+    `/api/v1/admin/custom-projects/${projectId}/`,
     payload,
   )
   return data
@@ -242,7 +231,7 @@ export async function upsertAdminCustomProjectQuotation(
   payload: ProjectQuotationUpsertPayload,
 ): Promise<ProjectQuotationUpsertResponse> {
   const { data } = await apiClient.post<ProjectQuotationUpsertResponse>(
-    `/api/admin/custom-projects/${projectId}/quotation/`,
+    `/api/v1/admin/custom-projects/${projectId}/quotation/`,
     payload,
   )
   return data
@@ -252,7 +241,7 @@ export async function acceptCustomerCustomProjectQuotation(
   projectId: string,
 ): Promise<CustomerCustomProject> {
   const { data } = await apiClient.post<CustomerCustomProject>(
-    `/api/custom-projects/${projectId}/quotation/accept/`,
+    `/api/v1/custom-projects/${projectId}/quotation/accept/`,
   )
   return data
 }
@@ -261,7 +250,7 @@ export async function payCustomerCustomProjectQuotation(
   projectId: string,
 ): Promise<CheckoutSessionResponse> {
   const { data } = await apiClient.post<CheckoutSessionResponse>(
-    `/api/custom-projects/${projectId}/quotation/pay/`,
+    `/api/v1/custom-projects/${projectId}/quotation/pay/`,
   )
   return data
 }
@@ -271,16 +260,10 @@ export async function downloadAdminCustomProjectFile(
   fileId: string,
   fileName: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(
-    `/api/admin/custom-projects/${projectId}/files/${fileId}/download/`,
-    { responseType: 'blob' },
+  await downloadCatalogFileByUrl(
+    `/api/v1/admin/custom-projects/${projectId}/files/${fileId}/download/`,
+    fileName,
   )
-  const objectUrl = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(objectUrl)
 }
 
 function toDeliveryListQuery(params: ProjectDeliveryListParams = {}): string {
@@ -296,7 +279,7 @@ export async function listAdminProjectDeliveries(
   params: ProjectDeliveryListParams = {},
 ): Promise<PaginatedProjectDeliveries> {
   const { data } = await apiClient.get<PaginatedProjectDeliveries>(
-    `/api/admin/custom-projects/${projectId}/deliveries/${toDeliveryListQuery(params)}`,
+    `/api/v1/admin/custom-projects/${projectId}/deliveries/${toDeliveryListQuery(params)}`,
   )
   return data
 }
@@ -314,7 +297,7 @@ export async function uploadAdminProjectDelivery(
     formData.append('version', String(payload.version))
   }
   const { data } = await apiClient.post<ProjectDelivery>(
-    `/api/admin/custom-projects/${projectId}/deliveries/`,
+    `/api/v1/admin/custom-projects/${projectId}/deliveries/`,
     formData,
   )
   return data
@@ -325,16 +308,10 @@ export async function downloadAdminProjectDelivery(
   deliveryId: string,
   fileName: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(
-    `/api/admin/custom-projects/${projectId}/deliveries/${deliveryId}/download/`,
-    { responseType: 'blob' },
+  await downloadCatalogFileByUrl(
+    `/api/v1/admin/custom-projects/${projectId}/deliveries/${deliveryId}/download/`,
+    fileName,
   )
-  const objectUrl = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(objectUrl)
 }
 
 export async function uploadCustomerCustomProjectFile(
@@ -346,7 +323,7 @@ export async function uploadCustomerCustomProjectFile(
   formData.append('file', payload.file)
   formData.append('file_type', payload.file_type)
   const { data } = await apiClient.post<ProjectFile>(
-    `/api/custom-projects/${projectId}/files/`,
+    `/api/v1/custom-projects/${projectId}/files/`,
     formData,
     {
       onUploadProgress: onUploadProgress
@@ -365,7 +342,7 @@ export async function deleteCustomerCustomProjectFile(
   projectId: string,
   fileId: string,
 ): Promise<void> {
-  await apiClient.delete(`/api/custom-projects/${projectId}/files/${fileId}/`)
+  await apiClient.delete(`/api/v1/custom-projects/${projectId}/files/${fileId}/`)
 }
 
 export async function listCustomerProjectDeliveries(
@@ -373,7 +350,7 @@ export async function listCustomerProjectDeliveries(
   params: ProjectDeliveryListParams = {},
 ): Promise<PaginatedProjectDeliveries> {
   const { data } = await apiClient.get<PaginatedProjectDeliveries>(
-    `/api/custom-projects/${projectId}/deliveries/${toDeliveryListQuery(params)}`,
+    `/api/v1/custom-projects/${projectId}/deliveries/${toDeliveryListQuery(params)}`,
   )
   return data
 }
@@ -383,14 +360,8 @@ export async function downloadCustomerProjectDelivery(
   deliveryId: string,
   fileName: string,
 ): Promise<void> {
-  const { data } = await apiClient.get<Blob>(
-    `/api/custom-projects/${projectId}/deliveries/${deliveryId}/download/`,
-    { responseType: 'blob' },
+  await downloadCatalogFileByUrl(
+    `/api/v1/custom-projects/${projectId}/deliveries/${deliveryId}/download/`,
+    fileName,
   )
-  const objectUrl = URL.createObjectURL(data)
-  const anchor = document.createElement('a')
-  anchor.href = objectUrl
-  anchor.download = fileName
-  anchor.click()
-  URL.revokeObjectURL(objectUrl)
 }

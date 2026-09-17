@@ -55,7 +55,6 @@ describe('HomePage', () => {
   it('shows the dashboard link when signed in', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: null,
       isAuthenticated: true,
     })

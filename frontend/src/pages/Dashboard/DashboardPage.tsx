@@ -16,7 +16,6 @@ import { useChangePasswordForm } from './useChangePasswordForm'
 export function DashboardPage() {
   const navigate = useNavigate()
   const accessToken = useAuthStore((state) => state.accessToken)
-  const refreshToken = useAuthStore((state) => state.refreshToken)
   const storedUser = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
   const clearSession = useAuthStore((state) => state.clearSession)
@@ -36,11 +35,7 @@ export function DashboardPage() {
   }, [currentUserQuery.data, setUser])
 
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      if (refreshToken) {
-        await logoutUser(refreshToken)
-      }
-    },
+    mutationFn: () => logoutUser(),
     onSettled: () => {
       clearSession({ redirectTo: '/' })
       toast.success('Signed out')
@@ -98,12 +93,6 @@ export function DashboardPage() {
         )}
 
         <div className="dashboard-card__actions">
-          <Link
-            className="home-page__cta home-page__cta--secondary"
-            to="/dashboard/notifications"
-          >
-            Notifications
-          </Link>
           <Link
             className="home-page__cta home-page__cta--secondary"
             to="/dashboard/projects"

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import * as Sentry from '@sentry/react'
 
 import { Button } from './ui/Button'
 import { ErrorState } from './ui/ErrorState'
@@ -23,10 +24,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    logger.error('Unhandled UI error', {
-      message: error.message,
-      componentStack: info.componentStack,
-    })
+    // captureReactException preserves the React component stack in Sentry.
+    Sentry.captureReactException(error, info)
+    if (import.meta.env.DEV) {
+      logger.error('Unhandled UI error', {
+        message: error.message,
+        componentStack: info.componentStack,
+      })
+    }
   }
 
   handleReset = (): void => {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
@@ -18,7 +19,7 @@ from cart.services import CartService
 from coupons.services import CouponService
 from orders.entitlements import order_allows_download
 from orders.models import Order, OrderItem
-from orders.notifications import send_payment_receipt
+from orders.notifications import enqueue_payment_receipt
 from orders.services import OrderError, OrderService
 
 from payments.models import Payment, StripeWebhookEvent
@@ -27,6 +28,12 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+_E2E_CHECKOUT_SESSION_PREFIX = "cs_test_e2e_"
+
+
+def _e2e_stripe_simulate_enabled() -> bool:
+    return bool(getattr(settings, "E2E_STRIPE_SIMULATE", False))
 
 _TERMINAL_ORDER_STATUSES = {
     Order.OrderStatus.CANCELLED,
@@ -181,13 +188,34 @@ class AdminPaymentService:
 class CheckoutService:
     @classmethod
     def create_checkout_session(cls, user: User) -> dict[str, str]:
-        if not settings.STRIPE_SECRET_KEY:
+        simulate = _e2e_stripe_simulate_enabled()
+        if not settings.STRIPE_SECRET_KEY and not simulate:
             raise CheckoutError("Payments are not configured. Please try again later.")
 
         try:
             order, discount_amount, coupon = OrderService.create_from_cart(user)
         except OrderError as exc:
             raise CheckoutError(exc.message, field=exc.field) from exc
+
+        frontend_base_url = settings.FRONTEND_BASE_URL.rstrip("/")
+        success_url = f"{frontend_base_url}/checkout/success?order_id={order.id}"
+        cancel_url = f"{frontend_base_url}/checkout/cancel?order_id={order.id}"
+
+        if simulate:
+            session_id = f"{_E2E_CHECKOUT_SESSION_PREFIX}{uuid.uuid4().hex}"
+            Payment.objects.create(
+                order=order,
+                coupon=coupon,
+                stripe_checkout_session_id=session_id,
+                amount=order.total_amount,
+                currency=order.currency,
+                status=Payment.Status.PENDING,
+            )
+            logger.info(
+                "e2e_stripe_simulate checkout created order_id=%s",
+                order.id,
+            )
+            return {"checkout_url": success_url, "order_id": str(order.id)}
 
         fallback_titles = OrderService.build_catalog_titles(list(order.items.all()))
         currency_lower = order.currency.lower()
@@ -220,8 +248,6 @@ class CheckoutService:
             )
             discounts.append({"coupon": stripe_coupon.id})
 
-        frontend_base_url = settings.FRONTEND_BASE_URL.rstrip("/")
-
         try:
             session = stripe.checkout.Session.create(
                 mode="payment",
@@ -229,8 +255,8 @@ class CheckoutService:
                 discounts=discounts or None,
                 customer_email=user.email,
                 client_reference_id=str(user.id),
-                success_url=f"{frontend_base_url}/checkout/success?order_id={order.id}",
-                cancel_url=f"{frontend_base_url}/checkout/cancel?order_id={order.id}",
+                success_url=success_url,
+                cancel_url=cancel_url,
                 metadata={"order_id": str(order.id)},
             )
         except stripe.error.StripeError as exc:
@@ -328,7 +354,7 @@ class CheckoutService:
                 OrderService.update_order_status(order, Order.OrderStatus.PAID)
                 OrderService.update_payment_status(order, Order.PaymentStatus.PAID)
                 cls._fulfill_custom_project_payment(order)
-            send_payment_receipt(order)
+                enqueue_payment_receipt(order)
             return {
                 "checkout_url": (
                     f"{frontend_base_url}/checkout/success"
@@ -430,6 +456,25 @@ class CheckoutService:
 
         session_id = payment.stripe_checkout_session_id
         if session_id.startswith("free_quote_"):
+            return order
+
+        if _e2e_stripe_simulate_enabled() and session_id.startswith(
+            _E2E_CHECKOUT_SESSION_PREFIX
+        ):
+            # Same fulfillment path as checkout.session.completed (no live Stripe call).
+            session = {
+                "id": session_id,
+                "payment_intent": f"pi_e2e_{uuid.uuid4().hex[:24]}",
+                "payment_status": "paid",
+                "metadata": {"order_id": str(order.id)},
+            }
+            with transaction.atomic():
+                WebhookService._handle_checkout_completed(session)
+            order.refresh_from_db()
+            logger.info(
+                "e2e_stripe_simulate confirm fulfilled order_id=%s",
+                order.id,
+            )
             return order
 
         if not settings.STRIPE_SECRET_KEY:
@@ -560,7 +605,8 @@ class WebhookService:
             CouponService.increment_usage(payment.coupon)
 
         CheckoutService._fulfill_custom_project_payment(order)
-        send_payment_receipt(order)
+        # After commit: Stripe fulfillment stays in-process; email is async.
+        enqueue_payment_receipt(order)
 
     @classmethod
     def _handle_checkout_expired(cls, session: "stripe.checkout.Session") -> None:

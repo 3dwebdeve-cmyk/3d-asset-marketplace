@@ -40,7 +40,6 @@ describe('ProtectedRoute', () => {
   it('redirects to home after intentional sign-out', () => {
     useAuthStore.setState({
       accessToken: null,
-      refreshToken: null,
       user: null,
       isAuthenticated: false,
       postLogoutRedirect: '/',
@@ -55,7 +54,6 @@ describe('ProtectedRoute', () => {
   it('renders the protected content when the user is authenticated', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: null,
       isAuthenticated: true,
     })
@@ -69,7 +67,6 @@ describe('ProtectedRoute', () => {
   it('redirects when authenticated flag is set but the access token is missing', () => {
     useAuthStore.setState({
       accessToken: null,
-      refreshToken: null,
       user: null,
       isAuthenticated: true,
     })
@@ -94,7 +91,6 @@ describe('ProtectedRoute', () => {
   it('allows authenticated users onto My Projects', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: null,
       isAuthenticated: true,
     })
@@ -106,7 +102,6 @@ describe('ProtectedRoute', () => {
   it('allows authenticated users onto project detail', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: null,
       isAuthenticated: true,
     })

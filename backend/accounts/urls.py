@@ -1,7 +1,5 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
 
-from accounts.throttles import TokenRefreshRateThrottle
 from accounts.views import (
     AdminCurrentUserView,
     AdminLoginView,
@@ -9,6 +7,7 @@ from accounts.views import (
     AdminUserListCreateView,
     AvatarUploadView,
     ChangePasswordView,
+    CookieTokenRefreshView,
     CurrentUserView,
     EmailVerificationConfirmView,
     EmailVerificationResendView,
@@ -20,10 +19,6 @@ from accounts.views import (
     ProfileView,
     RegisterView,
 )
-
-
-class ThrottledTokenRefreshView(TokenRefreshView):
-    throttle_classes = [TokenRefreshRateThrottle]
 
 app_name = "accounts"
 
@@ -60,5 +55,5 @@ urlpatterns = [
     ),
     path("profile/", ProfileView.as_view(), name="profile"),
     path("profile/avatar/", AvatarUploadView.as_view(), name="profile-avatar"),
-    path("token/refresh/", ThrottledTokenRefreshView.as_view(), name="token-refresh"),
+    path("token/refresh/", CookieTokenRefreshView.as_view(), name="token-refresh"),
 ]

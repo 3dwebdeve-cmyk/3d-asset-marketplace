@@ -24,17 +24,16 @@ export type AuthUser = RegisteredUser
 export interface LoginPayload {
   email: string
   password: string
+  remember_me?: boolean
 }
 
 export interface LoginResponse {
   access: string
-  refresh: string
   user: AuthUser
 }
 
 export interface RefreshResponse {
   access: string
-  refresh?: string
 }
 
 export interface ApiFieldErrors {

@@ -12,7 +12,7 @@ import type {
 export async function listPublicCategories(
   params: PublicCategoryListParams = {},
 ): Promise<PaginatedPublicCategories> {
-  const response = await apiClient.get<PaginatedPublicCategories>('/api/categories/', {
+  const response = await apiClient.get<PaginatedPublicCategories>('/api/v1/categories/', {
     params,
   })
   return response.data
@@ -22,7 +22,7 @@ export async function listAdminCategories(
   params: AdminCategoryListParams = {},
 ): Promise<PaginatedAdminCategories> {
   const response = await apiClient.get<PaginatedAdminCategories>(
-    '/api/admin/categories/',
+    '/api/v1/admin/categories/',
     { params },
   )
   return response.data
@@ -30,7 +30,7 @@ export async function listAdminCategories(
 
 export async function getAdminCategory(categoryId: string): Promise<AdminCategory> {
   const response = await apiClient.get<AdminCategory>(
-    `/api/admin/categories/${categoryId}/`,
+    `/api/v1/admin/categories/${categoryId}/`,
   )
   return response.data
 }
@@ -39,7 +39,7 @@ export async function createAdminCategory(
   payload: AdminCategoryCreatePayload,
 ): Promise<AdminCategory> {
   const response = await apiClient.post<AdminCategory>(
-    '/api/admin/categories/',
+    '/api/v1/admin/categories/',
     payload,
   )
   return response.data
@@ -50,7 +50,7 @@ export async function updateAdminCategory(
   payload: AdminCategoryUpdatePayload,
 ): Promise<AdminCategory> {
   const response = await apiClient.patch<AdminCategory>(
-    `/api/admin/categories/${categoryId}/`,
+    `/api/v1/admin/categories/${categoryId}/`,
     payload,
   )
   return response.data
@@ -58,7 +58,7 @@ export async function updateAdminCategory(
 
 export async function deactivateAdminCategory(categoryId: string): Promise<AdminCategory> {
   const response = await apiClient.delete<AdminCategory>(
-    `/api/admin/categories/${categoryId}/`,
+    `/api/v1/admin/categories/${categoryId}/`,
   )
   return response.data
 }

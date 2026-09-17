@@ -40,7 +40,8 @@ class GoogleLoginTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
-        self.assertIn("refresh", response.data)
+        self.assertNotIn("refresh", response.data)
+        self.assertIn("refresh_token", response.cookies)
         self.assertEqual(response.data["user"]["email"], "google.user@example.com")
         self.assertTrue(response.data["user"]["email_verified"])
 

@@ -64,7 +64,6 @@ describe('LoginPage redirect', () => {
     const user = userEvent.setup()
     vi.mocked(authApi.loginUser).mockResolvedValue({
       access: 'access-token',
-      refresh: 'refresh-token',
       user: testUser,
     })
 
@@ -95,7 +94,6 @@ describe('LoginPage redirect', () => {
   it('redirects already-authenticated customers using state.from', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
     })
@@ -113,7 +111,6 @@ describe('LoginPage redirect', () => {
     const user = userEvent.setup()
     vi.mocked(authApi.loginUser).mockResolvedValue({
       access: 'access-token',
-      refresh: 'refresh-token',
       user: testUser,
     })
 
@@ -137,11 +134,39 @@ describe('LoginPage redirect', () => {
     })
   })
 
-  it('keeps the session out of localStorage when Remember me is unchecked', async () => {
+  it('never persists access tokens in localStorage', async () => {
     const user = userEvent.setup()
     vi.mocked(authApi.loginUser).mockResolvedValue({
       access: 'access-token',
-      refresh: 'refresh-token',
+      user: testUser,
+    })
+
+    renderLogin('/login')
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/email id/i), testUser.email)
+    await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
+    await user.click(
+      within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
+        name: /sign in to 3d hub/i,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/dashboard')
+    })
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(useAuthStore.getState().accessToken).toBe('access-token')
+    expect(localStorage.getItem('auth-storage')).not.toMatch(/access-token|accessToken/)
+  })
+
+  it('sends remember_me false when Remember me is unchecked', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authApi.loginUser).mockResolvedValue({
+      access: 'access-token',
       user: testUser,
     })
 
@@ -163,9 +188,11 @@ describe('LoginPage redirect', () => {
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent('/dashboard')
     })
-    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(authApi.loginUser).toHaveBeenCalledWith(
+      expect.objectContaining({ remember_me: false }),
+    )
     expect(useAuthStore.getState().rememberSession).toBe(false)
-    expect(localStorage.getItem('auth-storage')).not.toMatch(/access-token/)
+    expect(localStorage.getItem('auth-storage')).not.toMatch(/access-token|accessToken/)
   })
 
   it('navigates to forgot password when the link is clicked', async () => {

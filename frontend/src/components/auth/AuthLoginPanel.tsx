@@ -82,14 +82,6 @@ export function AuthLoginPanel({
 
       {displayError ? <Alert variant="error" message={displayError} /> : null}
 
-      {showAdminLoginHint ? (
-        <p className="auth-card__footer">
-          <Link className="auth-link" to="/admin/login" onClick={closeAuthModal}>
-            Go to admin sign in
-          </Link>
-        </p>
-      ) : null}
-
       {emailNotVerified ? (
         <p className="auth-card__footer">
           <button
@@ -99,6 +91,14 @@ export function AuthLoginPanel({
           >
             Resend verification email
           </button>
+        </p>
+      ) : null}
+
+      {showAdminLoginHint ? (
+        <p className="auth-card__footer">
+          <Link className="auth-link" to="/admin/login" onClick={closeAuthModal}>
+            Go to admin sign in
+          </Link>
         </p>
       ) : null}
 
@@ -159,7 +159,7 @@ export function AuthLoginPanel({
             className="auth-check__input"
             {...register('remember_me')}
           />
-          <span className="auth-check__label">Remember this device for 30 days</span>
+          <span className="auth-check__label">Remember this device for 7 days</span>
         </label>
 
         <Button

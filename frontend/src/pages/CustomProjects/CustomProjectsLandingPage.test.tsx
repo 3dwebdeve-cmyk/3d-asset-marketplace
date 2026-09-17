@@ -48,7 +48,6 @@ describe('CustomProjectsLandingPage', () => {
   it('links authenticated customers to the project request form', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: testUser,
       isAuthenticated: true,
     })
@@ -65,7 +64,6 @@ describe('CustomProjectsLandingPage', () => {
   it('links administrators to admin projects instead of the customer request form', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       user: { ...testUser, role: 'Administrator', email: 'admin@example.com' },
       isAuthenticated: true,
     })

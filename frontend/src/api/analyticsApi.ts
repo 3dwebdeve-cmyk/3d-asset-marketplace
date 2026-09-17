@@ -13,7 +13,7 @@ export async function getAdminAnalytics(
   params: AdminAnalyticsParams = {},
 ): Promise<AdminAnalytics> {
   const { data } = await apiClient.get<AdminAnalytics>(
-    `/api/admin/analytics/${toAnalyticsQuery(params)}`,
+    `/api/v1/admin/analytics/${toAnalyticsQuery(params)}`,
   )
   return data
 }

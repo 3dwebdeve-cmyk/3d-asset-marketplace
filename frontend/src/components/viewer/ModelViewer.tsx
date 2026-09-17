@@ -39,16 +39,18 @@ function SceneLights({
         position={[5.2, 9.5, 4.2]}
         intensity={1.35 * lightMultiplier}
         castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-bias={-0.00015}
-        shadow-normalBias={0.035}
-        shadow-radius={3}
+        // 4K map + tight ortho frustum keeps shadow texels fine enough for close orbits.
+        shadow-mapSize={[4096, 4096]}
+        shadow-bias={-0.0001}
+        shadow-normalBias={0.02}
+        // Hard edges — soft radius + PCFSoft was causing the grainy dithered penumbra.
+        shadow-radius={1}
         shadow-camera-near={0.5}
-        shadow-camera-far={30}
-        shadow-camera-left={-4}
-        shadow-camera-right={4}
-        shadow-camera-top={4}
-        shadow-camera-bottom={-4}
+        shadow-camera-far={24}
+        shadow-camera-left={-2.4}
+        shadow-camera-right={2.4}
+        shadow-camera-top={2.4}
+        shadow-camera-bottom={-2.4}
       >
         <object3D attach="target" position={[0, 0, 0]} />
       </directionalLight>
@@ -207,7 +209,7 @@ function PreviewModel({
             receiveShadow
           >
             <planeGeometry args={[ground.width, ground.depth]} />
-            <shadowMaterial transparent opacity={0.42} />
+            <shadowMaterial transparent opacity={0.05} />
           </mesh>
         </>
       ) : null}
@@ -307,14 +309,15 @@ function ModelViewerCanvas({
     <div className="model-viewer" role="img" aria-label={ariaLabel}>
       <Canvas
         className="model-viewer__canvas"
-        camera={{ position: [0, 1.1, 3.2], fov: 42, near: 0.1, far: 200 }}
+        camera={{ position: [0, 0.9, 2.3], fov: 42, near: 0.1, far: 200 }}
         shadows
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping
           gl.toneMappingExposure = 1.18
           gl.shadowMap.enabled = true
-          gl.shadowMap.type = THREE.PCFSoftShadowMap
+          // Hard shadows — Soft/PCF filtering made close-up edges look grainy and blocky.
+          gl.shadowMap.type = THREE.BasicShadowMap
         }}
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}

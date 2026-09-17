@@ -1,0 +1,30 @@
+# Overlay for browser E2E against the Feature 13 Compose stack.
+# Usage (from repo root, after copying `.env.example` → `.env`):
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up --build -d
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec web \
+#     python manage.py seed_e2e_commerce
+#   cd e2e && npm ci && npx playwright install chromium && npm test
+#
+# E2E_STRIPE_SIMULATE keeps Stripe in test-mode simulation (no live sk_live_ keys).
+# Never commit real secrets; CI writes a disposable .env from placeholders.
+
+services:
+  web:
+    environment:
+      E2E_STRIPE_SIMULATE: "True"
+      # Placeholder test-mode key only — not a real Stripe credential.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_e2e_ci_placeholder_not_a_real_secret}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_e2e_ci_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_e2e_ci_placeholder}
+      SENTRY_DSN: ""
+
+  worker:
+    environment:
+      E2E_STRIPE_SIMULATE: "True"
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_e2e_ci_placeholder_not_a_real_secret}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_e2e_ci_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_e2e_ci_placeholder}
+      SENTRY_DSN: ""
+
+  frontend:
+    environment: {}

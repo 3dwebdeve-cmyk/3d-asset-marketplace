@@ -1,6 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const captureReactException = vi.hoisted(() => vi.fn())
+
+vi.mock('@sentry/react', () => ({
+  captureReactException,
+}))
+
 import { ErrorBoundary } from './ErrorBoundary'
 
 function Boom(): never {
@@ -10,6 +16,7 @@ function Boom(): never {
 describe('ErrorBoundary', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    captureReactException.mockReset()
   })
 
   afterEach(() => {
@@ -36,6 +43,7 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByText('Something went wrong')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
+    expect(captureReactException).toHaveBeenCalled()
   })
 
   it('renders a custom fallback when provided', () => {

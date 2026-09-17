@@ -6,6 +6,12 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.auth_cookies import (
+    clear_refresh_cookie,
+    get_refresh_from_request,
+    get_remember_from_request,
+    set_refresh_cookie,
+)
 from accounts.admin_user_service import (
     AdminUserCreateData,
     AdminUserError,
@@ -24,7 +30,6 @@ from accounts.serializers import (
     EmailVerificationResendSerializer,
     GoogleLoginSerializer,
     LoginSerializer,
-    LogoutSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
     ProfileResponseSerializer,
@@ -49,7 +54,22 @@ from accounts.throttles import (
     PasswordResetConfirmRateThrottle,
     PasswordResetRateThrottle,
     RegisterRateThrottle,
+    TokenRefreshRateThrottle,
 )
+
+
+def _issue_auth_response(user, *, remember: bool) -> Response:
+    """Return access + user in JSON; refresh only via httpOnly cookie."""
+    tokens = AuthenticationService.build_tokens(user)
+    response = Response(
+        {
+            "access": tokens["access"],
+            "user": UserResponseSerializer(user).data,
+        },
+        status=status.HTTP_200_OK,
+    )
+    set_refresh_cookie(response, tokens["refresh"], remember=remember)
+    return response
 
 
 class RegisterView(APIView):
@@ -88,12 +108,10 @@ class LoginView(APIView):
                 )
             raise AuthenticationFailed(exc.message) from exc
 
-        tokens = AuthenticationService.build_tokens(user)
-        payload = {
-            **tokens,
-            "user": UserResponseSerializer(user).data,
-        }
-        return Response(payload, status=status.HTTP_200_OK)
+        return _issue_auth_response(
+            user,
+            remember=bool(serializer.validated_data.get("remember_me", True)),
+        )
 
 
 class GoogleLoginView(APIView):
@@ -114,12 +132,10 @@ class GoogleLoginView(APIView):
             log_auth_failure(scope="google_login", email=None)
             raise AuthenticationFailed(exc.message) from exc
 
-        tokens = AuthenticationService.build_tokens(user)
-        payload = {
-            **tokens,
-            "user": UserResponseSerializer(user).data,
-        }
-        return Response(payload, status=status.HTTP_200_OK)
+        return _issue_auth_response(
+            user,
+            remember=bool(serializer.validated_data.get("remember_me", True)),
+        )
 
 
 class AdminLoginView(APIView):
@@ -143,12 +159,10 @@ class AdminLoginView(APIView):
             log_auth_failure(scope="admin_login", email=credentials.email)
             raise AuthenticationFailed(exc.message) from exc
 
-        tokens = AuthenticationService.build_tokens(user)
-        payload = {
-            **tokens,
-            "user": UserResponseSerializer(user).data,
-        }
-        return Response(payload, status=status.HTTP_200_OK)
+        return _issue_auth_response(
+            user,
+            remember=bool(serializer.validated_data.get("remember_me", True)),
+        )
 
 
 class CurrentUserView(APIView):
@@ -170,21 +184,71 @@ class AdminCurrentUserView(APIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
+    """Blacklist the refresh cookie and clear it. Cookie-only; no JSON refresh."""
+
+    permission_classes = [AllowAny]
 
     def post(self, request: Request) -> Response:
-        serializer = LogoutSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        refresh = get_refresh_from_request(request)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+
+        if refresh:
+            user = request.user if getattr(request.user, "is_authenticated", False) else None
+            try:
+                AuthenticationService.blacklist_refresh_token(refresh, user=user)
+            except AuthenticationError as exc:
+                clear_refresh_cookie(response)
+                raise AuthenticationFailed(exc.message) from exc
+
+        clear_refresh_cookie(response)
+        return response
+
+
+class CookieTokenRefreshView(APIView):
+    """Rotate refresh from httpOnly cookie; return access only."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [TokenRefreshRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        from rest_framework_simplejwt.exceptions import TokenError
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        from accounts.models import User
+
+        raw = get_refresh_from_request(request)
+        if not raw:
+            raise AuthenticationFailed("Refresh token cookie is missing.")
+
+        remember = get_remember_from_request(request)
 
         try:
-            AuthenticationService.blacklist_refresh_token(
-                serializer.validated_data["refresh"],
-                user=request.user,
-            )
-        except AuthenticationError as exc:
-            raise AuthenticationFailed(exc.message) from exc
+            old_refresh = RefreshToken(raw)
+            user_id = old_refresh.payload.get("user_id")
+            try:
+                old_refresh.blacklist()
+            except AttributeError:
+                pass
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+            try:
+                user = User.objects.get(pk=user_id)
+            except User.DoesNotExist as exc:
+                raise AuthenticationFailed("Invalid refresh token.") from exc
+            if not user.is_active:
+                raise AuthenticationFailed("Invalid refresh token.")
+
+            tokens = AuthenticationService.build_tokens(user)
+        except TokenError:
+            response = Response(
+                {"detail": "Token is invalid or expired", "code": "token_not_valid"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+            clear_refresh_cookie(response)
+            return response
+
+        response = Response({"access": tokens["access"]}, status=status.HTTP_200_OK)
+        set_refresh_cookie(response, tokens["refresh"], remember=remember)
+        return response
 
 
 class ChangePasswordView(APIView):
@@ -204,6 +268,11 @@ class ChangePasswordView(APIView):
                 new_password=serializer.validated_data["new_password"],
             )
         except AuthenticationError as exc:
+            if exc.code == "email_not_verified":
+                return Response(
+                    {"detail": exc.message, "code": exc.code},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             if "Current password" in exc.message:
                 return Response(
                     {"current_password": [exc.message]},
@@ -214,7 +283,9 @@ class ChangePasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        clear_refresh_cookie(response)
+        return response
 
 
 class PasswordResetRequestView(APIView):
@@ -257,10 +328,12 @@ class PasswordResetConfirmView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response(
+        response = Response(
             {"detail": "Password has been reset. You can sign in with your new password."},
             status=status.HTTP_200_OK,
         )
+        clear_refresh_cookie(response)
+        return response
 
 
 class EmailVerificationResendView(APIView):

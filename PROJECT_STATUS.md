@@ -5,11 +5,11 @@ Version: 1.0
 Current Phase: Phase 1 – Marketplace Development
 Project Type: International Digital Marketplace for 3D Models, Plugins, and Custom 3D Design Services
 Project Progress
-Overall Completion: ~83%
+Overall Completion: ~85%
 Current Development Sprint
 Current Sprint: Phase 1 — Production readiness
 Sprint Goal: Feature 13 Docker + Sprint 11 formal QA / security / deployment (performance code pass done 2026-09-16)
-Sprint Status: Performance hardening pass complete; Docker + formal security/E2E/deploy remain open
+Sprint Status: Feature 13 Docker + browser E2E + production checklist runbook landed 2026-09-17; live host security/deploy sign-off still open (operator executes docs/PRODUCTION_CHECKLIST.md)
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -17,7 +17,7 @@ Sprint 1 – Project Setup
 • [x] Create Django Project
 • [x] Create React Project
 • [x] Configure PostgreSQL
-• [ ] Configure Docker (Feature 13 — compose is Meilisearch-only; no app Dockerfile)
+• [x] Configure Docker (Feature 13 — backend Dockerfile/Gunicorn, frontend Nginx, Compose: web/worker/postgres/redis/meilisearch)
 • [x] Configure GitHub Repository
 • [x] Connect Frontend & Backend
 • [x] Initial Project Commit
@@ -25,7 +25,7 @@ Sprint 2 – Authentication
 • [x] JWT Authentication
 • [x] User Registration
 • [x] User Login
-• [x] Email Verification
+• [x] Email Verification (re-enabled 2026-09-17 — register unverified + Celery link; login gated)
 • [x] Password Reset
 • [x] User Roles (Administrator login + RBAC gate)
 • [x] Protected Routes
@@ -151,29 +151,71 @@ Sprint 10 – Cloud Storage & Batch Ingest (complete in marketplace repo — see
 • [x] Feature 16 Phase 10 — Hardening (R2 retries, batch public media, leftover media → R2 command)
 Sprint 11 – Testing & Deployment
 • [ ] API Testing (formal coverage / sign-off — unit/API suites already extensive)
-• [ ] UI Testing (browser E2E; Vitest unit tests already extensive)
+• [x] UI Testing (browser E2E Playwright — login → viewer → cart → checkout confirm → download; CI Compose job)
 • [ ] Security Testing
 • [x] Performance Optimization (Sprint 11 pass 2026-09-16 — query/cache/viewer; formal load/E2E still open)
 • [ ] Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Sprint 11 performance + security hardening pass; next = Feature 13 Docker, then formal QA/deployment.
+Re-enable email verification + password-change security email pipeline.
 Current Git Branch
-feature-2026-09-16
+feature/2026-09-17
 Files Being Worked On
-• frontend/src/main.tsx
-• frontend/src/hooks/useCart.ts
-• frontend/src/components/viewer/ModelViewer.tsx
-• backend/products/services.py
-• backend/plugins/services.py
-• backend/reviews/services.py
-• backend/downloads/services.py
-• backend/orders/views.py
-• backend/orders/serializers.py
-• backend/config/settings.py
+• backend/accounts/services.py
+• backend/accounts/tasks.py
+• backend/accounts/permissions.py
+• backend/payments/views.py
+• backend/custom_projects/views.py
+• frontend/src/App.tsx
 • PROJECT_STATUS.md
 Completed Features
+• Email verification re-enabled (2026-09-17)
+  - Register unverified + Celery verification email; login 403 email_not_verified
+  - IsEmailVerified on checkout + custom-project create/accept/pay
+  - Password change requires verified email + Celery security notice
+  - Google OAuth still trusts Google email_verified; admin create stays verified
+• Browser E2E Playwright (2026-09-17)
+  - Playwright suite: login → product viewer → add to cart → checkout → success confirm → download
+  - E2E_STRIPE_SIMULATE (Compose/CI only; refuses sk_live_); seed_e2e_commerce fixture command
+  - CI e2e job builds Compose overlay, seeds fixtures, runs Chromium; never logs real Stripe secrets
+• API versioning /api/v1 (2026-09-17)
+  - Canonical mount at /api/v1/; unversioned /api/ rewritten to v1 via LegacyApiPathAliasMiddleware (one-release alias)
+  - reverse() and download_url builders emit /api/v1/; auth/entitlement rules unchanged
+  - Refresh cookie Path=/api/ so both /api/auth/ and /api/v1/auth/ receive it; logout clears legacy paths
+  - Frontend API modules + Axios refresh use /api/v1/; Compose healthcheck uses /api/v1/healthz/
+• JWT refresh httpOnly cookie (2026-09-17)
+  - Access token memory-only; refresh never returned in JSON or stored in localStorage
+  - Login/Google/admin Set-Cookie; CookieTokenRefreshView rotates + blacklists; logout clears cookie
+  - remember_me controls cookie Max-Age (7 days) vs session cookie; Vite `/api` proxy for SameSite=Lax
+  - SPA Nginx CSP as XSS defense-in-depth; CORS_ALLOW_CREDENTIALS=True; server RBAC unchanged
+• Sentry production monitoring (2026-09-17)
+  - Django + Celery SDK init gated by SENTRY_DSN; React SDK gated by VITE_SENTRY_DSN
+  - before_send / EventScrubber redacts tokens, passwords, cookies, emails
+  - Stripe webhook failures tagged area=payments_webhook for alerting
+  - Frontend logger + ErrorBoundary forward to Sentry; React 19 createRoot error hooks
+• Email verification re-enabled (2026-09-17)
+  - Register creates email_verified=False and enqueues Celery verification email
+  - Customer login returns 403 email_not_verified until confirmed; Google OAuth still trusts Google email_verified
+  - IsEmailVerified gates checkout + custom-project create/accept/pay
+  - Password change requires verified email and enqueues a security notification email
+  - SPA /verify-email routes restored; admin create still marks verified
+• Email verification disabled (2026-09-17) — superseded by re-enable above
+  - Register/admin-create set email_verified=True; no verification emails
+  - Customer login no longer requires verification (legacy unverified users can sign in)
+  - SPA verify-email routes redirect to login; register success prompts sign-in
+  - Confirm/resend APIs kept as harmless compatibility endpoints; admin email_verified field retained
+• Celery async email (2026-09-17)
+  - Celery app + Redis broker (REDIS_URL); eager mode when no Redis / under tests
+  - Receipt, project, contact, password-reset, verification, and password-changed emails moved to retried tasks
+  - Stripe webhook fulfillment remains in-process + idempotent; receipt enqueued after DB commit
+  - Compose `worker` service; webhook signature verification unchanged
+• Feature 13 — Docker & local/prod runtime (2026-09-17)
+  - Backend Python 3.12 image → Gunicorn; entrypoint waits for Postgres/Meili, migrate, collectstatic
+  - Frontend multi-stage Vite build → Nginx SPA; /api + /admin + /static proxied to web; Cloudflare Pages `_redirects`
+  - Compose: web, frontend, worker, postgres, redis, meilisearch
+  - Healthcheck wired to existing GET /api/healthz/; DEBUG=False baked into web image; secrets via env / root `.env`
+  - WhiteNoise for Django static; settings load from OS env when backend/.env is absent
 • Sprint 11 performance / security hardening pass (2026-09-16)
   - Frontend: QueryClient defaults (staleTime/gcTime/retry); shared cart + category query keys; keepPreviousData on Models/Plugins browse; ModelViewer ground texture dispose + 1024 shadow maps
   - Backend: public product/plugin list `.defer()`; batched order-detail downloadable files (N+1 fix); download history Max annotate; DB CONN_MAX_AGE
@@ -181,7 +223,7 @@ Completed Features
   - Tests: new review entitlement case; targeted frontend suites + build OK; reviews/products/orders suites green
 • Code scan & status reconciliation (2026-09-16)
   - Confirmed in code: R2 dual buckets + presigned downloads, catalog import + QA UI, invoice PDF download + receipt email, Meilisearch, Stripe cart + quotation pay, plugin cart CTAs live
-  - Confirmed missing: app Docker/Gunicorn/Nginx, browser E2E suite, legal pages, newsletter API, 3D fullscreen, Celery, DB activity-log UI, product tags, dedicated Search page
+  - Confirmed missing: legal pages, newsletter API, 3D fullscreen, DB activity-log UI, product tags, dedicated Search page
   - Docs refreshed: PROJECT_STATUS, PLANNED_FEATURES, IMPLEMENTATION_ROADMAP, MASTER_PLAN batch section
 • Phase 1 team & product stability (2026-09-10)
   - Console EMAIL VERIFICATION LINK when DEBUG=True; `python manage.py verify_email`; Django admin action; SPA /admin/users email_verified
@@ -230,7 +272,7 @@ Completed Features
   - returnTo is sanitized against open redirects; modal state is not persisted
 • Customer Sign In / Register UI restyle (2026-09-02)
   - Shared Sign In / Register pill tabs; icon fields; show/hide password
-  - Remember me on Sign In (unchecked = in-memory session, not localStorage)
+  - Remember me on Sign In (maps to refresh cookie Max-Age; access never in localStorage)
   - Register collects optional phone and country (same fields as POST /api/auth/register/)
   - Phone and country stay optional on the API
   - Admin login, password reset, contact, and profile still use the original auth-card layout
@@ -401,7 +443,6 @@ Completed Features
 • Public product details page (/products/:slug) — Atelier-style two-column layout using brand cream/navy/blue tokens; gallery stage, purchase card, specs table, related products, SEO, auth-aware CTAs
 Pending Features
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
-• Feature 13 — Docker & local/prod runtime
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
 • Feature 16 — Batch Catalog Ingest & QA (Phases 3–10 done in this repo; desktop bridge .exe polish optional / separate repo)
   - Detailed 10-phase plan: IMPLEMENTATION_ROADMAP.md; contract: docs/batch-ingest-contract.md
@@ -416,14 +457,13 @@ Bugs
 No Known Bugs
 Technical Debt
 • New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA can be copied with `python manage.py migrate_local_media_to_r2`
-• Custom-project / message / delivery downloads still FileResponse (private R2 keys when R2 on; same presign pattern later)
+• Custom-project / message / delivery downloads use the same R2 presigned JSON + local FileResponse fallback as catalog downloads
 • Catalog Import API + QA + E2E (Phases 5–10) done in this repo; desktop bridge .exe polish is a separate repo
-• Docker Compose not production-ready
 • Admin audit logging not yet implemented
-• Access JWTs remain valid until expiry after password change (refresh tokens are blacklisted)
+• Access JWTs remain valid until expiry after password change (refresh cookies/tokens are blacklisted; cookie cleared)
 Important Decisions
 • PostgreSQL selected as the primary database.
-• JWT (SimpleJWT) for API authentication.
+• JWT (SimpleJWT) for API authentication: Bearer access in memory; refresh via httpOnly Secure SameSite=Lax cookie (Path=/api/auth/); rotate + blacklist retained.
 • RBAC uses accounts.Role (Administrator / Customer); backend permissions never trust frontend alone.
 • Customer login: POST /api/auth/login/; Admin login: POST /api/auth/admin/login/.
 • Admin user DELETE soft-deactivates (is_active=False); protect last active admin and self-lockout.
@@ -438,11 +478,13 @@ Important Decisions
 • Project messages are project-scoped threads; customer access is ownership-only (404 for others); admin_notes stay off message APIs.
 • Project message unread state is a per-user last-read cursor (ProjectMessageReadState); own messages never count as unread.
 • Project message attachments reuse project file MIME/extension/size rules; create is attach-on-send (multipart); downloads are owner+admin only via authenticated endpoints.
-• Project message, creation, quotation, and delivery emails reuse Django send_mail + FRONTEND_BASE_URL; bodies contain only minimal project context and deep links (no message body, quote amounts/notes, emails, tokens, or storage paths); mail failures are logged and never roll back any project action; staff recipients resolve to assigned designer else PROJECT_MESSAGE_ADMIN_RECIPIENTS else active Administrator account emails (never DEFAULT_FROM_EMAIL as To); email bodies rendered from Django text templates in custom_projects/templates/custom_projects/emails/.
+• Project message, creation, quotation, and delivery emails use Celery tasks (REDIS_URL broker) with retries; Django send_mail + FRONTEND_BASE_URL in the worker; bodies contain only minimal project context and deep links (no message body, quote amounts/notes, emails, tokens, or storage paths); mail/enqueue failures are logged and never roll back any project action; staff recipients resolve to assigned designer else PROJECT_MESSAGE_ADMIN_RECIPIENTS else active Administrator account emails (never DEFAULT_FROM_EMAIL as To); email bodies rendered from Django text templates in custom_projects/templates/custom_projects/emails/.
 • Quotation accept: customer-only endpoint (IsAuthenticated, not IsAdministrator); requires project status=quoted and quotation.status=pending; transitions project to approved and quotation to accepted atomically; notifies staff after commit; other customers get 404 (not 403).
+• Payment receipt emails are enqueued after Stripe fulfillment commits; webhook signature verification and in-process idempotent fulfillment are unchanged.
+• Celery: broker = REDIS_URL; CELERY_TASK_ALWAYS_EAGER when Redis is unset (local DEBUG) or under tests; Compose runs `celery -A config worker`.
 • Project deliveries use a dedicated ProjectDelivery model (not ProjectFile); version is a positive integer per project with a unique (project, version) constraint; admin upload reuses validate_project_file_upload + private deliveries/ storage prefix; API responses never include storage_path; customers have no delivery upload route; list/download is admin or project-owner only (other customers → 404; customers on admin routes → 403).
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
-• Email verification required for customer login; admins/superusers auto-verified. Local DX: console EmailBackend + DEBUG log of the verification URL; `manage.py verify_email`; Django admin action; SPA admin PATCH email_verified.
+• Email verification is enabled for customers: register sets email_verified=False and enqueues a Celery verification email; login returns 403 email_not_verified until confirmed. Checkout and custom-project create/accept/pay require IsEmailVerified. Google OAuth still trusts Google’s email_verified. Password change requires a verified email and sends a Celery security notification. Admin-created users remain email_verified=True; admin can still toggle email_verified.
 • React Three Fiber selected for 3D previews.
 • Public product detail CTAs gate checkout as coming soon; wishlist and cart are live for authenticated customers; guests are prompted to sign in; Share copies the public /products/:slug URL only.
 • Wishlist uses dedicated wishlist app (WishlistItem); product_type is product or plugin; only published catalog items can be added; owner-only list/add/remove (IDOR → 404); write endpoints throttled; no payment dependency.
@@ -457,9 +499,360 @@ Important Decisions
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order: Feature 13 Docker, then Sprint 11 security/performance/deployment.
+• Recommended near-term order: Execute docs/PRODUCTION_CHECKLIST.md on staging/prod (Compose + E2E already in repo); then Feature 12 polish.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 Daily Development Log
+Date: 2026-09-17 (Production checklist runbook)
+Working Hours:
+Today's Objective: Close the Sprint 11 “formal security / production deploy” documentation gap with an operator runbook (env gates, check --deploy, backup/webhook drills, worker+mail, rollback) without claiming live Production Ready.
+Modules Completed: docs/PRODUCTION_CHECKLIST.md; Compose web SMTP env parity; Nginx X-Forwarded-Proto for TLS-at-proxy
+Files Created:
+• docs/PRODUCTION_CHECKLIST.md
+Files Modified:
+• docker-compose.yml
+• frontend/nginx.conf
+• .env.example
+• backend/.env.example
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Created/Updated:
+• None (Nginx proxy header hardening only)
+Problems Encountered:
+• Live Production Ready still requires a host with real SMTP/Stripe/R2/Sentry — Compose defaults stay console/empty by design
+Solutions Implemented:
+• Runbook separates repo-ready vs operator sign-off; rollback policy prefers image tags + expand/contract migrations over migrate reverse
+Security Review:
+• No secrets committed; console email / empty Stripe-R2-Sentry remain safe defaults
+• E2E_STRIPE_SIMULATE still blocked with sk_live_
+• Nginx forwards edge X-Forwarded-Proto so SECURE_SSL_REDIRECT / Secure cookies work behind Cloudflare
+• Web + worker both receive SMTP env so management-command mail and Celery mail use the same backend
+Tests:
+• N/A for runbook; reuse existing healthz / Stripe webhook / Celery unit coverage
+Next Development Task:
+• Execute PRODUCTION_CHECKLIST on staging/prod host; Feature 12 public polish
+Date: 2026-09-17 (Email verification re-enabled)
+Working Hours:
+Today's Objective: Re-enable email verification (register unverified + Celery mail + login gate), gate checkout/custom projects, and add password-change security email pipeline.
+Modules Completed: EmailVerificationService restored; IsEmailVerified permission; password-changed Celery task; SPA verify-email UX
+Files Created:
+• None (reused existing accounts email verification + Celery task modules)
+Files Modified:
+• backend/accounts/services.py
+• backend/accounts/tasks.py
+• backend/accounts/permissions.py
+• backend/accounts/security_log.py
+• backend/accounts/views.py
+• backend/accounts/test_email_verification.py
+• backend/accounts/tests.py
+• backend/payments/views.py
+• backend/custom_projects/views.py
+• frontend/src/App.tsx
+• frontend/src/pages/Login/useLoginForm.ts
+• frontend/src/components/auth/AuthLoginPanel.tsx
+• frontend/src/components/auth/AuthRegisterPanel.tsx
+• frontend/src/components/auth/AuthModal.test.tsx
+• frontend/src/pages/Register/RegisterPage.test.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added:
+• None
+API Endpoints Modified:
+• POST /api/v1/auth/register/ — creates unverified user + enqueues verification email
+• POST /api/v1/auth/login/ — 403 email_not_verified for unverified customers
+• POST /api/v1/auth/email-verification/resend/ — enqueues verification email (non-enumerating)
+• POST /api/v1/auth/email-verification/confirm/ — marks verified (unchanged contract)
+• POST /api/v1/auth/change-password/ — requires verified email; enqueues password-changed notice
+• POST /api/v1/payments/checkout/ — requires IsEmailVerified
+• POST /api/v1/payments/checkout/confirm/ — requires IsEmailVerified
+• POST /api/v1/custom-projects/ — list/create requires IsEmailVerified
+• POST /api/v1/custom-projects/<id>/quotation/accept/ — requires IsEmailVerified
+• POST /api/v1/custom-projects/<id>/quotation/pay/ — requires IsEmailVerified
+Frontend Pages Created:
+• None (restored existing EmailVerification pages)
+Frontend Pages Modified:
+• /verify-email/:uid/:token — active again
+• /verify-email/resend — active again
+• Auth register success — prompts email verification
+• Auth login — resend link on email_not_verified
+Problems Encountered:
+• None
+Solutions Implemented:
+• Restored prior EmailVerificationService; wired Celery like password reset; added password-changed notice task
+Lessons Learned:
+• Login gate plus IsEmailVerified on money paths covers both UX and defense-in-depth
+Next Development Task:
+• Formal security testing / production deployment checklist
+Date: 2026-09-17 (Browser E2E Playwright)
+Working Hours:
+Today's Objective: Add Playwright browser E2E for login → cart → checkout → success/confirm → download; run in CI against Compose with Stripe test-mode simulation (never log secrets).
+Modules Completed: Playwright suite; E2E_STRIPE_SIMULATE checkout/confirm; seed_e2e_commerce; Compose overlay; CI e2e job
+Files Created:
+• e2e/package.json
+• e2e/package-lock.json
+• e2e/playwright.config.ts
+• e2e/tsconfig.json
+• e2e/helpers/auth.ts
+• e2e/tests/checkout-flow.spec.ts
+• docker-compose.e2e.yml
+• backend/products/management/commands/seed_e2e_commerce.py
+• frontend/public/fixtures/e2e-preview.glb
+Files Modified:
+• backend/config/settings.py
+• backend/payments/services.py
+• backend/payments/test_payments.py
+• backend/.env.example
+• .env.example
+• docker-compose.yml
+• .github/workflows/ci.yml
+• .gitignore
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Features Implemented:
+• Browser E2E covering login, 3D viewer mount, cart, checkout success confirm, entitled download
+• Gated Stripe simulate path for CI (sk_test_ only; refuses sk_live_)
+• Compose overlay + GitHub Actions e2e job
+API Endpoints Added: none
+API Endpoints Modified: none (checkout/confirm behavior gated by E2E_STRIPE_SIMULATE)
+Database Changes: none
+Frontend Pages Created: none
+Problems Encountered:
+• Hosted Stripe Checkout is unsuitable for deterministic CI without account secrets
+Solutions Implemented:
+• E2E_STRIPE_SIMULATE returns SPA success URL and fulfills via the same webhook handler path on confirm
+Lessons Learned:
+• Keep browser E2E fulfillment aligned with production confirm/webhook code paths
+Next Development Task:
+• Sprint 11 formal security review / production deployment sign-off
+Date: 2026-09-17 (API versioning /api/v1)
+Working Hours:
+Today's Objective: Mount REST APIs under /api/v1/; keep unversioned /api/ as one-release aliases without changing auth or entitlement rules.
+Modules Completed: Shared api_urls; legacy path alias middleware; frontend /api/v1 client paths; dual-path cookie clear
+Files Created:
+• backend/config/api_urls.py
+• backend/config/legacy_api.py
+• backend/config/test_api_versioning.py
+• backend/config/test_legacy_api.py
+Files Modified:
+• backend/config/urls.py
+• backend/config/settings.py
+• backend/accounts/auth_cookies.py
+• backend/downloads/services.py
+• backend/custom_projects/serializers.py
+• backend/custom_projects/test_custom_projects.py
+• backend/.env.example
+• docker-compose.yml
+• frontend/src/api/client.ts
+• frontend/src/api/*.ts (and *.test.ts)
+• frontend/src/pages/Dashboard/* (download_url / pagination fixtures)
+• frontend/src/pages/Admin/AdminProjectMessagesSection.test.tsx
+• frontend/src/pages/Admin/AdminProjectDeliveriesSection.test.tsx
+• frontend/.env.example
+• frontend/vite.config.ts
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• Canonical: all previous /api/... routes now at /api/v1/... (same views/permissions)
+• Legacy aliases: /api/... still resolve via middleware rewrite (one release)
+• reverse() names now resolve to /api/v1/... (e.g. healthz, accounts:login)
+• Download URL builders emit /api/v1/downloads/... and /api/v1/custom-projects/...
+Frontend Pages Created/Updated:
+• No new pages; all apiClient call sites use /api/v1/
+Issues Found:
+• Django Set-Cookie cannot dual-emit same cookie name for two Path values — used Path=/api/ for the alias window
+Next Steps:
+• After mobile/public clients migrate, remove LegacyApiPathAliasMiddleware and tighten JWT_REFRESH_COOKIE_PATH to /api/v1/auth/
+Security Review:
+• Auth/entitlement code paths unchanged; only URL prefix + cookie Path scoping
+• No secrets exposed; JWT still httpOnly; logout clears /api/, /api/auth/, /api/v1/auth/ cookie paths
+• Stripe webhook still reachable at legacy /api/payments/webhook/ and /api/v1/payments/webhook/
+Definition of Done:
+• [x] Requirements matched; patterns reused; production-ready
+• [x] Security checklist reviewed for this change
+• [x] Tests: config versioning/legacy + accounts.tests; frontend api + related page tests green
+• [x] PROJECT_STATUS.md updated
+Date: 2026-09-17 (JWT httpOnly refresh cookie)
+Working Hours:
+Today's Objective: Stop persisting JWTs in localStorage; access in memory; refresh via httpOnly cookie with rotate+blacklist.
+Modules Completed: Auth cookie helpers; cookie login/refresh/logout; frontend memory session + Vite proxy; SPA CSP
+Files Created:
+• backend/accounts/auth_cookies.py
+Files Modified:
+• backend/config/settings.py
+• backend/.env.example
+• backend/accounts/views.py
+• backend/accounts/serializers.py
+• backend/accounts/urls.py
+• backend/accounts/tests.py
+• backend/accounts/test_google_login.py
+• backend/accounts/test_admin_access.py
+• backend/accounts/test_password_reset.py
+• frontend/src/store/authStore.ts
+• frontend/src/api/client.ts
+• frontend/src/api/authApi.ts
+• frontend/src/types/auth.ts
+• frontend/src/hooks/useSessionBootstrap.ts
+• frontend/src/hooks/useSessionBootstrap.test.tsx
+• frontend/src/hooks/useGoogleLogin.ts
+• frontend/src/hooks/useAdminSession.ts
+• frontend/src/pages/Login/useLoginForm.ts
+• frontend/src/pages/Login/LoginPage.test.tsx
+• frontend/src/pages/Admin/useAdminLoginForm.ts
+• frontend/src/pages/Dashboard/DashboardPage.tsx
+• frontend/src/components/Navbar.tsx
+• frontend/src/components/auth/AuthLoginPanel.tsx
+• frontend/vite.config.ts
+• frontend/.env.example
+• frontend/nginx.conf
+• frontend/src/test/test-utils.ts
+• PROJECT_STATUS.md
+Database Changes:
+• None (SimpleJWT blacklist tables unchanged)
+API Endpoints Added, Modified, or Removed:
+• POST /api/auth/login/ — optional remember_me; response {access,user} + Set-Cookie refresh (no refresh in JSON)
+• POST /api/auth/google/ — same cookie pattern; optional remember_me
+• POST /api/auth/admin/login/ — same cookie pattern
+• POST /api/auth/token/refresh/ — cookie-only input; response {access} + rotated Set-Cookie
+• POST /api/auth/logout/ — cookie blacklist + clear (AllowAny with cookie; no JSON refresh)
+• POST /api/auth/change-password/ and password-reset/confirm/ — clear refresh cookie on success
+Frontend Pages Created/Updated:
+• Login remember label (7 days); auth store / axios / bootstrap / logout call sites
+Problems Encountered:
+• Local cross-origin Vite→Django blocked SameSite=Lax cookies — resolved with Vite `/api` proxy + empty VITE_API_BASE_URL
+Security Review:
+• Refresh not readable by JS; access not in localStorage; CORS credentials + allowlist; RBAC still server-side; rotate/blacklist kept; SPA CSP added
+Tests:
+• Backend AuthenticationAPITests + google/admin/password-reset auth cases OK
+• Frontend auth/bootstrap/login/navbar suites (run as part of finish)
+Next Development Task:
+• Sprint 11 formal E2E / deployment verification with cookie sessions
+Date: 2026-09-17 (Sentry production monitoring)
+Working Hours:
+Today's Objective: Integrate Sentry for Django and the Vite/React app with PII scrubbing and webhook failure visibility.
+Modules Completed: Backend sentry init/scrubber; Stripe webhook Sentry capture; frontend Sentry init + logger bridge; env/Compose wiring
+Files Created:
+• backend/config/sentry.py
+• backend/config/test_sentry.py
+• frontend/src/lib/sentry.ts
+• frontend/src/lib/sentry.test.ts
+• frontend/src/lib/logger.test.ts
+Files Modified:
+• backend/requirements.txt
+• backend/config/settings.py
+• backend/payments/views.py
+• backend/.env.example
+• frontend/package.json
+• frontend/package-lock.json
+• frontend/src/main.tsx
+• frontend/src/lib/logger.ts
+• frontend/src/components/ErrorBoundary.tsx
+• frontend/src/components/ErrorBoundary.test.tsx
+• frontend/.env.example
+• frontend/Dockerfile
+• .env.example
+• docker-compose.yml
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• POST /api/payments/webhook/ — still same contract; handler exceptions now return 500 and report to Sentry (Stripe can retry)
+Frontend Pages Created/Updated:
+• None (infra: main.tsx, logger, ErrorBoundary)
+Problems Encountered:
+• Sentry MCP auth declined — DSNs and alert rules must be configured manually in sentry.io
+Security Review:
+• send_default_pii=False; request bodies never attached; Authorization/Cookie/token/password/email scrubbed
+• Frontend DSN is public by design; no secrets in SPA env beyond the DSN
+• Webhook signature verification unchanged; only reporting/tagging added
+Tests:
+• config.test_sentry + payments webhook reporting cases; frontend logger/sentry/ErrorBoundary suites
+Next Development Task:
+• Create Sentry projects, paste DSNs into env, configure webhook + 5xx alert rules (see agent handoff)
+Date: 2026-09-17 (Celery async email)
+Working Hours:
+Today's Objective: Move non-critical email off the request path with Celery + Redis; keep Stripe fulfillment in-process and idempotent.
+Modules Completed: Celery app; email tasks with retries; Compose worker; enqueue-after-commit helpers
+Files Created:
+• backend/config/celery.py
+• backend/config/celery_utils.py
+• backend/config/test_celery.py
+• backend/orders/tasks.py
+• backend/custom_projects/tasks.py
+• backend/contact/tasks.py
+• backend/accounts/tasks.py
+Files Modified:
+• backend/config/__init__.py
+• backend/config/settings.py
+• backend/requirements.txt
+• backend/orders/notifications.py
+• backend/custom_projects/notifications.py
+• backend/contact/services.py
+• backend/accounts/services.py
+• backend/payments/services.py
+• docker-compose.yml
+• .env.example
+• backend/.env.example
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None (behavior only: emails async)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Django TestCase never fires on_commit; eager mode runs tasks immediately for tests/local-without-Redis
+Security Review:
+• Stripe webhook signature verification unchanged
+• Auth reset/verification tokens rebuilt in worker (user_id only on the queue)
+• Enqueue/broker failures fail-soft; never block webhook fulfillment
+• No secrets in email bodies or task payloads beyond user/order/project IDs
+Tests:
+• config.test_celery, contact, StripeWebhookTests, password-reset email, CustomProjectMessageEmailNotificationTests — OK
+Next Development Task:
+• Sprint 11 formal security / E2E / production deployment
+Date: 2026-09-17 (Feature 13 — Docker / Gunicorn / Nginx)
+Working Hours:
+Today's Objective: Ship a reproducible full-stack Compose runtime with production images (DEBUG=False) and /api/healthz/ health checks.
+Modules Completed: Backend Dockerfile + Gunicorn entrypoint; frontend Nginx SPA image; Compose web/postgres/redis/meilisearch/frontend; env templates; WhiteNoise static serving
+Files Created:
+• backend/Dockerfile
+• backend/entrypoint.sh
+• backend/.dockerignore
+• frontend/Dockerfile
+• frontend/nginx.conf
+• frontend/.dockerignore
+• frontend/public/_redirects
+• .env.example
+Files Modified:
+• docker-compose.yml
+• backend/requirements.txt
+• backend/config/settings.py
+• backend/config/test_health.py
+• backend/.env.example
+• frontend/.env.example
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None (reused GET /api/healthz/ for container health checks)
+Frontend Pages Created/Updated:
+• None (static hosting via Nginx / Cloudflare Pages `_redirects` only)
+Problems Encountered:
+• Local Docker Desktop daemon was unavailable for an end-to-end `compose up` smoke test
+• Local Postgres password auth blocked full APITestCase healthz run on this machine
+Solutions Implemented:
+• Compose validates with required secrets via env; settings accept OS env without backend/.env; WhiteNoise after SecurityMiddleware
+Lessons Learned:
+• Keep image DEBUG=False and force secrets through Compose environment so local and prod share one stack
+Next Development Task:
+• Sprint 11 formal security testing, browser E2E, and production deployment sign-off
 Date: 2026-09-16 (Sprint 11 — Performance + security hardening)
 Working Hours:
 Today's Objective: Optimise production codebase safely; fix entitlement gap; reduce duplicate fetches and N+1 queries.
@@ -501,7 +894,7 @@ Solutions Implemented:
 Lessons Learned:
 • Align all purchase gates on one entitlement helper; prefer shared React Query keys over parallel fetches of the same endpoint
 Next Development Task:
-• Feature 13 Docker / Gunicorn / Nginx; formal Sprint 11 security testing & deployment
+• Sprint 11 formal security testing, browser E2E, and production deployment sign-off
 Date: 2026-09-10 (Phase 1 — Team & product stability)
 Working Hours:
 Today's Objective: Teammate login/verify DX; complete backend/.env.example; Feature 16 Phases 9–10; protect auth/checkout/download with tests.
@@ -3125,9 +3518,9 @@ Deployment Checklist
 • [ ] Database Stable (formal production sign-off)
 • [ ] Payments Tested (formal production sign-off; Stripe flows + unit/API tests exist)
 • [x] Downloads Tested (unit/API + R2 signed path covered)
-• [ ] Security Reviewed
-• [ ] Docker Ready (Feature 13)
-• [ ] Production Ready
+• [ ] Security Reviewed (runbook: docs/PRODUCTION_CHECKLIST.md §5; live review still open)
+• [x] Docker Ready (Feature 13)
+• [ ] Production Ready (checklist documented; host cutover open — docs/PRODUCTION_CHECKLIST.md)
 Final Release Checklist
 • [x] Marketplace Complete
 • [x] Plugin Store Complete (R2 signed downloads when private object exists)
@@ -3140,11 +3533,11 @@ Final Release Checklist
 • [x] Cloudflare R2 + batch ingest complete in marketplace repo (Features 14 / 14B / 16 Phases 3–10)
 • [ ] Security Testing Complete
 • [x] Performance Optimization Complete (code-level pass 2026-09-16; formal load testing still open)
-• [ ] Production Deployment Complete
-• [ ] Feature 13 Docker / Gunicorn / Nginx stack
+• [ ] Production Deployment Complete (operator runbook: docs/PRODUCTION_CHECKLIST.md)
+• [x] Feature 13 Docker / Gunicorn / Nginx stack
 Project Completion
-Current Completion Percentage: ~83%
-Estimated Remaining Work: Feature 13 Docker, Sprint 11 formal security/E2E/deploy, public polish (legal pages, fullscreen, search extras), catalog-bridge .exe polish (separate repo), optional Celery / activity-log UI / product tags
+Current Completion Percentage: ~85%
+Estimated Remaining Work: Execute production checklist on live/staging host, public polish (legal pages, fullscreen, search extras), catalog-bridge .exe polish (separate repo), optional activity-log UI / product tags
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
@@ -3945,9 +4338,9 @@ Deployment Checklist
 • [ ] Database Stable (formal production sign-off)
 • [ ] Payments Tested (formal production sign-off; Stripe flows + unit/API tests exist)
 • [x] Downloads Tested (unit/API + R2 signed path covered)
-• [ ] Security Reviewed
-• [ ] Docker Ready (Feature 13)
-• [ ] Production Ready
+• [ ] Security Reviewed (runbook: docs/PRODUCTION_CHECKLIST.md §5; live review still open)
+• [x] Docker Ready (Feature 13)
+• [ ] Production Ready (checklist documented; host cutover open — docs/PRODUCTION_CHECKLIST.md)
 Final Release Checklist
 • [x] Marketplace Complete
 • [x] Plugin Store Complete (R2 signed downloads when private object exists)
@@ -3960,14 +4353,19 @@ Final Release Checklist
 • [x] Cloudflare R2 + batch ingest complete in marketplace repo (Features 14 / 14B / 16 Phases 3–10)
 • [ ] Security Testing Complete
 • [x] Performance Optimization Complete (code-level pass 2026-09-16; formal load testing still open)
-• [ ] Production Deployment Complete
-• [ ] Feature 13 Docker / Gunicorn / Nginx stack
+• [ ] Production Deployment Complete (operator runbook: docs/PRODUCTION_CHECKLIST.md)
+• [x] Feature 13 Docker / Gunicorn / Nginx stack
 Project Completion
-Current Completion Percentage: ~83%
-Estimated Remaining Work: Feature 13 Docker, Sprint 11 formal security/E2E/deploy, public polish (legal pages, fullscreen, search extras), catalog-bridge .exe polish (separate repo), optional Celery / activity-log UI / product tags
+Current Completion Percentage: ~85%
+Estimated Remaining Work: Execute production checklist on live/staging host, public polish (legal pages, fullscreen, search extras), catalog-bridge .exe polish (separate repo), optional activity-log UI / product tags
 Expected Production Release Date: ____
 Notes
 UI prototype redesign is paused pending manager approval. Continue feature work on current UI.
 Code scan 2026-09-16: outdated “R2/batch planned / ~70%” checklist blocks reconciled to match codebase.
 Feature 10 In-app Notifications shipped 2026-08-03.
 R2 + Batch Catalog Ingest shipped in marketplace repo (Features 14 / 14B / 16).
+Feature 13 Docker stack shipped 2026-09-17 (Compose + Gunicorn + Nginx).
+Browser E2E (Playwright) shipped 2026-09-17 (Compose overlay + CI job; Stripe test-mode simulate).
+Celery async email shipped 2026-09-17 (Redis broker + Compose worker; Stripe fulfillment stays in-process).
+Sentry monitoring wired 2026-09-17 (env-gated DSNs; scrubbing; webhook failure tags).
+Production checklist runbook shipped 2026-09-17 (docs/PRODUCTION_CHECKLIST.md); Compose defaults remain console email / empty Stripe·R2·Sentry until host env is set.

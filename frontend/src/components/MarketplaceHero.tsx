@@ -16,6 +16,61 @@ const SORT_PILLS = [
   { label: 'Trending', ordering: '-review_count' },
 ] as const
 
+function ArrowUpRightIcon({ size = 11 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      aria-hidden="true"
+    >
+      <path d="M4 12 12 4M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ImageFrameIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      aria-hidden="true"
+    >
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.2" />
+      <circle cx="9" cy="10" r="1.5" />
+      <path
+        d="m6.5 16.5 3.2-3.4a1.2 1.2 0 0 1 1.7 0L14 15.5l1.4-1.4a1.2 1.2 0 0 1 1.7 0l1.9 1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function SearchIcon({ size = 18, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.6-3.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function MarketplaceHero() {
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
@@ -35,96 +90,72 @@ export function MarketplaceHero() {
   }
 
   return (
-    <section className="home-page__hero home-marketplace-hero">
-      <div className="home-marketplace-hero__shade" aria-hidden="true" />
-      <div className="home-page__hero-inner">
-        <h1>World&apos;s largest 3D model marketplace</h1>
+    <section className="home-marketplace-hero" aria-label="Marketplace search">
+      <div className="home-marketplace-hero__stage">
+        <div className="home-marketplace-hero__shade" aria-hidden="true" />
 
-        <form
-          className="home-marketplace-search"
-          onSubmit={onSearchSubmit}
-          role="search"
-        >
-          <span className="home-marketplace-search__leading" aria-hidden="true">
-            <svg
-              viewBox="0 0 24 24"
-              width="18"
-              height="18"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.6-3.6" />
-            </svg>
-          </span>
-          <input
-            type="search"
-            className="home-marketplace-search__input"
-            aria-label="Search 3D models"
-            placeholder="Search over 2 million models"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
-          <button
-            type="submit"
-            className="home-marketplace-search__submit"
-            aria-label="Search marketplace"
+        <div className="home-page__hero-inner home-marketplace-hero__content">
+          <h1 className="home-marketplace-hero__title">
+            World&apos;s largest 3D model marketplace
+          </h1>
+
+          <form
+            className="home-marketplace-search"
+            onSubmit={onSearchSubmit}
+            role="search"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="21"
-              height="21"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.6-3.6" />
-            </svg>
-          </button>
-        </form>
-
-        <div className="home-marketplace-trending" aria-label="Trending searches">
-          <span>Trending:</span>
-          {TRENDING_TAGS.map((tag) => (
+            <span className="home-marketplace-search__leading" aria-hidden="true">
+              <ImageFrameIcon />
+            </span>
+            <input
+              type="search"
+              className="home-marketplace-search__input"
+              aria-label="Search 3D models"
+              placeholder="Search over 2 million models"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
             <button
-              type="button"
-              key={tag.label}
-              onClick={() => navigateToModels(tag.search)}
+              type="submit"
+              className="home-marketplace-search__submit"
+              aria-label="Search marketplace"
             >
-              <svg
-                viewBox="0 0 16 16"
-                width="11"
-                height="11"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                aria-hidden="true"
+              <SearchIcon size={18} strokeWidth={2.15} />
+            </button>
+          </form>
+
+          <div className="home-marketplace-trending" aria-label="Trending searches">
+            <span className="home-marketplace-trending__label">Trending:</span>
+            {TRENDING_TAGS.map((tag) => (
+              <button
+                type="button"
+                className="home-marketplace-trending__chip"
+                key={tag.label}
+                onClick={() => navigateToModels(tag.search)}
               >
-                <path d="M4 12 12 4M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              {tag.label}
-            </button>
-          ))}
-        </div>
+                <ArrowUpRightIcon />
+                {tag.label}
+              </button>
+            ))}
+          </div>
 
-        <div className="home-marketplace-sort" role="group" aria-label="Sort 3D models">
-          {SORT_PILLS.map((pill) => (
-            <button
-              type="button"
-              key={pill.label}
-              className={
-                pill.label === 'Trending'
-                  ? 'home-marketplace-sort__btn home-marketplace-sort__btn--active'
-                  : 'home-marketplace-sort__btn'
-              }
-              onClick={() => navigateToModels('', pill.ordering)}
-            >
-              {pill.label}
-            </button>
-          ))}
+          <div className="home-marketplace-sort" role="group" aria-label="Sort 3D models">
+            {SORT_PILLS.map((pill) => (
+              <button
+                type="button"
+                key={pill.label}
+                className={
+                  pill.label === 'Trending'
+                    ? 'home-marketplace-sort__btn home-marketplace-sort__btn--active'
+                    : 'home-marketplace-sort__btn'
+                }
+                onClick={() => navigateToModels('', pill.ordering)}
+              >
+                <ArrowUpRightIcon size={12} />
+                {pill.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </section>

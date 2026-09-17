@@ -37,9 +37,14 @@ export function useAdminLoginForm(): UseAdminLoginFormResult {
   })
 
   const mutation = useMutation({
-    mutationFn: adminLoginUser,
+    mutationFn: (values: LoginFormValues) =>
+      adminLoginUser({
+        email: values.email,
+        password: values.password,
+        remember_me: values.remember_me,
+      }),
     onSuccess: (data: LoginResponse) => {
-      setSession({ access: data.access, refresh: data.refresh, user: data.user })
+      setSession({ access: data.access, user: data.user }, { remember: true })
       queryClient.setQueryData(['auth', 'me', data.access], data.user)
       queryClient.setQueryData(['auth', 'admin', 'me', data.access], data.user)
       const firstName = data.user.full_name?.split(' ')[0]
@@ -64,10 +69,7 @@ export function useAdminLoginForm(): UseAdminLoginFormResult {
       return
     }
 
-    mutation.mutate({
-      email: parsed.data.email,
-      password: parsed.data.password,
-    })
+    mutation.mutate(parsed.data)
   }
 
   return {

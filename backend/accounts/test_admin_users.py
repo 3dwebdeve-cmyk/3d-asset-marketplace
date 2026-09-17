@@ -103,10 +103,9 @@ class AdminUserCRUDAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["email"], "new.customer@example.com")
         self.assertEqual(response.data["role"], "Customer")
-        self.assertFalse(response.data["email_verified"])
+        self.assertTrue(response.data["email_verified"])
         self.assertTrue(response.data["is_active"])
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("/verify-email/", mail.outbox[0].body)
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_update_and_deactivate_user(self) -> None:
         self._authenticate_as(self.admin_user.email)

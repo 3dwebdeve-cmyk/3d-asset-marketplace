@@ -28,6 +28,8 @@
   flex-direction: column;
   gap: 1.85rem;
   background: #f4f5f7;
+  padding-top: 0;
+  isolation: isolate;
 }
 
 /* Search bar (hub + catalog) */
@@ -271,12 +273,12 @@
 .browse-rail-section--categories .browse-rail-section__title::before {
   content: '';
   position: absolute;
-  top: 0.1rem;
-  bottom: 0.1rem;
+  top: 0.15rem;
+  bottom: 0.15rem;
   left: 0;
-  width: 0.2rem;
+  width: 0.22rem;
   border-radius: 999px;
-  background: #2563eb;
+  background: #00b5ad;
 }
 
 .browse-rail-section--categories {

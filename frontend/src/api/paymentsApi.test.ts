@@ -31,7 +31,7 @@ describe('paymentsApi admin helpers', () => {
     })
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/admin/payments/?search=INV&status=paid&created_after=2026-07-01&created_before=2026-07-31&ordering=-amount&page=2&page_size=20',
+      '/api/v1/admin/payments/?search=INV&status=paid&created_after=2026-07-01&created_before=2026-07-31&ordering=-amount&page=2&page_size=20',
     )
   })
 
@@ -41,6 +41,6 @@ describe('paymentsApi admin helpers', () => {
 
     await getAdminPayment(paymentId)
 
-    expect(apiClient.get).toHaveBeenCalledWith(`/api/admin/payments/${paymentId}/`)
+    expect(apiClient.get).toHaveBeenCalledWith(`/api/v1/admin/payments/${paymentId}/`)
   })
 })

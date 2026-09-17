@@ -48,7 +48,7 @@ describe('wishlistApi', () => {
 
     await listWishlistItems()
 
-    expect(apiClient.get).toHaveBeenCalledWith('/api/wishlist/')
+    expect(apiClient.get).toHaveBeenCalledWith('/api/v1/wishlist/')
   })
 
   it('lists wishlist items with pagination and filters', async () => {
@@ -64,7 +64,7 @@ describe('wishlistApi', () => {
     })
 
     expect(apiClient.get).toHaveBeenCalledWith(
-      '/api/wishlist/?page=2&page_size=10&product_type=plugin&ordering=-created_at',
+      '/api/v1/wishlist/?page=2&page_size=10&product_type=plugin&ordering=-created_at',
     )
   })
 
@@ -76,7 +76,7 @@ describe('wishlistApi', () => {
       product_id: productId,
     })
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/wishlist/', {
+    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/wishlist/', {
       product_type: 'product',
       product_id: productId,
     })
@@ -88,6 +88,6 @@ describe('wishlistApi', () => {
 
     await removeWishlistItem(itemId)
 
-    expect(apiClient.delete).toHaveBeenCalledWith(`/api/wishlist/${itemId}/`)
+    expect(apiClient.delete).toHaveBeenCalledWith(`/api/v1/wishlist/${itemId}/`)
   })
 })

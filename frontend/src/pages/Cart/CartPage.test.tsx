@@ -87,7 +87,6 @@ beforeEach(() => {
   resetToastStore()
   useAuthStore.setState({
     accessToken: 'access-token',
-    refreshToken: 'refresh-token',
     user: testUser,
     isAuthenticated: true,
     postLogoutRedirect: null,

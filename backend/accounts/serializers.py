@@ -65,6 +65,7 @@ class RegisterSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
     password = serializers.CharField(write_only=True, max_length=128, trim_whitespace=False)
+    remember_me = serializers.BooleanField(required=False, default=True)
 
     def validate_email(self, value: str) -> str:
         return value.strip().lower()
@@ -72,10 +73,7 @@ class LoginSerializer(serializers.Serializer):
 
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
-
-
-class LogoutSerializer(serializers.Serializer):
-    refresh = serializers.CharField(write_only=True, trim_whitespace=False)
+    remember_me = serializers.BooleanField(required=False, default=True)
 
 
 class ChangePasswordSerializer(serializers.Serializer):
