@@ -4,6 +4,7 @@ import { addCartItem, getCart } from '../api/cartApi'
 import { createCheckoutSession } from '../api/paymentsApi'
 import { getApiErrorMessage } from '../lib/apiError'
 import { rememberCheckoutOrderId } from '../lib/checkoutReturn'
+import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
 import { toast } from '../lib/toast'
 import type { CartProductType } from '../types/cart'
 
@@ -29,7 +30,7 @@ export function useBuyNow() {
         })
       }
       await queryClient.invalidateQueries({ queryKey: ['cart'] })
-      return createCheckoutSession()
+      return createCheckoutSession(currentAcceptedLegalPayload())
     },
     onSuccess: (data) => {
       rememberCheckoutOrderId(data.order_id)

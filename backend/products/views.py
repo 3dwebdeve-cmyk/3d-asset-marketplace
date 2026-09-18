@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
