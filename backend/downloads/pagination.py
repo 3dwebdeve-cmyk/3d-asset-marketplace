@@ -1,7 +1,5 @@
-from rest_framework.pagination import PageNumberPagination
+from config.pagination import StandardPagination
 
 
-class DownloadPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = "page_size"
-    max_page_size = 100
+class DownloadPagination(StandardPagination):
+    """Alias kept for existing imports; defaults live in StandardPagination."""

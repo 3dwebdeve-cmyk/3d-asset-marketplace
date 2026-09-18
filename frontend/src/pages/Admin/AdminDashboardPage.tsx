@@ -115,7 +115,7 @@ export function AdminDashboardPage() {
                 <p className="admin-stat-card__value">{stats.payments.succeeded}</p>
                 <p className="admin-stat-card__meta">
                   {stats.payments.pending} pending ·{' '}
-                  <Link className="auth-link" to="/admin/payments">
+                  <Link className="auth-link" to="/console/payments">
                     View payments
                   </Link>
                 </p>
@@ -157,25 +157,25 @@ export function AdminDashboardPage() {
         ) : null}
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/products">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/products">
             Manage products
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/categories">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/categories">
             Manage categories
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/plugins">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/plugins">
             Manage plugins
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/projects">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/projects">
             Manage projects
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/orders">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/orders">
             Manage orders
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/payments">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/payments">
             Manage payments
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/users">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/users">
             Manage users
           </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/profile">

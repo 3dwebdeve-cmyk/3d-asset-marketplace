@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { rememberCheckoutOrderId } from '../../lib/checkoutReturn'
 import { toast } from '../../lib/toast'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import {
@@ -215,6 +216,7 @@ export function CustomerProjectDetailPage() {
   const payMutation = useMutation({
     mutationFn: () => payCustomerCustomProjectQuotation(projectId),
     onSuccess: (data) => {
+      rememberCheckoutOrderId(data.order_id)
       window.location.href = data.checkout_url
     },
   })

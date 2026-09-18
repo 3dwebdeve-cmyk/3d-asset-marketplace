@@ -87,7 +87,7 @@ class MeiliPublicSearchApiTests(APITestCase):
         self.assertEqual(slugs, ["oak-chair"])
         self.assertEqual(response.data["count"], 2)
 
-    @override_settings(**MEILI_SETTINGS)
+    @override_settings(**MEILI_SETTINGS, MEILI_REQUIRED=False)
     @patch("search.services.get_client")
     def test_meili_error_falls_back_to_postgres(self, get_client: MagicMock) -> None:
         client = MagicMock()
@@ -99,6 +99,24 @@ class MeiliPublicSearchApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
+
+    @override_settings(**MEILI_SETTINGS, MEILI_REQUIRED=True)
+    @patch("search.services.get_client")
+    def test_meili_error_returns_503_when_required(self, get_client: MagicMock) -> None:
+        client = MagicMock()
+        client.index.side_effect = RuntimeError("meili down")
+        get_client.return_value = client
+
+        response = self.client.get(self.list_url, {"search": "wooden"})
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["code"], "search_unavailable")
+
+    @override_settings(MEILI_REQUIRED=True, MEILI_URL="", MEILI_MASTER_KEY="")
+    def test_search_returns_503_when_meili_required_but_unconfigured(self) -> None:
+        response = self.client.get(self.list_url, {"search": "wooden"})
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["code"], "search_unavailable")
 
     def test_empty_search_does_not_use_meili(self) -> None:
         with patch("search.services.get_client") as get_client:

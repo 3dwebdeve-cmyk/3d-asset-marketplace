@@ -8,6 +8,13 @@ import { SiteFooter } from './components/SiteFooter'
 import { CartDrawer } from './components/cart/CartDrawer'
 import { AuthModal } from './components/auth/AuthModal'
 import { Spinner } from './components/ui/Spinner'
+import {
+  ADMIN_BASE,
+  ADMIN_LOGIN,
+  isAdminLoginPath,
+  isAdminSpaPath,
+  legacyAdminToConsolePath,
+} from './config/adminPaths'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
 import { LoginPage } from './pages/Login/LoginPage'
 import { RegisterPage } from './pages/Register/RegisterPage'
@@ -277,6 +284,16 @@ const AboutPage = lazy(() =>
     default: module.AboutPage,
   })),
 )
+const TermsPage = lazy(() =>
+  import('./pages/Legal/LegalDocumentPage').then((module) => ({
+    default: module.TermsPage,
+  })),
+)
+const PrivacyPage = lazy(() =>
+  import('./pages/Legal/LegalDocumentPage').then((module) => ({
+    default: module.PrivacyPage,
+  })),
+)
 
 const ContactPage = lazy(() =>
   import('./pages/Contact/ContactPage').then((module) => ({
@@ -296,16 +313,21 @@ const HomePage = lazy(() =>
   })),
 )
 
+function LegacyAdminRedirect() {
+  const location = useLocation()
+  const target =
+    legacyAdminToConsolePath(location.pathname, location.search) ?? ADMIN_BASE
+  return <Navigate to={target} replace />
+}
+
 function AppRoutes() {
   const location = useLocation()
-  const hideMainNavbar =
-    location.pathname.startsWith('/admin') && location.pathname !== '/admin/login'
-  const hideSiteFooter =
-    location.pathname.startsWith('/admin') && location.pathname !== '/admin/login'
+  const hideChrome =
+    isAdminSpaPath(location.pathname) && !isAdminLoginPath(location.pathname)
 
   return (
     <>
-      {!hideMainNavbar ? <Navbar /> : null}
+      {!hideChrome ? <Navbar /> : null}
       <CartDrawer />
       <AuthModal />
       <div className="app-shell">
@@ -315,6 +337,8 @@ function AppRoutes() {
             <Route path="/home" element={<ProductsBrowsePage />} />
             <Route path="/Home" element={<Navigate to="/home" replace />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
             <Route path="/products" element={<Navigate to="/home" replace />} />
@@ -329,7 +353,10 @@ function AppRoutes() {
             <Route path="/Plugins/:slug" element={<PluginDetailsPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/admin/login" element={<AdminLoginPage />} />
+            {/* Vite-only legacy bookmarks; Compose Nginx keeps /admin/ for Django. */}
+            <Route path="/admin/*" element={<LegacyAdminRedirect />} />
+            <Route path="/admin" element={<LegacyAdminRedirect />} />
+            <Route path={ADMIN_LOGIN} element={<AdminLoginPage />} />
             <Route path="/forgot-password" element={<PasswordResetRequestPage />} />
             <Route
               path="/reset-password/:uid/:token"
@@ -361,60 +388,60 @@ function AppRoutes() {
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
             <Route element={<AdminRoute />}>
-              <Route path="/admin" element={<AdminDashboardPage />} />
-              <Route path="/admin/categories" element={<AdminCategoriesPage />} />
+              <Route path={ADMIN_BASE} element={<AdminDashboardPage />} />
+              <Route path={`${ADMIN_BASE}/categories`} element={<AdminCategoriesPage />} />
               <Route
-                path="/admin/categories/:categoryId"
+                path={`${ADMIN_BASE}/categories/:categoryId`}
                 element={<AdminCategoryDetailPage />}
               />
-              <Route path="/admin/products" element={<AdminProductsPage />} />
+              <Route path={`${ADMIN_BASE}/products`} element={<AdminProductsPage />} />
               <Route
-                path="/admin/products/:productId"
+                path={`${ADMIN_BASE}/products/:productId`}
                 element={<AdminProductDetailPage />}
               />
-              <Route path="/admin/plugins" element={<AdminPluginsPage />} />
+              <Route path={`${ADMIN_BASE}/plugins`} element={<AdminPluginsPage />} />
               <Route
-                path="/admin/plugins/:pluginId"
+                path={`${ADMIN_BASE}/plugins/:pluginId`}
                 element={<AdminPluginDetailPage />}
               />
               <Route
-                path="/admin/plugin-categories"
+                path={`${ADMIN_BASE}/plugin-categories`}
                 element={<AdminPluginCategoriesPage />}
               />
               <Route
-                path="/admin/plugin-categories/:categoryId"
+                path={`${ADMIN_BASE}/plugin-categories/:categoryId`}
                 element={<AdminPluginCategoryDetailPage />}
               />
-              <Route path="/admin/projects" element={<AdminProjectsPage />} />
+              <Route path={`${ADMIN_BASE}/projects`} element={<AdminProjectsPage />} />
               <Route
-                path="/admin/projects/:projectId"
+                path={`${ADMIN_BASE}/projects/:projectId`}
                 element={<AdminProjectDetailPage />}
               />
-              <Route path="/admin/orders" element={<AdminOrdersPage />} />
+              <Route path={`${ADMIN_BASE}/orders`} element={<AdminOrdersPage />} />
               <Route
-                path="/admin/orders/:orderId"
+                path={`${ADMIN_BASE}/orders/:orderId`}
                 element={<AdminOrderDetailPage />}
               />
-              <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+              <Route path={`${ADMIN_BASE}/payments`} element={<AdminPaymentsPage />} />
               <Route
-                path="/admin/payments/:paymentId"
+                path={`${ADMIN_BASE}/payments/:paymentId`}
                 element={<AdminPaymentDetailPage />}
               />
-              <Route path="/admin/coupons" element={<AdminCouponsPage />} />
+              <Route path={`${ADMIN_BASE}/coupons`} element={<AdminCouponsPage />} />
               <Route
-                path="/admin/coupons/:couponId"
+                path={`${ADMIN_BASE}/coupons/:couponId`}
                 element={<AdminCouponDetailPage />}
               />
-              <Route path="/admin/reviews" element={<AdminReviewsPage />} />
-              <Route path="/admin/downloads" element={<AdminDownloadsPage />} />
-              <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-              <Route path="/admin/users" element={<AdminUsersPage />} />
-              <Route path="/admin/users/:userId" element={<AdminUserDetailPage />} />
+              <Route path={`${ADMIN_BASE}/reviews`} element={<AdminReviewsPage />} />
+              <Route path={`${ADMIN_BASE}/downloads`} element={<AdminDownloadsPage />} />
+              <Route path={`${ADMIN_BASE}/analytics`} element={<AdminAnalyticsPage />} />
+              <Route path={`${ADMIN_BASE}/users`} element={<AdminUsersPage />} />
+              <Route path={`${ADMIN_BASE}/users/:userId`} element={<AdminUserDetailPage />} />
             </Route>
           </Routes>
         </Suspense>
       </div>
-      {!hideSiteFooter ? (
+      {!hideChrome ? (
         <>
           <SiteBenefitsBanner />
           <SiteFooter />

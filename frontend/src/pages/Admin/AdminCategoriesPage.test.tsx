@@ -42,10 +42,10 @@ function renderCategoriesPage() {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/admin/categories']}>
+      <MemoryRouter initialEntries={['/console/categories']}>
         <Routes>
-          <Route path="/admin/categories" element={<AdminCategoriesPage />} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/categories" element={<AdminCategoriesPage />} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -71,7 +71,7 @@ describe('AdminCategoriesPage', () => {
     expect(screen.getByText('furniture')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /manage/i })).toHaveAttribute(
       'href',
-      '/admin/categories/44bba207-8a0c-490d-abdf-5a383ed2111b',
+      '/console/categories/44bba207-8a0c-490d-abdf-5a383ed2111b',
     )
   })
 

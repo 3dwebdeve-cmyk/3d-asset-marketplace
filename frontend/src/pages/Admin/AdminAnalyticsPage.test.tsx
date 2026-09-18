@@ -90,11 +90,11 @@ describe('AdminAnalyticsPage', () => {
     expect(screen.getByText('stripe')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'View orders' })).toHaveAttribute(
       'href',
-      '/admin/orders',
+      '/console/orders',
     )
     expect(screen.getByRole('link', { name: 'View payments' })).toHaveAttribute(
       'href',
-      '/admin/payments',
+      '/console/payments',
     )
   })
 

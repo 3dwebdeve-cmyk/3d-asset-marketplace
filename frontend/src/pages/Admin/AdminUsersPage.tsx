@@ -51,7 +51,7 @@ export function AdminUsersPage() {
       setShowCreate(false)
       setCreateError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setCreateError(getApiErrorMessage(error, 'Could not create user.'))
@@ -206,7 +206,7 @@ export function AdminUsersPage() {
                     <td>{user.email_verified ? 'Yes' : 'No'}</td>
                     <td>{user.is_active ? 'Active' : 'Inactive'}</td>
                     <td>
-                      <Link className="auth-link" to={`/admin/users/${user.id}`}>
+                      <Link className="auth-link" to={`/console/users/${user.id}`}>
                         Manage
                       </Link>
                     </td>

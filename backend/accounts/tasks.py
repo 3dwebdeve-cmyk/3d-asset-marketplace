@@ -20,6 +20,7 @@ logger = logging.getLogger("accounts.tasks")
     retry_backoff_max=600,
     retry_jitter=True,
     max_retries=5,
+    queue="email",
     name="accounts.send_email_verification",
 )
 def send_email_verification_task(self, user_id: str) -> None:
@@ -45,6 +46,7 @@ def send_email_verification_task(self, user_id: str) -> None:
     retry_backoff_max=600,
     retry_jitter=True,
     max_retries=5,
+    queue="email",
     name="accounts.send_password_reset",
 )
 def send_password_reset_task(self, user_id: str) -> None:
@@ -70,6 +72,7 @@ def send_password_reset_task(self, user_id: str) -> None:
     retry_backoff_max=600,
     retry_jitter=True,
     max_retries=5,
+    queue="email",
     name="accounts.send_password_changed",
 )
 def send_password_changed_task(self, user_id: str) -> None:

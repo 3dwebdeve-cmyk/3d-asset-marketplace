@@ -151,7 +151,7 @@ export function AdminDownloadsPage() {
         )}
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console">
             Back to admin dashboard
           </Link>
         </div>

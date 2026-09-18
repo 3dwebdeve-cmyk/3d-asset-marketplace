@@ -11,13 +11,13 @@ import logging
 from uuid import UUID
 
 from django.conf import settings
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
 
 from accounts.models import User
 from accounts.services import AuthenticationService
 from config.celery_utils import enqueue_after_commit
+from config.mail import frontend_base_url, render_text_email, safe_email_text, send_text_mail
 from custom_projects.models import CustomProject, ProjectMessage
+from mail_log.services import MailLogService
 
 logger = logging.getLogger("custom_projects.notifications")
 
@@ -79,16 +79,11 @@ class _ProjectEmailSupport:
 
     @staticmethod
     def _frontend_base_url() -> str:
-        return getattr(
-            settings,
-            "FRONTEND_BASE_URL",
-            "http://localhost:5173",
-        ).rstrip("/")
+        return frontend_base_url()
 
     @staticmethod
     def _safe_email_text(value: str) -> str:
-        """Collapse whitespace/newlines so values cannot inject email headers."""
-        return " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
+        return safe_email_text(value)
 
     @classmethod
     def _admin_project_link(cls, project_id: UUID) -> str:
@@ -100,10 +95,33 @@ class _ProjectEmailSupport:
 
     @classmethod
     def _render_body(cls, template_name: str, context: dict[str, str]) -> str:
-        return render_to_string(
+        return render_text_email(
             f"custom_projects/emails/{template_name}",
             context,
-        ).strip() + "\n"
+        )
+
+    @classmethod
+    def _skip(
+        cls,
+        *,
+        event: str,
+        reason: str,
+        project_id: UUID,
+        subject: str = "",
+    ) -> None:
+        logger.warning(
+            "custom_project_email_skipped event=%s reason=%s project_id=%s",
+            event,
+            reason,
+            project_id,
+        )
+        MailLogService.record_skipped(
+            event_type=event,
+            reason=reason,
+            related_object_type="custom_project",
+            related_object_id=str(project_id),
+            subject=subject,
+        )
 
     @classmethod
     def _send(
@@ -116,13 +134,24 @@ class _ProjectEmailSupport:
         event: str,
     ) -> None:
         """Deliver email now. Raises on SMTP failure for Celery retries."""
-        send_mail(
-            subject=cls._safe_email_text(subject),
-            message=body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=recipients,
-            fail_silently=False,
+        safe_subject = safe_email_text(subject)
+        log_id = MailLogService.record_queued(
+            event_type=event,
+            recipients=recipients,
+            related_object_type="custom_project",
+            related_object_id=str(project_id),
+            subject=safe_subject,
         )
+        try:
+            send_text_mail(
+                subject=safe_subject,
+                body=body,
+                recipients=recipients,
+            )
+        except Exception as exc:
+            MailLogService.mark_failed(log_id, str(exc))
+            raise
+        MailLogService.mark_sent(log_id)
         logger.info(
             "custom_project_email_sent event=%s project_id=%s recipient_count=%s",
             event,
@@ -161,6 +190,12 @@ def deliver_project_notification(
             event,
             project_id,
         )
+        MailLogService.record_skipped(
+            event_type=event,
+            reason="project_missing",
+            related_object_type="custom_project",
+            related_object_id=str(project_id),
+        )
         return
 
     if event == "project_created":
@@ -180,6 +215,12 @@ def deliver_project_notification(
                 "event=message_created project_id=%s",
                 project_id,
             )
+            MailLogService.record_skipped(
+                event_type="message_created",
+                reason="missing_message_id",
+                related_object_type="custom_project",
+                related_object_id=str(project_id),
+            )
             return
         try:
             message = ProjectMessage.objects.get(pk=message_id, project_id=project_id)
@@ -190,6 +231,12 @@ def deliver_project_notification(
                 project_id,
                 message_id,
             )
+            MailLogService.record_skipped(
+                event_type="message_created",
+                reason="message_missing",
+                related_object_type="custom_project",
+                related_object_id=str(project_id),
+            )
             return
         ProjectMessageNotificationService.deliver_new_message(message, project)
     else:
@@ -197,6 +244,12 @@ def deliver_project_notification(
             "custom_project_email_skipped reason=unknown_event event=%s project_id=%s",
             event,
             project_id,
+        )
+        MailLogService.record_skipped(
+            event_type=event,
+            reason="unknown_event",
+            related_object_type="custom_project",
+            related_object_id=str(project_id),
         )
 
 
@@ -211,10 +264,10 @@ class ProjectCreationNotificationService(_ProjectEmailSupport):
     def deliver_new_project(cls, project: CustomProject) -> None:
         recipients = cls._staff_recipients(project)
         if not recipients:
-            logger.warning(
-                "custom_project_email_skipped event=project_created "
-                "reason=no_staff_recipients project_id=%s",
-                project.pk,
+            cls._skip(
+                event="project_created",
+                reason="no_staff_recipients",
+                project_id=project.pk,
             )
             return
 
@@ -248,10 +301,10 @@ class ProjectWorkflowNotificationService(_ProjectEmailSupport):
     def deliver_quotation_sent(cls, project: CustomProject) -> None:
         recipients = cls._customer_recipients(project)
         if not recipients:
-            logger.warning(
-                "custom_project_email_skipped event=quotation_sent "
-                "reason=no_customer_recipient project_id=%s",
-                project.pk,
+            cls._skip(
+                event="quotation_sent",
+                reason="no_customer_recipient",
+                project_id=project.pk,
             )
             return
 
@@ -278,10 +331,10 @@ class ProjectWorkflowNotificationService(_ProjectEmailSupport):
     def deliver_quotation_accepted(cls, project: CustomProject) -> None:
         recipients = cls._staff_recipients(project)
         if not recipients:
-            logger.warning(
-                "custom_project_email_skipped event=quotation_accepted "
-                "reason=no_staff_recipients project_id=%s",
-                project.pk,
+            cls._skip(
+                event="quotation_accepted",
+                reason="no_staff_recipients",
+                project_id=project.pk,
             )
             return
 
@@ -311,10 +364,10 @@ class ProjectWorkflowNotificationService(_ProjectEmailSupport):
     def deliver_project_delivered(cls, project: CustomProject) -> None:
         recipients = cls._customer_recipients(project)
         if not recipients:
-            logger.warning(
-                "custom_project_email_skipped event=project_delivered "
-                "reason=no_customer_recipient project_id=%s",
-                project.pk,
+            cls._skip(
+                event="project_delivered",
+                reason="no_customer_recipient",
+                project_id=project.pk,
             )
             return
 
@@ -341,10 +394,10 @@ class ProjectWorkflowNotificationService(_ProjectEmailSupport):
     def deliver_project_completed(cls, project: CustomProject) -> None:
         recipients = cls._customer_recipients(project)
         if not recipients:
-            logger.warning(
-                "custom_project_email_skipped event=project_completed "
-                "reason=no_customer_recipient project_id=%s",
-                project.pk,
+            cls._skip(
+                event="project_completed",
+                reason="no_customer_recipient",
+                project_id=project.pk,
             )
             return
 
@@ -391,11 +444,10 @@ class ProjectMessageNotificationService(_ProjectEmailSupport):
     ) -> None:
         recipients = cls._staff_recipients(project)
         if not recipients:
-            logger.warning(
-                "custom_project_email_skipped event=message_created reason=no_staff_recipients "
-                "project_id=%s message_id=%s",
-                project.pk,
-                message_id,
+            cls._skip(
+                event="message_created_customer_to_staff",
+                reason="no_staff_recipients",
+                project_id=project.pk,
             )
             return
 
@@ -421,11 +473,10 @@ class ProjectMessageNotificationService(_ProjectEmailSupport):
     ) -> None:
         recipients = cls._customer_recipients(project)
         if not recipients:
-            logger.warning(
-                "custom_project_email_skipped event=message_created reason=no_customer_recipient "
-                "project_id=%s message_id=%s",
-                project.pk,
-                message_id,
+            cls._skip(
+                event="message_created_staff_to_customer",
+                reason="no_customer_recipient",
+                project_id=project.pk,
             )
             return
 

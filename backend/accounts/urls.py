@@ -12,6 +12,8 @@ from accounts.views import (
     EmailVerificationConfirmView,
     EmailVerificationResendView,
     GoogleLoginView,
+    LegalAcceptView,
+    LegalDocumentsView,
     LoginView,
     LogoutView,
     PasswordResetConfirmView,
@@ -24,6 +26,8 @@ app_name = "accounts"
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
+    path("legal-documents/", LegalDocumentsView.as_view(), name="legal-documents"),
+    path("legal-acceptances/", LegalAcceptView.as_view(), name="legal-acceptances"),
     path("login/", LoginView.as_view(), name="login"),
     path("google/", GoogleLoginView.as_view(), name="google-login"),
     path("admin/login/", AdminLoginView.as_view(), name="admin-login"),

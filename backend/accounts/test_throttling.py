@@ -60,6 +60,10 @@ class AuthThrottleAPITests(APITestCase):
             "password": "StrongPass123!",
             "password_confirm": "StrongPass123!",
             "country": "India",
+            "accepted_legal": {
+                "terms": "2026-09-18",
+                "privacy": "2026-09-18",
+            },
         }
         first = self.client.post(self.register_url, payload, format="json")
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)

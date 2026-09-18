@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminCategoryWriteRateThrottle
+from config.api_helpers import domain_error_response, parse_uuid
 from categories.pagination import CategoryPagination
 from categories.serializers import (
     CategoryAdminSerializer,
@@ -25,24 +26,11 @@ from categories.services import (
 )
 
 def _category_error_response(exc: CategoryError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "category_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
+    return domain_error_response(exc, default_code="category_error")
 
 
 def _parse_parent_filter(value: str | None) -> UUID | None:
-    if not value:
-        return None
-    try:
-        return UUID(value.strip())
-    except ValueError as exc:
-        raise ValidationError({"parent_id": ["Invalid parent_id."]}) from exc
+    return parse_uuid(value, "parent_id")
 
 
 def _parse_is_active_filter(value: str | None) -> bool | None:

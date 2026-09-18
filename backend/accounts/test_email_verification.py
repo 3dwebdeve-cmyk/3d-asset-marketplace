@@ -37,6 +37,10 @@ class EmailVerificationAPITests(APITestCase):
                 "email": "new.verify@example.com",
                 "password": "StrongPass123!",
                 "password_confirm": "StrongPass123!",
+                "accepted_legal": {
+                    "terms": "2026-09-18",
+                    "privacy": "2026-09-18",
+                },
             },
             format="json",
         )
@@ -149,6 +153,10 @@ class EmailVerificationDevDxTests(APITestCase):
                         "email": "console.verify@example.com",
                         "password": "StrongPass123!",
                         "password_confirm": "StrongPass123!",
+                        "accepted_legal": {
+                            "terms": "2026-09-18",
+                            "privacy": "2026-09-18",
+                        },
                     },
                     format="json",
                 )

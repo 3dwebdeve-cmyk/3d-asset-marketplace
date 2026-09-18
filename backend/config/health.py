@@ -10,7 +10,12 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from search.client import get_client, is_configured as meili_is_configured
+from search.client import (
+    get_client,
+    is_configured as meili_is_configured,
+    is_required as meili_is_required,
+    probe_meilisearch,
+)
 
 
 class HealthzView(APIView):
@@ -44,27 +49,22 @@ class HealthzView(APIView):
         else:
             checks["cache"] = "skipped"
 
-        if meili_is_configured():
-            try:
-                client = get_client()
-                if client is None:
-                    raise RuntimeError("meilisearch client unavailable")
-                healthy = False
-                is_healthy = getattr(client, "is_healthy", None)
-                if callable(is_healthy):
-                    healthy = bool(is_healthy())
-                else:
-                    health = client.health()
-                    status_value = (
-                        health.get("status") if isinstance(health, dict) else None
-                    )
-                    healthy = status_value in {"available", "ok"}
-                if not healthy:
-                    raise RuntimeError("meilisearch health check failed")
-                checks["meilisearch"] = "ok"
-            except Exception:
+        require_meili = meili_is_required()
+        if require_meili or meili_is_configured():
+            if not meili_is_configured():
                 checks["meilisearch"] = "error"
                 ok = False
+            else:
+                try:
+                    client = get_client()
+                    if client is None:
+                        raise RuntimeError("meilisearch client unavailable")
+                    if not probe_meilisearch(client):
+                        raise RuntimeError("meilisearch health check failed")
+                    checks["meilisearch"] = "ok"
+                except Exception:
+                    checks["meilisearch"] = "error"
+                    ok = False
         else:
             checks["meilisearch"] = "skipped"
 

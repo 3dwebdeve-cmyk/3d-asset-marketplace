@@ -65,6 +65,7 @@ vi.mock('./isWebGLAvailable', () => ({
 
 vi.mock('./useAdaptivePixelRatio', () => ({
   useAdaptivePixelRatio: () => viewerMocks.pixelRatio,
+  useAdaptiveShadowMapSize: () => 2048,
 }))
 
 vi.mock('./useViewportVisibility', () => ({

@@ -1,3 +1,5 @@
+import { ADMIN_BASE, adminPath } from './adminPaths'
+
 export interface AdminNavItem {
   label: string
   to: string
@@ -7,17 +9,21 @@ export interface AdminNavItem {
 }
 
 export const adminNavItems: AdminNavItem[] = [
-  { label: 'Dashboard', to: '/admin', end: true, enabled: true },
-  { label: 'Products', to: '/admin/products', enabled: true },
-  { label: 'QA queue', to: '/admin/products?status=pending_review', enabled: true },
-  { label: 'Plugins', to: '/admin/plugins', enabled: true },
-  { label: 'Categories', to: '/admin/categories', enabled: true },
-  { label: 'Users', to: '/admin/users', enabled: true },
-  { label: 'Orders', to: '/admin/orders', enabled: true },
-  { label: 'Payments', to: '/admin/payments', enabled: true },
-  { label: 'Coupons', to: '/admin/coupons', enabled: true },
-  { label: 'Reviews', to: '/admin/reviews', enabled: true },
-  { label: 'Downloads', to: '/admin/downloads', enabled: true },
-  { label: 'Projects', to: '/admin/projects', enabled: true },
-  { label: 'Analytics', to: '/admin/analytics', enabled: true },
+  { label: 'Dashboard', to: ADMIN_BASE, end: true, enabled: true },
+  { label: 'Products', to: adminPath('products'), enabled: true },
+  {
+    label: 'QA queue',
+    to: `${adminPath('products')}?status=pending_review`,
+    enabled: true,
+  },
+  { label: 'Plugins', to: adminPath('plugins'), enabled: true },
+  { label: 'Categories', to: adminPath('categories'), enabled: true },
+  { label: 'Users', to: adminPath('users'), enabled: true },
+  { label: 'Orders', to: adminPath('orders'), enabled: true },
+  { label: 'Payments', to: adminPath('payments'), enabled: true },
+  { label: 'Coupons', to: adminPath('coupons'), enabled: true },
+  { label: 'Reviews', to: adminPath('reviews'), enabled: true },
+  { label: 'Downloads', to: adminPath('downloads'), enabled: true },
+  { label: 'Projects', to: adminPath('projects'), enabled: true },
+  { label: 'Analytics', to: adminPath('analytics'), enabled: true },
 ]

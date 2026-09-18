@@ -72,7 +72,7 @@ describe('CustomProjectsLandingPage', () => {
 
     expect(screen.getByRole('link', { name: /open admin projects/i })).toHaveAttribute(
       'href',
-      '/admin/projects',
+      '/console/projects',
     )
   })
 })

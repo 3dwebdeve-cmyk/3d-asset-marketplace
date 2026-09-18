@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminReviewWriteRateThrottle, ReviewWriteRateThrottle
+from config.api_helpers import domain_error_response, parse_uuid
 from reviews.pagination import ReviewPagination
 from reviews.serializers import (
     ReviewAdminSerializer,
@@ -23,25 +24,22 @@ from reviews.services import ReviewError, ReviewService
 def _error_response(exc: ReviewError) -> Response:
     http_status = exc.status_code
     if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=http_status if http_status != 404 else status.HTTP_400_BAD_REQUEST,
+        return domain_error_response(
+            exc,
+            default_code=getattr(exc, "code", None) or "review_error",
+            http_status=(
+                http_status
+                if http_status != 404
+                else status.HTTP_400_BAD_REQUEST
+            ),
         )
     if http_status == 404:
         raise NotFound(detail=exc.message)
-    return Response(
-        {"detail": exc.message, "code": exc.code},
-        status=http_status,
+    return domain_error_response(
+        exc,
+        default_code=getattr(exc, "code", None) or "review_error",
+        http_status=http_status,
     )
-
-
-def _parse_uuid(value: str | None, field: str) -> UUID | None:
-    if not value:
-        return None
-    try:
-        return UUID(value.strip())
-    except ValueError as exc:
-        raise ValidationError({field: [f"Invalid {field}."]}) from exc
 
 
 def _parse_bool(value: str | None, field: str) -> bool | None:
@@ -70,7 +68,7 @@ class ReviewListCreateView(APIView):
 
     def get(self, request: Request) -> Response:
         product_type = request.query_params.get("product_type")
-        product_id = _parse_uuid(
+        product_id = parse_uuid(
             request.query_params.get("product_id"),
             "product_id",
         )
@@ -128,7 +126,7 @@ class MyReviewView(APIView):
 
     def get(self, request: Request) -> Response:
         product_type = request.query_params.get("product_type")
-        product_id = _parse_uuid(
+        product_id = parse_uuid(
             request.query_params.get("product_id"),
             "product_id",
         )
@@ -156,7 +154,7 @@ class ReviewEligibilityView(APIView):
 
     def get(self, request: Request) -> Response:
         product_type = request.query_params.get("product_type")
-        product_id = _parse_uuid(
+        product_id = parse_uuid(
             request.query_params.get("product_id"),
             "product_id",
         )
@@ -196,7 +194,7 @@ class AdminReviewListView(APIView):
     def get(self, request: Request) -> Response:
         queryset = ReviewService.list_admin(
             product_type=request.query_params.get("product_type") or None,
-            product_id=_parse_uuid(
+            product_id=parse_uuid(
                 request.query_params.get("product_id"),
                 "product_id",
             ),

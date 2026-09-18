@@ -524,6 +524,57 @@ class OrderService:
         return cls.get(order.pk)
 
     @classmethod
+    def mark_refunded(cls, order: Order) -> Order:
+        """Mark a paid order refunded and revert linked custom-project payments.
+
+        Idempotent when both order and payment statuses are already refunded.
+        Downloads are denied automatically via ``order_allows_download`` /
+        ``user_owns_catalog_item`` (paid + paid required).
+        """
+        with transaction.atomic():
+            locked = Order.objects.select_for_update().prefetch_related("items").get(
+                pk=order.pk
+            )
+            if (
+                locked.order_status == Order.OrderStatus.REFUNDED
+                and locked.payment_status == Order.PaymentStatus.REFUNDED
+            ):
+                return cls.get(locked.pk)
+
+            update_fields: list[str] = ["updated_at"]
+            if locked.order_status != Order.OrderStatus.REFUNDED:
+                cls._apply_status_transition(
+                    current=locked.order_status,
+                    new_status=Order.OrderStatus.REFUNDED,
+                    allowed=ALLOWED_ORDER_STATUS_TRANSITIONS,
+                    valid_values=Order.OrderStatus.values,
+                    field="order_status",
+                )
+                locked.order_status = Order.OrderStatus.REFUNDED
+                update_fields.append("order_status")
+            if locked.payment_status != Order.PaymentStatus.REFUNDED:
+                cls._apply_status_transition(
+                    current=locked.payment_status,
+                    new_status=Order.PaymentStatus.REFUNDED,
+                    allowed=ALLOWED_PAYMENT_STATUS_TRANSITIONS,
+                    valid_values=Order.PaymentStatus.values,
+                    field="payment_status",
+                )
+                locked.payment_status = Order.PaymentStatus.REFUNDED
+                update_fields.append("payment_status")
+            locked.save(update_fields=update_fields)
+
+            from custom_projects.services import CustomProjectService
+
+            project_ids = locked.items.filter(
+                product_type=OrderItem.ProductType.CUSTOM_PROJECT
+            ).values_list("product_id", flat=True)
+            for project_id in project_ids:
+                CustomProjectService.revert_quotation_after_refund(project_id)
+
+        return cls.get(order.pk)
+
+    @classmethod
     def compute_items_total(cls, order: Order) -> Decimal:
         return sum(
             (item.line_total for item in order.items.all()),

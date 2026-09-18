@@ -2,8 +2,10 @@
 
 **Purpose:** Single checklist of work remaining to finish **Phase 1** of the platform.  
 **Sources:** [PROJECT_STATUS.md](../PROJECT_STATUS.md), [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md), [docs/batch-ingest-contract.md](batch-ingest-contract.md)  
-**Last scanned:** 2026-09-17 (Production checklist runbook)  
+**Last scanned:** 2026-09-18 (Backend 10/10 implementation plan)  
 **Overall completion (per PROJECT_STATUS):** ~85%
+
+**Backend excellence track:** detailed phased plan → [`BACKEND_10_IMPLEMENTATION_PLAN.md`](BACKEND_10_IMPLEMENTATION_PLAN.md) (mail kernel, refunds, ActivityLog, R2 parity, service facades, token revocation, Meili/legacy, ops). Preserve working code; reuse `enqueue_after_commit`, `resolve_private_download`, `log_admin_action`, `WebhookService`.
 
 ---
 
@@ -23,10 +25,11 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 ## Recommended build order (remaining)
 
 ```text
-1. Sprint 11 — Execute docs/PRODUCTION_CHECKLIST.md on staging/prod + remaining formal QA
-2. Feature 12 — Public site polish (legal pages, viewer fullscreen, footer newsletter)
-3. catalog-bridge Windows .exe polish (separate repo)
-4. Optional / later — Search extras, product tags, DB activity-log UI
+1. Backend 10/10 — docs/BACKEND_10_IMPLEMENTATION_PLAN.md (Phases H→J remaining; A–G done)
+2. Sprint 11 — Execute docs/PRODUCTION_CHECKLIST.md on staging/prod + remaining formal QA
+3. Feature 12 — Public site polish (legal pages, viewer fullscreen, footer newsletter)
+4. catalog-bridge Windows .exe polish (separate repo)
+5. Optional / later — Search extras, product tags
 ```
 
 ---
@@ -50,7 +53,7 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 | Dual R2 backends + local fallback | **Done** | `backend/config/storages.py`, `django-storages` + `boto3` in requirements |
 | Entitlement → private presigned GET JSON | **Done** | `backend/downloads/services.py` |
 | Media migration command | **Done** (ops) | `migrate_local_media_to_r2` — legacy local files may still exist until run |
-| Custom-project / delivery files on R2 | **Later** | Still local / FileResponse pattern |
+| Custom-project / delivery files on R2 | **Done** (download path 2026-09-18) | Same `resolve_private_download` as catalog; `migrate_local_media_to_r2` copies CP private keys |
 
 ---
 
@@ -78,6 +81,26 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 | **Invoice PDF** | **Done** | `orders/invoice.py`, customer/admin `/invoice/` routes, receipt email attach, UI download buttons |
 | **Stripe cart + quotation pay** | **Done** | `payments/`, Feature 15G tests |
 | **PayPal / Razorpay** | Out of scope | Unless revived |
+
+---
+
+## 4b. Alerts — automated email only (no in-app inbox)
+
+**Product decision (2026-09-18):** Phase 1 does not include an in-app notification center (no bell, no `/dashboard/notifications` as a required feature). When something happens that a customer or staff member needs to know — for example an **offer/quotation** is sent — the platform sends an **automated email**.
+
+| Event | Status | Notes |
+|-------|--------|-------|
+| Custom project submitted | **Done** | Email staff (assigned designer or admin recipients) |
+| Quotation / offer saved | **Done** | Email customer (title + deep link; no quote amount in body) |
+| Customer accepts quotation | **Done** | Email staff |
+| Project message posted | **Done** | Email the other party |
+| Delivery marked | **Done** | Email customer |
+| Project completed | **Done** | Email customer |
+| Payment receipt | **Done** | Email customer (invoice PDF attached) |
+| Auth (verify, reset, password changed) | **Done** | Celery tasks |
+| In-app Notification bell / inbox (Feature 10) | **Removed / out of scope** | No app, bell, or `/dashboard/notifications` in repo; alerts are automated email ([BACKEND_10](BACKEND_10_IMPLEMENTATION_PLAN.md)) |
+
+Mail/enqueue failures are fail-soft and never roll back the workflow action.
 
 ---
 
@@ -126,8 +149,9 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 |------|--------|
 | Docker Compose not production-ready | **Closed** — Feature 13 (2026-09-17); live deploy still Sprint 11 |
 | Legacy catalog media still on local disk | **Partial** — migrate command exists |
-| Custom-project files on local disk | **Later** |
-| Admin audit as DB Activity Logs UI | **Not done** — `log_admin_action` → logger only |
+| Custom-project files on local disk | **Partial** — new uploads use private storage; leftover local copied via migrate command |
+| Admin audit as DB ActivityLog | **Done** (2026-09-18) | `ActivityLog` + `log_admin_action` persist; `GET /api/v1/admin/activity-logs/` |
+| In-app notification inbox (Feature 10) | **Removed** — no in-app inbox in Phase 1; email-only ([BACKEND_10](BACKEND_10_IMPLEMENTATION_PLAN.md) Phase J cleanup) |
 | Celery async email | **Shipped** — Redis broker; Compose `worker`; Stripe fulfillment stays in-process |
 
 ---
@@ -155,7 +179,9 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 - [x] Stripe payments + webhooks
 - [x] Secure downloads (R2 signed URLs + local fallback)
 - [x] Invoice PDF + receipt email
-- [x] Reviews, wishlist, notifications, coupons
+- [x] Reviews, wishlist, coupons
+- [x] Automated email alerts (quotation/offer, messages, delivery, receipts — no in-app inbox)
+- [x] Remove leftover Feature 10 in-app notification UI/API (bell + /dashboard/notifications) — confirmed absent; email-only
 - [x] Cloudflare R2 + batch ingest (Features 14 / 14B / 16 in marketplace repo)
 - [x] Meilisearch public catalog search
 
@@ -198,12 +224,13 @@ The desktop Windows `.exe` for company batch upload is **not** in this repo.
 
 | Priority | Feature | Effort (rough) |
 |----------|---------|----------------|
+| **High** | Backend 10/10 — [BACKEND_10_IMPLEMENTATION_PLAN.md](BACKEND_10_IMPLEMENTATION_PLAN.md) Phases A–J | Large (phased) |
 | **High** | Sprint 11 — Execute production checklist on staging/prod host | Medium (ops) |
 | **High** | Sprint 11 — Remaining formal security / load QA | Medium–Large |
 | Medium | catalog-bridge desktop .exe polish | Large (separate repo) |
 | Medium | Feature 12 — Legal pages, newsletter, viewer fullscreen | Small–medium |
 | Low | Search extras (typeahead, Search page, tags) | Medium |
-| Low | DB activity-log UI / Settings page | Medium |
+| Low | Customer Settings page | Small |
 | Blocked | Manager UI redesign | Waiting approval |
 | Later | Phase 2 / Phase 3 roadmap | Future |
 
@@ -214,6 +241,7 @@ The desktop Windows `.exe` for company batch upload is **not** in this repo.
 | Document | Purpose |
 |----------|---------|
 | [PRODUCTION_CHECKLIST.md](PRODUCTION_CHECKLIST.md) | Production env, deploy checks, backup, webhook, rollback |
+| [BACKEND_10_IMPLEMENTATION_PLAN.md](BACKEND_10_IMPLEMENTATION_PLAN.md) | Phased backend 10/10 plan (files, reuse map, tests) |
 | [PROJECT_STATUS.md](../PROJECT_STATUS.md) | Day-to-day progress, sprints, daily log |
 | [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md) | Vision, modules, future phases |
 | [IMPLEMENTATION_ROADMAP.md](../IMPLEMENTATION_ROADMAP.md) | R2 + batch ingest implementation detail |

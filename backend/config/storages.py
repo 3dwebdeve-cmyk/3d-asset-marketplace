@@ -137,6 +137,40 @@ def private_s3_client():
     )
 
 
+class R2VerificationError(Exception):
+    """Raised when R2 is disabled or a required bucket is unreachable."""
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
+def verify_r2_buckets() -> dict[str, str]:
+    """Head both public and private R2 buckets. Requires R2_ENABLED."""
+    if not getattr(settings, "R2_ENABLED", False):
+        raise R2VerificationError(
+            "R2 is not enabled. Set all R2_* environment variables first."
+        )
+
+    client = private_s3_client()
+    buckets = {
+        "public": str(settings.R2_PUBLIC_BUCKET),
+        "private": str(settings.R2_PRIVATE_BUCKET),
+    }
+    results: dict[str, str] = {}
+    for label, bucket in buckets.items():
+        if not bucket:
+            raise R2VerificationError(f"R2_{label.upper()}_BUCKET is empty.")
+        try:
+            call_with_storage_retries(lambda b=bucket: client.head_bucket(Bucket=b))
+        except (BotoCoreError, ClientError, OSError, ValueError) as exc:
+            raise R2VerificationError(
+                f"{label} bucket '{bucket}' is unreachable: {exc.__class__.__name__}"
+            ) from exc
+        results[label] = "ok"
+    return results
+
+
 def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
     """Short-lived GET URL for a private R2 object. Never call when R2 is off."""
     if not getattr(settings, "R2_ENABLED", False):

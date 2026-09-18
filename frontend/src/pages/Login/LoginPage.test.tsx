@@ -28,7 +28,12 @@ vi.mock('../../api/authApi', async () => {
 
 function LocationDisplay() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}</div>
+  return (
+    <div data-testid="location">
+      {location.pathname}
+      {location.search}
+    </div>
+  )
 }
 
 function renderLogin(initialEntry: string | { pathname: string; state?: unknown } = '/login') {
@@ -42,7 +47,8 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
           <Route path="/forgot-password" element={<div>Forgot password page</div>} />
           <Route path="/dashboard" element={<div>Dashboard</div>} />
           <Route path="/dashboard/projects/new" element={<div>New project</div>} />
-          <Route path="/admin" element={<div>Admin home</div>} />
+          <Route path="/checkout/success" element={<div>Checkout success</div>} />
+          <Route path="/console" element={<div>Admin home</div>} />
         </Routes>
         <AuthModal />
         <LocationDisplay />
@@ -89,6 +95,40 @@ describe('LoginPage redirect', () => {
       expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/projects/new')
     })
     expect(screen.getByText('New project')).toBeInTheDocument()
+  })
+
+  it('preserves checkout success query string from state.from after login', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authApi.loginUser).mockResolvedValue({
+      access: 'access-token',
+      user: testUser,
+    })
+
+    renderLogin({
+      pathname: '/login',
+      state: {
+        from: { pathname: '/checkout/success', search: '?order_id=order-99' },
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/email id/i), testUser.email)
+    await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
+    await user.click(
+      within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
+        name: /sign in to 3d hub/i,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/checkout/success?order_id=order-99',
+      )
+    })
+    expect(screen.getByText('Checkout success')).toBeInTheDocument()
   })
 
   it('redirects already-authenticated customers using state.from', () => {

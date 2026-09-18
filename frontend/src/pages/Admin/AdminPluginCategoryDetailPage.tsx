@@ -64,7 +64,7 @@ export function AdminPluginCategoryDetailPage() {
     onSuccess: async () => {
       toast.success('Plugin category updated')
       await invalidateCategories()
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) =>
       setFormError(getApiErrorMessage(error, 'Could not update plugin category.')),
@@ -74,7 +74,7 @@ export function AdminPluginCategoryDetailPage() {
     onSuccess: async () => {
       toast.success('Plugin category deactivated')
       await invalidateCategories()
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) =>
       setFormError(getApiErrorMessage(error, 'Could not deactivate plugin category.')),
@@ -108,7 +108,7 @@ export function AdminPluginCategoryDetailPage() {
         <p className="home-page__eyebrow">Administrator</p>
         <h1 id="plugin-category-detail-title">Manage plugin category</h1>
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/plugin-categories">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/plugin-categories">
             Back to plugin categories
           </Link>
         </div>

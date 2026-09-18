@@ -87,6 +87,40 @@ describe('AuthModal', () => {
     expect(useAuthUiStore.getState().isOpen).toBe(false)
   })
 
+  it('traps Tab focus inside the dialog', async () => {
+    const user = userEvent.setup()
+    useAuthUiStore.getState().open({ mode: 'login' })
+
+    renderAuthModal()
+
+    const dialog = screen.getByRole('dialog')
+    await waitFor(() => {
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    })
+
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => {
+      const style = window.getComputedStyle(element)
+      return style.display !== 'none' && style.visibility !== 'hidden'
+    })
+
+    expect(focusable.length).toBeGreaterThan(1)
+
+    const first = focusable[0]!
+    const last = focusable[focusable.length - 1]!
+
+    last.focus()
+    await user.tab()
+    expect(document.activeElement).toBe(first)
+
+    first.focus()
+    await user.tab({ shift: true })
+    expect(document.activeElement).toBe(last)
+  })
+
   it('shows register success without auto-login', async () => {
     const user = userEvent.setup()
     vi.mocked(authApi.registerUser).mockResolvedValue({

@@ -24,7 +24,7 @@ const adminUser = {
   email: 'admin@example.com',
 }
 
-function renderAdminLayout(initialEntry = '/admin') {
+function renderAdminLayout(initialEntry = '/console') {
   const queryClient = createTestQueryClient()
 
   return render(
@@ -32,14 +32,14 @@ function renderAdminLayout(initialEntry = '/admin') {
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<AdminLayout />}>
-            <Route path="/admin" element={<div>Admin dashboard content</div>} />
-            <Route path="/admin/products" element={<div>Admin products content</div>} />
+            <Route path="/console" element={<div>Admin dashboard content</div>} />
+            <Route path="/console/products" element={<div>Admin products content</div>} />
             <Route
-              path="/admin/products/:productId"
+              path="/console/products/:productId"
               element={<div>Admin product detail content</div>}
             />
           </Route>
-          <Route path="/admin/login" element={<div>Admin login page</div>} />
+          <Route path="/console/login" element={<div>Admin login page</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -66,7 +66,7 @@ describe('AdminLayout', () => {
     expect(screen.getByRole('link', { name: /^products$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^qa queue$/i })).toHaveAttribute(
       'href',
-      '/admin/products?status=pending_review',
+      '/console/products?status=pending_review',
     )
     expect(screen.getByRole('link', { name: /^categories$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^users$/i })).toBeInTheDocument()
@@ -79,7 +79,7 @@ describe('AdminLayout', () => {
 
   it('highlights the active route and detail pages under the parent section', async () => {
     const user = userEvent.setup()
-    renderAdminLayout('/admin/products/b3d66e20-e133-4506-a6c5-a47d2ee5cd00')
+    renderAdminLayout('/console/products/b3d66e20-e133-4506-a6c5-a47d2ee5cd00')
 
     await waitFor(() => {
       expect(screen.getByText('Admin product detail content')).toBeInTheDocument()
@@ -111,23 +111,23 @@ describe('AdminLayout', () => {
 
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute(
       'href',
-      '/admin/plugins',
+      '/console/plugins',
     )
     expect(screen.getByRole('link', { name: /^projects$/i })).toHaveAttribute(
       'href',
-      '/admin/projects',
+      '/console/projects',
     )
     expect(screen.getByRole('link', { name: /^orders$/i })).toHaveAttribute(
       'href',
-      '/admin/orders',
+      '/console/orders',
     )
     expect(screen.getByRole('link', { name: /^reviews$/i })).toHaveAttribute(
       'href',
-      '/admin/reviews',
+      '/console/reviews',
     )
     expect(screen.getByRole('link', { name: /^analytics$/i })).toHaveAttribute(
       'href',
-      '/admin/analytics',
+      '/console/analytics',
     )
   })
 

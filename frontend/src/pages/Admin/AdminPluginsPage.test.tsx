@@ -61,10 +61,10 @@ const plugin = {
 function renderPage() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={['/admin/plugins']}>
+      <MemoryRouter initialEntries={['/console/plugins']}>
         <Routes>
-          <Route path="/admin/plugins" element={<AdminPluginsPage />} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/plugins" element={<AdminPluginsPage />} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

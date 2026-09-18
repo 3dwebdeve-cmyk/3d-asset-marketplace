@@ -89,6 +89,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     email_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    # Bumped on password change/reset so outstanding access JWTs fail auth.
+    token_version = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -123,3 +125,61 @@ class UserProfile(models.Model):
 
     def __str__(self) -> str:
         return f"Profile for {self.user.email}"
+
+
+class ActivityLog(models.Model):
+    """Durable admin audit row. Written fail-soft from log_admin_action."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="activity_logs",
+    )
+    action = models.CharField(max_length=100, db_index=True)
+    target_id = models.CharField(max_length=64, blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "activity_logs"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["action", "created_at"]),
+            models.Index(fields=["actor", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.action}:{self.target_id or '-'}"
+
+
+class LegalAcceptance(models.Model):
+    """Proof that a user accepted a specific legal document version."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="legal_acceptances",
+    )
+    document_key = models.CharField(max_length=64, db_index=True)
+    version = models.CharField(max_length=64)
+    accepted_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "legal_acceptances"
+        ordering = ["-accepted_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "document_key", "version"],
+                name="uniq_legal_acceptance_user_doc_version",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "document_key"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}:{self.document_key}:{self.version}"

@@ -152,3 +152,47 @@ class CaptureWebhookFailureTests(SimpleTestCase):
     def test_capture_message_is_invoked(self, capture_message: object) -> None:
         capture_webhook_failure("missing secret", reason="secret_missing")
         capture_message.assert_called_once_with("missing secret", level="error")  # type: ignore[attr-defined]
+
+
+class CheckSentryConfigCommandTests(SimpleTestCase):
+    @override_settings(DEBUG=True, SENTRY_DSN="")
+    def test_empty_dsn_ok_when_debug(self) -> None:
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("check_sentry_config", stdout=out)
+        self.assertIn("SENTRY_DSN_set=False", out.getvalue())
+
+    @override_settings(DEBUG=False, SENTRY_DSN="")
+    def test_empty_dsn_fails_when_not_debug(self) -> None:
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            call_command("check_sentry_config", fail_on_warnings=True)
+
+    @override_settings(
+        DEBUG=False,
+        SENTRY_DSN="https://examplePublicKey@o0.ingest.sentry.io/0",
+        SENTRY_ENVIRONMENT="staging",
+    )
+    def test_dsn_set_reports_ready(self) -> None:
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("check_sentry_config", fail_on_warnings=True, stdout=out)
+        self.assertIn("SENTRY_DSN_set=True", out.getvalue())
+        self.assertIn("looks ready", out.getvalue())
+
+    @override_settings(SENTRY_DSN="")
+    def test_send_test_event_requires_dsn(self) -> None:
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            call_command("check_sentry_config", send_test_event=True)
+

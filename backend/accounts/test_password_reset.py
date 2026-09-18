@@ -116,6 +116,31 @@ class PasswordResetAPITests(APITestCase):
         )
         self.assertEqual(refresh_response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_confirm_reset_rejects_stale_access_token(self) -> None:
+        tokens = AuthenticationService.build_tokens(self.user)
+        old_access = tokens["access"]
+        uid = urlsafe_base64_encode(force_bytes(str(self.user.pk)))
+        token = password_reset_token_generator.make_token(self.user)
+        new_password = "BrandNewPass123!"
+
+        response = self.client.post(
+            self.confirm_url,
+            {
+                "uid": uid,
+                "token": token,
+                "new_password": new_password,
+                "new_password_confirm": new_password,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.token_version, 1)
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {old_access}")
+        stale = self.client.get(reverse("accounts:me"))
+        self.assertEqual(stale.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_confirm_reset_rejects_invalid_token(self) -> None:
         uid = urlsafe_base64_encode(force_bytes(str(self.user.pk)))
 

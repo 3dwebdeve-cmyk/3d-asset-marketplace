@@ -28,6 +28,7 @@ _VALID_EVENTS = frozenset(
     retry_backoff_max=600,
     retry_jitter=True,
     max_retries=5,
+    queue="email",
     name="custom_projects.send_notification",
 )
 def send_project_notification_task(

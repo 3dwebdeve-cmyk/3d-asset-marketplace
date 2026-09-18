@@ -11,13 +11,14 @@ from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from categories.models import Category
+from config.media import private_object_exists
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 from products.storage import ProductMediaStorageService
 from products.upload_rules import (
     validate_product_file_upload,
     validate_product_image_upload,
 )
-from search.indexer import sync_product
+from search.tasks import enqueue_sync_product
 
 
 class ProductError(Exception):
@@ -325,7 +326,7 @@ class ProductService:
             license_type=license_type,
             status=status,
         )
-        sync_product(product)
+        enqueue_sync_product(product.pk)
         return product
 
     @classmethod
@@ -468,7 +469,7 @@ class ProductService:
 
         product.save(update_fields=list(dict.fromkeys(update_fields)))
         updated = cls.get_by_id(product.pk)
-        sync_product(updated)
+        enqueue_sync_product(updated.pk)
         return updated
 
     @classmethod
@@ -504,13 +505,20 @@ class ProductService:
         if product.price is None or product.price < Decimal("0.00"):
             errors["price"] = ["A valid non-negative price is required."]
 
-        has_sellable_package = ProductFile.objects.filter(
-            product=product,
-            is_preview=False,
-        ).exists()
-        if not has_sellable_package:
+        sellable_files = list(
+            ProductFile.objects.filter(
+                product=product,
+                is_preview=False,
+            ).only("storage_path")
+        )
+        if not sellable_files:
             errors["files"] = [
                 "At least one sellable package file is required before publish."
+            ]
+        elif not any(private_object_exists(row.storage_path) for row in sellable_files):
+            errors["files"] = [
+                "Sellable package object is missing from private storage. "
+                "Upload or migrate the package before publish."
             ]
 
         if not (product.preview_model or "").strip():
@@ -549,7 +557,7 @@ class ProductService:
             ]
         )
         approved = cls.get_by_id(product.pk)
-        sync_product(approved)
+        enqueue_sync_product(approved.pk)
         return approved
 
     @classmethod
@@ -590,7 +598,7 @@ class ProductService:
             update_fields.append("qa_notes")
         product.save(update_fields=update_fields)
         rejected = cls.get_by_id(product.pk)
-        sync_product(rejected)
+        enqueue_sync_product(rejected.pk)
         return rejected
 
     @classmethod
@@ -606,7 +614,7 @@ class ProductService:
         product.status = Product.Status.PENDING_REVIEW
         product.save(update_fields=["status", "updated_at"])
         requeued = cls.get_by_id(product.pk)
-        sync_product(requeued)
+        enqueue_sync_product(requeued.pk)
         return requeued
 
     @classmethod

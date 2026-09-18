@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminProductWriteRateThrottle
+from config.api_helpers import domain_error_response, parse_uuid
 from products.catalog_import import CatalogImportService
 from products.models import Product
 from products.pagination import ProductPagination
@@ -38,26 +39,7 @@ from search.services import hydrate_products, normalize_query, search_published_
 
 
 def _product_error_response(exc: ProductError) -> Response:
-    if exc.errors:
-        return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "product_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
-
-
-def _parse_uuid_filter(value: str | None, field: str) -> UUID | None:
-    if not value:
-        return None
-    try:
-        return UUID(value.strip())
-    except ValueError as exc:
-        raise ValidationError({field: [f"Invalid {field}."]}) from exc
+    return domain_error_response(exc, default_code="product_error")
 
 
 def _parse_status_filter(value: str | None) -> str | None:
@@ -88,7 +70,7 @@ class ProductListView(APIView):
     pagination_class = ProductPagination
 
     def get(self, request: Request) -> Response:
-        category_id = _parse_uuid_filter(
+        category_id = parse_uuid(
             request.query_params.get("category_id"),
             "category_id",
         )
@@ -161,7 +143,7 @@ class AdminProductListCreateView(APIView):
 
     def get(self, request: Request) -> Response:
         status_filter = _parse_status_filter(request.query_params.get("status"))
-        category_id = _parse_uuid_filter(
+        category_id = parse_uuid(
             request.query_params.get("category_id"),
             "category_id",
         )

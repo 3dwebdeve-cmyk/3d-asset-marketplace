@@ -5,6 +5,8 @@ import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
+import { ADMIN_BASE } from '../../config/adminPaths'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
 import { useAdminLoginForm } from './useAdminLoginForm'
@@ -23,14 +25,20 @@ export function AdminLoginPage() {
     onSubmit,
   } = useAdminLoginForm()
 
+  useDocumentSeo({
+    title: 'Admin sign in | 3D Asset Marketplace',
+    description: 'Administrator sign-in for the marketplace control panel.',
+    robots: 'noindex, nofollow',
+  })
+
   useEffect(() => {
     if (isSuccess) {
-      navigate('/admin', { replace: true })
+      navigate(ADMIN_BASE, { replace: true })
     }
   }, [isSuccess, navigate])
 
   if (isAuthenticated && isAdministrator(user?.role)) {
-    return <Navigate to="/admin" replace />
+    return <Navigate to={ADMIN_BASE} replace />
   }
 
   if (isAuthenticated) {

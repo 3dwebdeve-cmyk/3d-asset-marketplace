@@ -93,7 +93,7 @@ export function AdminProjectsPage() {
         queryKey: ['admin', 'custom-projects'],
         refetchType: 'none',
       })
-      navigate(`/admin/projects/${project.id}`, { replace: true })
+      navigate(`/console/projects/${project.id}`, { replace: true })
     },
     onError: (error) =>
       setCreateError(getApiErrorMessage(error, 'Could not create custom project.')),
@@ -351,7 +351,7 @@ export function AdminProjectsPage() {
                           : '—'}
                       </td>
                       <td>
-                        <Link className="auth-link" to={`/admin/projects/${project.id}`}>
+                        <Link className="auth-link" to={`/console/projects/${project.id}`}>
                           Manage
                         </Link>
                       </td>

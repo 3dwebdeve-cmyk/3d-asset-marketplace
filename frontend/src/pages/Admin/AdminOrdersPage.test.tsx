@@ -137,11 +137,11 @@ const sampleProduct = {
 function renderPage() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={['/admin/orders']}>
+      <MemoryRouter initialEntries={['/console/orders']}>
         <Routes>
-          <Route path="/admin/orders" element={<AdminOrdersPage />} />
+          <Route path="/console/orders" element={<AdminOrdersPage />} />
           <Route
-            path="/admin/orders/:orderId"
+            path="/console/orders/:orderId"
             element={<div>Order detail page</div>}
           />
         </Routes>
@@ -187,7 +187,7 @@ describe('AdminOrdersPage', () => {
     expect(screen.getByText('Ada Customer')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Manage' })).toHaveAttribute(
       'href',
-      `/admin/orders/${order.id}`,
+      `/console/orders/${order.id}`,
     )
   })
 

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from accounts.models import Role, User, UserProfile
+from accounts.models import ActivityLog, LegalAcceptance, Role, User, UserProfile
 from accounts.services import EmailVerificationService
 
 
@@ -9,6 +9,49 @@ from accounts.services import EmailVerificationService
 class RoleAdmin(admin.ModelAdmin):
     list_display = ("role_name", "description", "created_at")
     search_fields = ("role_name",)
+
+
+@admin.register(LegalAcceptance)
+class LegalAcceptanceAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "document_key", "version", "accepted_at")
+    list_filter = ("document_key", "version", "accepted_at")
+    search_fields = ("user__email", "document_key", "version")
+    readonly_fields = ("id", "user", "document_key", "version", "accepted_at")
+    ordering = ("-accepted_at",)
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False
+
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ("id", "action", "actor", "target_id", "created_at")
+    list_filter = ("action", "created_at")
+    search_fields = ("action", "target_id", "actor__email")
+    readonly_fields = (
+        "id",
+        "actor",
+        "action",
+        "target_id",
+        "metadata",
+        "created_at",
+    )
+    ordering = ("-created_at",)
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False
 
 
 class UserProfileInline(admin.StackedInline):

@@ -1,11 +1,13 @@
 import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
-import { adminNavItems } from '../config/adminNav'
 import { Button } from '../components/ui/Button'
 import { ErrorState } from '../components/ui/ErrorState'
 import { Spinner } from '../components/ui/Spinner'
+import { adminNavItems } from '../config/adminNav'
+import { adminPath } from '../config/adminPaths'
 import { useAdminSession } from '../hooks/useAdminSession'
+import { useDocumentSeo } from '../hooks/useDocumentSeo'
 
 export function AdminLayout() {
   const navId = useId()
@@ -13,6 +15,12 @@ export function AdminLayout() {
     useAdminSession()
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const location = useLocation()
+
+  useDocumentSeo({
+    title: 'Admin console | 3D Asset Marketplace',
+    description: 'Private administrator control panel.',
+    robots: 'noindex, nofollow',
+  })
 
   useEffect(() => {
     setIsMobileNavOpen(false)
@@ -75,10 +83,10 @@ export function AdminLayout() {
                   [...expected.entries()].every(
                     ([key, value]) => currentParams.get(key) === value,
                   )
-              } else if (itemPath === '/admin/products') {
+              } else if (itemPath === adminPath('products')) {
                 isActive =
-                  (location.pathname === '/admin/products' ||
-                    location.pathname.startsWith('/admin/products/')) &&
+                  (location.pathname === adminPath('products') ||
+                    location.pathname.startsWith(`${adminPath('products')}/`)) &&
                   currentParams.get('status') !== 'pending_review'
               } else if (item.end) {
                 isActive = location.pathname === itemPath

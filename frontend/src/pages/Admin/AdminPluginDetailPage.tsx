@@ -98,7 +98,7 @@ export function AdminPluginDetailPage() {
     onSuccess: async () => {
       toast.success('Plugin updated')
       await invalidatePlugin()
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => setFormError(getApiErrorMessage(error, 'Could not update plugin.')),
   })
@@ -107,7 +107,7 @@ export function AdminPluginDetailPage() {
     onSuccess: async () => {
       toast.success('Plugin archived')
       await invalidatePlugin()
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => setFormError(getApiErrorMessage(error, 'Could not archive plugin.')),
   })
@@ -146,7 +146,7 @@ export function AdminPluginDetailPage() {
         <p className="home-page__eyebrow">Administrator</p>
         <h1 id="plugin-detail-title">Manage plugin</h1>
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/plugins">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/plugins">
             Back to plugins
           </Link>
         </div>

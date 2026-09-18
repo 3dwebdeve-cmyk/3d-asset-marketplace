@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.throttles import DownloadRateThrottle
+from config.api_helpers import parse_uuid
 from downloads.pagination import DownloadPagination
 from downloads.serializers import (
     DownloadEntitlementSerializer,
@@ -16,15 +17,6 @@ from downloads.serializers import (
     SignedDownloadSerializer,
 )
 from downloads.services import DownloadError, DownloadService
-
-
-def _parse_uuid(value: str | None, field: str) -> UUID | None:
-    if not value:
-        return None
-    try:
-        return UUID(value.strip())
-    except ValueError as exc:
-        raise ValidationError({field: [f"Invalid {field}."]}) from exc
 
 
 def _parse_product_type(value: str | None) -> str | None:
@@ -98,7 +90,7 @@ class AdminDownloadHistoryListView(APIView):
         queryset = DownloadService.list_history_admin(
             user_email=request.query_params.get("user_email") or None,
             product_type=_parse_product_type(request.query_params.get("product_type")),
-            product_id=_parse_uuid(request.query_params.get("product_id"), "product_id"),
+            product_id=parse_uuid(request.query_params.get("product_id"), "product_id"),
             ordering=request.query_params.get("ordering") or "-downloaded_at",
         )
         paginator = self.pagination_class()

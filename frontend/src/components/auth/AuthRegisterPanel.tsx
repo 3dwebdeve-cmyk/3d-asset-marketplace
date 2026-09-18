@@ -9,6 +9,7 @@ import { Alert } from '../ui/Alert'
 import { Button } from '../ui/Button'
 import { useGoogleLogin } from '../../hooks/useGoogleLogin'
 import { isAdministrator } from '../../lib/roles'
+import { PRIVACY_PATH, TERMS_PATH } from '../../lib/legalDocuments'
 import { useAuthStore } from '../../store/authStore'
 import { useAuthUiStore } from '../../store/authUiStore'
 import { useRegisterForm } from '../../pages/Register/useRegisterForm'
@@ -67,7 +68,7 @@ export function AuthRegisterPanel({
 
     const role = useAuthStore.getState().user?.role
     closeAuthModal()
-    navigate(isAdministrator(role) ? '/admin' : (returnTo ?? '/dashboard'), {
+    navigate(isAdministrator(role) ? '/console' : (returnTo ?? '/dashboard'), {
       replace: true,
     })
   }, [closeAuthModal, isGoogleSuccess, navigate, returnTo])
@@ -266,11 +267,11 @@ export function AuthRegisterPanel({
           />
           <span className="auth-check__label">
             I agree to 3D Hub&apos;s{' '}
-            <Link className="auth-link" to="/about" onClick={closeAuthModal}>
+            <Link className="auth-link" to={TERMS_PATH} onClick={closeAuthModal}>
               Terms of Service
             </Link>
-            , Royalty-Free Agreement, and{' '}
-            <Link className="auth-link" to="/about" onClick={closeAuthModal}>
+            {' '}and{' '}
+            <Link className="auth-link" to={PRIVACY_PATH} onClick={closeAuthModal}>
               Privacy Policy
             </Link>
             .

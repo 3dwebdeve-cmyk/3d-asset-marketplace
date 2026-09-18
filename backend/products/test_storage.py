@@ -58,6 +58,9 @@ class MediaPathTests(SimpleTestCase):
         self.assertTrue(is_public_media_path("models/MDL-000142/gallery/01.jpg"))
         self.assertFalse(is_public_media_path("models/MDL-000142/package.zip"))
         self.assertFalse(is_public_media_path("products/files/a.zip"))
+        self.assertFalse(is_public_media_path("custom_projects/files/a.png"))
+        self.assertFalse(is_public_media_path("custom_projects/messages/a.bin"))
+        self.assertFalse(is_public_media_path("custom_projects/deliveries/a.zip"))
         self.assertTrue(is_public_media_path("products/images/x.png"))
 
     @override_settings(R2_PUBLIC_BASE_URL="https://pub-test.r2.dev")

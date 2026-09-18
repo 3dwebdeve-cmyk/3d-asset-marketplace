@@ -56,7 +56,7 @@ export function AdminCouponDetailPage() {
       toast.success('Coupon updated')
       setFormError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'coupons'] })
-      navigate('/admin/coupons', { replace: true })
+      navigate('/console/coupons', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not update coupon.'))
@@ -68,7 +68,7 @@ export function AdminCouponDetailPage() {
     onSuccess: async () => {
       toast.success('Coupon deactivated')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'coupons'] })
-      navigate('/admin/coupons', { replace: true })
+      navigate('/console/coupons', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not deactivate coupon.'))
@@ -102,7 +102,7 @@ export function AdminCouponDetailPage() {
           title="Coupon not found"
           description="This coupon could not be loaded."
           action={
-            <Link className="home-page__cta home-page__cta--secondary" to="/admin/coupons">
+            <Link className="home-page__cta home-page__cta--secondary" to="/console/coupons">
               Back to coupons
             </Link>
           }
@@ -244,7 +244,7 @@ export function AdminCouponDetailPage() {
             >
               Deactivate
             </Button>
-            <Link className="home-page__cta home-page__cta--secondary" to="/admin/coupons">
+            <Link className="home-page__cta home-page__cta--secondary" to="/console/coupons">
               Back to coupons
             </Link>
           </div>

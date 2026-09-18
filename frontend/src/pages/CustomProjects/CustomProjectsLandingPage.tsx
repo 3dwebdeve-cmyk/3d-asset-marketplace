@@ -43,7 +43,7 @@ export function CustomProjectsLandingPage() {
                 Start a project request <span aria-hidden="true">→</span>
               </Link>
             ) : isAdmin ? (
-              <Link className="home-page__cta" to="/admin/projects">
+              <Link className="home-page__cta" to="/console/projects">
                 Open admin projects <span aria-hidden="true">→</span>
               </Link>
             ) : (
@@ -250,7 +250,7 @@ export function CustomProjectsLandingPage() {
                 Access Project Portal <span aria-hidden="true">→</span>
               </Link>
             ) : isAdmin ? (
-              <Link className="custom-projects-portal__cta" to="/admin/projects">
+              <Link className="custom-projects-portal__cta" to="/console/projects">
                 Access Project Portal <span aria-hidden="true">→</span>
               </Link>
             ) : (

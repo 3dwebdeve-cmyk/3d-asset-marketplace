@@ -10,7 +10,7 @@ describe('roles', () => {
   })
 
   it('routes administrators to the admin login page helper path', () => {
-    expect(getPostLoginPath(ROLE_ADMINISTRATOR)).toBe('/admin/login')
+    expect(getPostLoginPath(ROLE_ADMINISTRATOR)).toBe('/console/login')
     expect(getPostLoginPath(ROLE_CUSTOMER)).toBe('/dashboard')
   })
 })

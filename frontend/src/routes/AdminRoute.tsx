@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 
+import { ADMIN_LOGIN } from '../config/adminPaths'
 import { AdminLayout } from '../layouts/AdminLayout'
 import { isAdministrator } from '../lib/roles'
 import { useAuthStore } from '../store/authStore'
@@ -16,7 +17,7 @@ export function AdminRoute() {
       return <Navigate to={postLogoutRedirect} replace />
     }
 
-    return <Navigate to="/admin/login" replace state={{ from: location }} />
+    return <Navigate to={ADMIN_LOGIN} replace state={{ from: location }} />
   }
 
   if (!isAdministrator(user?.role)) {

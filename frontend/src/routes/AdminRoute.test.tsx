@@ -31,10 +31,10 @@ function renderAdminRoutes(initialEntry: string) {
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/login" element={<div>Login Page</div>} />
-          <Route path="/admin/login" element={<div>Admin Login Page</div>} />
+          <Route path="/console/login" element={<div>Admin Login Page</div>} />
           <Route path="/dashboard" element={<div>Customer Dashboard</div>} />
           <Route element={<AdminRoute />}>
-            <Route path="/admin" element={<div>Admin Dashboard</div>} />
+            <Route path="/console" element={<div>Admin Dashboard</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -50,7 +50,7 @@ beforeEach(() => {
 
 describe('AdminRoute', () => {
   it('redirects anonymous users to admin login', () => {
-    renderAdminRoutes('/admin')
+    renderAdminRoutes('/console')
 
     expect(screen.getByText('Admin Login Page')).toBeInTheDocument()
     expect(screen.queryByText('Admin Dashboard')).not.toBeInTheDocument()
@@ -63,7 +63,7 @@ describe('AdminRoute', () => {
       isAuthenticated: true,
     })
 
-    renderAdminRoutes('/admin')
+    renderAdminRoutes('/console')
 
     expect(screen.getByText('Customer Dashboard')).toBeInTheDocument()
     expect(screen.queryByText('Admin Dashboard')).not.toBeInTheDocument()
@@ -76,7 +76,7 @@ describe('AdminRoute', () => {
       isAuthenticated: true,
     })
 
-    renderAdminRoutes('/admin')
+    renderAdminRoutes('/console')
 
     await waitFor(() => {
       expect(screen.getByText('Admin Dashboard')).toBeInTheDocument()

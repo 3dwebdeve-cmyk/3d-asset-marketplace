@@ -5,15 +5,26 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from rest_framework import status
+from rest_framework.exceptions import APIException
+
 from plugins.models import Plugin
 from products.models import Product
-from search.client import get_client
+from search.client import get_client, is_required as meili_is_required
 from search.documents import PLUGINS_INDEX, PRODUCTS_INDEX
 from search.indexer import ensure_indexes
 
 logger = logging.getLogger(__name__)
 
 MAX_QUERY_LENGTH = 100
+
+
+class SearchUnavailable(APIException):
+    """Raised when Meili is required but unavailable (stable client code)."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    default_detail = "Catalog search is temporarily unavailable."
+    default_code = "search_unavailable"
 
 PRODUCT_SORT_MAP = {
     "name": "name:asc",
@@ -178,6 +189,8 @@ def _search_index(
 ) -> SearchPage | None:
     client = get_client()
     if client is None:
+        if meili_is_required():
+            raise SearchUnavailable()
         return None
     try:
         ensure_indexes(client)
@@ -214,6 +227,10 @@ def _search_index(
             page=page,
             page_size=page_size,
         )
+    except SearchUnavailable:
+        raise
     except Exception:
         logger.exception("meilisearch_search_failed index=%s", index_uid)
+        if meili_is_required():
+            raise SearchUnavailable() from None
         return None

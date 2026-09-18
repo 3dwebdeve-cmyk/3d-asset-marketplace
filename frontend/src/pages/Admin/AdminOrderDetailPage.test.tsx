@@ -57,10 +57,10 @@ const sampleOrder = {
 function renderPage() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={[`/admin/orders/${orderId}`]}>
+      <MemoryRouter initialEntries={[`/console/orders/${orderId}`]}>
         <Routes>
-          <Route path="/admin/orders/:orderId" element={<AdminOrderDetailPage />} />
-          <Route path="/admin/orders" element={<div>Orders list</div>} />
+          <Route path="/console/orders/:orderId" element={<AdminOrderDetailPage />} />
+          <Route path="/console/orders" element={<div>Orders list</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -84,7 +84,7 @@ describe('AdminOrderDetailPage', () => {
     expect(screen.getByText(productId)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /back to orders/i })).toHaveAttribute(
       'href',
-      '/admin/orders',
+      '/console/orders',
     )
   })
 

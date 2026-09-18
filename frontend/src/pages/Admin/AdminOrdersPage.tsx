@@ -141,7 +141,7 @@ export function AdminOrdersPage() {
         queryKey: ['admin', 'orders'],
         refetchType: 'none',
       })
-      navigate(`/admin/orders/${order.id}`, { replace: true })
+      navigate(`/console/orders/${order.id}`, { replace: true })
     },
     onError: (error) =>
       setCreateError(getApiErrorMessage(error, 'Could not create order.')),
@@ -435,7 +435,7 @@ export function AdminOrdersPage() {
                       <td>{order.item_count}</td>
                       <td>{formatDate(order.created_at)}</td>
                       <td>
-                        <Link className="auth-link" to={`/admin/orders/${order.id}`}>
+                        <Link className="auth-link" to={`/console/orders/${order.id}`}>
                           Manage
                         </Link>
                       </td>

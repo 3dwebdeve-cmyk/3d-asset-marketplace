@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from io import BytesIO
+from zipfile import ZipFile
 
 from django.core.cache import cache
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -69,7 +73,13 @@ class ProductQAWorkflowAPITests(APITestCase):
         self.assertEqual(login.status_code, status.HTTP_200_OK)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
 
-    def _import_happy_product(self) -> Product:
+    def _write_package(self, storage_path: str) -> None:
+        buffer = BytesIO()
+        with ZipFile(buffer, "w") as archive:
+            archive.writestr("model.glb", b"glTF-binary")
+        default_storage.save(storage_path, ContentFile(buffer.getvalue()))
+
+    def _import_happy_product(self, *, with_package_object: bool = True) -> Product:
         response = self.client.post(
             self.import_url,
             {
@@ -81,7 +91,11 @@ class ProductQAWorkflowAPITests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["created"], 1)
-        return Product.objects.get(sku="MDL-000142")
+        product = Product.objects.get(sku="MDL-000142")
+        if with_package_object:
+            package = ProductFile.objects.get(product=product, is_preview=False)
+            self._write_package(package.storage_path)
+        return product
 
     def _approve_url(self, product_id) -> str:
         return reverse(
@@ -171,6 +185,47 @@ class ProductQAWorkflowAPITests(APITestCase):
         self.assertIn("files", response.data)
         self.assertIn("preview_model", response.data)
 
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+
+    def test_approve_blocked_when_package_object_missing(self) -> None:
+        self._authenticate_as_admin()
+        response = self.client.post(
+            self.import_url,
+            {
+                "import_batch_id": "2026-09-07-qa-missing-pkg",
+                "import_source": "catalog-bridge",
+                "items": [
+                    _happy_item(
+                        model_id="MDL-MISS-01",
+                        r2_key_prefix="models/MDL-MISS-01/",
+                        media={
+                            "thumbnail_key": "models/MDL-MISS-01/thumbnail.jpg",
+                            "preview_key": "models/MDL-MISS-01/preview.glb",
+                            "package_key": "models/MDL-MISS-01/package.zip",
+                            "package_file_name": "package.zip",
+                            "package_file_format": "zip",
+                            "package_file_size": 1048576,
+                            "gallery_keys": ["models/MDL-MISS-01/gallery/01.jpg"],
+                        },
+                    )
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["created"], 1)
+        product = Product.objects.get(sku="MDL-MISS-01")
+        package = ProductFile.objects.get(product=product, is_preview=False)
+        if default_storage.exists(package.storage_path):
+            default_storage.delete(package.storage_path)
+
+        blocked = self.client.post(self._approve_url(product.pk), {}, format="json")
+        self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("files", blocked.data)
+        self.assertTrue(
+            any("missing from private storage" in msg for msg in blocked.data["files"])
+        )
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
 

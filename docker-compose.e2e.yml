@@ -18,6 +18,8 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_e2e_ci_placeholder}
       # HTTP Compose stack — Secure cookies would be dropped by the browser.
       JWT_REFRESH_COOKIE_SECURE: "False"
+      # DEBUG=False + localhost FRONTEND_BASE_URL (CI / local e2e).
+      ALLOW_LOCALHOST_FRONTEND: "True"
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       SENTRY_DSN: ""
 
@@ -28,6 +30,7 @@ services:
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_e2e_ci_placeholder}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_e2e_ci_placeholder}
       JWT_REFRESH_COOKIE_SECURE: "False"
+      ALLOW_LOCALHOST_FRONTEND: "True"
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       SENTRY_DSN: ""
 

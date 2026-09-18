@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 
+import { trapFocusKeyDown } from '../../lib/focusTrap'
 import { useCartUiStore } from '../../store/cartUiStore'
 import { useAuthUiStore } from '../../store/authUiStore'
 import { AuthLoginPanel } from './AuthLoginPanel'
@@ -34,6 +35,12 @@ export function AuthModal() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeAuthModal()
+        return
+      }
+
+      const dialog = dialogRef.current
+      if (dialog) {
+        trapFocusKeyDown(event, dialog)
       }
     }
 

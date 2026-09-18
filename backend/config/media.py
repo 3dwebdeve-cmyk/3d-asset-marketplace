@@ -142,6 +142,16 @@ def local_object_exists(relative: str) -> bool:
         return False
 
 
+def private_object_exists(storage_path: str) -> bool:
+    """True when a private package key exists on R2 and/or local MEDIA."""
+    relative = media_relative_path(storage_path)
+    if relative is None:
+        return False
+    if private_r2_object_exists(relative):
+        return True
+    return local_object_exists(relative)
+
+
 def resolve_private_download(
     storage_path: str,
     *,

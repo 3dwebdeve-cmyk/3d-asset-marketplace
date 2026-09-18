@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 const MOBILE_MAX_DPR = 1.25
 const DESKTOP_MAX_DPR = 1.75
 
-function isMobileViewport(): boolean {
+/** Mobile / coarse-pointer viewports get lower GPU budgets (DPR + shadows). */
+export function isMobileViewport(): boolean {
   if (typeof window === 'undefined') {
     return false
   }
@@ -25,6 +26,17 @@ export function getAdaptivePixelRatio(): number {
   return Math.min(deviceRatio, maxRatio)
 }
 
+/**
+ * Directional-light shadow map resolution.
+ * 4K maps crush low-end GPUs; mobile uses 1024, desktop 2048.
+ */
+export function getAdaptiveShadowMapSize(): number {
+  if (typeof window === 'undefined') {
+    return 2048
+  }
+  return isMobileViewport() ? 1024 : 2048
+}
+
 export function useAdaptivePixelRatio(): number {
   const [pixelRatio, setPixelRatio] = useState(getAdaptivePixelRatio)
 
@@ -37,4 +49,18 @@ export function useAdaptivePixelRatio(): number {
   }, [])
 
   return pixelRatio
+}
+
+export function useAdaptiveShadowMapSize(): number {
+  const [mapSize, setMapSize] = useState(getAdaptiveShadowMapSize)
+
+  useEffect(() => {
+    const update = () => setMapSize(getAdaptiveShadowMapSize())
+
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  return mapSize
 }

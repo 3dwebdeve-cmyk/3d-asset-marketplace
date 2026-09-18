@@ -101,7 +101,7 @@ export function AdminOrderDetailPage() {
               <Button variant="secondary" onClick={() => orderQuery.refetch()}>
                 Retry
               </Button>
-              <Link className="home-page__cta home-page__cta--secondary" to="/admin/orders">
+              <Link className="home-page__cta home-page__cta--secondary" to="/console/orders">
                 Back to orders
               </Link>
             </div>
@@ -126,7 +126,7 @@ export function AdminOrderDetailPage() {
         <p className="home-page__eyebrow">Administrator</p>
         <h1 id="order-detail-title">{order.invoice_number}</h1>
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/orders">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/orders">
             Back to orders
           </Link>
           {canDownloadInvoice ? (

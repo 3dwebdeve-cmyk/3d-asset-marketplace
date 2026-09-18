@@ -5,9 +5,10 @@ from config.media_migration import LocalMediaMigrationService, MediaMigrationErr
 
 class Command(BaseCommand):
     help = (
-        "Copy leftover local MEDIA_ROOT catalog files to Cloudflare R2 and rewrite "
-        "public thumbnail/preview/gallery/avatar URLs. Requires R2_* env vars. "
-        "Use --dry-run to report without writing."
+        "Copy leftover local MEDIA_ROOT files to Cloudflare R2 and rewrite "
+        "public thumbnail/preview/gallery/avatar URLs. Also copies private "
+        "catalog packages and custom-project files/messages/deliveries. "
+        "Requires R2_* env vars. Use --dry-run to report without writing."
     )
 
     def add_arguments(self, parser) -> None:

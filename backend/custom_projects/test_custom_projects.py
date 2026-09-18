@@ -17,6 +17,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
 from custom_projects.models import CustomProject, ProjectDelivery, ProjectMessage, ProjectQuotation
+from mail_log.models import OutboundEmailLog
 from config.media import media_relative_path
 
 
@@ -147,7 +148,7 @@ class CustomProjectAPITests(APITestCase):
     def test_mail_failure_does_not_break_customer_project_create(self) -> None:
         self._authenticate_customer()
         with patch(
-            "custom_projects.notifications.send_mail",
+            "config.mail.send_mail",
             side_effect=RuntimeError("SMTP unavailable"),
         ):
             create = self.client.post(
@@ -535,6 +536,61 @@ class CustomProjectFileUploadTests(APITestCase):
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
         self.assertIn("download_url", detail.data["files"][0])
         self.assertNotIn("storage_path", detail.data["files"][0])
+
+    @override_settings(R2_ENABLED=True, R2_SIGNED_URL_EXPIRY=300)
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
+    def test_reference_file_download_returns_signed_json_when_r2_has_object(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        upload = SimpleUploadedFile(
+            "ref.png",
+            _png_bytes(),
+            content_type="image/png",
+        )
+        created = self.client.post(
+            self.upload_url,
+            {"file": upload, "file_type": "reference_image"},
+            format="multipart",
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        project_file = self.project.files.get()
+        mock_get_private_storage.return_value.exists.return_value = True
+        mock_presign.return_value = (
+            "https://acc.r2.cloudflarestorage.com/3dam-private/"
+            "custom_projects/files/ref.png?X-Amz-Signature=test"
+        )
+
+        admin_role = Role.objects.get(role_name="Administrator")
+        admin = User.objects.create_user(
+            email="admin-signed-file@example.com",
+            full_name="Admin Signed File",
+            password=self.password,
+            role=admin_role,
+            email_verified=True,
+        )
+        admin.is_staff = True
+        admin.save(update_fields=["is_staff", "updated_at"])
+        admin_login = self.client.post(
+            reverse("accounts:admin-login"),
+            {"email": admin.email, "password": self.password},
+            format="json",
+        )
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {admin_login.data['access']}"
+        )
+        download_url = reverse(
+            "custom_projects_admin:admin-custom-project-file-download",
+            kwargs={"project_id": self.project.id, "file_id": project_file.id},
+        )
+        response = self.client.get(download_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["download_url"], mock_presign.return_value)
+        self.assertEqual(response.data["expires_in"], 300)
+        self.assertEqual(response.data["file_name"], project_file.file_name)
+        mock_presign.assert_called_once()
 
 
 class CustomProjectMessageAPITests(APITestCase):
@@ -1243,6 +1299,48 @@ class CustomProjectMessageAttachmentAPITests(APITestCase):
         self.assertIn("/api/v1/admin/custom-projects/", admin_attachment["download_url"])
         self.assertNotIn("storage_path", admin_attachment)
 
+    @override_settings(R2_ENABLED=True, R2_SIGNED_URL_EXPIRY=300)
+    @patch("config.media.generate_private_presigned_url")
+    @patch("config.media.get_private_storage")
+    def test_attachment_download_returns_signed_json_when_r2_has_object(
+        self,
+        mock_get_private_storage,
+        mock_presign,
+    ) -> None:
+        self._authenticate_customer()
+        upload = SimpleUploadedFile(
+            "ref.png",
+            _png_bytes(),
+            content_type="image/png",
+        )
+        created = self.client.post(
+            self.customer_messages_url,
+            {"body": "Signed path.", "file": upload},
+            format="multipart",
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        message_id = created.data["id"]
+        attachment = created.data["attachments"][0]
+        mock_get_private_storage.return_value.exists.return_value = True
+        mock_presign.return_value = (
+            "https://acc.r2.cloudflarestorage.com/3dam-private/"
+            "custom_projects/messages/ref.png?X-Amz-Signature=test"
+        )
+        download_url = reverse(
+            "custom_projects:customer-custom-project-message-attachment-download",
+            kwargs={
+                "project_id": self.project.id,
+                "message_id": message_id,
+                "attachment_id": attachment["id"],
+            },
+        )
+        response = self.client.get(download_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["download_url"], mock_presign.return_value)
+        self.assertEqual(response.data["expires_in"], 300)
+        self.assertEqual(response.data["file_name"], attachment["file_name"])
+        mock_presign.assert_called_once()
+
     def test_admin_can_send_message_with_attachment(self) -> None:
         self._authenticate_admin()
         upload = SimpleUploadedFile(
@@ -1596,7 +1694,7 @@ class CustomProjectMessageEmailNotificationTests(APITestCase):
     def test_mail_failure_does_not_break_message_create(self) -> None:
         self._authenticate_customer()
         with patch(
-            "custom_projects.notifications.send_mail",
+            "config.mail.send_mail",
             side_effect=RuntimeError("SMTP unavailable"),
         ):
             created = self.client.post(
@@ -1726,6 +1824,77 @@ class CustomProjectWorkflowEmailNotificationTests(APITestCase):
         self.assertNotIn("/api/", email.body)
         self.assertNotIn("/admin/", email.body)
 
+        log = OutboundEmailLog.objects.get(
+            event_type="quotation_sent",
+            related_object_id=str(project.id),
+        )
+        self.assertEqual(log.status, OutboundEmailLog.Status.SENT)
+        self.assertTrue(log.recipient_hash.startswith("sha256:"))
+        self.assertNotIn("@", log.recipient_hash)
+        self.assertNotIn(self.customer_user.email, log.recipient_hash)
+
+    def test_admin_resend_quotation_email_queues_second_mail(self) -> None:
+        project = self._quoted_project()
+        self._authenticate_admin()
+        mail.outbox.clear()
+        OutboundEmailLog.objects.all().delete()
+
+        response = self.client.post(
+            reverse(
+                "custom_projects_admin:admin-custom-project-quotation-resend-email",
+                kwargs={"project_id": project.id},
+            ),
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.customer_user.email])
+        self.assertIn("Oak table commission", mail.outbox[0].subject)
+
+        logs = OutboundEmailLog.objects.filter(
+            event_type="quotation_sent",
+            related_object_id=str(project.id),
+            status=OutboundEmailLog.Status.SENT,
+        )
+        self.assertEqual(logs.count(), 1)
+
+        # Resend must not mutate quotation amount/notes.
+        quotation = ProjectQuotation.objects.get(project_id=project.id)
+        self.assertEqual(str(quotation.amount), "350.00")
+        self.assertIn("Secret quote notes", quotation.notes)
+
+    def test_admin_resend_quotation_email_requires_quotation(self) -> None:
+        project = CustomProject.objects.create(
+            customer=self.customer_user,
+            title="No quote yet",
+            description="Resend should 400 without a quotation.",
+            status=CustomProject.Status.UNDER_REVIEW,
+        )
+        self._authenticate_admin()
+        response = self.client.post(
+            reverse(
+                "custom_projects_admin:admin-custom-project-quotation-resend-email",
+                kwargs={"project_id": project.id},
+            ),
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_customer_cannot_resend_quotation_email(self) -> None:
+        project = self._quoted_project()
+        self._authenticate_customer()
+        response = self.client.post(
+            reverse(
+                "custom_projects_admin:admin-custom-project-quotation-resend-email",
+                kwargs={"project_id": project.id},
+            ),
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_quotation_update_does_not_reemail_customer(self) -> None:
         project = CustomProject.objects.create(
             customer=self.customer_user,
@@ -1846,7 +2015,7 @@ class CustomProjectWorkflowEmailNotificationTests(APITestCase):
         project = self._quoted_project()
         self._authenticate_customer()
         with patch(
-            "custom_projects.notifications.send_mail",
+            "config.mail.send_mail",
             side_effect=RuntimeError("SMTP unavailable"),
         ):
             accepted = self.client.post(
@@ -1866,7 +2035,7 @@ class CustomProjectWorkflowEmailNotificationTests(APITestCase):
         project.save(update_fields=["status", "updated_at"])
         self._authenticate_admin()
         with patch(
-            "custom_projects.notifications.send_mail",
+            "config.mail.send_mail",
             side_effect=RuntimeError("SMTP unavailable"),
         ):
             delivered = self.client.patch(
@@ -1891,7 +2060,7 @@ class CustomProjectWorkflowEmailNotificationTests(APITestCase):
         )
         self._authenticate_admin()
         with patch(
-            "custom_projects.notifications.send_mail",
+            "config.mail.send_mail",
             side_effect=RuntimeError("SMTP unavailable"),
         ):
             quote = self.client.post(

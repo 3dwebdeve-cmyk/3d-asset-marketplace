@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.throttles import CartWriteRateThrottle
+from config.api_helpers import domain_error_response
 from cart.models import CartItem
 from cart.serializers import (
     CartAddSerializer,
@@ -20,15 +21,7 @@ from coupons.services import CouponService
 
 
 def _cart_error_response(exc: CartError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "cart_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
+    return domain_error_response(exc, default_code="cart_error")
 
 
 def _serialize_cart(user) -> dict:

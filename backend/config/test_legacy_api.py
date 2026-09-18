@@ -1,27 +1,30 @@
-"""Unit tests for legacy /api/ → /api/v1/ path rewriting."""
+"""Legacy /api/ alias removal (Phase G)."""
 
+from django.conf import settings
 from django.test import SimpleTestCase
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
 
-from config.legacy_api import rewrite_legacy_api_path
 
-
-class RewriteLegacyApiPathTests(SimpleTestCase):
-    def test_rewrites_unversioned_api_paths(self) -> None:
+class LegacyApiRemovedTests(APITestCase):
+    def test_unversioned_api_paths_are_gone(self) -> None:
         self.assertEqual(
-            rewrite_legacy_api_path("/api/healthz/"),
-            "/api/v1/healthz/",
+            self.client.get("/api/healthz/").status_code,
+            status.HTTP_404_NOT_FOUND,
         )
         self.assertEqual(
-            rewrite_legacy_api_path("/api/auth/login/"),
-            "/api/v1/auth/login/",
+            self.client.post("/api/auth/login/", {}, format="json").status_code,
+            status.HTTP_404_NOT_FOUND,
         )
 
-    def test_leaves_v1_and_non_api_unchanged(self) -> None:
-        self.assertIsNone(rewrite_legacy_api_path("/api/v1/healthz/"))
-        self.assertIsNone(rewrite_legacy_api_path("/api/v1/auth/login/"))
-        self.assertIsNone(rewrite_legacy_api_path("/admin/"))
-        self.assertIsNone(rewrite_legacy_api_path("/media/x"))
+    def test_canonical_v1_healthz_still_works(self) -> None:
+        response = self.client.get(reverse("healthz"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_rewrites_api_root_edge(self) -> None:
-        self.assertEqual(rewrite_legacy_api_path("/api/"), "/api/v1/")
-        self.assertEqual(rewrite_legacy_api_path("/api"), "/api/v1")
+
+class LegacyMiddlewareRemovedSettingsTests(SimpleTestCase):
+    def test_legacy_middleware_not_installed(self) -> None:
+        self.assertFalse(
+            any("legacy_api" in entry for entry in settings.MIDDLEWARE),
+        )

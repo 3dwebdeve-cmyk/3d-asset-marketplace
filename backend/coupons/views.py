@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminCouponWriteRateThrottle
+from config.api_helpers import domain_error_response
 from coupons.pagination import CouponPagination
 from coupons.serializers import (
     CouponAdminSerializer,
@@ -25,15 +26,7 @@ from coupons.services import (
 
 
 def _coupon_error_response(exc: CouponError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "coupon_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
+    return domain_error_response(exc, default_code="coupon_error")
 
 
 def _parse_active_filter(value: str | None) -> bool | None:

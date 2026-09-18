@@ -349,7 +349,7 @@ export function Navbar() {
                         <Link
                           role="menuitem"
                           className="navbar__account-item"
-                          to="/admin"
+                          to="/console"
                           onClick={() => setAccountOpen(false)}
                         >
                           Admin

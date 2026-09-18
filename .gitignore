@@ -28,6 +28,10 @@ build/
 
 # Logs
 *.log
+
+# Postgres dumps (Phase J backup script)
+backups/
+*.dump
 debug-*.log
 
 # Local Cursor IDE / agent workflow (do not commit)
@@ -36,8 +40,21 @@ debug-*.log
 .cursor/settings.json
 .cursor/debug-*.log
 
+# Local Meilisearch binary (Phase E operator smoke; not for remote)
+tools/meilisearch.exe
+tools/data.ms/
+tools/dumps/
+
 # Local agent standards & roadmap (kept on disk, not for remote)
 TESTING.md
 CODE_REVIEWER.md
 ARCHITECT_REVIEWER.md
 IMPLEMENTATION_ROADMAP.md
+
+# Explicit env files (belt-and-suspenders; .env already covers these)
+backend/.env
+frontend/.env
+.env.local
+frontend/.env.local
+backend/.env.local
+

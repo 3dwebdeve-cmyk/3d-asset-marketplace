@@ -16,3 +16,4 @@ whitenoise==6.9.0
 celery==5.5.3
 redis==5.2.1
 sentry-sdk[django]==2.38.0
+drf-spectacular==0.28.0

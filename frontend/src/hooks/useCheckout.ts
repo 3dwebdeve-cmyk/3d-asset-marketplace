@@ -2,12 +2,16 @@ import { useMutation } from '@tanstack/react-query'
 
 import { createCheckoutSession } from '../api/paymentsApi'
 import { getApiErrorMessage } from '../lib/apiError'
+import { rememberCheckoutOrderId } from '../lib/checkoutReturn'
+import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
 import { toast } from '../lib/toast'
 
 export function useCheckout() {
   const checkoutMutation = useMutation({
-    mutationFn: createCheckoutSession,
+    // Avoid passing createCheckoutSession as mutationFn — its arg becomes required by RQ.
+    mutationFn: () => createCheckoutSession(currentAcceptedLegalPayload()),
     onSuccess: (data) => {
+      rememberCheckoutOrderId(data.order_id)
       window.location.href = data.checkout_url
     },
     onError: (error) => {

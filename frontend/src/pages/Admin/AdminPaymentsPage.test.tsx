@@ -37,14 +37,14 @@ function renderPaymentsPage() {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/admin/payments']}>
+      <MemoryRouter initialEntries={['/console/payments']}>
         <Routes>
-          <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+          <Route path="/console/payments" element={<AdminPaymentsPage />} />
           <Route
-            path="/admin/payments/:paymentId"
+            path="/console/payments/:paymentId"
             element={<div>Payment detail</div>}
           />
-          <Route path="/admin/orders/:orderId" element={<div>Order detail</div>} />
+          <Route path="/console/orders/:orderId" element={<div>Order detail</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -77,11 +77,11 @@ describe('AdminPaymentsPage', () => {
     expect(screen.getAllByText('Paid').length).toBeGreaterThan(0)
     expect(screen.getByRole('link', { name: payment.invoice_number })).toHaveAttribute(
       'href',
-      `/admin/orders/${payment.order_id}`,
+      `/console/orders/${payment.order_id}`,
     )
     expect(screen.getByRole('link', { name: 'View' })).toHaveAttribute(
       'href',
-      `/admin/payments/${payment.id}`,
+      `/console/payments/${payment.id}`,
     )
   })
 

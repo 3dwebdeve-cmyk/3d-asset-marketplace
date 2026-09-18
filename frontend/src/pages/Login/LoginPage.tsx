@@ -1,7 +1,7 @@
 import { useLayoutEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 
-import { safePostLoginPath } from '../../lib/safePostLoginPath'
+import { safeReturnLocation } from '../../lib/safePostLoginPath'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
 import { useAuthUiStore } from '../../store/authUiStore'
@@ -11,8 +11,9 @@ export function LoginPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   const openAuthModal = useAuthUiStore((state) => state.open)
-  const redirectFrom = safePostLoginPath(
-    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname,
+  const redirectFrom = safeReturnLocation(
+    (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)
+      ?.from,
   )
 
   useLayoutEffect(() => {
@@ -23,7 +24,7 @@ export function LoginPage() {
   }, [isAuthenticated, openAuthModal, redirectFrom])
 
   if (isAuthenticated && isAdministrator(user?.role)) {
-    return <Navigate to="/admin" replace />
+    return <Navigate to="/console" replace />
   }
 
   if (isAuthenticated) {

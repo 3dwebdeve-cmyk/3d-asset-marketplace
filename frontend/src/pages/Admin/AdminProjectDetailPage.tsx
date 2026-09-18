@@ -201,7 +201,7 @@ export function AdminProjectDetailPage() {
         <p className="home-page__eyebrow">Administrator</p>
         <h1 id="project-detail-title">Manage custom project</h1>
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/projects">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/projects">
             Back to projects
           </Link>
         </div>

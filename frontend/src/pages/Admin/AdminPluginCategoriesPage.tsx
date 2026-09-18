@@ -55,7 +55,7 @@ export function AdminPluginCategoriesPage() {
         queryKey: ['admin', 'plugin-categories'],
         refetchType: 'none',
       })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) =>
       setFormError(getApiErrorMessage(error, 'Could not create plugin category.')),
@@ -80,7 +80,7 @@ export function AdminPluginCategoriesPage() {
           <Button type="button" onClick={() => setShowCreate((value) => !value)}>
             {showCreate ? 'Hide create form' : 'Create plugin category'}
           </Button>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/plugins">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/plugins">
             Back to plugins
           </Link>
         </div>
@@ -161,7 +161,7 @@ export function AdminPluginCategoriesPage() {
                         <td>{category.slug}</td>
                         <td>{category.is_active ? 'Active' : 'Inactive'}</td>
                         <td>
-                          <Link className="auth-link" to={`/admin/plugin-categories/${category.id}`}>
+                          <Link className="auth-link" to={`/console/plugin-categories/${category.id}`}>
                             Manage
                           </Link>
                         </td>

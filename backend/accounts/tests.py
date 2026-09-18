@@ -59,6 +59,10 @@ class AuthenticationAPITests(APITestCase):
             "password_confirm": "StrongPass123!",
             "phone": "",
             "country": "India",
+            "accepted_legal": {
+                "terms": "2026-09-18",
+                "privacy": "2026-09-18",
+            },
         }
 
         response = self.client.post(self.register_url, payload, format="json")
@@ -78,6 +82,10 @@ class AuthenticationAPITests(APITestCase):
             "email": self.user.email,
             "password": "StrongPass123!",
             "password_confirm": "StrongPass123!",
+            "accepted_legal": {
+                "terms": "2026-09-18",
+                "privacy": "2026-09-18",
+            },
         }
 
         response = self.client.post(self.register_url, payload, format="json")
@@ -91,6 +99,10 @@ class AuthenticationAPITests(APITestCase):
             "email": "mismatch@example.com",
             "password": "StrongPass123!",
             "password_confirm": "DifferentPass123!",
+            "accepted_legal": {
+                "terms": "2026-09-18",
+                "privacy": "2026-09-18",
+            },
         }
 
         response = self.client.post(self.register_url, payload, format="json")
@@ -429,9 +441,9 @@ class ChangePasswordAPITests(APITestCase):
     def test_change_password_rejects_unverified_email(self) -> None:
         self.user.email_verified = False
         self.user.save(update_fields=["email_verified", "updated_at"])
-        from rest_framework_simplejwt.tokens import RefreshToken
+        from accounts.services import AuthenticationService
 
-        access = str(RefreshToken.for_user(self.user).access_token)
+        access = AuthenticationService.build_tokens(self.user)["access"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
         response = self.client.post(
@@ -482,6 +494,47 @@ class ChangePasswordAPITests(APITestCase):
             format="json",
         )
         self.assertEqual(refresh_response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_change_password_rejects_stale_access_token(self) -> None:
+        login_response = self.client.post(
+            self.login_url,
+            {"email": self.user.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+        old_access = login_response.data["access"]
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {old_access}")
+        new_password = "AnotherStrong123!"
+
+        changed = self.client.post(
+            self.change_password_url,
+            {
+                "current_password": self.password,
+                "new_password": new_password,
+                "new_password_confirm": new_password,
+            },
+            format="json",
+        )
+        self.assertEqual(changed.status_code, status.HTTP_204_NO_CONTENT)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.token_version, 1)
+
+        me_url = reverse("accounts:me")
+        stale = self.client.get(me_url)
+        self.assertEqual(stale.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        self.client.credentials()
+        fresh_login = self.client.post(
+            self.login_url,
+            {"email": self.user.email, "password": new_password},
+            format="json",
+        )
+        self.assertEqual(fresh_login.status_code, status.HTTP_200_OK)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {fresh_login.data['access']}"
+        )
+        ok = self.client.get(me_url)
+        self.assertEqual(ok.status_code, status.HTTP_200_OK)
 
     def test_change_password_rejects_wrong_current_password(self) -> None:
         self._authenticate()

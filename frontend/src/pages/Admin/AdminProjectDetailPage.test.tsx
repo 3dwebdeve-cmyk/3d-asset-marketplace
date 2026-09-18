@@ -79,9 +79,9 @@ const project = {
 function renderPage() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={[`/admin/projects/${projectId}`]}>
+      <MemoryRouter initialEntries={[`/console/projects/${projectId}`]}>
         <Routes>
-          <Route path="/admin/projects/:projectId" element={<AdminProjectDetailPage />} />
+          <Route path="/console/projects/:projectId" element={<AdminProjectDetailPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

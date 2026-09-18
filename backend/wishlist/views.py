@@ -8,21 +8,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.throttles import WishlistWriteRateThrottle
+from config.api_helpers import domain_error_response
 from wishlist.pagination import WishlistPagination
 from wishlist.serializers import WishlistAddSerializer, WishlistItemSerializer
 from wishlist.services import WishlistError, WishlistService
 
 
 def _wishlist_error_response(exc: WishlistError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "wishlist_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
+    return domain_error_response(exc, default_code="wishlist_error")
 
 
 class WishlistListCreateView(APIView):
