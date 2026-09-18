@@ -72,6 +72,8 @@ services:
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,frontend}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
+      # Local Compose uses localhost SPA URLs with DEBUG=False; production must leave this False.
+      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
       # Cache/throttles on DB 1; Celery broker on DB 0 (Phase A6).
@@ -119,10 +121,14 @@ services:
     volumes:
       - media_data:/app/media
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/healthz/"]
-      interval: 30s
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --show-error --silent http://127.0.0.1:8000/api/v1/healthz/ || exit 1",
+        ]
+      interval: 10s
       timeout: 5s
-      retries: 8
+      retries: 12
       start_period: 60s
     restart: unless-stopped
 
@@ -160,6 +166,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,frontend}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
+      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/1}
