@@ -16,6 +16,46 @@ class CelerySettingsTests(SimpleTestCase):
         self.assertTrue(settings.CELERY_TASK_IGNORE_RESULT)
         self.assertIn("json", settings.CELERY_ACCEPT_CONTENT)
 
+    def test_email_tasks_routed_to_email_queue(self) -> None:
+        from django.conf import settings
+
+        self.assertEqual(
+            settings.CELERY_TASK_ROUTES["orders.send_payment_receipt"]["queue"],
+            "email",
+        )
+        self.assertEqual(
+            settings.CELERY_TASK_ROUTES["accounts.send_email_verification"]["queue"],
+            "email",
+        )
+        self.assertNotIn("search.sync_product", settings.CELERY_TASK_ROUTES)
+        self.assertNotIn("search.sync_plugin", settings.CELERY_TASK_ROUTES)
+
+    def test_mail_task_definitions_declare_email_queue(self) -> None:
+        from accounts.tasks import (
+            send_email_verification_task,
+            send_password_changed_task,
+            send_password_reset_task,
+        )
+        from contact.tasks import send_contact_submission_task
+        from custom_projects.tasks import send_project_notification_task
+        from orders.tasks import send_payment_receipt_task
+
+        for task in (
+            send_email_verification_task,
+            send_password_reset_task,
+            send_password_changed_task,
+            send_payment_receipt_task,
+            send_project_notification_task,
+            send_contact_submission_task,
+        ):
+            self.assertEqual(task.queue, "email")
+
+    def test_search_sync_tasks_use_default_queue(self) -> None:
+        from search.tasks import sync_plugin_task, sync_product_task
+
+        for task in (sync_product_task, sync_plugin_task):
+            self.assertNotEqual(getattr(task, "queue", None), "email")
+
     def test_celery_app_loads(self) -> None:
         from config.celery import app
 

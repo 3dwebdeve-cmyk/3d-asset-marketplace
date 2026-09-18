@@ -21,10 +21,10 @@ function renderAdminLogin() {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/admin/login']}>
+      <MemoryRouter initialEntries={['/console/login']}>
         <Routes>
-          <Route path="/admin/login" element={<AdminLoginPage />} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/login" element={<AdminLoginPage />} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -60,7 +60,7 @@ describe('AdminLoginPage', () => {
     expect(screen.getByText('Admin Dashboard')).toBeInTheDocument()
   })
 
-  it('signs in administrators and navigates to /admin', async () => {
+  it('signs in administrators and navigates to /console', async () => {
     const user = userEvent.setup()
     vi.mocked(authApi.adminLoginUser).mockResolvedValue({
       access: 'access-token',

@@ -9,6 +9,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.legal_service import LegalAcceptanceService
 from accounts.models import Role, User
 from cart.models import Cart, CartItem
 from categories.models import Category
@@ -53,6 +54,10 @@ class PaymentsTestMixin:
             password=self.password,
             role=self.customer_role,
             email_verified=True,
+        )
+        LegalAcceptanceService.record_acceptances(
+            self.user,
+            LegalAcceptanceService.current_versions(),
         )
 
         self.category = Category.objects.create(name="Props", slug="props")
@@ -121,7 +126,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertIn("items", response.data)
         self.assertEqual(Order.objects.count(), 0)
 
-    @patch("payments.services.stripe.checkout.Session.create")
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
     def test_creates_order_and_session_for_cart(self, mock_session_create) -> None:
         mock_session_create.return_value = _fake_session()
         self._authenticate()
@@ -151,8 +156,8 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertIn(f"/checkout/success?order_id={order.id}", call_kwargs["success_url"])
         self.assertIn(f"/checkout/cancel?order_id={order.id}", call_kwargs["cancel_url"])
 
-    @patch("payments.services.stripe.Coupon.create")
-    @patch("payments.services.stripe.checkout.Session.create")
+    @patch("payments.checkout_service.stripe.Coupon.create")
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
     def test_applies_coupon_discount_as_stripe_coupon(
         self,
         mock_session_create,
@@ -204,7 +209,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self._authenticate()
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
 
-        with patch("payments.services.stripe.checkout.Session.create") as mock_create:
+        with patch("payments.checkout_service.stripe.checkout.Session.create") as mock_create:
             response = self.client.post(self.checkout_url)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -216,6 +221,53 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         )
         payment = Payment.objects.get(order=order)
         self.assertTrue(payment.stripe_checkout_session_id.startswith("cs_test_e2e_"))
+
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    def test_idempotency_key_replays_same_checkout(self, mock_session_create) -> None:
+        mock_session_create.return_value = _fake_session("cs_idem_1")
+        self._authenticate()
+        self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk, quantity=1)
+
+        headers = {"HTTP_IDEMPOTENCY_KEY": "checkout-retry-1"}
+        first = self.client.post(self.checkout_url, **headers)
+        second = self.client.post(self.checkout_url, **headers)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data, second.data)
+        self.assertEqual(Order.objects.count(), 1)
+        mock_session_create.assert_called_once()
+
+    @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    def test_checkout_requires_legal_acceptance(self, mock_session_create) -> None:
+        from accounts.models import LegalAcceptance
+
+        mock_session_create.return_value = _fake_session("cs_legal_1")
+        LegalAcceptance.objects.filter(user=self.user).delete()
+        self._authenticate()
+        self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
+
+        blocked = self.client.post(self.checkout_url)
+        self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(blocked.data.get("code"), "legal_acceptance_required")
+        self.assertIn("accepted_legal", blocked.data)
+        self.assertEqual(Order.objects.count(), 0)
+        mock_session_create.assert_not_called()
+
+        allowed = self.client.post(
+            self.checkout_url,
+            {
+                "accepted_legal": {
+                    "terms": "2026-09-18",
+                    "privacy": "2026-09-18",
+                },
+            },
+            format="json",
+        )
+        self.assertEqual(allowed.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Order.objects.count(), 1)
+        mock_session_create.assert_called_once()
 
 
 @override_settings(STRIPE_WEBHOOK_SECRET="whsec_test")
@@ -310,6 +362,21 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.coupon.times_used, 1)
         self.assertEqual(StripeWebhookEvent.objects.count(), 1)
 
+    def test_documented_webhook_event_types_match_handlers(self) -> None:
+        from payments.webhook_service import STRIPE_WEBHOOK_EVENT_TYPES
+
+        self.assertEqual(
+            STRIPE_WEBHOOK_EVENT_TYPES,
+            frozenset(
+                {
+                    "checkout.session.completed",
+                    "checkout.session.expired",
+                    "payment_intent.payment_failed",
+                    "charge.refunded",
+                }
+            ),
+        )
+
     def test_invalid_signature_is_rejected(self) -> None:
         with patch(
             "payments.views.stripe.Webhook.construct_event",
@@ -374,6 +441,110 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
         self.assertEqual(len(mail.outbox), 0)
 
+    def _mark_paid_with_intent(self, intent_id: str = "pi_test_refund") -> None:
+        self.order.order_status = Order.OrderStatus.PAID
+        self.order.payment_status = Order.PaymentStatus.PAID
+        self.order.save(update_fields=["order_status", "payment_status", "updated_at"])
+        self.payment.status = Payment.Status.SUCCEEDED
+        self.payment.stripe_payment_intent_id = intent_id
+        self.payment.save(
+            update_fields=["status", "stripe_payment_intent_id", "updated_at"]
+        )
+
+    def test_charge_refunded_marks_order_and_revokes_entitlement(self) -> None:
+        from orders.entitlements import user_owns_catalog_item
+
+        self._mark_paid_with_intent("pi_test_refund")
+        self.assertTrue(
+            user_owns_catalog_item(
+                self.user,
+                OrderItem.ProductType.PRODUCT,
+                self.product.pk,
+            )
+        )
+
+        event = _FakeEvent(
+            "evt_test_refund",
+            "charge.refunded",
+            {
+                "id": "ch_test_refund",
+                "payment_intent": "pi_test_refund",
+                "refunded": True,
+            },
+        )
+        response = self._post_webhook(event)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.REFUNDED)
+        self.assertEqual(self.order.order_status, Order.OrderStatus.REFUNDED)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.REFUNDED)
+        self.assertFalse(
+            user_owns_catalog_item(
+                self.user,
+                OrderItem.ProductType.PRODUCT,
+                self.product.pk,
+            )
+        )
+        self.assertEqual(StripeWebhookEvent.objects.count(), 1)
+
+    def test_duplicate_charge_refunded_is_a_noop(self) -> None:
+        self._mark_paid_with_intent("pi_test_refund_dup")
+        event = _FakeEvent(
+            "evt_test_refund_dup",
+            "charge.refunded",
+            {
+                "id": "ch_test_refund_dup",
+                "payment_intent": "pi_test_refund_dup",
+                "refunded": True,
+            },
+        )
+        first = self._post_webhook(event)
+        second = self._post_webhook(event)
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.REFUNDED)
+        self.assertEqual(StripeWebhookEvent.objects.count(), 1)
+
+    def test_partial_charge_refunded_is_ignored(self) -> None:
+        self._mark_paid_with_intent("pi_test_partial")
+        event = _FakeEvent(
+            "evt_test_partial",
+            "charge.refunded",
+            {
+                "id": "ch_test_partial",
+                "payment_intent": "pi_test_partial",
+                "refunded": False,
+                "amount_refunded": 100,
+            },
+        )
+        response = self._post_webhook(event)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PAID)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+
+    def test_charge_refunded_unknown_intent_is_noop(self) -> None:
+        self._mark_paid_with_intent("pi_test_known")
+        event = _FakeEvent(
+            "evt_test_unknown_pi",
+            "charge.refunded",
+            {
+                "id": "ch_unknown",
+                "payment_intent": "pi_does_not_exist",
+                "refunded": True,
+            },
+        )
+        response = self._post_webhook(event)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
+        self.assertEqual(StripeWebhookEvent.objects.count(), 1)
+
 
 @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
 class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
@@ -432,7 +603,7 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @patch("payments.services.stripe.checkout.Session.retrieve")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
     def test_confirms_paid_stripe_session_and_fulfills_order(self, mock_retrieve) -> None:
         mock_retrieve.return_value = _FakeStripeObject(
             {
@@ -459,7 +630,7 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
         self.assertEqual(self.payment.stripe_payment_intent_id, "pi_confirm_1")
 
-    @patch("payments.services.stripe.checkout.Session.retrieve")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
     def test_unpaid_stripe_session_leaves_order_pending(self, mock_retrieve) -> None:
         mock_retrieve.return_value = _FakeStripeObject(
             {
@@ -482,7 +653,7 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
 
-    @patch("payments.services.stripe.checkout.Session.retrieve")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
     def test_rejects_metadata_order_mismatch(self, mock_retrieve) -> None:
         mock_retrieve.return_value = _FakeStripeObject(
             {
@@ -506,7 +677,7 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
 
-    @patch("payments.services.stripe.checkout.Session.retrieve")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
     def test_rejects_empty_metadata_order_id(self, mock_retrieve) -> None:
         mock_retrieve.return_value = _FakeStripeObject(
             {
@@ -536,7 +707,7 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.payment.save(update_fields=["stripe_checkout_session_id", "updated_at"])
         self._authenticate()
 
-        with patch("payments.services.stripe.checkout.Session.retrieve") as mock_retrieve:
+        with patch("payments.checkout_service.stripe.checkout.Session.retrieve") as mock_retrieve:
             response = self.client.post(
                 self.confirm_url,
                 {"order_id": str(self.order.pk)},

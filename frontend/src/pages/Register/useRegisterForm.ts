@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 
 import { registerUser } from '../../api/authApi'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { currentAcceptedLegalPayload } from '../../lib/legalDocuments'
 import type { ApiErrorResponse, RegisteredUser } from '../../types/auth'
 import {
   defaultRegisterValues,
@@ -79,6 +80,7 @@ export function useRegisterForm(): UseRegisterFormResult {
       password_confirm: parsed.data.password_confirm,
       phone: parsed.data.phone?.trim() ?? '',
       country: parsed.data.country?.trim() ?? '',
+      accepted_legal: currentAcceptedLegalPayload(),
     })
   }
 

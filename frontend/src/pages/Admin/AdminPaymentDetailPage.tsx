@@ -54,7 +54,7 @@ export function AdminPaymentDetailPage() {
               </Button>
               <Link
                 className="home-page__cta home-page__cta--secondary"
-                to="/admin/payments"
+                to="/console/payments"
               >
                 Back to payments
               </Link>
@@ -78,12 +78,12 @@ export function AdminPaymentDetailPage() {
         <p className="home-page__eyebrow">Administrator</p>
         <h1 id="payment-detail-title">Payment {payment.id}</h1>
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/payments">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/payments">
             Back to payments
           </Link>
           <Link
             className="home-page__cta home-page__cta--secondary"
-            to={`/admin/orders/${payment.order.id}`}
+            to={`/console/orders/${payment.order.id}`}
           >
             View order
           </Link>

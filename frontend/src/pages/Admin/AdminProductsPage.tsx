@@ -74,7 +74,7 @@ export function AdminProductsPage() {
       setShowCreate(false)
       setCreateError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setCreateError(getApiErrorMessage(error, 'Could not create product.'))
@@ -330,7 +330,7 @@ export function AdminProductsPage() {
                     <td>
                       <Link
                         className="auth-link"
-                        to={`/admin/products/${product.id}`}
+                        to={`/console/products/${product.id}`}
                       >
                         Manage
                       </Link>

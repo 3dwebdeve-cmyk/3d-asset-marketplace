@@ -8,11 +8,12 @@ from uuid import UUID
 from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 
+from config.media import private_object_exists
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
 from plugins.storage import PluginMediaStorageService
 from plugins.upload_rules import ValidatedPluginFileUpload
 from products.upload_rules import ValidatedProductImageUpload
-from search.indexer import sync_plugin
+from search.tasks import enqueue_sync_plugin
 
 
 class PluginError(Exception):
@@ -300,6 +301,12 @@ class PluginService:
     def create_plugin(cls, data: PluginCreateData) -> Plugin:
         name = cls._normalize_name(data.name)
         cls._validate_pricing(data.price, data.discount_price)
+        status = cls._normalize_status(data.status)
+        if status == Plugin.Status.PUBLISHED:
+            raise PluginError(
+                "Create as draft, upload a package file, then publish.",
+                field="status",
+            )
         plugin = Plugin.objects.create(
             category=cls._resolve_category(data.category_id),
             name=name,
@@ -314,9 +321,9 @@ class PluginService:
             compatibility=data.compatibility.strip(),
             documentation_url=data.documentation_url.strip(),
             license_type=cls._normalize_license(data.license_type),
-            status=cls._normalize_status(data.status),
+            status=status,
         )
-        sync_plugin(plugin)
+        enqueue_sync_plugin(plugin.pk)
         return plugin
 
     @classmethod
@@ -371,12 +378,20 @@ class PluginService:
         if data.license_type is not None:
             plugin.license_type = cls._normalize_license(data.license_type)
             update_fields.append("license_type")
+        becoming_published = False
         if data.status is not None:
-            plugin.status = cls._normalize_status(data.status)
+            new_status = cls._normalize_status(data.status)
+            becoming_published = (
+                new_status == Plugin.Status.PUBLISHED
+                and plugin.status != Plugin.Status.PUBLISHED
+            )
+            plugin.status = new_status
             update_fields.append("status")
+        if becoming_published:
+            cls._validate_publish_ready(plugin)
         plugin.save(update_fields=list(dict.fromkeys(update_fields)))
         updated = cls.get_by_id(plugin.pk)
-        sync_plugin(updated)
+        enqueue_sync_plugin(updated.pk)
         return updated
 
     @classmethod
@@ -537,6 +552,24 @@ class PluginService:
         if status not in {choice.value for choice in Plugin.Status}:
             raise PluginError("Invalid status.", field="status")
         return status
+
+    @classmethod
+    def _validate_publish_ready(cls, plugin: Plugin) -> None:
+        """Require a resolvable private package before draft → published."""
+        files = list(
+            PluginFile.objects.filter(plugin=plugin).only("storage_path")
+        )
+        if not files:
+            raise PluginError(
+                "At least one plugin package file is required before publish.",
+                field="files",
+            )
+        if not any(private_object_exists(row.storage_path) for row in files):
+            raise PluginError(
+                "Plugin package object is missing from private storage. "
+                "Upload the package before publish.",
+                field="files",
+            )
 
     @staticmethod
     def _resolve_ordering(ordering: str | None) -> str:

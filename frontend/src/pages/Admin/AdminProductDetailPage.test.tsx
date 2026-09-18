@@ -85,10 +85,10 @@ function renderProductDetailPage() {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/admin/products/${productId}`]}>
+      <MemoryRouter initialEntries={[`/console/products/${productId}`]}>
         <Routes>
-          <Route path="/admin/products/:productId" element={<AdminProductDetailPage />} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/products/:productId" element={<AdminProductDetailPage />} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

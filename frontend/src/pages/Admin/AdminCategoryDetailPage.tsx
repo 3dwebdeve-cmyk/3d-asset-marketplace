@@ -58,7 +58,7 @@ export function AdminCategoryDetailPage() {
       toast.success('Category updated')
       setFormError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'categories'] })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not update category.'))
@@ -70,7 +70,7 @@ export function AdminCategoryDetailPage() {
     onSuccess: async () => {
       toast.success('Category deactivated')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'categories'] })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not deactivate category.'))
@@ -97,7 +97,7 @@ export function AdminCategoryDetailPage() {
         <div className="dashboard-card__actions">
           <Link
             className="home-page__cta home-page__cta--secondary"
-            to="/admin/categories"
+            to="/console/categories"
           >
             Back to categories
           </Link>

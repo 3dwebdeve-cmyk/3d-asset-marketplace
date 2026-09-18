@@ -96,7 +96,7 @@ export function AdminProductDetailPage() {
       toast.success('Product updated')
       setFormError(null)
       await invalidateProduct()
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not update product.'))
@@ -108,7 +108,7 @@ export function AdminProductDetailPage() {
     onSuccess: async () => {
       toast.success('Product archived')
       await invalidateProduct()
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not archive product.'))
@@ -185,12 +185,12 @@ export function AdminProductDetailPage() {
         <h1 id="admin-product-detail-title">Manage product</h1>
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/products">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/products">
             Back to products
           </Link>
           <Link
             className="home-page__cta home-page__cta--secondary"
-            to="/admin/products?status=pending_review"
+            to="/console/products?status=pending_review"
           >
             QA queue
           </Link>

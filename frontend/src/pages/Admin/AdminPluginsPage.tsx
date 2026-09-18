@@ -85,7 +85,7 @@ export function AdminPluginsPage() {
         queryKey: ['admin', 'plugins'],
         refetchType: 'none',
       })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => setCreateError(getApiErrorMessage(error, 'Could not create plugin.')),
   })
@@ -116,7 +116,7 @@ export function AdminPluginsPage() {
           <Button type="button" onClick={() => setShowCreate((value) => !value)}>
             {showCreate ? 'Hide create form' : 'Create plugin'}
           </Button>
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/plugin-categories">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/plugin-categories">
             Manage plugin categories
           </Link>
         </div>
@@ -270,7 +270,7 @@ export function AdminPluginsPage() {
                     <tr key={plugin.id}>
                       <td>{plugin.name}</td><td>{plugin.category.name}</td><td>{plugin.version}</td>
                       <td>{plugin.currency} {plugin.price}</td><td>{plugin.status}</td>
-                      <td><Link className="auth-link" to={`/admin/plugins/${plugin.id}`}>Manage</Link></td>
+                      <td><Link className="auth-link" to={`/console/plugins/${plugin.id}`}>Manage</Link></td>
                     </tr>
                   ))}
                 </tbody>

@@ -33,10 +33,10 @@ const category = {
 function renderPage() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={['/admin/plugin-categories']}>
+      <MemoryRouter initialEntries={['/console/plugin-categories']}>
         <Routes>
-          <Route path="/admin/plugin-categories" element={<AdminPluginCategoriesPage />} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/plugin-categories" element={<AdminPluginCategoriesPage />} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

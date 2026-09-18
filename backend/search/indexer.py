@@ -20,6 +20,7 @@ from search.documents import (
 logger = logging.getLogger(__name__)
 
 _INDEX_BATCH_SIZE = 500
+_DOCUMENT_PRIMARY_KEY = "id"
 _indexes_ready = False
 
 
@@ -28,16 +29,35 @@ def reset_index_ready_for_tests() -> None:
     _indexes_ready = False
 
 
-def _wait_for_task(client: Any, task: Any) -> None:
+def _task_uid(task: Any) -> Any:
     uid = getattr(task, "task_uid", None)
     if uid is None and isinstance(task, dict):
         uid = task.get("taskUid") or task.get("task_uid")
+    return uid
+
+
+def _wait_for_task(client: Any, task: Any) -> Any:
+    uid = _task_uid(task)
     if uid is None:
-        return
+        return task
     waiter = getattr(client, "wait_for_task", None)
     if waiter is None:
+        return task
+    return waiter(uid)
+
+
+def _require_task_succeeded(task: Any, *, action: str, index_uid: str) -> None:
+    status = getattr(task, "status", None)
+    if status is None and isinstance(task, dict):
+        status = task.get("status")
+    if status in {None, "succeeded"}:
         return
-    waiter(uid)
+    error = getattr(task, "error", None)
+    if error is None and isinstance(task, dict):
+        error = task.get("error")
+    raise RuntimeError(
+        f"Meilisearch {action} failed for index={index_uid} status={status} error={error}"
+    )
 
 
 def ensure_indexes(client: Any, *, force: bool = False) -> None:
@@ -57,7 +77,10 @@ def sync_product(product: Product) -> None:
         ensure_indexes(client)
         index = client.index(PRODUCTS_INDEX)
         if product.status == Product.Status.PUBLISHED:
-            index.add_documents([product_document(product)])
+            index.add_documents(
+                [product_document(product)],
+                primary_key=_DOCUMENT_PRIMARY_KEY,
+            )
         else:
             index.delete_document(str(product.pk))
     except Exception:
@@ -85,7 +108,10 @@ def sync_plugin(plugin: Plugin) -> None:
             and getattr(plugin.category, "is_active", True)
         )
         if public:
-            index.add_documents([plugin_document(plugin)])
+            index.add_documents(
+                [plugin_document(plugin)],
+                primary_key=_DOCUMENT_PRIMARY_KEY,
+            )
         else:
             index.delete_document(str(plugin.pk))
     except Exception:
@@ -159,20 +185,27 @@ def _rebuild_index(
     index = client.index(index_uid)
     delete_task = index.delete_all_documents()
     if wait:
-        _wait_for_task(client, delete_task)
+        finished = _wait_for_task(client, delete_task)
+        _require_task_succeeded(finished, action="delete_all_documents", index_uid=index_uid)
     batch: list[dict[str, Any]] = []
     count = 0
     for document in documents:
         batch.append(document)
         if len(batch) >= _INDEX_BATCH_SIZE:
-            task = index.add_documents(batch)
+            task = index.add_documents(batch, primary_key=_DOCUMENT_PRIMARY_KEY)
             if wait:
-                _wait_for_task(client, task)
+                finished = _wait_for_task(client, task)
+                _require_task_succeeded(
+                    finished, action="add_documents", index_uid=index_uid
+                )
             count += len(batch)
             batch = []
     if batch:
-        task = index.add_documents(batch)
+        task = index.add_documents(batch, primary_key=_DOCUMENT_PRIMARY_KEY)
         if wait:
-            _wait_for_task(client, task)
+            finished = _wait_for_task(client, task)
+            _require_task_succeeded(
+                finished, action="add_documents", index_uid=index_uid
+            )
         count += len(batch)
     return count

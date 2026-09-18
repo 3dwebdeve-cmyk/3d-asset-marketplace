@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'storages',
+    'drf_spectacular',
     'accounts',
     'categories',
     'products',
@@ -82,6 +83,7 @@ INSTALLED_APPS = [
     'contact',
     'payments',
     'search',
+    'mail_log',
 ]
 
 MIDDLEWARE = [
@@ -89,8 +91,6 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.csp.ContentSecurityPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    # Rewrite /api/* → /api/v1/* before CommonMiddleware/APPEND_SLASH resolution.
-    'config.legacy_api.LegacyApiPathAliasMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -281,7 +281,8 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 AUTH_USER_MODEL = "accounts.User"
 
 # Shared cache for DRF throttles across workers. Prefer Redis in production:
-# REDIS_URL=redis://127.0.0.1:6379/1
+# REDIS_URL=redis://127.0.0.1:6379/1  (cache / throttles / idempotency)
+# CELERY_BROKER_URL=redis://127.0.0.1:6379/0  (Celery broker; falls back to REDIS_URL)
 REDIS_URL = config("REDIS_URL", default="")
 if not DEBUG and not REDIS_URL:
     raise ImproperlyConfigured(
@@ -303,9 +304,9 @@ else:
         }
     }
 
-# Celery — broker shares REDIS_URL. Without Redis (local DEBUG) or under tests,
-# tasks run eagerly in-process so email still works without a worker.
-CELERY_BROKER_URL = REDIS_URL or "memory://"
+# Celery — prefer a dedicated broker DB index; fall back to REDIS_URL for DX.
+# Without Redis (local DEBUG) or under tests, tasks run eagerly in-process.
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="") or REDIS_URL or "memory://"
 CELERY_RESULT_BACKEND = None
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_TASK_ACKS_LATE = True
@@ -314,7 +315,8 @@ CELERY_TASK_TRACK_STARTED = False
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_TASK_ALWAYS_EAGER = _running_tests or not bool(REDIS_URL)
+_celery_broker_is_memory = str(CELERY_BROKER_URL).startswith("memory://")
+CELERY_TASK_ALWAYS_EAGER = _running_tests or _celery_broker_is_memory
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_TASK_DEFAULT_RETRY_DELAY = 60
 # Under tests: no retries (avoids backoff sleeps); enqueue still fail-soft.
@@ -323,15 +325,42 @@ CELERY_TASK_ANNOTATIONS = {
         "max_retries": 0 if _running_tests else 5,
     },
 }
+# Route mail tasks to the dedicated ``email`` queue (worker: ``-Q celery,email``).
+CELERY_TASK_ROUTES = {
+    "accounts.send_email_verification": {"queue": "email"},
+    "accounts.send_password_reset": {"queue": "email"},
+    "accounts.send_password_changed": {"queue": "email"},
+    "orders.send_payment_receipt": {"queue": "email"},
+    "custom_projects.send_notification": {"queue": "email"},
+    "contact.send_submission": {"queue": "email"},
+}
 
-# Optional Meilisearch for public catalog search. Blank → Postgres icontains fallback.
-# MEILI_URL=http://127.0.0.1:7700
+# Meilisearch for public catalog search.
+# DEBUG=True: blank MEILI_URL → Postgres icontains fallback (local DX).
+# DEBUG=False: MEILI_REQUIRED defaults True — healthz and public search need Meili.
+# Override with MEILI_REQUIRED=true|false.
 MEILI_URL = config("MEILI_URL", default="")
 MEILI_MASTER_KEY = config("MEILI_MASTER_KEY", default="")
+_meili_required_raw = str(config("MEILI_REQUIRED", default="") or "").strip().lower()
+if _meili_required_raw == "":
+    MEILI_REQUIRED = not DEBUG
+elif _meili_required_raw in {"1", "true", "yes", "on"}:
+    MEILI_REQUIRED = True
+elif _meili_required_raw in {"0", "false", "no", "off"}:
+    MEILI_REQUIRED = False
+else:
+    MEILI_REQUIRED = not DEBUG
+
+# Legal document versions required at register + checkout (Phase I).
+# Bump a version string when Terms/Privacy change; clients must re-accept.
+LEGAL_DOCUMENT_VERSIONS = {
+    "terms": config("LEGAL_TERMS_VERSION", default="2026-09-18"),
+    "privacy": config("LEGAL_PRIVACY_VERSION", default="2026-09-18"),
+}
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.authentication.VersionedJWTAuthentication",
     ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
@@ -339,7 +368,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
     ],
+    "DEFAULT_PAGINATION_CLASS": "config.pagination.StandardPagination",
     "EXCEPTION_HANDLER": "accounts.exceptions.custom_exception_handler",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
@@ -372,6 +403,13 @@ REST_FRAMEWORK = {
     },
 }
 
+SPECTACULAR_SETTINGS = {
+    "TITLE": "3D Asset Marketplace API",
+    "DESCRIPTION": "Canonical HTTP API under /api/v1/.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -388,9 +426,8 @@ JWT_REFRESH_REMEMBER_COOKIE_NAME = config(
     "JWT_REFRESH_REMEMBER_COOKIE_NAME",
     default="refresh_remember",
 )
-# Canonical + legacy auth share Path=/api/ while /api/ aliases remain.
-# After removing unversioned aliases, tighten to /api/v1/auth/.
-JWT_REFRESH_COOKIE_PATH = config("JWT_REFRESH_COOKIE_PATH", default="/api/")
+# Refresh cookie Path scoped to auth routes (legacy /api/ aliases removed).
+JWT_REFRESH_COOKIE_PATH = config("JWT_REFRESH_COOKIE_PATH", default="/api/v1/auth/")
 JWT_REFRESH_COOKIE_SAMESITE = config("JWT_REFRESH_COOKIE_SAMESITE", default="Lax")
 # None → Secure when DEBUG is False; override explicitly for reverse-proxy HTTPS locally.
 _jwt_refresh_secure = str(config("JWT_REFRESH_COOKIE_SECURE", default="")).strip().lower()
@@ -455,6 +492,26 @@ SECURE_CSP_REPORT_ONLY = {}
 
 FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="http://localhost:5173")
 GOOGLE_OAUTH_CLIENT_ID = config("GOOGLE_OAUTH_CLIENT_ID", default="")
+# Production verification/password-reset emails must not point at localhost.
+# Local Compose with DEBUG=False may set ALLOW_LOCALHOST_FRONTEND=True.
+ALLOW_LOCALHOST_FRONTEND = config(
+    "ALLOW_LOCALHOST_FRONTEND",
+    cast=bool,
+    default=DEBUG,
+)
+_frontend_host = (urlparse(FRONTEND_BASE_URL).hostname or "").lower()
+if (
+    not DEBUG
+    and not _running_tests
+    and not ALLOW_LOCALHOST_FRONTEND
+    and _frontend_host in {"localhost", "127.0.0.1", "::1"}
+):
+    raise ImproperlyConfigured(
+        "FRONTEND_BASE_URL must be the public SPA origin when DEBUG=False "
+        "(email verification and password-reset links). "
+        "Set ALLOW_LOCALHOST_FRONTEND=True only for exceptional local "
+        "DEBUG=False testing."
+    )
 
 LOGGING = {
     "version": 1,
@@ -500,6 +557,24 @@ EMAIL_BACKEND = config(
     "EMAIL_BACKEND",
     default="django.core.mail.backends.console.EmailBackend",
 )
+# Local Compose may force DEBUG=False while still using console mail.
+# Production must set ALLOW_CONSOLE_EMAIL=False (or omit) and use SMTP.
+ALLOW_CONSOLE_EMAIL = config(
+    "ALLOW_CONSOLE_EMAIL",
+    cast=bool,
+    default=DEBUG,
+)
+if (
+    not DEBUG
+    and not _running_tests
+    and "console" in EMAIL_BACKEND.lower()
+    and not ALLOW_CONSOLE_EMAIL
+):
+    raise ImproperlyConfigured(
+        "EMAIL_BACKEND must not use the console backend when DEBUG=False. "
+        "Configure SMTP for production, or set ALLOW_CONSOLE_EMAIL=True only "
+        "for local Compose / staging experiments."
+    )
 DEFAULT_FROM_EMAIL = config(
     "DEFAULT_FROM_EMAIL",
     default="noreply@3dassetmarketplace.local",

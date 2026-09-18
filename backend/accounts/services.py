@@ -5,7 +5,6 @@ from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.exceptions import ValidationError
-from django.core.mail import send_mail
 from django.db import transaction
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -23,7 +22,10 @@ from accounts.security_log import (
     log_password_reset,
 )
 from accounts.storage import AvatarStorageService
+from accounts.tokens import VersionedRefreshToken, access_token_with_version
 from accounts.upload_rules import validate_avatar_upload
+from config.mail import frontend_base_url, send_text_mail
+from mail_log.services import MailLogService
 
 password_reset_token_generator = PasswordResetTokenGenerator()
 dev_mail_logger = logging.getLogger("accounts.dev_mail")
@@ -60,6 +62,7 @@ class RegistrationData:
     password: str
     phone: str = ""
     country: str = ""
+    accepted_legal: dict[str, str] | None = None
 
 
 class RegistrationService:
@@ -68,10 +71,17 @@ class RegistrationService:
     @classmethod
     @transaction.atomic
     def register_user(cls, data: RegistrationData) -> User:
+        from accounts.legal_service import LegalAcceptanceService
+
         email = data.email.strip().lower()
 
         if User.objects.filter(email=email).exists():
             raise RegistrationError("An account with this email already exists.")
+
+        versions = LegalAcceptanceService.validate_offered(
+            data.accepted_legal if data.accepted_legal is not None else {},
+            require_all=True,
+        )
 
         role = cls._get_customer_role()
 
@@ -89,6 +99,8 @@ class RegistrationService:
             user=user,
             country=data.country.strip(),
         )
+
+        LegalAcceptanceService.record_acceptances(user, versions)
 
         EmailVerificationService.send_verification(user)
 
@@ -154,11 +166,18 @@ class AuthenticationService:
 
     @staticmethod
     def build_tokens(user: User) -> dict[str, str]:
-        refresh = RefreshToken.for_user(user)
+        refresh = VersionedRefreshToken.for_user(user)
         return {
             "refresh": str(refresh),
-            "access": str(refresh.access_token),
+            "access": access_token_with_version(refresh),
         }
+
+    @staticmethod
+    def bump_token_version(user: User) -> int:
+        """Advance ``token_version`` on the in-memory user (caller must save)."""
+        next_version = int(getattr(user, "token_version", 0) or 0) + 1
+        user.token_version = next_version
+        return next_version
 
     @classmethod
     @transaction.atomic
@@ -285,7 +304,8 @@ class AuthenticationService:
             )
 
         user.set_password(new_password)
-        user.save(update_fields=["password", "updated_at"])
+        AuthenticationService.bump_token_version(user)
+        user.save(update_fields=["password", "token_version", "updated_at"])
         AuthenticationService.blacklist_all_refresh_tokens(user)
         log_password_change(
             action="change_success",
@@ -302,27 +322,39 @@ class AuthenticationService:
     def deliver_password_changed(cls, user: User) -> None:
         """Notify the account owner that their password was changed."""
         if not user.is_active or not (user.email or "").strip():
+            MailLogService.record_skipped(
+                event_type="password_changed",
+                reason="inactive_or_no_email",
+                related_object_type="user",
+                related_object_id=str(user.pk),
+            )
             return
 
-        frontend_base = getattr(
-            settings,
-            "FRONTEND_BASE_URL",
-            "http://localhost:5173",
-        ).rstrip("/")
-        reset_link = f"{frontend_base}/forgot-password"
-
-        send_mail(
-            subject="Your 3D Asset Marketplace password was changed",
-            message=(
-                "Your account password was just changed.\n\n"
-                "If you made this change, no further action is needed.\n"
-                "If you did not, reset your password immediately:\n"
-                f"{reset_link}\n"
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+        reset_link = f"{frontend_base_url()}/forgot-password"
+        subject = "Your 3D Asset Marketplace password was changed"
+        body = (
+            "Your account password was just changed.\n\n"
+            "If you made this change, no further action is needed.\n"
+            "If you did not, reset your password immediately:\n"
+            f"{reset_link}\n"
         )
+        log_id = MailLogService.record_queued(
+            event_type="password_changed",
+            recipients=[user.email],
+            related_object_type="user",
+            related_object_id=str(user.pk),
+            subject=subject,
+        )
+        try:
+            send_text_mail(
+                subject=subject,
+                body=body,
+                recipients=[user.email],
+            )
+        except Exception as exc:
+            MailLogService.mark_failed(log_id, str(exc))
+            raise
+        MailLogService.mark_sent(log_id)
 
 
 class PasswordResetService:
@@ -344,28 +376,40 @@ class PasswordResetService:
     def deliver_reset(cls, user: User) -> None:
         """Build and send a password reset email. Raises on SMTP failure."""
         if not user.is_active or not (user.email or "").strip():
+            MailLogService.record_skipped(
+                event_type="password_reset",
+                reason="inactive_or_no_email",
+                related_object_type="user",
+                related_object_id=str(user.pk),
+            )
             return
 
         uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
         token = password_reset_token_generator.make_token(user)
-        frontend_base = getattr(
-            settings,
-            "FRONTEND_BASE_URL",
-            "http://localhost:5173",
-        ).rstrip("/")
-        reset_link = f"{frontend_base}/reset-password/{uid}/{token}"
-
-        send_mail(
-            subject="Reset your 3D Asset Marketplace password",
-            message=(
-                "We received a request to reset your password.\n\n"
-                f"Open this link to choose a new password:\n{reset_link}\n\n"
-                "If you did not request this, you can ignore this email."
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+        reset_link = f"{frontend_base_url()}/reset-password/{uid}/{token}"
+        subject = "Reset your 3D Asset Marketplace password"
+        body = (
+            "We received a request to reset your password.\n\n"
+            f"Open this link to choose a new password:\n{reset_link}\n\n"
+            "If you did not request this, you can ignore this email."
         )
+        log_id = MailLogService.record_queued(
+            event_type="password_reset",
+            recipients=[user.email],
+            related_object_type="user",
+            related_object_id=str(user.pk),
+            subject=subject,
+        )
+        try:
+            send_text_mail(
+                subject=subject,
+                body=body,
+                recipients=[user.email],
+            )
+        except Exception as exc:
+            MailLogService.mark_failed(log_id, str(exc))
+            raise
+        MailLogService.mark_sent(log_id)
 
     @classmethod
     @transaction.atomic
@@ -381,7 +425,8 @@ class PasswordResetService:
             raise AuthenticationError("Invalid or expired password reset link.")
 
         user.set_password(new_password)
-        user.save(update_fields=["password", "updated_at"])
+        AuthenticationService.bump_token_version(user)
+        user.save(update_fields=["password", "token_version", "updated_at"])
         AuthenticationService.blacklist_all_refresh_tokens(user)
         log_password_reset(
             action="confirm_success",
@@ -402,11 +447,7 @@ class PasswordResetService:
 class EmailVerificationService:
     @staticmethod
     def _frontend_base_url() -> str:
-        return getattr(
-            settings,
-            "FRONTEND_BASE_URL",
-            "http://localhost:5173",
-        ).rstrip("/")
+        return frontend_base_url()
 
     @staticmethod
     def _build_verification_link(user: User) -> str:
@@ -432,20 +473,38 @@ class EmailVerificationService:
     def deliver_verification(cls, user: User) -> None:
         """Build and send a verification email. Raises on SMTP failure."""
         if user.email_verified or not user.is_active or not (user.email or "").strip():
+            MailLogService.record_skipped(
+                event_type="email_verification",
+                reason="verified_inactive_or_no_email",
+                related_object_type="user",
+                related_object_id=str(user.pk),
+            )
             return
 
         verification_link = cls._build_verification_link(user)
-        send_mail(
-            subject="Verify your 3D Asset Marketplace email",
-            message=(
-                "Thanks for registering.\n\n"
-                f"Confirm your email address by opening this link:\n{verification_link}\n\n"
-                "If you did not create this account, you can ignore this email."
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+        subject = "Verify your 3D Asset Marketplace email"
+        body = (
+            "Thanks for registering.\n\n"
+            f"Confirm your email address by opening this link:\n{verification_link}\n\n"
+            "If you did not create this account, you can ignore this email."
         )
+        log_id = MailLogService.record_queued(
+            event_type="email_verification",
+            recipients=[user.email],
+            related_object_type="user",
+            related_object_id=str(user.pk),
+            subject=subject,
+        )
+        try:
+            send_text_mail(
+                subject=subject,
+                body=body,
+                recipients=[user.email],
+            )
+        except Exception as exc:
+            MailLogService.mark_failed(log_id, str(exc))
+            raise
+        MailLogService.mark_sent(log_id)
         # Local DX: console EmailBackend already prints the message; this line
         # is easy to copy from `runserver` when SMTP is not configured.
         if settings.DEBUG:

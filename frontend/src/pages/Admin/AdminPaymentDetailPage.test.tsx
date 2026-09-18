@@ -47,14 +47,14 @@ function renderPaymentDetailPage() {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/admin/payments/${paymentId}`]}>
+      <MemoryRouter initialEntries={[`/console/payments/${paymentId}`]}>
         <Routes>
           <Route
-            path="/admin/payments/:paymentId"
+            path="/console/payments/:paymentId"
             element={<AdminPaymentDetailPage />}
           />
-          <Route path="/admin/payments" element={<div>Payments list</div>} />
-          <Route path="/admin/orders/:orderId" element={<div>Order detail</div>} />
+          <Route path="/console/payments" element={<div>Payments list</div>} />
+          <Route path="/console/orders/:orderId" element={<div>Order detail</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -80,11 +80,11 @@ describe('AdminPaymentDetailPage', () => {
     expect(screen.getByText(/pi_test_succeeded_1/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view order/i })).toHaveAttribute(
       'href',
-      `/admin/orders/${orderId}`,
+      `/console/orders/${orderId}`,
     )
     expect(screen.getByRole('link', { name: /back to payments/i })).toHaveAttribute(
       'href',
-      '/admin/payments',
+      '/console/payments',
     )
   })
 

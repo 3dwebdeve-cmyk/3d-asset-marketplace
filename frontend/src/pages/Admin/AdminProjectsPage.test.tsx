@@ -71,11 +71,11 @@ const project = {
 function renderPage() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={['/admin/projects']}>
+      <MemoryRouter initialEntries={['/console/projects']}>
         <Routes>
-          <Route path="/admin/projects" element={<AdminProjectsPage />} />
+          <Route path="/console/projects" element={<AdminProjectsPage />} />
           <Route
-            path="/admin/projects/:projectId"
+            path="/console/projects/:projectId"
             element={<div>Project detail page</div>}
           />
         </Routes>
@@ -109,7 +109,7 @@ describe('AdminProjectsPage', () => {
     expect(screen.getByText('Ada Customer')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Manage' })).toHaveAttribute(
       'href',
-      `/admin/projects/${project.id}`,
+      `/console/projects/${project.id}`,
     )
   })
 

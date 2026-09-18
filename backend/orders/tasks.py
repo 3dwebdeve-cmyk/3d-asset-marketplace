@@ -18,6 +18,7 @@ logger = logging.getLogger("orders.tasks")
     retry_backoff_max=600,
     retry_jitter=True,
     max_retries=5,
+    queue="email",
     name="orders.send_payment_receipt",
 )
 def send_payment_receipt_task(self, order_id: str) -> None:

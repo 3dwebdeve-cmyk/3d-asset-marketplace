@@ -1,4 +1,8 @@
-"""Copy leftover local MEDIA_ROOT catalog files into R2 and rewrite public URLs."""
+"""Copy leftover local MEDIA_ROOT files into R2 and rewrite public URLs.
+
+Includes catalog (products/plugins), avatars, and custom-project private
+prefixes (files / messages / deliveries).
+"""
 
 from __future__ import annotations
 
@@ -16,6 +20,11 @@ from config.storages import (
     build_public_media_url,
     get_private_storage,
     get_public_storage,
+)
+from custom_projects.models import (
+    ProjectDelivery,
+    ProjectFile,
+    ProjectMessageAttachment,
 )
 from plugins.models import Plugin, PluginFile, PluginImage
 from products.models import Product, ProductFile, ProductImage
@@ -50,7 +59,7 @@ class MediaMigrationError(Exception):
 
 
 class LocalMediaMigrationService:
-    """Move leftover filesystem catalog objects to public/private R2 backends."""
+    """Move leftover filesystem objects to public/private R2 backends."""
 
     @classmethod
     def migrate(cls, *, dry_run: bool = False) -> MediaMigrationStats:
@@ -95,6 +104,20 @@ class LocalMediaMigrationService:
         for user in User.objects.exclude(avatar="").iterator():
             cls._migrate_public_url_field(
                 user, "avatar", public, stats, dry_run=dry_run
+            )
+
+        # Custom-project private prefixes (same resolve_private_download path as catalog).
+        for file_row in ProjectFile.objects.all().iterator():
+            cls._migrate_private_key(
+                file_row.storage_path, private, stats, dry_run=dry_run
+            )
+        for attachment in ProjectMessageAttachment.objects.all().iterator():
+            cls._migrate_private_key(
+                attachment.storage_path, private, stats, dry_run=dry_run
+            )
+        for delivery in ProjectDelivery.objects.all().iterator():
+            cls._migrate_private_key(
+                delivery.storage_path, private, stats, dry_run=dry_run
             )
 
         logger.info(

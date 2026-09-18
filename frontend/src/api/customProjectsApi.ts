@@ -1,5 +1,6 @@
 import { apiClient } from './client'
 import { downloadCatalogFileByUrl } from './downloadsApi'
+import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
 import type {
   AdminCustomProject,
   AdminCustomProjectCreatePayload,
@@ -248,9 +249,11 @@ export async function acceptCustomerCustomProjectQuotation(
 
 export async function payCustomerCustomProjectQuotation(
   projectId: string,
+  acceptedLegal: Record<string, string> = currentAcceptedLegalPayload(),
 ): Promise<CheckoutSessionResponse> {
   const { data } = await apiClient.post<CheckoutSessionResponse>(
     `/api/v1/custom-projects/${projectId}/quotation/pay/`,
+    { accepted_legal: acceptedLegal },
   )
   return data
 }

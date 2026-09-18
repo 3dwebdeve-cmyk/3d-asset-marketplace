@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from accounts.models import User, UserProfile
+from accounts.legal_service import LegalAcceptanceError, LegalAcceptanceService
 from accounts.services import (
     ProfileService,
     ProfileUpdateData,
@@ -20,6 +21,11 @@ class RegisterSerializer(serializers.Serializer):
     password_confirm = serializers.CharField(write_only=True, min_length=8, max_length=128)
     phone = serializers.CharField(max_length=20, required=False, allow_blank=True, default="")
     country = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    accepted_legal = serializers.DictField(
+        child=serializers.CharField(max_length=64),
+        required=False,
+        allow_empty=True,
+    )
 
     def validate_full_name(self, value: str) -> str:
         normalized = value.strip()
@@ -45,6 +51,14 @@ class RegisterSerializer(serializers.Serializer):
         except DjangoValidationError as exc:
             raise serializers.ValidationError({"password": list(exc.messages)}) from exc
 
+        try:
+            attrs["accepted_legal"] = LegalAcceptanceService.validate_offered(
+                attrs.get("accepted_legal") or {},
+                require_all=True,
+            )
+        except LegalAcceptanceError as exc:
+            raise serializers.ValidationError({exc.field: [exc.message]}) from exc
+
         return attrs
 
     def create(self, validated_data: dict) -> User:
@@ -54,12 +68,29 @@ class RegisterSerializer(serializers.Serializer):
             password=validated_data["password"],
             phone=validated_data.get("phone", ""),
             country=validated_data.get("country", ""),
+            accepted_legal=validated_data.get("accepted_legal") or {},
         )
 
         try:
             return RegistrationService.register_user(registration_data)
         except RegistrationError as exc:
             raise serializers.ValidationError({"email": [exc.message]}) from exc
+        except LegalAcceptanceError as exc:
+            raise serializers.ValidationError({exc.field: [exc.message]}) from exc
+
+
+class LegalAcceptSerializer(serializers.Serializer):
+    accepted_legal = serializers.DictField(
+        child=serializers.CharField(max_length=64),
+        required=True,
+        allow_empty=False,
+    )
+
+    def validate_accepted_legal(self, value: dict) -> dict:
+        try:
+            return LegalAcceptanceService.validate_offered(value, require_all=True)
+        except LegalAcceptanceError as exc:
+            raise serializers.ValidationError(exc.message) from exc
 
 
 class LoginSerializer(serializers.Serializer):
@@ -338,3 +369,18 @@ class ProfileUpdateSerializer(serializers.Serializer):
                 country=validated_data.get("country"),
             ),
         )
+
+
+class ActivityLogActorSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+    full_name = serializers.CharField(read_only=True)
+
+
+class ActivityLogSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    action = serializers.CharField(read_only=True)
+    target_id = serializers.CharField(read_only=True)
+    metadata = serializers.JSONField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    actor = ActivityLogActorSerializer(read_only=True, allow_null=True)

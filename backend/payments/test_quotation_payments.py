@@ -73,7 +73,7 @@ class QuotationCheckoutTests(PaymentsTestMixin, APITestCase):
         response = self.client.post(self.pay_url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("payments.services.stripe.checkout.Session.create", return_value=_fake_session("cs_quote_1"))
+    @patch("payments.checkout_service.stripe.checkout.Session.create", return_value=_fake_session("cs_quote_1"))
     def test_creates_order_payment_and_checkout_url(self, mock_create) -> None:
         self._authenticate()
         response = self.client.post(self.pay_url)
@@ -120,7 +120,7 @@ class QuotationCheckoutTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.project.status, CustomProject.Status.IN_PROGRESS)
         self.assertEqual(len(mail.outbox), 1)
 
-    @patch("payments.services.stripe.checkout.Session.create", return_value=_fake_session("cs_quote_2"))
+    @patch("payments.checkout_service.stripe.checkout.Session.create", return_value=_fake_session("cs_quote_2"))
     def test_rejects_already_paid_project(self, _mock_create) -> None:
         self.project.payment_status = CustomProject.PaymentStatus.PAID
         self.project.status = CustomProject.Status.IN_PROGRESS
@@ -129,8 +129,8 @@ class QuotationCheckoutTests(PaymentsTestMixin, APITestCase):
         response = self.client.post(self.pay_url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("payments.services.stripe.checkout.Session.expire")
-    @patch("payments.services.stripe.checkout.Session.create")
+    @patch("payments.checkout_service.stripe.checkout.Session.expire")
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
     def test_recheckout_expires_prior_stripe_session(
         self,
         mock_create,
@@ -156,6 +156,23 @@ class QuotationCheckoutTests(PaymentsTestMixin, APITestCase):
         old_payment.refresh_from_db()
         self.assertEqual(old_order.order_status, Order.OrderStatus.CANCELLED)
         self.assertEqual(old_payment.status, Payment.Status.EXPIRED)
+
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    def test_idempotency_key_replays_same_quotation_checkout(
+        self,
+        mock_create,
+    ) -> None:
+        mock_create.return_value = _fake_session("cs_quote_idem")
+        self._authenticate()
+        headers = {"HTTP_IDEMPOTENCY_KEY": "quote-pay-retry-1"}
+        first = self.client.post(self.pay_url, **headers)
+        second = self.client.post(self.pay_url, **headers)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data, second.data)
+        self.assertEqual(Order.objects.filter(user=self.user).count(), 1)
+        mock_create.assert_called_once()
 
 
 @override_settings(STRIPE_WEBHOOK_SECRET="whsec_test", FRONTEND_BASE_URL="http://localhost:5173")
@@ -267,3 +284,41 @@ class QuotationWebhookTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.project.payment_status, CustomProject.PaymentStatus.PENDING)
         self.assertEqual(self.project.status, CustomProject.Status.APPROVED)
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_charge_refunded_reverts_project_to_unpaid_approved(self) -> None:
+        self.order.order_status = Order.OrderStatus.PAID
+        self.order.payment_status = Order.PaymentStatus.PAID
+        self.order.save(update_fields=["order_status", "payment_status", "updated_at"])
+        self.payment.status = Payment.Status.SUCCEEDED
+        self.payment.stripe_payment_intent_id = "pi_quote_refund"
+        self.payment.save(
+            update_fields=["status", "stripe_payment_intent_id", "updated_at"]
+        )
+        self.project.payment_status = CustomProject.PaymentStatus.PAID
+        self.project.status = CustomProject.Status.IN_PROGRESS
+        self.project.save(update_fields=["payment_status", "status", "updated_at"])
+
+        event = _FakeEvent(
+            "evt_quote_refund",
+            "charge.refunded",
+            {
+                "id": "ch_quote_refund",
+                "payment_intent": "pi_quote_refund",
+                "refunded": True,
+            },
+        )
+        response = self._post_webhook(event)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.project.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.REFUNDED)
+        self.assertEqual(self.order.order_status, Order.OrderStatus.REFUNDED)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.REFUNDED)
+        self.assertEqual(self.project.payment_status, CustomProject.PaymentStatus.UNPAID)
+        self.assertEqual(self.project.status, CustomProject.Status.APPROVED)
+        # Quotation row must remain accepted (not deleted / not mutated).
+        self.quotation = ProjectQuotation.objects.get(project_id=self.project.pk)
+        self.assertEqual(self.quotation.status, ProjectQuotation.Status.ACCEPTED)
+

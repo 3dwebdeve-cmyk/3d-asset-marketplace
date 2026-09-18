@@ -8,7 +8,7 @@ import { applyWireframe } from './applyWireframe'
 import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
-import { useAdaptivePixelRatio } from './useAdaptivePixelRatio'
+import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 
 export interface ModelViewerProps {
@@ -23,12 +23,14 @@ function SceneLights({
   lightMultiplier,
   showBackground,
   backgroundBlur,
+  shadowMapSize,
 }: {
   environmentFile: string | null
   environmentIntensity: number
   lightMultiplier: number
   showBackground: boolean
   backgroundBlur: number
+  shadowMapSize: number
 }) {
   return (
     <>
@@ -39,8 +41,8 @@ function SceneLights({
         position={[5.2, 9.5, 4.2]}
         intensity={1.35 * lightMultiplier}
         castShadow
-        // 4K map + tight ortho frustum keeps shadow texels fine enough for close orbits.
-        shadow-mapSize={[4096, 4096]}
+        // Adaptive map size — 4K crushed low-end GPUs; tight ortho keeps close orbits sharp.
+        shadow-mapSize={[shadowMapSize, shadowMapSize]}
         shadow-bias={-0.0001}
         shadow-normalBias={0.02}
         // Hard edges — soft radius + PCFSoft was causing the grainy dithered penumbra.
@@ -255,11 +257,13 @@ function ModelViewerCanvas({
   ariaLabel,
   visible,
   pixelRatio,
+  shadowMapSize,
 }: {
   modelUrl: string
   ariaLabel: string
   visible: boolean
   pixelRatio: number
+  shadowMapSize: number
 }) {
   const [wireframe, setWireframe] = useState(false)
   const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
@@ -332,6 +336,7 @@ function ModelViewerCanvas({
           lightMultiplier={selectedEnvironment.lightMultiplier}
           showBackground={selectedEnvironment.background}
           backgroundBlur={selectedEnvironment.backgroundBlur}
+          shadowMapSize={shadowMapSize}
         />
         <Suspense fallback={null}>
           <PreviewModel
@@ -393,6 +398,7 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
   const pixelRatio = useAdaptivePixelRatio()
+  const shadowMapSize = useAdaptiveShadowMapSize()
   const { ref, visible } = useViewportVisibility<HTMLDivElement>()
   const webglReady = isWebGLAvailable()
 
@@ -430,6 +436,7 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
           ariaLabel={ariaLabel}
           visible={visible}
           pixelRatio={pixelRatio}
+          shadowMapSize={shadowMapSize}
         />
       </ErrorBoundary>
     </div>

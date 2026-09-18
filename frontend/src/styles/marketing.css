@@ -1845,3 +1845,34 @@
     width: auto;
   }
 }
+
+/* --- Legal documents (Terms / Privacy) --- */
+.legal-document-page__body {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.legal-document-page__body section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.legal-document-page__body h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.legal-document-page__body p {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--text-body, #3d4555);
+}
+
+.legal-document-page__draft-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-muted, #5a6478);
+  font-style: italic;
+}

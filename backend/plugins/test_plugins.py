@@ -258,7 +258,7 @@ class PluginAdminAPITests(PluginTestMixin, APITestCase):
                 "currency": "usd",
                 "version": " 2.0 ",
                 "compatibility": "Blender 4.x",
-                "status": "published",
+                "status": "draft",
             },
             format="json",
         )
@@ -267,6 +267,66 @@ class PluginAdminAPITests(PluginTestMixin, APITestCase):
         self.assertEqual(response.data["currency"], "USD")
         self.assertEqual(response.data["version"], "2.0")
         self.assertEqual(response.data["slug"], "render-assistant")
+        self.assertEqual(response.data["status"], "draft")
+
+    def test_admin_cannot_create_plugin_as_published(self) -> None:
+        self.authenticate_admin()
+
+        response = self.client.post(
+            self.plugin_list_url,
+            {
+                "category_id": str(self.category.pk),
+                "name": "Too Early",
+                "price": "10.00",
+                "status": "published",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("status", response.data)
+
+    def test_admin_publish_requires_package_object(self) -> None:
+        self.authenticate_admin()
+        detail_url = reverse(
+            "plugins_admin:admin-plugin-detail",
+            kwargs={"plugin_id": self.plugin.pk},
+        )
+
+        blocked = self.client.patch(
+            detail_url,
+            {"status": "published"},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("files", blocked.data)
+
+        file_url = reverse(
+            "plugins_admin:admin-plugin-files",
+            kwargs={"plugin_id": self.plugin.pk},
+        )
+        upload = self.client.post(
+            file_url,
+            {
+                "file": SimpleUploadedFile(
+                    "node-toolkit.zip",
+                    make_zip_bytes(),
+                    content_type="application/zip",
+                ),
+                "version": "1.0",
+                "is_primary": True,
+            },
+            format="multipart",
+        )
+        self.assertEqual(upload.status_code, status.HTTP_201_CREATED)
+
+        published = self.client.patch(
+            detail_url,
+            {"status": "published"},
+            format="json",
+        )
+        self.assertEqual(published.status_code, status.HTTP_200_OK)
+        self.assertEqual(published.data["status"], "published")
 
     def test_admin_rejects_inactive_category_and_invalid_discount(self) -> None:
         self.category.is_active = False

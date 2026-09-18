@@ -422,7 +422,7 @@ export function ContactPage() {
                     <input type="checkbox" {...register('privacyAccepted')} />
                     <span>
                       I agree to the{' '}
-                      <Link to="/contact">Privacy Policy</Link> and allow the team to contact
+                      <Link to="/privacy">Privacy Policy</Link> and allow the team to contact
                       me regarding this enquiry.
                     </span>
                   </label>

@@ -280,7 +280,7 @@ export function AdminCouponsPage() {
                     </td>
                     <td>{coupon.active ? 'Active' : 'Inactive'}</td>
                     <td>
-                      <Link className="auth-link" to={`/admin/coupons/${coupon.id}`}>
+                      <Link className="auth-link" to={`/console/coupons/${coupon.id}`}>
                         Manage
                       </Link>
                     </td>

@@ -16,6 +16,7 @@ logger = logging.getLogger("contact.tasks")
     retry_backoff_max=600,
     retry_jitter=True,
     max_retries=5,
+    queue="email",
     name="contact.send_submission",
 )
 def send_contact_submission_task(

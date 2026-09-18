@@ -18,6 +18,12 @@ from accounts.throttles import (
     DownloadRateThrottle,
     PaymentCheckoutRateThrottle,
 )
+from config.idempotency import (
+    build_cache_key,
+    get_or_set,
+    idempotency_key_from_request,
+)
+from config.api_helpers import domain_error_response, parse_choice, parse_uuid
 from config.media import PrivateFileNotFound, resolve_private_download
 from custom_projects.models import CustomProject, ProjectFile
 from custom_projects.pagination import CustomProjectPagination
@@ -109,33 +115,7 @@ def _create_project_message(
 
 
 def _error_response(exc: CustomProjectError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "custom_project_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
-
-
-def _parse_uuid(value: str | None, field: str) -> UUID | None:
-    if not value:
-        return None
-    try:
-        return UUID(value.strip())
-    except ValueError as exc:
-        raise ValidationError({field: [f"Invalid {field}."]}) from exc
-
-
-def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip().lower()
-    if normalized not in allowed:
-        raise ValidationError({field: [f"Invalid {field} filter."]})
-    return normalized
+    return domain_error_response(exc, default_code="custom_project_error")
 
 
 class CustomerCustomProjectListCreateView(APIView):
@@ -219,22 +199,44 @@ class CustomerCustomProjectQuotationPayView(APIView):
         except CustomProjectError as exc:
             raise NotFound(detail=exc.message) from exc
 
-        try:
-            result = CheckoutService.create_quotation_checkout_session(
-                request.user,
-                project_id,
-            )
-        except CheckoutError as exc:
-            if exc.field:
-                return Response(
-                    {exc.field: [exc.message]},
-                    status=status.HTTP_400_BAD_REQUEST,
+        accepted_legal = None
+        if isinstance(request.data, dict):
+            accepted_legal = request.data.get("accepted_legal")
+
+        def _produce() -> tuple[dict, int]:
+            try:
+                result = CheckoutService.create_quotation_checkout_session(
+                    request.user,
+                    project_id,
+                    accepted_legal=accepted_legal,
                 )
-            return Response(
-                {"detail": exc.message, "code": "checkout_error"},
-                status=status.HTTP_400_BAD_REQUEST,
+            except CheckoutError as exc:
+                body: dict = (
+                    {exc.field: [exc.message]}
+                    if exc.field
+                    else {"detail": exc.message, "code": "checkout_error"}
+                )
+                if exc.code:
+                    body["code"] = exc.code
+                if exc.extra:
+                    body.update(exc.extra)
+                return body, status.HTTP_400_BAD_REQUEST
+            return result, status.HTTP_201_CREATED
+
+        idem_key = idempotency_key_from_request(request)
+        if idem_key:
+            body, code = get_or_set(
+                build_cache_key(
+                    f"quotation_pay:{project_id}",
+                    request.user.pk,
+                    idem_key,
+                ),
+                _produce,
             )
-        return Response(result, status=status.HTTP_201_CREATED)
+            return Response(body, status=code)
+
+        body, code = _produce()
+        return Response(body, status=code)
 
 
 class CustomerCustomProjectFileUploadView(APIView):
@@ -299,17 +301,17 @@ class AdminCustomProjectListCreateView(APIView):
         queryset = CustomProjectService.list_admin(
             viewer=request.user,
             search=request.query_params.get("search") or None,
-            status=_parse_choice(
+            status=parse_choice(
                 request.query_params.get("status"),
                 "status",
                 set(CustomProject.Status.values),
             ),
-            payment_status=_parse_choice(
+            payment_status=parse_choice(
                 request.query_params.get("payment_status"),
                 "payment_status",
                 set(CustomProject.PaymentStatus.values),
             ),
-            customer_id=_parse_uuid(
+            customer_id=parse_uuid(
                 request.query_params.get("customer_id"),
                 "customer_id",
             ),
@@ -444,6 +446,39 @@ class AdminCustomProjectQuotationView(APIView):
         return Response(
             {
                 "quotation": ProjectQuotationSerializer(quotation).data,
+                "project": CustomProjectDetailSerializer(
+                    detail, context={"request": request}
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminCustomProjectQuotationResendEmailView(APIView):
+    """Re-send quotation/offer email without mutating quotation fields."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminCustomProjectWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request, project_id: UUID) -> Response:
+        try:
+            project = CustomProjectService.get_for_admin(project_id)
+        except CustomProjectError as exc:
+            raise NotFound(detail=exc.message) from exc
+
+        try:
+            CustomProjectService.resend_quotation_email(
+                project,
+                actor_id=str(request.user.id),
+            )
+        except CustomProjectError as exc:
+            return _error_response(exc)
+
+        detail = CustomProjectService.get_for_admin(project_id)
+        return Response(
+            {
+                "detail": "Quotation email queued.",
                 "project": CustomProjectDetailSerializer(
                     detail, context={"request": request}
                 ).data,

@@ -42,12 +42,14 @@ Customers can request custom 3D modeling services.
 Workflow: 
   Submit project request 
   Upload reference files 
-  Receive quotation
+  Receive quotation (automated email when an offer/quote is sent)
   Accept quotation
   Make payment 
   Track project progress 
   Receive completed files 
   Download final deliverables
+
+Customer and staff alerts for this workflow are **automated email only** (Celery). There is no in-app notification inbox in Phase 1.
 
 Phase 1 Scope
 The first release includes:
@@ -85,10 +87,12 @@ Custom Project Portal
   Upload Reference Files 
   Admin Review
   Quote Generation
+  Automated quotation/offer email to the customer
   Customer Approval 
   Project Tracking
   Project Delivery
   Secure Download
+  Automated emails for messages, delivery, and completion (no in-app inbox)
 
 Order Management
   Shopping Cart 
@@ -214,7 +218,6 @@ Backend Applications
   downloads 
   reviews 
   wishlist 
-  notifications 
   analytics 
   search
   common
@@ -243,6 +246,7 @@ Customer Dashboard
   My Projects 
   Profile 
   Settings
+  (No in-app Notifications page — alerts are email)
 
 
 Administrator Dashboard
@@ -279,7 +283,6 @@ Database Modules
   Reviews 
   Wishlist 
   Coupons 
-  Notifications 
   Invoices
 
 
@@ -302,6 +305,7 @@ Customer
   Manage Wishlist 
   Manage Profile 
   Submit Reviews
+  Receive automated emails (quotation/offer, project messages, delivery, receipts)
 
 Administrator
   Manage Products 
@@ -392,8 +396,10 @@ Custom Project Portal
   Request Submission
   File Upload
   Quotation
+  Automated quotation/offer email
   Customer Approval  Progress Tracking
   Delivery
+  Email alerts for messages / delivery (no in-app notification inbox)
 
 Stage 10
 Administration
@@ -448,6 +454,7 @@ This project follows the following principles throughout development:
   Performance Optimization. 
   Maintainability. 
   Simplicity over unnecessary complexity. 
+  Automated email for workflow alerts (no in-app notification inbox). 
 
 Definition of Success
 The project will be considered successful when:

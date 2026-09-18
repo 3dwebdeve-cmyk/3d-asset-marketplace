@@ -148,7 +148,7 @@ export function AdminAnalyticsPage() {
           >
             This month
           </Button>
-          <Link className="auth-link" to="/admin/orders">
+          <Link className="auth-link" to="/console/orders">
             View orders
           </Link>
         </div>
@@ -210,7 +210,7 @@ export function AdminAnalyticsPage() {
                 </p>
                 <p className="admin-stat-card__meta">
                   Succeeded payments in range ·{' '}
-                  <Link className="auth-link" to="/admin/payments">
+                  <Link className="auth-link" to="/console/payments">
                     View payments
                   </Link>
                 </p>

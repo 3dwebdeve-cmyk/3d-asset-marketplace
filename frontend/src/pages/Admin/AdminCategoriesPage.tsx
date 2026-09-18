@@ -64,7 +64,7 @@ export function AdminCategoriesPage() {
       setShowCreate(false)
       setCreateError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'categories'] })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setCreateError(getApiErrorMessage(error, 'Could not create category.'))
@@ -221,7 +221,7 @@ export function AdminCategoriesPage() {
                     <td>
                       <Link
                         className="auth-link"
-                        to={`/admin/categories/${category.id}`}
+                        to={`/console/categories/${category.id}`}
                       >
                         Manage
                       </Link>

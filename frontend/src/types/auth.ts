@@ -5,6 +5,7 @@ export interface RegisterPayload {
   password_confirm: string
   phone?: string
   country?: string
+  accepted_legal: Record<string, string>
 }
 
 export interface RegisteredUser {

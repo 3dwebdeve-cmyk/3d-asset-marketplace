@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from categories.models import Category
 from plugins.models import Plugin, PluginCategory
+from plugins.services import PluginCreateData, PluginService
 from products.models import Product
 from products.services import ProductCreateData, ProductService
 from search.documents import PLUGINS_INDEX, PRODUCTS_INDEX, product_document
@@ -53,7 +54,10 @@ class IndexerSyncTests(TestCase):
 
         sync_product(self.product)
 
-        index.add_documents.assert_called_once_with([product_document(self.product)])
+        index.add_documents.assert_called_once_with(
+            [product_document(self.product)],
+            primary_key="id",
+        )
         index.delete_document.assert_not_called()
 
     @patch("search.indexer.get_client")
@@ -104,9 +108,9 @@ class IndexerSyncTests(TestCase):
         sync_product(self.product)
         get_client.assert_called()
 
-    @patch("products.services.sync_product")
+    @patch("products.services.enqueue_sync_product")
     def test_create_product_syncs_index(self, sync_mock: MagicMock) -> None:
-        ProductService.create_product(
+        created = ProductService.create_product(
             ProductCreateData(
                 category_id=self.category.pk,
                 name="New Chair",
@@ -114,13 +118,22 @@ class IndexerSyncTests(TestCase):
                 status=Product.Status.PUBLISHED,
             )
         )
-        sync_mock.assert_called_once()
-        synced = sync_mock.call_args[0][0]
-        self.assertEqual(synced.status, Product.Status.PUBLISHED)
+        sync_mock.assert_called_once_with(created.pk)
+        self.assertEqual(created.status, Product.Status.PUBLISHED)
 
-    @patch("products.services.sync_product")
+    @patch("products.services.enqueue_sync_product")
     def test_archive_product_syncs_index(self, sync_mock: MagicMock) -> None:
-        ProductService.archive_product(self.product)
-        sync_mock.assert_called()
-        synced = sync_mock.call_args[0][0]
-        self.assertEqual(synced.status, Product.Status.ARCHIVED)
+        archived = ProductService.archive_product(self.product)
+        sync_mock.assert_called_with(archived.pk)
+        self.assertEqual(archived.status, Product.Status.ARCHIVED)
+
+    @patch("plugins.services.enqueue_sync_plugin")
+    def test_create_plugin_enqueues_index(self, sync_mock: MagicMock) -> None:
+        created = PluginService.create_plugin(
+            PluginCreateData(
+                category_id=self.plugin_category.pk,
+                name="Enqueue Toolkit",
+                price=Decimal("8.00"),
+            )
+        )
+        sync_mock.assert_called_once_with(created.pk)

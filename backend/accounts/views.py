@@ -19,8 +19,10 @@ from accounts.admin_user_service import (
     AdminUserUpdateData,
 )
 from accounts.pagination import AdminUserPagination
+from config.api_helpers import domain_error_response
 from accounts.permissions import IsAdministrator
 from accounts.serializers import (
+    ActivityLogSerializer,
     AdminUserCreateSerializer,
     AdminUserResponseSerializer,
     AdminUserUpdateSerializer,
@@ -29,6 +31,7 @@ from accounts.serializers import (
     EmailVerificationConfirmSerializer,
     EmailVerificationResendSerializer,
     GoogleLoginSerializer,
+    LegalAcceptSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
@@ -37,6 +40,8 @@ from accounts.serializers import (
     RegisterSerializer,
     UserResponseSerializer,
 )
+from accounts.activity_service import ActivityLogService
+from accounts.legal_service import LegalAcceptanceService
 from accounts.security_log import log_admin_action, log_auth_failure
 from accounts.services import (
     AuthenticationError,
@@ -82,6 +87,38 @@ class RegisterView(APIView):
         user = serializer.save()
         response_serializer = UserResponseSerializer(user)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class LegalDocumentsView(APIView):
+    """Public current legal document versions (for register / checkout UIs)."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = []
+
+    def get(self, request: Request) -> Response:
+        return Response({"versions": LegalAcceptanceService.current_versions()})
+
+
+class LegalAcceptView(APIView):
+    """Record acceptance of current legal document versions for the auth user."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [RegisterRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = LegalAcceptSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        LegalAcceptanceService.record_acceptances(
+            request.user,
+            serializer.validated_data["accepted_legal"],
+        )
+        return Response(
+            {
+                "versions": LegalAcceptanceService.current_versions(),
+                "accepted": True,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class LoginView(APIView):
@@ -236,6 +273,13 @@ class CookieTokenRefreshView(APIView):
                 raise AuthenticationFailed("Invalid refresh token.") from exc
             if not user.is_active:
                 raise AuthenticationFailed("Invalid refresh token.")
+
+            try:
+                refresh_tv = int(old_refresh.payload.get("tv", 0) or 0)
+            except (TypeError, ValueError) as exc:
+                raise TokenError("Token is invalid or expired") from exc
+            if refresh_tv != int(getattr(user, "token_version", 0) or 0):
+                raise TokenError("Token is invalid or expired")
 
             tokens = AuthenticationService.build_tokens(user)
         except TokenError:
@@ -423,15 +467,7 @@ class AvatarUploadView(APIView):
 
 
 def _admin_user_error_response(exc: AdminUserError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "admin_user_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
+    return domain_error_response(exc, default_code="admin_user_error")
 
 
 class AdminUserListCreateView(APIView):
@@ -566,3 +602,33 @@ class AdminUserDetailView(APIView):
             AdminUserResponseSerializer(user).data,
             status=status.HTTP_200_OK,
         )
+
+
+class AdminActivityLogListView(APIView):
+    """Paginated durable admin audit trail."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    pagination_class = AdminUserPagination
+
+    def get(self, request: Request) -> Response:
+        action = request.query_params.get("action") or None
+        target_id = request.query_params.get("target_id") or None
+        actor_param = request.query_params.get("actor_id")
+        actor_id = None
+        if actor_param:
+            try:
+                from uuid import UUID
+
+                actor_id = UUID(str(actor_param))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({"actor_id": ["Must be a valid UUID."]}) from exc
+
+        queryset = ActivityLogService.list_logs(
+            action=action,
+            actor_id=actor_id,
+            target_id=target_id,
+        )
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = ActivityLogSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)

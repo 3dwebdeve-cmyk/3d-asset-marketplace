@@ -11,27 +11,15 @@ import logging
 
 from django.conf import settings
 from django.core.mail import EmailMessage
-from django.template.loader import render_to_string
 
 from config.celery_utils import enqueue_after_commit
+from config.mail import frontend_base_url, render_text_email, safe_email_text
+from mail_log.services import MailLogService
 from orders.invoice import build_invoice_pdf, invoice_pdf_filename
 from orders.models import Order
 from orders.services import OrderService
 
 logger = logging.getLogger("orders.notifications")
-
-
-def _frontend_base_url() -> str:
-    return getattr(
-        settings,
-        "FRONTEND_BASE_URL",
-        "http://localhost:5173",
-    ).rstrip("/")
-
-
-def _safe_email_text(value: str) -> str:
-    """Collapse whitespace/newlines so values cannot inject email headers."""
-    return " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
 
 
 def deliver_payment_receipt(order: Order) -> None:
@@ -46,6 +34,12 @@ def deliver_payment_receipt(order: Order) -> None:
         logger.warning(
             "payment_receipt_email_skipped reason=no_recipient order_id=%s",
             order.pk,
+        )
+        MailLogService.record_skipped(
+            event_type="payment_receipt",
+            reason="no_recipient",
+            related_object_type="order",
+            related_object_id=str(order.pk),
         )
         return
 
@@ -62,23 +56,31 @@ def deliver_payment_receipt(order: Order) -> None:
         )
     items_summary = "\n".join(item_lines) if item_lines else "- (no items)"
 
-    order_link = f"{_frontend_base_url()}/dashboard/orders/{order.pk}"
-    downloads_link = f"{_frontend_base_url()}/dashboard/downloads"
-    body = render_to_string(
+    base = frontend_base_url()
+    order_link = f"{base}/dashboard/orders/{order.pk}"
+    downloads_link = f"{base}/dashboard/downloads"
+    body = render_text_email(
         "orders/emails/payment_receipt.txt",
         {
-            "customer_name": _safe_email_text(customer_name),
-            "invoice_number": _safe_email_text(order.invoice_number),
+            "customer_name": safe_email_text(customer_name),
+            "invoice_number": safe_email_text(order.invoice_number),
             "items_summary": items_summary,
             "items_total": f"{order.currency} {items_total:.2f}",
             "total_amount": f"{order.currency} {order.total_amount}",
             "order_link": order_link,
             "downloads_link": downloads_link,
         },
-    ).strip() + "\n"
+    )
 
-    subject = _safe_email_text(
+    subject = safe_email_text(
         f"Payment received — Order {order.invoice_number}"
+    )
+    log_id = MailLogService.record_queued(
+        event_type="payment_receipt",
+        recipients=[recipient],
+        related_object_type="order",
+        related_object_id=str(order.pk),
+        subject=subject,
     )
     message = EmailMessage(
         subject=subject,
@@ -92,7 +94,12 @@ def deliver_payment_receipt(order: Order) -> None:
         pdf_bytes,
         "application/pdf",
     )
-    message.send(fail_silently=False)
+    try:
+        message.send(fail_silently=False)
+    except Exception as exc:
+        MailLogService.mark_failed(log_id, str(exc))
+        raise
+    MailLogService.mark_sent(log_id)
     logger.info(
         "payment_receipt_email_sent order_id=%s invoice=%s",
         order.pk,

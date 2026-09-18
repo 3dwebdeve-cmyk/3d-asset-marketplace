@@ -62,10 +62,10 @@ const plugin = {
 function renderPage(initialPluginId = pluginId) {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={[`/admin/plugins/${initialPluginId}`]}>
+      <MemoryRouter initialEntries={[`/console/plugins/${initialPluginId}`]}>
         <Routes>
-          <Route path="/admin/plugins/:pluginId" element={<AdminPluginDetailPage />} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/plugins/:pluginId" element={<AdminPluginDetailPage />} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -193,14 +193,14 @@ describe('AdminPluginDetailPage', () => {
 
     render(
       <QueryClientProvider client={createTestQueryClient()}>
-        <MemoryRouter initialEntries={[`/admin/plugins/${pluginId}`]}>
+        <MemoryRouter initialEntries={[`/console/plugins/${pluginId}`]}>
           <Routes>
             <Route
-              path="/admin/plugins/:pluginId"
+              path="/console/plugins/:pluginId"
               element={
                 <>
                   <AdminPluginDetailPage />
-                  <Link to={`/admin/plugins/${otherPluginId}`}>Next plugin</Link>
+                  <Link to={`/console/plugins/${otherPluginId}`}>Next plugin</Link>
                 </>
               }
             />

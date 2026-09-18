@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminPluginWriteRateThrottle
+from config.api_helpers import domain_error_response, parse_uuid
 from plugins.models import Plugin
 from plugins.pagination import PluginPagination
 from plugins.serializers import (
@@ -42,24 +43,7 @@ from search.services import hydrate_plugins, normalize_query, search_published_p
 
 
 def _error_response(exc: PluginError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "plugin_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
-
-
-def _parse_uuid(value: str | None, field: str) -> UUID | None:
-    if not value:
-        return None
-    try:
-        return UUID(value.strip())
-    except ValueError as exc:
-        raise ValidationError({field: [f"Invalid {field}."]}) from exc
+    return domain_error_response(exc, default_code="plugin_error")
 
 
 def _parse_boolean(value: str | None, field: str) -> bool | None:
@@ -116,7 +100,7 @@ class PluginListView(APIView):
     pagination_class = PluginPagination
 
     def get(self, request: Request) -> Response:
-        category_id = _parse_uuid(
+        category_id = parse_uuid(
             request.query_params.get("category_id"),
             "category_id",
         )
@@ -288,7 +272,7 @@ class AdminPluginListCreateView(APIView):
     def get(self, request: Request) -> Response:
         queryset = PluginService.list_admin(
             status=_parse_status(request.query_params.get("status")),
-            category_id=_parse_uuid(
+            category_id=parse_uuid(
                 request.query_params.get("category_id"),
                 "category_id",
             ),

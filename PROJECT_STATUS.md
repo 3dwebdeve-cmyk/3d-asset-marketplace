@@ -115,7 +115,8 @@ Customer Dashboard
 • [x] Downloads (My Downloads library + history at /dashboard/downloads)
 • [x] Wishlist
 • [x] Reviews & Ratings (purchase-gated; admin hide/delete; aggregates on cards/detail)
-• [x] Notifications (Feature 10 — bell + /dashboard/notifications)
+• [x] Automated email alerts (quotation/offer, messages, delivery, receipts — Celery; no in-app inbox)
+• [x] Remove leftover in-app notification UI/API (Feature 10 — confirmed absent; email-only)
 • [x] My Projects
 Admin Dashboard
 • [x] Dashboard Overview (shell + administrator session gate)
@@ -151,25 +152,73 @@ Sprint 10 – Cloud Storage & Batch Ingest (complete in marketplace repo — see
 • [x] Feature 16 Phase 10 — Hardening (R2 retries, batch public media, leftover media → R2 command)
 Sprint 11 – Testing & Deployment
 • [ ] API Testing (formal coverage / sign-off — unit/API suites already extensive)
-• [x] UI Testing (browser E2E Playwright — login → viewer → cart → checkout confirm → download; CI Compose job)
+• [x] UI Testing (browser E2E Playwright — product checkout + admin console + plugin checkout + unverified login gate; CI Compose job)
 • [ ] Security Testing
 • [x] Performance Optimization (Sprint 11 pass 2026-09-16 — query/cache/viewer; formal load/E2E still open)
 • [ ] Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Re-enable email verification + password-change security email pipeline.
+Launch readiness Phase A5 tooling/docs complete (backup retention + disposable restore drill). Operator: run docs/BACKUP_RESTORE_DRILL.md on staging (dump, restore, cron, R2 lifecycle).
 Current Git Branch
 feature/2026-09-17
 Files Being Worked On
-• backend/accounts/services.py
-• backend/accounts/tasks.py
-• backend/accounts/permissions.py
-• backend/payments/views.py
-• backend/custom_projects/views.py
-• frontend/src/App.tsx
-• PROJECT_STATUS.md
+• backend/scripts/backup_postgres.sh, restore_postgres_drill.sh, upload_backup_to_r2.py
+• docs/BACKUP_RESTORE_DRILL.md, docs/PRODUCTION_CHECKLIST.md §2.6
+• PROJECT_STATUS.md, implementingFIXfeature.md
 Completed Features
+• Launch readiness Phase A5 — backup + restore drill tooling/docs (2026-09-18)
+  - BACKUP_RETENTION_DAYS prune on backup_postgres.sh; disposable restore_postgres_drill.sh (never touches postgres_data)
+  - docs/BACKUP_RESTORE_DRILL.md (cron, retention, R2≠DB); PRODUCTION_CHECKLIST §2.6; .env.example comments
+  - Live staging/prod dump + cron install remains operator gate
+• Backend 10/10 Phase J — ops backup script + cleanup + checklist link (2026-09-18)
+  - backup_postgres.sh (pg_dump -Fc) + optional R2 private upload (same R2_* / boto3)
+  - PRODUCTION_CHECKLIST §2.6 linked; Feature 10 remnants confirmed absent
+  - Engineering 10/10 target met; live staging drill remains operator gate
+• Backend 10/10 Phase I — LegalAcceptance + OpenAPI (2026-09-18)
+  - LegalAcceptance model; LEGAL_DOCUMENT_VERSIONS; register + checkout gates
+  - GET legal-documents / POST legal-acceptances; frontend register sends accepted_legal
+  - drf-spectacular schema at /api/v1/schema/; CI schema generation
+• Backend 10/10 Phase H — Idempotency + Celery email queue + throttle verify (2026-09-18)
+  - Idempotency-Key on cart checkout + quotation pay (Django cache, 24h, 2xx only)
+  - Mail tasks queue="email"; worker `-Q celery,email`; CELERY_TASK_ROUTES
+  - Verified throttles: quotation resend, catalog import, message create (no new scopes)
+• Backend 10/10 Phase G — Meili prod policy + legacy /api/ removal (2026-09-18)
+  - MEILI_REQUIRED (default not DEBUG); healthz + public search 503 when required+down
+  - LegacyApiPathAliasMiddleware removed; refresh cookie Path=/api/v1/auth/
+• Backend 10/10 Phase F — access-token revocation via token_version (2026-09-18)
+  - User.token_version bumped on password change/reset; JWT `tv` claim
+  - VersionedJWTAuthentication + refresh cookie tv check; stale access → 401
+• Backend 10/10 Phase E — service facades (2026-09-18)
+  - Custom projects split into domain mixins + CustomProjectService facade
+  - Payments split into admin/checkout/webhook + services.py re-exports
+  - Views/URLs unchanged; custom_projects + payments tests 152 OK
+• Backend 10/10 Phase D — custom-project private download / R2 parity (2026-09-18)
+  - Downloads already via resolve_private_download; migration copies files/messages/deliveries
+  - Signed-JSON tests for reference files, message attachments, deliveries (+ stream fallback)
+• Backend 10/10 Phase C — durable ActivityLog (2026-09-18)
+  - ActivityLog model + migration 0004; log_admin_action persists fail-soft + logger
+  - GET /api/v1/admin/activity-logs/ (Administrator; filters action/actor_id/target_id)
+  - Read-only Django admin; tests for archive → row, list ACL, fail-soft
+• Backend 10/10 Phase B — Stripe charge.refunded webhook (2026-09-18)
+  - WebhookService._handle_charge_refunded (full refund only; partial ignored)
+  - OrderService.mark_refunded → order+payment refunded; custom-project revert
+  - CustomProjectService.revert_quotation_after_refund (unpaid; in_progress→approved; keep deliveries/quote)
+  - Entitlement revoked via existing paid+paid gates (no download code change)
+  - Tests: catalog refund + entitlement, duplicate/partial/unknown PI, quotation refund
+• Launch readiness Phase B1 — Stripe sandbox verify tooling (2026-09-18)
+  - `check_stripe_config` (+ `--require-test-mode` / `--fail-on-warnings` / `--ping`); no secrets printed
+  - `docs/STRIPE_SANDBOX_CHECKLIST.md` + PRODUCTION_CHECKLIST §2.5; operator still runs real test checkout
+• Backend 10/10 Phase A — shared mail kernel + OutboundEmailLog + quotation resend (2026-09-18)
+  - config/mail.py: frontend_base_url, safe_email_text, render_text_email, send_text_mail
+  - mail_log app: OutboundEmailLog (hashed recipients only) + MailLogService + read-only Django admin
+  - Wired custom_projects / orders / accounts / contact deliver paths (fail-soft log writes)
+  - POST /api/v1/admin/custom-projects/<id>/quotation/resend-email/ (no quotation mutation)
+  - Tests: mail_log + workflow resend/log; existing fail-soft mail tests updated to patch config.mail.send_mail
+• Product decision: email-only alerts (2026-09-18)
+  - In-app notification inbox is out of Phase 1 (no bell, no /dashboard/notifications)
+  - Customers and staff are notified by automated Celery email (quotation/offer, project messages, delivery, receipts, auth)
+  - Feature 10 inbox code confirmed absent (Phase J cleanup)
 • Email verification re-enabled (2026-09-17)
   - Register unverified + Celery verification email; login 403 email_not_verified
   - IsEmailVerified on checkout + custom-project create/accept/pay
@@ -179,6 +228,23 @@ Completed Features
   - Playwright suite: login → product viewer → add to cart → checkout → success confirm → download
   - E2E_STRIPE_SIMULATE (Compose/CI only; refuses sk_live_); seed_e2e_commerce fixture command
   - CI e2e job builds Compose overlay, seeds fixtures, runs Chromium; never logs real Stripe secrets
+• Launch readiness Phase F — frontend hardening (2026-09-18)
+  - Playwright: admin `/console` login + hard nav; plugin cart/checkout smoke; unverified login gate
+  - seed_e2e_commerce also seeds admin, published plugin package, unverified buyer
+  - AuthModal Tab focus trap; shared CommerceCtaGroup with thin Product/Plugin wrappers
+• Launch readiness G1 + H1 (2026-09-18)
+  - Shared `config.api_helpers` + `StandardPagination` / DRF DEFAULT_PAGINATION_CLASS; products/orders/payments migrated
+  - Sentry: `check_sentry_config` (+ `--send-test-event`), `docs/SENTRY_STAGING_CHECKLIST.md`, checklist §2.2c (operator sets DSNs)
+• Launch readiness remaining code/docs (2026-09-18)
+  - G2: `drop_legacy_notifications_table`; G1 helpers across remaining apps; J2 adaptive shadow maps
+  - H2/H3/I1–I3/J1/K2 staging checklists + `seed_demo_catalog` + `check_ops_config` (operator host work still open)
+• Launch readiness Phase A2 — prod secrets / hosts / TLS (2026-09-18)
+  - `check_deploy_config` (+ `--fail-on-warnings` / `--django-deploy-check`); deploy checks `config.E001`/`E002`/`W001`
+  - `docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md`; PRODUCTION_CHECKLIST §1/§2.1; `.env.example` comments (operator sets live secrets/TLS)
+• Launch readiness Phase A3 — SMTP + refuse console in production (2026-09-18)
+  - Boot guard: `ALLOW_CONSOLE_EMAIL` + `ImproperlyConfigured` when `DEBUG=False` and console backend
+  - `check_email_config` (+ `--fail-on-warnings` / `--send-test-email`); `docs/SMTP_STAGING_CHECKLIST.md`; checklist §1/§2.4
+  - Compose web+worker `EMAIL_*` parity; console still allowed for local DEBUG / `ALLOW_CONSOLE_EMAIL=True` (operator sets real SMTP)
 • API versioning /api/v1 (2026-09-17)
   - Canonical mount at /api/v1/; unversioned /api/ rewritten to v1 via LegacyApiPathAliasMiddleware (one-release alias)
   - reverse() and download_url builders emit /api/v1/; auth/entitlement rules unchanged
@@ -307,11 +373,10 @@ Completed Features
   - Backend: zero-amount quotes fulfill without Stripe; receipt email reused
   - Frontend: Pay quotation / Continue payment on project detail; success/cancel project links
   - Tests: 8 quotation payment API tests; CustomerProjectDetailPage pay tests
-• Feature 10 — In-app Notifications (2026-08-03)
-  - Backend: notifications app (Notification model); GET list/unread-count; POST mark-one/mark-all-read
-  - Backend: emit on quotation sent, project message, delivery upload, order status change (fail-soft)
-  - Frontend: Navbar NotificationBell + /dashboard/notifications page; dashboard link
-  - Tests: 12 API/emit tests; NotificationBell + NotificationsPage + Navbar tests
+• Feature 10 — In-app Notifications (2026-08-03) — **superseded 2026-09-18**
+  - Shipped historically: notifications app, bell, /dashboard/notifications, fail-soft emits
+  - Product decision: do not use an in-app inbox; alerts go out as automated email instead
+  - Leftover UI/API is pending removal (not a Phase 1 required feature)
 • Feature 11 — Admin Analytics (2026-08-03)
   - Backend: GET /api/admin/analytics/ (start_date/end_date; order counts, revenue, AOV, revenue_by_period, top_products, top_plugins, gateway_breakdown)
   - Backend: Dashboard monthly sales now query paid Orders (no placeholders)
@@ -442,6 +507,7 @@ Completed Features
 • Public marketplace browse page (/products) UI (hero, search, category/license filters, sorting, pagination, skeletal loading, error state)
 • Public product details page (/products/:slug) — Atelier-style two-column layout using brand cream/navy/blue tokens; gallery stage, purchase card, specs table, related products, SEO, auth-aware CTAs
 Pending Features
+• Operator: execute docs/PRODUCTION_CHECKLIST.md on staging/prod (Backend 10/10 engineering A–J done 2026-09-18)
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
 • Feature 16 — Batch Catalog Ingest & QA (Phases 3–10 done in this repo; desktop bridge .exe polish optional / separate repo)
@@ -450,20 +516,17 @@ Pending Features
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
 • Waiting on manager approval for UI prototype
-• First Administrator must still be created via createsuperuser
-• Live Phase 1 intake Excel sign-off still pending for proposed columns (Thumbnail Path / Gallery / Tags); canonical set documented in contract
-• Cloudflare R2 buckets exist; put R2_* keys in backend/.env to send new uploads to R2 (local MEDIA if unset)
+• First Administrator: use `python manage.py ensure_administrator` (or createsuperuser); Google Sign-In needs matching `GOOGLE_OAUTH_CLIENT_ID` + `VITE_GOOGLE_CLIENT_ID` — see docs/AUTH_STAGING_CHECKLIST.md
+• Cloudflare R2: code/tooling ready (`verify_r2`, `audit_published_packages`, docs/R2_STAGING_CHECKLIST.md); operator must set `R2_*` on staging/host and run audit before launch
 Bugs
 No Known Bugs
 Technical Debt
-• New catalog/avatar/project uploads go to R2 when R2_* env is complete; leftover local MEDIA can be copied with `python manage.py migrate_local_media_to_r2`
-• Custom-project / message / delivery downloads use the same R2 presigned JSON + local FileResponse fallback as catalog downloads
-• Catalog Import API + QA + E2E (Phases 5–10) done in this repo; desktop bridge .exe polish is a separate repo
-• Admin audit logging not yet implemented
-• Access JWTs remain valid until expiry after password change (refresh cookies/tokens are blacklisted; cookie cleared)
+• (none currently tracked for Phase 1 auth token revocation)
 Important Decisions
 • PostgreSQL selected as the primary database.
-• JWT (SimpleJWT) for API authentication: Bearer access in memory; refresh via httpOnly Secure SameSite=Lax cookie (Path=/api/auth/); rotate + blacklist retained.
+• JWT (SimpleJWT) for API authentication: Bearer access in memory; refresh via httpOnly Secure SameSite=Lax cookie (Path=/api/v1/auth/); rotate + blacklist retained.
+• Access JWT includes claim `tv` = `User.token_version`; password change/reset increments `token_version` so outstanding access tokens fail immediately (refresh blacklist retained).
+• Public catalog search: Meili required when `MEILI_REQUIRED` (default `not DEBUG`); otherwise Postgres icontains fallback. Canonical API is `/api/v1/` only (legacy `/api/` aliases removed).
 • RBAC uses accounts.Role (Administrator / Customer); backend permissions never trust frontend alone.
 • Customer login: POST /api/auth/login/; Admin login: POST /api/auth/admin/login/.
 • Admin user DELETE soft-deactivates (is_active=False); protect last active admin and self-lockout.
@@ -481,7 +544,9 @@ Important Decisions
 • Project message, creation, quotation, and delivery emails use Celery tasks (REDIS_URL broker) with retries; Django send_mail + FRONTEND_BASE_URL in the worker; bodies contain only minimal project context and deep links (no message body, quote amounts/notes, emails, tokens, or storage paths); mail/enqueue failures are logged and never roll back any project action; staff recipients resolve to assigned designer else PROJECT_MESSAGE_ADMIN_RECIPIENTS else active Administrator account emails (never DEFAULT_FROM_EMAIL as To); email bodies rendered from Django text templates in custom_projects/templates/custom_projects/emails/.
 • Quotation accept: customer-only endpoint (IsAuthenticated, not IsAdministrator); requires project status=quoted and quotation.status=pending; transitions project to approved and quotation to accepted atomically; notifies staff after commit; other customers get 404 (not 403).
 • Payment receipt emails are enqueued after Stripe fulfillment commits; webhook signature verification and in-process idempotent fulfillment are unchanged.
-• Celery: broker = REDIS_URL; CELERY_TASK_ALWAYS_EAGER when Redis is unset (local DEBUG) or under tests; Compose runs `celery -A config worker`.
+• Celery: broker = REDIS_URL; CELERY_TASK_ALWAYS_EAGER when Redis is unset (local DEBUG) or under tests; mail tasks use queue=`email` with `CELERY_TASK_ROUTES`; Compose worker listens `-Q celery,email`.
+• Checkout Idempotency-Key (Phase H): optional header on cart checkout and quotation pay; cached 2xx JSON in Django cache for 24h under `idempotency:{scope}:{user_id}:{key}` (errors not cached).
+• Legal acceptance (Phase I): `LEGAL_DOCUMENT_VERSIONS` (`terms`/`privacy`, env-overridable); register requires `accepted_legal`; checkout/quotation pay require current rows (or accept via request body / `POST /api/v1/auth/legal-acceptances/`). OpenAPI at `/api/v1/schema/`.
 • Project deliveries use a dedicated ProjectDelivery model (not ProjectFile); version is a positive integer per project with a unique (project, version) constraint; admin upload reuses validate_project_file_upload + private deliveries/ storage prefix; API responses never include storage_path; customers have no delivery upload route; list/download is admin or project-owner only (other customers → 404; customers on admin routes → 403).
 • Password reset uses Django PasswordResetTokenGenerator; responses never enumerate accounts.
 • Email verification is enabled for customers: register sets email_verified=False and enqueues a Celery verification email; login returns 403 email_not_verified until confirmed. Checkout and custom-project create/accept/pay require IsEmailVerified. Google OAuth still trusts Google’s email_verified. Password change requires a verified email and sends a Celery security notification. Admin-created users remain email_verified=True; admin can still toggle email_verified.
@@ -493,15 +558,514 @@ Important Decisions
 • Catalog download entitlement requires order_status=paid AND payment_status=paid (stricter than reviews' order_status-only check); DownloadHistory logged per file fetch; total_downloads incremented on Product/Plugin.
 • Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles/slugs use OrderItem snapshots (Feature 8).
 • Admin analytics (Feature 11): order-based aggregates only; revenue counts payment_status=paid; gateway_breakdown is a stable array keyed by Payment.gateway for future PayPal/Razorpay without client breaks; date range capped at 366 days.
-• In-app notifications (Feature 10): owner-scoped Notification rows; short title/message + relative deep link; emit fail-soft alongside email hooks; customer bell in Navbar; IDOR → 404 on mark-read.
+• Notification channel is **automated email only** (2026-09-18). No in-app notification inbox in Phase 1. Feature 10 bell/API/UI are absent from the repo (Phase J cleanup confirmed). Celery emails use `config.mail` + optional OutboundEmailLog.
+• Postgres backups (Phase J + A5): `backend/scripts/backup_postgres.sh` (`pg_dump -Fc`, optional `BACKUP_RETENTION_DAYS` + `BACKUP_UPLOAD_R2`); disposable `restore_postgres_drill.sh`; runbook `docs/BACKUP_RESTORE_DRILL.md`. Live staging/prod cron + drill remains operator gate in PRODUCTION_CHECKLIST §2.6.
 • Cloud storage: Cloudflare R2 selected (not dual-track AWS S3). Public bucket/CDN for thumbnails + preview GLBs; private bucket for paid packages. Metadata remains in PostgreSQL/Django.
 • Batch ingest: MaxScript Batch Output Report is the post-render machine contract; Phase 1 intake Excel supplies price/marketing fields; join key is Model_ID. Bridge never auto-publishes — admin QA on the website is the final gate to status=published. Frozen detail: docs/batch-ingest-contract.md.
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order: Execute docs/PRODUCTION_CHECKLIST.md on staging/prod (Compose + E2E already in repo); then Feature 12 polish.
+• Recommended near-term order: execute docs/PRODUCTION_CHECKLIST.md on staging/prod; then Feature 12 polish.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
+• Stripe full refund policy (Phase B, 2026-09-18): `charge.refunded` with `refunded=true` sets Payment.status=refunded and Order order_status+payment_status=refunded via OrderService.mark_refunded; partial refunds ignored. Download entitlement fails automatically (paid+paid). Quotation orders also set project payment_status=unpaid and, if status was in_progress, revert to approved; deliveries and quotation rows are not deleted. Idempotent StripeWebhookEvent insert unchanged; handler errors still surface via existing StripeWebhookView + capture_webhook_failure.
+• Launch readiness Phase B1 — Stripe sandbox tooling (2026-09-18): `check_stripe_config` (+ `--require-test-mode` / `--fail-on-warnings` / `--ping`); prints key modes + webhook path/event types without secrets; `docs/STRIPE_SANDBOX_CHECKLIST.md` + PRODUCTION_CHECKLIST §2.5. Reuses CheckoutService / WebhookService / StripeWebhookEvent — operator still runs one real test-mode checkout; live keys = Phase K.
 Daily Development Log
+Date: 2026-09-18 (Launch readiness Phase B1 — Stripe keys + webhook verification)
+Working Hours:
+Today's Objective: Close B1 engineering/tooling gap (operator verify command + docs) without forking payment flow; leave live test checkout and Phase K live keys as operator work.
+Modules Completed: check_stripe_config, stripe_config helpers, STRIPE_SANDBOX_CHECKLIST verify steps
+Files Created:
+• backend/payments/stripe_config.py
+• backend/payments/management/__init__.py
+• backend/payments/management/commands/__init__.py
+• backend/payments/management/commands/check_stripe_config.py
+• backend/payments/test_stripe_config.py
+Files Modified:
+• docs/STRIPE_SANDBOX_CHECKLIST.md
+• docs/PRODUCTION_CHECKLIST.md §2.5
+• .env.example, backend/.env.example
+• implementingFIXfeature.md, PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None (existing POST /api/v1/payments/webhook/ unchanged)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Real Stripe Dashboard/CLI test checkout cannot be completed from this session alone — operator checkbox remains
+Solutions Implemented:
+• Reused WebhookService event types + existing signature verification; added management command mirroring check_email_config / verify_r2
+Security Review:
+• check_stripe_config never prints secret/publishable/webhook secret values — only modes and presence flags
+• --require-test-mode rejects sk_live_ / pk_live_ for sandbox phase
+• --ping uses Balance.retrieve only; errors surfaced without key material
+• Webhook still requires STRIPE_WEBHOOK_SECRET; missing secret → 503; bad signature → 400
+Next Steps:
+• Operator: check_stripe_config --require-test-mode [--ping]; stripe listen; one test card checkout + webhook replay
+Date: 2026-09-18 (Launch readiness Phase A5 — backup + restore drill)
+Working Hours:
+Today's Objective: Close A5 engineering gaps (retention, disposable restore proof, cron docs) without rewriting existing backup/upload helpers; leave live host drill as operator work.
+Modules Completed: BACKUP_RETENTION_DAYS prune, restore_postgres_drill.sh, BACKUP_RESTORE_DRILL.md, checklist §2.6
+Files Created:
+• backend/scripts/restore_postgres_drill.sh
+• docs/BACKUP_RESTORE_DRILL.md
+Files Modified:
+• backend/scripts/backup_postgres.sh (retention prune + drill hints)
+• backend/config/test_backup_scripts.py
+• docs/PRODUCTION_CHECKLIST.md §0 / §2.6
+• .env.example, backend/.env.example
+• implementingFIXfeature.md, PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• This Windows workstation cannot run WSL bash / Compose without root `.env` — live dump+restore left as operator checkbox on Linux staging/prod
+Solutions Implemented:
+• Reused backup_postgres.sh + upload_backup_to_r2.py; added disposable Docker restore that never mounts postgres_data; documented cron + local/R2 retention split
+Security Review:
+• Dumps stay under gitignored `backups/`; drill password is ephemeral and local-only
+• Restore script does not target Compose postgres_data; in-place staging restore remains manual + documented
+• R2 upload still uses existing env keys only; no secrets in scripts/docs
+• Confirmed R2 object recovery is documented as separate from Postgres restore
+Next Steps:
+• Operator: execute docs/BACKUP_RESTORE_DRILL.md on staging (dump, disposable drill, migrate/healthz/smoke, cron, R2 lifecycle)
+Date: 2026-09-18 (Launch readiness Phase A3 — SMTP + refuse console email)
+Working Hours:
+Today's Objective: Confirm Phase A3 tooling/guard is production-ready, document status, and leave live SMTP as operator work.
+Modules Completed: ALLOW_CONSOLE_EMAIL boot guard, check_email_config, SMTP_STAGING_CHECKLIST, Compose web/worker EMAIL_* parity
+Files Created:
+• backend/accounts/management/commands/check_email_config.py
+• backend/accounts/test_phase_a3_email.py
+• docs/SMTP_STAGING_CHECKLIST.md
+Files Modified:
+• backend/config/settings.py (ALLOW_CONSOLE_EMAIL + ImproperlyConfigured when DEBUG=False + console)
+• backend/config/test_health.py (console-email guard mirror test)
+• docker-compose.yml (web + worker EMAIL_* / ALLOW_CONSOLE_EMAIL)
+• .env.example, backend/.env.example
+• docs/PRODUCTION_CHECKLIST.md §1 Email / §2.4
+• implementingFIXfeature.md, PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Real SMTP credentials and inbox delivery cannot be set from the repo — left as operator checkbox
+Solutions Implemented:
+• Reused Celery mail tasks / enqueue_after_commit; boot-time refuse of console when DEBUG=False; management command for operator smoke
+Security Review:
+• No SMTP passwords committed; check_email_config prints only *_set flags for credentials
+• Console backend still allowed under DEBUG=True and tests; production must set ALLOW_CONSOLE_EMAIL=False + SMTP
+• Existing mail paths unchanged (accounts/orders/contact/custom_projects tasks)
+Next Steps:
+• Operator: follow docs/SMTP_STAGING_CHECKLIST.md on staging (web+worker SMTP + recipients + --send-test-email)
+Date: 2026-09-18 (Launch readiness Phase A2 — prod secrets / hosts / TLS)
+Working Hours:
+Today's Objective: Ship operator tooling for production secrets, hosts, and TLS clarity without inventing new env vars; leave live host values as operator work.
+Modules Completed: check_deploy_config, deploy_checks system checks, DEPLOY_SECRETS_STAGING_CHECKLIST, checklist §1/§2.1 wiring
+Files Created:
+• backend/config/deploy_checks.py
+• backend/accounts/management/commands/check_deploy_config.py
+• backend/config/test_deploy_checks.py
+• docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md
+Files Modified:
+• backend/accounts/apps.py
+• .env.example, backend/.env.example
+• docs/PRODUCTION_CHECKLIST.md
+• implementingFIXfeature.md, PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Live host secrets / TLS cannot be set from the repo — left as operator checkbox
+Solutions Implemented:
+• Reused check_* command pattern + Meili/FRONTEND localhost helpers; optional Django check --deploy integration
+Security Review:
+• No secrets committed; example placeholders stay non-secret; command never prints SECRET_KEY / DB_PASSWORD values
+• Custom deploy checks flag example SECRET_KEY and ALLOWED_HOSTS=*
+Next Steps:
+• Operator: follow docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md on staging/prod
+Date: 2026-09-18 (Backend 10/10 Phase J — ops backup + cleanup)
+Working Hours:
+Today's Objective: Ship runnable Postgres backup + R2 upload helpers; link checklist; confirm Feature 10 remnants gone; close Backend 10/10 engineering.
+Modules Completed: backup_postgres.sh, upload_backup_to_r2.py, PRODUCTION_CHECKLIST §2.6, docs cleanup
+Files Created:
+• backend/scripts/backup_postgres.sh
+• backend/scripts/upload_backup_to_r2.py
+• backend/config/test_backup_scripts.py
+Files Modified:
+• docs/PRODUCTION_CHECKLIST.md, BACKEND_10_IMPLEMENTATION_PLAN.md, PLANNED_FEATURES.md, DatabaseDesign.md
+• PROJECT_STATUS.md, .gitignore
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Created/Updated:
+• None (Feature 10 inbox already absent)
+Problems Encountered:
+• Live staging restore drill cannot be executed from the repo — left as operator checkbox
+Solutions Implemented:
+• Same R2_* env + boto3 for optional dump upload; Compose or direct pg_dump paths
+Security Review:
+• Dumps gitignored; private bucket prefix backups/postgres/; restore instructions staging-only
+Tests:
+• config.test_backup_scripts (upload helper, no network)
+Next Development Task:
+• Operator: PRODUCTION_CHECKLIST on staging; Feature 12 polish
+Date: 2026-09-18 (Backend 10/10 Phase I — LegalAcceptance + OpenAPI)
+Working Hours:
+Today's Objective: Store legal acceptance proof; gate register/checkout; ship OpenAPI schema.
+Modules Completed: LegalAcceptance model/service, register+checkout gates, legal endpoints, drf-spectacular
+Files Created:
+• backend/accounts/legal_service.py
+• backend/accounts/migrations/0006_legal_acceptance.py
+• backend/accounts/test_legal_acceptance.py
+• backend/config/test_openapi.py
+• frontend/src/lib/legalDocuments.ts
+Files Modified:
+• backend/accounts/models.py, serializers.py, services.py, views.py, urls.py, admin.py, tests
+• backend/payments/checkout_service.py, payment_common.py, views.py, test_payments.py
+• backend/custom_projects/views.py
+• backend/config/settings.py, api_urls.py, requirements.txt
+• backend/products/test_catalog_commerce_e2e.py, seed_e2e_commerce.py
+• frontend register types/form/tests
+• .github/workflows/ci.yml
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md, PROJECT_STATUS.md, backend/.env.example
+Database Changes:
+• accounts.LegalAcceptance (legal_acceptances)
+API Endpoints Added, Modified, or Removed:
+• GET /api/v1/auth/legal-documents/
+• POST /api/v1/auth/legal-acceptances/
+• POST register — requires accepted_legal
+• POST checkout / quotation pay — require legal (optional accepted_legal body)
+• GET /api/v1/schema/ (+ swagger-ui)
+Frontend Pages Created/Updated:
+• Register payload includes accepted_legal (checkbox already required in UI)
+Problems Encountered:
+• spectacular --validate noisy on APIViews without serializers — CI generates schema only
+Solutions Implemented:
+• LegalAcceptanceService shared by register + checkout; E2E buyer seed records acceptances
+Security Review:
+• Versions scoped per user; read-only admin for LegalAcceptance; no secrets in legal payload
+Tests:
+• accounts.test_legal_acceptance + checkout legal gate + OpenAPI schema smoke
+Next Development Task:
+• Phase J — ops backup, cleanup, PRODUCTION_CHECKLIST proof
+Date: 2026-09-18 (Backend 10/10 Phase H — idempotency + email queue)
+Working Hours:
+Today's Objective: Idempotency-Key on checkout/quotation pay; Celery email queue; verify throttle gaps.
+Modules Completed: config.idempotency, checkout/quotation pay wiring, mail task queues, compose worker -Q
+Files Created:
+• backend/config/idempotency.py
+• backend/config/test_idempotency.py
+Files Modified:
+• backend/payments/views.py, test_payments.py, test_quotation_payments.py
+• backend/custom_projects/views.py
+• backend/accounts/tasks.py, orders/tasks.py, custom_projects/tasks.py, contact/tasks.py
+• backend/config/settings.py, test_celery.py
+• docker-compose.yml
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md, PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• POST checkout + quotation pay — honor optional Idempotency-Key (same response on replay)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• None
+Solutions Implemented:
+• Cache 2xx only so validation errors remain retryable with same key; single worker listens to celery+email
+Security Review:
+• Keys scoped by user (+ project for quotation); no secrets in cache payload beyond checkout URLs/order ids already returned to client
+Tests:
+• Idempotency helper + checkout/quotation double-POST + Celery queue/route assertions
+Next Development Task:
+• Phase I — LegalAcceptance + optional OpenAPI
+Date: 2026-09-18 (Backend 10/10 Phase B — Stripe refunds)
+Working Hours:
+Today's Objective: Handle Stripe charge.refunded so refunded buyers lose download entitlement and quotation projects revert payment state without breaking checkout.
+Modules Completed: WebhookService refund handler, OrderService.mark_refunded, CustomProjectService.revert_quotation_after_refund, tests
+Files Created:
+• None
+Files Modified:
+• backend/payments/services.py
+• backend/orders/services.py
+• backend/custom_projects/services.py
+• backend/payments/test_payments.py
+• backend/payments/test_quotation_payments.py
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• POST /api/v1/payments/webhook/ — now processes charge.refunded (same URL)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• IN_PROGRESS→APPROVED is outside normal project status graph; refund path sets status directly (documented)
+Solutions Implemented:
+• Full-refund-only gate on charge.refunded boolean; reuse Order status transition maps; entitlement via existing helpers
+Security Review:
+• Unknown payment_intent is no-op (event still recorded for idempotency); non-succeeded payments ignored; webhook signature path unchanged
+Tests:
+• StripeWebhookTests + QuotationWebhookTests — 14 OK
+Next Development Task:
+• Phase I — LegalAcceptance + optional OpenAPI
+Date: 2026-09-18 (Backend 10/10 Phase G — Meili + legacy API)
+Working Hours:
+Today's Objective: Require Meili in prod; remove unversioned /api/ aliases; tighten refresh cookie path.
+Modules Completed: MEILI_REQUIRED, healthz/search 503, legacy middleware removal, cookie path
+Files Created:
+• None (legacy_api.py deleted)
+Files Modified:
+• backend/config/settings.py, health.py, urls.py, api_urls.py
+• backend/search/client.py, services.py, test_public_list.py
+• backend/accounts/auth_cookies.py, exceptions.py
+• backend/config/test_*.py
+• backend/.env.example, .env.example, docs/PRODUCTION_CHECKLIST.md
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md, PROJECT_STATUS.md, docs/PLANNED_FEATURES.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• Removed legacy unversioned `/api/*` aliases (404)
+• Public search with query may return 503 `search_unavailable` when Meili required+down
+Frontend Pages Created/Updated:
+• None (already on /api/v1)
+Problems Encountered:
+• Accidental api_urls truncate while editing docstring — restored with activity-logs include
+Solutions Implemented:
+• MEILI_REQUIRED gate in health + search; dual-clear cookies for one release
+Security Review:
+• Prod cannot report healthy without Meili when required; cookie Path narrowed to auth
+Tests:
+• config health/legacy/versioning + search.test_public_list — 25 OK
+Date: 2026-09-18 (Backend 10/10 Phase F — access token revocation)
+Working Hours:
+Today's Objective: Invalidate access JWTs on password change/reset via token_version + tv claim.
+Modules Completed: token_version model, VersionedRefreshToken, VersionedJWTAuthentication, refresh tv gate
+Files Created:
+• backend/accounts/tokens.py
+• backend/accounts/authentication.py
+• backend/accounts/migrations/0005_user_token_version.py
+Files Modified:
+• backend/accounts/models.py
+• backend/accounts/services.py
+• backend/accounts/views.py (CookieTokenRefreshView tv check)
+• backend/config/settings.py
+• backend/accounts/tests.py
+• backend/accounts/test_password_reset.py
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md
+• PROJECT_STATUS.md
+• docs/PLANNED_FEATURES.md
+Database Changes:
+• users.token_version PositiveIntegerField default 0
+API Endpoints Added, Modified, or Removed:
+• None (auth behavior change only)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Stale Bearer on AllowAny login returns 401 — tests clear credentials before re-login
+Solutions Implemented:
+• Bump token_version + embed tv; auth compares claims; refresh cookie also checks tv
+Security Review:
+• Missing tv treated as 0 (pre-migration tokens); mismatch → InvalidToken/401; refresh blacklist kept
+Tests:
+• ChangePasswordAPITests + PasswordResetAPITests — OK (incl. stale access cases)
+Date: 2026-09-18 (Backend 10/10 Phase E — service facades)
+Working Hours:
+Today's Objective: Split fat custom_projects and payments services behind stable facades; zero URL/serializer change.
+Modules Completed: CP domain mixins + payments admin/checkout/webhook modules
+Files Created:
+• backend/custom_projects/service_common.py
+• backend/custom_projects/project_service.py
+• backend/custom_projects/quotation_service.py
+• backend/custom_projects/message_service.py
+• backend/custom_projects/delivery_service.py
+• backend/payments/payment_common.py
+• backend/payments/admin_payment_service.py
+• backend/payments/checkout_service.py
+• backend/payments/webhook_service.py
+Files Modified:
+• backend/custom_projects/services.py (facade only)
+• backend/payments/services.py (facade + re-exports)
+• backend/payments/test_payments.py, test_quotation_payments.py (stripe patch paths)
+• backend/products/test_catalog_commerce_e2e.py (stripe patch path)
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md
+• PROJECT_STATUS.md
+• docs/PLANNED_FEATURES.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Stripe mocks must target checkout_service after split (import-bound name)
+Solutions Implemented:
+• Multiple-inheritance facade for CustomProjectService; payments modules re-exported from services.py
+Security Review:
+• No authz/payment logic changes; transactions and select_for_update preserved
+Tests:
+• custom_projects + payments — 152 OK
+Date: 2026-09-18 (Backend 10/10 Phase D — custom-project R2 parity)
+Working Hours:
+Today's Objective: Ensure custom-project private downloads share resolve_private_download; extend local→R2 migration for CP prefixes.
+Modules Completed: media_migration CP private keys; signed-download tests for files/attachments/deliveries
+Files Created:
+• None
+Files Modified:
+• backend/config/media_migration.py (ProjectFile / attachment / delivery private copy)
+• backend/products/management/commands/migrate_local_media_to_r2.py (help text)
+• backend/products/test_media_migration.py
+• backend/products/test_storage.py (CP prefixes not public)
+• backend/custom_projects/test_custom_projects.py (signed JSON for file + attachment)
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md
+• PROJECT_STATUS.md
+• docs/PLANNED_FEATURES.md
+Database Changes:
+• None (migrate accounts ActivityLog already applied; Phase D is storage/path parity only)
+API Endpoints Added, Modified, or Removed:
+• None (download URLs unchanged; response shape already signed JSON or FileResponse)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Download views already used resolve_private_download; remaining gap was migration coverage + file/attachment signed tests
+Solutions Implemented:
+• Reuse LocalMediaMigrationService._migrate_private_key for all three CP private models
+Security Review:
+• custom_projects/* remains outside PUBLIC_MEDIA_PREFIXES; /media/ still 404 for those keys
+Tests:
+• products.test_media_migration + MediaPathTests + targeted custom_projects signed-download tests — OK
+Date: 2026-09-18 (Backend 10/10 Phase C — ActivityLog)
+Working Hours:
+Today's Objective: Persist admin actions to ActivityLog via existing log_admin_action; add admin list API; keep fail-soft.
+Modules Completed: ActivityLog model, security_log persist, admin list API, Django admin, tests
+Files Created:
+• backend/accounts/migrations/0004_activity_log.py
+• backend/accounts/activity_service.py
+• backend/accounts/admin_activity_urls.py
+• backend/accounts/test_activity_log.py
+Files Modified:
+• backend/accounts/models.py (ActivityLog)
+• backend/accounts/security_log.py (fail-soft persist)
+• backend/accounts/serializers.py (ActivityLogSerializer)
+• backend/accounts/views.py (AdminActivityLogListView)
+• backend/accounts/admin.py (read-only ActivityLogAdmin)
+• backend/config/api_urls.py (admin/activity-logs/)
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md
+• PROJECT_STATUS.md
+• docs/PLANNED_FEATURES.md
+• DATABASE_STRUCTURE.md / docs/DatabaseDesign.md
+Database Changes:
+• New table activity_logs (UUID PK; actor FK SET NULL; action; target_id; metadata JSON; created_at; indexes)
+API Endpoints Added, Modified, or Removed:
+• GET /api/v1/admin/activity-logs/ — Administrator; filters action, actor_id, target_id
+Frontend Pages Created/Updated:
+• None (admin UI optional later)
+Problems Encountered:
+• Duplicate ActivityLog class briefly introduced during implementation; removed (related_name=activity_logs matches migration)
+Solutions Implemented:
+• Single write path in log_admin_action; list via ActivityLogService; DB failures never raise to admin APIs
+Security Review:
+• Administrator-only list; actor resolved by UUID; metadata JSON only from trusted admin call sites
+Tests:
+• accounts/test_activity_log.py — 5 OK
+Date: 2026-09-18 (Backend 10/10 Phase A — mail kernel + log + resend)
+Working Hours:
+Today's Objective: Implement Phase A without breaking existing mail/workflow behavior: shared helpers, OutboundEmailLog, wire deliver paths, admin quotation resend.
+Modules Completed: config.mail, mail_log app, notification wiring, resend API, tests
+Files Created:
+• backend/config/mail.py
+• backend/mail_log/ (apps, models, services, admin, migrations/0001, test_mail_log)
+Files Modified:
+• backend/config/settings.py (INSTALLED_APPS += mail_log)
+• backend/custom_projects/notifications.py
+• backend/custom_projects/services.py (resend_quotation_email)
+• backend/custom_projects/views.py + admin_urls.py
+• backend/orders/notifications.py
+• backend/accounts/services.py
+• backend/contact/services.py
+• backend/custom_projects/test_custom_projects.py
+• backend/contact/test_contact.py
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md
+• PROJECT_STATUS.md
+Database Changes:
+• New table outbound_email_logs (UUID PK; event_type; status; recipient_hash; related_object_*; subject; error; timestamps)
+API Endpoints Added, Modified, or Removed:
+• POST /api/v1/admin/custom-projects/<uuid>/quotation/resend-email/ [added]
+Frontend Pages Created/Updated:
+• None (admin UI button optional later)
+Problems Encountered:
+• Existing tests patched custom_projects.notifications.send_mail / contact.services.send_mail — updated to config.mail.send_mail
+Solutions Implemented:
+• Central _send/_skip in project notifications records queued/sent/failed/skipped; SMTP errors still re-raised for Celery retry; log writes are fail-soft
+Security Review:
+• Recipient emails stored only as sha256:… hashes; subjects sanitized via safe_email_text; resend does not include quote amounts/notes
+Tests:
+• mail_log + CustomProjectWorkflowEmailNotificationTests + CustomProjectMessageEmailNotificationTests + contact.test_contact — OK
+• StripeWebhookTests receipt cases + project create email — OK
+Next Development Task:
+• Phase B — Stripe refund webhooks (extend WebhookService)
+Date: 2026-09-18 (Backend 10/10 implementation plan)
+Working Hours:
+Today's Objective: Publish a detailed, file-level backend 10/10 plan that preserves working code and mandates reuse of existing helpers (enqueue_after_commit, resolve_private_download, log_admin_action, WebhookService).
+Modules Completed: Documentation only — docs/BACKEND_10_IMPLEMENTATION_PLAN.md (Phases A–J)
+Files Created:
+• docs/BACKEND_10_IMPLEMENTATION_PLAN.md
+Files Modified:
+• docs/PLANNED_FEATURES.md
+• PROJECT_STATUS.md
+Database Changes:
+• None (plan only; Phase A will add mail_log.OutboundEmailLog)
+API Endpoints Added, Modified, or Removed:
+• None yet (Phase A will add admin quotation resend-email)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• None
+Solutions Implemented:
+• Phased plan with reuse map, facade refactor rules, test matrix, and explicit out-of-scope (no in-app notifications rewrite)
+Security Review:
+• Plan requires hashed recipient in email logs; refunds revoke entitlement via existing paid+paid gates; ActivityLog via existing log_admin_action
+Tests:
+• N/A (plan only)
+Next Development Task:
+• Phase A — config/mail.py helpers + mail_log app + wire deliver_* + admin quotation resend
+Date: 2026-09-18 (Email-only alerts; drop in-app notifications from plan)
+Working Hours:
+Today's Objective: Update project status and implementation plan so Phase 1 does not require an in-app notification inbox; customer/staff alerts are automated email (quotation/offer, messages, delivery, receipts).
+Modules Completed: Docs only — product decision recorded; leftover Feature 10 UI/API listed as cleanup
+Files Created:
+• None
+Files Modified:
+• PROJECT_STATUS.md
+• PROJECT_MASTER_PLAN.md
+• docs/PLANNED_FEATURES.md
+• DATABASE_STRUCTURE.md
+• docs/DatabaseDesign.md
+Database Changes:
+• None (notifications table still exists in code; removal is pending cleanup, not this change)
+API Endpoints Added, Modified, or Removed:
+• None (Notification APIs remain until leftover Feature 10 is removed)
+Frontend Pages Created/Updated:
+• None (NotificationBell / NotificationsPage remain until leftover Feature 10 is removed)
+Problems Encountered:
+• Feature 10 in-app notifications already shipped 2026-08-03; plan now treats them as unused leftover rather than rewriting code in this pass
+Solutions Implemented:
+• Locked decision: automated Celery email is the notification channel; in-app inbox is out of Phase 1 scope
+Security Review:
+• Existing project/auth emails already omit secrets, quote amounts, message bodies, and storage paths; that rule stays
+Tests:
+• N/A (documentation-only)
+Next Development Task:
+• Optional cleanup: remove in-app notification app/UI; otherwise Sprint 11 production checklist on host
 Date: 2026-09-17 (Production checklist runbook)
 Working Hours:
 Today's Objective: Close the Sprint 11 “formal security / production deploy” documentation gap with an operator runbook (env gates, check --deploy, backup/webhook drills, worker+mail, rollback) without claiming live Production Ready.

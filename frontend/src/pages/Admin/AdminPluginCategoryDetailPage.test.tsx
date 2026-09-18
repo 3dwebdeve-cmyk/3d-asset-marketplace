@@ -35,13 +35,13 @@ const category = {
 function renderPage() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <MemoryRouter initialEntries={[`/admin/plugin-categories/${categoryId}`]}>
+      <MemoryRouter initialEntries={[`/console/plugin-categories/${categoryId}`]}>
         <Routes>
           <Route
-            path="/admin/plugin-categories/:categoryId"
+            path="/console/plugin-categories/:categoryId"
             element={<AdminPluginCategoryDetailPage />}
           />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -96,10 +96,10 @@ describe('AdminPluginCategoryDetailPage', () => {
     const queryClient = createTestQueryClient()
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[`/admin/plugin-categories/${categoryId}`]}>
+        <MemoryRouter initialEntries={[`/console/plugin-categories/${categoryId}`]}>
           <Routes>
             <Route
-              path="/admin/plugin-categories/:categoryId"
+              path="/console/plugin-categories/:categoryId"
               element={<AdminPluginCategoryDetailPage />}
             />
           </Routes>

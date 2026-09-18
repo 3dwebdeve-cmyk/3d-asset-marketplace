@@ -18,13 +18,8 @@ def remember_cookie_name() -> str:
 
 
 def refresh_cookie_path() -> str:
-    """Path= for refresh cookies.
-
-    Default ``/api/`` so the cookie is sent to both canonical
-    ``/api/v1/auth/`` and legacy ``/api/auth/`` aliases. After legacy
-    aliases are removed, tighten to ``/api/v1/auth/``.
-    """
-    return getattr(settings, "JWT_REFRESH_COOKIE_PATH", "/api/")
+    """Path= for refresh cookies (canonical auth mount)."""
+    return getattr(settings, "JWT_REFRESH_COOKIE_PATH", "/api/v1/auth/")
 
 
 def refresh_cookie_samesite() -> str:
@@ -87,8 +82,14 @@ def set_refresh_cookie(
 
 
 def clear_refresh_cookie(response: HttpResponse) -> None:
+    """Clear refresh cookies on current + legacy paths (one-release dual clear)."""
     samesite = refresh_cookie_samesite()
-    paths = {refresh_cookie_path(), "/api/auth/", "/api/v1/auth/"}
+    paths = {
+        refresh_cookie_path(),
+        "/api/v1/auth/",
+        "/api/auth/",
+        "/api/",
+    }
     for path in paths:
         response.delete_cookie(refresh_cookie_name(), path=path, samesite=samesite)
         response.delete_cookie(remember_cookie_name(), path=path, samesite=samesite)

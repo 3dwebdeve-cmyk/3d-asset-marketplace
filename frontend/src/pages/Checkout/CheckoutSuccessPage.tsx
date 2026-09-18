@@ -8,6 +8,10 @@ import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { OrderPaymentStatusBadge } from '../../components/ui/StatusBadge'
+import {
+  clearCheckoutOrderId,
+  peekCheckoutOrderId,
+} from '../../lib/checkoutReturn'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 
 const POLL_INTERVAL_MS = 2000
@@ -15,7 +19,8 @@ const POLL_TIMEOUT_MS = 45_000
 
 export function CheckoutSuccessPage() {
   const [searchParams] = useSearchParams()
-  const orderId = searchParams.get('order_id') ?? ''
+  const orderIdFromUrl = searchParams.get('order_id') ?? ''
+  const orderId = orderIdFromUrl || peekCheckoutOrderId() || ''
   const projectId = searchParams.get('project_id') ?? ''
   const queryClient = useQueryClient()
   const startedAtRef = useRef(Date.now())
@@ -26,6 +31,12 @@ export function CheckoutSuccessPage() {
     description: 'Private checkout confirmation. This page is not indexed by search engines.',
     robots: 'noindex, nofollow',
   })
+
+  useEffect(() => {
+    if (orderIdFromUrl) {
+      clearCheckoutOrderId()
+    }
+  }, [orderIdFromUrl])
 
   const orderQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],

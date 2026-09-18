@@ -70,7 +70,7 @@ class ContactSubmissionAPITests(APITestCase):
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
-    @patch("contact.services.send_mail", side_effect=RuntimeError("smtp down"))
+    @patch("config.mail.send_mail", side_effect=RuntimeError("smtp down"))
     def test_email_failure_still_returns_200(self, _mock_send) -> None:
         response = self.client.post(self.url, self.valid_payload, format="json")
 

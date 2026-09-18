@@ -48,7 +48,7 @@ export function AuthLoginPanel({
 
     const role = useAuthStore.getState().user?.role
     closeAuthModal()
-    navigate(isAdministrator(role) ? '/admin' : (returnTo ?? '/dashboard'), {
+    navigate(isAdministrator(role) ? '/console' : (returnTo ?? '/dashboard'), {
       replace: true,
     })
   }, [closeAuthModal, isGoogleSuccess, isSuccess, navigate, returnTo])
@@ -96,7 +96,7 @@ export function AuthLoginPanel({
 
       {showAdminLoginHint ? (
         <p className="auth-card__footer">
-          <Link className="auth-link" to="/admin/login" onClick={closeAuthModal}>
+          <Link className="auth-link" to="/console/login" onClick={closeAuthModal}>
             Go to admin sign in
           </Link>
         </p>

@@ -14,6 +14,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.legal_service import LegalAcceptanceService
 from accounts.models import Role, User
 from categories.models import Category
 from downloads.models import DownloadHistory
@@ -48,6 +49,10 @@ class CatalogImportCommerceE2ETests(APITestCase):
             password=self.password,
             role=self.customer_role,
             email_verified=True,
+        )
+        LegalAcceptanceService.record_acceptances(
+            self.customer,
+            LegalAcceptanceService.current_versions(),
         )
 
         self.furniture = Category.objects.create(name="Furniture", slug="furniture")
@@ -155,7 +160,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
         self.assertEqual(unpaid.status_code, status.HTTP_404_NOT_FOUND)
 
         with patch(
-            "payments.services.stripe.checkout.Session.create",
+            "payments.checkout_service.stripe.checkout.Session.create",
             return_value=_fake_session("cs_test_e2e"),
         ):
             checkout = self.client.post(self.checkout_url)
@@ -187,7 +192,9 @@ class CatalogImportCommerceE2ETests(APITestCase):
 
         download = self.client.get(download_url)
         self.assertEqual(download.status_code, status.HTTP_200_OK)
-        self.assertEqual(b"".join(download.streaming_content), payload)
+        with default_storage.open(package.storage_path, "rb") as stored:
+            expected = stored.read()
+        self.assertEqual(b"".join(download.streaming_content), expected)
         self.assertEqual(
             DownloadHistory.objects.filter(
                 user=self.customer,

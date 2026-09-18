@@ -9,6 +9,7 @@ from custom_projects.views import (
     AdminCustomProjectMessageAttachmentDownloadView,
     AdminCustomProjectMessageListCreateView,
     AdminCustomProjectMessageMarkReadView,
+    AdminCustomProjectQuotationResendEmailView,
     AdminCustomProjectQuotationView,
 )
 
@@ -29,6 +30,11 @@ urlpatterns = [
         "<uuid:project_id>/quotation/",
         AdminCustomProjectQuotationView.as_view(),
         name="admin-custom-project-quotation",
+    ),
+    path(
+        "<uuid:project_id>/quotation/resend-email/",
+        AdminCustomProjectQuotationResendEmailView.as_view(),
+        name="admin-custom-project-quotation-resend-email",
     ),
     path(
         "<uuid:project_id>/deliveries/",

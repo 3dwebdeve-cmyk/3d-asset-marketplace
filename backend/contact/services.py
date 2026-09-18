@@ -11,12 +11,12 @@ import logging
 from dataclasses import dataclass
 
 from django.conf import settings
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
 
 from accounts.models import User
 from accounts.services import AuthenticationService
 from config.celery_utils import enqueue_after_commit
+from config.mail import render_text_email, safe_email_text, send_text_mail
+from mail_log.services import MailLogService
 
 logger = logging.getLogger("contact.notifications")
 
@@ -34,8 +34,7 @@ class ContactService:
 
     @staticmethod
     def _safe_email_text(value: str) -> str:
-        """Collapse whitespace/newlines so values cannot inject email headers."""
-        return " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
+        return safe_email_text(value)
 
     @classmethod
     def _configured_recipients(cls) -> list[str]:
@@ -90,12 +89,17 @@ class ContactService:
         recipients = cls._configured_recipients()
         if not recipients:
             logger.warning("contact_form_email_skipped reason=no_admin_recipients")
+            MailLogService.record_skipped(
+                event_type="contact_submission",
+                reason="no_admin_recipients",
+                related_object_type="contact",
+            )
             return
 
         safe_name = cls._safe_email_text(data.name)
         safe_subject = cls._safe_email_text(data.subject)
         safe_email = cls._safe_email_text(data.email)
-        body = render_to_string(
+        body = render_text_email(
             "contact/emails/submission.txt",
             {
                 "sender_name": safe_name,
@@ -103,15 +107,24 @@ class ContactService:
                 "subject": safe_subject,
                 "message": data.message.strip(),
             },
-        ).strip() + "\n"
-
-        send_mail(
-            subject=f"Contact form: {safe_subject}",
-            message=body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=recipients,
-            fail_silently=False,
         )
+        subject = f"Contact form: {safe_subject}"
+        log_id = MailLogService.record_queued(
+            event_type="contact_submission",
+            recipients=recipients,
+            related_object_type="contact",
+            subject=subject,
+        )
+        try:
+            send_text_mail(
+                subject=subject,
+                body=body,
+                recipients=recipients,
+            )
+        except Exception as exc:
+            MailLogService.mark_failed(log_id, str(exc))
+            raise
+        MailLogService.mark_sent(log_id)
         logger.info(
             "contact_form_email_sent recipient_count=%s",
             len(recipients),

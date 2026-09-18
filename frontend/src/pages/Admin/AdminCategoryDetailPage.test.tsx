@@ -39,14 +39,14 @@ function renderCategoryDetailPage() {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/admin/categories/${categoryId}`]}>
+      <MemoryRouter initialEntries={[`/console/categories/${categoryId}`]}>
         <Routes>
           <Route
-            path="/admin/categories/:categoryId"
+            path="/console/categories/:categoryId"
             element={<AdminCategoryDetailPage />}
           />
-          <Route path="/admin/categories" element={<div>Categories list</div>} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/categories" element={<div>Categories list</div>} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

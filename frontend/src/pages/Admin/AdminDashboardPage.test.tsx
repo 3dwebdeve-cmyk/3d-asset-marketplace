@@ -85,19 +85,19 @@ describe('AdminDashboardPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'View payments' })).toHaveAttribute(
       'href',
-      '/admin/payments',
+      '/console/payments',
     )
     expect(screen.getByRole('link', { name: 'Manage plugins' })).toHaveAttribute(
       'href',
-      '/admin/plugins',
+      '/console/plugins',
     )
     expect(screen.getByRole('link', { name: 'Manage orders' })).toHaveAttribute(
       'href',
-      '/admin/orders',
+      '/console/orders',
     )
     expect(screen.getByRole('link', { name: 'Manage payments' })).toHaveAttribute(
       'href',
-      '/admin/payments',
+      '/console/payments',
     )
     expect(dashboardApi.getAdminDashboardStats).toHaveBeenCalledTimes(1)
   })

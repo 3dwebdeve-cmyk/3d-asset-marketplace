@@ -4,6 +4,7 @@ import { isAxiosError } from 'axios'
 import { useNavigate } from 'react-router-dom'
 
 import { getAdminCurrentUser, logoutUser } from '../api/authApi'
+import { ADMIN_LOGIN } from '../config/adminPaths'
 import { isAdministrator } from '../lib/roles'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
@@ -41,17 +42,17 @@ export function useAdminSession() {
       : undefined
 
     if (status === 401 || status === 403) {
-      clearSession({ redirectTo: '/admin/login' })
-      navigate('/admin/login', { replace: true })
+      clearSession({ redirectTo: ADMIN_LOGIN })
+      navigate(ADMIN_LOGIN, { replace: true })
     }
   }, [adminUserQuery.isError, adminUserQuery.error, clearSession, navigate])
 
   const logoutMutation = useMutation({
     mutationFn: () => logoutUser(),
     onSettled: () => {
-      clearSession({ redirectTo: '/admin/login' })
+      clearSession({ redirectTo: ADMIN_LOGIN })
       toast.success('Signed out')
-      navigate('/admin/login', { replace: true })
+      navigate(ADMIN_LOGIN, { replace: true })
     },
   })
 

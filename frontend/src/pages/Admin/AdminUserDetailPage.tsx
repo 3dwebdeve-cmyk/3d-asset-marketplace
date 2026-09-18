@@ -51,7 +51,7 @@ export function AdminUserDetailPage() {
       toast.success('User updated')
       setFormError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not update user.'))
@@ -63,7 +63,7 @@ export function AdminUserDetailPage() {
     onSuccess: async () => {
       toast.success('User deactivated')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
-      navigate('/admin', { replace: true })
+      navigate('/console', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not deactivate user.'))
@@ -83,7 +83,7 @@ export function AdminUserDetailPage() {
         <h1 id="admin-user-detail-title">Manage user</h1>
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/admin/users">
+          <Link className="home-page__cta home-page__cta--secondary" to="/console/users">
             Back to users
           </Link>
         </div>

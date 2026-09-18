@@ -135,6 +135,17 @@ export function CartPage() {
               <p className="cart-summary__note">
                 Unavailable items are excluded from the subtotal.
               </p>
+              <p className="cart-summary__note cart-summary__note--legal">
+                By checking out you agree to our{' '}
+                <Link className="auth-link" to="/terms">
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link className="auth-link" to="/privacy">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
               <Button
                 type="button"
                 className="cart-checkout-button"

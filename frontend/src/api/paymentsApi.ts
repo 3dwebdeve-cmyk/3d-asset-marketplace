@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
 import type {
   AdminPaymentDetail,
   AdminPaymentListParams,
@@ -7,8 +8,13 @@ import type {
   PaginatedAdminPayments,
 } from '../types/payment'
 
-export async function createCheckoutSession(): Promise<CheckoutSessionResponse> {
-  const { data } = await apiClient.post<CheckoutSessionResponse>('/api/v1/payments/checkout/')
+export async function createCheckoutSession(
+  acceptedLegal: Record<string, string> = currentAcceptedLegalPayload(),
+): Promise<CheckoutSessionResponse> {
+  const { data } = await apiClient.post<CheckoutSessionResponse>(
+    '/api/v1/payments/checkout/',
+    { accepted_legal: acceptedLegal },
+  )
   return data
 }
 

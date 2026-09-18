@@ -101,14 +101,14 @@ const sampleCategories = {
   ],
 }
 
-function renderProductsPage(initialEntry = '/admin/products') {
+function renderProductsPage(initialEntry = '/console/products') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
-          <Route path="/admin/products" element={<AdminProductsPage />} />
-          <Route path="/admin" element={<div>Admin Dashboard</div>} />
+          <Route path="/console/products" element={<AdminProductsPage />} />
+          <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -137,12 +137,12 @@ describe('AdminProductsPage', () => {
     expect(screen.getByText('2026-09-03-run-01')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /manage/i })).toHaveAttribute(
       'href',
-      `/admin/products/${productId}`,
+      `/console/products/${productId}`,
     )
   })
 
   it('filters by pending_review from the QA queue URL', async () => {
-    renderProductsPage('/admin/products?status=pending_review')
+    renderProductsPage('/console/products?status=pending_review')
 
     await waitFor(() => {
       expect(productsApi.listAdminProducts).toHaveBeenCalledWith(

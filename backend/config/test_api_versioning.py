@@ -1,4 +1,4 @@
-"""API versioning: canonical /api/v1/ and legacy /api/ aliases."""
+"""API versioning: canonical /api/v1/ only (legacy /api/ aliases removed)."""
 
 from django.urls import reverse
 from rest_framework import status
@@ -14,22 +14,16 @@ class ApiVersioningTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "ok")
 
-    def test_legacy_healthz_alias_ok(self) -> None:
+    def test_legacy_healthz_alias_removed(self) -> None:
         response = self.client.get("/api/healthz/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["status"], "ok")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_reverse_auth_login_uses_v1_prefix(self) -> None:
         self.assertEqual(reverse("accounts:login"), "/api/v1/auth/login/")
 
-    def test_legacy_auth_login_alias_resolves(self) -> None:
-        # Empty body → 400 validation, proving the legacy path hits the view.
-        response = self.client.post(
-            "/api/auth/login/",
-            {},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_legacy_auth_login_alias_removed(self) -> None:
+        response = self.client.post("/api/auth/login/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_v1_auth_login_resolves(self) -> None:
         response = self.client.post(

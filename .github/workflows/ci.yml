@@ -44,6 +44,8 @@ jobs:
             'DB_PASSWORD=postgres' \
             'DB_HOST=localhost' \
             'DB_PORT=5432' > .env
+      - name: OpenAPI schema check
+        run: python manage.py spectacular --file /tmp/openapi.yml
       - name: Run tests
         run: python manage.py test --verbosity=1
 
@@ -92,11 +94,13 @@ jobs:
             'DB_HOST=postgres' \
             'DB_PORT=5432' \
             'REDIS_URL=redis://redis:6379/1' \
+            'CELERY_BROKER_URL=redis://redis:6379/0' \
             'MEILI_URL=http://meilisearch:7700' \
             'MEILI_MASTER_KEY=ci-e2e-meili-master-key' \
             'MEILI_ENV=development' \
             'FRONTEND_PORT=8080' \
             'VITE_API_BASE_URL=' \
+            'ALLOW_CONSOLE_EMAIL=True' \
             'EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend' \
             'DEFAULT_FROM_EMAIL=noreply@3dassetmarketplace.local' \
             'STRIPE_SECRET_KEY=sk_test_e2e_ci_placeholder_not_a_real_secret' \
@@ -147,6 +151,11 @@ jobs:
           E2E_BUYER_EMAIL: e2e-buyer@example.com
           E2E_BUYER_PASSWORD: E2eBuyerPass123!
           E2E_PRODUCT_SLUG: e2e-checkout-chair
+          E2E_ADMIN_EMAIL: e2e-admin@example.com
+          E2E_ADMIN_PASSWORD: E2eAdminPass123!
+          E2E_PLUGIN_SLUG: e2e-checkout-plugin
+          E2E_UNVERIFIED_EMAIL: e2e-unverified@example.com
+          E2E_UNVERIFIED_PASSWORD: E2eUnverifiedPass123!
         run: npm test
 
       - name: Upload Playwright report

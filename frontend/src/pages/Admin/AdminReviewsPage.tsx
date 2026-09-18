@@ -172,8 +172,8 @@ export function AdminReviewsPage() {
                   {results.map((review) => {
                     const catalogHref =
                       review.product_type === 'product'
-                        ? `/admin/products/${review.product_id}`
-                        : `/admin/plugins/${review.product_id}`
+                        ? `/console/products/${review.product_id}`
+                        : `/console/plugins/${review.product_id}`
                     return (
                       <tr key={review.id}>
                         <td>{formatDate(review.created_at)}</td>

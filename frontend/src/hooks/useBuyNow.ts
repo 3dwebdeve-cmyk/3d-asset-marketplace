@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { addCartItem, getCart } from '../api/cartApi'
 import { createCheckoutSession } from '../api/paymentsApi'
 import { getApiErrorMessage } from '../lib/apiError'
+import { rememberCheckoutOrderId } from '../lib/checkoutReturn'
 import { toast } from '../lib/toast'
 import type { CartProductType } from '../types/cart'
 
@@ -31,6 +32,7 @@ export function useBuyNow() {
       return createCheckoutSession()
     },
     onSuccess: (data) => {
+      rememberCheckoutOrderId(data.order_id)
       window.location.href = data.checkout_url
     },
     onError: (error) => {

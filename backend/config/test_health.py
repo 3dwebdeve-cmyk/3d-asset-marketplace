@@ -38,6 +38,13 @@ class HealthzApiTests(APITestCase):
         self.assertEqual(response.data["checks"]["meilisearch"], "error")
         self.assertEqual(response.data["status"], "unavailable")
 
+    @override_settings(MEILI_REQUIRED=True, MEILI_URL="", MEILI_MASTER_KEY="")
+    def test_healthz_meili_required_but_unconfigured(self) -> None:
+        response = self.client.get(reverse("healthz"))
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.data["checks"]["meilisearch"], "error")
+        self.assertEqual(response.data["status"], "unavailable")
+
 
 class RedisProductionGuardTests(SimpleTestCase):
     def test_settings_require_redis_when_debug_false(self) -> None:
@@ -50,6 +57,45 @@ class RedisProductionGuardTests(SimpleTestCase):
                     "REDIS_URL is required when DEBUG=False so rate limits and cache "
                     "are shared across workers."
                 )
+
+    def test_console_email_blocked_when_debug_false_without_allow(self) -> None:
+        """Mirror the settings.py console-email guard (Phase A3)."""
+        debug = False
+        running_tests = False
+        email_backend = "django.core.mail.backends.console.EmailBackend"
+        allow_console_email = False
+        with self.assertRaises(ImproperlyConfigured):
+            if (
+                not debug
+                and not running_tests
+                and "console" in email_backend.lower()
+                and not allow_console_email
+            ):
+                raise ImproperlyConfigured(
+                    "EMAIL_BACKEND must not use the console backend when DEBUG=False."
+                )
+
+    def test_localhost_frontend_blocked_when_debug_false_without_allow(self) -> None:
+        """Mirror the settings.py FRONTEND_BASE_URL guard (Phase D2)."""
+        debug = False
+        running_tests = False
+        allow_localhost_frontend = False
+        frontend_host = "localhost"
+        with self.assertRaises(ImproperlyConfigured):
+            if (
+                not debug
+                and not running_tests
+                and not allow_localhost_frontend
+                and frontend_host in {"localhost", "127.0.0.1", "::1"}
+            ):
+                raise ImproperlyConfigured(
+                    "FRONTEND_BASE_URL must be the public SPA origin when DEBUG=False."
+                )
+
+    def test_celery_broker_defaults_from_redis_url(self) -> None:
+        self.assertTrue(hasattr(settings, "CELERY_BROKER_URL"))
+        self.assertTrue(hasattr(settings, "ALLOW_CONSOLE_EMAIL"))
+        self.assertTrue(hasattr(settings, "ALLOW_LOCALHOST_FRONTEND"))
 
     def test_static_root_configured(self) -> None:
         self.assertTrue(str(settings.STATIC_ROOT).endswith("staticfiles"))

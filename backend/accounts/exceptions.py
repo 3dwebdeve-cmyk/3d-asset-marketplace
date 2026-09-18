@@ -43,6 +43,10 @@ def custom_exception_handler(exc, context):
         return response
 
     if isinstance(response.data, dict) and "detail" in response.data:
-        response.data.setdefault("code", "error")
+        default_code = getattr(exc, "default_code", None)
+        if isinstance(default_code, str) and default_code:
+            response.data.setdefault("code", default_code)
+        else:
+            response.data.setdefault("code", "error")
 
     return response

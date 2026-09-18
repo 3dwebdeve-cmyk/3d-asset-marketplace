@@ -2,7 +2,6 @@
 URL configuration for config project.
 
 Canonical REST API: /api/v1/...
-Legacy aliases: /api/... (same handlers; remove after one release).
 """
 
 from django.conf import settings

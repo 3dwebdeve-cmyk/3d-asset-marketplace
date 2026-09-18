@@ -181,7 +181,7 @@ export function AdminPaymentsPage() {
                       <td>{formatDate(payment.created_at)}</td>
                       <td>{payment.customer_email}</td>
                       <td>
-                        <Link className="auth-link" to={`/admin/orders/${payment.order_id}`}>
+                        <Link className="auth-link" to={`/console/orders/${payment.order_id}`}>
                           {payment.invoice_number}
                         </Link>
                       </td>
@@ -194,7 +194,7 @@ export function AdminPaymentsPage() {
                         <code>{payment.stripe_checkout_session_id}</code>
                       </td>
                       <td>
-                        <Link className="auth-link" to={`/admin/payments/${payment.id}`}>
+                        <Link className="auth-link" to={`/console/payments/${payment.id}`}>
                           View
                         </Link>
                       </td>

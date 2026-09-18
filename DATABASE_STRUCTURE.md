@@ -26,7 +26,8 @@ Custom Project Portal
 Commerce
  Shopping Cart  Cart Items  Orders  Order Items  Payments  Invoices  Coupons
 Customer Features
- Wishlist  Reviews  Notifications  Download History
+ Wishlist  Reviews  Download History
+ (No in-app Notifications table in Phase 1 — leftover Feature 10 rows may still exist until cleanup; alerts are automated email)
 Administration
  Analytics  Activity Logs
 5. Table Descriptions
@@ -206,11 +207,12 @@ Stores customer ratings. Fields
 Product / Plugin aggregates
  average_rating (denormalized from visible reviews)
  review_count (denormalized count of visible reviews)
-Notifications
-Stores platform notifications. Fields
- id
- user_id
- title  message  link (relative deep link)  is_read  created_at  updated_at
+Notifications (unused leftover — out of Phase 1)
+In-app notification inbox is not a Phase 1 product feature. Alerts are automated
+email (quotation/offer, project messages, delivery, receipts). The Feature 10
+Django app / API / SPA inbox are **absent** from the repo. If an orphaned
+`notifications` table remains in an old database, drop it after backup with:
+`python manage.py drop_legacy_notifications_table --confirm`.
 Custom Projects
 Stores custom modeling requests submitted by customers. Fields
  id
@@ -255,14 +257,14 @@ Stores completed project files. Fields
 Analytics
 Stores business analytics. Examples:  Monthly Sales  Revenue  Downloads  Best Selling Models  Best Selling Plugins  Active Customers
 Activity Logs
-Stores important platform activities. Examples:  Login
- Payment  Product Upload
- Plugin Upload
- Download
- Project Submission
- Project Delivery
+Durable admin audit rows (`activity_logs`), written fail-soft from `log_admin_action`.
+Fields
+ id (UUID)  actor_id (FK users, SET NULL)  action  target_id  metadata (JSON)
+ created_at
+Indexed on (action, created_at) and (actor, created_at). Admin list:
+GET /api/v1/admin/activity-logs/
 6. Entity Relationships
- One Role → Many Users  One User → One User Profile  One User → Many Orders  One User → Many Downloads  One User → Many Reviews  One User → Many Wishlist Items  One Category → Many Products  One Product → Many Images  One Product → Many Files  One Plugin Category → Many Plugins  One Plugin → Many Files  One Plugin → Many Images  One Cart → Many Cart Items  One Order → Many Order Items
+ One Role → Many Users  One User → One User Profile  One User → Many Orders  One User → Many Downloads  One User → Many Reviews  One User → Many Wishlist Items  One User → Many Activity Logs  One Category → Many Products  One Product → Many Images  One Product → Many Files  One Plugin Category → Many Plugins  One Plugin → Many Files  One Plugin → Many Images  One Cart → Many Cart Items  One Order → Many Order Items
  One Order → One Payment  One Order → One Invoice  One User → Many Custom Projects  One Custom Project → Many Files  One Custom Project → Many Messages  One Custom Project → One Quotation
  One Custom Project → Many Deliveries
 7. Database Normalization

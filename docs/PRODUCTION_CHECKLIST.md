@@ -14,12 +14,13 @@ Compose and env templates intentionally default to safe local values (`EMAIL_BAC
 |------|------------|---------------|
 | Feature 13 Docker / Gunicorn / Nginx | Done | — |
 | This runbook | Done | — |
-| Env secrets + SMTP + Stripe + R2 + Sentry on host | Templates only | Operator |
-| `manage.py check --deploy` on host | Documented | Operator |
-| Backup / restore drill | Documented | Operator |
+| Env secrets + SMTP + Stripe + R2 + Sentry on host | Templates + `check_deploy_config` | Operator |
+| `manage.py check --deploy` on host | Documented + Phase A2 custom checks | Operator |
+| Backup / restore drill | Scripts + [`BACKUP_RESTORE_DRILL.md`](BACKUP_RESTORE_DRILL.md) | Operator on staging/prod |
 | Stripe webhook endpoint test | Documented | Operator |
 | Celery worker + real mail (not console) | Documented | Operator |
-| Formal security / production Ready | Open until checklist executed | Operator |
+| Backend 10/10 engineering (Phases A–J deliverables) | Done (2026-09-18) | — |
+| Formal security / production Ready | Open until checklist executed on host | Operator — see [`SECURITY_SMOKE_CHECKLIST.md`](SECURITY_SMOKE_CHECKLIST.md) |
 
 ---
 
@@ -29,29 +30,37 @@ Copy root `.env.example` → `.env` on the host (never commit). Set:
 
 ### Core Django
 
+**Staging first:** [`docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md`](DEPLOY_SECRETS_STAGING_CHECKLIST.md) — `check_deploy_config`, then `check --deploy`.
+
 | Variable | Production requirement |
 |----------|------------------------|
 | `DEBUG` | `False` (Compose `web` / `worker` already force `DEBUG=False`) |
-| `SECRET_KEY` | Fresh random ≥ 32 bytes; never reuse the example string |
+| `SECRET_KEY` | Fresh random ≥ 32 bytes; never reuse the example string (`openssl rand -base64 48`) |
 | `ALLOWED_HOSTS` | Public hostname(s) only (no `*`) |
-| `FRONTEND_BASE_URL` | Public HTTPS origin of the SPA |
+| `FRONTEND_BASE_URL` | Public HTTPS origin of the SPA (verification / password-reset links — see [`docs/AUTH_STAGING_CHECKLIST.md`](AUTH_STAGING_CHECKLIST.md)) |
 | `CORS_ALLOWED_ORIGINS` | Same SPA origin(s); no wildcards |
 | `PUBLIC_API_BASE_URL` | Public HTTPS API origin (often same host as SPA via Nginx) |
 | `CSRF_TRUSTED_ORIGINS` | `https://…` origins (required when `DEBUG=False`) |
 | `SECURE_SSL_REDIRECT` | `True` when TLS terminates at Cloudflare / load balancer |
 | `SECURE_HSTS_SECONDS` | `31536000` (or staged rollout) once HTTPS is confirmed |
+| `GOOGLE_OAUTH_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` | Same Web client ID if Google Sign-In is used; else leave blank |
+| `ALLOW_LOCALHOST_FRONTEND` | Must be unset/`False` in production (`DEBUG=False` refuses localhost `FRONTEND_BASE_URL`) |
 
 ### Redis
 
 | Variable | Production requirement |
 |----------|------------------------|
-| `REDIS_URL` | Reachable Redis (Compose: `redis://redis:6379/1`). **Required** when `DEBUG=False` for shared cache, throttles, and Celery. |
+| `REDIS_URL` | Reachable Redis cache DB (Compose: `redis://redis:6379/1`). **Required** when `DEBUG=False` for shared cache, throttles, and idempotency. |
+| `CELERY_BROKER_URL` | Celery broker (Compose: `redis://redis:6379/0`). Falls back to `REDIS_URL` if unset; prefer a separate DB index. |
 
 ### Email (must leave console)
+
+**Staging first:** follow [`docs/SMTP_STAGING_CHECKLIST.md`](SMTP_STAGING_CHECKLIST.md) — `check_email_config`, `--send-test-email`, then product-path smoke.
 
 | Variable | Production requirement |
 |----------|------------------------|
 | `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` |
+| `ALLOW_CONSOLE_EMAIL` | `False` (or unset). Required so `DEBUG=False` + console backend cannot boot. |
 | `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Real SMTP |
 | `EMAIL_USE_TLS` | Typically `True` on 587 |
 | `DEFAULT_FROM_EMAIL` | Verified sender domain |
@@ -78,6 +87,8 @@ Copy root `.env.example` → `.env` on the host (never commit). Set:
 | `R2_PUBLIC_BASE_URL` | Public CDN / r2.dev base URL |
 | `R2_SIGNED_URL_EXPIRY` | Short TTL (default 300s) |
 
+**Staging first:** follow [`docs/R2_STAGING_CHECKLIST.md`](R2_STAGING_CHECKLIST.md) — `verify_r2`, optional `migrate_local_media_to_r2`, then `audit_published_packages --fail-on-missing`.
+
 ### Sentry
 
 | Variable | Production requirement |
@@ -88,6 +99,8 @@ Copy root `.env.example` → `.env` on the host (never commit). Set:
 | `VITE_SENTRY_DSN` | React project DSN (**bake at frontend image build**) |
 | `VITE_SENTRY_ENVIRONMENT` / `VITE_SENTRY_TRACES_SAMPLE_RATE` | Match backend policy |
 | `SENTRY_RELEASE` | Optional image tag / git SHA for release tracking |
+
+**Staging first:** follow [`docs/SENTRY_STAGING_CHECKLIST.md`](SENTRY_STAGING_CHECKLIST.md) — `check_sentry_config --send-test-event`, then rebuild frontend with `VITE_SENTRY_DSN`.
 
 ### TLS at the proxy
 
@@ -104,6 +117,10 @@ Copy root `.env.example` → `.env` on the host (never commit). Set:
 | `DB_PASSWORD` | Strong unique password |
 | `MEILI_MASTER_KEY` | ≥ 16 chars; not the example value |
 | `MEILI_ENV` | `production` |
+| `MEILI_URL` | Required when `MEILI_REQUIRED` is true (default when `DEBUG=False`) |
+| `MEILI_REQUIRED` | Defaults to `true` when `DEBUG=False`; set `false` only for emergency DX |
+
+Catalog updates enqueue Meili sync on the default Celery queue after DB commit (`search.sync_product` / `search.sync_plugin`). Repair drift with `python manage.py reindex_search`.
 
 ---
 
@@ -111,29 +128,79 @@ Copy root `.env.example` → `.env` on the host (never commit). Set:
 
 Run against the **production** `.env` / stack (adjust service names if you use a different orchestrator).
 
-### 2.1 Django deploy checks
+### 2.1 Django deploy checks (secrets / hosts / TLS)
+
+**Staging first:** [`docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md`](DEPLOY_SECRETS_STAGING_CHECKLIST.md).
 
 ```bash
+docker compose exec web python manage.py check_deploy_config --fail-on-warnings
 docker compose exec web python manage.py check --deploy
 ```
 
-Expect **zero** issues. Common failures: missing `CSRF_TRUSTED_ORIGINS`, weak `SECRET_KEY`, `DEBUG=True`, insecure cookie flags.
+Expect **zero** issues. Common failures: example `SECRET_KEY` / `DB_PASSWORD` / `MEILI_MASTER_KEY`, missing `CSRF_TRUSTED_ORIGINS`, localhost-only `ALLOWED_HOSTS`, `DEBUG=True`, insecure cookie flags, `SECURE_SSL_REDIRECT=False` on a public HTTPS host.
 
 Also useful:
 
 ```bash
 docker compose exec web python manage.py check
-docker compose exec web python -c "from django.conf import settings; assert settings.DEBUG is False; assert 'console' not in settings.EMAIL_BACKEND.lower(); print('DEBUG/email OK')"
+docker compose exec web python manage.py check_deploy_config --django-deploy-check --fail-on-warnings
+docker compose exec web python -c "from django.conf import settings; assert settings.DEBUG is False; assert 'console' not in settings.EMAIL_BACKEND.lower(); assert settings.ALLOW_CONSOLE_EMAIL is False; print('DEBUG/email OK')"
 ```
+
+### SPA admin vs Django admin (Phase A1)
+
+| Surface | URL |
+|---------|-----|
+| Marketplace control panel (React) | `https://<host>/console/login` and `/console/…` |
+| Django admin | `https://<host>/admin/` (Nginx proxies to Gunicorn) |
+| Admin REST APIs | `/api/v1/admin/…` (unchanged) |
+
+Do not bookmark SPA routes under `/admin/…` in Compose/production — Nginx sends those to Django. Vite local still redirects `/admin` → `/console`.
+
+Console pages set `noindex,nofollow`; `frontend/public/robots.txt` disallows `/console` and other private surfaces.
 
 ### 2.2 Health
 
 ```bash
 curl -fsS https://<public-host>/api/v1/healthz/
-# Legacy alias (one release): /api/healthz/
 ```
 
-Expect HTTP 200 and dependency probes healthy (DB / Redis / Meilisearch as implemented).
+Expect HTTP 200 and dependency probes healthy (DB / Redis / Meilisearch when required).
+Unversioned `/api/...` aliases are removed — use `/api/v1/` only.
+
+### 2.2a Search: Meili health + reindex
+
+```bash
+docker compose exec web python manage.py check_search_config --fail-on-warnings
+docker compose exec web python manage.py reindex_search
+curl -fsS https://<public-host>/api/v1/healthz/
+```
+
+Expect `MEILI_healthy=True`, `Indexed N products and M plugins`, and healthz `checks.meilisearch=ok`. Then public-search a known published product name on the SPA.
+
+Confirm Compose `MEILI_ENV=production` and `MEILI_MASTER_KEY` is ≥16 chars (not an `.env.example` placeholder).
+
+### 2.2b Auth: Administrator + email link origin
+
+**Staging first:** [`docs/AUTH_STAGING_CHECKLIST.md`](AUTH_STAGING_CHECKLIST.md).
+
+```bash
+docker compose exec web python manage.py ensure_administrator --email ops@example.com --password '…'
+docker compose exec web python manage.py check_auth_config --fail-on-warnings
+```
+
+Expect ≥1 active Administrator and a non-localhost `FRONTEND_BASE_URL` on staging/prod. Pair `GOOGLE_OAUTH_CLIENT_ID` with frontend `VITE_GOOGLE_CLIENT_ID` when Google Sign-In is enabled.
+
+### 2.2c Sentry: DSNs + test event
+
+**Staging first:** [`docs/SENTRY_STAGING_CHECKLIST.md`](SENTRY_STAGING_CHECKLIST.md).
+
+```bash
+docker compose exec web python manage.py check_sentry_config --fail-on-warnings
+docker compose exec web python manage.py check_sentry_config --send-test-event
+```
+
+Expect `SENTRY_DSN_set=True` and a test info event in the Django Sentry project. Rebuild the frontend image with `VITE_SENTRY_DSN` set (Vite bake-at-build) and confirm a browser event in the React project.
 
 ### 2.3 Celery worker running
 
@@ -142,7 +209,7 @@ docker compose ps worker
 docker compose logs worker --tail=100
 ```
 
-Worker must be `Up` / restarting only briefly. With Redis set, `CELERY_TASK_ALWAYS_EAGER` is false — email tasks must be consumed by this process, not only by Gunicorn.
+Worker must be `Up` / restarting only briefly. Compose runs a Celery `inspect ping` healthcheck. With a Redis broker set, `CELERY_TASK_ALWAYS_EAGER` is false — email tasks must be consumed by this process, not only by Gunicorn.
 
 Optional broker ping from web:
 
@@ -152,7 +219,14 @@ docker compose exec web celery -A config inspect ping
 
 ### 2.4 Mail leaves the console backend
 
-1. Confirm env: `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` on **both** `web` and `worker`.
+**Staging first:** [`docs/SMTP_STAGING_CHECKLIST.md`](SMTP_STAGING_CHECKLIST.md).
+
+```bash
+docker compose exec web python manage.py check_email_config --fail-on-warnings
+docker compose exec web python manage.py check_email_config --send-test-email you@example.com
+```
+
+1. Confirm env: `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend` and `ALLOW_CONSOLE_EMAIL=False` on **both** `web` and `worker`.
 2. Trigger a low-risk mail path (password-reset or contact form) against a mailbox you control.
 3. Confirm delivery in the inbox (not only container logs).
 4. Worker logs must **not** show Django console-backend `Content-Type: text/plain` dumps as the sole delivery mechanism.
@@ -161,11 +235,13 @@ Fail the gate if mail only appears in `docker compose logs worker` with the cons
 
 ### 2.5 Stripe webhook endpoint test
 
+**Sandbox first:** follow [`docs/STRIPE_SANDBOX_CHECKLIST.md`](STRIPE_SANDBOX_CHECKLIST.md) with `sk_test_` keys before any live cutover. Operator smoke: `python manage.py check_stripe_config --require-test-mode --fail-on-warnings` (optional `--ping`).
+
 Canonical URL (versioned):
 
 `POST https://<public-host>/api/v1/payments/webhook/`
 
-Legacy alias (same handler for one release): `/api/payments/webhook/`
+Handled event types: `checkout.session.completed`, `checkout.session.expired`, `payment_intent.payment_failed`, `charge.refunded` (`payments.webhook_service.STRIPE_WEBHOOK_EVENT_TYPES`).
 
 1. In Stripe Dashboard → Developers → Webhooks, add the HTTPS endpoint; subscribe to Checkout / payment events used by the app (at least `checkout.session.completed`).
 2. Copy the signing secret into `STRIPE_WEBHOOK_SECRET` and recreate/restart `web` + `worker`.
@@ -174,28 +250,79 @@ Legacy alias (same handler for one release): `/api/payments/webhook/`
 
 Never point live webhooks at a host still using `E2E_STRIPE_SIMULATE=True`.
 
-### 2.6 Backup and restore drill
+### 2.5b Cloudflare R2 + package audit
 
-**Backup (PostgreSQL volume):**
+**Staging first:** [`docs/R2_STAGING_CHECKLIST.md`](R2_STAGING_CHECKLIST.md).
 
 ```bash
-# Logical dump (preferred for drills)
-docker compose exec -T postgres pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc > "backup-$(date -u +%Y%m%dT%H%M%SZ).dump"
-
-# Optional: stop writes briefly for a consistent volume snapshot of postgres_data
+docker compose exec web python manage.py verify_r2
+# Optional if leftover local MEDIA exists:
+# docker compose exec web python manage.py migrate_local_media_to_r2 --dry-run
+# docker compose exec web python manage.py migrate_local_media_to_r2
+docker compose exec web python manage.py audit_published_packages --fail-on-missing
 ```
 
-**Restore drill (staging or disposable volume — never overwrite prod without a freeze):**
+Expect both buckets reachable and zero published SKUs missing private package objects. Paid downloads must use short-lived signed URLs (or local FileResponse in DEV without R2); API responses must never include `storage_path`.
+
+### 2.6 Backup and restore drill
+
+**Full operator runbook:** [`BACKUP_RESTORE_DRILL.md`](BACKUP_RESTORE_DRILL.md) (Phase A5).
+
+**Scripts (preferred):** [`backup_postgres.sh`](../backend/scripts/backup_postgres.sh) · [`restore_postgres_drill.sh`](../backend/scripts/restore_postgres_drill.sh)
 
 ```bash
-docker compose exec -T postgres pg_restore -U "$DB_USER" -d "$DB_NAME" --clean --if-exists < backup-YYYYMMDD.dump
+# From repo root with Compose Postgres healthy:
+chmod +x backend/scripts/backup_postgres.sh backend/scripts/restore_postgres_drill.sh
+./backend/scripts/backup_postgres.sh
+
+# Also copy dump to private R2 (same R2_* env as the app):
+BACKUP_UPLOAD_R2=1 ./backend/scripts/backup_postgres.sh
+# or: python backend/scripts/upload_backup_to_r2.py ./backups/marketplace-….dump
+
+# Local retention (marketplace-*.dump older than N days):
+BACKUP_RETENTION_DAYS=14 ./backend/scripts/backup_postgres.sh
+```
+
+Dumps land in `./backups/` (gitignored). R2 objects use key prefix `backups/postgres/`.
+
+**Cron (host — daily 02:15 UTC example):**
+
+```cron
+15 2 * * * cd /opt/3d-asset-marketplace && BACKUP_RETENTION_DAYS=14 BACKUP_UPLOAD_R2=1 ./backend/scripts/backup_postgres.sh >> /var/log/marketplace-backup.log 2>&1
+```
+
+Configure a separate Cloudflare R2 lifecycle rule (e.g. 30–90 days) on prefix `backups/postgres/` — the shell script only prunes local files.
+
+**Manual Compose one-liner (equivalent dump):**
+
+```bash
+docker compose exec -T postgres pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc > "backup-$(date -u +%Y%m%dT%H%M%SZ).dump"
+```
+
+**Disposable restore drill (preferred — does not touch `postgres_data`):**
+
+```bash
+./backend/scripts/restore_postgres_drill.sh ./backups/marketplace-YYYYMMDDTHHMMSSZ.dump
+```
+
+**Staging Compose restore (never overwrite prod without a freeze):**
+
+```bash
+docker compose exec -T postgres pg_restore -U "$DB_USER" -d "$DB_NAME" --clean --if-exists < backups/marketplace-YYYYMMDDTHHMMSSZ.dump
 docker compose exec web python manage.py migrate --noinput
 curl -fsS https://<host>/api/v1/healthz/
 ```
 
-Record: dump size, restore duration, whether migrations re-applied cleanly, and a smoke login / catalog browse. Schedule recurring backups before calling Production Ready.
+**Operator checkboxes (date + initials when done on staging/prod):**
 
-R2 objects are **not** in Postgres — confirm separate R2 versioning / lifecycle / account recovery is understood.
+- [ ] Logical dump created via script or Compose `pg_dump -Fc`
+- [ ] Dump size recorded; optional R2 upload verified (`backups/postgres/…`)
+- [ ] Disposable restore drill OK (`restore_postgres_drill.sh`)
+- [ ] Staging restore: `pg_restore` + migrate + healthz OK
+- [ ] Smoke login / catalog browse after restore
+- [ ] Host cron installed; local retention + R2 lifecycle documented
+
+R2 objects are **not** in Postgres — confirm separate R2 versioning / lifecycle / account recovery is understood before sign-off.
 
 ---
 
@@ -248,7 +375,14 @@ R2 objects are **not** in Postgres — confirm separate R2 versioning / lifecycl
 
 ## 5. Security checklist mapping (pre-deploy)
 
-Align with [`.cursor/Security_Checklist.md`](../.cursor/Security_Checklist.md):
+Align with [`.cursor/Security_Checklist.md`](../.cursor/Security_Checklist.md) and run [`SECURITY_SMOKE_CHECKLIST.md`](SECURITY_SMOKE_CHECKLIST.md) on the host.
+
+Also:
+
+- Catalog / staff: [`CATALOG_OPS_STAGING_CHECKLIST.md`](CATALOG_OPS_STAGING_CHECKLIST.md) (`seed_demo_catalog`, `check_ops_config`)
+- Cloudflare WAF: [`CLOUDFLARE_WAF_CHECKLIST.md`](CLOUDFLARE_WAF_CHECKLIST.md)
+- Load smoke: [`LOAD_SMOKE_CHECKLIST.md`](LOAD_SMOKE_CHECKLIST.md)
+- Rollback rehearsal: [`ROLLBACK_REHEARSAL.md`](ROLLBACK_REHEARSAL.md)
 
 - [ ] `DEBUG=False`; secrets only in env / secret manager
 - [ ] HTTPS at edge; `SECURE_SSL_REDIRECT` + HSTS when ready
@@ -260,6 +394,8 @@ Align with [`.cursor/Security_Checklist.md`](../.cursor/Security_Checklist.md):
 - [ ] Ports restricted; DB/Redis/Meili not public
 - [ ] Backup restore drill completed and dated
 - [ ] Dependency / image updates current for the release
+- [ ] Security smoke checklist dated on staging
+- [ ] Rollback rehearsal dated on staging
 
 ---
 

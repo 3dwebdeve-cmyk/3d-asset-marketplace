@@ -79,6 +79,10 @@ describe('RegisterPage', () => {
       password_confirm: 'StrongPass123!',
       phone: '+91 98765 43210',
       country: 'India',
+      accepted_legal: {
+        terms: '2026-09-18',
+        privacy: '2026-09-18',
+      },
     })
     expect(screen.getByRole('heading', { name: /check your email/i })).toBeInTheDocument()
   })

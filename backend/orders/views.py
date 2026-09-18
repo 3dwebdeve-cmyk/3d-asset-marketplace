@@ -3,7 +3,7 @@ from uuid import UUID
 
 from django.http import FileResponse
 from rest_framework import status
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminOrderWriteRateThrottle
+from config.api_helpers import domain_error_response, parse_choice, parse_uuid
 from downloads.services import DownloadService
 from orders.entitlements import order_allows_download
 from orders.invoice import build_invoice_pdf, invoice_pdf_filename
@@ -29,33 +30,7 @@ from orders.services import OrderCreateData, OrderError, OrderItemCreateData, Or
 
 
 def _error_response(exc: OrderError) -> Response:
-    if exc.field:
-        return Response(
-            {exc.field: [exc.message]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    return Response(
-        {"detail": exc.message, "code": "order_error"},
-        status=status.HTTP_400_BAD_REQUEST,
-    )
-
-
-def _parse_uuid(value: str | None, field: str) -> UUID | None:
-    if not value:
-        return None
-    try:
-        return UUID(value.strip())
-    except ValueError as exc:
-        raise ValidationError({field: [f"Invalid {field}."]}) from exc
-
-
-def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip().lower()
-    if normalized not in allowed:
-        raise ValidationError({field: [f"Invalid {field} filter."]})
-    return normalized
+    return domain_error_response(exc, default_code="order_error")
 
 
 def _detail_serializer_context(order: Order, request: Request | None = None) -> dict:
@@ -84,17 +59,17 @@ class AdminOrderListCreateView(APIView):
 
     def get(self, request: Request) -> Response:
         queryset = OrderService.list_admin(
-            order_status=_parse_choice(
+            order_status=parse_choice(
                 request.query_params.get("order_status"),
                 "order_status",
                 set(Order.OrderStatus.values),
             ),
-            payment_status=_parse_choice(
+            payment_status=parse_choice(
                 request.query_params.get("payment_status"),
                 "payment_status",
                 set(Order.PaymentStatus.values),
             ),
-            customer_id=_parse_uuid(
+            customer_id=parse_uuid(
                 request.query_params.get("customer_id"),
                 "customer_id",
             ),
@@ -189,12 +164,12 @@ class CustomerOrderListView(APIView):
     def get(self, request: Request) -> Response:
         queryset = OrderService.list_for_user(
             request.user,
-            order_status=_parse_choice(
+            order_status=parse_choice(
                 request.query_params.get("order_status"),
                 "order_status",
                 set(Order.OrderStatus.values),
             ),
-            payment_status=_parse_choice(
+            payment_status=parse_choice(
                 request.query_params.get("payment_status"),
                 "payment_status",
                 set(Order.PaymentStatus.values),

@@ -12,6 +12,12 @@ from uuid import UUID
 
 from accounts.permissions import IsAdministrator, IsEmailVerified
 from accounts.throttles import PaymentCheckoutRateThrottle
+from config.api_helpers import domain_error_body, domain_error_response, parse_choice, parse_uuid
+from config.idempotency import (
+    build_cache_key,
+    get_or_set,
+    idempotency_key_from_request,
+)
 from config.sentry import capture_webhook_failure
 from payments.pagination import PaymentPagination
 from payments.serializers import AdminPaymentDetailSerializer, AdminPaymentListSerializer
@@ -27,13 +33,15 @@ from payments.services import (
 logger = logging.getLogger(__name__)
 
 
-def _parse_choice(value: str | None, field: str, allowed: set[str]) -> str | None:
-    if value is None:
-        return None
-    normalized = value.strip().lower()
-    if normalized not in allowed:
-        raise ValidationError({field: [f"Invalid {field} filter."]})
-    return normalized
+def _checkout_error_body(exc: CheckoutError) -> dict:
+    return domain_error_body(exc, default_code="checkout_error")
+
+
+def _accepted_legal_from_request(request: Request):
+    data = request.data
+    if isinstance(data, dict):
+        return data.get("accepted_legal")
+    return None
 
 
 class CreateCheckoutSessionView(APIView):
@@ -41,19 +49,28 @@ class CreateCheckoutSessionView(APIView):
     throttle_classes = [PaymentCheckoutRateThrottle]
 
     def post(self, request: Request) -> Response:
-        try:
-            result = CheckoutService.create_checkout_session(request.user)
-        except CheckoutError as exc:
-            if exc.field:
-                return Response(
-                    {exc.field: [exc.message]},
-                    status=status.HTTP_400_BAD_REQUEST,
+        accepted_legal = _accepted_legal_from_request(request)
+
+        def _produce() -> tuple[dict, int]:
+            try:
+                result = CheckoutService.create_checkout_session(
+                    request.user,
+                    accepted_legal=accepted_legal,
                 )
-            return Response(
-                {"detail": exc.message, "code": "checkout_error"},
-                status=status.HTTP_400_BAD_REQUEST,
+            except CheckoutError as exc:
+                return _checkout_error_body(exc), status.HTTP_400_BAD_REQUEST
+            return result, status.HTTP_201_CREATED
+
+        idem_key = idempotency_key_from_request(request)
+        if idem_key:
+            body, code = get_or_set(
+                build_cache_key("checkout", request.user.pk, idem_key),
+                _produce,
             )
-        return Response(result, status=status.HTTP_201_CREATED)
+            return Response(body, status=code)
+
+        body, code = _produce()
+        return Response(body, status=code)
 
 
 class StripeWebhookView(APIView):
@@ -124,24 +141,18 @@ class ConfirmCheckoutSessionView(APIView):
         raw_order_id = request.data.get("order_id")
         if not raw_order_id:
             raise ValidationError({"order_id": ["This field is required."]})
-        try:
-            order_id = UUID(str(raw_order_id).strip())
-        except ValueError as exc:
-            raise ValidationError({"order_id": ["Invalid order_id."]}) from exc
+        order_id = parse_uuid(str(raw_order_id), "order_id")
+        if order_id is None:
+            raise ValidationError({"order_id": ["This field is required."]})
 
         try:
             order = CheckoutService.confirm_checkout_session(request.user, order_id)
         except CheckoutError as exc:
             if exc.message == "Order not found.":
                 raise NotFound(detail=exc.message) from exc
-            if exc.field:
-                return Response(
-                    {exc.field: [exc.message]},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            return Response(
-                {"detail": exc.message, "code": "checkout_confirm_error"},
-                status=status.HTTP_400_BAD_REQUEST,
+            return domain_error_response(
+                exc,
+                default_code="checkout_confirm_error",
             )
 
         return Response(
@@ -161,7 +172,7 @@ class AdminPaymentListView(APIView):
     def get(self, request: Request) -> Response:
         try:
             queryset = AdminPaymentService.list_admin(
-                status=_parse_choice(
+                status=parse_choice(
                     request.query_params.get("status"),
                     "status",
                     ALLOWED_PAYMENT_STATUS_FILTERS,

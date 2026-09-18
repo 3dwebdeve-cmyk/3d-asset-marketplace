@@ -88,14 +88,14 @@ export function SiteFooter() {
           </div>
           <div className="site-footer__col">
             <h2 className="site-footer__heading">Legal & Trust</h2>
-            <Link className="site-footer__link" to="/contact">
-              Privacy & Terms
+            <Link className="site-footer__link" to="/terms">
+              Terms of Service
+            </Link>
+            <Link className="site-footer__link" to="/privacy">
+              Privacy Policy
             </Link>
             <Link className="site-footer__link" to="/contact">
-              Licensing
-            </Link>
-            <Link className="site-footer__link" to="/contact">
-              Security
+              Security & support
             </Link>
             <Link className="site-footer__link" to="/about">
               Our Studio
