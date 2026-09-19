@@ -58,7 +58,7 @@ Verification and password-reset emails are built from `FRONTEND_BASE_URL` (see `
 | Local Vite | `http://localhost:5173` (or matching Vite origin) |
 | Staging / prod | `https://<public-spa-origin>` — **not** localhost |
 
-When `DEBUG=False`, settings refuse a localhost `FRONTEND_BASE_URL` unless `ALLOW_LOCALHOST_FRONTEND=True` (local-only escape hatch).
+When `DEBUG=False`, settings refuse a localhost `FRONTEND_BASE_URL` unless `ALLOW_LOCALHOST_FRONTEND=True` (local-only escape hatch). On staging/prod keep `ALLOW_LOCALHOST_FRONTEND=False` and use **https**.
 
 ```bash
 python manage.py check_auth_config
@@ -66,12 +66,18 @@ python manage.py check_auth_config
 python manage.py check_auth_config --fail-on-warnings
 ```
 
+Expect sample paths like:
+
+- `{FRONTEND_BASE_URL}/verify-email/<uid>/<token>`
+- `{FRONTEND_BASE_URL}/reset-password/<uid>/<token>`
+
 Smoke:
 
 1. Register a new customer (or resend verification).
 2. With console email: copy the `EMAIL VERIFICATION LINK` from the backend log; with SMTP: open the inbox link.
 3. Confirm the link host matches `FRONTEND_BASE_URL` and completes verification on mobile + desktop.
-4. Optional local bypass without SMTP: `python manage.py verify_email you@example.com`
+4. Optional: request password reset and confirm the reset link host matches the same origin.
+5. Optional local bypass without SMTP: `python manage.py verify_email you@example.com`
 
 Also keep `CORS_ALLOWED_ORIGINS` aligned with the same SPA origin(s).
 
@@ -79,16 +85,21 @@ Also keep `CORS_ALLOWED_ORIGINS` aligned with the same SPA origin(s).
 
 ## 4. Auth smoke matrix
 
-- [ ] Register → verify → login
-- [ ] Admin `/console/login`
-- [ ] Google customer sign-in (if configured)
-- [ ] Password reset request → link uses `FRONTEND_BASE_URL` → new password works
+- [x] Local: Register → verify → login
+- [x] Local: Admin `/console/login` → console home
+- [x] Local: Google customer button renders (IDs paired); full Google account login optional
+- [x] Local: Password reset request → 200 (link host uses `FRONTEND_BASE_URL`; confirm flow covered by unit tests)
+- [x] Local (2026-09-19): Verification + password-reset emails use `FRONTEND_BASE_URL` (console/outbox host check + desktop verify-email open)
+- [ ] Staging/prod: full matrix including inbox verification + interactive Google
 
 ---
 
 ## Operator checkboxes
 
-- [ ] `ensure_administrator` (or `createsuperuser`) done; console login works
-- [ ] Google IDs matched BE↔FE **or** intentionally left blank
-- [ ] Staging/prod `FRONTEND_BASE_URL` is public HTTPS origin; `check_auth_config --fail-on-warnings` clean
-- [ ] One verification email opened successfully on phone + desktop
+- [x] Local (2026-09-19): `ensure_administrator` done; console login + home smoke works
+- [x] Local (2026-09-19): Google IDs matched BE↔FE; GIS button renders (full Google account login optional)
+- [x] Local (2026-09-19): `check_auth_config` reports `FRONTEND_BASE_URL` + sample verify/reset paths; verification/reset link host matches; desktop verify completes
+- [ ] Staging/prod: `ensure_administrator` on host; Google authorized origins + Compose Google vars / frontend rebuild
+- [ ] Staging/prod `FRONTEND_BASE_URL=https://<public-spa-origin>`; `ALLOW_LOCALHOST_FRONTEND=False`; `check_auth_config --fail-on-warnings` clean
+- [ ] One real verification email opened successfully on phone + desktop (requires SMTP — see `docs/SMTP_STAGING_CHECKLIST.md`)
+- [ ] Password-reset inbox link host matches public origin (same gate)

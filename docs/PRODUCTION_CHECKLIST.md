@@ -14,13 +14,16 @@ Compose and env templates intentionally default to safe local values (`EMAIL_BAC
 |------|------------|---------------|
 | Feature 13 Docker / Gunicorn / Nginx | Done | — |
 | This runbook | Done | — |
+| Phase K1 cutover gate (`check_cutover` + immutable tags) | Tooling + local smoke (2026-09-19) — [`CUTOVER_STAGING_CHECKLIST.md`](CUTOVER_STAGING_CHECKLIST.md) | Staging then prod host sign-off tables |
+| Phase K2 rollback rehearsal | Tooling + local smoke (2026-09-19) — [`ROLLBACK_REHEARSAL.md`](ROLLBACK_REHEARSAL.md) | Staging host sign-off table |
 | Env secrets + SMTP + Stripe + R2 + Sentry on host | Templates + `check_deploy_config` | Operator |
 | `manage.py check --deploy` on host | Documented + Phase A2 custom checks | Operator |
-| Backup / restore drill | Scripts + [`BACKUP_RESTORE_DRILL.md`](BACKUP_RESTORE_DRILL.md) | Operator on staging/prod |
+| Backup / restore drill | Scripts + local dump/restore (2026-09-19) + [`BACKUP_RESTORE_DRILL.md`](BACKUP_RESTORE_DRILL.md) | Staging/prod host: cron + in-place smoke |
 | Stripe webhook endpoint test | Documented | Operator |
 | Celery worker + real mail (not console) | Documented | Operator |
 | Backend 10/10 engineering (Phases A–J deliverables) | Done (2026-09-18) | — |
-| Formal security / production Ready | Open until checklist executed on host | Operator — see [`SECURITY_SMOKE_CHECKLIST.md`](SECURITY_SMOKE_CHECKLIST.md) |
+| Formal security / production Ready | Tooling + local smoke (2026-09-19) — `check_security_smoke` | Staging/prod host: re-run with `DEBUG=False` + HTTPS — [`SECURITY_SMOKE_CHECKLIST.md`](SECURITY_SMOKE_CHECKLIST.md) |
+| Cloudflare WAF / Bot Fight (H3) | Runbook + `check_waf_readiness` + Nginx CF client-IP (2026-09-19) | Staging/prod: proxied DNS + WAF/Bot Fight + webhook skip — [`CLOUDFLARE_WAF_CHECKLIST.md`](CLOUDFLARE_WAF_CHECKLIST.md) |
 
 ---
 
@@ -52,6 +55,7 @@ Copy root `.env.example` → `.env` on the host (never commit). Set:
 |----------|------------------------|
 | `REDIS_URL` | Reachable Redis cache DB (Compose: `redis://redis:6379/1`). **Required** when `DEBUG=False` for shared cache, throttles, and idempotency. |
 | `CELERY_BROKER_URL` | Celery broker (Compose: `redis://redis:6379/0`). Falls back to `REDIS_URL` if unset; prefer a separate DB index. |
+| `REDIS_PASSWORD` | **Required on staging/prod.** Compose redis enables `--requirepass` when set; Django injects it into URLs that have no password. Leave empty only for local Compose. |
 
 ### Email (must leave console)
 
@@ -87,7 +91,7 @@ Copy root `.env.example` → `.env` on the host (never commit). Set:
 | `R2_PUBLIC_BASE_URL` | Public CDN / r2.dev base URL |
 | `R2_SIGNED_URL_EXPIRY` | Short TTL (default 300s) |
 
-**Staging first:** follow [`docs/R2_STAGING_CHECKLIST.md`](R2_STAGING_CHECKLIST.md) — `verify_r2`, optional `migrate_local_media_to_r2`, then `audit_published_packages --fail-on-missing`.
+**Staging first:** follow [`docs/R2_STAGING_CHECKLIST.md`](R2_STAGING_CHECKLIST.md) — `verify_r2` / `verify_r2 --smoke-presign`, optional `migrate_local_media_to_r2`, then `audit_published_packages --fail-on-missing`.
 
 ### Sentry
 
@@ -152,7 +156,8 @@ docker compose exec web python -c "from django.conf import settings; assert sett
 | Surface | URL |
 |---------|-----|
 | Marketplace control panel (React) | `https://<host>/console/login` and `/console/…` |
-| Django admin | `https://<host>/admin/` (Nginx proxies to Gunicorn) |
+| Django admin | Prefer **disabled** on the public host: `DJANGO_ADMIN_ENABLED=False`. If kept, set `DJANGO_ADMIN_ALLOWED_IPS` (staff VPN / office CIDRs). Nginx still proxies `/admin/` to Gunicorn. |
+| OpenAPI / Swagger | `/api/v1/schema/` is public only when `DEBUG=True`. On staging/prod it requires an administrator JWT. |
 | Admin REST APIs | `/api/v1/admin/…` (unchanged) |
 
 Do not bookmark SPA routes under `/admin/…` in Compose/production — Nginx sends those to Django. Vite local still redirects `/admin` → `/console`.
@@ -167,6 +172,12 @@ curl -fsS https://<public-host>/api/v1/healthz/
 
 Expect HTTP 200 and dependency probes healthy (DB / Redis / Meilisearch when required).
 Unversioned `/api/...` aliases are removed — use `/api/v1/` only.
+
+Catalog FK hygiene (cart/wishlist/reviews vs products/plugins):
+
+```bash
+docker compose exec web python manage.py check_catalog_integrity --fail-on-orphans
+```
 
 ### 2.2a Search: Meili health + reindex
 
@@ -256,13 +267,14 @@ Never point live webhooks at a host still using `E2E_STRIPE_SIMULATE=True`.
 
 ```bash
 docker compose exec web python manage.py verify_r2
+docker compose exec web python manage.py verify_r2 --smoke-presign
 # Optional if leftover local MEDIA exists:
 # docker compose exec web python manage.py migrate_local_media_to_r2 --dry-run
 # docker compose exec web python manage.py migrate_local_media_to_r2
 docker compose exec web python manage.py audit_published_packages --fail-on-missing
 ```
 
-Expect both buckets reachable and zero published SKUs missing private package objects. Paid downloads must use short-lived signed URLs (or local FileResponse in DEV without R2); API responses must never include `storage_path`.
+Expect both buckets reachable, `--smoke-presign` OK (signed JSON without `storage_path`), and zero published SKUs missing private package objects. Paid downloads must use short-lived signed URLs (or local FileResponse in DEV without R2); API responses must never include `storage_path`. Root `.env` must carry the same `R2_*` (including `R2_SIGNED_URL_EXPIRY`) for Compose web + worker.
 
 ### 2.6 Backup and restore drill
 
@@ -285,13 +297,15 @@ BACKUP_RETENTION_DAYS=14 ./backend/scripts/backup_postgres.sh
 
 Dumps land in `./backups/` (gitignored). R2 objects use key prefix `backups/postgres/`.
 
-**Cron (host — daily 02:15 UTC example):**
+**Cron (Linux host — prefer installer):**
 
-```cron
-15 2 * * * cd /opt/3d-asset-marketplace && BACKUP_RETENTION_DAYS=14 BACKUP_UPLOAD_R2=1 ./backend/scripts/backup_postgres.sh >> /var/log/marketplace-backup.log 2>&1
+```bash
+./backend/scripts/install_backup_cron.sh
+# Equivalent line (daily 02:15 UTC):
+# 15 2 * * * cd /opt/3d-asset-marketplace && BACKUP_RETENTION_DAYS=14 BACKUP_UPLOAD_R2=1 ./backend/scripts/backup_postgres.sh >> /var/log/marketplace-backup.log 2>&1
 ```
 
-Configure a separate Cloudflare R2 lifecycle rule (e.g. 30–90 days) on prefix `backups/postgres/` — the shell script only prunes local files.
+Configure a separate Cloudflare R2 lifecycle rule (e.g. 30–90 days) on prefix `backups/postgres/` — the shell script / cron installer only prunes local files.
 
 **Manual Compose one-liner (equivalent dump):**
 
@@ -299,10 +313,11 @@ Configure a separate Cloudflare R2 lifecycle rule (e.g. 30–90 days) on prefix 
 docker compose exec -T postgres pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc > "backup-$(date -u +%Y%m%dT%H%M%SZ).dump"
 ```
 
-**Disposable restore drill (preferred — does not touch `postgres_data`):**
+**Disposable restore drill (preferred — does not touch `postgres_data` or live `DB_NAME`):**
 
 ```bash
 ./backend/scripts/restore_postgres_drill.sh ./backups/marketplace-YYYYMMDDTHHMMSSZ.dump
+# RESTORE_DRILL_MODE=docker|local|auto (auto falls back to local if Docker is down)
 ```
 
 **Staging Compose restore (never overwrite prod without a freeze):**
@@ -315,12 +330,13 @@ curl -fsS https://<host>/api/v1/healthz/
 
 **Operator checkboxes (date + initials when done on staging/prod):**
 
-- [ ] Logical dump created via script or Compose `pg_dump -Fc`
-- [ ] Dump size recorded; optional R2 upload verified (`backups/postgres/…`)
-- [ ] Disposable restore drill OK (`restore_postgres_drill.sh`)
+- [x] Logical dump created via script or Compose `pg_dump -Fc` — 2026-09-19 / AUTO (local `BACKUP_VIA_COMPOSE=0`)
+- [ ] Dump size recorded; optional R2 upload verified (`backups/postgres/…`) — size recorded locally; R2 upload pending host `R2_*`
+- [x] Disposable restore drill OK (`restore_postgres_drill.sh`) — 2026-09-19 / AUTO (`RESTORE_DRILL_MODE=local`)
 - [ ] Staging restore: `pg_restore` + migrate + healthz OK
 - [ ] Smoke login / catalog browse after restore
-- [ ] Host cron installed; local retention + R2 lifecycle documented
+- [ ] Host cron installed; local retention + R2 lifecycle documented — use `install_backup_cron.sh` on Linux host (dry-run OK 2026-09-19 / AUTO)
+- [x] R2 object recovery understood as separate from Postgres — 2026-09-19 / AUTO
 
 R2 objects are **not** in Postgres — confirm separate R2 versioning / lifecycle / account recovery is understood before sign-off.
 
@@ -328,13 +344,33 @@ R2 objects are **not** in Postgres — confirm separate R2 versioning / lifecycl
 
 ## 3. Deploy sequence (summary)
 
+**Operator runbook (Phase K1):** [`CUTOVER_STAGING_CHECKLIST.md`](CUTOVER_STAGING_CHECKLIST.md) — staging first, then production.
+
 1. Fill production `.env` (section 1).
-2. Build and tag immutable images (section 4).
-3. `docker compose up -d` (or pull tagged images on the host).
+2. Build and tag immutable images (section 4) via `backend/scripts/build_immutable_images.sh` (or `.ps1`).
+3. `docker compose up -d` (or pull tagged images on the host). Compose honors `WEB_IMAGE` / `FRONTEND_IMAGE`.
 4. Confirm `web` healthcheck + `worker` process.
-5. Run section 2 checks (`check --deploy`, healthz, mail, webhook, backup drill).
+5. Run section 2 checks — prefer one gate:
+   ```bash
+   docker compose exec web python manage.py check_cutover --profile staging --fail-on-warnings
+   # production host:
+   docker compose exec web python manage.py check_cutover --profile production --fail-on-warnings
+   ```
+   Then mail send-test, webhook smoke, backup drill, security smoke as listed in §2.
 6. Soft-launch: Stripe **test** mode on a staging hostname first when possible; then cut DNS / live keys.
 7. Watch Sentry for 24h; keep previous image tag for rollback.
+
+### 3.1 K1 sign-off (date + initials on host)
+
+| Gate | Staging | Production |
+|------|---------|------------|
+| Env §1 complete | | |
+| Immutable tags recorded | | |
+| `check_cutover` OK | | |
+| Soft-launch / live cut | | |
+| Environment complete | | |
+
+Full tables: [`CUTOVER_STAGING_CHECKLIST.md`](CUTOVER_STAGING_CHECKLIST.md) §5.
 
 ---
 
@@ -343,12 +379,15 @@ R2 objects are **not** in Postgres — confirm separate R2 versioning / lifecycl
 ### 4.1 Application images
 
 - Every production deploy **must** use an immutable tag (git SHA or semver), e.g. `ghcr.io/org/marketplace-web:2026-09-17-abc1234`.
+- Build helper: [`backend/scripts/build_immutable_images.sh`](../backend/scripts/build_immutable_images.sh) / [`.ps1`](../backend/scripts/build_immutable_images.ps1) sets `WEB_IMAGE` + `FRONTEND_IMAGE` (Compose `image:` on web/worker/frontend).
 - Avoid relying on `:latest` alone for rollback.
 - To roll back **application code only** (no incompatible schema change):
 
-  1. Point Compose / orchestrator at the previous known-good image tags for `web`, `worker`, and `frontend`.
-  2. Recreate those services (`docker compose up -d --no-deps web worker frontend`).
-  3. Confirm `/api/v1/healthz/` and a smoke purchase path.
+  1. Point Compose / orchestrator at the previous known-good image tags for `web`, `worker`, and `frontend` (`WEB_IMAGE` / `FRONTEND_IMAGE`).
+  2. Recreate those services — prefer [`backend/scripts/rollback_compose.sh`](../backend/scripts/rollback_compose.sh) / [`.ps1`](../backend/scripts/rollback_compose.ps1) (`docker compose up -d --no-deps --force-recreate web worker frontend`).
+  3. Confirm `/api/v1/healthz/` and purchase path + webhook idempotency:
+     `python manage.py check_rollback_rehearsal --profile staging --fail-on-warnings`
+     (optional `--smoke-webhook` for live `sk_test_` fulfill + replay).
 
 ### 4.2 Database migrations
 
@@ -380,7 +419,7 @@ Align with [`.cursor/Security_Checklist.md`](../.cursor/Security_Checklist.md) a
 Also:
 
 - Catalog / staff: [`CATALOG_OPS_STAGING_CHECKLIST.md`](CATALOG_OPS_STAGING_CHECKLIST.md) (`seed_demo_catalog`, `check_ops_config`)
-- Cloudflare WAF: [`CLOUDFLARE_WAF_CHECKLIST.md`](CLOUDFLARE_WAF_CHECKLIST.md)
+- Cloudflare WAF: [`CLOUDFLARE_WAF_CHECKLIST.md`](CLOUDFLARE_WAF_CHECKLIST.md) (`check_waf_readiness`; keep DRF auth throttles; Bot Fight + webhook skip on host)
 - Load smoke: [`LOAD_SMOKE_CHECKLIST.md`](LOAD_SMOKE_CHECKLIST.md)
 - Rollback rehearsal: [`ROLLBACK_REHEARSAL.md`](ROLLBACK_REHEARSAL.md)
 
@@ -394,8 +433,8 @@ Also:
 - [ ] Ports restricted; DB/Redis/Meili not public
 - [ ] Backup restore drill completed and dated
 - [ ] Dependency / image updates current for the release
-- [ ] Security smoke checklist dated on staging
-- [ ] Rollback rehearsal dated on staging
+- [x] Security smoke checklist dated on staging — local runner + sign-off table (2026-09-19); staging/prod host still open
+- [x] Rollback rehearsal tooling + local gate (2026-09-19) — [`ROLLBACK_REHEARSAL.md`](ROLLBACK_REHEARSAL.md); staging host sign-off still open
 
 ---
 

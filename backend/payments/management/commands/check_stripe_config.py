@@ -1,10 +1,11 @@
-"""Report Stripe sandbox/staging readiness; optional Balance API ping."""
+"""Report Stripe sandbox/staging readiness; optional Balance API ping / fulfill smoke."""
 
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
 
 from payments.stripe_config import collect_stripe_config_report, ping_stripe_api
+from payments.stripe_smoke import StripeSmokeError, run_sandbox_fulfill_smoke
 
 
 class Command(BaseCommand):
@@ -12,7 +13,9 @@ class Command(BaseCommand):
         "Print Stripe key/webhook readiness without exposing secrets. "
         "Pass --require-test-mode for sandbox (sk_test_ / whsec_). "
         "Pass --fail-on-warnings to exit 1 on launch-blocking issues. "
-        "Pass --ping to call Stripe Balance.retrieve with the configured secret."
+        "Pass --ping to call Stripe Balance.retrieve with the configured secret. "
+        "Pass --smoke-fulfill for signed webhook fulfill + idempotent replay "
+        "(test-mode; creates/deletes a throwaway order)."
     )
 
     def add_arguments(self, parser) -> None:
@@ -37,9 +40,32 @@ class Command(BaseCommand):
                 "Requires network; does not print the key."
             ),
         )
+        parser.add_argument(
+            "--smoke-fulfill",
+            action="store_true",
+            help=(
+                "Create a test Checkout Session, POST a HMAC-signed "
+                "checkout.session.completed through the webhook view, assert "
+                "paid order + entitlement + receipt, replay for idempotency, "
+                "then clean up. Requires sk_test_ + whsec_; refuses "
+                "E2E_STRIPE_SIMULATE. Does not print secrets."
+            ),
+        )
+        parser.add_argument(
+            "--keep-smoke-data",
+            action="store_true",
+            help=(
+                "With --smoke-fulfill, leave the smoke user/order/payment in "
+                "the database (default deletes them)."
+            ),
+        )
 
     def handle(self, *args, **options) -> None:
         require_test = bool(options.get("require_test_mode"))
+        smoke = bool(options.get("smoke_fulfill"))
+        if smoke:
+            require_test = True
+
         report = collect_stripe_config_report(require_test_mode=require_test)
 
         self.stdout.write(f"DEBUG={report.debug}")
@@ -76,25 +102,51 @@ class Command(BaseCommand):
                 self.style.SUCCESS(f"Stripe API ping OK (livemode={mode}).")
             )
 
-        if not report.warnings:
+        if report.warnings:
+            for warning in report.warnings:
+                self.stdout.write(self.style.ERROR(warning))
+            if options["fail_on_warnings"] or smoke:
+                raise CommandError(
+                    f"Stripe config has {len(report.warnings)} issue(s). "
+                    "See messages above and docs/STRIPE_SANDBOX_CHECKLIST.md."
+                )
+            self.stdout.write(
+                self.style.WARNING(
+                    f"{len(report.warnings)} issue(s) listed "
+                    "(re-run with --fail-on-warnings on staging)."
+                )
+            )
+        else:
             self.stdout.write(
                 self.style.SUCCESS(
-                    "Stripe config looks ready for this env "
-                    "(operator: still run one test-mode checkout + webhook replay)."
+                    "Stripe config looks ready for this env."
                 )
+            )
+
+        if smoke:
+            try:
+                result = run_sandbox_fulfill_smoke(
+                    cleanup=not bool(options.get("keep_smoke_data")),
+                )
+            except StripeSmokeError as exc:
+                raise CommandError(str(exc)) from exc
+            self.stdout.write(
+                self.style.SUCCESS(
+                    "smoke_fulfill OK: paid order + payment + entitlement + "
+                    "receipt; webhook replay idempotent "
+                    f"(cleaned_up={result.cleaned_up})."
+                )
+            )
+            # Never print session/event/order UUIDs that could be mistaken for
+            # secrets in shared logs — modes/flags only.
+            self.stdout.write(
+                "Optional browser card checkout remains in "
+                "docs/STRIPE_SANDBOX_CHECKLIST.md section 3."
             )
             return
 
-        for warning in report.warnings:
-            self.stdout.write(self.style.ERROR(warning))
-        if options["fail_on_warnings"]:
-            raise CommandError(
-                f"Stripe config has {len(report.warnings)} issue(s). "
-                "See messages above and docs/STRIPE_SANDBOX_CHECKLIST.md."
+        if not report.warnings:
+            self.stdout.write(
+                "Operator: run --smoke-fulfill or one Dashboard test-card "
+                "checkout + webhook replay (docs/STRIPE_SANDBOX_CHECKLIST.md)."
             )
-        self.stdout.write(
-            self.style.WARNING(
-                f"{len(report.warnings)} issue(s) listed "
-                "(re-run with --fail-on-warnings on staging)."
-            )
-        )

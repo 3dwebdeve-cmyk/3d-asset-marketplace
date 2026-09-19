@@ -1,7 +1,7 @@
 # Batch Catalog Ingest Contract
 
 **Feature:** 16 Phase 4  
-**Status:** Frozen 2026-08-04  
+**Status:** Frozen 2026-08-04 (report + gate); Phase 1 intake columns signed off **2026-09-19** (I3)  
 **Single source of truth** for Batch Output Report columns, Phase 1 intake columns, folder layout, R2 keys, ready-to-import gate, and upsert rules.
 
 Downstream phases (5–8) must implement against this document. Do not change columns or gate rules without updating this file and fixtures.
@@ -80,7 +80,9 @@ Not Ready → Ready for QA → Approved | Rejected → Uploaded
 
 Carries store fields **not** in the batch report. Join on `Model_ID`.
 
-**Sign-off note:** Live intake workbook not yet received. Columns below are the **canonical proposed set**. Rows marked *proposed* may be renamed only after intake sheet sign-off; semantics stay the same.
+**Sign-off (I3):** Columns below are **locked** for day-1 Feature 16.  
+Frozen **2026-09-19** · Initials **Auto** (operator local smoke via `manage.py check_batch_ingest`).  
+Renames require updating this file, fixtures under `docs/fixtures/batch-ingest/`, and the bridge parser together.
 
 | Column | Required | Status | Maps to |
 |--------|----------|--------|---------|
@@ -90,17 +92,17 @@ Carries store fields **not** in the batch report. Join on `Model_ID`.
 | `Discount Price` | No | Locked | `Product.discount_price` (null if blank) |
 | `Short Description` | No | Locked | `Product.short_description` (max 500) |
 | `Description` | No | Locked | `Product.description` |
-| `Thumbnail Path` | No | *Proposed* | Relative to `Output Folder Path` or absolute. If blank, use folder convention `thumbnail.jpg`. |
-| `Gallery Image Paths` | No | *Proposed* | Pipe- or semicolon-separated relative paths; optional extra `ProductImage` rows |
+| `Thumbnail Path` | No | Locked | Relative to `Output Folder Path` or absolute. If blank, use folder convention `thumbnail.jpg`. |
+| `Gallery Image Paths` | No | Locked | Pipe- or semicolon-separated relative paths; optional extra `ProductImage` rows |
 | `License Type` | No | Locked | `standard` \| `extended` \| `editorial` → `Product.license_type` (default `standard`) |
-| `Tags` | No | *Proposed* | Comma-separated; deferred until tags model exists (store in notes / ignore for v1 import) |
+| `Tags` | No | Locked | Comma- or semicolon-separated; deferred until tags model exists (store in notes / ignore for v1 import) |
 | `Rigged` | No | Locked | `Product.rigged` (`TRUE`/`FALSE`/`1`/`0`) |
 | `Animated` | No | Locked | `Product.animated` |
 | `PBR Ready` | No | Locked | `Product.pbr_ready` |
 | `Game Ready` | No | Locked | `Product.game_ready` |
 | `Software Used` | No | Locked | `Product.software_used` |
 
-Header row for CSV fixtures: **row 1**. Excel intake sheet name: prefer `Intake` (proposed).
+Header row for CSV fixtures: **row 1**. Excel intake sheet name: **`Intake`** (locked).
 
 ---
 

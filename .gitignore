@@ -40,10 +40,11 @@ debug-*.log
 .cursor/settings.json
 .cursor/debug-*.log
 
-# Local Meilisearch binary (Phase E operator smoke; not for remote)
+# Local Meilisearch binary (Phase E / I1 operator smoke; not for remote)
 tools/meilisearch.exe
 tools/data.ms/
 tools/dumps/
+backend/.tools/
 
 # Local agent standards & roadmap (kept on disk, not for remote)
 TESTING.md

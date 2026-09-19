@@ -60,6 +60,10 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"SECURE_SSL_REDIRECT={report.secure_ssl_redirect}")
         self.stdout.write(f"SECURE_HSTS_SECONDS={report.secure_hsts_seconds}")
+        self.stdout.write(
+            f"ALLOW_LOCALHOST_FRONTEND={report.allow_localhost_frontend}"
+        )
+        self.stdout.write(f"ALLOW_CONSOLE_EMAIL={report.allow_console_email}")
         self.stdout.write(f"DB_PASSWORD_weak={report.db_password_weak}")
         self.stdout.write(
             f"MEILI_MASTER_KEY_weak={report.meili_master_key_weak}"

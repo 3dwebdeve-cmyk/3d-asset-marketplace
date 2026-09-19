@@ -46,6 +46,8 @@ load_dotenv() {
   set -a
   # Export simple KEY=VALUE lines (skip comments / blanks).
   while IFS= read -r line || [[ -n "$line" ]]; do
+    # Strip CR so Windows-edited .env files do not poison values (e.g. host$'\r').
+    line="${line%$'\r'}"
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
     if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
       export "$line"

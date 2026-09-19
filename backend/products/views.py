@@ -12,6 +12,7 @@ from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminProductWriteRateThrottle
 from config.api_helpers import domain_error_response, parse_uuid
+from config.http_cache import PublicCatalogCacheMixin
 from products.catalog_import import CatalogImportService
 from products.models import Product
 from products.pagination import ProductPagination
@@ -65,7 +66,7 @@ def _parse_bool_filter(value: str | None) -> bool | None:
     return None
 
 
-class ProductListView(APIView):
+class ProductListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = ProductPagination
 
@@ -122,7 +123,7 @@ class ProductListView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
-class ProductDetailView(APIView):
+class ProductDetailView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
 
     def get(self, request: Request, slug: str) -> Response:

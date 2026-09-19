@@ -9,7 +9,7 @@ Overall Completion: ~85%
 Current Development Sprint
 Current Sprint: Phase 1 — Production readiness
 Sprint Goal: Feature 13 Docker + Sprint 11 formal QA / security / deployment (performance code pass done 2026-09-16)
-Sprint Status: Feature 13 Docker + browser E2E + production checklist runbook landed 2026-09-17; live host security/deploy sign-off still open (operator executes docs/PRODUCTION_CHECKLIST.md)
+Sprint Status: Feature 13 Docker + browser E2E + production checklist runbook landed 2026-09-17; A2 Compose CSRF/HSTS + checker clarity 2026-09-19; H2 security smoke local runner + sign-off 2026-09-19; H3 WAF app-layer readiness + Nginx CF client-IP + runbook 2026-09-19; I1 sellable demo catalog local operator smoke 2026-09-19; I2 staff/support routing local operator smoke 2026-09-19; I3 batch intake Excel freeze + `check_batch_ingest` local dry-run/apply 2026-09-19; J1 load smoke `check_load_smoke` + local soak 2026-09-19; K1 cutover gate tooling (`check_cutover` + immutable `WEB_IMAGE`/`FRONTEND_IMAGE` + CUTOVER_STAGING_CHECKLIST) 2026-09-19; K2 rollback rehearsal tooling (`check_rollback_rehearsal` + `rollback_compose` + ROLLBACK_REHEARSAL.md) 2026-09-19; live host staging/prod cutover + K2 staging image A→B→A + Cloudflare dashboard WAF/Bot Fight + security/deploy sign-off still open (operator executes docs/CUTOVER_STAGING_CHECKLIST.md / ROLLBACK_REHEARSAL.md / CLOUDFLARE_WAF_CHECKLIST.md / PRODUCTION_CHECKLIST.md / SECURITY_SMOKE_CHECKLIST.md with DEBUG=False)
 Development Roadmap
 Sprint 1 – Project Setup
 • [x] Create Git Repository
@@ -153,20 +153,113 @@ Sprint 10 – Cloud Storage & Batch Ingest (complete in marketplace repo — see
 Sprint 11 – Testing & Deployment
 • [ ] API Testing (formal coverage / sign-off — unit/API suites already extensive)
 • [x] UI Testing (browser E2E Playwright — product checkout + admin console + plugin checkout + unverified login gate; CI Compose job)
-• [ ] Security Testing
-• [x] Performance Optimization (Sprint 11 pass 2026-09-16 — query/cache/viewer; formal load/E2E still open)
+• [x] Security Testing (Phase H2 local `check_security_smoke` 2026-09-19; Phase H3 app-layer `check_waf_readiness` + Nginx CF IP 2026-09-19; staging/prod host + CF dashboard WAF still open)
+• [x] Performance Optimization (Sprint 11 pass 2026-09-16 — query/cache/viewer; Phase J1 load smoke local 2026-09-19; formal staging load still open)
 • [ ] Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Launch readiness Phase A5 tooling/docs complete (backup retention + disposable restore drill). Operator: run docs/BACKUP_RESTORE_DRILL.md on staging (dump, restore, cron, R2 lifecycle).
+Phase K2 rollback rehearsal tooling — `check_rollback_rehearsal` + Compose rollback scripts + expanded ROLLBACK_REHEARSAL.md. Staging host A→B→A sign-off still open. Next: operator staging cutover (K1) then dated K2 rehearsal on host.
 Current Git Branch
-feature/2026-09-17
+feature/2026-09-19
 Files Being Worked On
-• backend/scripts/backup_postgres.sh, restore_postgres_drill.sh, upload_backup_to_r2.py
-• docs/BACKUP_RESTORE_DRILL.md, docs/PRODUCTION_CHECKLIST.md §2.6
-• PROJECT_STATUS.md, implementingFIXfeature.md
+• backend/config/rollback_rehearsal.py
+• backend/accounts/management/commands/check_rollback_rehearsal.py
+• backend/config/test_rollback_rehearsal.py
+• backend/scripts/rollback_compose.sh
+• backend/scripts/rollback_compose.ps1
+• docs/ROLLBACK_REHEARSAL.md
+• docs/PRODUCTION_CHECKLIST.md
+• docs/CUTOVER_STAGING_CHECKLIST.md
+• implementingFIXfeature.md
+• PROJECT_STATUS.md
 Completed Features
+• Launch readiness Phase K2 — Rollback rehearsal tooling (2026-09-19)
+  - Added `config.rollback_rehearsal` + `manage.py check_rollback_rehearsal` (`--profile local|staging`, `--smoke-webhook`, `--fail-on-warnings`): healthz, mocked purchase path, DB-backed webhook idempotency (StripeWebhookEvent unique + replay), immutable-tag advisory (blocks `:latest` on staging)
+  - Compose helpers `rollback_compose.sh` + `.ps1` (`up -d --no-deps --force-recreate web worker frontend`; refuses `:latest`; does not touch postgres/redis/meili)
+  - Expanded `docs/ROLLBACK_REHEARSAL.md` (A→B→A steps, migration expand/contract / restore policy, previous `.env` retention, dated sign-off)
+  - PRODUCTION_CHECKLIST §4/§5 + CUTOVER + `.env.example` / Compose comments linked
+  - Local: `check_rollback_rehearsal --profile local` → OK; tests `config.test_rollback_rehearsal`
+  - Still open: staging host rehearse with real immutable tags + date ROLLBACK_REHEARSAL §4
+• Launch readiness Phase K1 — Full PRODUCTION_CHECKLIST cutover tooling (2026-09-19)
+  - Added `config.cutover_gate` + `manage.py check_cutover` (`--profile local|staging|production`, `--require-smtp` / `--require-sentry`, `--fail-on-warnings`) reusing deploy/Stripe/Meili/healthz/auth/ops collectors
+  - Stripe `collect_stripe_config_report(require_live_mode=True)` for production profile
+  - Compose `WEB_IMAGE` / `FRONTEND_IMAGE` image tags; `build_immutable_images.sh` + `.ps1`
+  - `docs/CUTOVER_STAGING_CHECKLIST.md` + PRODUCTION_CHECKLIST §0/§3/§4 links; `.env.example` comments
+  - Local: `check_cutover --profile local --skip-django-deploy-check` → OK (healthz 200); tests `config.test_cutover_gate` 8/8
+  - Still open: staging/prod host env fill, immutable up, soft-launch, DNS/live Stripe, 24h Sentry — mark complete only after CUTOVER §5 sign-off
+• Launch readiness Phase J1 — Smoke load on critical paths local operator (2026-09-19)
+  - Added `config.load_smoke` + `manage.py check_load_smoke` (healthz, product list/detail/search, checkout session with mocked Stripe, public CDN wiring, optional `--iterations` soak + query budgets)
+  - Expanded `docs/LOAD_SMOKE_CHECKLIST.md` with runner table + local sign-off
+  - Extended `seed_demo_catalog` to upload thumbnails/previews to public R2 (`build_public_media_url`) when `R2_ENABLED`; private packages via `get_private_storage`
+  - Local: `seed_demo_catalog` (R2 public URLs) + `check_load_smoke --iterations 20` → all OK; list≈2 / detail≈3 queries; search hit; CDN under `R2_PUBLIC_BASE_URL`; checkout 201
+  - No proven N+1/timeout requiring query rewrites (budgets already satisfied by existing select_related/defer/prefetch)
+  - Tests: `config.test_load_smoke` + `products.test_seed_demo_catalog`
+  - Still open: staging/prod `--fail-on-warnings` soak + sign-off
+• Launch readiness Phase I3 — Batch intake Excel sign-off local operator (2026-09-19)
+  - Froze intake columns `Thumbnail Path`, `Gallery Image Paths`, `Tags` + sheet name `Intake` in `docs/batch-ingest-contract.md` (2026-09-19 / Auto)
+  - Added `config.batch_ingest_smoke` + `manage.py check_batch_ingest` (fixture header lock, gate dry-run, optional `--apply`)
+  - Dry-run: happy `MDL-000142` passes; mismatch + gate-failures skip with expected reasons
+  - Apply: import → pending_review → QA approve → published; Meili reindex when configured (advisory if unset)
+  - Tests: `config.test_batch_ingest_smoke`
+  - Still open: staging/prod host re-run with real R2 objects when Feature 16 is day-1; desktop bridge `.exe` polish stays out of this repo
+• Launch readiness Phase I2 — Staff, coupons, support routing local operator (2026-09-19)
+  - Confirmed Administrator `admin@marketplace.local` (`ensure_administrator`); `CONTACT_ADMIN_RECIPIENTS` + `PROJECT_MESSAGE_ADMIN_RECIPIENTS` set in `backend/.env`
+  - `check_ops_config --fail-on-warnings` → ready (`active_administrators=1`, both recipient counts=1)
+  - Smoke: contact deliver + `POST /api/v1/contact/` 200; quotation-accepted staff mail → `admin@marketplace.local` (console backend)
+  - Refund support path documented in CATALOG_OPS §I2 (Stripe full refund → existing `charge.refunded` webhook → order refunded + downloads revoked; no new code)
+  - Optional launch coupon `LAUNCH10` (10%, max 100 / 1 per user, expires 2026-12-18)
+  - Tests: `accounts.test_phase_g2_i2` + `contact.test_contact` + charge_refunded payment tests OK
+  - Still open: staging/prod real staff inboxes + `DEBUG=False` ops check; A3 SMTP for real inbox delivery
+• Launch readiness Phase I1 — Seed sellable catalog local operator (2026-09-19)
+  - Extended `seed_demo_catalog`: thumbnails/gallery images, preview GLB, private packages; `--unpublish-incomplete` drafts published SKUs missing packages (`tree`, `oak-chair`)
+  - Operator: 3 products + 2 plugins published; `audit_published_packages --fail-on-missing` clean; `reindex_search` (3+2)
+  - Public browse + Meili search hit (`Demo Oak Chair`, `UV Toolkit`); paid download FileResponse 200; Stripe path `test_catalog_commerce_e2e` OK
+  - Tests: `products.test_seed_demo_catalog` + package audit + commerce E2E
+  - Still open: replace demo SKUs before public launch; staging/prod catalog via `/console` or Feature 16 when ready
+• Launch readiness Phase H3 — Cloudflare WAF / bot protection app-layer (2026-09-19)
+  - Expanded `docs/CLOUDFLARE_WAF_CHECKLIST.md` (proxy DNS, Bot Fight/WAF, webhook skip, DRF second layer, smoke, sign-off)
+  - Nginx: prefer `CF-Connecting-IP` for `X-Real-IP` / `X-Forwarded-For` so DRF anon throttles key by visitor
+  - `config.waf_readiness` + `manage.py check_waf_readiness` (auth rates/classes, Redis when DEBUG=False, nginx map, SSL proxy header)
+  - Confirmed DRF `auth_login` 5/min + `auth_register` 3/min still on login/register/Google/admin-login views
+  - Local: `waf_readiness OK`; tests `config.test_waf_readiness`
+  - Still open: Cloudflare dashboard proxied hostname + Bot Fight/WAF + webhook exception on staging/prod
+• Launch readiness Phase H2 — Formal security smoke (2026-09-19)
+  - Added `config.security_smoke` + `manage.py check_security_smoke` (reuses login throttle, download auth, webhook signature, private media deny, CORS/CSRF, Django `/admin/` lock, deploy hygiene)
+  - Local run: all 7 checks OK; `DEBUG=True` deploy hygiene advisory (expected)
+  - Tests: `config.test_security_smoke` 5/5 OK; related throttle suite still green
+  - Docs: SECURITY_SMOKE_CHECKLIST runner + sign-off table; PRODUCTION_CHECKLIST §0/§5 updated
+  - Still open: staging/prod host with DEBUG=False + HTTPS + `--fail-on-warnings`
+• Launch readiness Phase D2 — FRONTEND_BASE_URL verification links (2026-09-19)
+  - Reused `config.mail.frontend_base_url` for verify + password-reset (no new link builder)
+  - `check_auth_config` now reports `ALLOW_LOCALHOST_FRONTEND`; warns when True or non-HTTPS public FRONTEND with `DEBUG=False`
+  - Deploy checks warn on non-HTTPS public `FRONTEND_BASE_URL` when `DEBUG=False`
+  - Tests: verification + password-reset outbox host; auth/deploy checker cases — 41 related tests OK
+  - Local smoke: link host `http://localhost:5173`; desktop open → `email_verified=True`; password-reset SPA form loads
+  - Still open: staging/prod public HTTPS + real inbox + mobile (blocked on A3 SMTP / public origin)
+• Launch readiness Phase D1 — First Administrator + Google OAuth (2026-09-19)
+  - `ensure_administrator` promoted `admin@marketplace.local` (email_verified + password reset for local smoke)
+  - `check_auth_config` → `active_administrators=1`, `GOOGLE_OAUTH_CLIENT_ID_set=True`, ready for this env
+  - Google Web client ID matched BE↔FE (`backend/.env` ↔ `frontend/.env`); GIS "Continue with Google" renders on customer login
+  - Smoke: `/console/login` → admin dashboard; register → verify_email → login; password-reset request 200; empty Google credential rejected 400
+  - Auth suites: accounts.test_phase_d_auth / test_google_login / test_admin_access / test_email_verification / test_password_reset — 39/39 OK
+  - Still open on staging/prod: create host admin; Google authorized origins for public SPA; interactive Google account complete-login; Compose root `.env` Google vars + frontend image rebuild if using Docker
+• Launch readiness Phase C1 — R2 both buckets local verify (2026-09-19)
+  - Live `verify_r2` → `R2 OK public=ok private=ok` (3dam-public / 3dam-private)
+  - `verify_r2 --smoke-presign`: put → `resolve_private_download` signed JSON (no `storage_path`) → GET → delete
+  - `migrate_local_media_to_r2` (copied=4 rewritten=4; missing=2 DB refs without local files)
+  - Compose web+worker now pass `R2_SIGNED_URL_EXPIRY` (default 300)
+  - Still open: root `.env` R2_* for Compose on staging/host; catalog packages seeded under I1 (2026-09-19) — audit clean locally
+• Launch readiness Phase A5 — local backup + restore drill (2026-09-19)
+  - Ran `backup_postgres.sh` (`BACKUP_VIA_COMPOSE=0`, `BACKUP_RETENTION_DAYS=14`) → dump 239517 bytes
+  - Disposable restore: `RESTORE_DRILL_MODE=local` → 43 public tables; app DB untouched; auto DROP
+  - `install_backup_cron.sh` (idempotent Linux crontab) + dry-run verified; R2≠DB documented
+  - CRLF-safe dotenv load in backup/restore scripts (Windows `.env`)
+  - Still open on staging/prod host: live crontab, optional R2 upload/lifecycle, in-place restore → migrate → healthz → smoke
+• Launch readiness Phase A3 — deferred live SMTP (2026-09-19)
+  - Decision: skip operator SMTP for now; do not remove A3 from the plan
+  - Still open: set Brevo (or other) SMTP + recipients; recreate web/worker; check_email_config + inbox smoke
+  - Resume: docs/SMTP_STAGING_CHECKLIST.md before staging launch
 • Launch readiness Phase A5 — backup + restore drill tooling/docs (2026-09-18)
   - BACKUP_RETENTION_DAYS prune on backup_postgres.sh; disposable restore_postgres_drill.sh (never touches postgres_data)
   - docs/BACKUP_RESTORE_DRILL.md (cron, retention, R2≠DB); PRODUCTION_CHECKLIST §2.6; .env.example comments
@@ -206,9 +299,10 @@ Completed Features
   - CustomProjectService.revert_quotation_after_refund (unpaid; in_progress→approved; keep deliveries/quote)
   - Entitlement revoked via existing paid+paid gates (no download code change)
   - Tests: catalog refund + entitlement, duplicate/partial/unknown PI, quotation refund
-• Launch readiness Phase B1 — Stripe sandbox verify tooling (2026-09-18)
-  - `check_stripe_config` (+ `--require-test-mode` / `--fail-on-warnings` / `--ping`); no secrets printed
-  - `docs/STRIPE_SANDBOX_CHECKLIST.md` + PRODUCTION_CHECKLIST §2.5; operator still runs real test checkout
+• Launch readiness Phase B1 — Stripe sandbox verify tooling (2026-09-18; smoke 2026-09-19)
+  - `check_stripe_config` (+ `--require-test-mode` / `--fail-on-warnings` / `--ping` / `--smoke-fulfill`); no secrets printed
+  - `--smoke-fulfill`: real sk_test_ Session.create + HMAC-signed webhook through StripeWebhookView; paid order + entitlement + receipt; idempotent replay; cleans throwaway rows
+  - `docs/STRIPE_SANDBOX_CHECKLIST.md` + PRODUCTION_CHECKLIST §2.5; browser test-card optional; live keys = Phase K
 • Backend 10/10 Phase A — shared mail kernel + OutboundEmailLog + quotation resend (2026-09-18)
   - config/mail.py: frontend_base_url, safe_email_text, render_text_email, send_text_mail
   - mail_log app: OutboundEmailLog (hashed recipients only) + MailLogService + read-only Django admin
@@ -238,13 +332,16 @@ Completed Features
 • Launch readiness remaining code/docs (2026-09-18)
   - G2: `drop_legacy_notifications_table`; G1 helpers across remaining apps; J2 adaptive shadow maps
   - H2/H3/I1–I3/J1/K2 staging checklists + `seed_demo_catalog` + `check_ops_config` (operator host work still open)
-• Launch readiness Phase A2 — prod secrets / hosts / TLS (2026-09-18)
+• Launch readiness Phase A2 — prod secrets / hosts / TLS (2026-09-18; Compose/checker clarity 2026-09-19)
   - `check_deploy_config` (+ `--fail-on-warnings` / `--django-deploy-check`); deploy checks `config.E001`/`E002`/`W001`
+  - Compose web+worker: `CSRF_TRUSTED_ORIGINS`, `SECURE_HSTS_SECONDS` (local default `0`); only SPA port published
+  - Checker reports `ALLOW_LOCALHOST_FRONTEND` / `ALLOW_CONSOLE_EMAIL` and warns when True under `DEBUG=False`
   - `docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md`; PRODUCTION_CHECKLIST §1/§2.1; `.env.example` comments (operator sets live secrets/TLS)
-• Launch readiness Phase A3 — SMTP + refuse console in production (2026-09-18)
+• Launch readiness Phase A3 — SMTP + refuse console in production (2026-09-18; operator deferred 2026-09-19)
   - Boot guard: `ALLOW_CONSOLE_EMAIL` + `ImproperlyConfigured` when `DEBUG=False` and console backend
   - `check_email_config` (+ `--fail-on-warnings` / `--send-test-email`); `docs/SMTP_STAGING_CHECKLIST.md`; checklist §1/§2.4
-  - Compose web+worker `EMAIL_*` parity; console still allowed for local DEBUG / `ALLOW_CONSOLE_EMAIL=True` (operator sets real SMTP)
+  - Compose web+worker `EMAIL_*` parity; console still allowed for local DEBUG / `ALLOW_CONSOLE_EMAIL=True`
+  - Live SMTP + inbox smoke deferred (not removed) until provider credentials are available
 • API versioning /api/v1 (2026-09-17)
   - Canonical mount at /api/v1/; unversioned /api/ rewritten to v1 via LegacyApiPathAliasMiddleware (one-release alias)
   - reverse() and download_url builders emit /api/v1/; auth/entitlement rules unchanged
@@ -507,7 +604,7 @@ Completed Features
 • Public marketplace browse page (/products) UI (hero, search, category/license filters, sorting, pagination, skeletal loading, error state)
 • Public product details page (/products/:slug) — Atelier-style two-column layout using brand cream/navy/blue tokens; gallery stage, purchase card, specs table, related products, SEO, auth-aware CTAs
 Pending Features
-• Operator: execute docs/PRODUCTION_CHECKLIST.md on staging/prod (Backend 10/10 engineering A–J done 2026-09-18)
+• Operator: execute docs/CUTOVER_STAGING_CHECKLIST.md / PRODUCTION_CHECKLIST.md on staging/prod (K1 tooling ready 2026-09-19; Backend 10/10 engineering A–J done 2026-09-18)
 • Feature 12 — Public site & navigation polish (partially shipped; About/Contact/landing done)
 • Feature 15 remainder — PayPal/Razorpay only if still in scope (15G quotation payment shipped)
 • Feature 16 — Batch Catalog Ingest & QA (Phases 3–10 done in this repo; desktop bridge .exe polish optional / separate repo)
@@ -516,8 +613,11 @@ Pending Features
 • UI redesign pending manager prototype approval
 Current Issues / Blockers
 • Waiting on manager approval for UI prototype
-• First Administrator: use `python manage.py ensure_administrator` (or createsuperuser); Google Sign-In needs matching `GOOGLE_OAUTH_CLIENT_ID` + `VITE_GOOGLE_CLIENT_ID` — see docs/AUTH_STAGING_CHECKLIST.md
-• Cloudflare R2: code/tooling ready (`verify_r2`, `audit_published_packages`, docs/R2_STAGING_CHECKLIST.md); operator must set `R2_*` on staging/host and run audit before launch
+• A3 Real SMTP — deferred (2026-09-19): tooling/guard done; operator inbox smoke still required before staging launch (docs/SMTP_STAGING_CHECKLIST.md). Kept open; not removed.
+• A5 Backup restore — local drill done (2026-09-19); staging/prod still needs host crontab + in-place restore → migrate → healthz → smoke + optional R2 upload/lifecycle (docs/BACKUP_RESTORE_DRILL.md).
+• D1 First Administrator + Google OAuth — local done 2026-09-19; staging/prod still needs host `ensure_administrator`, Google authorized origins for public SPA, and Compose `GOOGLE_OAUTH_CLIENT_ID`/`VITE_GOOGLE_CLIENT_ID` + frontend rebuild — see docs/AUTH_STAGING_CHECKLIST.md
+• Cloudflare R2: local operator verify done 2026-09-19 (`verify_r2` + `--smoke-presign` + migrate). Staging/prod still need `R2_*` in Compose root `.env`. Local package audit clean after I1 (2026-09-19); replace demo catalog before public launch
+• H3 Cloudflare WAF — app-layer done 2026-09-19 (`check_waf_readiness` + Nginx CF-Connecting-IP + runbook). Staging/prod still need proxied DNS + Bot Fight/WAF + webhook skip-challenge sign-off (docs/CLOUDFLARE_WAF_CHECKLIST.md)
 Bugs
 No Known Bugs
 Technical Debt
@@ -559,17 +659,515 @@ Important Decisions
 • Customer order history (Feature 7): read-only GET /api/orders/ and GET /api/orders/:id/ scoped to request.user; customer dashboard at /dashboard/orders and /dashboard/orders/:orderId; paid orders expose per-item download files; library at /dashboard/downloads; line item titles/slugs use OrderItem snapshots (Feature 8).
 • Admin analytics (Feature 11): order-based aggregates only; revenue counts payment_status=paid; gateway_breakdown is a stable array keyed by Payment.gateway for future PayPal/Razorpay without client breaks; date range capped at 366 days.
 • Notification channel is **automated email only** (2026-09-18). No in-app notification inbox in Phase 1. Feature 10 bell/API/UI are absent from the repo (Phase J cleanup confirmed). Celery emails use `config.mail` + optional OutboundEmailLog.
-• Postgres backups (Phase J + A5): `backend/scripts/backup_postgres.sh` (`pg_dump -Fc`, optional `BACKUP_RETENTION_DAYS` + `BACKUP_UPLOAD_R2`); disposable `restore_postgres_drill.sh`; runbook `docs/BACKUP_RESTORE_DRILL.md`. Live staging/prod cron + drill remains operator gate in PRODUCTION_CHECKLIST §2.6.
+• Postgres backups (Phase J + A5): `backend/scripts/backup_postgres.sh` (`pg_dump -Fc`, optional `BACKUP_RETENTION_DAYS` + `BACKUP_UPLOAD_R2`); disposable `restore_postgres_drill.sh` (`docker` or `local` mode); `install_backup_cron.sh`; runbook `docs/BACKUP_RESTORE_DRILL.md`. Local dump+restore drill done 2026-09-19; staging/prod host cron + in-place smoke remains PRODUCTION_CHECKLIST §2.6.
 • Cloud storage: Cloudflare R2 selected (not dual-track AWS S3). Public bucket/CDN for thumbnails + preview GLBs; private bucket for paid packages. Metadata remains in PostgreSQL/Django.
-• Batch ingest: MaxScript Batch Output Report is the post-render machine contract; Phase 1 intake Excel supplies price/marketing fields; join key is Model_ID. Bridge never auto-publishes — admin QA on the website is the final gate to status=published. Frozen detail: docs/batch-ingest-contract.md.
+• Batch ingest: MaxScript Batch Output Report is the post-render machine contract; Phase 1 intake Excel supplies price/marketing fields; join key is Model_ID. Bridge never auto-publishes — admin QA on the website is the final gate to status=published. Frozen detail: docs/batch-ingest-contract.md (intake columns signed off I3 2026-09-19; `manage.py check_batch_ingest`).
 • R2 Key Prefix convention (locked Phase 4): models/{Model_ID}/ — report column must match.
 • Required-export policy (locked Phase 4): GLB Success + ≥1 of FBX/OBJ/MAX Success; thumbnail via intake path or thumbnail.jpg; folder layout preview.glb / thumbnail.jpg / package.zip / textures/.
 • Product.sku stores external Model_ID (uppercase unique when set); blank/null allowed for manually created products. Idempotent re-import must upsert by sku via ProductService.get_by_sku — same Model_ID updates draft/pending product, never duplicates.
-• Recommended near-term order: execute docs/PRODUCTION_CHECKLIST.md on staging/prod; then Feature 12 polish.
+• Recommended near-term order: operator staging cutover via docs/CUTOVER_STAGING_CHECKLIST.md (`check_cutover --profile staging`); close A3 SMTP + H1 Sentry; date K2 rollback rehearsal on staging (`rollback_compose` + `check_rollback_rehearsal`); then prod cutover; then Feature 12 polish.
 • Quotation payment (Feature 15G): accepted quotes pay via POST /api/custom-projects/<id>/quotation/pay/ → Stripe Checkout; OrderItem.product_type=custom_project snapshots the project; webhook sets CustomProject.payment_status=paid and advances approved → in_progress; zero-amount quotes fulfill without Stripe; catalog downloads remain product/plugin only.
 • Stripe full refund policy (Phase B, 2026-09-18): `charge.refunded` with `refunded=true` sets Payment.status=refunded and Order order_status+payment_status=refunded via OrderService.mark_refunded; partial refunds ignored. Download entitlement fails automatically (paid+paid). Quotation orders also set project payment_status=unpaid and, if status was in_progress, revert to approved; deliveries and quotation rows are not deleted. Idempotent StripeWebhookEvent insert unchanged; handler errors still surface via existing StripeWebhookView + capture_webhook_failure.
-• Launch readiness Phase B1 — Stripe sandbox tooling (2026-09-18): `check_stripe_config` (+ `--require-test-mode` / `--fail-on-warnings` / `--ping`); prints key modes + webhook path/event types without secrets; `docs/STRIPE_SANDBOX_CHECKLIST.md` + PRODUCTION_CHECKLIST §2.5. Reuses CheckoutService / WebhookService / StripeWebhookEvent — operator still runs one real test-mode checkout; live keys = Phase K.
+• Launch readiness Phase C1 — R2 both buckets (2026-09-18 tooling; 2026-09-19 local verify): `verify_r2` (+ `--smoke-presign` via `config.r2_smoke` / `resolve_private_download`); Compose `R2_SIGNED_URL_EXPIRY`; `docs/R2_STAGING_CHECKLIST.md`. Staging Compose root `.env` + clean package audit remain operator/catalog gates.
+• Launch readiness Phase B1 — Stripe sandbox tooling (2026-09-18; smoke 2026-09-19): `check_stripe_config` (+ `--require-test-mode` / `--fail-on-warnings` / `--ping` / `--smoke-fulfill`); prints key modes + webhook path/event types without secrets; `--smoke-fulfill` creates a test Checkout Session, POSTs a signed `checkout.session.completed` through the real webhook view, asserts paid order + payment + download entitlement + receipt, replays for idempotency, then deletes throwaway rows. Reuses CheckoutService / WebhookService / StripeWebhookEvent. Browser test-card optional; live keys = Phase K.
 Daily Development Log
+Date: 2026-09-19 (Launch readiness Phase K2 — Rollback rehearsal tooling)
+Working Hours:
+Today's Objective: Ship practiced rollback runbook + Compose previous-tag recreate + post-rollback healthz/purchase/webhook-idempotency gate; do not fake staging host complete.
+Modules Completed: rollback_rehearsal + check_rollback_rehearsal + rollback_compose scripts + expanded ROLLBACK_REHEARSAL.md
+Files Created:
+• backend/config/rollback_rehearsal.py
+• backend/accounts/management/commands/check_rollback_rehearsal.py
+• backend/config/test_rollback_rehearsal.py
+• backend/scripts/rollback_compose.sh
+• backend/scripts/rollback_compose.ps1
+Files Modified:
+• docs/ROLLBACK_REHEARSAL.md (full operator runbook + local sign-off)
+• docs/PRODUCTION_CHECKLIST.md (§0/§4/§5)
+• docs/CUTOVER_STAGING_CHECKLIST.md (K2 links in soft-launch + sign-off)
+• docs/PLANNED_FEATURES.md
+• docker-compose.yml / .env.example / backend/.env.example comments
+• backend/scripts/build_immutable_images.sh + .ps1 (rollback pointer)
+• implementingFIXfeature.md (K2 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• None added/modified (gate exercises existing healthz, checkout, webhook)
+Frontend Pages/Components:
+• None
+Problems Encountered:
+• None material — reused StripeWebhookEvent idempotency + load_smoke checkout mock patterns
+Solutions Implemented:
+• Gate always runs in-process fulfill+replay (mocked construct_event) so local/CI prove DB-backed idempotency without live Stripe; optional --smoke-webhook for sk_test_
+• rollback_compose refuses :latest and leaves data-plane services untouched (no migrate reverse)
+Security Review:
+• No secrets printed; webhook smoke optional and test-mode only; purchase path uses mocked Session.create
+• Reused WebhookService / StripeWebhookEvent / CheckoutService — no parallel payment paths
+• Secrets rollback called out in runbook (keep previous .env version)
+Next Steps:
+• Operator: after K1 staging cutover, rehearse A→B→A with immutable tags; date docs/ROLLBACK_REHEARSAL.md §4
+• Close A3 SMTP + H1 Sentry before public soft-launch; then production cutover
+
+Date: 2026-09-19 (Launch readiness Phase K1 — PRODUCTION_CHECKLIST cutover tooling)
+Working Hours:
+Today's Objective: Ship K1 gate runner + immutable image tagging + cutover runbook so staging/prod operators can execute PRODUCTION_CHECKLIST §§1–4E; do not fake host complete.
+Modules Completed: cutover_gate + check_cutover + immutable Compose tags + CUTOVER_STAGING_CHECKLIST
+Files Created:
+• backend/config/cutover_gate.py
+• backend/accounts/management/commands/check_cutover.py
+• backend/config/test_cutover_gate.py
+• backend/scripts/build_immutable_images.sh
+• backend/scripts/build_immutable_images.ps1
+• docs/CUTOVER_STAGING_CHECKLIST.md
+Files Modified:
+• backend/payments/stripe_config.py (require_live_mode)
+• docker-compose.yml (WEB_IMAGE / FRONTEND_IMAGE)
+• .env.example (immutable tag + check_cutover comments)
+• docs/PRODUCTION_CHECKLIST.md (§0/§3/§4)
+• implementingFIXfeature.md (K1 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• None added/modified (gate exercises existing healthz)
+Frontend Pages/Components:
+• None
+Problems Encountered:
+• Local healthz via Django test Client hit DisallowedHost / SSL redirect HTML
+Solutions Implemented:
+• healthz probe picks ALLOWED_HOSTS candidate + secure=True; robust JSON content-type check
+• Staging profile keeps SMTP advisory until --require-smtp / production (A3 deferred)
+Security Review:
+• No secrets printed (modes/presence only); live Stripe only for production profile; E2E_SIMULATE refused with live keys
+• Reused existing deploy/Stripe/Meili collectors — no parallel payment/auth paths
+Next Steps:
+• Operator: fill staging `.env`; build immutable tags; `check_cutover --profile staging --fail-on-warnings`; soft-launch test Stripe; then production profile + DNS
+• Close A3 SMTP + H1 Sentry before public soft-launch; rehearse K2 rollback on staging
+
+Date: 2026-09-19 (Launch readiness Phase J1 — Smoke load on critical paths)
+Working Hours:
+Today's Objective: Automate light load smoke on home/browse, product detail, search, checkout session create; confirm public CDN wiring; fix only proven N+1; sign off checklist.
+Modules Completed: Load smoke runner + demo catalog R2 public URL seeding
+Files Created:
+• backend/config/load_smoke.py
+• backend/accounts/management/commands/check_load_smoke.py
+• backend/config/test_load_smoke.py
+Files Modified:
+• docs/LOAD_SMOKE_CHECKLIST.md (runner table + local sign-off)
+• backend/products/management/commands/seed_demo_catalog.py (R2 public thumbs/previews; private packages via get_private_storage)
+• implementingFIXfeature.md (J1 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None (smoke creates disposable checkout user/order then deletes; seed updates demo Product/Plugin URLs)
+API Endpoints:
+• None added/modified (exercised existing healthz, products list/detail, payments checkout)
+Frontend Pages/Components:
+• None
+Problems Encountered:
+• Demo catalog previously pointed thumbnails/previews at Vite frontend placeholders while R2_ENABLED=True
+• APIClient host `testserver` not in ALLOWED_HOSTS outside TestCase
+Solutions Implemented:
+• Mirrored H2/H3 check_* pattern; Stripe Session.create mocked for soak-safe checkout
+• seed_demo_catalog uploads public demo assets via get_public_storage + build_public_media_url when R2 on
+• ALLOWED_HOSTS override includes testserver (same as security_smoke)
+Security Review:
+• Checkout smoke uses force_authenticate + mocked Stripe only; no secrets printed
+• Product detail asserts no storage_path leak; private packages remain private storage
+• Public CDN check verifies R2_PUBLIC_BASE_URL wiring; placeholders advisory only
+• Disposable smoke buyer/order cleaned up after checkout check
+Tests:
+• config.test_load_smoke (8)
+• products.test_seed_demo_catalog
+• Operator: `python manage.py seed_demo_catalog` + `check_load_smoke --iterations 20`
+Next Steps:
+• Staging/prod: `check_load_smoke --iterations 50 --fail-on-warnings` + sign-off
+• Next: A3 SMTP / H1 Sentry (or staging host H2/H3/I3 re-runs)
+
+Date: 2026-09-19 (Launch readiness Phase I3 — Batch intake Excel sign-off)
+Working Hours:
+Today's Objective: Freeze Phase 1 intake columns; dry-run fixture gates; happy import → QA approve → publish → reindex; confirm gate-failure fixtures rejected.
+Modules Completed: Batch ingest fixture smoke runner (header lock, gate dry-run, optional apply publish)
+Files Created:
+• backend/config/batch_ingest_smoke.py
+• backend/products/management/commands/check_batch_ingest.py
+• backend/config/test_batch_ingest_smoke.py
+Files Modified:
+• docs/batch-ingest-contract.md (Thumbnail Path / Gallery Image Paths / Tags / Intake sheet locked; sign-off 2026-09-19 / Auto)
+• docs/CATALOG_OPS_STAGING_CHECKLIST.md (§I3 runner + checkboxes)
+• docs/PLANNED_FEATURES.md (intake Excel sign-off closed in marketplace)
+• implementingFIXfeature.md (I3 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None (apply smoke upserts Product MDL-000142 via existing CatalogImportService; no migrations)
+API Endpoints:
+• None added/modified (reused admin catalog-import + approve services)
+Frontend Pages/Components:
+• None
+Problems Encountered:
+• Fixture CSVs are bridge-oriented; marketplace import expects JSON media keys — smoke maps CSV + folder-tree → CatalogImportService items
+Solutions Implemented:
+• Reused CatalogImportService._gate_item / import_batch + ProductService.approve_product + search.indexer.reindex_all; mirrored H2 check_* pattern
+Security Review:
+• Import never auto-publishes; approve path still requires sellable package object
+• Object keys constrained to models/{SKU}/ via existing CatalogImportService normalization
+• No secrets printed; Tags remain ignored until tags model exists
+• Desktop bridge .exe polish explicitly out of this repo
+Tests:
+• config.test_batch_ingest_smoke
+• Operator: `python manage.py check_batch_ingest` + `--apply`
+Next Steps:
+• Staging/prod: `check_batch_ingest --apply` with real R2 when Feature 16 is day-1
+• Next launch item: A3 SMTP / H1 Sentry / staging host re-runs (J1 local load smoke done 2026-09-19; H3 CF dashboard still open)
+Date: 2026-09-19 (Launch readiness Phase H3 — Cloudflare WAF / bot protection)
+Working Hours:
+Today's Objective: Harden origin for Cloudflare edge + complete H3 runbook/readiness so DRF throttles remain an effective second layer; leave CF dashboard enablement as operator host gate.
+Modules Completed: WAF readiness checker (auth throttle rates/classes, Redis when DEBUG=False, Nginx CF-Connecting-IP map, SSL proxy header); Nginx client-IP map; expanded CLOUDFLARE_WAF_CHECKLIST
+Files Created:
+• backend/config/waf_readiness.py
+• backend/accounts/management/commands/check_waf_readiness.py
+• backend/config/test_waf_readiness.py
+Files Modified:
+• docs/CLOUDFLARE_WAF_CHECKLIST.md (full runbook + local sign-off)
+• frontend/nginx.conf (CF-Connecting-IP → X-Real-IP / X-Forwarded-For)
+• docs/PRODUCTION_CHECKLIST.md (§0 / §5)
+• implementingFIXfeature.md (H3 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• None added/modified (verified existing auth throttles still attached)
+Frontend Pages/Components:
+• None (Nginx config only)
+Problems Encountered:
+• Cloudflare dashboard Bot Fight/WAF cannot be enabled from the repo without a public hostname + zone access
+Solutions Implemented:
+• Reused LoginRateThrottle / RegisterRateThrottle + REST_FRAMEWORK rates; mirrored H2 checker pattern; Nginx prefers CF-Connecting-IP so anon throttles key by visitor behind orange-cloud
+Security Review:
+• DRF auth throttles not disabled; rates unchanged (login 5/min, register 3/min)
+• Webhook skip-challenge documented — signature verification remains mandatory
+• No secrets printed by check_waf_readiness; no new public ports
+Tests:
+• config.test_waf_readiness — 8/8 OK (--keepdb)
+• Operator: `python manage.py check_waf_readiness` → waf_readiness OK
+• Related: `check_security_smoke --skip-django-deploy-check` → login_throttle OK (DRF second layer intact)
+Next Steps:
+• Staging/prod: proxied DNS + Bot Fight/WAF + webhook path skip; `check_waf_readiness --fail-on-warnings` after DEBUG=False + Redis; date/initials in CLOUDFLARE_WAF_CHECKLIST / PRODUCTION_CHECKLIST
+• Next launch item: A3 SMTP / I1 catalog packages / H1 Sentry DSNs
+Date: 2026-09-19 (Launch readiness Phase H2 — formal security smoke)
+Working Hours:
+Today's Objective: Automate and execute Phase H2 security smoke locally; record sign-off; leave staging/prod host gate explicit.
+Modules Completed: Security smoke runner (deploy hygiene, login throttle, unauth download, unsigned private media, bad Stripe webhook, CORS/CSRF allowlist, Django admin lock)
+Files Created:
+• backend/config/security_smoke.py
+• backend/accounts/management/commands/check_security_smoke.py
+• backend/config/test_security_smoke.py
+Files Modified:
+• docs/SECURITY_SMOKE_CHECKLIST.md
+• docs/PRODUCTION_CHECKLIST.md (§0 / §5)
+• implementingFIXfeature.md (H2 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• None added/modified (exercised existing login, downloads, webhook, /admin/)
+Frontend Pages/Components:
+• None
+Problems Encountered:
+• Django test runner forces DEBUG=False — tests override DEBUG/CSRF for local-shaped smoke
+• Client host `testserver` requires temporary ALLOWED_HOSTS (same pattern as stripe_smoke)
+Solutions Implemented:
+• Reused LoginRateThrottle, download URLs, StripeWebhookView, serve_public_media, deploy_checks — no parallel security stack
+Security Review:
+• No secrets printed; bad webhook asserts no Payment/StripeWebhookEvent mutation
+• Unauthenticated download → 401; private /media/ → 404; /admin/ → login redirect
+• CORS wildcard and empty CSRF (when DEBUG=False) fail the smoke
+Tests:
+• config.test_security_smoke — 5/5 OK (--keepdb)
+• accounts.test_throttling still green in prior related run
+• Operator: `python manage.py check_security_smoke` → security_smoke OK
+Next Steps:
+• Staging/prod: DEBUG=False + HTTPS; `check_security_smoke --fail-on-warnings`; date/initials in PRODUCTION_CHECKLIST
+• Next launch item: A3 SMTP real inbox / H1 Sentry DSNs (I2 local staff routing done 2026-09-19; H3 CF dashboard still open)
+Date: 2026-09-19 (Launch readiness Phase I1 — Seed sellable catalog)
+Work Completed:
+• Extended `seed_demo_catalog` with images + `--unpublish-incomplete` (default on; `--keep-incomplete` opt-out)
+• Ran seed → unpublished `tree`/`oak-chair` → 3 demo products + 2 demo plugins with private packages
+• `audit_published_packages --fail-on-missing` clean; `reindex_search` indexed 3 products + 2 plugins
+• Confirmed public browse + search hits; paid download 200 + DownloadHistory; commerce E2E OK
+• Updated CATALOG_OPS §I1, implementingFIXfeature I1/C audit note, `.gitignore` `backend/.tools/`
+Files Modified:
+• backend/products/management/commands/seed_demo_catalog.py
+• backend/products/test_seed_demo_catalog.py (created)
+• docs/CATALOG_OPS_STAGING_CHECKLIST.md
+• implementingFIXfeature.md
+• .gitignore
+• PROJECT_STATUS.md
+Security Review:
+• Private packages stay on default/private storage; public list still hides `storage_path`
+• Download still entitlement-gated (paid order); no new public package URLs
+• Demo thumbnails/preview use FRONTEND_BASE_URL public fixtures only
+Definition of Done:
+• Reused existing seed/audit/reindex commands; no new importer
+• Tests for seed + related audit/commerce green
+• PROJECT_STATUS + runbook updated; demo SKUs flagged for replacement before launch
+Next Steps:
+• A3 SMTP real inbox / H1 Sentry (I2 local staff routing completed later same day)
+Date: 2026-09-19 (Launch readiness Phase I2 — Staff, coupons, support routing)
+Work Completed:
+• Operator: ensured Administrator; set contact + project-message recipient env; `check_ops_config --fail-on-warnings` OK
+• Smoke contact form (service + HTTP) and quotation-accepted staff email via console backend
+• Expanded CATALOG_OPS §I2 refund runbook (Stripe → `charge.refunded` → order refunded + entitlement revoked)
+• Created optional launch coupon `LAUNCH10`; marked I2 operator checklist complete in implementingFIXfeature
+Files Modified:
+• docs/CATALOG_OPS_STAGING_CHECKLIST.md
+• implementingFIXfeature.md
+• backend/.env.example
+• .env.example
+• PROJECT_STATUS.md
+• backend/.env (local only — recipients; not for commit)
+Database Changes:
+• None (schema unchanged; coupon row `LAUNCH10` inserted via CouponService)
+API Endpoints:
+• None added/modified (exercised existing contact + notification delivery)
+Frontend Pages/Components:
+• None
+Security Review:
+• No secrets committed; recipients are env-only; contact still honeypot + rate-limited
+• Refund path reuses signed Stripe webhook only — no client-trusted refund API
+• Coupon created via existing CouponService (validated code/type/limits)
+Definition of Done:
+• Reused ensure_administrator / check_ops_config / ContactService / notification + webhook paths
+• Related tests green; runbook + PROJECT_STATUS updated
+Next Steps:
+• A3 SMTP real inbox delivery, or H1 Sentry DSNs; staging/prod set real staff inboxes + re-run check_ops_config with DEBUG=False
+Date: 2026-09-19 (Launch readiness Phase D2 — FRONTEND_BASE_URL verification links)
+Working Hours:
+Today's Objective: Ensure verification and password-reset emails use public FRONTEND_BASE_URL; harden checkers; local desktop smoke.
+Modules Completed: Auth/deploy FRONTEND HTTPS + ALLOW_LOCALHOST warnings; password-reset outbox host test; local verify + reset link smoke
+Files Created:
+• None
+Files Modified:
+• backend/config/mail.py (`frontend_base_url_uses_https`)
+• backend/accounts/management/commands/check_auth_config.py
+• backend/config/deploy_checks.py
+• backend/accounts/test_phase_d_auth.py
+• backend/config/test_deploy_checks.py
+• docs/AUTH_STAGING_CHECKLIST.md
+• implementingFIXfeature.md (D2 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None (schema unchanged; smoke users marked verified in local DB only)
+API Endpoints:
+• None added/modified (reused email-verification confirm + password-reset)
+Frontend Pages/Components:
+• None (smoked existing `/verify-email/:uid/:token` + `/reset-password/:uid/:token`)
+Problems Encountered:
+• Real inbox + mobile smoke blocked without public staging origin and A3 SMTP
+• Verify SPA sometimes leaves success Alert blank after 200 confirm (DB still verified) — pre-existing UI quirk, not D2 scope
+Solutions Implemented:
+• Extended existing `check_auth_config` / deploy_checks; reused `frontend_base_url()` link builders
+Security Review:
+• No secrets committed; localhost FRONTEND still refused when DEBUG=False unless explicit allow
+• Staging gate requires ALLOW_LOCALHOST_FRONTEND=False and https FRONTEND; tokens remain in email links only (existing flow)
+• Password-reset / verification confirm still server-validated
+Tests:
+• accounts.test_phase_d_auth + config.test_deploy_checks + test_email_verification + test_password_reset — 41/41 OK (--keepdb)
+Next Steps:
+• Staging/prod: set FRONTEND_BASE_URL=https://…; ALLOW_LOCALHOST_FRONTEND=False; check_auth_config --fail-on-warnings
+• A3 SMTP then one real verification email on phone + desktop
+• Next launch item: A3 SMTP / I1 catalog packages / E1 Meili
+Date: 2026-09-19 (Launch readiness Phase C1 — R2 both buckets local verify)
+Working Hours:
+Today's Objective: Close C1 operator gap for local R2 — both buckets reachable, signed private download smoke without exposing storage_path, migrate leftovers, document Compose expiry wiring.
+Modules Completed: verify_r2 --smoke-presign; live public=ok private=ok; migrate_local_media_to_r2; Compose R2_SIGNED_URL_EXPIRY
+Files Created:
+• backend/config/r2_smoke.py
+• backend/config/test_r2_smoke.py
+Files Modified:
+• backend/products/management/commands/verify_r2.py (--smoke-presign)
+• docker-compose.yml (R2_SIGNED_URL_EXPIRY on web + worker)
+• docs/R2_STAGING_CHECKLIST.md, docs/PRODUCTION_CHECKLIST.md §2.5b
+• .env.example, backend/.env.example
+• implementingFIXfeature.md, PROJECT_STATUS.md
+• backend/.env (R2_SIGNED_URL_EXPIRY=300 — not committed)
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None (existing resolve_private_download / download APIs exercised by smoke + unit tests)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• audit_published_packages --fail-on-missing fails on 2 published products without packages (tree, oak-chair) — catalog data, not R2 credentials
+• Root .env absent locally; Compose needs R2_* copied from backend/.env when using docker compose
+• Full downloads.test_downloads suite slow when Meili is down (fail-soft retries); signed-JSON subset OK
+Solutions Implemented:
+• Reused resolve_private_download + existing verify_r2 / migrate / audit; added throwaway private-object smoke (no new signing stack)
+• Documented Compose root .env requirement in R2 checklist
+Security Review:
+• No secrets committed; smoke never prints keys, signed URLs, or storage_path
+• Private bucket remains non-public; public URL only for R2_PUBLIC_BASE_URL
+• storage_path omitted from signed JSON and public serializers (existing + smoke assert)
+Tests:
+• config.test_r2_smoke + products.test_package_audit + products.test_storage — 27/27 OK
+• DownloadAPITests signed JSON product+plugin — 2/2 OK
+Next Steps:
+• Copy R2_* into staging/prod root .env; recreate web+worker; verify_r2 --smoke-presign
+• Phase I1: upload packages for tree/oak-chair (or unpublish) then audit_published_packages --fail-on-missing
+• Next launch item: Phase A3 SMTP staging / I1 catalog packages / E1 Meili (D2 local gate done; staging HTTPS inbox remaining)
+Date: 2026-09-19 (Launch readiness Phase D1 — First Administrator + Google OAuth)
+Working Hours:
+Today's Objective: Operator-execute D1 — ensure Administrator, pair Google client IDs, smoke console + customer auth matrix per docs/AUTH_STAGING_CHECKLIST.md.
+Modules Completed: Local first Administrator; Google ID pairing verified; console home smoke; register→verify→login; password-reset request; Google button render + API reject empty credential
+Files Created:
+• None
+Files Modified:
+• PROJECT_STATUS.md
+• implementingFIXfeature.md (D1 operator status)
+• docs/AUTH_STAGING_CHECKLIST.md (local operator checkboxes)
+Database Changes:
+• None (schema unchanged; Administrator user row promoted/updated via ensure_administrator)
+API Endpoints:
+• None added/modified (reused existing admin login, register, verify, password-reset, google)
+Frontend Pages/Components:
+• None (smoked existing /console/login + AuthLoginPanel Google button)
+Problems Encountered:
+• Existing admin had email_verified=False — fixed by ensure_administrator
+• Vite was not running; started locally for console/UI Google smoke
+• Interactive Google account complete-login not run (needs real Google session + authorized origins)
+Solutions Implemented:
+• Reused ensure_administrator / check_auth_config / verify_email; no new auth code
+Security Review:
+• Password hashed via Django; admin login rate-limited; no secrets committed or logged
+• Google IDs compared masked; empty Google credential rejected; admins use password-only /console/login
+• Local smoke password set only in DB — rotate before any shared/staging use
+Tests:
+• accounts.test_phase_d_auth + test_google_login + test_admin_access + test_email_verification + test_password_reset — 39/39 OK (--keepdb)
+Next Steps:
+• Staging/prod: ensure_administrator on host; pair Google IDs in Compose root .env; rebuild frontend image; authorized origins
+• Phase D2 local gate done 2026-09-19; staging HTTPS inbox + mobile still open (needs A3 SMTP)
+• Optional: interactive Google customer register/login with a real Google account
+Date: 2026-09-19 (Launch readiness Phase A5 — local backup + restore drill)
+Working Hours:
+Today's Objective: Execute A5 operator drill locally (dump + disposable restore), ship cron installer, keep staging host smoke as remaining gate.
+Modules Completed: Local pg_dump + local disposable restore (43 tables); install_backup_cron.sh; CRLF-safe dotenv; runbook/checklist sign-off for local steps
+Files Created:
+• backend/scripts/install_backup_cron.sh
+Files Modified:
+• backend/scripts/restore_postgres_drill.sh (RESTORE_DRILL_MODE=auto|docker|local)
+• backend/scripts/backup_postgres.sh (strip CR from .env lines)
+• backend/config/test_backup_scripts.py
+• docs/BACKUP_RESTORE_DRILL.md
+• docs/PRODUCTION_CHECKLIST.md §2.6
+• .env.example / backend/.env.example
+• implementingFIXfeature.md (A5 status)
+• PROJECT_STATUS.md
+Database Changes:
+• None (schema unchanged; disposable drill DB created and dropped)
+API Endpoints:
+• None
+Frontend Pages/Components:
+• None
+Problems Encountered:
+• Docker Desktop daemon unavailable; WSL logon blocked — used local Postgres + RESTORE_DRILL_MODE=local
+• Windows CRLF in backend/.env poisoned DB_HOST until dotenv strip fix
+Solutions Implemented:
+• Auto-fallback restore mode; refuse targeting app DB_NAME; install_backup_cron.sh for Linux hosts
+Security Review:
+• No secrets committed; dumps under gitignored backups/; drill DROP prefix-gated to marketplace_restore_drill_*
+• R2 object recovery documented as separate from Postgres dump
+• Optional BACKUP_UPLOAD_R2 skipped (no live R2 verification this session)
+Next Steps:
+• On staging Linux host: install_backup_cron.sh; optional BACKUP_UPLOAD_R2=1; R2 lifecycle on backups/postgres/; in-place restore → migrate → healthz → smoke
+Date: 2026-09-19 (A3 Real SMTP — deferred, not removed)
+Working Hours:
+Today's Objective: Record decision to skip live SMTP operator work for now while keeping A3 open as a BLOCKER.
+Modules Completed: Status-only — A3 remains in plan with tooling/guard done; operator inbox smoke postponed
+Files Created:
+• None
+Files Modified:
+• implementingFIXfeature.md (A3 deferred note; master table; suggested sprint)
+• PROJECT_STATUS.md (Current Task, Completed Features note, Current Issues)
+Database Changes:
+• None
+API Endpoints:
+• None
+Frontend Pages/Components:
+• None
+Problems Encountered:
+• No SMTP provider credentials yet; cannot complete real inbox smoke
+Solutions Implemented:
+• Deferred operator checkbox only; did not delete A3 section, runbook, or code guard
+Security Review:
+• Console email still default for local; production still requires ALLOW_CONSOLE_EMAIL=False + SMTP before launch
+• No secrets added or removed
+Next Steps:
+• Continue other launch-readiness items; resume A3 via docs/SMTP_STAGING_CHECKLIST.md when Brevo (or other) credentials are ready
+Date: 2026-09-19 (Launch readiness Phase A2 — Compose CSRF/HSTS + checker flags)
+Working Hours:
+Today's Objective: Close remaining in-repo A2 gaps so staging/prod operators get CSRF/HSTS via Compose and clearer check_deploy_config gates; live host secrets remain operator work.
+Modules Completed: Compose CSRF_TRUSTED_ORIGINS + SECURE_HSTS_SECONDS wiring; ALLOW_LOCALHOST_FRONTEND / ALLOW_CONSOLE_EMAIL in deploy report; checklist/env comment clarity
+Files Created:
+• None
+Files Modified:
+• docker-compose.yml
+• backend/config/deploy_checks.py
+• backend/accounts/management/commands/check_deploy_config.py
+• backend/config/test_deploy_checks.py
+• .env.example, backend/.env.example
+• docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md
+• implementingFIXfeature.md, PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints Added, Modified, or Removed:
+• None
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• No staging/prod host credentials in this session — cannot set live SECRET_KEY / hosts / TLS or run check --deploy on the real host
+Solutions Implemented:
+• Reused existing deploy_checks + check_deploy_config; wired missing Compose env keys; HSTS local default 0 to avoid sticky HSTS on HTTP Compose
+• Confirmed Compose publishes only frontend ports (postgres/redis/meili/web have no public ports:)
+Security Review:
+• No secrets committed; placeholders remain non-secret
+• check_deploy_config still never prints SECRET_KEY / DB_PASSWORD values
+• New warnings when DEBUG=False and ALLOW_LOCALHOST_FRONTEND or ALLOW_CONSOLE_EMAIL is True
+Tests:
+• config.test_deploy_checks — 13/13 OK
+Next Steps:
+• Operator: copy .env.example → .env on host; unique secrets; public hosts/origins; TLS flags; restart web+worker; check_deploy_config --fail-on-warnings; check --deploy; confirm data-plane ports private
+Date: 2026-09-19 (Launch readiness Phase B1 — Stripe sandbox smoke fulfill)
+Working Hours:
+Today's Objective: Close B1 operator verify gap with signed webhook fulfill smoke on test keys (no live keys); keep CheckoutService/WebhookService unchanged.
+Modules Completed: stripe_smoke --smoke-fulfill; live check_stripe_config --ping --smoke-fulfill
+Files Created:
+• backend/payments/stripe_smoke.py
+• backend/payments/test_stripe_smoke.py
+Files Modified:
+• backend/payments/management/commands/check_stripe_config.py (--smoke-fulfill / --keep-smoke-data)
+• backend/payments/test_stripe_config.py
+• docs/STRIPE_SANDBOX_CHECKLIST.md
+• .env.example, backend/.env.example
+• implementingFIXfeature.md, PROJECT_STATUS.md
+Database Changes:
+• None (smoke creates/deletes throwaway rows only; no migrations)
+API Endpoints Added, Modified, or Removed:
+• None (existing POST /api/v1/payments/webhook/ exercised by smoke)
+Frontend Pages Created/Updated:
+• None
+Problems Encountered:
+• Django Client host DisallowedHost under non-test ALLOWED_HOSTS; locmem mail.outbox missing until connection
+Solutions Implemented:
+• override_settings ALLOWED_HOSTS + eager Celery + locmem for smoke; get_connection before outbox.clear
+Security Review:
+• --smoke-fulfill refuses E2E_STRIPE_SIMULATE and live keys; never prints sk_/pk_/whsec_
+• Signature path uses real STRIPE_WEBHOOK_SECRET HMAC; bad signature still 400
+• Throwaway smoke user/order cleaned by default
+Tests:
+• payments.test_stripe_config + test_stripe_smoke + StripeWebhookTests — OK
+• Live: check_stripe_config --require-test-mode --fail-on-warnings --ping --smoke-fulfill — OK
+Next Steps:
+• Optional browser 4242 checkout via Stripe CLI listen; Phase K for sk_live_
 Date: 2026-09-18 (Launch readiness Phase B1 — Stripe keys + webhook verification)
 Working Hours:
 Today's Objective: Close B1 engineering/tooling gap (operator verify command + docs) without forking payment flow; leave live test checkout and Phase K live keys as operator work.

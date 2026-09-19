@@ -19,6 +19,8 @@ from decouple import Config, RepositoryEmpty, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
 
+from config.redis_urls import apply_redis_password
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -88,6 +90,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'config.admin_lock.DjangoAdminLockMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.csp.ContentSecurityPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -280,10 +283,21 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 AUTH_USER_MODEL = "accounts.User"
 
+# Django contrib admin at /admin/ (SPA console is /console/). Default on so local
+# Compose keeps working. Staging/prod: set DJANGO_ADMIN_ENABLED=False or an IP allowlist.
+DJANGO_ADMIN_ENABLED = config("DJANGO_ADMIN_ENABLED", cast=bool, default=True)
+DJANGO_ADMIN_ALLOWED_IPS = config(
+    "DJANGO_ADMIN_ALLOWED_IPS",
+    default="",
+    cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
+)
+
 # Shared cache for DRF throttles across workers. Prefer Redis in production:
 # REDIS_URL=redis://127.0.0.1:6379/1  (cache / throttles / idempotency)
 # CELERY_BROKER_URL=redis://127.0.0.1:6379/0  (Celery broker; falls back to REDIS_URL)
-REDIS_URL = config("REDIS_URL", default="")
+# Optional REDIS_PASSWORD is injected into URLs that have no password yet (Compose AUTH).
+REDIS_PASSWORD = config("REDIS_PASSWORD", default="").strip()
+REDIS_URL = apply_redis_password(config("REDIS_URL", default=""), REDIS_PASSWORD)
 if not DEBUG and not REDIS_URL:
     raise ImproperlyConfigured(
         "REDIS_URL is required when DEBUG=False so rate limits and cache "
@@ -306,7 +320,10 @@ else:
 
 # Celery — prefer a dedicated broker DB index; fall back to REDIS_URL for DX.
 # Without Redis (local DEBUG) or under tests, tasks run eagerly in-process.
-CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="") or REDIS_URL or "memory://"
+CELERY_BROKER_URL = apply_redis_password(
+    config("CELERY_BROKER_URL", default="") or REDIS_URL or "memory://",
+    REDIS_PASSWORD,
+)
 CELERY_RESULT_BACKEND = None
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_TASK_ACKS_LATE = True
@@ -350,6 +367,11 @@ elif _meili_required_raw in {"0", "false", "no", "off"}:
     MEILI_REQUIRED = False
 else:
     MEILI_REQUIRED = not DEBUG
+# Same as R2: do not hit a live Meili from manage.py test (empty index → 0 hits).
+# Suites that need Meili still use override_settings(MEILI_URL=...).
+if _running_tests:
+    MEILI_URL = ""
+    MEILI_REQUIRED = False
 
 # Legal document versions required at register + checkout (Phase I).
 # Bump a version string when Terms/Privacy change; clients must re-accept.

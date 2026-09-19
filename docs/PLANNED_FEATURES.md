@@ -41,7 +41,9 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 | **Feature 13 — Docker** | **Done** (2026-09-17) | `backend/Dockerfile` (Gunicorn), `frontend/Dockerfile` (Nginx), Compose: web/worker/postgres/redis/meilisearch/frontend; healthz wired |
 | **Configure Docker** (Sprint 1) | **Done** | Root `.env.example` + `docker compose up --build` |
 | **Production checklist runbook** | **Done** (2026-09-17) | [`docs/PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) — env gates, `check --deploy`, backup drill, webhook, worker/mail, rollback |
-| **Production deployment** (Sprint 11) | **Not done** | Live host cutover / CDN / monitoring sign-off still open (execute runbook) |
+| **Phase K1 cutover gate** | **Tooling done** (2026-09-19) | `check_cutover` + [`CUTOVER_STAGING_CHECKLIST.md`](CUTOVER_STAGING_CHECKLIST.md) + immutable `WEB_IMAGE`/`FRONTEND_IMAGE`; staging/prod host sign-off still open |
+| **Phase K2 rollback rehearsal** | **Tooling done** (2026-09-19) | `check_rollback_rehearsal` + [`ROLLBACK_REHEARSAL.md`](ROLLBACK_REHEARSAL.md) + `rollback_compose` scripts; staging host sign-off still open |
+| **Production deployment** (Sprint 11) | **Not done** | Live host cutover / CDN / monitoring sign-off still open (execute cutover runbook) |
 | **Backend / frontend / DB stability gates** | **Open** | Final release checklist still unchecked until runbook executed on host |
 
 ---
@@ -70,7 +72,7 @@ From [PROJECT_MASTER_PLAN.md](../PROJECT_MASTER_PLAN.md), the project is success
 | 9 | API E2E import → pay → download | **Done** | `test_catalog_commerce_e2e.py` |
 | 10 | Hardening (retries, migration) | **Done** | storages retries + migrate command |
 
-**Still open outside marketplace app code:** live intake Excel sign-off; desktop bridge `.exe` polish.
+**Still open outside marketplace app code:** desktop bridge `.exe` polish. Intake Excel columns signed off 2026-09-19 (`docs/batch-ingest-contract.md` + `manage.py check_batch_ingest`).
 
 ---
 
@@ -112,7 +114,8 @@ Mail/enqueue failures are fail-soft and never roll back the workflow action.
 | Plugin buy / cart / wishlist CTAs | **Done** | `PluginCtaGroup` uses Buy now + AddToCart (not “coming soon”) |
 | UI redesign from manager prototype | **Blocked** | Waiting on manager approval |
 | 3D viewer fullscreen | **Not done** | No `requestFullscreen` in viewer |
-| Legal pages (Privacy, Terms, Licensing) | **Not done** | Footer links go to `/contact` |
+| Legal pages (Privacy, Terms) | **Done** | `/terms` + `/privacy` (`LegalDocumentPage`); footer + checkout links |
+| Licensing page | Later | Product license enum exists; no dedicated `/licensing` route |
 | Newsletter subscribe | **Not done** | Footer form navigates to `/contact` only |
 | Dedicated Search page / typeahead / tags | **Later** | Meilisearch live; no `ProductTag` model |
 | Customer Settings page | **Not done** | Profile only; no `/settings` route |

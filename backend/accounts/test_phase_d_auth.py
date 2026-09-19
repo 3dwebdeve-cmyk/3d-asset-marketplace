@@ -16,7 +16,11 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
-from config.mail import frontend_base_url, frontend_base_url_is_localhost
+from config.mail import (
+    frontend_base_url,
+    frontend_base_url_is_localhost,
+    frontend_base_url_uses_https,
+)
 
 
 class FrontendBaseUrlHelperTests(SimpleTestCase):
@@ -24,6 +28,11 @@ class FrontendBaseUrlHelperTests(SimpleTestCase):
         self.assertTrue(frontend_base_url_is_localhost("http://localhost:5173"))
         self.assertTrue(frontend_base_url_is_localhost("http://127.0.0.1:5173"))
         self.assertFalse(frontend_base_url_is_localhost("https://shop.example.com"))
+
+    def test_https_detection(self) -> None:
+        self.assertTrue(frontend_base_url_uses_https("https://shop.example.com"))
+        self.assertFalse(frontend_base_url_uses_https("http://shop.example.com"))
+        self.assertFalse(frontend_base_url_uses_https("http://localhost:5173"))
 
     def test_settings_refuse_localhost_frontend_when_debug_false(self) -> None:
         """Mirror settings.py Phase D2 guard."""
@@ -93,7 +102,11 @@ class CheckAuthConfigCommandTests(TestCase):
         with self.assertRaises(CommandError):
             call_command("check_auth_config", fail_on_warnings=True)
 
-    @override_settings(FRONTEND_BASE_URL="https://shop.example.com", DEBUG=True)
+    @override_settings(
+        FRONTEND_BASE_URL="https://shop.example.com",
+        DEBUG=True,
+        ALLOW_LOCALHOST_FRONTEND=False,
+    )
     def test_reports_public_frontend(self) -> None:
         Role.objects.get_or_create(role_name="Administrator")
         # Ensure at least one admin so --fail-on-warnings is clean.
@@ -104,8 +117,38 @@ class CheckAuthConfigCommandTests(TestCase):
         )
         out = StringIO()
         call_command("check_auth_config", fail_on_warnings=True, stdout=out)
-        self.assertIn("https://shop.example.com", out.getvalue())
-        self.assertIn("Auth config looks ready", out.getvalue())
+        text = out.getvalue()
+        self.assertIn("https://shop.example.com", text)
+        self.assertIn("ALLOW_LOCALHOST_FRONTEND=False", text)
+        self.assertIn("Auth config looks ready", text)
+
+    @override_settings(
+        FRONTEND_BASE_URL="https://shop.example.com",
+        DEBUG=False,
+        ALLOW_LOCALHOST_FRONTEND=True,
+    )
+    def test_fails_when_allow_localhost_true_with_debug_false(self) -> None:
+        call_command(
+            "ensure_administrator",
+            email="check-auth-allow-local@example.com",
+            password="StrongPass123!",
+        )
+        with self.assertRaises(CommandError):
+            call_command("check_auth_config", fail_on_warnings=True)
+
+    @override_settings(
+        FRONTEND_BASE_URL="http://shop.example.com",
+        DEBUG=False,
+        ALLOW_LOCALHOST_FRONTEND=False,
+    )
+    def test_fails_when_public_frontend_is_http(self) -> None:
+        call_command(
+            "ensure_administrator",
+            email="check-auth-http@example.com",
+            password="StrongPass123!",
+        )
+        with self.assertRaises(CommandError):
+            call_command("check_auth_config", fail_on_warnings=True)
 
 
 class VerificationLinkUsesFrontendBaseUrlTests(APITestCase):
@@ -135,3 +178,25 @@ class VerificationLinkUsesFrontendBaseUrlTests(APITestCase):
             mail.outbox[0].body,
         )
         self.assertEqual(frontend_base_url(), "https://assets.example.com")
+
+    @override_settings(FRONTEND_BASE_URL="https://assets.example.com")
+    def test_password_reset_email_uses_frontend_base_url(self) -> None:
+        customer_role = Role.objects.get(role_name="Customer")
+        User.objects.create_user(
+            email="reset-link@example.com",
+            full_name="Reset Link User",
+            password="StrongPass123!",
+            role=customer_role,
+            email_verified=True,
+        )
+        response = self.client.post(
+            reverse("accounts:password-reset"),
+            {"email": "reset-link@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(
+            "https://assets.example.com/reset-password/",
+            mail.outbox[0].body,
+        )

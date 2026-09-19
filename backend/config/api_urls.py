@@ -1,16 +1,16 @@
 """Canonical API route table (mounted under /api/v1/)."""
 
 from django.urls import include, path
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from config.health import HealthzView
+from config.openapi import GatedSpectacularAPIView, GatedSpectacularSwaggerView
 
 urlpatterns = [
     path("healthz/", HealthzView.as_view(), name="healthz"),
-    path("schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("schema/", GatedSpectacularAPIView.as_view(), name="schema"),
     path(
         "schema/swagger-ui/",
-        SpectacularSwaggerView.as_view(url_name="schema"),
+        GatedSpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),
     path("auth/", include("accounts.urls")),

@@ -45,21 +45,13 @@ From `backend/` (venv active):
 python manage.py check_stripe_config --require-test-mode --fail-on-warnings
 # Optional network smoke (uses secret key; does not print it):
 python manage.py check_stripe_config --require-test-mode --ping
+# Signed webhook fulfill + idempotent replay (creates/deletes a throwaway order):
+python manage.py check_stripe_config --require-test-mode --fail-on-warnings --smoke-fulfill
 ```
 
-Expect `STRIPE_SECRET_KEY_mode=test`, valid `whsec_` webhook secret, and the four event types listed below.
+Expect `STRIPE_SECRET_KEY_mode=test`, valid `whsec_` webhook secret, the four event types listed below, and `smoke_fulfill OK`. The command never prints key material.
 
-### Verify config (no secrets printed)
-
-From `backend/`:
-
-```bash
-python manage.py check_stripe_config --require-test-mode --fail-on-warnings
-# Optional network check of the secret key:
-python manage.py check_stripe_config --require-test-mode --ping
-```
-
-Expect `STRIPE_SECRET_KEY_mode=test`, valid `whsec_` webhook secret, and the four event types listed below. The command never prints key material.
+`--smoke-fulfill` refuses `E2E_STRIPE_SIMULATE=True` and live keys. Use `--keep-smoke-data` only when debugging locally.
 
 ---
 
@@ -92,6 +84,16 @@ Stripe Dashboard → Developers → Webhooks → Add endpoint (Test mode) → sa
 
 ## 3. Sandbox smoke (happy path)
 
+**Automated (recommended first):**
+
+```bash
+python manage.py check_stripe_config --require-test-mode --fail-on-warnings --smoke-fulfill
+```
+
+This creates a real test Checkout Session, POSTs a HMAC-signed `checkout.session.completed` through `StripeWebhookView`, asserts paid order + payment + download entitlement + receipt email, replays the same event (must stay idempotent), then deletes the throwaway rows.
+
+**Browser (optional confirmation):**
+
 1. Register (accept Terms/Privacy) → verify email if required → add product to cart.
 2. Checkout → complete Stripe **test** card (`4242…`).
 3. Confirm: order paid, payment succeeded, download entitled, receipt email (or console mail in local).
@@ -114,11 +116,11 @@ Checkout and quotation pay send `accepted_legal` matching frontend `LEGAL_DOCUME
 
 ## 5. Done when
 
-- [ ] `check_stripe_config --require-test-mode --fail-on-warnings` passes  
-- [ ] Test keys configured locally or on staging  
-- [ ] Webhook secret set; signature failures return 400  
-- [ ] One full test checkout fulfills order + download  
-- [ ] Duplicate webhook is a no-op  
-- [ ] `/terms` and `/privacy` open; register/cart link to them  
+- [x] `check_stripe_config --require-test-mode --fail-on-warnings` passes  
+- [x] Test keys configured locally or on staging  
+- [x] Webhook secret set; signature failures return 400  
+- [x] `check_stripe_config … --smoke-fulfill` passes (or browser test-card path above)  
+- [x] Duplicate webhook is a no-op  
+- [x] `/terms` and `/privacy` open; register/cart link to them (deeper legal-version UX = Phase B2)
 
 **Production live keys:** leave for Phase K / `PRODUCTION_CHECKLIST.md` — not this sandbox phase.

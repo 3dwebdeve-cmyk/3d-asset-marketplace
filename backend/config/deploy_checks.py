@@ -135,6 +135,8 @@ class DeployConfigReport:
     csrf_trusted_origins_count: int
     secure_ssl_redirect: bool | None
     secure_hsts_seconds: int | None
+    allow_localhost_frontend: bool
+    allow_console_email: bool
     db_password_weak: bool
     meili_master_key_weak: bool
     redis_url_set: bool
@@ -143,7 +145,11 @@ class DeployConfigReport:
 
 def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
     """Build a report + launch warnings for the current Django settings."""
-    from config.mail import frontend_base_url, frontend_base_url_is_localhost
+    from config.mail import (
+        frontend_base_url,
+        frontend_base_url_is_localhost,
+        frontend_base_url_uses_https,
+    )
     from search.client import master_key_is_weak
 
     debug = bool(getattr(settings_obj, "DEBUG", False))
@@ -209,6 +215,12 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
             "FRONTEND_BASE_URL points at localhost while DEBUG=False - "
             "verification emails will be unusable for real customers."
         )
+    if not debug and not frontend_local and not frontend_base_url_uses_https(frontend):
+        warnings.append(
+            "FRONTEND_BASE_URL is not https while DEBUG=False - "
+            "set https://<public-spa-origin> for verification and "
+            "password-reset links."
+        )
     if not debug and cors_local:
         warnings.append(
             "CORS_ALLOWED_ORIGINS is localhost-only while DEBUG=False - "
@@ -251,6 +263,46 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
             "throttles, and checkout idempotency."
         )
 
+    from config.redis_urls import redis_url_has_password
+
+    redis_url = str(getattr(settings_obj, "REDIS_URL", "") or "").strip()
+    if not debug and redis_set and not redis_url_has_password(redis_url):
+        warnings.append(
+            "REDIS_URL has no password while DEBUG=False - set REDIS_PASSWORD "
+            "(Compose requirepass) or embed credentials in REDIS_URL / "
+            "CELERY_BROKER_URL."
+        )
+
+    admin_enabled = bool(getattr(settings_obj, "DJANGO_ADMIN_ENABLED", True))
+    admin_ips = [
+        str(item).strip()
+        for item in (getattr(settings_obj, "DJANGO_ADMIN_ALLOWED_IPS", None) or [])
+        if str(item).strip()
+    ]
+    if not debug and admin_enabled and not admin_ips:
+        warnings.append(
+            "Django /admin/ is enabled without DJANGO_ADMIN_ALLOWED_IPS while "
+            "DEBUG=False - set DJANGO_ADMIN_ENABLED=False (SPA uses /console/) "
+            "or restrict to staff VPN/office IPs."
+        )
+
+    allow_localhost_frontend = bool(
+        getattr(settings_obj, "ALLOW_LOCALHOST_FRONTEND", False)
+    )
+    allow_console_email = bool(
+        getattr(settings_obj, "ALLOW_CONSOLE_EMAIL", False)
+    )
+    if not debug and allow_localhost_frontend:
+        warnings.append(
+            "ALLOW_LOCALHOST_FRONTEND is True while DEBUG=False - "
+            "set False on staging/prod (local Compose escape hatch only)."
+        )
+    if not debug and allow_console_email:
+        warnings.append(
+            "ALLOW_CONSOLE_EMAIL is True while DEBUG=False - "
+            "set False and configure SMTP before staging/prod."
+        )
+
     return DeployConfigReport(
         debug=debug,
         secret_key_length=len(secret.encode("utf-8")),
@@ -267,6 +319,8 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         csrf_trusted_origins_count=len(csrf),
         secure_ssl_redirect=ssl_redirect if isinstance(ssl_redirect, bool) else None,
         secure_hsts_seconds=hsts if isinstance(hsts, int) else None,
+        allow_localhost_frontend=allow_localhost_frontend,
+        allow_console_email=allow_console_email,
         db_password_weak=weak_db,
         meili_master_key_weak=meili_weak,
         redis_url_set=redis_set,

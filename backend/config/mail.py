@@ -30,6 +30,14 @@ def frontend_base_url_is_localhost(url: str | None = None) -> bool:
     return host in {"localhost", "127.0.0.1", "::1"}
 
 
+def frontend_base_url_uses_https(url: str | None = None) -> bool:
+    """True when the SPA base URL uses the https scheme."""
+    from urllib.parse import urlparse
+
+    value = frontend_base_url() if url is None else str(url).rstrip("/")
+    return (urlparse(value).scheme or "").lower() == "https"
+
+
 def safe_email_text(value: str) -> str:
     """Collapse whitespace/newlines so values cannot inject email headers."""
     return " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
