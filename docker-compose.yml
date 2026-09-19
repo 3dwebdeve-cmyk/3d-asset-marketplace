@@ -2,11 +2,22 @@
 # Copy `.env.example` → `.env` at the repo root, then:
 #   docker compose up --build
 #
+# Immutable staging/prod tags (Phase K1):
+#   ./backend/scripts/build_immutable_images.sh   # or .ps1 on Windows
+#   # sets WEB_IMAGE / FRONTEND_IMAGE / IMAGE_TAG — avoid relying on :latest alone
+#   docker compose up -d
+#
+# Rollback rehearsal (Phase K2) — previous tags, app services only:
+#   PREVIOUS_WEB_IMAGE=… PREVIOUS_FRONTEND_IMAGE=… ./backend/scripts/rollback_compose.sh
+#   docker compose exec web python manage.py check_rollback_rehearsal --profile staging
+#   See docs/ROLLBACK_REHEARSAL.md (no migrate reverse)
+#
 # Browser: http://localhost:8080  (Nginx SPA + /api proxy → Gunicorn)
 # Health:  http://localhost:8080/api/v1/healthz/ (legacy /api/healthz/ still works)
 #
 # Celery worker: same backend image; broker = CELERY_BROKER_URL (Redis DB 0), cache = REDIS_URL (DB 1).
 # SPA admin control panel: http://localhost:8080/console/login  (Django admin remains /admin/)
+# Cutover gate: docker compose exec web python manage.py check_cutover --profile staging
 
 services:
   postgres:
@@ -26,11 +37,25 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+        else
+          exec redis-server --appendonly yes
+        fi
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        [
+          "CMD-SHELL",
+          'if [ -n "$$REDIS_PASSWORD" ]; then redis-cli -a "$$REDIS_PASSWORD" ping; else redis-cli ping; fi',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -56,6 +81,7 @@ services:
     restart: unless-stopped
 
   web:
+    image: ${WEB_IMAGE:-marketplace-web:local}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -79,11 +105,19 @@ services:
       # Cache/throttles on DB 1; Celery broker on DB 0 (Phase A6).
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/1}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # SPA console is /console/. Leave True locally; staging/prod: False or IP allowlist.
+      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-True}
+      DJANGO_ADMIN_ALLOWED_IPS: ${DJANGO_ADMIN_ALLOWED_IPS:-}
       MEILI_URL: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
       # Terminate TLS at a reverse proxy / Cloudflare in real prod.
       # See docs/PRODUCTION_CHECKLIST.md for full prod env + rollback policy.
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      # Required when DEBUG=False on a public host (https://… SPA/API origins).
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      # Set 31536000 after HTTPS works end-to-end; keep 0 only while staging TLS.
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       # Local Compose defaults to console mail; production must set SMTP + ALLOW_CONSOLE_EMAIL=False.
       ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-True}
@@ -111,6 +145,7 @@ services:
       R2_PUBLIC_BUCKET: ${R2_PUBLIC_BUCKET:-}
       R2_PRIVATE_BUCKET: ${R2_PRIVATE_BUCKET:-}
       R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+      R2_SIGNED_URL_EXPIRY: ${R2_SIGNED_URL_EXPIRY:-300}
     depends_on:
       postgres:
         condition: service_healthy
@@ -133,6 +168,7 @@ services:
     restart: unless-stopped
 
   frontend:
+    image: ${FRONTEND_IMAGE:-marketplace-frontend:local}
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -142,6 +178,7 @@ services:
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
         VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
         VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
+    # Phase A2: only public publish — do NOT add ports for postgres/redis/meilisearch/web (Gunicorn).
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:
@@ -150,6 +187,7 @@ services:
     restart: unless-stopped
 
   worker:
+    image: ${WEB_IMAGE:-marketplace-web:local}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -171,9 +209,13 @@ services:
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/1}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      SKIP_STARTUP_MIGRATE: "True"
       MEILI_URL: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
       ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-True}
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@3dassetmarketplace.local}
@@ -199,6 +241,7 @@ services:
       R2_PUBLIC_BUCKET: ${R2_PUBLIC_BUCKET:-}
       R2_PRIVATE_BUCKET: ${R2_PRIVATE_BUCKET:-}
       R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+      R2_SIGNED_URL_EXPIRY: ${R2_SIGNED_URL_EXPIRY:-300}
     command: ["celery", "-A", "config", "worker", "--loglevel=info", "--concurrency=2", "-Q", "celery,email"]
     healthcheck:
       test: ["CMD-SHELL", "celery -A config inspect ping -t 5"]

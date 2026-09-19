@@ -57,7 +57,16 @@ class StripeConfigReport:
     warnings: list[str] = field(default_factory=list)
 
 
-def collect_stripe_config_report(*, require_test_mode: bool = False) -> StripeConfigReport:
+def collect_stripe_config_report(
+    *,
+    require_test_mode: bool = False,
+    require_live_mode: bool = False,
+) -> StripeConfigReport:
+    if require_test_mode and require_live_mode:
+        raise ValueError(
+            "require_test_mode and require_live_mode are mutually exclusive"
+        )
+
     secret = (getattr(settings, "STRIPE_SECRET_KEY", "") or "").strip()
     publishable = (getattr(settings, "STRIPE_PUBLISHABLE_KEY", "") or "").strip()
     webhook = (getattr(settings, "STRIPE_WEBHOOK_SECRET", "") or "").strip()
@@ -144,6 +153,25 @@ def collect_stripe_config_report(*, require_test_mode: bool = False) -> StripeCo
             warnings.append(
                 "STRIPE_WEBHOOK_SECRET empty while --require-test-mode - "
                 "run Stripe CLI listen or set Dashboard test webhook secret."
+            )
+
+    if require_live_mode:
+        if secret_mode != "live":
+            warnings.append(
+                "STRIPE_SECRET_KEY must be sk_live_... for production cutover "
+                "(see docs/CUTOVER_STAGING_CHECKLIST.md / Phase K)."
+            )
+        if publishable_mode != "live":
+            warnings.append(
+                "STRIPE_PUBLISHABLE_KEY must be pk_live_... for production cutover."
+            )
+        if not webhook_ok:
+            warnings.append(
+                "STRIPE_WEBHOOK_SECRET must be a live endpoint whsec_ for production."
+            )
+        if e2e:
+            warnings.append(
+                "E2E_STRIPE_SIMULATE must be False/unset with live Stripe keys."
             )
 
     return StripeConfigReport(

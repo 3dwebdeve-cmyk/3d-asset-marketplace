@@ -28,13 +28,23 @@ R2 object key prefix: `backups/postgres/<filename>` in `R2_PRIVATE_BUCKET`.
 
 ## 2. Disposable restore drill (preferred — safe by default)
 
-Proves the dump restores **without** touching Compose volume `postgres_data`:
+Proves the dump restores **without** touching Compose volume `postgres_data` or the live app database:
 
 ```bash
 ./backend/scripts/restore_postgres_drill.sh ./backups/marketplace-YYYYMMDDTHHMMSSZ.dump
+
+# Force mode when needed:
+RESTORE_DRILL_MODE=docker ./backend/scripts/restore_postgres_drill.sh ./backups/….dump
+RESTORE_DRILL_MODE=local  ./backend/scripts/restore_postgres_drill.sh ./backups/….dump
 ```
 
-Expect: ephemeral `postgres:16-alpine` container + throwaway volume, `pg_restore`, then `public_tables >= 1`, then automatic cleanup.
+| Mode | When | What it does |
+|------|------|----------------|
+| `auto` (default) | Prefer Docker | Uses `docker` if the daemon works, else `local` |
+| `docker` | Compose/Docker hosts | Ephemeral `postgres:16-alpine` + throwaway volume, then cleanup |
+| `local` | Dev hosts / Docker down | `CREATE DATABASE marketplace_restore_drill_<pid>` on reachable Postgres → `pg_restore` → verify → `DROP DATABASE` (app `DB_NAME` never targeted) |
+
+Expect: `public_tables >= 1`, then automatic cleanup of the disposable container/volume or drill database.
 
 ### Staging Compose follow-up (after disposable drill OK)
 
@@ -52,7 +62,16 @@ curl -fsS https://<staging-host>/api/v1/healthz/
 
 ## 3. Cron schedule + retention
 
-**Recommended host cron (daily 02:15 UTC):**
+**Install on the Linux staging/prod host (idempotent):**
+
+```bash
+chmod +x backend/scripts/install_backup_cron.sh
+./backend/scripts/install_backup_cron.sh
+# Preview only:
+INSTALL_BACKUP_CRON_DRY_RUN=1 ./backend/scripts/install_backup_cron.sh
+```
+
+**Equivalent crontab line (daily 02:15 UTC):**
 
 ```cron
 15 2 * * * cd /opt/3d-asset-marketplace && BACKUP_RETENTION_DAYS=14 BACKUP_UPLOAD_R2=1 ./backend/scripts/backup_postgres.sh >> /var/log/marketplace-backup.log 2>&1
@@ -61,10 +80,10 @@ curl -fsS https://<staging-host>/api/v1/healthz/
 | Policy | Default recommendation | Notes |
 |--------|------------------------|--------|
 | Local dumps | `BACKUP_RETENTION_DAYS=14` | Script deletes only `marketplace-*.dump` older than N days under `BACKUP_DIR` |
-| R2 copies | Lifecycle rule 30–90 days on prefix `backups/postgres/` | Configure in Cloudflare R2 — **not** done by the shell script |
+| R2 copies | Lifecycle rule 30–90 days on prefix `backups/postgres/` | Configure in Cloudflare R2 — **not** done by the shell / cron installer |
 | Frequency | Daily | Increase before risky deploys / migrations |
 
-Unset `BACKUP_RETENTION_DAYS` means **no** local prune (operator must manage disk).
+Unset `BACKUP_RETENTION_DAYS` means **no** local prune (operator must manage disk). Windows hosts: use Task Scheduler to run the same script under Git Bash — `install_backup_cron.sh` requires Linux `crontab`.
 
 ---
 
@@ -86,7 +105,8 @@ Restoring Postgres alone does **not** bring back missing R2 objects. Confirm ver
 |-------|----------|
 | `pg_dump -Fc` Compose or direct | `backend/scripts/backup_postgres.sh` |
 | Optional R2 upload (boto3 + same `R2_*`) | `backend/scripts/upload_backup_to_r2.py` |
-| Disposable restore drill | `backend/scripts/restore_postgres_drill.sh` |
+| Disposable restore drill (docker or local DB) | `backend/scripts/restore_postgres_drill.sh` |
+| Host cron installer (Linux) | `backend/scripts/install_backup_cron.sh` |
 | Upload helper unit tests (no network) | `backend/config/test_backup_scripts.py` |
 | Dump directory ignored by git | `backups/` in `.gitignore` |
 
@@ -96,11 +116,11 @@ Restoring Postgres alone does **not** bring back missing R2 objects. Confirm ver
 
 | Check | Date / initials |
 |-------|-----------------|
-| Logical dump created; size recorded | |
-| Optional R2 upload verified (`backups/postgres/…`) | |
-| Disposable restore drill OK (`restore_postgres_drill.sh`) | |
+| Logical dump created; size recorded | 2026-09-19 / AUTO (local Postgres `BACKUP_VIA_COMPOSE=0`, retention=14) |
+| Optional R2 upload verified (`backups/postgres/…`) | _(skip until R2_* on host — optional)_ |
+| Disposable restore drill OK (`restore_postgres_drill.sh`) | 2026-09-19 / AUTO (`RESTORE_DRILL_MODE=local`; Docker daemon unavailable) |
 | Staging: migrate + healthz + smoke login/browse | |
-| Host cron installed; retention (`BACKUP_RETENTION_DAYS` + R2 lifecycle) documented | |
-| R2 object recovery understood as separate from Postgres | |
+| Host cron installed; retention (`BACKUP_RETENTION_DAYS` + R2 lifecycle) documented | Installer shipped — run `install_backup_cron.sh` on Linux host; dry-run verified 2026-09-19 / AUTO |
+| R2 object recovery understood as separate from Postgres | 2026-09-19 / AUTO (confirmed in runbook §4; files not in DB dump) |
 
 Record production cutover in [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md) §2.6 / §5.

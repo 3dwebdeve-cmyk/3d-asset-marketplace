@@ -11,6 +11,7 @@ from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminCategoryWriteRateThrottle
 from config.api_helpers import domain_error_response, parse_uuid
+from config.http_cache import PublicCatalogCacheMixin
 from categories.pagination import CategoryPagination
 from categories.serializers import (
     CategoryAdminSerializer,
@@ -44,7 +45,7 @@ def _parse_is_active_filter(value: str | None) -> bool | None:
     raise ValidationError({"is_active": ["Must be true or false."]})
 
 
-class CategoryListView(APIView):
+class CategoryListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = CategoryPagination
 
@@ -62,7 +63,7 @@ class CategoryListView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
-class CategoryDetailView(APIView):
+class CategoryDetailView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
 
     def get(self, request: Request, slug: str) -> Response:

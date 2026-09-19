@@ -12,6 +12,7 @@ from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
 from accounts.throttles import AdminPluginWriteRateThrottle
 from config.api_helpers import domain_error_response, parse_uuid
+from config.http_cache import PublicCatalogCacheMixin
 from plugins.models import Plugin
 from plugins.pagination import PluginPagination
 from plugins.serializers import (
@@ -66,7 +67,7 @@ def _parse_status(value: str | None) -> str | None:
     return normalized
 
 
-class PluginCategoryListView(APIView):
+class PluginCategoryListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = PluginPagination
 
@@ -81,7 +82,7 @@ class PluginCategoryListView(APIView):
         )
 
 
-class PluginCategoryDetailView(APIView):
+class PluginCategoryDetailView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
 
     def get(self, request: Request, slug: str) -> Response:
@@ -95,7 +96,7 @@ class PluginCategoryDetailView(APIView):
         )
 
 
-class PluginListView(APIView):
+class PluginListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = PluginPagination
 
@@ -140,7 +141,7 @@ class PluginListView(APIView):
         )
 
 
-class PluginDetailView(APIView):
+class PluginDetailView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
 
     def get(self, request: Request, slug: str) -> Response:

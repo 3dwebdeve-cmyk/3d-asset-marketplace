@@ -35,6 +35,8 @@ ALLOW_CONSOLE_EMAIL=False
 | `ALLOWED_HOSTS` | Public hostname(s) only — no `*` |
 | `CSRF_TRUSTED_ORIGINS` | Required when `DEBUG=False` (https origins) |
 | `SECURE_SSL_REDIRECT` | `True` behind real TLS; keep `False` only for local HTTP Compose |
+| `SECURE_HSTS_SECONDS` | `31536000` after HTTPS works; Compose local default is `0` |
+| `ALLOW_LOCALHOST_FRONTEND` / `ALLOW_CONSOLE_EMAIL` | Must be `False` on staging/prod |
 | Local Compose | May keep localhost hosts + `SECURE_SSL_REDIRECT=False` for DX |
 
 Generate a secret:
@@ -66,6 +68,8 @@ Expect:
 - `ALLOWED_HOSTS_local_only=False` on staging/prod
 - `CSRF_TRUSTED_ORIGINS_count` ≥ 1 when `DEBUG=False`
 - `SECURE_SSL_REDIRECT=True` once HTTPS is live at the edge
+- `SECURE_HSTS_SECONDS=31536000` once HTTPS works end-to-end (Compose local default is `0`)
+- `ALLOW_LOCALHOST_FRONTEND=False` and `ALLOW_CONSOLE_EMAIL=False`
 - Django `check --deploy` → **zero** issues (custom checks `config.E001` / `config.E002` / `config.W001` included)
 
 Also useful:
@@ -97,7 +101,7 @@ Confirm on the host / security group / Cloudflare tunnel:
 | Redis `:6379` | **No** |
 | Meilisearch `:7700` | **No** |
 
-Compose already publishes only the frontend port by default — do not add public `ports:` for postgres/redis/meilisearch/web.
+Compose publishes **only** the frontend SPA/Nginx port (`FRONTEND_PORT`, default 8080). Postgres, Redis, Meilisearch, and Gunicorn (`web`) have no `ports:` mapping — do not add public publishes for them.
 
 ---
 

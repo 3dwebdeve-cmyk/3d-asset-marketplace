@@ -129,6 +129,7 @@ class CheckStripeConfigCommandTests(TestCase):
         self.assertIn("webhook_path=/api/v1/payments/webhook/", text)
         self.assertIn("checkout.session.completed", text)
         self.assertIn("Stripe config looks ready", text)
+        self.assertIn("smoke-fulfill", text)
         self.assertNotIn("sk_test_dummy", text)
         self.assertNotIn("whsec_testsecret", text)
 

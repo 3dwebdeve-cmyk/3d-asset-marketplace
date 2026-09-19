@@ -68,7 +68,20 @@ if meili_url:
         sys.exit(1)
 PY
 
-python manage.py migrate --noinput
-python manage.py collectstatic --noinput
+skip_migrate=0
+case "${SKIP_STARTUP_MIGRATE:-}" in
+  1|true|True|yes|YES|on|ON) skip_migrate=1 ;;
+esac
+# Celery workers share this image; web already migrated (depends_on: service_healthy).
+if [ "${1:-}" = "celery" ]; then
+  skip_migrate=1
+fi
+
+if [ "$skip_migrate" -eq 0 ]; then
+  python manage.py migrate --noinput
+  python manage.py collectstatic --noinput
+else
+  echo "skipping migrate/collectstatic (worker or SKIP_STARTUP_MIGRATE)"
+fi
 
 exec "$@"

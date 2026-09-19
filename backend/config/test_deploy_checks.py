@@ -129,6 +129,7 @@ class CheckDeployConfigLocalTests(TestCase):
     REDIS_URL="redis://redis:6379/1",
     MEILI_MASTER_KEY="change-me-meili-master-key-at-least-16-chars",
     ALLOW_LOCALHOST_FRONTEND=True,
+    ALLOW_CONSOLE_EMAIL=True,
     DATABASES={
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -148,7 +149,12 @@ class CheckDeployConfigProdGapsTests(TestCase):
         self.assertTrue(report.allowed_hosts_local_only)
         self.assertTrue(report.db_password_weak)
         self.assertTrue(report.meili_master_key_weak)
+        self.assertTrue(report.allow_localhost_frontend)
+        self.assertTrue(report.allow_console_email)
         self.assertGreaterEqual(len(report.warnings), 4)
+        joined = " ".join(report.warnings)
+        self.assertIn("REDIS_URL has no password", joined)
+        self.assertIn("DJANGO_ADMIN", joined)
 
 
 @override_settings(
@@ -161,9 +167,11 @@ class CheckDeployConfigProdGapsTests(TestCase):
     CSRF_TRUSTED_ORIGINS=["https://shop.example.com"],
     SECURE_SSL_REDIRECT=True,
     SECURE_HSTS_SECONDS=31536000,
-    REDIS_URL="redis://redis:6379/1",
+    REDIS_URL="redis://:staging-redis-password@redis:6379/1",
+    DJANGO_ADMIN_ENABLED=False,
     MEILI_MASTER_KEY="staging-meili-master-key-ok",
     ALLOW_LOCALHOST_FRONTEND=False,
+    ALLOW_CONSOLE_EMAIL=False,
     DATABASES={
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -180,4 +188,39 @@ class CheckDeployConfigReadyTests(TestCase):
         self.assertIn("SECRET_KEY_is_example=False", text)
         self.assertIn("ALLOWED_HOSTS_local_only=False", text)
         self.assertIn("CSRF_TRUSTED_ORIGINS_count=1", text)
+        self.assertIn("ALLOW_LOCALHOST_FRONTEND=False", text)
+        self.assertIn("ALLOW_CONSOLE_EMAIL=False", text)
         self.assertIn("Deploy secrets/hosts/TLS config looks ready", text)
+
+
+@override_settings(
+    DEBUG=False,
+    SECRET_KEY="staging-unique-secret-key-at-least-32-bytes!",
+    ALLOWED_HOSTS=["shop.example.com"],
+    FRONTEND_BASE_URL="http://shop.example.com",
+    CORS_ALLOWED_ORIGINS=["https://shop.example.com"],
+    PUBLIC_API_BASE_URL="https://shop.example.com",
+    CSRF_TRUSTED_ORIGINS=["https://shop.example.com"],
+    SECURE_SSL_REDIRECT=True,
+    SECURE_HSTS_SECONDS=31536000,
+    REDIS_URL="redis://:staging-redis-password@redis:6379/1",
+    DJANGO_ADMIN_ENABLED=False,
+    MEILI_MASTER_KEY="staging-meili-master-key-ok",
+    ALLOW_LOCALHOST_FRONTEND=False,
+    ALLOW_CONSOLE_EMAIL=False,
+    DATABASES={
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
+            "PASSWORD": "staging-strong-db-password",
+        }
+    },
+)
+class CheckDeployConfigHttpFrontendTests(TestCase):
+    def test_warns_when_public_frontend_is_http(self) -> None:
+        report = collect_deploy_config_report()
+        self.assertTrue(
+            any("FRONTEND_BASE_URL is not https" in warning for warning in report.warnings)
+        )
+        with self.assertRaises(CommandError):
+            call_command("check_deploy_config", fail_on_warnings=True)

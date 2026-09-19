@@ -68,6 +68,7 @@ class ProductPublicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
+        self.assertIn("public", (response.get("Cache-Control") or "").lower())
 
     def test_list_excludes_pending_review_and_rejected(self) -> None:
         Product.objects.create(

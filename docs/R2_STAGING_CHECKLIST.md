@@ -45,12 +45,16 @@ Restart `runserver` / Compose `web` + `worker` after changes.
 ```bash
 # Local venv
 cd backend && python manage.py verify_r2
+cd backend && python manage.py verify_r2 --smoke-presign
 
-# Compose
+# Compose (R2_* must be in root `.env` — Compose does not load backend/.env)
 docker compose exec web python manage.py verify_r2
+docker compose exec web python manage.py verify_r2 --smoke-presign
 ```
 
-Expect: `R2 OK public=ok private=ok`. Fix credentials/bucket names if the command exits non-zero.
+Expect: `R2 OK public=ok private=ok`. With `--smoke-presign`, also expect signed JSON (no `storage_path`), a successful GET of the throwaway object, and cleanup. Fix credentials/bucket names if the command exits non-zero.
+
+**Compose note:** copy the same `R2_*` values (including `R2_SIGNED_URL_EXPIRY`) into the repo-root `.env` used by `docker-compose.yml`, then recreate `web` + `worker`.
 
 ---
 
@@ -89,7 +93,8 @@ Every **published** product/plugin must have a resolvable private package object
 ## Operator checkboxes
 
 - [ ] Both buckets created; private not public
-- [ ] All `R2_*` set on web + worker; `verify_r2` OK
+- [ ] All `R2_*` set on web + worker (root `.env` for Compose); `verify_r2` OK
+- [ ] `verify_r2 --smoke-presign` OK (signed JSON, no `storage_path`)
 - [ ] Local leftovers migrated (if needed)
-- [ ] `audit_published_packages --fail-on-missing` clean
-- [ ] Paid download smoke (signed URL) + `storage_path` omitted from public APIs
+- [ ] `audit_published_packages --fail-on-missing` clean (after catalog exists)
+- [ ] Paid download smoke (optional full purchase) + `storage_path` omitted from public APIs

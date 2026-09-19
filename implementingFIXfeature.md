@@ -144,7 +144,8 @@ Phase A (BLOCKER code) → Phase B (ops env staging) → Phase C–E (payments/s
 #### Status
 
 - [x] Tooling + docs (2026-09-18) — `check_deploy_config` (+ `--django-deploy-check` / `--fail-on-warnings`); deploy system checks `config.E001`/`E002`/`W001`; `docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md`; PRODUCTION_CHECKLIST §1/§2.1; `.env.example` comments
-- [ ] Operator: set live host secrets / hosts / TLS; `check_deploy_config --fail-on-warnings`; `check --deploy` zero issues; confirm data-plane ports private
+- [x] Compose + checker clarity (2026-09-19) — `CSRF_TRUSTED_ORIGINS` / `SECURE_HSTS_SECONDS` wired on web+worker; HSTS local default `0`; `check_deploy_config` reports + warns on `ALLOW_LOCALHOST_FRONTEND` / `ALLOW_CONSOLE_EMAIL`; only SPA port published
+- [ ] Operator: set live host secrets / hosts / TLS; `check_deploy_config --fail-on-warnings`; `check --deploy` zero issues; confirm data-plane ports private on the host/SG
 
 ---
 
@@ -173,6 +174,7 @@ Phase A (BLOCKER code) → Phase B (ops env staging) → Phase C–E (payments/s
 - [x] Tooling + docs (2026-09-18) — `check_email_config` (+ `--send-test-email` / `--fail-on-warnings`); `docs/SMTP_STAGING_CHECKLIST.md`; PRODUCTION_CHECKLIST §1/§2.4; `.env.example` comments
 - [x] Code guard (`ALLOW_CONSOLE_EMAIL` + ImproperlyConfigured when DEBUG=False)
 - [ ] Operator: set SMTP + recipients on web/worker; `check_email_config --fail-on-warnings`; one real inbox smoke
+- **Deferred (2026-09-19):** skip live SMTP setup for now (no provider credentials yet). Task remains in this plan — do **not** remove. Resume via `docs/SMTP_STAGING_CHECKLIST.md` before staging launch / checkout-with-verification.
 
 ---
 
@@ -222,7 +224,8 @@ Phase A (BLOCKER code) → Phase B (ops env staging) → Phase C–E (payments/s
 #### Status
 
 - [x] Tooling + docs (2026-09-18) — `BACKUP_RETENTION_DAYS` prune on backup script; disposable `restore_postgres_drill.sh`; `docs/BACKUP_RESTORE_DRILL.md` (cron + retention + R2≠DB); PRODUCTION_CHECKLIST §2.6; `.env.example` comments
-- [ ] Operator: run dump + disposable drill + staging migrate/healthz/smoke; install host cron; confirm R2 lifecycle/versioning
+- [x] Local operator drill (2026-09-19) — dump `BACKUP_VIA_COMPOSE=0` (239517 bytes) + `RESTORE_DRILL_MODE=local` (43 public tables); CRLF-safe dotenv; `install_backup_cron.sh` (+ dry-run); R2≠DB confirmed in runbook
+- [ ] Staging/prod host: in-place restore → migrate → healthz → smoke login/browse; install live crontab; optional `BACKUP_UPLOAD_R2=1` + R2 lifecycle
 
 ---
 
@@ -273,7 +276,7 @@ Phase A (BLOCKER code) → Phase B (ops env staging) → Phase C–E (payments/s
 #### Status
 
 - [x] Sandbox tooling + docs (2026-09-18) — checklist, `STRIPE_WEBHOOK_EVENT_TYPES`, checkout `accepted_legal`, `check_stripe_config` (+ `--require-test-mode` / `--ping`)
-- [ ] Operator: test keys + `check_stripe_config --require-test-mode` + one real Stripe test checkout on your machine/staging  
+- [x] Operator verify (2026-09-19) — test keys configured; `check_stripe_config --require-test-mode --fail-on-warnings --ping --smoke-fulfill` OK (signed webhook fulfill + idempotent replay); browser test-card optional
 - [ ] Production live keys — **not this phase** (Phase K)
 
 ---
@@ -323,8 +326,9 @@ Phase A (BLOCKER code) → Phase B (ops env staging) → Phase C–E (payments/s
 #### Status
 
 - [x] Tooling + docs (2026-09-18) — `verify_r2`, `docs/R2_STAGING_CHECKLIST.md`, checklist §2.5b, `.env.example` comments
-- [ ] Operator: create both buckets + set `R2_*` on staging/host + `verify_r2` OK  
-- [ ] Operator: migrate leftovers + paid download smoke (signed JSON)  
+- [x] Operator local (2026-09-19) — both buckets reachable; `verify_r2` → `public=ok private=ok`; `--smoke-presign` signed JSON (no `storage_path`) + GET + cleanup; `migrate_local_media_to_r2` ran; Compose wires `R2_SIGNED_URL_EXPIRY`
+- [ ] Staging/prod host: copy same `R2_*` into root `.env` for Compose web+worker; re-run `verify_r2 --smoke-presign`
+- [x] After sellable catalog: `audit_published_packages --fail-on-missing` clean (2026-09-19 — incomplete `tree` / `oak-chair` drafted by `seed_demo_catalog --unpublish-incomplete`)
 
 ---
 
@@ -375,8 +379,9 @@ Phase A (BLOCKER code) → Phase B (ops env staging) → Phase C–E (payments/s
 #### Status
 
 - [x] Tooling + docs (2026-09-18) — `ensure_administrator`, `check_auth_config`, `docs/AUTH_STAGING_CHECKLIST.md`
-- [ ] Operator: create/promote first Administrator + console login smoke  
-- [ ] Operator: pair `GOOGLE_OAUTH_CLIENT_ID` ↔ `VITE_GOOGLE_CLIENT_ID` if Google is used  
+- [x] Operator (local 2026-09-19): create/promote first Administrator + console login smoke  
+- [x] Operator (local 2026-09-19): pair `GOOGLE_OAUTH_CLIENT_ID` ↔ `VITE_GOOGLE_CLIENT_ID`; GIS button renders (interactive Google account complete-login still optional)
+- [ ] Operator (staging/prod): host admin + authorized origins + Compose Google vars / frontend rebuild  
 
 ---
 
@@ -397,7 +402,9 @@ Phase A (BLOCKER code) → Phase B (ops env staging) → Phase C–E (payments/s
 #### Status
 
 - [x] Code guard + check command (2026-09-18) — refuse localhost FRONTEND when DEBUG=False (`ALLOW_LOCALHOST_FRONTEND`); links already use `config.mail.frontend_base_url`
-- [ ] Operator: staging/prod `FRONTEND_BASE_URL` + one real verification email smoke  
+- [x] Hardening (2026-09-19) — `check_auth_config` / deploy checks report `ALLOW_LOCALHOST_FRONTEND` and warn on non-HTTPS public FRONTEND when `DEBUG=False`; password-reset + verification outbox host tests
+- [x] Local operator smoke (2026-09-19) — `FRONTEND_BASE_URL=http://localhost:5173`; verification link opened on desktop → `email_verified=True`; password-reset link host matches + SPA form loads
+- [ ] Operator: staging/prod `FRONTEND_BASE_URL=https://…` + `ALLOW_LOCALHOST_FRONTEND=False` + one real inbox verification on phone + desktop (needs SMTP — A3) 
 
 ---
 
@@ -584,7 +591,8 @@ Covered by **Phase A1** (same work item).
 #### Status
 
 - [x] Tooling + docs (2026-09-18) — `docs/SECURITY_SMOKE_CHECKLIST.md`; linked from PRODUCTION_CHECKLIST §0/§5
-- [ ] Operator: execute on staging/prod host and record date/initials
+- [x] Operator local smoke (2026-09-19) — `manage.py check_security_smoke` (`config.security_smoke`); all 7 checks OK with `DEBUG=True` advisory; tests in `config.test_security_smoke`; PRODUCTION_CHECKLIST §0/§5 + SECURITY_SMOKE sign-off table updated
+- [ ] Operator: re-run on staging/prod with `DEBUG=False` + HTTPS + `--fail-on-warnings` and record date/initials
 
 ---
 
@@ -604,7 +612,8 @@ Covered by **Phase A1** (same work item).
 #### Status
 
 - [x] Docs (2026-09-18) — `docs/CLOUDFLARE_WAF_CHECKLIST.md`
-- [ ] Operator: enable WAF/bot fight on Cloudflare and sign off
+- [x] App-layer readiness (2026-09-19) — expanded runbook; `manage.py check_waf_readiness` (`config.waf_readiness`); Nginx `CF-Connecting-IP` → client IP for DRF throttles; DRF auth throttles verified still enabled; local sign-off in checklist
+- [ ] Operator: enable proxied DNS + WAF/Bot Fight (+ webhook skip) on Cloudflare staging/prod and sign off
 
 ---
 
@@ -627,7 +636,7 @@ Covered by **Phase A1** (same work item).
 #### Status
 
 - [x] Tooling + docs (2026-09-18) — `seed_demo_catalog`; `docs/CATALOG_OPS_STAGING_CHECKLIST.md` §I1
-- [ ] Operator: publish real catalog (or demo for staging smoke) + reindex + audit
+- [x] Operator local smoke (2026-09-19) — `seed_demo_catalog` (images + packages; unpublish incomplete), `audit_published_packages --fail-on-missing` clean, `reindex_search`, browse/search hits, paid download 200; replace demo SKUs before public launch
 
 ---
 
@@ -649,7 +658,7 @@ Covered by **Phase A1** (same work item).
 #### Status
 
 - [x] Tooling + docs (2026-09-18) — `check_ops_config`; refund process documented in CATALOG_OPS §I2 (reuse Stripe `charge.refunded`)
-- [ ] Operator: staff accounts, recipient env, contact smoke, optional coupon
+- [x] Operator local smoke (2026-09-19) — Administrator `admin@marketplace.local`; `CONTACT_ADMIN_RECIPIENTS` + `PROJECT_MESSAGE_ADMIN_RECIPIENTS` set; `check_ops_config --fail-on-warnings` OK; contact + quotation-accepted console mail; refund runbook expanded; optional `LAUNCH10` coupon; staging/prod real inboxes still open
 
 ---
 
@@ -669,7 +678,9 @@ Covered by **Phase A1** (same work item).
 #### Status
 
 - [x] Docs (2026-09-18) — CATALOG_OPS §I3 points at `batch-ingest-contract.md` + fixtures
-- [ ] Operator: freeze columns + staging dry-run if Feature 16 is day-1
+- [x] Column freeze (2026-09-19) — intake `Thumbnail Path` / `Gallery Image Paths` / `Tags` + sheet `Intake` locked; sign-off in contract
+- [x] Local operator smoke (2026-09-19) — `manage.py check_batch_ingest` (+ `--apply` happy → QA approve → publish → reindex advisory); gate-failure fixtures rejected
+- [ ] Staging/prod host: re-run `check_batch_ingest --apply` when Feature 16 is day-1
 
 ---
 
@@ -692,7 +703,8 @@ Covered by **Phase A1** (same work item).
 #### Status
 
 - [x] Docs (2026-09-18) — `docs/LOAD_SMOKE_CHECKLIST.md`
-- [ ] Operator: run light smoke on staging and sign off
+- [x] Tooling + local operator (2026-09-19) — `config.load_smoke` + `manage.py check_load_smoke` (--iterations soak, query budgets, public CDN wiring); `seed_demo_catalog` writes R2 public thumbnails/previews when `R2_ENABLED`; local `--iterations 20` OK; tests `config.test_load_smoke`
+- [ ] Operator: re-run on staging/prod with `--fail-on-warnings` and sign off
 
 ---
 
@@ -726,8 +738,9 @@ Covered by **Phase A1** (same work item).
 
 #### Status
 
-- [ ] Staging complete  
-- [ ] Production complete  
+- [x] Tooling + docs (2026-09-19) — `config.cutover_gate` + `manage.py check_cutover` (`--profile local|staging|production`); Compose `WEB_IMAGE`/`FRONTEND_IMAGE`; `backend/scripts/build_immutable_images.sh` + `.ps1`; `docs/CUTOVER_STAGING_CHECKLIST.md`; PRODUCTION_CHECKLIST §0/§3/§4 links; Stripe `require_live_mode` for prod profile; local `check_cutover --profile local` OK; tests `config.test_cutover_gate`
+- [ ] Staging complete (operator: fill host `.env`, immutable up, `check_cutover --profile staging --fail-on-warnings`, soft-launch test Stripe — see CUTOVER §5)
+- [ ] Production complete (operator: live keys + DNS + `check_cutover --profile production` + 24h Sentry)
 
 ---
 
@@ -748,7 +761,23 @@ Covered by **Phase A1** (same work item).
 #### Status
 
 - [x] Docs (2026-09-18) — `docs/ROLLBACK_REHEARSAL.md` + PRODUCTION_CHECKLIST §4/§5 links
-- [ ] Operator: rehearse on staging with immutable tags
+- [x] Tooling + local smoke (2026-09-19) — `config.rollback_rehearsal` + `manage.py check_rollback_rehearsal`; `rollback_compose.sh` + `.ps1` (`--no-deps --force-recreate` web/worker/frontend); expanded runbook (migration/secrets policy, webhook idempotency, dated sign-off); PRODUCTION_CHECKLIST / CUTOVER links; tests `config.test_rollback_rehearsal`; local gate OK
+- [ ] Operator: rehearse on staging with immutable tags A→B→A (date ROLLBACK_REHEARSAL §4)
+
+---
+
+## Phase L — Architecture score-up (no behavior change on happy paths)
+
+Additive hardening from the 2026-09-19 architect review. Does **not** rewrite products/plugins, Stripe, JWT, or R2.
+
+| ID | Item | Status |
+|----|------|--------|
+| L1 | Gate OpenAPI/Swagger when `DEBUG=False` (admin JWT) | [x] 2026-09-19 |
+| L2 | Optional `REDIS_PASSWORD` (Compose requirepass + URL inject; empty = current local) | [x] 2026-09-19 |
+| L3 | `DJANGO_ADMIN_ENABLED` / `DJANGO_ADMIN_ALLOWED_IPS` (default on; `/api/v1/admin/` untouched) | [x] 2026-09-19 |
+| L4 | Worker skips migrate/collectstatic (`SKIP_STARTUP_MIGRATE` + celery argv) | [x] 2026-09-19 |
+| L5 | Public catalog `Cache-Control` on product/plugin/category GET 200 | [x] 2026-09-19 |
+| L6 | `check_catalog_integrity` read-only orphan report | [x] 2026-09-19 |
 
 ---
 
@@ -757,17 +786,17 @@ Covered by **Phase A1** (same work item).
 | ID | Item | Severity | Phase | Status |
 |----|------|----------|-------|--------|
 | A1 | SPA vs Django admin routing | BLOCKER | A | [x] |
-| A2 | Prod secrets / hosts / TLS | BLOCKER | A | [x] tooling/docs / [ ] operator |
-| A3 | SMTP (+ optional console guard) | BLOCKER | A | [x] tooling/docs+guard / [ ] SMTP operator |
+| A2 | Prod secrets / hosts / TLS | BLOCKER | A | [x] tooling/docs + Compose CSRF/HSTS + checker flags (2026-09-19) / [ ] operator live host |
+| A3 | SMTP (+ optional console guard) | BLOCKER | A | [x] tooling/docs+guard / [ ] SMTP operator (**deferred 2026-09-19** — keep open) |
 | A4 | Worker healthcheck | MUST | A | [x] |
-| A5 | Backup + restore drill | MUST | A | [x] tooling/docs / [ ] operator |
+| A5 | Backup + restore drill | MUST | A | [x] tooling+local drill / [ ] staging host |
 | A6 | Redis DB split | SHOULD | A | [x] |
-| B1 | Stripe + webhook | BLOCKER | B | [x] sandbox docs/code+check_stripe_config / [ ] operator test pay / [ ] live = Phase K |
+| B1 | Stripe + webhook | BLOCKER | B | [x] sandbox docs/code+check_stripe_config+smoke-fulfill / [ ] live = Phase K |
 | B2 | Legal acceptance verify | MUST | B | [x] |
-| C1 | R2 both buckets | BLOCKER | C | [x] tooling/docs / [ ] operator buckets+env |
+| C1 | R2 both buckets | BLOCKER | C | [x] local verify+smoke+migrate (2026-09-19) / [ ] staging Compose root `.env` + catalog audit clean |
 | C2 | Package audit for published SKUs | MUST | C | [x] |
-| D1 | Admin user + Google OAuth | MUST | D | [x] tooling/docs / [ ] operator |
-| D2 | FRONTEND_BASE_URL verify links | MUST | D | [x] guard+check / [ ] operator smoke |
+| D1 | Admin user + Google OAuth | MUST | D | [x] local operator 2026-09-19 / [ ] staging host |
+| D2 | FRONTEND_BASE_URL verify links | MUST | D | [x] guard+check+local smoke (2026-09-19) / [ ] staging HTTPS inbox + mobile |
 | E1 | Meili + reindex | MUST | E | [x] |
 | E2 | Async Meili sync | SHOULD | E | [x] |
 | F2 | Broader Playwright E2E | SHOULD | F | [x] |
@@ -775,15 +804,16 @@ Covered by **Phase A1** (same work item).
 | G1 | Shared API helpers / pagination | SHOULD | G | [x] |
 | G2 | Notifications cleanup | NICE | G | [x] |
 | H1 | Sentry FE/BE | MUST | H | [x] tooling/docs / [ ] operator DSNs |
-| H2 | Security smoke sign-off | MUST | H | [x] docs / [ ] operator |
-| H3 | Cloudflare WAF | SHOULD | H | [x] docs / [ ] operator |
-| I1 | Sellable catalog seeded | MUST | I | [x] tooling/docs / [ ] operator |
+| H2 | Security smoke sign-off | MUST | H | [x] docs+check_security_smoke+local (2026-09-19) / [ ] staging/prod host |
+| H3 | Cloudflare WAF | SHOULD | H | [x] docs + readiness + Nginx CF IP (2026-09-19) / [ ] CF dashboard operator |
+| I1 | Sellable catalog seeded | MUST | I | [x] tooling/docs / [x] local operator (demo; replace before public launch) |
 | I2 | Staff / support / coupons | MUST | I | [x] tooling/docs / [ ] operator |
-| I3 | Batch Excel sign-off | SHOULD | I | [x] docs / [ ] operator |
-| J1 | Load smoke | SHOULD | J | [x] docs / [ ] operator |
+| I3 | Batch Excel sign-off | SHOULD | I | [x] docs+freeze+check_batch_ingest local (2026-09-19) / [ ] staging host |
+| J1 | Load smoke | SHOULD | J | [x] docs+check_load_smoke+local (2026-09-19) / [ ] staging host |
 | J2 | Viewer GPU polish | NICE | J | [x] |
-| K1 | Full checklist staging+prod | BLOCKER | K | [ ] |
-| K2 | Rollback rehearsal | MUST | K | [x] docs / [ ] operator |
+| K1 | Full checklist staging+prod | BLOCKER | K | [x] tooling/docs+local gate (2026-09-19) / [ ] staging host / [ ] prod host |
+| K2 | Rollback rehearsal | MUST | K | [x] docs+tooling+local (2026-09-19) / [ ] staging host |
+| L1–L6 | Score-up hardening | SHOULD | L | [x] 2026-09-19 (OpenAPI gate, Redis AUTH optional, Django admin lock, worker skip-migrate, catalog cache headers, integrity command) |
 
 ---
 
@@ -815,10 +845,10 @@ If a fix appears to require rewriting a working subsystem, **stop**, re-read `.c
 ## Suggested first sprint (code + staging)
 
 1. **A1** — Admin path collision (code) ✅  
-2. **A3** tooling + code guard ✅ — operator: staging SMTP (`docs/SMTP_STAGING_CHECKLIST.md`)  
-3. **C1** staging R2 + **B1** Stripe test webhook  
+2. **A3** tooling + code guard ✅ — operator SMTP **deferred** (resume later: `docs/SMTP_STAGING_CHECKLIST.md`)  
+3. **C1** local R2 verify + smoke + migrate ✅ — staging Compose root `.env` + catalog audit still open; **B1** Stripe test webhook ✅  
 4. **E1** Meili reindex + search smoke ✅ + **E2** async sync ✅; **H1** Sentry tooling ✅ (operator: set DSNs on staging)  
-5. **K1** staging checklist pass → then prod cutover  
+5. **K1** staging checklist pass → then prod cutover (A3 SMTP must be closed before real verification/checkout mail) — tooling ready (`check_cutover` + immutable tags); operator host sign-off still open
 
 ---
 

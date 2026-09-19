@@ -26,13 +26,24 @@ class BackupScriptsPresentTests(unittest.TestCase):
         self.assertIn("BACKUP_RETENTION_DAYS", text)
         self.assertIn("restore_postgres_drill.sh", text)
         self.assertIn("BACKUP_UPLOAD_R2", text)
+        self.assertIn(r"$'\r'", text)
 
     def test_restore_drill_script_is_disposable_only(self) -> None:
         text = (SCRIPTS_DIR / "restore_postgres_drill.sh").read_text(encoding="utf-8")
         self.assertIn("marketplace-restore-drill-", text)
+        self.assertIn("marketplace_restore_drill_", text)
+        self.assertIn("RESTORE_DRILL_MODE", text)
         self.assertIn("postgres_data", text)
         self.assertIn("R2", text)
         self.assertNotIn("RESTORE_IN_PLACE", text)
+
+    def test_install_backup_cron_script_documents_retention(self) -> None:
+        path = SCRIPTS_DIR / "install_backup_cron.sh"
+        self.assertTrue(path.is_file())
+        text = path.read_text(encoding="utf-8")
+        self.assertIn("BACKUP_RETENTION_DAYS", text)
+        self.assertIn("BACKUP_UPLOAD_R2", text)
+        self.assertIn("backups/postgres/", text)
 
 
 class UploadBackupToR2Tests(unittest.TestCase):
