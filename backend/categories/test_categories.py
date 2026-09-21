@@ -57,6 +57,52 @@ class CategoryPublicAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_record_click_increments_active_category(self) -> None:
+        url = reverse(
+            "categories:category-click",
+            kwargs={"category_id": self.parent.pk},
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], str(self.parent.pk))
+        self.assertEqual(response.data["click_count"], 1)
+        self.parent.refresh_from_db()
+        self.assertEqual(self.parent.click_count, 1)
+
+    def test_record_click_rejects_inactive_category(self) -> None:
+        url = reverse(
+            "categories:category-click",
+            kwargs={"category_id": self.inactive.pk},
+        )
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.inactive.refresh_from_db()
+        self.assertEqual(self.inactive.click_count, 0)
+
+    def test_trending_returns_top_level_by_click_count(self) -> None:
+        second = Category.objects.create(name="Toys", slug="toys", click_count=5)
+        self.parent.click_count = 2
+        self.parent.save(update_fields=["click_count", "updated_at"])
+        # Child with higher clicks must not appear (top-level only).
+        self.child.click_count = 99
+        self.child.save(update_fields=["click_count", "updated_at"])
+
+        url = reverse("categories:category-trending")
+        response = self.client.get(url, {"limit": 12})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+        self.assertLessEqual(len(response.data), 12)
+        slugs = [item["slug"] for item in response.data]
+        self.assertEqual(slugs[0], "toys")
+        self.assertIn("furniture", slugs)
+        self.assertNotIn("chairs", slugs)
+        self.assertEqual(slugs.index("toys"), 0)
+        self.assertLess(slugs.index("toys"), slugs.index("furniture"))
+        self.assertEqual(second.slug, "toys")
+
 
 class CategoryAdminAPITests(APITestCase):
     def setUp(self) -> None:

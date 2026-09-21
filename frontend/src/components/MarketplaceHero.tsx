@@ -16,7 +16,7 @@ const SORT_PILLS = [
   { label: 'Trending', ordering: '-review_count' },
 ] as const
 
-function ArrowUpRightIcon({ size = 11 }: { size?: number }) {
+function ArrowUpRightIcon({ size = 9 }: { size?: number }) {
   return (
     <svg
       viewBox="0 0 16 16"
@@ -151,7 +151,7 @@ export function MarketplaceHero() {
                 }
                 onClick={() => navigateToModels('', pill.ordering)}
               >
-                <ArrowUpRightIcon size={12} />
+                <ArrowUpRightIcon size={10} />
                 {pill.label}
               </button>
             ))}

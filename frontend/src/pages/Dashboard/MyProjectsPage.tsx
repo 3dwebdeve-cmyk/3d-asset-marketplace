@@ -79,9 +79,6 @@ export function MyProjectsPage() {
           <Link className="home-page__cta" to="/dashboard/projects/new">
             New request
           </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
-            Back to dashboard
-          </Link>
         </div>
 
         {projectsQuery.isLoading ? (

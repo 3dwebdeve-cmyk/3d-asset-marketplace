@@ -49,12 +49,13 @@ export function MyOrdersPage() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilter>('')
 
   const ordersQuery = useQuery({
-    queryKey: ['orders', 'page', { page, orderStatus, paymentStatus }],
+    queryKey: ['orders', 'custom-project', { page, orderStatus, paymentStatus }],
     queryFn: () =>
       listCustomerOrders({
         page,
         page_size: PAGE_SIZE,
         ordering: '-created_at',
+        item_type: 'custom_project',
         order_status: orderStatus || undefined,
         payment_status: paymentStatus || undefined,
       }),
@@ -81,35 +82,28 @@ export function MyOrdersPage() {
     ordersQuery.isSuccess && (ordersQuery.data?.count ?? 0) === 0
 
   return (
-    <main className="dashboard-page">
-      <section
-        className="dashboard-card dashboard-card--wide"
-        aria-labelledby="my-orders-title"
-      >
-        <p className="home-page__eyebrow">Customer Dashboard</p>
-        <h1 id="my-orders-title">My orders</h1>
-        <p className="home-page__subtitle">
-          View your purchase history, order status, and line items.
+    <main className="dash-list-page" aria-labelledby="my-orders-title">
+      <header className="dash-list-page__header">
+        <h1 id="my-orders-title" className="dash-list-page__title">
+          My Orders
+        </h1>
+        <p className="dash-list-page__subtitle">
+          Payments for custom work you commissioned from the studio.
         </p>
-        <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
-            Back to dashboard
-          </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/">
-            Browse models
-          </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
-            Browse plugins
-          </Link>
-        </div>
+      </header>
 
-        {!isCustomerSession ? (
-          <p className="home-page__subtitle" role="status">
+      {!isCustomerSession ? (
+        <section className="dash-list-page__card">
+          <p className="dash-list-page__status" role="status">
             Order history is available for customer accounts.
           </p>
-        ) : ordersQuery.isLoading ? (
+        </section>
+      ) : ordersQuery.isLoading ? (
+        <section className="dash-list-page__card">
           <Spinner label="Loading your orders..." />
-        ) : ordersQuery.isError ? (
+        </section>
+      ) : ordersQuery.isError ? (
+        <section className="dash-list-page__card">
           <ErrorState
             title="Could not load your orders"
             description="Your orders could not be loaded. Please try again."
@@ -123,59 +117,65 @@ export function MyOrdersPage() {
               </Button>
             }
           />
-        ) : isTrulyEmpty ? (
-          <div>
-            <p className="home-page__subtitle" role="status">
-              You have no orders yet. Browse the marketplace to find models and plugins.
-            </p>
-            <div className="dashboard-card__actions">
-              <Link className="home-page__cta" to="/">
-                Browse models
-              </Link>
-              <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
-                Browse plugins
-              </Link>
-            </div>
+        </section>
+      ) : isTrulyEmpty ? (
+        <section className="dash-list-page__card">
+          <p className="dash-list-page__status" role="status">
+            You have no custom project orders yet. Request custom work from My Projects to get
+            started.
+          </p>
+          <div className="dash-list-page__actions">
+            <Link
+              className="dash-list-page__btn dash-list-page__btn--primary"
+              to="/dashboard/projects/new"
+            >
+              Request custom work
+            </Link>
+            <Link className="dash-list-page__btn" to="/dashboard/projects">
+              My projects
+            </Link>
           </div>
-        ) : (
-          <>
-            <div className="dashboard-card__actions" aria-label="Order filters">
-              <label className="admin-filter-field">
-                <span className="admin-filter-field__label">Order status</span>
-                <select
-                  className="admin-filter-field__input"
-                  value={orderStatus}
-                  onChange={(event) => setOrderStatus(event.target.value as StatusFilter)}
-                >
-                  <option value="">All</option>
-                  {(Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]).map((status) => (
+        </section>
+      ) : (
+        <>
+          <div className="dash-list-page__filters" aria-label="Order filters">
+            <label className="dash-list-page__filter">
+              <span className="dash-list-page__filter-label">Order status</span>
+              <select
+                className="dash-list-page__filter-select"
+                value={orderStatus}
+                onChange={(event) => setOrderStatus(event.target.value as StatusFilter)}
+              >
+                <option value="">All</option>
+                {(Object.keys(ORDER_STATUS_LABELS) as OrderStatus[]).map((status) => (
+                  <option key={status} value={status}>
+                    {ORDER_STATUS_LABELS[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dash-list-page__filter">
+              <span className="dash-list-page__filter-label">Payment status</span>
+              <select
+                className="dash-list-page__filter-select"
+                value={paymentStatus}
+                onChange={(event) => setPaymentStatus(event.target.value as PaymentFilter)}
+              >
+                <option value="">All</option>
+                {(Object.keys(ORDER_PAYMENT_STATUS_LABELS) as OrderPaymentStatus[]).map(
+                  (status) => (
                     <option key={status} value={status}>
-                      {ORDER_STATUS_LABELS[status]}
+                      {ORDER_PAYMENT_STATUS_LABELS[status]}
                     </option>
-                  ))}
-                </select>
-              </label>
-              <label className="admin-filter-field">
-                <span className="admin-filter-field__label">Payment status</span>
-                <select
-                  className="admin-filter-field__input"
-                  value={paymentStatus}
-                  onChange={(event) => setPaymentStatus(event.target.value as PaymentFilter)}
-                >
-                  <option value="">All</option>
-                  {(Object.keys(ORDER_PAYMENT_STATUS_LABELS) as OrderPaymentStatus[]).map(
-                    (status) => (
-                      <option key={status} value={status}>
-                        {ORDER_PAYMENT_STATUS_LABELS[status]}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-            </div>
+                  ),
+                )}
+              </select>
+            </label>
+          </div>
 
-            <div className="admin-table-wrap">
-              <table className="admin-table">
+          <section className="dash-list-page__card">
+            <div className="dash-list-page__table-wrap">
+              <table className="dash-list-page__table">
                 <thead>
                   <tr>
                     <th scope="col">Invoice</th>
@@ -204,7 +204,7 @@ export function MyOrdersPage() {
                       >
                         <td>
                           <Link
-                            className="auth-link"
+                            className="dash-list-page__link"
                             to={detailPath}
                             onClick={(event) => event.stopPropagation()}
                           >
@@ -226,13 +226,13 @@ export function MyOrdersPage() {
                 </tbody>
               </table>
               {results.length === 0 ? (
-                <p className="home-page__subtitle" role="status">
+                <p className="dash-list-page__status" role="status">
                   No orders match your filters.
                 </p>
               ) : null}
             </div>
 
-            <div className="dashboard-card__actions" aria-label="Order pagination">
+            <div className="dash-list-page__footer" aria-label="Order pagination">
               <Button
                 type="button"
                 variant="secondary"
@@ -241,7 +241,7 @@ export function MyOrdersPage() {
               >
                 Previous
               </Button>
-              <span>Page {page}</span>
+              <span className="dash-list-page__footer-meta">Page {page}</span>
               <Button
                 type="button"
                 variant="secondary"
@@ -251,9 +251,9 @@ export function MyOrdersPage() {
                 Next
               </Button>
             </div>
-          </>
-        )}
-      </section>
+          </section>
+        </>
+      )}
     </main>
   )
 }

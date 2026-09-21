@@ -18,7 +18,7 @@
   border-radius: 12px;
   background: var(--pure-white);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   color: var(--text-body);
   text-align: left;
   pointer-events: auto;

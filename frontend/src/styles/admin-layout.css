@@ -275,7 +275,7 @@
     height: 100svh;
     transform: translateX(-105%);
     transition: transform 0.2s ease;
-    box-shadow: var(--shadow);
+    box-shadow: none;
     overflow-y: auto;
   }
 

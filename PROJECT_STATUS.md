@@ -111,8 +111,8 @@ Sprint 8 – Custom Project Portal
 Sprint 9 – Dashboards
 Customer Dashboard
 • [x] Profile
-• [x] Orders (My Orders list/detail at /dashboard/orders)
-• [x] Downloads (My Downloads library + history at /dashboard/downloads)
+• [x] Orders (My Orders = custom_project commission payments at /dashboard/orders)
+• [x] Downloads (My Downloads = library + history + catalog invoices at /dashboard/downloads)
 • [x] Wishlist
 • [x] Reviews & Ratings (purchase-gated; admin hide/delete; aggregates on cards/detail)
 • [x] Automated email alerts (quotation/offer, messages, delivery, receipts — Celery; no in-app inbox)
@@ -159,21 +159,28 @@ Sprint 11 – Testing & Deployment
 • [ ] Production Testing
 Current Task
 Today's Goal:
-Phase K2 rollback rehearsal tooling — `check_rollback_rehearsal` + Compose rollback scripts + expanded ROLLBACK_REHEARSAL.md. Staging host A→B→A sign-off still open. Next: operator staging cutover (K1) then dated K2 rehearsal on host.
+Customer dashboard split: My Downloads shows catalog invoices + library + history; My Orders shows only custom_project commission payments (`item_type` filter on GET /api/v1/orders/).
 Current Git Branch
-feature/2026-09-19
+feature/2026-09-21
 Files Being Worked On
-• backend/config/rollback_rehearsal.py
-• backend/accounts/management/commands/check_rollback_rehearsal.py
-• backend/config/test_rollback_rehearsal.py
-• backend/scripts/rollback_compose.sh
-• backend/scripts/rollback_compose.ps1
-• docs/ROLLBACK_REHEARSAL.md
-• docs/PRODUCTION_CHECKLIST.md
-• docs/CUTOVER_STAGING_CHECKLIST.md
-• implementingFIXfeature.md
+• backend/orders/services.py
+• backend/orders/views.py
+• backend/orders/test_orders.py
+• frontend/src/types/order.ts
+• frontend/src/api/ordersApi.ts
+• frontend/src/pages/Dashboard/MyDownloadsPage.tsx
+• frontend/src/pages/Dashboard/MyDownloadsPage.test.tsx
+• frontend/src/pages/Dashboard/MyOrdersPage.tsx
+• frontend/src/pages/Dashboard/MyOrdersPage.test.tsx
 • PROJECT_STATUS.md
 Completed Features
+• Customer Orders vs Downloads item_type split (2026-09-21)
+  - `OrderService.list_for_user` + `CustomerOrderListView` accept `item_type=catalog|custom_project` (validated; owner-scoped; `.distinct()`)
+  - My Downloads: kept My library + Download history columns; added Invoices tab (catalog orders)
+  - My Orders: lists only custom_project payment orders; copy + empty state point to My Projects
+  - Frontend `CustomerOrderListParams.item_type`; `OrderItemProductType` includes `custom_project`
+  - Tests: backend `test_customer_list_filters_by_item_type`; frontend downloads/orders page tests
+  - No DB migrations; no new endpoints
 • Launch readiness Phase K2 — Rollback rehearsal tooling (2026-09-19)
   - Added `config.rollback_rehearsal` + `manage.py check_rollback_rehearsal` (`--profile local|staging`, `--smoke-webhook`, `--fail-on-warnings`): healthz, mocked purchase path, DB-backed webhook idempotency (StripeWebhookEvent unique + replay), immutable-tag advisory (blocks `:latest` on staging)
   - Compose helpers `rollback_compose.sh` + `.ps1` (`up -d --no-deps --force-recreate web worker frontend`; refuses `:latest`; does not touch postgres/redis/meili)
@@ -671,6 +678,42 @@ Important Decisions
 • Launch readiness Phase C1 — R2 both buckets (2026-09-18 tooling; 2026-09-19 local verify): `verify_r2` (+ `--smoke-presign` via `config.r2_smoke` / `resolve_private_download`); Compose `R2_SIGNED_URL_EXPIRY`; `docs/R2_STAGING_CHECKLIST.md`. Staging Compose root `.env` + clean package audit remain operator/catalog gates.
 • Launch readiness Phase B1 — Stripe sandbox tooling (2026-09-18; smoke 2026-09-19): `check_stripe_config` (+ `--require-test-mode` / `--fail-on-warnings` / `--ping` / `--smoke-fulfill`); prints key modes + webhook path/event types without secrets; `--smoke-fulfill` creates a test Checkout Session, POSTs a signed `checkout.session.completed` through the real webhook view, asserts paid order + payment + download entitlement + receipt, replays for idempotency, then deletes throwaway rows. Reuses CheckoutService / WebhookService / StripeWebhookEvent. Browser test-card optional; live keys = Phase K.
 Daily Development Log
+Date: 2026-09-21 (Customer Orders vs Downloads split by item_type)
+Working Hours:
+Today's Objective: Move marketplace invoices into My Downloads; limit My Orders to custom-project commission payments; keep all download library/history data.
+Modules Completed: Customer order list `item_type` filter; My Downloads Invoices tab; My Orders custom_project filter
+Files Created:
+• None
+Files Modified:
+• backend/orders/services.py
+• backend/orders/views.py
+• backend/orders/test_orders.py
+• frontend/src/types/order.ts
+• frontend/src/api/ordersApi.ts
+• frontend/src/pages/Dashboard/MyDownloadsPage.tsx
+• frontend/src/pages/Dashboard/MyDownloadsPage.test.tsx
+• frontend/src/pages/Dashboard/MyOrdersPage.tsx
+• frontend/src/pages/Dashboard/MyOrdersPage.test.tsx
+• PROJECT_STATUS.md
+Database Changes:
+• None
+API Endpoints:
+• Modified: GET /api/v1/orders/ — optional `item_type=catalog|custom_project` query filter
+Frontend Pages/Components:
+• MyDownloadsPage — Invoices tab (catalog) + existing library/history
+• MyOrdersPage — custom_project only
+Problems Encountered:
+• None material
+Solutions Implemented:
+• Reused OrderService.list_for_user + existing list serializers; filter via OrderItem.product_type
+Security Review:
+• item_type allow-listed via parse_choice (400 on invalid)
+• List remains IsAuthenticated + user-scoped; no storage_path / secrets exposure change
+• Invoice PDF still paid-only via existing order_allows_download
+Next Steps:
+• Optional: deep-link invoice rows to PDF download on list; confirm CustomerOrderDetail copy for custom vs catalog
+• Continue production readiness (staging cutover / WAF sign-off)
+
 Date: 2026-09-19 (Launch readiness Phase K2 — Rollback rehearsal tooling)
 Working Hours:
 Today's Objective: Ship practiced rollback runbook + Compose previous-tag recreate + post-rollback healthz/purchase/webhook-idempotency gate; do not fake staging host complete.

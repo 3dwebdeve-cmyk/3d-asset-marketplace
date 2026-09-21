@@ -44,18 +44,6 @@ export async function createReview(payload: ReviewCreatePayload): Promise<Review
   return data
 }
 
-export async function getMyReview(
-  productType: ReviewProductType,
-  productId: string,
-): Promise<Review> {
-  const query = new URLSearchParams({
-    product_type: productType,
-    product_id: productId,
-  })
-  const { data } = await apiClient.get<Review>(`/api/v1/reviews/mine/?${query.toString()}`)
-  return data
-}
-
 export async function getReviewEligibility(
   productType: ReviewProductType,
   productId: string,

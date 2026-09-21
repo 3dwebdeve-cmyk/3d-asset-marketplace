@@ -4,7 +4,7 @@ export type OrderStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
 
 export type OrderPaymentStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
 
-export type OrderItemProductType = 'product' | 'plugin'
+export type OrderItemProductType = 'product' | 'plugin' | 'custom_project'
 
 export type OrderOrdering =
   | 'created_at'
@@ -175,6 +175,8 @@ export interface CustomerOrderListParams {
   search?: string
   order_status?: OrderStatus
   payment_status?: OrderPaymentStatus
+  /** catalog = product/plugin purchases; custom_project = commission payments */
+  item_type?: 'catalog' | 'custom_project'
   ordering?: OrderOrdering
   page?: number
   page_size?: number

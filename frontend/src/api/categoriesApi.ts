@@ -4,6 +4,7 @@ import type {
   AdminCategoryCreatePayload,
   AdminCategoryListParams,
   AdminCategoryUpdatePayload,
+  CategoryPublic,
   PaginatedAdminCategories,
   PaginatedPublicCategories,
   PublicCategoryListParams,
@@ -15,6 +16,22 @@ export async function listPublicCategories(
   const response = await apiClient.get<PaginatedPublicCategories>('/api/v1/categories/', {
     params,
   })
+  return response.data
+}
+
+export async function listTrendingCategories(limit = 12): Promise<CategoryPublic[]> {
+  const response = await apiClient.get<CategoryPublic[]>('/api/v1/categories/trending/', {
+    params: { limit },
+  })
+  return response.data
+}
+
+export async function recordCategoryClick(
+  categoryId: string,
+): Promise<{ id: string; click_count: number }> {
+  const response = await apiClient.post<{ id: string; click_count: number }>(
+    `/api/v1/categories/${categoryId}/click/`,
+  )
   return response.data
 }
 

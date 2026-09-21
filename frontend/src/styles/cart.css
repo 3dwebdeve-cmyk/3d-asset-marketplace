@@ -211,7 +211,7 @@
   background: var(--color-surface, #fff);
   display: flex;
   flex-direction: column;
-  box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
+  box-shadow: none;
 }
 
 .cart-drawer__header {

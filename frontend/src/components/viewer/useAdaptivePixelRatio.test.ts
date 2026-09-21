@@ -28,7 +28,7 @@ describe('getAdaptivePixelRatio', () => {
 })
 
 describe('getAdaptiveShadowMapSize', () => {
-  it('uses 1024 on mobile viewports', () => {
+  it('uses 512 on mobile viewports', () => {
     vi.stubGlobal('window', {
       devicePixelRatio: 3,
       matchMedia: (query: string) => ({
@@ -36,15 +36,15 @@ describe('getAdaptiveShadowMapSize', () => {
       }),
     })
 
-    expect(getAdaptiveShadowMapSize()).toBe(1024)
+    expect(getAdaptiveShadowMapSize()).toBe(512)
   })
 
-  it('uses 2048 on desktop viewports', () => {
+  it('uses 1024 on desktop viewports', () => {
     vi.stubGlobal('window', {
       devicePixelRatio: 2,
       matchMedia: () => ({ matches: false }),
     })
 
-    expect(getAdaptiveShadowMapSize()).toBe(2048)
+    expect(getAdaptiveShadowMapSize()).toBe(1024)
   })
 })

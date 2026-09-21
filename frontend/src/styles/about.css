@@ -210,7 +210,7 @@
   padding: 1.15rem 1.2rem;
   border-radius: 1rem;
   background: #fff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+  box-shadow: none;
   border: 1px solid #eef1f5;
 }
 
@@ -387,7 +387,7 @@
   overflow: hidden;
   border-radius: 1.1rem;
   background: #fff;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+  box-shadow: none;
   border: 1px solid #eef1f5;
 }
 
@@ -415,7 +415,7 @@
   place-items: center;
   border-radius: 0.45rem;
   color: #fff;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+  box-shadow: none;
 }
 
 .about-offer-card__badge svg {
@@ -460,7 +460,7 @@
   background: #2563eb;
   color: #fff;
   text-decoration: none;
-  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.28);
+  box-shadow: none;
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 
@@ -490,7 +490,7 @@
   aspect-ratio: 4 / 3;
   min-height: 18rem;
   background: #e8eef5;
-  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.1);
+  box-shadow: none;
 }
 
 .about-trust__visual > img {
@@ -581,7 +581,7 @@
   padding: clamp(1.5rem, 3.2vw, 2.35rem) clamp(1.25rem, 3vw, 2.25rem);
   border-radius: 1.15rem;
   background: #0b1220;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+  box-shadow: none;
   box-sizing: border-box;
 }
 
@@ -631,7 +631,7 @@
 .about-cta__btn--primary {
   background: #2563eb;
   color: #fff;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.28);
+  box-shadow: none;
 }
 
 .about-cta__btn--ghost {

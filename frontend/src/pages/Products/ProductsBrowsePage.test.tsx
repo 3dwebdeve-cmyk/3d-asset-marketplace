@@ -29,6 +29,8 @@ vi.mock('../../api/categoriesApi', async () => {
   return {
     ...actual,
     listPublicCategories: vi.fn(),
+    listTrendingCategories: vi.fn(),
+    recordCategoryClick: vi.fn().mockResolvedValue({ id: 'x', click_count: 1 }),
   }
 })
 
@@ -169,6 +171,11 @@ beforeEach(() => {
   resetAuthStore()
   vi.mocked(productsApi.listPublicProducts).mockResolvedValue(samplePublicProducts)
   vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue(samplePublicCategories)
+  vi.mocked(categoriesApi.listTrendingCategories).mockResolvedValue(samplePublicCategories.results)
+  vi.mocked(categoriesApi.recordCategoryClick).mockResolvedValue({
+    id: categoryId,
+    click_count: 1,
+  })
   vi.mocked(pluginsApi.listPublicPlugins).mockResolvedValue(samplePublicPlugins)
   vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
     count: 0,
@@ -267,9 +274,36 @@ describe('ProductsBrowsePage', () => {
     ).toBeInTheDocument()
   })
 
+  it('limits trending categories to twelve tiles', async () => {
+    const manyCategories = Array.from({ length: 20 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      name: `Category ${index + 1}`,
+      slug: `category-${index + 1}`,
+      description: '',
+      image: '',
+      parent: null,
+      created_at: '2026-01-01T00:00:00Z',
+    }))
+    vi.mocked(categoriesApi.listTrendingCategories).mockResolvedValue(manyCategories.slice(0, 12))
+
+    renderProductsBrowsePage()
+
+    const categorySection = await screen.findByRole('region', {
+      name: /trending categories/i,
+    })
+    await waitFor(() => {
+      expect(within(categorySection).getAllByRole('button')).toHaveLength(12)
+    })
+    expect(categoriesApi.listTrendingCategories).toHaveBeenCalledWith(12)
+  })
+
   it('renders backend categories and filters the existing models route', async () => {
     const user = userEvent.setup()
     renderProductsBrowsePage()
+
+    await waitFor(() => {
+      expect(categoriesApi.listTrendingCategories).toHaveBeenCalledWith(12)
+    })
 
     const categorySection = screen.getByRole('region', {
       name: /trending categories/i,
@@ -287,6 +321,7 @@ describe('ProductsBrowsePage', () => {
         `/3d-models?category=${categoryId}`,
       )
     })
+    expect(categoriesApi.recordCategoryClick).toHaveBeenCalledWith(categoryId)
   })
 
   it('redirects old catalog query URLs to /3d-models', async () => {

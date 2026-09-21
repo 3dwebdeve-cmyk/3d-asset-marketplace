@@ -23,9 +23,7 @@
   --border: color-mix(in srgb, var(--action-color) 22%, var(--bg-card));
   --accent-soft: color-mix(in srgb, var(--action-color) 12%, var(--bg-card));
   --accent-border: color-mix(in srgb, var(--action-color) 40%, var(--bg-card));
-  --shadow:
-    color-mix(in srgb, var(--text-main) 10%, transparent) 0 10px 15px -3px,
-    color-mix(in srgb, var(--text-main) 5%, transparent) 0 4px 6px -2px;
+  --shadow: none;
 
   /* Backward-compatible aliases used by existing class names */
   --bg: var(--bg-main);
@@ -94,7 +92,8 @@ textarea {
   max-width: 100%;
 }
 
-#root:has(.admin-layout) {
+#root:has(.admin-layout),
+#root:has(.dashboard-layout) {
   width: 100%;
   max-width: none;
   border-inline: none;
@@ -335,7 +334,7 @@ button.home-page__cta--secondary {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--pure-white);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   box-sizing: border-box;
 }
 
@@ -505,9 +504,9 @@ button.home-page__cta--secondary {
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.2rem 0.65rem;
+  padding: 0.2rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -515,13 +514,13 @@ button.home-page__cta--secondary {
 }
 
 .status-badge--neutral {
-  background: color-mix(in srgb, var(--text-main) 10%, var(--bg-card));
-  color: var(--text-main);
+  background: #f1f3f4;
+  color: #5f6368;
 }
 
 .status-badge--info {
-  background: color-mix(in srgb, #1d4d7a 15%, var(--bg-card));
-  color: #1d4d7a;
+  background: #e8f0fe;
+  color: #1a73e8;
 }
 
 .status-badge--active {
@@ -535,8 +534,8 @@ button.home-page__cta--secondary {
 }
 
 .status-badge--success {
-  background: color-mix(in srgb, #166534 15%, var(--bg-card));
-  color: #166534;
+  background: #e6f4ea;
+  color: #1e7e34;
 }
 
 .status-badge--danger {
@@ -713,11 +712,6 @@ button.home-page__cta--secondary {
   border: 1px solid var(--accent-border);
   cursor: pointer;
   font: inherit;
-}
-
-.dashboard-card__logout {
-  width: auto;
-  margin-top: 0;
 }
 
 .dashboard-password-form {
@@ -962,15 +956,11 @@ p {
   margin: 0;
 }
 
-code,
-.counter {
+code {
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
   color: var(--text-heading);
-}
-
-code {
   font-size: 15px;
   line-height: 135%;
   padding: 4px 8px;

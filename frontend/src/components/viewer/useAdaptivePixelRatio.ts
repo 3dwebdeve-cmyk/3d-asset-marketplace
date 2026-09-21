@@ -27,14 +27,14 @@ export function getAdaptivePixelRatio(): number {
 }
 
 /**
- * Directional-light shadow map resolution.
- * 4K maps crush low-end GPUs; mobile uses 1024, desktop 2048.
+ * ContactShadows resolution.
+ * Lower maps keep mobile GPUs responsive; desktop stays sharp enough at 1024.
  */
 export function getAdaptiveShadowMapSize(): number {
   if (typeof window === 'undefined') {
-    return 2048
+    return 1024
   }
-  return isMobileViewport() ? 1024 : 2048
+  return isMobileViewport() ? 512 : 1024
 }
 
 export function useAdaptivePixelRatio(): number {

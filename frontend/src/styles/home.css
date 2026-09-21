@@ -4,9 +4,11 @@
   --hero-teal-deep: #009690;
   --hero-ink: #121820;
   --hero-muted: #757575;
-  --hero-chip: rgba(8, 12, 20, 0.62);
-  --hero-chip-border: rgba(255, 255, 255, 0.42);
-  --hero-sort: rgba(10, 14, 22, 0.82);
+  --hero-chip: rgba(255, 255, 255, 0.12);
+  --hero-chip-border: rgba(255, 255, 255, 0.38);
+  --hero-sort: rgba(255, 255, 255, 0.14);
+  --hero-glass-blur: blur(16px) saturate(160%);
+  --hero-glass-shadow: none;
   --hero-title: 'Libre Baskerville', 'Times New Roman', Georgia, serif;
   --hero-ui: 'Poppins', system-ui, sans-serif;
   --hero-window-height: min(74vh, 490px);
@@ -105,7 +107,7 @@
   border: 0;
   border-radius: 0.7rem;
   background: #ffffff;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+  box-shadow: none;
   overflow: hidden;
   text-align: left;
 }
@@ -139,9 +141,7 @@
 }
 
 .home-marketplace-search:focus-within {
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.28),
-    0 0 0 2px color-mix(in srgb, var(--hero-teal) 45%, transparent);
+  box-shadow: none;
 }
 
 .home-marketplace-search__submit {
@@ -169,42 +169,45 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   max-width: min(100%, 46rem);
   margin: 0.15rem 0 0;
   color: #ffffff;
-  font-size: 0.78rem;
+  font-size: 0.7rem;
 }
 
 .home-marketplace-trending__label {
-  margin-right: 0.15rem;
+  margin-right: 0.1rem;
   font-family: var(--hero-ui);
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
 .home-marketplace-trending__chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.32rem;
-  min-height: 2rem;
-  padding: 0.34rem 0.8rem;
+  gap: 0.22rem;
+  min-height: 1.55rem;
+  padding: 0.2rem 0.55rem;
   border: 1px solid var(--hero-chip-border);
   border-radius: 999px;
   background: var(--hero-chip);
   color: #ffffff;
   font-family: var(--hero-ui);
-  font-size: 0.76rem;
+  font-size: 0.68rem;
   font-weight: 500;
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: background 140ms ease, border-color 140ms ease;
+  box-shadow: none;
+  backdrop-filter: var(--hero-glass-blur);
+  -webkit-backdrop-filter: var(--hero-glass-blur);
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .home-marketplace-trending__chip:hover,
 .home-marketplace-trending__chip:focus-visible {
-  background: rgba(8, 12, 20, 0.8);
-  border-color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: none;
   outline: none;
 }
 
@@ -213,7 +216,7 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
+  gap: 0.4rem;
   margin: 0.25rem 0 0;
 }
 
@@ -221,35 +224,40 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  min-height: 2.35rem;
-  padding: 0.42rem 1.15rem;
-  border: 0;
-  border-radius: 0.65rem;
+  gap: 0.28rem;
+  min-height: 1.85rem;
+  padding: 0.28rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 0.55rem;
   background: var(--hero-sort);
   color: #ffffff;
   font-family: var(--hero-ui);
-  font-size: 0.88rem;
+  font-size: 0.75rem;
   font-weight: 600;
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  transition: background 140ms ease, color 140ms ease;
+  box-shadow: none;
+  backdrop-filter: var(--hero-glass-blur);
+  -webkit-backdrop-filter: var(--hero-glass-blur);
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .home-marketplace-sort__btn:hover,
 .home-marketplace-sort__btn:focus-visible {
-  background: rgba(10, 14, 22, 0.94);
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.5);
   outline: none;
 }
 
 .home-marketplace-sort__btn--active {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(255, 255, 255, 0.7);
   color: var(--hero-ink);
+  box-shadow: none;
 }
 
 .home-marketplace-sort__btn--active:hover,
 .home-marketplace-sort__btn--active:focus-visible {
-  background: #f3f4f6;
+  background: rgba(255, 255, 255, 0.95);
   color: var(--hero-ink);
 }
 
@@ -263,7 +271,7 @@
 .products-browse-page--hub > .browse-service-cards {
   margin-top: 0;
   background: #ffffff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
 }
 
 @media (max-width: 700px) {
@@ -313,9 +321,9 @@
   }
 
   .home-marketplace-sort__btn {
-    min-height: 2.1rem;
-    padding: 0.35rem 0.9rem;
-    font-size: 0.8rem;
+    min-height: 1.7rem;
+    padding: 0.22rem 0.7rem;
+    font-size: 0.7rem;
   }
 }
 

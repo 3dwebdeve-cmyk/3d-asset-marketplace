@@ -15,15 +15,21 @@ import {
   isAdminSpaPath,
   legacyAdminToConsolePath,
 } from './config/adminPaths'
+import { isDashboardChromePath } from './config/dashboardNav'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
+import { DashboardLayout } from './layouts/DashboardLayout'
 import { LoginPage } from './pages/Login/LoginPage'
 import { RegisterPage } from './pages/Register/RegisterPage'
 import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
 import { AdminRoute } from './routes/AdminRoute'
 import { ProtectedRoute } from './routes/ProtectedRoute'
-import './App.css'
 import './styles/auth.css'
 import './styles/admin-layout.css'
+import './styles/dashboard-layout.css'
+import './styles/dashboard-list.css'
+import './styles/dashboard-home.css'
+import './styles/dashboard-project-form.css'
+import './styles/dashboard-profile.css'
 import './styles/navbar.css'
 import './styles/home.css'
 import './styles/products-browse.css'
@@ -89,9 +95,9 @@ const EmailVerificationResendPage = lazy(() =>
   })),
 )
 
-const DashboardPage = lazy(() =>
-  import('./pages/Dashboard/DashboardPage').then((module) => ({
-    default: module.DashboardPage,
+const DashboardHomePage = lazy(() =>
+  import('./pages/Dashboard/DashboardHomePage').then((module) => ({
+    default: module.DashboardHomePage,
   })),
 )
 
@@ -322,12 +328,18 @@ function LegacyAdminRedirect() {
 
 function AppRoutes() {
   const location = useLocation()
-  const hideChrome =
+  const isAdminConsole =
     isAdminSpaPath(location.pathname) && !isAdminLoginPath(location.pathname)
+  // Every customer/marketplace page keeps the site Navbar (including dashboard).
+  const hideNavbar = isAdminConsole
+  // Benefits banner stays off dashboard chrome; SiteFooter is universal on all
+  // customer-facing pages (admin console keeps its own layout without marketing chrome).
+  const hideBenefitsBanner = isAdminConsole || isDashboardChromePath(location.pathname)
+  const hideSiteFooter = isAdminConsole
 
   return (
     <>
-      {!hideChrome ? <Navbar /> : null}
+      {!hideNavbar ? <Navbar /> : null}
       <CartDrawer />
       <AuthModal />
       <div className="app-shell">
@@ -365,27 +377,33 @@ function AppRoutes() {
             <Route path="/verify-email/resend" element={<EmailVerificationResendPage />} />
             <Route path="/verify-email/:uid/:token" element={<EmailVerificationPage />} />
             <Route element={<ProtectedRoute />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/dashboard/projects" element={<MyProjectsPage />} />
-              <Route path="/dashboard/orders" element={<MyOrdersPage />} />
-              <Route path="/dashboard/downloads" element={<MyDownloadsPage />} />
-              <Route path="/dashboard/wishlist" element={<WishlistPage />} />
+              <Route element={<DashboardLayout />}>
+                <Route path="/dashboard" element={<DashboardHomePage />} />
+                <Route path="/dashboard/projects" element={<MyProjectsPage />} />
+                <Route path="/dashboard/orders" element={<MyOrdersPage />} />
+                <Route path="/dashboard/downloads" element={<MyDownloadsPage />} />
+                <Route path="/dashboard/wishlist" element={<WishlistPage />} />
+                <Route
+                  path="/dashboard/password"
+                  element={<Navigate to="/profile" replace />}
+                />
+                <Route
+                  path="/dashboard/projects/new"
+                  element={<CustomerProjectRequestPage />}
+                />
+                <Route
+                  path="/dashboard/projects/:projectId"
+                  element={<CustomerProjectDetailPage />}
+                />
+                <Route
+                  path="/dashboard/orders/:orderId"
+                  element={<CustomerOrderDetailPage />}
+                />
+                <Route path="/profile" element={<ProfilePage />} />
+              </Route>
               <Route path="/cart" element={<CartPage />} />
               <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
               <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
-              <Route
-                path="/dashboard/projects/new"
-                element={<CustomerProjectRequestPage />}
-              />
-              <Route
-                path="/dashboard/projects/:projectId"
-                element={<CustomerProjectDetailPage />}
-              />
-              <Route
-                path="/dashboard/orders/:orderId"
-                element={<CustomerOrderDetailPage />}
-              />
-              <Route path="/profile" element={<ProfilePage />} />
             </Route>
             <Route element={<AdminRoute />}>
               <Route path={ADMIN_BASE} element={<AdminDashboardPage />} />
@@ -441,12 +459,8 @@ function AppRoutes() {
           </Routes>
         </Suspense>
       </div>
-      {!hideChrome ? (
-        <>
-          <SiteBenefitsBanner />
-          <SiteFooter />
-        </>
-      ) : null}
+      {!hideBenefitsBanner ? <SiteBenefitsBanner /> : null}
+      {!hideSiteFooter ? <SiteFooter /> : null}
     </>
   )
 }

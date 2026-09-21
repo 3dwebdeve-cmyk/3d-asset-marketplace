@@ -50,6 +50,7 @@ vi.mock('@react-three/drei', () => ({
     </div>
   ),
   Lightformer: () => null,
+  ContactShadows: () => null,
   useGLTF: Object.assign(
     () => ({
       scene: viewerMocks.scene ?? new Object3D(),
@@ -65,7 +66,7 @@ vi.mock('./isWebGLAvailable', () => ({
 
 vi.mock('./useAdaptivePixelRatio', () => ({
   useAdaptivePixelRatio: () => viewerMocks.pixelRatio,
-  useAdaptiveShadowMapSize: () => 2048,
+  useAdaptiveShadowMapSize: () => 1024,
 }))
 
 vi.mock('./useViewportVisibility', () => ({
@@ -128,9 +129,10 @@ describe('ModelViewer', () => {
         'data-files',
         '/hdri/studio_small_08_1k.hdr',
       )
+      // Studio uses HDRI for lighting only (solid white backdrop), so blurriness is 0.
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
         'data-background-blurriness',
-        '0.65',
+        '0',
       )
     })
   })

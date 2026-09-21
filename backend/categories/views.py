@@ -9,12 +9,13 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminCategoryWriteRateThrottle
+from accounts.throttles import AdminCategoryWriteRateThrottle, CategoryClickRateThrottle
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
 from categories.pagination import CategoryPagination
 from categories.serializers import (
     CategoryAdminSerializer,
+    CategoryClickSerializer,
     CategoryCreateSerializer,
     CategoryPublicSerializer,
     CategoryUpdateSerializer,
@@ -45,6 +46,18 @@ def _parse_is_active_filter(value: str | None) -> bool | None:
     raise ValidationError({"is_active": ["Must be true or false."]})
 
 
+def _parse_trending_limit(value: str | None) -> int:
+    if value is None or value.strip() == "":
+        return 12
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValidationError({"limit": ["Must be an integer."]}) from exc
+    if parsed < 1 or parsed > 50:
+        raise ValidationError({"limit": ["Must be between 1 and 50."]})
+    return parsed
+
+
 class CategoryListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = CategoryPagination
@@ -61,6 +74,36 @@ class CategoryListView(PublicCatalogCacheMixin, APIView):
         page = paginator.paginate_queryset(queryset, request, view=self)
         serializer = CategoryPublicSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
+
+
+class CategoryTrendingView(APIView):
+    """Top clicked categories for the home hub. Short-lived ranking; no long CDN cache."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request: Request) -> Response:
+        limit = _parse_trending_limit(request.query_params.get("limit"))
+        queryset = CategoryService.list_trending(limit=limit)
+        serializer = CategoryPublicSerializer(queryset, many=True)
+        response = Response(serializer.data, status=status.HTTP_200_OK)
+        response["Cache-Control"] = "public, max-age=60"
+        return response
+
+
+class CategoryClickView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [CategoryClickRateThrottle]
+
+    def post(self, request: Request, category_id: UUID) -> Response:
+        try:
+            category = CategoryService.record_click(category_id)
+        except CategoryError as exc:
+            raise NotFound(exc.message) from exc
+
+        serializer = CategoryClickSerializer(
+            {"id": category.pk, "click_count": category.click_count}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class CategoryDetailView(PublicCatalogCacheMixin, APIView):

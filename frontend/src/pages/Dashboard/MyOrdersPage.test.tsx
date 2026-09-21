@@ -79,6 +79,14 @@ describe('MyOrdersPage', () => {
     expect(screen.getAllByLabelText('Status: Pending')).toHaveLength(2)
   })
 
+  it('requests only custom_project orders', async () => {
+    renderMyOrdersPage()
+    await screen.findByRole('link', { name: orderListItem.invoice_number })
+    expect(ordersApi.listCustomerOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ item_type: 'custom_project' }),
+    )
+  })
+
   it('shows empty state when the customer has no orders', async () => {
     vi.mocked(ordersApi.listCustomerOrders).mockResolvedValue({
       count: 0,
@@ -89,10 +97,12 @@ describe('MyOrdersPage', () => {
 
     renderMyOrdersPage()
 
-    expect(await screen.findByText(/you have no orders yet/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: /browse models/i })[0]).toHaveAttribute(
+    expect(
+      await screen.findByText(/you have no custom project orders yet/i),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /request custom work/i })).toHaveAttribute(
       'href',
-      '/',
+      '/dashboard/projects/new',
     )
   })
 

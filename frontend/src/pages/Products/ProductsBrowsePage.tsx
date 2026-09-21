@@ -2,11 +2,12 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { listPublicCategories } from '../../api/categoriesApi'
+import { listTrendingCategories } from '../../api/categoriesApi'
 import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { Button } from '../../components/ui/Button'
+import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import type { CategoryPublic } from '../../types/category'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
@@ -231,10 +232,10 @@ export function ProductsBrowsePage() {
   const productsRailRef = useRef<HTMLDivElement>(null)
   const pluginsRailRef = useRef<HTMLDivElement>(null)
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ['public-categories-list', { page_size: 100 }],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
+  const { data: trendingCategories = [] } = useQuery({
+    queryKey: ['public-categories-trending', { limit: 12 }],
+    queryFn: () => listTrendingCategories(12),
+    staleTime: 1000 * 60,
   })
 
   const {
@@ -272,7 +273,7 @@ export function ProductsBrowsePage() {
 
   const filteredProducts = useMemo(() => productsData?.results ?? [], [productsData])
 
-  const categories = categoriesData?.results ?? []
+  const categories = trendingCategories.slice(0, 12)
   const plugins = pluginsData?.results ?? []
 
   if (!isCatalogMode) {
@@ -307,6 +308,7 @@ export function ProductsBrowsePage() {
                   key={category.id}
                   category={category}
                   onSelect={() => {
+                    trackCategoryClick(category.id)
                     navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
                   }}
                 />

@@ -1,16 +1,38 @@
 import { useQuery } from '@tanstack/react-query'
+import { useId, useRef } from 'react'
 import { Link } from 'react-router-dom'
 
 import { getProfile } from '../../api/authApi'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
-import { FormField } from '../../components/ui/FormField'
-import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
+import { useChangePasswordForm } from '../Dashboard/useChangePasswordForm'
 import { AVATAR_ALLOWED_EXTENSIONS, AVATAR_MAX_BYTES } from './avatarRules'
 import { useAvatarUpload } from './useAvatarUpload'
 import { useProfileForm } from './useProfileForm'
+
+function DefaultAvatarSvg() {
+  return (
+    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="50" cy="50" r="50" fill="#f97316" />
+      <path
+        d="M50 20C42 20 36 26 36 34C36 42 42 48 50 48C58 48 64 42 64 34C64 26 58 20 50 20Z"
+        fill="#ffedd5"
+      />
+      <path
+        d="M50 24C44.5 24 40 28.5 40 34C40 39.5 44.5 44 50 44C55.5 44 60 39.5 60 34C60 28.5 55.5 24 50 24Z"
+        fill="#fed7aa"
+      />
+      <path
+        d="M42 22C42 20 45 18 50 18C55 18 58 20 58 22C56 22 54 24 50 24C46 24 44 22 42 22Z"
+        fill="#7c2d12"
+      />
+      <path d="M30 76C30 60 38 52 50 52C62 52 70 60 70 76V82H30V76Z" fill="#ffedd5" />
+      <path d="M50 52L44 64H56L50 52Z" fill="#ea580c" />
+    </svg>
+  )
+}
 
 export function ProfilePage() {
   const profileQuery = useQuery({
@@ -33,182 +55,368 @@ export function ProfilePage() {
     onRemove,
   } = useAvatarUpload(profileQuery.data)
 
+  const {
+    register: registerPassword,
+    handleSubmit: handlePasswordSubmit,
+    errors: passwordErrors,
+    isSubmitting: isPasswordSubmitting,
+    serverError: passwordServerError,
+    onSubmit: onPasswordSubmit,
+  } = useChangePasswordForm()
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputId = useId()
   const avatarError = clientError ?? avatarServerError
   const maxMb = AVATAR_MAX_BYTES / (1024 * 1024)
+  const profile = profileQuery.data
 
   return (
-    <main className="auth-page">
-      <section className="auth-card auth-card--wide" aria-labelledby="profile-title">
-        <header className="auth-card__header">
-          <p className="auth-card__eyebrow">Your account</p>
-          <h1 id="profile-title">Profile</h1>
-          <p className="auth-card__subtitle">
-            Update your avatar, company, and contact details. These appear on invoices
-            and project requests.
-          </p>
-        </header>
+    <main className="profile-edit-body" aria-labelledby="profile-title">
+      <h1 id="profile-title" className="page-title">
+        Edit your personal profile
+      </h1>
 
-        {profileQuery.isLoading ? (
-          <Spinner label="Loading your profile..." />
-        ) : profileQuery.isError ? (
-          <ErrorState
-            title="Could not load your profile"
-            description="We could not load your profile details. Please try again."
-            action={
-              <Button
-                variant="secondary"
-                isLoading={profileQuery.isFetching}
-                onClick={() => profileQuery.refetch()}
-              >
-                Retry
-              </Button>
-            }
-          />
-        ) : (
-          <>
-            <div className="profile-meta" aria-label="Account details">
-              <p>
-                <strong>Name:</strong> {profileQuery.data?.full_name}
-              </p>
-              <p>
-                <strong>Email:</strong> {profileQuery.data?.email}
-              </p>
+      {profileQuery.isLoading ? (
+        <Spinner label="Loading your profile..." />
+      ) : profileQuery.isError ? (
+        <ErrorState
+          title="Could not load your profile"
+          description="We could not load your profile details. Please try again."
+          action={
+            <Button
+              variant="secondary"
+              isLoading={profileQuery.isFetching}
+              onClick={() => profileQuery.refetch()}
+            >
+              Retry
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <form
+            className="profile-form"
+            onSubmit={handleSubmit(onSubmit)}
+            noValidate
+            id="profileForm"
+          >
+            {serverError ? (
+              <div className="profile-alerts">
+                <Alert variant="error" message={serverError} />
+              </div>
+            ) : null}
+
+            <h2 className="section-title">Profile information</h2>
+
+            <div className="avatar-row">
+              <div className="avatar-thumb">
+                {previewUrl ? <img src={previewUrl} alt="" /> : <DefaultAvatarSvg />}
+              </div>
+              <div className="avatar-info-col">
+                <button
+                  type="button"
+                  className="btn-upload-picture"
+                  disabled={isUploading || isRemoving}
+                  onClick={() => {
+                    if (selectedFile) {
+                      onUpload()
+                      return
+                    }
+                    fileInputRef.current?.click()
+                  }}
+                >
+                  {isUploading
+                    ? 'Uploading…'
+                    : selectedFile
+                      ? 'Upload selected'
+                      : 'Upload new picture'}
+                </button>
+                <span className="avatar-specs-text">
+                  JPG or PNG and {maxMb}MB max
+                </span>
+                {selectedFile ? (
+                  <span className="avatar-specs-text">{selectedFile.name}</span>
+                ) : null}
+                {profile?.avatar ? (
+                  <button
+                    type="button"
+                    className="btn-remove-picture"
+                    disabled={isUploading || isRemoving}
+                    onClick={onRemove}
+                  >
+                    {isRemoving ? 'Removing…' : 'Remove picture'}
+                  </button>
+                ) : null}
+                <input
+                  id={fileInputId}
+                  ref={fileInputRef}
+                  className="visually-hidden"
+                  type="file"
+                  accept={AVATAR_ALLOWED_EXTENSIONS.join(',')}
+                  onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+                />
+              </div>
             </div>
-
-            <section className="avatar-uploader" aria-labelledby="avatar-title">
-              <h2 id="avatar-title" className="avatar-uploader__title">
-                Avatar
-              </h2>
-              <p className="avatar-uploader__hint">
-                JPG, PNG, or WebP · max {maxMb} MB · {AVATAR_ALLOWED_EXTENSIONS.join(', ')}
+            {avatarError ? (
+              <p className="form-error-text" role="alert" style={{ marginBottom: 18 }}>
+                {avatarError}
               </p>
+            ) : null}
 
-              <div className="avatar-uploader__row">
-                <div className="avatar-uploader__preview" aria-hidden={!previewUrl}>
-                  {previewUrl ? (
-                    <img src={previewUrl} alt="" className="avatar-uploader__image" />
-                  ) : (
-                    <span className="avatar-uploader__placeholder">No photo</span>
-                  )}
-                </div>
-
-                <div className="avatar-uploader__controls">
-                  <FormField id="avatar" label="Choose image" error={avatarError ?? undefined}>
-                    <Input
-                      id="avatar"
-                      type="file"
-                      accept={AVATAR_ALLOWED_EXTENSIONS.join(',')}
-                      hasError={Boolean(avatarError)}
-                      aria-invalid={Boolean(avatarError)}
-                      aria-describedby={avatarError ? 'avatar-error' : undefined}
-                      onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
-                    />
-                  </FormField>
-
-                  <div className="avatar-uploader__actions">
-                    <Button
-                      type="button"
-                      isLoading={isUploading}
-                      disabled={!selectedFile || isRemoving}
-                      onClick={onUpload}
-                    >
-                      Upload avatar
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      isLoading={isRemoving}
-                      disabled={!profileQuery.data?.avatar || isUploading}
-                      onClick={onRemove}
-                    >
-                      Remove
-                    </Button>
-                  </div>
+            <div className="form-row">
+              <label className="form-label" htmlFor="profile-email">
+                Username
+              </label>
+              <div className="form-control-wrap">
+                <div className="username-input-group">
+                  <input
+                    type="text"
+                    id="profile-email"
+                    className="form-input input-username-readonly"
+                    value={profile?.email ?? ''}
+                    readOnly
+                  />
+                  <button type="button" className="btn-edit-username" tabIndex={-1}>
+                    Edit
+                  </button>
                 </div>
               </div>
-            </section>
+            </div>
 
-            {serverError ? <Alert variant="error" message={serverError} /> : null}
+            <div className="form-row">
+              <label className="form-label" htmlFor="profile-display-name">
+                Display name
+              </label>
+              <div className="form-control-wrap">
+                <input
+                  type="text"
+                  id="profile-display-name"
+                  className="form-input"
+                  value={profile?.full_name ?? ''}
+                  readOnly
+                />
+                <span className="form-helper-text">
+                  This is the name that people will see when they visit your public profile.
+                </span>
+              </div>
+            </div>
 
-            <form className="auth-form" onSubmit={handleSubmit(onSubmit)} noValidate>
-              <FormField
-                id="company_name"
-                label="Company"
-                error={errors.company_name?.message}
-              >
-                <Input
+            <div className="form-row">
+              <label className="form-label" htmlFor="company_name">
+                Company
+              </label>
+              <div className="form-control-wrap">
+                <input
                   id="company_name"
+                  className="form-input"
                   type="text"
                   autoComplete="organization"
-                  hasError={Boolean(errors.company_name)}
                   aria-invalid={Boolean(errors.company_name)}
-                  aria-describedby={errors.company_name ? 'company_name-error' : undefined}
                   {...register('company_name')}
                 />
-              </FormField>
+                {errors.company_name ? (
+                  <span className="form-error-text" role="alert">
+                    {errors.company_name.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
 
-              <FormField id="website" label="Website" error={errors.website?.message}>
-                <Input
-                  id="website"
-                  type="url"
-                  autoComplete="url"
-                  placeholder="https://"
-                  hasError={Boolean(errors.website)}
-                  aria-invalid={Boolean(errors.website)}
-                  aria-describedby={errors.website ? 'website-error' : undefined}
-                  {...register('website')}
-                />
-              </FormField>
-
-              <FormField id="address" label="Address" error={errors.address?.message}>
-                <Input
+            <div className="form-row">
+              <label className="form-label" htmlFor="address">
+                Address
+              </label>
+              <div className="form-control-wrap">
+                <input
                   id="address"
+                  className="form-input"
                   type="text"
                   autoComplete="street-address"
-                  hasError={Boolean(errors.address)}
                   aria-invalid={Boolean(errors.address)}
-                  aria-describedby={errors.address ? 'address-error' : undefined}
                   {...register('address')}
                 />
-              </FormField>
+                {errors.address ? (
+                  <span className="form-error-text" role="alert">
+                    {errors.address.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
 
-              <FormField id="city" label="City" error={errors.city?.message}>
-                <Input
+            <div className="form-row">
+              <label className="form-label" htmlFor="city">
+                City
+              </label>
+              <div className="form-control-wrap">
+                <input
                   id="city"
+                  className="form-input"
                   type="text"
                   autoComplete="address-level2"
-                  hasError={Boolean(errors.city)}
                   aria-invalid={Boolean(errors.city)}
-                  aria-describedby={errors.city ? 'city-error' : undefined}
                   {...register('city')}
                 />
-              </FormField>
+                {errors.city ? (
+                  <span className="form-error-text" role="alert">
+                    {errors.city.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
 
-              <FormField id="country" label="Country" error={errors.country?.message}>
-                <Input
+            <div className="form-row">
+              <label className="form-label" htmlFor="country">
+                Your location
+              </label>
+              <div className="form-control-wrap">
+                <input
                   id="country"
+                  className="form-input"
                   type="text"
                   autoComplete="country-name"
-                  hasError={Boolean(errors.country)}
                   aria-invalid={Boolean(errors.country)}
-                  aria-describedby={errors.country ? 'country-error' : undefined}
                   {...register('country')}
                 />
-              </FormField>
+                {errors.country ? (
+                  <span className="form-error-text" role="alert">
+                    {errors.country.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
 
-              <Button type="submit" isLoading={isSubmitting} disabled={!isDirty}>
-                Save profile
-              </Button>
-            </form>
-          </>
-        )}
+            <h2 className="section-title links-section">Links</h2>
 
-        <p className="auth-card__footer">
-          <Link className="auth-link" to="/dashboard">
-            Back to dashboard
-          </Link>
-        </p>
-      </section>
+            <div className="form-row">
+              <label className="form-label" htmlFor="website">
+                Personal website
+              </label>
+              <div className="form-control-wrap">
+                <input
+                  id="website"
+                  className="form-input"
+                  type="url"
+                  autoComplete="url"
+                  placeholder="https://example.org"
+                  aria-invalid={Boolean(errors.website)}
+                  {...register('website')}
+                />
+                {errors.website ? (
+                  <span className="form-error-text" role="alert">
+                    {errors.website.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="form-bottom-actions">
+              <button
+                type="submit"
+                className="btn-save-changes"
+                disabled={isSubmitting || !isDirty}
+              >
+                {isSubmitting ? 'Please wait…' : 'Save changes'}
+              </button>
+              <Link className="btn-cancel" to="/dashboard">
+                Cancel
+              </Link>
+            </div>
+          </form>
+
+          <form
+            className="profile-form"
+            onSubmit={handlePasswordSubmit(onPasswordSubmit)}
+            noValidate
+            aria-label="Change password"
+          >
+            <h2 className="section-title links-section" id="passwordSection">
+              Change Password
+            </h2>
+
+            {passwordServerError ? (
+              <div className="profile-alerts">
+                <Alert variant="error" message={passwordServerError} />
+              </div>
+            ) : null}
+
+            <div className="form-row">
+              <label className="form-label" htmlFor="current_password">
+                Current password
+              </label>
+              <div className="form-control-wrap">
+                <input
+                  id="current_password"
+                  className="form-input"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Enter current password"
+                  aria-invalid={Boolean(passwordErrors.current_password)}
+                  {...registerPassword('current_password')}
+                />
+                {passwordErrors.current_password ? (
+                  <span className="form-error-text" role="alert">
+                    {passwordErrors.current_password.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <label className="form-label" htmlFor="new_password">
+                New password
+              </label>
+              <div className="form-control-wrap">
+                <input
+                  id="new_password"
+                  className="form-input"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Enter new password"
+                  aria-invalid={Boolean(passwordErrors.new_password)}
+                  {...registerPassword('new_password')}
+                />
+                {passwordErrors.new_password ? (
+                  <span className="form-error-text" role="alert">
+                    {passwordErrors.new_password.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="form-row">
+              <label className="form-label" htmlFor="new_password_confirm">
+                Confirm password
+              </label>
+              <div className="form-control-wrap">
+                <input
+                  id="new_password_confirm"
+                  className="form-input"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Confirm new password"
+                  aria-invalid={Boolean(passwordErrors.new_password_confirm)}
+                  {...registerPassword('new_password_confirm')}
+                />
+                {passwordErrors.new_password_confirm ? (
+                  <span className="form-error-text" role="alert">
+                    {passwordErrors.new_password_confirm.message}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="form-bottom-actions">
+              <button
+                type="submit"
+                className="btn-save-changes"
+                disabled={isPasswordSubmitting}
+              >
+                {isPasswordSubmitting ? 'Please wait…' : 'Update password'}
+              </button>
+            </div>
+          </form>
+        </>
+      )}
     </main>
   )
 }

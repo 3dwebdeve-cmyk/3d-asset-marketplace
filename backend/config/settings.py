@@ -421,6 +421,7 @@ REST_FRAMEWORK = {
         "download": "30/min",
         "admin_coupon_write": "60/min",
         "contact_form": "5/hour",
+        "category_click": "60/min",
         "payment_checkout": "10/min",
     },
 }
@@ -434,7 +435,7 @@ SPECTACULAR_SETTINGS = {
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),

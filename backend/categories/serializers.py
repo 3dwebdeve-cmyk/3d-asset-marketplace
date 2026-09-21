@@ -27,6 +27,11 @@ class CategoryPublicSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class CategoryClickSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    click_count = serializers.IntegerField(read_only=True)
+
+
 class CategoryAdminSerializer(serializers.ModelSerializer):
     parent = CategoryParentSerializer(read_only=True)
     parent_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)

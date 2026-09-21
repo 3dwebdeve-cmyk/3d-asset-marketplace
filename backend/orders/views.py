@@ -26,8 +26,13 @@ from orders.serializers import (
     OrderDetailSerializer,
     OrderListSerializer,
 )
-from orders.services import OrderCreateData, OrderError, OrderItemCreateData, OrderService
-
+from orders.services import (
+    ALLOWED_CUSTOMER_ITEM_TYPES,
+    OrderCreateData,
+    OrderError,
+    OrderItemCreateData,
+    OrderService,
+)
 
 def _error_response(exc: OrderError) -> Response:
     return domain_error_response(exc, default_code="order_error")
@@ -173,6 +178,11 @@ class CustomerOrderListView(APIView):
                 request.query_params.get("payment_status"),
                 "payment_status",
                 set(Order.PaymentStatus.values),
+            ),
+            item_type=parse_choice(
+                request.query_params.get("item_type"),
+                "item_type",
+                set(ALLOWED_CUSTOMER_ITEM_TYPES),
             ),
             search=request.query_params.get("search") or None,
             ordering=request.query_params.get("ordering") or "-created_at",

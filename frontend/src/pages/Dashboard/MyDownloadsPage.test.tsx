@@ -5,9 +5,11 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as downloadsApi from '../../api/downloadsApi'
+import * as ordersApi from '../../api/ordersApi'
 import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
 import type { DownloadEntitlement } from '../../types/download'
+import type { CustomerOrderListItem } from '../../types/order'
 import { MyDownloadsPage } from './MyDownloadsPage'
 
 vi.mock('../../api/downloadsApi', async () => {
@@ -19,6 +21,16 @@ vi.mock('../../api/downloadsApi', async () => {
     listDownloadEntitlements: vi.fn(),
     listDownloadHistory: vi.fn(),
     downloadCatalogFile: vi.fn(),
+  }
+})
+
+vi.mock('../../api/ordersApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/ordersApi')>(
+    '../../api/ordersApi',
+  )
+  return {
+    ...actual,
+    listCustomerOrders: vi.fn(),
   }
 })
 
@@ -38,6 +50,18 @@ const entitlement: DownloadEntitlement = {
       last_downloaded_at: null,
     },
   ],
+}
+
+const catalogInvoice: CustomerOrderListItem = {
+  id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  invoice_number: 'INV-20260917-18B55F38',
+  total_amount: '29.99',
+  currency: 'USD',
+  order_status: 'paid',
+  payment_status: 'paid',
+  item_count: 1,
+  created_at: '2026-09-17T00:00:00Z',
+  updated_at: '2026-09-17T00:00:00Z',
 }
 
 function renderMyDownloadsPage() {
@@ -65,6 +89,12 @@ beforeEach(() => {
     next: null,
     previous: null,
     results: [],
+  })
+  vi.mocked(ordersApi.listCustomerOrders).mockResolvedValue({
+    count: 1,
+    next: null,
+    previous: null,
+    results: [catalogInvoice],
   })
 })
 
@@ -103,5 +133,20 @@ describe('MyDownloadsPage', () => {
     await screen.findByRole('heading', { name: /my downloads/i })
     await user.click(screen.getByRole('tab', { name: /download history/i }))
     expect(await screen.findByText(/no downloads recorded yet/i)).toBeInTheDocument()
+  })
+
+  it('shows catalog invoices on the invoices tab', async () => {
+    const user = userEvent.setup()
+    renderMyDownloadsPage()
+
+    await screen.findByRole('heading', { name: /my downloads/i })
+    await user.click(screen.getByRole('tab', { name: /^invoices$/i }))
+
+    expect(
+      await screen.findByRole('link', { name: catalogInvoice.invoice_number }),
+    ).toHaveAttribute('href', `/dashboard/orders/${catalogInvoice.id}`)
+    expect(ordersApi.listCustomerOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ item_type: 'catalog' }),
+    )
   })
 })

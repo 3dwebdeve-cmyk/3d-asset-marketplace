@@ -68,6 +68,25 @@ export function ProductImageGallery({
   const galleryId = useId()
   const hasSafePreviewModel = isSafePreviewModelUrl(previewModelUrl)
   const hasSafePreviewVideo = isSafePreviewVideoUrl(previewVideoUrl)
+
+  // Warm the preview GLB in the HTTP cache without pulling Three.js into this chunk.
+  useEffect(() => {
+    const url = previewModelUrl.trim()
+    if (!isSafePreviewModelUrl(url) || typeof fetch !== 'function') {
+      return
+    }
+    const controller = new AbortController()
+    void fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      signal: controller.signal,
+    }).catch(() => {
+      // Preload is best-effort; the viewer will surface real load errors.
+    })
+    return () => controller.abort()
+  }, [previewModelUrl])
+
   const galleryImages = useMemo(
     () => buildGalleryImages(productName, thumbnail, images),
     [productName, thumbnail, images],
