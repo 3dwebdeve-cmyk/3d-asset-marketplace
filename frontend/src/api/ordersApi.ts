@@ -60,6 +60,7 @@ function toCustomerQuery(params: CustomerOrderListParams = {}): string {
   if (params.search) query.set('search', params.search)
   if (params.order_status) query.set('order_status', params.order_status)
   if (params.payment_status) query.set('payment_status', params.payment_status)
+  if (params.item_type) query.set('item_type', params.item_type)
   if (params.ordering) query.set('ordering', params.ordering)
   if (params.page) query.set('page', String(params.page))
   if (params.page_size) query.set('page_size', String(params.page_size))

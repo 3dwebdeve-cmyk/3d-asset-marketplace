@@ -57,8 +57,7 @@ describe('AuthModal', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
 
-    const closeButtons = screen.getAllByRole('button', { name: /close sign in dialog/i })
-    await user.click(closeButtons[0]!)
+    await user.click(screen.getByRole('button', { name: /close sign in dialog/i }))
 
     expect(useAuthUiStore.getState().isOpen).toBe(false)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

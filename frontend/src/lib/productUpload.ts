@@ -20,6 +20,8 @@ export const PRODUCT_FILE_FORMAT_LABELS = [
 
 export const PRODUCT_IMAGE_MAX_MB = 5
 export const PRODUCT_FILE_MAX_MB = 50
+/** Interactive GLB/glTF previews for the 3D viewer (must stay browser-friendly). */
+export const PRODUCT_PREVIEW_MAX_MB = 12
 
 export const PREVIEW_MODEL_FORMATS = new Set(['glb', 'gltf'])
 

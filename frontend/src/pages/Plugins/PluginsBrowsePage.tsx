@@ -12,8 +12,6 @@ const PAGE_SIZE = 12
 
 const COMPAT_CHIPS = ['Blender', 'Maya', '3ds Max', 'Cinema 4D'] as const
 
-type ViewMode = 'grid' | 'list'
-
 export function PluginsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
@@ -23,7 +21,6 @@ export function PluginsBrowsePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [sortOrdering, setSortOrdering] = useState<PluginOrdering>('-created_at')
   const [currentPage, setCurrentPage] = useState(1)
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
@@ -44,19 +41,6 @@ export function PluginsBrowsePage() {
       nextParams.set('search', trimmed)
     } else {
       nextParams.delete('search')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
-
-  const handleCategoryChange = (catId: string) => {
-    setSelectedCategoryId(catId)
-    setCurrentPage(1)
-
-    const nextParams = new URLSearchParams(searchParams)
-    if (catId) {
-      nextParams.set('category', catId)
-    } else {
-      nextParams.delete('category')
     }
     setSearchParams(nextParams, { replace: true })
   }
@@ -158,25 +142,6 @@ export function PluginsBrowsePage() {
           </div>
 
           <div className="plugins-filters__group">
-            <label htmlFor="plugin-category-select" className="plugins-filters__label">
-              Category
-            </label>
-            <select
-              id="plugin-category-select"
-              value={selectedCategoryId}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="plugins-filters__select"
-            >
-              <option value="">All Categories</option>
-              {categoriesData?.results.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="plugins-filters__group">
             <p className="plugins-filters__label" id="plugin-compat-label">
               Compatibility
             </p>
@@ -221,44 +186,11 @@ export function PluginsBrowsePage() {
                   <option value="-name">Name: Z to A</option>
                 </select>
               </label>
-
-              <div className="plugins-browse-view" role="group" aria-label="View mode">
-                <button
-                  type="button"
-                  className={`plugins-browse-view__btn${viewMode === 'grid' ? ' plugins-browse-view__btn--active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                  aria-pressed={viewMode === 'grid'}
-                  aria-label="Grid view"
-                >
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                    <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" />
-                    <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" />
-                    <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" />
-                    <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className={`plugins-browse-view__btn${viewMode === 'list' ? ' plugins-browse-view__btn--active' : ''}`}
-                  onClick={() => setViewMode('list')}
-                  aria-pressed={viewMode === 'list'}
-                  aria-label="List view"
-                >
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                    <rect x="1" y="2" width="14" height="2.5" rx="0.5" fill="currentColor" />
-                    <rect x="1" y="6.75" width="14" height="2.5" rx="0.5" fill="currentColor" />
-                    <rect x="1" y="11.5" width="14" height="2.5" rx="0.5" fill="currentColor" />
-                  </svg>
-                </button>
-              </div>
             </div>
           </div>
 
           {isLoading ? (
-            <div
-              className={`plugins-grid${viewMode === 'list' ? ' plugins-grid--list' : ''}`}
-              aria-label="Loading plugins"
-            >
+            <div className="plugins-grid" aria-label="Loading plugins">
               {Array.from({ length: 6 }).map((_, idx) => (
                 <div key={idx} className="product-card-skeleton">
                   <div className="product-card-skeleton__media" />
@@ -293,9 +225,7 @@ export function PluginsBrowsePage() {
             </div>
           ) : (
             <>
-              <div
-                className={`plugins-grid${viewMode === 'list' ? ' plugins-grid--list' : ''}`}
-              >
+              <div className="plugins-grid">
                 {plugins.map((plugin) => (
                   <PluginCard key={plugin.id} plugin={plugin} />
                 ))}

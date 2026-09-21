@@ -18,6 +18,8 @@ vi.mock('../../api/customProjectsApi', async () => {
   return {
     ...actual,
     createCustomerCustomProject: vi.fn(),
+    uploadCustomerCustomProjectFile: vi.fn(),
+    createCustomerProjectMessage: vi.fn(),
   }
 })
 
@@ -78,16 +80,27 @@ beforeEach(() => {
 })
 
 describe('CustomerProjectRequestPage', () => {
-  it('renders the request form', async () => {
+  it('renders the full request layout sections', async () => {
     renderPage()
 
     expect(
-      await screen.findByRole('heading', { name: /request a custom project/i }),
+      await screen.findByRole('heading', { name: /request new project/i }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /project details/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /quotation & preferences/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /reference files/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /deliverables/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^messages$/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/project title/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/description/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /submit request/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /save & request project/i }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /back to my projects/i })).toHaveAttribute(
+      'href',
+      '/dashboard/projects',
+    )
+    expect(screen.getByRole('link', { name: /^cancel$/i })).toHaveAttribute(
       'href',
       '/dashboard/projects',
     )
@@ -97,7 +110,7 @@ describe('CustomerProjectRequestPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: /submit request/i }))
+    await user.click(await screen.findByRole('button', { name: /save & request project/i }))
 
     expect(
       await screen.findByText(/title must be at least 3 characters/i),
@@ -115,9 +128,9 @@ describe('CustomerProjectRequestPage', () => {
       screen.getByLabelText(/description/i),
       'Need a game-ready wooden chair with PBR textures.',
     )
-    await user.type(screen.getByLabelText(/category/i), 'Furniture')
+    await user.type(screen.getByLabelText(/^category$/i), 'Furniture')
     await user.type(screen.getByLabelText(/estimated budget/i), '150')
-    await user.click(screen.getByRole('button', { name: /submit request/i }))
+    await user.click(screen.getByRole('button', { name: /save & request project/i }))
 
     await waitFor(() => {
       expect(customProjectsApi.createCustomerCustomProject).toHaveBeenCalled()
@@ -145,7 +158,7 @@ describe('CustomerProjectRequestPage', () => {
       screen.getByLabelText(/description/i),
       'Need a game-ready wooden chair with PBR textures.',
     )
-    await user.click(screen.getByRole('button', { name: /submit request/i }))
+    await user.click(screen.getByRole('button', { name: /save & request project/i }))
 
     expect(
       await screen.findByText('Could not submit your project request.'),

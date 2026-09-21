@@ -11,6 +11,9 @@ from PIL import Image, UnidentifiedImageError
 
 PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 PRODUCT_FILE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+# Interactive GLB/glTF previews must stay small enough for the browser viewer.
+PRODUCT_PREVIEW_MAX_BYTES = 12 * 1024 * 1024  # 12 MB
+PRODUCT_PREVIEW_EXTENSIONS = frozenset({".glb", ".gltf"})
 
 PRODUCT_IMAGE_ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 PRODUCT_IMAGE_ALLOWED_MIME_TYPES = frozenset(
@@ -184,11 +187,18 @@ def validate_product_file_upload(uploaded: UploadedFile) -> ValidatedProductFile
         raise ValidationError({"file": "Unable to determine file size."})
     if size <= 0:
         raise ValidationError({"file": "Product file is empty."})
-    if size > PRODUCT_FILE_MAX_BYTES:
+
+    max_bytes = (
+        PRODUCT_PREVIEW_MAX_BYTES
+        if extension in PRODUCT_PREVIEW_EXTENSIONS
+        else PRODUCT_FILE_MAX_BYTES
+    )
+    if size > max_bytes:
+        kind = "Preview model" if extension in PRODUCT_PREVIEW_EXTENSIONS else "File"
         raise ValidationError(
             {
                 "file": (
-                    f"File must be {PRODUCT_FILE_MAX_BYTES // (1024 * 1024)} MB "
+                    f"{kind} must be {max_bytes // (1024 * 1024)} MB "
                     "or smaller."
                 )
             }

@@ -243,9 +243,6 @@ export const PHONE_COUNTRY_CODES = [
   { iso: 'ZW', code: '+263', name: 'Zimbabwe' },
 ] as const
 
-export type PhoneCountryIso = (typeof PHONE_COUNTRY_CODES)[number]['iso']
-export type PhoneCountryCode = (typeof PHONE_COUNTRY_CODES)[number]['code']
-
 export function getPhoneCountryByIso(iso: string) {
   return PHONE_COUNTRY_CODES.find((item) => item.iso === iso)
 }

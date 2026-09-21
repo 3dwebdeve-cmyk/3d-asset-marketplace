@@ -67,6 +67,14 @@ ALLOWED_ORDERING = frozenset(
     }
 )
 
+ALLOWED_CUSTOMER_ITEM_TYPES = frozenset({"catalog", "custom_project"})
+CATALOG_PRODUCT_TYPES = frozenset(
+    {
+        OrderItem.ProductType.PRODUCT,
+        OrderItem.ProductType.PLUGIN,
+    }
+)
+
 
 @dataclass(frozen=True)
 class OrderItemCreateData:
@@ -131,12 +139,21 @@ class OrderService:
         payment_status: str | None = None,
         search: str | None = None,
         ordering: str = "-created_at",
+        item_type: str | None = None,
     ) -> QuerySet[Order]:
         queryset = Order.objects.filter(user=user).annotate(item_count=Count("items"))
         if order_status:
             queryset = queryset.filter(order_status=order_status)
         if payment_status:
             queryset = queryset.filter(payment_status=payment_status)
+        if item_type == "catalog":
+            queryset = queryset.filter(
+                items__product_type__in=CATALOG_PRODUCT_TYPES
+            ).distinct()
+        elif item_type == "custom_project":
+            queryset = queryset.filter(
+                items__product_type=OrderItem.ProductType.CUSTOM_PROJECT
+            ).distinct()
         if search and search.strip():
             query = search.strip()[:100]
             queryset = queryset.filter(invoice_number__icontains=query)

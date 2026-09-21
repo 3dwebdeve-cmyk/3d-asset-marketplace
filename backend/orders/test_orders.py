@@ -977,6 +977,49 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("payment_status", invalid.data)
 
+    def test_customer_list_filters_by_item_type(self) -> None:
+        custom_order = Order.objects.create(
+            user=self.user,
+            invoice_number="INV-CP-ITEM-TYPE-0001",
+            total_amount=Decimal("150.00"),
+            currency="USD",
+        )
+        OrderItem.objects.create(
+            order=custom_order,
+            product_type=OrderItem.ProductType.CUSTOM_PROJECT,
+            product_id=uuid4(),
+            title="Commissioned prop",
+            quantity=1,
+            purchase_price=Decimal("150.00"),
+        )
+
+        self._authenticate_customer()
+
+        catalog = self.client.get(self.list_url, {"item_type": "catalog"})
+        self.assertEqual(catalog.status_code, status.HTTP_200_OK)
+        catalog_ids = {item["id"] for item in catalog.data["results"]}
+        self.assertIn(str(self.order.id), catalog_ids)
+        self.assertNotIn(str(custom_order.id), catalog_ids)
+
+        custom = self.client.get(self.list_url, {"item_type": "custom_project"})
+        self.assertEqual(custom.status_code, status.HTTP_200_OK)
+        custom_ids = {item["id"] for item in custom.data["results"]}
+        self.assertIn(str(custom_order.id), custom_ids)
+        self.assertNotIn(str(self.order.id), custom_ids)
+
+        all_orders = self.client.get(self.list_url)
+        self.assertEqual(all_orders.status_code, status.HTTP_200_OK)
+        self.assertEqual(all_orders.data["count"], 2)
+
+        invalid = self.client.get(self.list_url, {"item_type": "not-a-type"})
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("item_type", invalid.data)
+
+        self._authenticate_customer(self.other_customer)
+        other = self.client.get(self.list_url, {"item_type": "custom_project"})
+        self.assertEqual(other.status_code, status.HTTP_200_OK)
+        self.assertEqual(other.data["count"], 0)
+
     def test_customer_list_search_by_invoice_number(self) -> None:
         self._authenticate_customer()
         partial = self.order.invoice_number[-6:]

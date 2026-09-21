@@ -75,15 +75,6 @@ export function AuthModal() {
         aria-modal="true"
         aria-labelledby={panelTitleId}
       >
-        <button
-          type="button"
-          className="auth-modal__close"
-          aria-label="Close sign in dialog"
-          onClick={closeAuthModal}
-        >
-          ×
-        </button>
-
         {mode === 'login' ? (
           <AuthLoginPanel titleId={panelTitleId} />
         ) : (

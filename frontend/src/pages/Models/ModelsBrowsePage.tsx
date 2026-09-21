@@ -6,6 +6,7 @@ import { listPublicProducts } from '../../api/productsApi'
 import { Button } from '../../components/ui/Button'
 import { SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { ProductCard } from '../Products/ProductCard'
 
 const PAGE_SIZE = 12
@@ -21,7 +22,6 @@ const TRAIT_CHIPS: { key: TraitKey; label: string }[] = [
   { key: 'game_ready', label: 'Game-ready' },
 ]
 
-type ViewMode = 'grid' | 'list'
 const SORT_OPTIONS = [
   '-created_at',
   'price',
@@ -57,7 +57,6 @@ export function ModelsBrowsePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [sortOrdering, setSortOrdering] = useState<SortOption>(sortFromUrl)
   const [currentPage, setCurrentPage] = useState(1)
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [traits, setTraits] = useState<Record<TraitKey, boolean>>({
     rigged: riggedFromUrl,
     animated: animatedFromUrl,
@@ -68,6 +67,9 @@ export function ModelsBrowsePage() {
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
     setCurrentPage(1)
+    if (categoryFromUrl) {
+      trackCategoryClick(categoryFromUrl)
+    }
   }, [categoryFromUrl])
 
   useEffect(() => {
@@ -99,19 +101,6 @@ export function ModelsBrowsePage() {
       nextParams.set('search', trimmed)
     } else {
       nextParams.delete('search')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
-
-  const handleCategoryChange = (catId: string) => {
-    setSelectedCategoryId(catId)
-    setCurrentPage(1)
-
-    const nextParams = new URLSearchParams(searchParams)
-    if (catId) {
-      nextParams.set('category', catId)
-    } else {
-      nextParams.delete('category')
     }
     setSearchParams(nextParams, { replace: true })
   }
@@ -258,25 +247,6 @@ export function ModelsBrowsePage() {
           </div>
 
           <div className="plugins-filters__group">
-            <label htmlFor="model-category-select" className="plugins-filters__label">
-              Category
-            </label>
-            <select
-              id="model-category-select"
-              value={selectedCategoryId}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="plugins-filters__select"
-            >
-              <option value="">All Categories</option>
-              {categoriesData?.results.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="plugins-filters__group">
             <p className="plugins-filters__label" id="model-software-label">
               Software
             </p>
@@ -354,44 +324,11 @@ export function ModelsBrowsePage() {
                   <option value="-name">Name: Z to A</option>
                 </select>
               </label>
-
-              <div className="plugins-browse-view" role="group" aria-label="View mode">
-                <button
-                  type="button"
-                  className={`plugins-browse-view__btn${viewMode === 'grid' ? ' plugins-browse-view__btn--active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                  aria-pressed={viewMode === 'grid'}
-                  aria-label="Grid view"
-                >
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                    <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" />
-                    <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" />
-                    <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" />
-                    <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className={`plugins-browse-view__btn${viewMode === 'list' ? ' plugins-browse-view__btn--active' : ''}`}
-                  onClick={() => setViewMode('list')}
-                  aria-pressed={viewMode === 'list'}
-                  aria-label="List view"
-                >
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                    <rect x="1" y="2" width="14" height="2.5" rx="0.5" fill="currentColor" />
-                    <rect x="1" y="6.75" width="14" height="2.5" rx="0.5" fill="currentColor" />
-                    <rect x="1" y="11.5" width="14" height="2.5" rx="0.5" fill="currentColor" />
-                  </svg>
-                </button>
-              </div>
             </div>
           </div>
 
           {isLoading ? (
-            <div
-              className={`plugins-grid${viewMode === 'list' ? ' plugins-grid--list' : ''}`}
-              aria-label="Loading 3D models"
-            >
+            <div className="plugins-grid" aria-label="Loading 3D models">
               {Array.from({ length: 6 }).map((_, idx) => (
                 <div key={idx} className="product-card-skeleton">
                   <div className="product-card-skeleton__media" />
@@ -426,9 +363,7 @@ export function ModelsBrowsePage() {
             </div>
           ) : (
             <>
-              <div
-                className={`plugins-grid${viewMode === 'list' ? ' plugins-grid--list' : ''}`}
-              >
+              <div className="plugins-grid">
                 {products.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}

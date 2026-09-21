@@ -46,6 +46,7 @@ vi.mock('../api/categoriesApi', async () => {
   return {
     ...actual,
     listPublicCategories: vi.fn(),
+    recordCategoryClick: vi.fn().mockResolvedValue({ id: 'x', click_count: 1 }),
   }
 })
 

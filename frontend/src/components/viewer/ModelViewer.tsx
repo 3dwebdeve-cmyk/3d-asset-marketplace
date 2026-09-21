@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
+import { ContactShadows, Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -23,49 +23,21 @@ function SceneLights({
   lightMultiplier,
   showBackground,
   backgroundBlur,
-  shadowMapSize,
 }: {
   environmentFile: string | null
   environmentIntensity: number
   lightMultiplier: number
   showBackground: boolean
   backgroundBlur: number
-  shadowMapSize: number
 }) {
   return (
     <>
-      {/* Keep fill lights low so the key-light shadow stays readable. */}
-      <ambientLight intensity={0.28 * lightMultiplier} />
-      <hemisphereLight args={['#ffffff', '#a8b0bc', 0.34 * lightMultiplier]} />
-      <directionalLight
-        position={[5.2, 9.5, 4.2]}
-        intensity={1.35 * lightMultiplier}
-        castShadow
-        // Adaptive map size — 4K crushed low-end GPUs; tight ortho keeps close orbits sharp.
-        shadow-mapSize={[shadowMapSize, shadowMapSize]}
-        shadow-bias={-0.0001}
-        shadow-normalBias={0.02}
-        // Hard edges — soft radius + PCFSoft was causing the grainy dithered penumbra.
-        shadow-radius={1}
-        shadow-camera-near={0.5}
-        shadow-camera-far={24}
-        shadow-camera-left={-2.4}
-        shadow-camera-right={2.4}
-        shadow-camera-top={2.4}
-        shadow-camera-bottom={-2.4}
-      >
-        <object3D attach="target" position={[0, 0, 0]} />
-      </directionalLight>
-      <directionalLight
-        position={[-3.5, 2.5, -4]}
-        intensity={0.28 * lightMultiplier}
-        castShadow={false}
-      />
-      <directionalLight
-        position={[1.5, 3.5, 6]}
-        intensity={0.2 * lightMultiplier}
-        castShadow={false}
-      />
+      {/* Brighter fill + key for a clearer studio read. Soft contact shadow is separate. */}
+      <ambientLight intensity={0.42 * lightMultiplier} />
+      <hemisphereLight args={['#ffffff', '#c4cad3', 0.48 * lightMultiplier]} />
+      <directionalLight position={[5.2, 9.5, 4.2]} intensity={1.65 * lightMultiplier} />
+      <directionalLight position={[-3.5, 2.5, -4]} intensity={0.45 * lightMultiplier} />
+      <directionalLight position={[1.5, 3.5, 6]} intensity={0.35 * lightMultiplier} />
       {environmentFile ? (
         // Own Suspense so HDRI load does not remount/tear down PreviewModel
         // (Canvas wraps all children in one Suspense boundary).
@@ -117,6 +89,7 @@ function PreviewModel({
   showGround: boolean
 }) {
   const { scene } = useGLTF(url)
+  const shadowMapSize = useAdaptiveShadowMapSize()
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
   const fitted = useMemo(() => fitPreviewScene(scene), [scene])
   const groundAlphaMap = useMemo(() => {
@@ -154,6 +127,7 @@ function PreviewModel({
       groundAlphaMap?.dispose()
     }
   }, [groundAlphaMap])
+
   const ground = useMemo(() => {
     const box = new THREE.Box3().setFromObject(fitted)
     if (box.isEmpty()) {
@@ -167,18 +141,20 @@ function PreviewModel({
       // which makes it feel effectively "infinite".
       width: Math.max(maxXZ * 7.5, 320),
       depth: Math.max(maxXZ * 7.5, 320),
+      // Wide enough for the model silhouette plus a soft outer fade.
+      shadowScale: Math.max(maxXZ * 4.2, 4.5),
     }
   }, [fitted])
 
   useEffect(() => {
     applyWireframe(fitted, wireframe)
 
-    // Enable model shadows when the viewer enables shadows on the canvas.
     fitted.traverse((object) => {
       // Avoid relying on instanceof across module boundaries.
       if ((object as THREE.Mesh).isMesh) {
         const mesh = object as THREE.Mesh
-        mesh.castShadow = true
+        // ContactShadows samples mesh depth to inherit the model silhouette.
+        mesh.castShadow = false
         mesh.receiveShadow = false
       }
     })
@@ -191,29 +167,30 @@ function PreviewModel({
   return (
     <>
       {showGround && ground ? (
-        <>
-          {/* Visual faded floor — transparent materials don't receive shadows well. */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
-            <planeGeometry args={[ground.width, ground.depth]} />
-            <meshStandardMaterial
-              color="#ffffff"
-              roughness={0.98}
-              metalness={0}
-              transparent={Boolean(groundAlphaMap)}
-              alphaMap={groundAlphaMap ?? undefined}
-              depthWrite={false}
-            />
-          </mesh>
-          {/* Dedicated shadow catcher aligned to the key light. */}
-          <mesh
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[0, ground.y + 0.002, 0]}
-            receiveShadow
-          >
-            <planeGeometry args={[ground.width, ground.depth]} />
-            <shadowMaterial transparent opacity={0.05} />
-          </mesh>
-        </>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
+          <planeGeometry args={[ground.width, ground.depth]} />
+          {/* Basic white — stays pure white (not lit gray) and matches the solid backdrop. */}
+          <meshBasicMaterial
+            color="#ffffff"
+            transparent={Boolean(groundAlphaMap)}
+            alphaMap={groundAlphaMap ?? undefined}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ) : null}
+      {ground ? (
+        <ContactShadows
+          key={url}
+          position={[0, ground.y + 0.001, 0]}
+          opacity={0.88}
+          scale={ground.shadowScale}
+          blur={2.35}
+          far={5}
+          resolution={shadowMapSize}
+          frames={1}
+          color="#000000"
+        />
       ) : null}
       <primitive object={fitted} />
     </>
@@ -257,13 +234,11 @@ function ModelViewerCanvas({
   ariaLabel,
   visible,
   pixelRatio,
-  shadowMapSize,
 }: {
   modelUrl: string
   ariaLabel: string
   visible: boolean
   pixelRatio: number
-  shadowMapSize: number
 }) {
   const [wireframe, setWireframe] = useState(false)
   const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
@@ -314,21 +289,17 @@ function ModelViewerCanvas({
       <Canvas
         className="model-viewer__canvas"
         camera={{ position: [0, 0.9, 2.3], fov: 42, near: 0.1, far: 200 }}
-        shadows
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping
           gl.toneMappingExposure = 1.18
-          gl.shadowMap.enabled = true
-          // Hard shadows — Soft/PCF filtering made close-up edges look grainy and blocky.
-          gl.shadowMap.type = THREE.BasicShadowMap
         }}
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        {/* Fallback background when HDRI background isn't being shown (or HDRI isn't available). */}
+        {/* Fallback / studio solid backdrop — pure white so the floor never reads gray. */}
         {!selectedEnvironment.background || !environmentFile ? (
-          <color attach="background" args={['#f4f6fa']} />
+          <color attach="background" args={['#ffffff']} />
         ) : null}
         <SceneLights
           environmentFile={environmentFile}
@@ -336,7 +307,6 @@ function ModelViewerCanvas({
           lightMultiplier={selectedEnvironment.lightMultiplier}
           showBackground={selectedEnvironment.background}
           backgroundBlur={selectedEnvironment.backgroundBlur}
-          shadowMapSize={shadowMapSize}
         />
         <Suspense fallback={null}>
           <PreviewModel
@@ -398,7 +368,6 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
   const pixelRatio = useAdaptivePixelRatio()
-  const shadowMapSize = useAdaptiveShadowMapSize()
   const { ref, visible } = useViewportVisibility<HTMLDivElement>()
   const webglReady = isWebGLAvailable()
 
@@ -436,7 +405,6 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
           ariaLabel={ariaLabel}
           visible={visible}
           pixelRatio={pixelRatio}
-          shadowMapSize={shadowMapSize}
         />
       </ErrorBoundary>
     </div>

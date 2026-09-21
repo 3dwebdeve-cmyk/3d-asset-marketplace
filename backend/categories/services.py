@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
 
 from categories.models import Category
 
@@ -53,6 +53,24 @@ class CategoryService:
                 )
 
         return queryset.order_by("name")
+
+    @classmethod
+    def list_trending(cls, *, limit: int = 12) -> QuerySet[Category]:
+        safe_limit = max(1, min(limit, 50))
+        return (
+            Category.objects.filter(is_active=True, parent__isnull=True)
+            .select_related("parent")
+            .order_by("-click_count", "name")[:safe_limit]
+        )
+
+    @classmethod
+    def record_click(cls, category_id: UUID) -> Category:
+        updated = Category.objects.filter(pk=category_id, is_active=True).update(
+            click_count=F("click_count") + 1
+        )
+        if updated == 0:
+            raise CategoryError("Category not found.")
+        return Category.objects.select_related("parent").get(pk=category_id)
 
     @classmethod
     def list_admin(

@@ -214,9 +214,6 @@ export function WishlistPage() {
         </p>
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
-            Back to dashboard
-          </Link>
           <Link className="home-page__cta home-page__cta--secondary" to="/">
             Browse models
           </Link>

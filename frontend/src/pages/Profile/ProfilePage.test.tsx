@@ -67,7 +67,7 @@ describe('ProfilePage', () => {
     await user.clear(screen.getByLabelText(/website/i))
     await user.type(screen.getByLabelText(/website/i), 'https://acme.example.com')
 
-    await user.click(screen.getByRole('button', { name: /save profile/i }))
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() => {
       expect(updateProfile).toHaveBeenCalled()
@@ -79,6 +79,47 @@ describe('ProfilePage', () => {
       address: '',
       city: 'Mumbai',
       country: 'India',
+    })
+  })
+
+  it('renders profile sections matching the edit-profile layout', async () => {
+    vi.spyOn(authApi, 'getProfile').mockResolvedValue(testProfile)
+    renderProfilePage()
+
+    expect(
+      await screen.findByRole('heading', { name: /profile information/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /edit your personal profile/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^links$/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /change password/i })).toBeInTheDocument()
+    expect(screen.getByDisplayValue(testProfile.full_name)).toBeInTheDocument()
+    expect(screen.getByLabelText(/personal website/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^username$/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /update password/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument()
+  })
+
+  it('submits the change-password form from the profile page', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(authApi, 'getProfile').mockResolvedValue(testProfile)
+    const changePassword = vi.spyOn(authApi, 'changePassword').mockResolvedValue(undefined)
+
+    renderProfilePage()
+
+    await screen.findByRole('heading', { name: /change password/i })
+
+    await user.type(screen.getByLabelText(/current password/i), 'OldPass123!')
+    await user.type(screen.getByLabelText(/^new password$/i), 'NewPass123!')
+    await user.type(screen.getByLabelText(/confirm password/i), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /update password/i }))
+
+    await waitFor(() => {
+      expect(changePassword).toHaveBeenCalled()
+    })
+    expect(changePassword.mock.calls[0]?.[0]).toEqual({
+      current_password: 'OldPass123!',
+      new_password: 'NewPass123!',
+      new_password_confirm: 'NewPass123!',
     })
   })
 

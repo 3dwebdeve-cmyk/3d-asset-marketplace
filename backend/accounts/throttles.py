@@ -85,5 +85,9 @@ class ContactFormRateThrottle(AnonRateThrottle):
     scope = "contact_form"
 
 
+class CategoryClickRateThrottle(AnonRateThrottle):
+    scope = "category_click"
+
+
 class PaymentCheckoutRateThrottle(UserRateThrottle):
     scope = "payment_checkout"

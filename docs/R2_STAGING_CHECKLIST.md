@@ -13,7 +13,28 @@ In Cloudflare Dashboard → R2:
 1. Create **public** bucket (example name: `3dam-public`) — thumbnails, preview GLBs, gallery, avatars.
 2. Create **private** bucket (example name: `3dam-private`) — paid `package.zip` / plugin zips, custom-project files, optional Postgres backups.
 3. Enable a public access URL / custom domain for the **public** bucket only. Copy that base URL into `R2_PUBLIC_BASE_URL` (no trailing slash).
-4. Create an API token with Object Read & Write on both buckets. Copy Account ID + Access Key ID + Secret.
+4. **Configure CORS on the public bucket** (required for the WebGL viewer — `<img>` tags work without CORS, but `fetch`/GLTFLoader does not):
+
+   Cloudflare Dashboard → R2 → public bucket → Settings → CORS policy, for example:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": [
+         "http://localhost:5173",
+         "http://127.0.0.1:5173",
+         "https://YOUR_SHOP_HOSTNAME"
+       ],
+       "AllowedMethods": ["GET", "HEAD"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],
+       "MaxAgeSeconds": 86400
+     }
+   ]
+   ```
+
+   Include every SPA origin that loads preview GLBs (local Vite + staging + production).
+5. Create an API token with Object Read & Write on both buckets. Copy Account ID + Access Key ID + Secret.
 
 Do **not** make the private bucket publicly listable or CDN-fronted.
 
@@ -93,6 +114,7 @@ Every **published** product/plugin must have a resolvable private package object
 ## Operator checkboxes
 
 - [ ] Both buckets created; private not public
+- [ ] Public bucket CORS allows SPA origins (local + prod) for GET/HEAD
 - [ ] All `R2_*` set on web + worker (root `.env` for Compose); `verify_r2` OK
 - [ ] `verify_r2 --smoke-presign` OK (signed JSON, no `storage_path`)
 - [ ] Local leftovers migrated (if needed)

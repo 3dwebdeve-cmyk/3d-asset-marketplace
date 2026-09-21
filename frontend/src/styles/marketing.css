@@ -269,7 +269,7 @@
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 0.8rem;
   background: #fff;
-  box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.04);
+  box-shadow: none;
   box-sizing: border-box;
   font-size: 0.9rem;
   line-height: 1.55;
@@ -417,7 +417,7 @@
   border: 1px solid rgba(15, 23, 42, 0.1);
   border-radius: 0.8rem;
   background: #fff;
-  box-shadow: 0 0.45rem 1.2rem rgba(15, 23, 42, 0.055);
+  box-shadow: none;
   box-sizing: border-box;
 }
 
@@ -430,7 +430,7 @@
   border-radius: 0.65rem;
   background: #2563eb;
   color: #fff;
-  box-shadow: 0 0.35rem 0.8rem rgba(37, 99, 235, 0.22);
+  box-shadow: none;
 }
 
 .custom-projects-request-types__icon svg {
@@ -524,7 +524,7 @@
   align-items: center;
   border-radius: 1rem;
   background: linear-gradient(112deg, #071120 0%, #102557 50%, #2146a2 100%);
-  box-shadow: 0 0.8rem 1.8rem rgba(15, 23, 42, 0.16);
+  box-shadow: none;
   transform: translateX(-50%);
   box-sizing: border-box;
   color: #fff;
@@ -558,7 +558,7 @@
   border: 0;
   border-radius: 999px;
   background: #2563eb;
-  box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.18);
+  box-shadow: none;
   color: #fff;
   font: inherit;
   font-size: 0.75rem;
@@ -701,7 +701,7 @@
   background: #fff;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  box-shadow: none;
 }
 
 .enquiry-form-card {
@@ -814,7 +814,7 @@
   object-fit: cover;
   border-radius: 2px;
   flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
+  box-shadow: none;
 }
 
 .enquiry-phone__dial {
@@ -852,7 +852,7 @@
   border: 1px solid #e4e7ec;
   border-radius: 10px;
   background: #fff;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  box-shadow: none;
 }
 
 .enquiry-phone__search {
@@ -1175,7 +1175,7 @@
   padding-inline: 1.4rem;
   border-radius: 10px;
   background: #2563eb;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+  box-shadow: none;
 }
 
 .enquiry-submit.ui-button:hover {
@@ -1284,7 +1284,7 @@
   border-radius: 12px;
   background: #fff;
   border: 1px solid #e8eef5;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  box-shadow: none;
 }
 
 .enquiry-topics__icon svg {
@@ -1591,7 +1591,7 @@
   width: 2.75rem;
   height: 2.75rem;
   object-fit: contain;
-  filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.45));
+  filter: none;
 }
 
 .site-benefits__title {

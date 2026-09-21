@@ -37,10 +37,6 @@ export interface RefreshResponse {
   access: string
 }
 
-export interface ApiFieldErrors {
-  [field: string]: string[]
-}
-
 export interface ApiErrorResponse {
   detail?: string
   code?: string

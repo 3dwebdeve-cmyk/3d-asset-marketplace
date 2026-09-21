@@ -9,7 +9,9 @@ import { listPublicCategories } from '../api/categoriesApi'
 import { listPublicPluginCategories } from '../api/pluginsApi'
 import { listWishlistItems } from '../api/wishlistApi'
 import { AuthEntryButton } from './auth/AuthEntryButton'
+import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { isAdministrator } from '../lib/roles'
+import { trackCategoryClick } from '../lib/trackCategoryClick'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import { useCartUiStore } from '../store/cartUiStore'
@@ -36,12 +38,15 @@ export function Navbar() {
   const [searchInput, setSearchInput] = useState('')
   const [accountOpen, setAccountOpen] = useState(false)
   const [exploreOpen, setExploreOpen] = useState(false)
+  const [searchCatOpen, setSearchCatOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null)
   const exploreRef = useRef<HTMLDivElement>(null)
+  const searchCatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setAccountOpen(false)
     setExploreOpen(false)
+    setSearchCatOpen(false)
     setCategoryId('')
     setSearchInput('')
   }, [location.pathname])
@@ -77,6 +82,26 @@ export function Navbar() {
     }
   }, [exploreOpen])
 
+  useEffect(() => {
+    if (!searchCatOpen) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!searchCatRef.current?.contains(event.target as Node)) {
+        setSearchCatOpen(false)
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSearchCatOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [searchCatOpen])
+
   const productCategoriesQuery = useQuery({
     queryKey: ['public-categories-list', { page_size: 100 }],
     queryFn: () => listPublicCategories({ page_size: 100 }),
@@ -94,6 +119,23 @@ export function Navbar() {
   const categories = isPluginsRoute
     ? (pluginCategoriesQuery.data?.results ?? [])
     : (productCategoriesQuery.data?.results ?? [])
+
+  // Keep Explore/search menus compact: top-level categories only.
+  const exploreCategories = categories.filter((category) => {
+    if ('parent' in category) {
+      return category.parent == null
+    }
+    return true
+  })
+  const AllCategoriesIcon = getAllCategoriesIcon()
+  const selectedSearchCategory = exploreCategories.find((cat) => cat.id === categoryId)
+  const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
+  const searchCategoriesLoading = isPluginsRoute
+    ? pluginCategoriesQuery.isLoading
+    : productCategoriesQuery.isLoading
+  const searchCategoriesError = isPluginsRoute
+    ? pluginCategoriesQuery.isError
+    : productCategoriesQuery.isError
 
   const wishlistCountQuery = useQuery({
     queryKey: ['wishlist', 'count'],
@@ -123,7 +165,12 @@ export function Navbar() {
     const params = new URLSearchParams()
     const query = searchInput.trim().slice(0, 100)
     if (query) params.set('search', query)
-    if (categoryId) params.set('category', categoryId)
+    if (categoryId) {
+      params.set('category', categoryId)
+      if (!isPluginsRoute) {
+        trackCategoryClick(categoryId)
+      }
+    }
     const path = isPluginsRoute ? '/plugins' : '/3d-models'
     const qs = params.toString()
     navigate(qs ? `${path}?${qs}` : path)
@@ -163,36 +210,36 @@ export function Navbar() {
                         navigate('/3d-models')
                       }}
                     >
-                      <span className="navbar__explore-badge" aria-hidden="true">
-                        ◫
-                      </span>
-                      All Categories
+                      <AllCategoriesIcon className="navbar__explore-icon" />
+                      <span className="navbar__explore-label">All Categories</span>
                     </button>
-                    {categories.map((category) => (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="navbar__explore-item"
-                        key={category.id}
+                    {exploreCategories.map((category) => {
+                      const Icon = getCategoryIcon(category.slug)
+                      return (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="navbar__explore-item"
+                          key={category.id}
                         onClick={() => {
                           setExploreOpen(false)
+                          trackCategoryClick(category.id)
                           navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
                         }}
-                      >
-                        {category.image ? (
-                          <img
-                            className="navbar__explore-image"
-                            src={category.image}
-                            alt=""
-                          />
-                        ) : (
-                          <span className="navbar__explore-badge" aria-hidden="true">
-                            {category.name.charAt(0).toUpperCase()}
-                          </span>
-                        )}
-                        {category.name}
-                      </button>
-                    ))}
+                        >
+                          {category.image ? (
+                            <img
+                              className="navbar__explore-image"
+                              src={category.image}
+                              alt=""
+                            />
+                          ) : (
+                            <Icon className="navbar__explore-icon" />
+                          )}
+                          <span className="navbar__explore-label">{category.name}</span>
+                        </button>
+                      )
+                    })}
                     {productCategoriesQuery.isLoading ? (
                       <p className="navbar__explore-status">Loading categories…</p>
                     ) : null}
@@ -208,23 +255,74 @@ export function Navbar() {
 
         {!isMarketplaceHome ? (
           <form className="navbar__search" onSubmit={handleSearchSubmit} role="search">
-            <label className="navbar__search-cat-label" htmlFor="navbar-category-select">
-              <span className="visually-hidden">All Categories</span>
-              <select
+            <div className="navbar__search-cat" ref={searchCatRef}>
+              <button
+                type="button"
                 id="navbar-category-select"
-                className="navbar__search-cat"
-                value={categoryId}
-                onChange={(event) => setCategoryId(event.target.value)}
+                className="navbar__search-cat-trigger"
+                aria-expanded={searchCatOpen}
+                aria-haspopup="menu"
                 aria-label="All Categories"
+                onClick={() => setSearchCatOpen((open) => !open)}
               >
-                <option value="">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <span className="navbar__search-cat-trigger-label">{searchCatLabel}</span>
+                <span aria-hidden="true">⌄</span>
+              </button>
+              {searchCatOpen ? (
+                <div
+                  className="navbar__explore-menu navbar__search-cat-menu"
+                  role="menu"
+                  aria-label="Search categories"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
+                    onClick={() => {
+                      setCategoryId('')
+                      setSearchCatOpen(false)
+                    }}
+                  >
+                    <AllCategoriesIcon className="navbar__explore-icon" />
+                    <span className="navbar__explore-label">All Categories</span>
+                  </button>
+                  {exploreCategories.map((category) => {
+                    const Icon = getCategoryIcon(category.slug)
+                    return (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={`navbar__explore-item${
+                          categoryId === category.id ? ' navbar__explore-item--active' : ''
+                        }`}
+                        key={category.id}
+                        onClick={() => {
+                          setCategoryId(category.id)
+                          setSearchCatOpen(false)
+                        }}
+                      >
+                        {'image' in category && category.image ? (
+                          <img
+                            className="navbar__explore-image"
+                            src={category.image}
+                            alt=""
+                          />
+                        ) : (
+                          <Icon className="navbar__explore-icon" />
+                        )}
+                        <span className="navbar__explore-label">{category.name}</span>
+                      </button>
+                    )
+                  })}
+                  {searchCategoriesLoading ? (
+                    <p className="navbar__explore-status">Loading categories…</p>
+                  ) : null}
+                  {searchCategoriesError ? (
+                    <p className="navbar__explore-status">Categories could not be loaded.</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
             <input
               type="search"
               className="navbar__search-input"

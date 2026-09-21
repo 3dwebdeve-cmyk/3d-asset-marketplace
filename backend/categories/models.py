@@ -18,6 +18,7 @@ class Category(models.Model):
         related_name="children",
     )
     is_active = models.BooleanField(default=True)
+    click_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -28,6 +29,7 @@ class Category(models.Model):
             models.Index(fields=["slug"]),
             models.Index(fields=["name"]),
             models.Index(fields=["is_active"]),
+            models.Index(fields=["-click_count", "name"]),
         ]
         verbose_name_plural = "categories"
 

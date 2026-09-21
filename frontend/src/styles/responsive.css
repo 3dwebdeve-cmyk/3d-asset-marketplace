@@ -16,7 +16,8 @@ html {
 }
 
 .app-shell > main,
-.app-shell > .admin-layout {
+.app-shell > .admin-layout,
+.app-shell > .dashboard-layout {
   min-width: 0;
   max-width: 100%;
 }

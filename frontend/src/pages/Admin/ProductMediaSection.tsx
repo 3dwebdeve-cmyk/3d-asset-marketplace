@@ -22,6 +22,7 @@ import {
   PRODUCT_FILE_ACCEPT,
   PRODUCT_FILE_FORMAT_LABELS,
   PRODUCT_FILE_MAX_MB,
+  PRODUCT_PREVIEW_MAX_MB,
   PRODUCT_IMAGE_ACCEPT,
   PRODUCT_IMAGE_FORMAT_LABELS,
   PRODUCT_IMAGE_MAX_MB,
@@ -267,8 +268,9 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
       <div className="admin-media-panel">
         <h3 className="admin-media-panel__title">3D model files</h3>
         <p className="admin-media-panel__hint">
-          Upload source and delivery formats for this product. Max {PRODUCT_FILE_MAX_MB} MB per
-          file.
+          Upload source and delivery formats for this product. Packages max{' '}
+          {PRODUCT_FILE_MAX_MB} MB. Interactive GLB/GLTF previews max {PRODUCT_PREVIEW_MAX_MB} MB
+          (keep them light for the 3D viewer).
         </p>
         <FormatBadges labels={PRODUCT_FILE_FORMAT_LABELS} />
 

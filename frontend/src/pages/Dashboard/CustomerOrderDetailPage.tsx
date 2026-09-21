@@ -130,8 +130,8 @@ export function CustomerOrderDetailPage() {
             Order details are available for customer accounts.
           </p>
           <div className="dashboard-card__actions">
-            <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
-              Back to dashboard
+            <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/orders">
+              Back to orders
             </Link>
           </div>
         </section>
@@ -194,8 +194,8 @@ export function CustomerOrderDetailPage() {
               {isDownloadingInvoice ? 'Downloading…' : 'Download invoice'}
             </Button>
           ) : null}
-          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard">
-            Back to dashboard
+          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/orders">
+            Back to orders
           </Link>
         </div>
 
