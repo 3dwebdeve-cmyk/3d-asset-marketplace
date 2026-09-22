@@ -8,6 +8,8 @@ import { adminNavItems } from '../config/adminNav'
 import { adminPath } from '../config/adminPaths'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { useDocumentSeo } from '../hooks/useDocumentSeo'
+import { useNotFoundChrome } from '../hooks/useNotFoundChrome'
+import '../styles/admin-layout.css'
 
 export function AdminLayout() {
   const navId = useId()
@@ -15,6 +17,7 @@ export function AdminLayout() {
     useAdminSession()
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const location = useLocation()
+  const { isNotFound } = useNotFoundChrome()
 
   useDocumentSeo({
     title: 'Admin console | 3D Asset Marketplace',
@@ -48,6 +51,10 @@ export function AdminLayout() {
         />
       </div>
     )
+  }
+
+  if (isNotFound) {
+    return <Outlet />
   }
 
   return (

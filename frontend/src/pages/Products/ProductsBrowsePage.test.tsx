@@ -208,6 +208,45 @@ describe('ProductsBrowsePage', () => {
     expect(screen.getByText('$ 49.99')).toBeInTheDocument()
   })
 
+  it('shows custom service offers under the plugins section', () => {
+    renderProductsBrowsePage()
+
+    expect(screen.getByRole('heading', { name: /what we offer/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /custom 3d model/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /custom plugin/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /custom texturing/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /custom rendering/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /get custom model/i })).toHaveAttribute(
+      'href',
+      '/custom-projects',
+    )
+    expect(screen.getByRole('link', { name: /get custom texture/i })).toHaveAttribute(
+      'href',
+      '/custom-projects',
+    )
+    expect(screen.getByRole('link', { name: /get custom render/i })).toHaveAttribute(
+      'href',
+      '/custom-projects',
+    )
+    expect(
+      screen.getByText(/high-quality, custom 3d models built precisely/i, { hidden: true }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/product & game-ready models/i, { hidden: true })).toBeInTheDocument()
+    expect(screen.getByText(/clean & optimized topology/i, { hidden: true })).toBeInTheDocument()
+    expect(
+      screen.getByText(/powerful blender add-ons and tools/i, { hidden: true }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/custom blender add-ons/i, { hidden: true })).toBeInTheDocument()
+    expect(
+      screen.getByText(/realistic and stylized textures that bring/i, { hidden: true }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/pbr & stylized texturing/i, { hidden: true })).toBeInTheDocument()
+    expect(
+      screen.getByText(/high-quality renders with perfect lighting/i, { hidden: true }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/photorealistic renders/i, { hidden: true })).toBeInTheDocument()
+  })
+
   it('searches the 3D models route from the reference hero', async () => {
     const user = userEvent.setup()
     renderProductsBrowsePage()

@@ -2,26 +2,9 @@ import { Link } from 'react-router-dom'
 
 import { Button } from '../ui/Button'
 import type { CartItem } from '../../types/cart'
+import { formatMoney } from '../../lib/format'
 
 const MAX_QUANTITY = 99
-
-function formatPrice(amount: string | null, currency: string): string {
-  if (!amount) {
-    return '—'
-  }
-  const value = Number(amount)
-  if (Number.isNaN(value)) {
-    return `${currency} ${amount}`
-  }
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-    }).format(value)
-  } catch {
-    return `${currency} ${amount}`
-  }
-}
 
 function getDetailPath(item: CartItem): string | null {
   if (!item.catalog?.slug) {
@@ -110,7 +93,7 @@ export function CartLineItem({
         </h3>
 
         <p className="cart-line-item__price">
-          {formatPrice(item.unit_price, itemCurrency)} each
+          {formatMoney(item.unit_price, itemCurrency)} each
         </p>
 
         <div className="cart-line-item__footer">
@@ -142,7 +125,7 @@ export function CartLineItem({
           </div>
 
           <p className="cart-line-item__line-total">
-            {formatPrice(item.line_total, itemCurrency)}
+            {formatMoney(item.line_total, itemCurrency)}
           </p>
 
           <Button
@@ -162,5 +145,5 @@ export function CartLineItem({
 }
 
 export function formatCartPrice(amount: string, currency: string): string {
-  return formatPrice(amount, currency)
+  return formatMoney(amount, currency)
 }

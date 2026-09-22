@@ -19,20 +19,20 @@ afterEach(() => {
 
 describe('Toaster', () => {
   it('renders toast messages from the store', () => {
-    toast.success('Signed in')
+    toast.info('Profile saved')
     toast.error('Session expired')
 
     render(<Toaster />)
 
-    expect(screen.getByText('Signed in')).toBeInTheDocument()
+    expect(screen.getByText('Profile saved')).toBeInTheDocument()
     expect(screen.getByText('Session expired')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Signed in')
+    expect(screen.getByRole('status')).toHaveTextContent('Profile saved')
     expect(screen.getByRole('alert')).toHaveTextContent('Session expired')
   })
 
   it('dismisses a toast when the close button is clicked', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    toast.success('Signed out')
+    toast.info('Signed out')
 
     render(<Toaster />)
     expect(screen.getByText('Signed out')).toBeInTheDocument()
@@ -48,10 +48,10 @@ describe('Toaster', () => {
   })
 
   it('auto-dismisses toasts after their duration', async () => {
-    toast.success('Signed in', { duration: 1000 })
+    toast.info('Profile saved', { duration: 1000 })
 
     render(<Toaster />)
-    expect(screen.getByText('Signed in')).toBeInTheDocument()
+    expect(screen.getByText('Profile saved')).toBeInTheDocument()
 
     await act(async () => {
       vi.advanceTimersByTime(1000)
@@ -60,6 +60,6 @@ describe('Toaster', () => {
       vi.advanceTimersByTime(200)
     })
 
-    expect(screen.queryByText('Signed in')).not.toBeInTheDocument()
+    expect(screen.queryByText('Profile saved')).not.toBeInTheDocument()
   })
 })

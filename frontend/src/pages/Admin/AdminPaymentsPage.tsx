@@ -6,6 +6,7 @@ import { listAdminPayments } from '../../api/paymentsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Input } from '../../components/ui/Input'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
@@ -15,16 +16,7 @@ import {
   type PaymentStatus,
   type PaymentStatusFilter,
 } from '../../types/payment'
-
-function formatMoney(amount: string, currency: string): string {
-  return `${currency} ${amount}`
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+import { formatMoneyPlain, formatLocaleDateTime } from '../../lib/format'
 
 const STATUS_FILTER_OPTIONS: { value: PaymentStatusFilter | ''; label: string }[] = [
   { value: '', label: 'All statuses' },
@@ -78,7 +70,7 @@ export function AdminPaymentsPage() {
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="payments-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="payments-title">Payments</h1>
         <p className="home-page__subtitle">
           Review Stripe checkout payments, amounts, statuses, and linked orders.
@@ -178,14 +170,14 @@ export function AdminPaymentsPage() {
                 <tbody>
                   {results.map((payment) => (
                     <tr key={payment.id}>
-                      <td>{formatDate(payment.created_at)}</td>
+                      <td>{formatLocaleDateTime(payment.created_at)}</td>
                       <td>{payment.customer_email}</td>
                       <td>
                         <Link className="auth-link" to={`/console/orders/${payment.order_id}`}>
                           {payment.invoice_number}
                         </Link>
                       </td>
-                      <td>{formatMoney(payment.amount, payment.currency)}</td>
+                      <td>{formatMoneyPlain(payment.amount, payment.currency)}</td>
                       <td>
                         {PAYMENT_STATUS_LABELS[payment.status as PaymentStatus] ??
                           payment.status}
@@ -208,25 +200,12 @@ export function AdminPaymentsPage() {
                 </p>
               ) : null}
             </div>
-            <div className="dashboard-card__actions" aria-label="Payment pagination">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!paymentsQuery.data?.previous}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                Previous
-              </Button>
-              <span>Page {page}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!paymentsQuery.data?.next}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={Math.ceil((paymentsQuery.data?.count ?? 0) / 20)}
+              onPageChange={setPage}
+              ariaLabel="Payment pagination"
+            />
           </>
         )}
       </section>

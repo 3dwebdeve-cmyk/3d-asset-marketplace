@@ -5,21 +5,13 @@ import { getAdminPayment } from '../../api/paymentsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import {
   PAYMENT_STATUS_LABELS,
   type PaymentStatus,
 } from '../../types/payment'
-
-function formatMoney(amount: string, currency: string): string {
-  return `${currency} ${amount}`
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+import { formatMoneyPlain, formatLocaleDateTime } from '../../lib/format'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 export function AdminPaymentDetailPage() {
   const { paymentId = '' } = useParams()
@@ -36,6 +28,10 @@ export function AdminPaymentDetailPage() {
         <Spinner fullPage label="Loading payment..." />
       </main>
     )
+  }
+
+  if (!paymentId || isHttpNotFound(paymentQuery.error)) {
+    return <NotFoundPage />
   }
 
   if (paymentQuery.isError || !paymentQuery.data) {
@@ -75,7 +71,7 @@ export function AdminPaymentDetailPage() {
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="payment-detail-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="payment-detail-title">Payment {payment.id}</h1>
         <div className="dashboard-card__actions">
           <Link className="home-page__cta home-page__cta--secondary" to="/console/payments">
@@ -94,11 +90,11 @@ export function AdminPaymentDetailPage() {
         </p>
         <p className="home-page__subtitle">
           Status: {statusLabel} · Gateway: {payment.gateway} · Amount:{' '}
-          {formatMoney(payment.amount, payment.currency)}
+          {formatMoneyPlain(payment.amount, payment.currency)}
         </p>
         <p className="home-page__subtitle">
-          Created {formatDate(payment.created_at)} · Updated{' '}
-          {formatDate(payment.updated_at)}
+          Created {formatLocaleDateTime(payment.created_at)} · Updated{' '}
+          {formatLocaleDateTime(payment.updated_at)}
         </p>
 
         <section className="admin-media-section" aria-labelledby="payment-order-title">
@@ -107,7 +103,7 @@ export function AdminPaymentDetailPage() {
             Invoice {payment.order.invoice_number} · Order status:{' '}
             {payment.order.order_status} · Payment status:{' '}
             {payment.order.payment_status} · Total:{' '}
-            {formatMoney(payment.order.total_amount, payment.order.currency)}
+            {formatMoneyPlain(payment.order.total_amount, payment.order.currency)}
           </p>
         </section>
 

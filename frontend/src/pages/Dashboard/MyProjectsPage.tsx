@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { listCustomerCustomProjects } from '../../api/customProjectsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import {
@@ -63,6 +64,7 @@ export function MyProjectsPage() {
   const results = projectsQuery.data?.results ?? []
   const isTrulyEmpty =
     projectsQuery.isSuccess && (projectsQuery.data?.count ?? 0) === 0
+  const totalPages = Math.ceil((projectsQuery.data?.count ?? 0) / PAGE_SIZE)
 
   return (
     <main className="dashboard-page">
@@ -174,25 +176,12 @@ export function MyProjectsPage() {
                 </p>
               ) : null}
             </div>
-            <div className="dashboard-card__actions" aria-label="Project pagination">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!projectsQuery.data?.previous}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                Previous
-              </Button>
-              <span>Page {page}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!projectsQuery.data?.next}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              ariaLabel="Project pagination"
+            />
           </>
         )}
       </section>

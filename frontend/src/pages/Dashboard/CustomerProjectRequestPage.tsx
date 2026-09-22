@@ -197,9 +197,6 @@ export function CustomerProjectRequestPage() {
     <main className="dash-project-form" aria-labelledby="new-project-title">
       <div className="dash-project-form__top">
         <p className="dash-project-form__eyebrow">Customer Dashboard</p>
-        <Link className="dash-project-form__back" to="/dashboard/projects">
-          ← Back to My projects
-        </Link>
       </div>
 
       <h1 id="new-project-title" className="dash-project-form__title">

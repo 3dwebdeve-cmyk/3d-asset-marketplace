@@ -10,17 +10,13 @@ import {
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Input } from '../../components/ui/Input'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type { ReviewProductType } from '../../types/review'
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+import { formatLocaleDateTime } from '../../lib/format'
 
 function excerpt(text: string, max = 80): string {
   const trimmed = text.trim()
@@ -89,13 +85,11 @@ export function AdminReviewsPage() {
 
   const results = reviewsQuery.data?.results ?? []
   const count = reviewsQuery.data?.count ?? 0
-  const hasNext = Boolean(reviewsQuery.data?.next)
-  const hasPrevious = Boolean(reviewsQuery.data?.previous)
 
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="admin-reviews-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-reviews-title">Reviews</h1>
         <p className="home-page__subtitle">
           Moderate customer ratings. Hidden reviews are removed from public averages.
@@ -176,7 +170,7 @@ export function AdminReviewsPage() {
                         : `/console/plugins/${review.product_id}`
                     return (
                       <tr key={review.id}>
-                        <td>{formatDate(review.created_at)}</td>
+                        <td>{formatLocaleDateTime(review.created_at)}</td>
                         <td>
                           <div>{review.author.full_name}</div>
                           <div className="home-page__subtitle">{review.author_email}</div>
@@ -236,25 +230,12 @@ export function AdminReviewsPage() {
               </table>
             </div>
 
-            <div className="dashboard-card__actions">
-              <Button
-                variant="secondary"
-                disabled={!hasPrevious || page <= 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Previous
-              </Button>
-              <span className="home-page__subtitle">
-                Page {page} · {count} total
-              </span>
-              <Button
-                variant="secondary"
-                disabled={!hasNext}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={Math.ceil(count / 20)}
+              onPageChange={setPage}
+              ariaLabel="Review pagination"
+            />
           </>
         )}
       </section>

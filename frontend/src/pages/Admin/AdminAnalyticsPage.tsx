@@ -9,19 +9,7 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import type { AdminAnalyticsTopItem } from '../../types/analytics'
-
-function formatMoney(amount: string, currency: string): string {
-  const parsed = Number.parseFloat(amount)
-  if (Number.isNaN(parsed)) {
-    return `${currency} ${amount}`
-  }
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(parsed)
-}
+import { formatMoney } from '../../lib/format'
 
 function formatPeriod(period: string): string {
   const [year, month] = period.split('-')
@@ -119,7 +107,7 @@ export function AdminAnalyticsPage() {
         className="dashboard-card dashboard-card--wide admin-dashboard"
         aria-labelledby="analytics-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="analytics-title">Analytics</h1>
         <p className="home-page__subtitle">
           Order-based revenue, top catalog performers, and payment gateway totals.

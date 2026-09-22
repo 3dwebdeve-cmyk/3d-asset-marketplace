@@ -3,10 +3,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
+import { Pagination } from '../../components/ui/Pagination'
 import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { PluginOrdering } from '../../types/plugin'
 import { PluginCard } from './PluginCard'
+import '../../styles/plugins-browse.css'
+import '../../styles/products-browse.css'
+import '../../styles/products-browse.css'
 
 const PAGE_SIZE = 12
 
@@ -231,27 +235,11 @@ export function PluginsBrowsePage() {
                 ))}
               </div>
 
-              {totalPages > 1 ? (
-                <nav className="plugins-pagination" aria-label="Pagination Navigation">
-                  <Button
-                    variant="secondary"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <span className="plugins-pagination__info">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Next
-                  </Button>
-                </nav>
-              ) : null}
+              <Pagination
+                page={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
             </>
           )}
         </section>

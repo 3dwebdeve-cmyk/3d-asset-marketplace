@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form'
 
 import { loginUser } from '../../api/authApi'
 import { getApiErrorMessage } from '../../lib/apiError'
-import { toast } from '../../lib/toast'
 import { useAuthStore } from '../../store/authStore'
 import type { ApiErrorResponse, LoginResponse } from '../../types/auth'
 import { defaultLoginValues, loginSchema, type LoginFormValues } from './loginSchema'
@@ -49,8 +48,6 @@ export function useLoginForm(): UseLoginFormResult {
       if (data.user.role === 'Administrator') {
         queryClient.setQueryData(['auth', 'admin', 'me', data.access], data.user)
       }
-      const firstName = data.user.full_name?.split(' ')[0]
-      toast.success(firstName ? `Signed in. Welcome back, ${firstName}!` : 'Signed in')
     },
   })
 

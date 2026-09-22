@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { ScrollToTop } from './components/ScrollToTop'
 import { Navbar } from './components/Navbar'
 import { SiteBenefitsBanner } from './components/SiteBenefitsBanner'
 import { SiteFooter } from './components/SiteFooter'
@@ -17,6 +18,7 @@ import {
 } from './config/adminPaths'
 import { isDashboardChromePath } from './config/dashboardNav'
 import { useSessionBootstrap } from './hooks/useSessionBootstrap'
+import { useNotFoundChrome, NotFoundChromeProvider } from './hooks/useNotFoundChrome'
 import { DashboardLayout } from './layouts/DashboardLayout'
 import { LoginPage } from './pages/Login/LoginPage'
 import { RegisterPage } from './pages/Register/RegisterPage'
@@ -24,22 +26,10 @@ import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
 import { AdminRoute } from './routes/AdminRoute'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import './styles/auth.css'
-import './styles/admin-layout.css'
-import './styles/dashboard-layout.css'
-import './styles/dashboard-list.css'
-import './styles/dashboard-home.css'
-import './styles/dashboard-project-form.css'
-import './styles/dashboard-profile.css'
 import './styles/navbar.css'
-import './styles/home.css'
-import './styles/products-browse.css'
-import './styles/plugins-browse.css'
-import './styles/product-details.css'
-import './styles/product-hub-details.css'
 import './styles/cart.css'
-import './styles/marketing.css'
-import './styles/about.css'
 import './styles/responsive.css'
+import './styles/marketing.css'
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
@@ -313,9 +303,9 @@ const CustomProjectsLandingPage = lazy(() =>
   })),
 )
 
-const HomePage = lazy(() =>
-  import('./pages/Home/HomePage').then((module) => ({
-    default: module.HomePage,
+const NotFoundPage = lazy(() =>
+  import('./pages/NotFound/NotFoundPage').then((module) => ({
+    default: module.NotFoundPage,
   })),
 )
 
@@ -328,24 +318,28 @@ function LegacyAdminRedirect() {
 
 function AppRoutes() {
   const location = useLocation()
+  const { isNotFound } = useNotFoundChrome()
   const isAdminConsole =
     isAdminSpaPath(location.pathname) && !isAdminLoginPath(location.pathname)
   // Every customer/marketplace page keeps the site Navbar (including dashboard).
-  const hideNavbar = isAdminConsole
-  // Benefits banner stays off dashboard chrome; SiteFooter is universal on all
-  // customer-facing pages (admin console keeps its own layout without marketing chrome).
-  const hideBenefitsBanner = isAdminConsole || isDashboardChromePath(location.pathname)
-  const hideSiteFooter = isAdminConsole
+  // 404 is a standalone full-viewport screen with no site chrome.
+  const hideNavbar = isAdminConsole || isNotFound
+  // SiteFooter + benefits banner on all customer-facing pages (admin console keeps
+  // its own layout without marketing chrome).
+  const hideBenefitsBanner = isAdminConsole || isNotFound
+  const hideSiteFooter = isAdminConsole || isNotFound
+  const isDashboardChrome = isDashboardChromePath(location.pathname) && !isNotFound
 
   return (
     <>
+      <ScrollToTop />
       {!hideNavbar ? <Navbar /> : null}
-      <CartDrawer />
-      <AuthModal />
-      <div className="app-shell">
+      {!isNotFound ? <CartDrawer /> : null}
+      {!isNotFound ? <AuthModal /> : null}
+      <div className={`app-shell${isDashboardChrome ? ' app-shell--dashboard' : ''}`}>
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/home" element={<ProductsBrowsePage />} />
             <Route path="/Home" element={<Navigate to="/home" replace />} />
             <Route path="/about" element={<AboutPage />} />
@@ -456,6 +450,7 @@ function AppRoutes() {
               <Route path={`${ADMIN_BASE}/users`} element={<AdminUsersPage />} />
               <Route path={`${ADMIN_BASE}/users/:userId`} element={<AdminUserDetailPage />} />
             </Route>
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </div>
@@ -474,9 +469,11 @@ function App() {
 
   return (
     <BrowserRouter>
-      <ErrorBoundary>
-        <AppRoutes />
-      </ErrorBoundary>
+      <NotFoundChromeProvider>
+        <ErrorBoundary>
+          <AppRoutes />
+        </ErrorBoundary>
+      </NotFoundChromeProvider>
     </BrowserRouter>
   )
 }

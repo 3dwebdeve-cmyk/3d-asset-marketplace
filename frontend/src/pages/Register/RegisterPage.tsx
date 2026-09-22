@@ -31,5 +31,5 @@ export function RegisterPage() {
     return <Navigate to={redirectFrom ?? '/dashboard'} replace />
   }
 
-  return <Navigate to="/" replace />
+  return <Navigate to="/home" replace />
 }

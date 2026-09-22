@@ -10,7 +10,7 @@ import {
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { rememberCheckoutOrderId } from '../../lib/checkoutReturn'
 import { toast } from '../../lib/toast'
 import { StatusBadge } from '../../components/ui/StatusBadge'
@@ -23,6 +23,8 @@ import {
 import { CustomerProjectDeliveriesSection } from './CustomerProjectDeliveriesSection'
 import { CustomerProjectMessagesSection } from './CustomerProjectMessagesSection'
 import { CustomerProjectReferenceFilesSection } from './CustomerProjectReferenceFilesSection'
+import { formatMoneyPlain, formatDate } from '../../lib/format'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 const PAYMENT_STATUS_LABELS: Record<CustomProjectPaymentStatus, string> = {
   unpaid: 'Unpaid',
@@ -37,26 +39,10 @@ const QUOTATION_STATUS_LABELS: Record<ProjectQuotationStatus, string> = {
   rejected: 'Rejected',
 }
 
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
-}
-
-function formatMoney(amount: string | null, currency: string): string {
-  if (!amount) return '—'
-  return `${currency} ${amount}`
-}
-
 function isNotFoundOrForbidden(error: unknown): boolean {
+  if (isHttpNotFound(error)) return true
   if (!isAxiosError(error)) return false
-  const status = error.response?.status
-  return status === 404 || status === 403
+  return error.response?.status === 403
 }
 
 function ProjectSummary({ project }: { project: CustomerCustomProject }) {
@@ -78,7 +64,7 @@ function ProjectSummary({ project }: { project: CustomerCustomProject }) {
       </p>
       <p>
         <strong>Budget:</strong>{' '}
-        {formatMoney(project.estimated_budget, project.currency)}
+        {formatMoneyPlain(project.estimated_budget, project.currency)}
       </p>
       <p>
         <strong>Deadline:</strong> {formatDate(project.deadline)}
@@ -133,7 +119,7 @@ function QuotationBlock({
         <div className="dashboard-card__details">
           <p>
             <strong>Amount:</strong>{' '}
-            {formatMoney(quotation.amount, quotation.currency)}
+            {formatMoneyPlain(quotation.amount, quotation.currency)}
           </p>
           <p>
             <strong>Status:</strong> {QUOTATION_STATUS_LABELS[quotation.status]}
@@ -229,6 +215,10 @@ export function CustomerProjectDetailPage() {
     </div>
   )
 
+  if (!projectId || isNotFoundOrForbidden(projectQuery.error)) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="dashboard-page">
       <section
@@ -238,40 +228,28 @@ export function CustomerProjectDetailPage() {
         <p className="home-page__eyebrow">Customer Dashboard</p>
         {backLink}
 
-        {!projectId ? (
-          <ErrorState
-            title="Project not found"
-            description="This project could not be found or you do not have access to it."
-          />
-        ) : projectQuery.isLoading ? (
+        {projectQuery.isLoading ? (
           <>
             <h1 id="project-detail-title">Project details</h1>
             <Spinner label="Loading project..." />
           </>
         ) : projectQuery.isError ? (
-          isNotFoundOrForbidden(projectQuery.error) ? (
-            <ErrorState
-              title="Project not found"
-              description="This project could not be found or you do not have access to it."
-            />
-          ) : (
-            <ErrorState
-              title="Could not load project"
-              description={getApiErrorMessage(
-                projectQuery.error,
-                'This project could not be loaded. Please try again.',
-              )}
-              action={
-                <Button
-                  variant="secondary"
-                  isLoading={projectQuery.isFetching}
-                  onClick={() => projectQuery.refetch()}
-                >
-                  Retry
-                </Button>
-              }
-            />
-          )
+          <ErrorState
+            title="Could not load project"
+            description={getApiErrorMessage(
+              projectQuery.error,
+              'This project could not be loaded. Please try again.',
+            )}
+            action={
+              <Button
+                variant="secondary"
+                isLoading={projectQuery.isFetching}
+                onClick={() => projectQuery.refetch()}
+              >
+                Retry
+              </Button>
+            }
+          />
         ) : projectQuery.data ? (
           <>
             <h1 id="project-detail-title">{projectQuery.data.title}</h1>

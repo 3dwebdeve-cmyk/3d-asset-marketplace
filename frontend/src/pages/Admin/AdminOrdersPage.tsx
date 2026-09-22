@@ -15,6 +15,7 @@ import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
@@ -30,6 +31,7 @@ import {
   ORDER_PAYMENT_STATUS_LABELS,
   ORDER_STATUS_LABELS,
 } from '../../types/order'
+import { formatMoneyPlain, formatLocaleDateTime } from '../../lib/format'
 
 interface CreateLineItemDraft {
   key: string
@@ -73,16 +75,6 @@ function validateCreate(
     seen.add(key)
   }
   return null
-}
-
-function formatMoney(amount: string, currency: string): string {
-  return `${currency} ${amount}`
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
 }
 
 export function AdminOrdersPage() {
@@ -176,7 +168,7 @@ export function AdminOrdersPage() {
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="orders-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="orders-title">Orders</h1>
         <p className="home-page__subtitle">
           Review marketplace orders, inspect line items, and create manual orders.
@@ -429,11 +421,11 @@ export function AdminOrdersPage() {
                         <div>{order.customer.full_name}</div>
                         <div className="home-page__subtitle">{order.customer.email}</div>
                       </td>
-                      <td>{formatMoney(order.total_amount, order.currency)}</td>
+                      <td>{formatMoneyPlain(order.total_amount, order.currency)}</td>
                       <td>{ORDER_STATUS_LABELS[order.order_status]}</td>
                       <td>{ORDER_PAYMENT_STATUS_LABELS[order.payment_status]}</td>
                       <td>{order.item_count}</td>
-                      <td>{formatDate(order.created_at)}</td>
+                      <td>{formatLocaleDateTime(order.created_at)}</td>
                       <td>
                         <Link className="auth-link" to={`/console/orders/${order.id}`}>
                           Manage
@@ -447,25 +439,12 @@ export function AdminOrdersPage() {
                 <p className="home-page__subtitle">No orders match your filters.</p>
               ) : null}
             </div>
-            <div className="dashboard-card__actions" aria-label="Order pagination">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!ordersQuery.data?.previous}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                Previous
-              </Button>
-              <span>Page {page}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!ordersQuery.data?.next}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={Math.ceil((ordersQuery.data?.count ?? 0) / 20)}
+              onPageChange={setPage}
+              ariaLabel="Order pagination"
+            />
           </>
         )}
       </section>

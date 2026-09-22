@@ -11,7 +11,7 @@ import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import {
   ALLOWED_ORDER_STATUS_TRANSITIONS,
@@ -22,16 +22,8 @@ import {
   type OrderPaymentStatus,
   type OrderStatus,
 } from '../../types/order'
-
-function formatMoney(amount: string, currency: string): string {
-  return `${currency} ${amount}`
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+import { formatMoneyPlain, formatLocaleDateTime } from '../../lib/format'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 function statusActionLabel(
   field: 'order_status' | 'payment_status',
@@ -90,6 +82,10 @@ export function AdminOrderDetailPage() {
     )
   }
 
+  if (!orderId || isHttpNotFound(orderQuery.error)) {
+    return <NotFoundPage />
+  }
+
   if (orderQuery.isError || !orderQuery.data) {
     return (
       <main className="dashboard-page">
@@ -123,7 +119,7 @@ export function AdminOrderDetailPage() {
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="order-detail-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="order-detail-title">{order.invoice_number}</h1>
         <div className="dashboard-card__actions">
           <Link className="home-page__cta home-page__cta--secondary" to="/console/orders">
@@ -160,11 +156,11 @@ export function AdminOrderDetailPage() {
         <p className="home-page__subtitle">
           Order: {ORDER_STATUS_LABELS[order.order_status]} · Payment:{' '}
           {ORDER_PAYMENT_STATUS_LABELS[order.payment_status]} · Total:{' '}
-          {formatMoney(order.total_amount, order.currency)} · Items total:{' '}
-          {formatMoney(order.items_total, order.currency)}
+          {formatMoneyPlain(order.total_amount, order.currency)} · Items total:{' '}
+          {formatMoneyPlain(order.items_total, order.currency)}
         </p>
         <p className="home-page__subtitle">
-          Created {formatDate(order.created_at)} · Updated {formatDate(order.updated_at)}
+          Created {formatLocaleDateTime(order.created_at)} · Updated {formatLocaleDateTime(order.updated_at)}
         </p>
 
         {orderTransitions.length > 0 || paymentTransitions.length > 0 ? (
@@ -224,8 +220,8 @@ export function AdminOrderDetailPage() {
                     <td>{item.slug ?? '—'}</td>
                     <td>{item.product_id}</td>
                     <td>{item.quantity}</td>
-                    <td>{formatMoney(item.purchase_price, order.currency)}</td>
-                    <td>{formatMoney(item.line_total, order.currency)}</td>
+                    <td>{formatMoneyPlain(item.purchase_price, order.currency)}</td>
+                    <td>{formatMoneyPlain(item.line_total, order.currency)}</td>
                   </tr>
                 ))}
               </tbody>

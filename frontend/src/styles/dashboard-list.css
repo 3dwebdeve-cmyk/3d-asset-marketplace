@@ -1,12 +1,12 @@
 /* Customer dashboard list pages — matches the My Downloads / orders mock */
 
 .dash-list-page {
-  --dash-list-ink: #1a1a1a;
-  --dash-list-muted: #6c757d;
-  --dash-list-line: #dee2e6;
-  --dash-list-bg: #f8f9fa;
+  --dash-list-ink: var(--text-main);
+  --dash-list-muted: var(--text-secondary);
+  --dash-list-line: var(--border);
+  --dash-list-bg: #ffffff;
   --dash-list-card: #ffffff;
-  --dash-list-link: #0066ef;
+  --dash-list-link: var(--action-color);
   --dash-list-font: 'Inter', 'Segoe UI', system-ui, sans-serif;
 
   box-sizing: border-box;
@@ -68,7 +68,7 @@
 }
 
 .dash-list-page__btn:hover {
-  background: #f1f3f5;
+  background: var(--bg-primary);
   color: var(--dash-list-ink);
 }
 
@@ -84,8 +84,8 @@
 }
 
 .dash-list-page__btn--primary:hover {
-  background: #0058d6;
-  border-color: #0058d6;
+  background: var(--action-color);
+  border-color: var(--action-color);
   color: #ffffff;
 }
 
@@ -162,7 +162,7 @@
 .dash-list-page__table th,
 .dash-list-page__table td {
   padding: 0.65rem 0.55rem;
-  border-bottom: 1px solid #eef0f2;
+  border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
   color: var(--dash-list-ink);
@@ -173,7 +173,7 @@
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.01em;
-  color: #343a40;
+  color: var(--text-main);
   white-space: nowrap;
 }
 

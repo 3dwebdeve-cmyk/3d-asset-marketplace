@@ -3,31 +3,21 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { listWishlistItems, removeWishlistItem } from '../../api/wishlistApi'
+import { AddToCartButton } from '../../components/cart/AddToCartButton'
+import { RatingDisplay } from '../../components/reviews/RatingDisplay'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { formatMoney } from '../../lib/format'
 import { toast } from '../../lib/toast'
 import type { WishlistItem, WishlistProductType } from '../../types/wishlist'
+import '../../styles/products-browse.css'
 
 const PAGE_SIZE = 20
 
 type WishlistFilter = 'all' | WishlistProductType
-
-function formatPrice(price: string, currency: string): string {
-  const value = Number(price)
-  if (Number.isNaN(value)) {
-    return `${currency} ${price}`
-  }
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-    }).format(value)
-  } catch {
-    return `${currency} ${price}`
-  }
-}
 
 function getDetailPath(item: WishlistItem): string | null {
   if (!item.catalog?.slug) {
@@ -36,6 +26,53 @@ function getDetailPath(item: WishlistItem): string | null {
   return item.product_type === 'product'
     ? `/products/${item.catalog.slug}`
     : `/plugins/${item.catalog.slug}`
+}
+
+function getBadgeLabel(item: WishlistItem): string {
+  const categoryName = item.catalog?.category.name?.trim()
+  if (categoryName) {
+    return categoryName.toUpperCase()
+  }
+  return item.product_type === 'plugin' ? 'PLUGIN' : '3D MODEL'
+}
+
+function getSpecs(item: WishlistItem): string {
+  const catalog = item.catalog
+  if (!catalog) {
+    return ''
+  }
+
+  if (item.product_type === 'plugin') {
+    const parts: string[] = []
+    if (catalog.compatibility?.trim()) {
+      parts.push(
+        ...catalog.compatibility
+          .split(/[,|/]/)
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .slice(0, 2),
+      )
+    }
+    if (catalog.version?.trim()) {
+      parts.push(`v${catalog.version.trim()}`)
+    }
+    if (parts.length === 0 && catalog.license_type) {
+      parts.push(formatLicense(catalog.license_type))
+    }
+    return parts.join(' • ')
+  }
+
+  return formatLicense(catalog.license_type)
+}
+
+function formatLicense(licenseType: string): string {
+  if (!licenseType) {
+    return ''
+  }
+  return licenseType
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function WishlistItemCard({
@@ -49,17 +86,40 @@ function WishlistItemCard({
 }) {
   const catalog = item.catalog
   const detailPath = getDetailPath(item)
+  const isAvailable = Boolean(catalog?.is_available)
   const typeLabel = item.product_type === 'product' ? 'Product' : 'Plugin'
+  const badgeLabel = getBadgeLabel(item)
+  const specs = getSpecs(item)
+  const displayName = catalog?.name ?? 'Unavailable item'
+
+  const hasDiscount = Boolean(
+    catalog?.discount_price && Number(catalog.discount_price) < Number(catalog.price),
+  )
 
   return (
     <article
       className={`product-card wishlist-card ${catalog && !catalog.is_available ? 'wishlist-card--unavailable' : ''}`}
     >
       <div className="product-card__media">
-        {catalog?.thumbnail ? (
+        {detailPath ? (
+          <Link to={detailPath} className="product-card__media-link" tabIndex={-1}>
+            {catalog?.thumbnail ? (
+              <img
+                src={catalog.thumbnail}
+                alt=""
+                className="product-card__image"
+                loading="lazy"
+              />
+            ) : (
+              <div className="product-card__image-placeholder" aria-hidden="true">
+                <span className="product-card__placeholder-text">{typeLabel}</span>
+              </div>
+            )}
+          </Link>
+        ) : catalog?.thumbnail ? (
           <img
             src={catalog.thumbnail}
-            alt={catalog.name}
+            alt=""
             className="product-card__image"
             loading="lazy"
           />
@@ -68,49 +128,63 @@ function WishlistItemCard({
             <span className="product-card__placeholder-text">{typeLabel}</span>
           </div>
         )}
-        <span className="product-card__badge-license">{typeLabel}</span>
+
+        <span
+          className={`wishlist-card__badge ${item.product_type === 'plugin' ? 'wishlist-card__badge--plugin' : ''}`}
+        >
+          {badgeLabel}
+        </span>
+
+        <button
+          type="button"
+          className="product-card__wishlist product-card__wishlist--active wishlist-card__heart"
+          aria-label={`Remove ${displayName} from wishlist`}
+          aria-pressed="true"
+          disabled={isRemoving}
+          onClick={() => onRemove(item.id)}
+        >
+          <span className="product-card__wishlist-icon" aria-hidden="true">
+            ♥
+          </span>
+        </button>
+
         {catalog && !catalog.is_available ? (
           <span className="wishlist-card__unavailable-badge">No longer available</span>
         ) : null}
       </div>
 
-      <div className="product-card__body">
-        <div className="product-card__meta">
-          <span className="product-card__category">
-            {catalog?.category.name ?? 'Unavailable'}
-          </span>
+      <div className="product-card__body wishlist-card__body">
+        <div className="wishlist-card__meta">
+          <RatingDisplay
+            averageRating={catalog?.average_rating ?? 0}
+            className="wishlist-card__rating"
+          />
+          {specs ? <span className="wishlist-card__specs">{specs}</span> : null}
         </div>
 
-        <h3 className="product-card__title">
+        <h3 className="product-card__title wishlist-card__title">
           {detailPath ? (
             <Link to={detailPath} className="product-card__title-link">
-              {catalog?.name ?? 'Unavailable item'}
+              {displayName}
             </Link>
           ) : (
-            <span>{catalog?.name ?? 'Unavailable item'}</span>
+            <span>{displayName}</span>
           )}
         </h3>
 
-        {catalog?.short_description ? (
-          <p className="product-card__description">{catalog.short_description}</p>
-        ) : null}
-
-        <div className="product-card__footer">
+        <div className="wishlist-card__footer">
           <div className="product-card__price-container">
             {catalog ? (
               <>
                 <span className="product-card__price">
-                  {formatPrice(
-                    catalog.discount_price && Number(catalog.discount_price) < Number(catalog.price)
-                      ? catalog.discount_price
-                      : catalog.price,
+                  {formatMoney(
+                    hasDiscount ? catalog.discount_price : catalog.price,
                     catalog.currency,
                   )}
                 </span>
-                {catalog.discount_price &&
-                Number(catalog.discount_price) < Number(catalog.price) ? (
+                {hasDiscount ? (
                   <span className="product-card__price product-card__price--original">
-                    {formatPrice(catalog.price, catalog.currency)}
+                    {formatMoney(catalog.price, catalog.currency)}
                   </span>
                 ) : null}
               </>
@@ -119,21 +193,14 @@ function WishlistItemCard({
             )}
           </div>
 
-          <div className="wishlist-card__actions">
-            {detailPath ? (
-              <Link to={detailPath} className="product-card__cta">
-                View details
-              </Link>
-            ) : null}
-            <Button
-              type="button"
-              variant="secondary"
-              isLoading={isRemoving}
-              onClick={() => onRemove(item.id)}
-            >
-              Remove
-            </Button>
-          </div>
+          {isAvailable && catalog ? (
+            <AddToCartButton
+              productType={item.product_type}
+              productId={item.product_id}
+              productName={catalog.name}
+              variant="marketplace"
+            />
+          ) : null}
         </div>
       </div>
     </article>
@@ -202,9 +269,9 @@ export function WishlistPage() {
   ]
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page wishlist-page">
       <section
-        className="dashboard-card dashboard-card--wide"
+        className="dashboard-card dashboard-card--wide wishlist-page__panel"
         aria-labelledby="wishlist-title"
       >
         <p className="home-page__eyebrow">Customer Dashboard</p>
@@ -212,15 +279,6 @@ export function WishlistPage() {
         <p className="home-page__subtitle">
           Products and plugins you saved for later.
         </p>
-
-        <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/">
-            Browse models
-          </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
-            Browse plugins
-          </Link>
-        </div>
 
         <div className="wishlist-filters" role="tablist" aria-label="Wishlist filters">
           {filterButtons.map((button) => (
@@ -254,19 +312,9 @@ export function WishlistPage() {
             }
           />
         ) : isTrulyEmpty ? (
-          <div>
-            <p className="home-page__subtitle" role="status">
-              Your wishlist is empty. Browse the marketplace to save items for later.
-            </p>
-            <div className="dashboard-card__actions">
-              <Link className="home-page__cta" to="/">
-                Browse models
-              </Link>
-              <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
-                Browse plugins
-              </Link>
-            </div>
-          </div>
+          <p className="home-page__subtitle" role="status">
+            Your wishlist is empty. Browse the marketplace to save items for later.
+          </p>
         ) : results.length === 0 ? (
           <p className="home-page__subtitle" role="status">
             No {filter === 'all' ? 'items' : filter === 'product' ? 'products' : 'plugins'} on
@@ -284,25 +332,12 @@ export function WishlistPage() {
                 />
               ))}
             </div>
-            <div className="dashboard-card__actions" aria-label="Wishlist pagination">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!wishlistQuery.data?.previous}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                Previous
-              </Button>
-              <span>Page {page}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!wishlistQuery.data?.next}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={Math.ceil((wishlistQuery.data?.count ?? 0) / PAGE_SIZE)}
+              onPageChange={setPage}
+              ariaLabel="Wishlist pagination"
+            />
           </>
         )}
       </section>

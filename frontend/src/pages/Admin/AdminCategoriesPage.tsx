@@ -88,7 +88,7 @@ export function AdminCategoriesPage() {
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="admin-categories-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-categories-title">Categories</h1>
         <p className="home-page__subtitle">
           Organize marketplace products into browsable categories.

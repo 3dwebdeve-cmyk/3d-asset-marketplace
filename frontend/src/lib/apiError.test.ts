@@ -1,7 +1,7 @@
 import { AxiosError } from 'axios'
 import { describe, expect, it } from 'vitest'
 
-import { getApiErrorMessage } from './apiError'
+import { getApiErrorMessage, isHttpNotFound } from './apiError'
 import type { ApiErrorResponse } from '../types/auth'
 
 function axiosError(
@@ -67,5 +67,17 @@ describe('getApiErrorMessage', () => {
     expect(getApiErrorMessage(error, 'fallback')).toBe(
       'SKU is required before publish. At least one sellable package file is required before publish.',
     )
+  })
+})
+
+describe('isHttpNotFound', () => {
+  it('returns true for axios 404 responses', () => {
+    expect(isHttpNotFound(axiosError(404, { detail: 'Not found.' }))).toBe(true)
+  })
+
+  it('returns false for other statuses and non-axios errors', () => {
+    expect(isHttpNotFound(axiosError(500, { detail: 'Server error.' }))).toBe(false)
+    expect(isHttpNotFound(new Error('network down'))).toBe(false)
+    expect(isHttpNotFound(undefined)).toBe(false)
   })
 })

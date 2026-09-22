@@ -1,4 +1,3 @@
-import { isAxiosError } from 'axios'
 import { useQuery } from '@tanstack/react-query'
 import { useLayoutEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -15,31 +14,19 @@ import {
   buildProductPageTitle,
   useDocumentSeo,
 } from '../../hooks/useDocumentSeo'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
+import { formatMoney } from '../../lib/format'
+import { discountPercent } from '../../lib/pricing'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { ProductLicenseType, PublicProductDetail } from '../../types/product'
 import { ProductCard } from './ProductCard'
 import { ProductCtaGroup } from './ProductCtaGroup'
 import { ProductImageGallery } from './ProductImageGallery'
 import { ProductSpecs } from './ProductSpecs'
+import '../../styles/product-details.css'
+import '../../styles/product-hub-details.css'
 
 const RELATED_PAGE_SIZE = 5
-
-function formatMoney(amount: string, currency: string): string {
-  const value = Number(amount)
-  if (Number.isNaN(value)) {
-    return amount
-  }
-
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-      maximumFractionDigits: 2,
-    }).format(value)
-  } catch {
-    return `${currency} ${value.toFixed(2)}`
-  }
-}
 
 function licenseLabel(license: ProductLicenseType): string {
   switch (license) {
@@ -52,33 +39,9 @@ function licenseLabel(license: ProductLicenseType): string {
   }
 }
 
-function discountPercent(price: string, discountPrice: string): number | null {
-  const original = Number(price)
-  const discounted = Number(discountPrice)
-  if (
-    Number.isNaN(original) ||
-    Number.isNaN(discounted) ||
-    original <= 0 ||
-    discounted >= original
-  ) {
-    return null
-  }
-  return Math.round(((original - discounted) / original) * 100)
-}
-
 function useScrollProductPageToTop(resetKey: string): void {
   useLayoutEffect(() => {
-    const historyObj = window.history
-    const previousRestoration = historyObj.scrollRestoration
-    if (previousRestoration !== undefined) {
-      historyObj.scrollRestoration = 'manual'
-    }
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-    return () => {
-      if (previousRestoration !== undefined) {
-        historyObj.scrollRestoration = previousRestoration
-      }
-    }
   }, [resetKey])
 }
 
@@ -136,8 +99,6 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
               variant="detail"
               className=""
             />
-            <span aria-hidden="true"> · </span>
-            <span>{product.total_downloads.toLocaleString()} downloads</span>
           </div>
         </div>
         <Link to="/3d-models" className="product-hub-detail__close">
@@ -301,9 +262,7 @@ export function ProductDetailsPage() {
 
   useScrollProductPageToTop(`${trimmedSlug}:${productQuery.data?.id ?? 'pending'}`)
 
-  const isNotFound =
-    !trimmedSlug ||
-    (isAxiosError(productQuery.error) && productQuery.error.response?.status === 404)
+  const isNotFound = !trimmedSlug || isHttpNotFound(productQuery.error)
 
   useDocumentSeo({
     title: isNotFound
@@ -321,19 +280,13 @@ export function ProductDetailsPage() {
         : 'Loading product details from the marketplace catalog.',
   })
 
+  if (isNotFound) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="product-detail-page product-hub-detail">
-      {!trimmedSlug || isNotFound ? (
-        <EmptyState
-          title="Product not found"
-          description="This product is unavailable, unpublished, or the link may be incorrect."
-          action={
-            <Link to="/3d-models" className="ui-button ui-button--primary">
-              Back to products
-            </Link>
-          }
-        />
-      ) : productQuery.isLoading ? (
+      {productQuery.isLoading ? (
         <ProductDetailSkeleton />
       ) : productQuery.isError || !productQuery.data ? (
         <ErrorState

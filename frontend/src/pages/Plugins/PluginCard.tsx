@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { RatingDisplay } from '../../components/reviews/RatingDisplay'
-import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import type { PublicPlugin } from '../../types/plugin'
 
 interface PluginCardProps {
@@ -16,98 +14,69 @@ export function PluginCard({ plugin }: PluginCardProps) {
     plugin.discount_price && Number(plugin.discount_price) < Number(plugin.price),
   )
 
-  const formattedPrice = `$${Number(plugin.price).toFixed(2)}`
-  const formattedDiscount = plugin.discount_price
-    ? `$${Number(plugin.discount_price).toFixed(2)}`
-    : null
+  const displayPrice = hasDiscount
+    ? Number(plugin.discount_price)
+    : Number(plugin.price)
+  const formattedPrice = `$${displayPrice.toFixed(2)}`
+  const formattedOriginal = `$${Number(plugin.price).toFixed(2)}`
+  const categoryLabel = plugin.category?.name?.trim() ?? ''
+  const detailPath = `/plugins/${plugin.slug}`
 
   return (
-    <article className="product-card">
+    <article className="product-card product-card--marketplace">
       <div className="product-card__media">
-        {plugin.thumbnail && !imgError ? (
-          <img
-            src={plugin.thumbnail}
-            alt={plugin.name}
-            className="product-card__image"
-            onError={() => setImgError(true)}
-            loading="lazy"
-          />
-        ) : (
-          <div className="product-card__image-placeholder" aria-hidden="true">
-            <svg
-              className="product-card__placeholder-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-            <span className="product-card__placeholder-text">Plugin</span>
-          </div>
-        )}
+        <Link to={detailPath} className="product-card__media-link" tabIndex={-1}>
+          {plugin.thumbnail && !imgError ? (
+            <img
+              src={plugin.thumbnail}
+              alt=""
+              className="product-card__image"
+              onError={() => setImgError(true)}
+              loading="lazy"
+            />
+          ) : (
+            <div className="product-card__image-placeholder" aria-hidden="true">
+              <svg
+                className="product-card__placeholder-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              <span className="product-card__placeholder-text">Plugin</span>
+            </div>
+          )}
+        </Link>
 
-        {hasDiscount && <span className="product-card__badge-discount">Sale</span>}
-        <span className="product-card__badge-license">{plugin.license_type}</span>
-        <WishlistToggle
-          productType="plugin"
-          productId={plugin.id}
-          productName={plugin.name}
-          variant="icon"
-        />
+        {categoryLabel ? (
+          <span className="product-card__badge-category">{categoryLabel}</span>
+        ) : null}
+
+        {hasDiscount ? <span className="product-card__badge-discount">Sale</span> : null}
       </div>
 
       <div className="product-card__body">
-        <div className="product-card__meta">
-          <span className="product-card__category">{plugin.category.name}</span>
-          <RatingDisplay
-            averageRating={plugin.average_rating}
-            reviewCount={plugin.review_count}
-          />
-        </div>
-
         <h3 className="product-card__title">
-          <Link to={`/plugins/${plugin.slug}`} className="product-card__title-link">
+          <Link to={detailPath} className="product-card__title-link">
             {plugin.name}
           </Link>
         </h3>
 
-        {plugin.short_description ? (
-          <p className="product-card__description">{plugin.short_description}</p>
-        ) : null}
-
-        {plugin.compatibility ? (
-          <p className="product-card__description product-card__compat">
-            Works with: {plugin.compatibility}
-          </p>
-        ) : null}
-
-        <div className="product-card__footer">
-          <div className="product-card__price-container">
-            {hasDiscount ? (
-              <>
-                <span className="product-card__price product-card__price--discounted">
-                  {formattedDiscount}
-                </span>
-                <span className="product-card__price product-card__price--original">
-                  {formattedPrice}
-                </span>
-              </>
-            ) : (
+        <div className="product-card__price-container">
+          {hasDiscount ? (
+            <>
               <span className="product-card__price">{formattedPrice}</span>
-            )}
-            <span className="product-card__currency">{plugin.currency}</span>
-          </div>
-
-          <Link
-            to={`/plugins/${plugin.slug}`}
-            className="product-card__cta"
-            aria-label={`View details for ${plugin.name}`}
-          >
-            View Details
-          </Link>
+              <span className="product-card__price product-card__price--original">
+                {formattedOriginal}
+              </span>
+            </>
+          ) : (
+            <span className="product-card__price">{formattedPrice}</span>
+          )}
         </div>
       </div>
     </article>

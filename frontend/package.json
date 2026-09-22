@@ -17,12 +17,10 @@
     "@sentry/react": "^10.75.0",
     "@tanstack/react-query": "^5.101.2",
     "axios": "^1.18.1",
-    "framer-motion": "^12.42.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.81.0",
     "react-router-dom": "^7.18.1",
-    "tailwindcss": "^4.3.2",
     "three": "^0.185.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"

@@ -292,7 +292,7 @@ function ModelViewerCanvas({
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping
-          gl.toneMappingExposure = 1.18
+          gl.toneMappingExposure = 1.06
         }}
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}

@@ -7,7 +7,6 @@ import { logoutUser } from '../api/authApi'
 import { getCart } from '../api/cartApi'
 import { listPublicCategories } from '../api/categoriesApi'
 import { listPublicPluginCategories } from '../api/pluginsApi'
-import { listWishlistItems } from '../api/wishlistApi'
 import { AuthEntryButton } from './auth/AuthEntryButton'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { isAdministrator } from '../lib/roles'
@@ -31,7 +30,8 @@ export function Navbar() {
 
   const currentPath = location.pathname.toLowerCase()
   const isPluginsRoute = currentPath.startsWith('/plugins')
-  // Landing (/) and marketplace home hub (/home) use the branded overlay nav.
+  // `/` redirects to the marketplace home hub. Keep the branded nav on both
+  // so the header does not flash the inner-page style before the redirect.
   const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
   const isHomeHub = currentPath === '/home'
   const [categoryId, setCategoryId] = useState('')
@@ -137,13 +137,6 @@ export function Navbar() {
     ? pluginCategoriesQuery.isError
     : productCategoriesQuery.isError
 
-  const wishlistCountQuery = useQuery({
-    queryKey: ['wishlist', 'count'],
-    queryFn: () => listWishlistItems({ page: 1, page_size: 1 }),
-    enabled: isAuthenticated && !isAdministrator(user?.role),
-    select: (data) => data.count,
-  })
-
   const cartCountQuery = useQuery({
     queryKey: ['cart'],
     queryFn: getCart,
@@ -154,9 +147,9 @@ export function Navbar() {
   const logoutMutation = useMutation({
     mutationFn: () => logoutUser(),
     onSettled: () => {
-      clearSession({ redirectTo: '/' })
+      clearSession({ redirectTo: '/home' })
       toast.success('Signed out')
-      navigate('/', { replace: true })
+      navigate('/home', { replace: true })
     },
   })
 
@@ -182,7 +175,7 @@ export function Navbar() {
     <header className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}`}>
       <nav className="navbar__inner" aria-label="Main">
         <div className="navbar__start">
-          <Link className="navbar__brand" to="/">
+          <Link className="navbar__brand" to="/home">
             3D HUB
           </Link>
 
@@ -366,10 +359,10 @@ export function Navbar() {
             <Link className="navbar__link" to="/custom-projects">
               Custom Projects
             </Link>
-            <Link className="navbar__link navbar__link--muted" to="/about">
+            <Link className="navbar__link" to="/about">
               About
             </Link>
-            <Link className="navbar__link navbar__link--muted" to="/contact">
+            <Link className="navbar__link" to="/contact">
               Contact
             </Link>
           </div>
@@ -470,46 +463,6 @@ export function Navbar() {
                           onClick={() => setAccountOpen(false)}
                         >
                           Dashboard
-                        </Link>
-                        <Link
-                          role="menuitem"
-                          className="navbar__account-item"
-                          to="/dashboard/projects"
-                          onClick={() => setAccountOpen(false)}
-                        >
-                          My Projects
-                        </Link>
-                        <Link
-                          role="menuitem"
-                          className="navbar__account-item"
-                          to="/dashboard/orders"
-                          onClick={() => setAccountOpen(false)}
-                        >
-                          My Orders
-                        </Link>
-                        <Link
-                          role="menuitem"
-                          className="navbar__account-item"
-                          to="/dashboard/downloads"
-                          onClick={() => setAccountOpen(false)}
-                        >
-                          My Downloads
-                        </Link>
-                        <Link
-                          role="menuitem"
-                          className="navbar__account-item navbar__link--with-badge"
-                          to="/dashboard/wishlist"
-                          onClick={() => setAccountOpen(false)}
-                        >
-                          Wishlist
-                          {(wishlistCountQuery.data ?? 0) > 0 ? (
-                            <span
-                              className="project-unread-badge navbar__wishlist-badge"
-                              aria-label={`${wishlistCountQuery.data} saved item${wishlistCountQuery.data === 1 ? '' : 's'}`}
-                            >
-                              {formatUnreadBadge(wishlistCountQuery.data ?? 0)}
-                            </span>
-                          ) : null}
                         </Link>
                         <Link
                           role="menuitem"

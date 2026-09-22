@@ -343,13 +343,10 @@ describe('ProductDetailsPage', () => {
     renderProductDetails('/products/hidden-desk')
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /product not found/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: /back to products/i })).toHaveAttribute(
-      'href',
-      '/3d-models',
-    )
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
   })
 
   it('shows error state with retry for non-404 failures', async () => {
@@ -553,7 +550,7 @@ describe('ProductDetailsPage', () => {
       expect(writeText).toHaveBeenCalled()
     })
     expect(writeText.mock.calls[0]?.[0]).toContain('/products/cyberpunk-drone-3d')
-    expect(useToastStore.getState().toasts[0]?.message).toMatch(/copied/i)
+    expect(useToastStore.getState().toasts).toHaveLength(0)
 
     expect(document.body.textContent).not.toMatch(/storage_path/i)
     expect(document.body.innerHTML).not.toContain('secret.zip')

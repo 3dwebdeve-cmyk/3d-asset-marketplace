@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import '../../styles/marketing.css'
 import { LEGAL_DOCUMENT_VERSIONS, PRIVACY_PATH, TERMS_PATH } from '../../lib/legalDocuments'
 
 type LegalKind = 'terms' | 'privacy'

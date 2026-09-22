@@ -31,6 +31,7 @@ function renderLayout(initialPath = '/dashboard/projects') {
             <Route path="/dashboard/wishlist" element={<div>Wishlist content</div>} />
             <Route path="/dashboard/projects/new" element={<div>New project form</div>} />
             <Route path="/" element={<div>Home</div>} />
+            <Route path="/home" element={<div>Marketplace home</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -44,10 +45,10 @@ beforeEach(() => {
 })
 
 describe('DashboardLayout', () => {
-  it('renders brand, add-project CTA, and sidebar nav', () => {
+  it('renders add-project CTA and sidebar nav', () => {
     renderLayout()
 
-    expect(screen.getByRole('link', { name: /3d hub/i })).toHaveAttribute('href', '/')
+    expect(screen.queryByRole('link', { name: /3d hub/i })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /request a new project/i })).toHaveAttribute(
       'href',
       '/dashboard/projects/new',

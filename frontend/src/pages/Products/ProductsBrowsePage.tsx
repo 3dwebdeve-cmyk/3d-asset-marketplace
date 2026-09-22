@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type { ReactElement, RefObject } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listTrendingCategories } from '../../api/categoriesApi'
 import { listPublicPlugins } from '../../api/pluginsApi'
@@ -8,9 +8,12 @@ import { listPublicProducts } from '../../api/productsApi'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { Button } from '../../components/ui/Button'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
+import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
+import '../../styles/home.css'
+import '../../styles/products-browse.css'
 
 const HUB_PREVIEW_SIZE = 6
 
@@ -137,13 +140,153 @@ const BROWSE_SERVICES: BrowseService[] = [
   },
 ]
 
-function scrollRail(rail: HTMLElement | null, direction: -1 | 1) {
-  if (!rail) return
-  const amount = Math.max(rail.clientWidth * 0.75, 280)
-  rail.scrollBy({ left: direction * amount, behavior: 'smooth' })
+function useAutoScrollRail(
+  railRef: RefObject<HTMLElement | null>,
+  enabled: boolean,
+) {
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail || !enabled) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    let paused = false
+    let frame = 0
+    let last = performance.now()
+    const speedPxPerSec = 36
+
+    const tick = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.05)
+      last = now
+      if (!paused && rail.scrollWidth > rail.clientWidth + 1) {
+        const maxScroll = rail.scrollWidth - rail.clientWidth
+        const next = rail.scrollLeft + speedPxPerSec * dt
+        rail.scrollLeft = next >= maxScroll - 0.5 ? 0 : next
+      }
+      frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+
+    const pause = () => {
+      paused = true
+    }
+    const resume = () => {
+      paused = false
+      last = performance.now()
+    }
+    const onVisibility = () => {
+      if (document.hidden) {
+        paused = true
+      } else {
+        resume()
+      }
+    }
+
+    rail.addEventListener('pointerenter', pause)
+    rail.addEventListener('pointerleave', resume)
+    rail.addEventListener('focusin', pause)
+    rail.addEventListener('focusout', resume)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      rail.removeEventListener('pointerenter', pause)
+      rail.removeEventListener('pointerleave', resume)
+      rail.removeEventListener('focusin', pause)
+      rail.removeEventListener('focusout', resume)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [railRef, enabled])
 }
 
-function ServiceCard({ service }: { service: BrowseService }) {
+const OFFER_SERVICES = [
+  {
+    title: 'Custom 3D Model',
+    cta: 'Get Custom Model',
+    icon: 'cube',
+    summary: 'High-quality, custom 3D models built precisely for your project needs.',
+    points: [
+      'Product & game-ready models',
+      'Characters, props & environments',
+      'Clean & optimized topology',
+      'Fully customized designs',
+    ],
+  },
+  {
+    title: 'Custom Plugin',
+    cta: 'Get Custom Plugin',
+    icon: 'plugin',
+    summary: 'Powerful Blender add-ons and tools to supercharge your workflow.',
+    points: [
+      'Custom Blender add-ons',
+      'Workflow automation',
+      'Time-saving tools',
+      'Seamless integration',
+    ],
+  },
+  {
+    title: 'Custom Texturing',
+    cta: 'Get Custom Texture',
+    icon: 'pencil',
+    summary: 'Realistic and stylized textures that bring your 3D models to life.',
+    points: [
+      'PBR & stylized texturing',
+      'Custom material creation',
+      'UV mapping & optimization',
+      'Game-ready textures',
+    ],
+  },
+  {
+    title: 'Custom Rendering',
+    cta: 'Get Custom Render',
+    icon: 'camera',
+    summary: 'High-quality renders with perfect lighting, composition and detail.',
+    points: [
+      'Photorealistic renders',
+      'Custom lighting & setup',
+      'Camera composition',
+      'High-resolution output',
+    ],
+  },
+] as const
+
+function OfferIcon({ name }: { name: (typeof OFFER_SERVICES)[number]['icon'] }) {
+  switch (name) {
+    case 'cube':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+          <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+        </svg>
+      )
+    case 'plugin':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="8" cy="8" r="2.25" />
+          <circle cx="16" cy="8" r="2.25" />
+          <circle cx="8" cy="16" r="2.25" />
+          <circle cx="16" cy="16" r="2.25" />
+          <path d="M10.1 8h3.8M8 10.1v3.8M16 10.1v3.8M10.1 16h3.8" />
+        </svg>
+      )
+    case 'pencil':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+          <path d="m13.5 6.5 3 3" />
+        </svg>
+      )
+    case 'camera':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+          <circle cx="12" cy="13" r="3" />
+        </svg>
+      )
+  }
+}
+
+function ServiceModule({ service }: { service: BrowseService }) {
   return (
     <article className="browse-service-card">
       <div className="browse-service-card__copy">
@@ -213,11 +356,16 @@ function CategoryTile({
 
 export function ProductsBrowsePage() {
   const navigate = useNavigate()
+  const clearPostLogoutRedirect = useAuthStore((state) => state.clearPostLogoutRedirect)
   const [searchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const viewAll = searchParams.get('view') === 'all'
   const isCatalogMode = Boolean(searchFromUrl || categoryFromUrl || viewAll)
+
+  useEffect(() => {
+    clearPostLogoutRedirect()
+  }, [clearPostLogoutRedirect])
 
   // Old /products catalog mode is replaced by /3d-models — redirect there.
   useEffect(() => {
@@ -276,6 +424,9 @@ export function ProductsBrowsePage() {
   const categories = trendingCategories.slice(0, 12)
   const plugins = pluginsData?.results ?? []
 
+  useAutoScrollRail(productsRailRef, !isCatalogMode && filteredProducts.length > 1)
+  useAutoScrollRail(pluginsRailRef, !isCatalogMode && plugins.length > 1)
+
   if (!isCatalogMode) {
     return (
       <main className="products-browse-page products-browse-page--hub">
@@ -283,7 +434,7 @@ export function ProductsBrowsePage() {
 
         <section className="browse-service-cards" aria-label="Marketplace modules">
           {BROWSE_SERVICES.map((service) => (
-            <ServiceCard key={service.path} service={service} />
+            <ServiceModule key={service.path} service={service} />
           ))}
         </section>
 
@@ -293,11 +444,8 @@ export function ProductsBrowsePage() {
         >
           <div className="browse-rail-section__header">
             <h2 id="trending-categories-heading" className="browse-rail-section__title">
-              Trending Categories
+              Explore 3D Categories
             </h2>
-            <Link className="browse-rail-section__view-all" to="/3d-models">
-              View All
-            </Link>
           </div>
           <div className="browse-category-grid">
             {categories.length === 0 ? (
@@ -317,34 +465,14 @@ export function ProductsBrowsePage() {
           </div>
         </section>
 
-        <section className="browse-rail-section" aria-labelledby="shop-models-heading">
+        <section className="browse-rail-section browse-rail-section--models" aria-labelledby="shop-models-heading">
           <div className="browse-rail-section__header">
             <h2 id="shop-models-heading" className="browse-rail-section__title">
-              Shop 3D Models
+              Popular 3D Models
             </h2>
-            <div className="browse-rail-section__actions">
-              <Link className="browse-rail-section__view-all" to="/3d-models">
-                View All
-              </Link>
-              <div className="browse-rail-section__nav">
-                <button
-                  type="button"
-                  className="browse-rail-nav"
-                  aria-label="Previous models"
-                  onClick={() => scrollRail(productsRailRef.current, -1)}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="browse-rail-nav"
-                  aria-label="Next models"
-                  onClick={() => scrollRail(productsRailRef.current, 1)}
-                >
-                  ›
-                </button>
-              </div>
-            </div>
+            <Link className="browse-rail-section__view-all" to="/3d-models">
+              Explore All Models
+            </Link>
           </div>
           {isLoading ? (
             <div className="browse-rail browse-rail--cards" aria-label="Loading products">
@@ -369,7 +497,11 @@ export function ProductsBrowsePage() {
           ) : filteredProducts.length === 0 ? (
             <p className="browse-rail__empty">No 3D models are available yet.</p>
           ) : (
-            <div className="browse-rail browse-rail--cards" ref={productsRailRef}>
+            <div
+              className="browse-rail browse-rail--cards browse-rail--auto"
+              ref={productsRailRef}
+              aria-label="Shop 3D Models"
+            >
               {filteredProducts.map((product) => (
                 <div key={product.id} className="browse-rail__item">
                   <ProductCard product={product} />
@@ -384,29 +516,9 @@ export function ProductsBrowsePage() {
             <h2 id="explore-plugins-heading" className="browse-rail-section__title">
               Explore Plugins
             </h2>
-            <div className="browse-rail-section__actions">
-              <Link className="browse-rail-section__view-all" to="/plugins">
-                View All
-              </Link>
-              <div className="browse-rail-section__nav">
-                <button
-                  type="button"
-                  className="browse-rail-nav"
-                  aria-label="Previous plugins"
-                  onClick={() => scrollRail(pluginsRailRef.current, -1)}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="browse-rail-nav"
-                  aria-label="Next plugins"
-                  onClick={() => scrollRail(pluginsRailRef.current, 1)}
-                >
-                  ›
-                </button>
-              </div>
-            </div>
+            <Link className="browse-rail-section__view-all" to="/plugins">
+              View All
+            </Link>
           </div>
           {pluginsLoading ? (
             <div className="browse-rail browse-rail--cards" aria-label="Loading plugins">
@@ -425,7 +537,11 @@ export function ProductsBrowsePage() {
           ) : plugins.length === 0 ? (
             <p className="browse-rail__empty">No plugins are available yet.</p>
           ) : (
-            <div className="browse-rail browse-rail--cards" ref={pluginsRailRef}>
+            <div
+              className="browse-rail browse-rail--cards browse-rail--auto"
+              ref={pluginsRailRef}
+              aria-label="Explore Plugins"
+            >
               {plugins.map((plugin) => (
                 <div key={plugin.id} className="browse-rail__item">
                   <PluginCard plugin={plugin} />
@@ -433,6 +549,50 @@ export function ProductsBrowsePage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section
+          className="browse-rail-section browse-rail-section--models hub-offer"
+          aria-labelledby="what-we-offer-heading"
+        >
+          <div className="browse-rail-section__header">
+            <h2 id="what-we-offer-heading" className="browse-rail-section__title">
+              What we offer
+            </h2>
+          </div>
+          <div className="hub-offer__grid">
+            {OFFER_SERVICES.map((offer) => (
+              <article key={offer.title} className="hub-offer__card">
+                <div className="hub-offer__media">
+                  <div className="hub-offer__details">
+                    <p>{offer.summary}</p>
+                    <ul>
+                      {offer.points.map((point) => (
+                        <li key={point}>
+                          <span className="hub-offer__check" aria-hidden="true">
+                            <svg viewBox="0 0 16 16">
+                              <circle cx="8" cy="8" r="8" />
+                              <path d="M4.5 8.2 6.8 10.4 11.5 5.6" />
+                            </svg>
+                          </span>
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="hub-offer__label">
+                  <span className="hub-offer__icon">
+                    <OfferIcon name={offer.icon} />
+                  </span>
+                  <h3>{offer.title}</h3>
+                </div>
+                <Link className="home-page__cta hub-offer__cta" to="/custom-projects">
+                  {offer.cta}
+                </Link>
+              </article>
+            ))}
+          </div>
         </section>
       </main>
     )

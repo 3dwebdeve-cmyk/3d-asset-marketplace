@@ -5,8 +5,14 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { logoutUser } from '../api/authApi'
 import { dashboardNavItems, type DashboardNavIcon } from '../config/dashboardNav'
 import { useDocumentSeo } from '../hooks/useDocumentSeo'
+import { useNotFoundChrome } from '../hooks/useNotFoundChrome'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
+import '../styles/dashboard-layout.css'
+import '../styles/dashboard-list.css'
+import '../styles/dashboard-home.css'
+import '../styles/dashboard-project-form.css'
+import '../styles/dashboard-profile.css'
 
 function NavIcon({ name }: { name: DashboardNavIcon }) {
   switch (name) {
@@ -57,15 +63,6 @@ function NavIcon({ name }: { name: DashboardNavIcon }) {
   }
 }
 
-function BrandMark() {
-  return (
-    <svg className="dashboard-sidebar__brand-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
-      <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
-    </svg>
-  )
-}
-
 function isNavItemActive(pathname: string, to: string, end?: boolean): boolean {
   if (end) {
     return pathname === to
@@ -79,6 +76,7 @@ export function DashboardLayout() {
   const navigate = useNavigate()
   const clearSession = useAuthStore((state) => state.clearSession)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
+  const { isNotFound } = useNotFoundChrome()
 
   useDocumentSeo({
     title: 'Dashboard | 3D HUB',
@@ -93,11 +91,15 @@ export function DashboardLayout() {
   const logoutMutation = useMutation({
     mutationFn: () => logoutUser(),
     onSettled: () => {
-      clearSession({ redirectTo: '/' })
+      clearSession({ redirectTo: '/home' })
       toast.success('Signed out')
-      navigate('/', { replace: true })
+      navigate('/home', { replace: true })
     },
   })
+
+  if (isNotFound) {
+    return <Outlet />
+  }
 
   return (
     <div className="dashboard-layout">
@@ -114,11 +116,6 @@ export function DashboardLayout() {
         className={`dashboard-sidebar${isMobileNavOpen ? ' dashboard-sidebar--open' : ''}`}
         aria-label="Customer dashboard"
       >
-        <Link className="dashboard-sidebar__brand" to="/" onClick={() => setIsMobileNavOpen(false)}>
-          <BrandMark />
-          <span>3D HUB</span>
-        </Link>
-
         <Link
           className="dashboard-sidebar__cta"
           to="/dashboard/projects/new"

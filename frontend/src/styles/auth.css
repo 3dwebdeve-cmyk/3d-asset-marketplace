@@ -238,21 +238,21 @@
 }
 
 .auth-page--market {
-  background-color: #e8eef5;
-  background-image: radial-gradient(#c5d0de 1.1px, transparent 1.1px);
+  background-color: var(--accent-soft);
+  background-image: radial-gradient(var(--accent-border) 1.1px, transparent 1.1px);
   background-size: 18px 18px;
 }
 
 .auth-card--market {
   --auth-font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --auth-accent: #2563eb;
-  --auth-ink: #0f172a;
-  --auth-label: #0f172a;
-  --auth-muted: #64748b;
-  --auth-soft: #94a3b8;
-  --auth-tab-ink: #334155;
-  --auth-line: #d1d5db;
-  --auth-track: #f1f5f9;
+  --auth-accent: var(--action-color);
+  --auth-ink: var(--text-main);
+  --auth-label: var(--text-main);
+  --auth-muted: var(--text-secondary);
+  --auth-soft: var(--text-secondary);
+  --auth-tab-ink: var(--text-main);
+  --auth-line: var(--border);
+  --auth-track: var(--bg-primary);
   width: min(100%, 520px);
   padding: 1.25rem 1.75rem 1.35rem;
   border: 0;
@@ -323,7 +323,7 @@
   gap: 0.25rem;
   padding: 0.22rem;
   border-radius: 12px;
-  background: var(--auth-track, #f1f5f9);
+  background: var(--auth-track, var(--bg-primary));
 }
 
 .auth-mode-tabs__item {
@@ -332,7 +332,7 @@
   border: 0;
   border-radius: 9px;
   background: transparent;
-  color: var(--auth-tab-ink, #334155);
+  color: var(--auth-tab-ink, var(--text-main));
   font-family: var(--auth-font, inherit);
   font-size: 0.75rem;
   font-weight: 400;
@@ -344,12 +344,12 @@
 
 .auth-mode-tabs__item:hover,
 .auth-mode-tabs__item:focus-visible {
-  color: var(--auth-ink, #0f172a);
+  color: var(--auth-ink, var(--text-main));
   outline: none;
 }
 
 .auth-mode-tabs__item--active {
-  background: var(--auth-accent, #2563eb);
+  background: var(--auth-accent, var(--action-color));
   color: #fff;
   box-shadow: none;
 }
@@ -367,7 +367,7 @@
   place-items: center;
   width: 2.5rem;
   height: 2.5rem;
-  color: #9ca3af;
+  color: var(--text-secondary);
   transform: translateY(-50%);
 }
 
@@ -385,7 +385,7 @@
 }
 
 .auth-icon-field__reveal:focus-visible {
-  outline: 2px solid var(--auth-accent, #2563eb);
+  outline: 2px solid var(--auth-accent, var(--action-color));
   outline-offset: 1px;
   border-radius: 8px;
 }
@@ -399,17 +399,17 @@
   padding: 0.55rem 0.75rem;
   border-radius: 10px;
   background: #fff;
-  border: 1px solid var(--auth-line, #d1d5db);
+  border: 1px solid var(--auth-line, var(--border));
   min-height: 2.2rem;
   font-family: var(--auth-font, inherit);
   font-size: 0.8125rem;
   font-weight: 400;
   letter-spacing: -0.011em;
-  color: var(--auth-ink, #0f172a);
+  color: var(--auth-ink, var(--text-main));
 }
 
 .auth-icon-field__input::placeholder {
-  color: var(--auth-soft, #94a3b8);
+  color: var(--auth-soft, var(--text-secondary));
   opacity: 1;
 }
 
@@ -422,9 +422,9 @@
 }
 
 .auth-card--market .ui-input:focus {
-  outline: 2px solid color-mix(in srgb, var(--auth-accent, #2563eb) 55%, #fff);
+  outline: 2px solid color-mix(in srgb, var(--auth-accent, var(--action-color)) 55%, #fff);
   outline-offset: 0;
-  border-color: var(--auth-accent, #2563eb);
+  border-color: var(--auth-accent, var(--action-color));
   background: #fff;
 }
 
@@ -442,7 +442,7 @@
   font-weight: 400;
   white-space: nowrap;
   letter-spacing: -0.006em;
-  color: var(--auth-accent, #2563eb);
+  color: var(--auth-accent, var(--action-color));
 }
 
 .auth-check {
@@ -457,14 +457,14 @@
   height: 1.05rem;
   margin: 0;
   flex-shrink: 0;
-  accent-color: var(--auth-accent, #2563eb);
+  accent-color: var(--auth-accent, var(--action-color));
 }
 
 .auth-check__label {
   font-family: var(--auth-font, inherit);
   font-size: 0.75rem;
   font-weight: 400;
-  color: var(--auth-muted, #64748b);
+  color: var(--auth-muted, var(--text-secondary));
   text-align: left;
   line-height: 1.45;
   letter-spacing: -0.006em;
@@ -475,7 +475,7 @@
   align-items: center;
   gap: 0.85rem;
   margin: 0.65rem 0 0.7rem;
-  color: var(--auth-soft, #94a3b8);
+  color: var(--auth-soft, var(--text-secondary));
   font-family: var(--auth-font, inherit);
   font-size: 0.5625rem;
   font-weight: 400;
@@ -488,7 +488,7 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: #e2e8f0;
+  background: var(--border);
 }
 
 .auth-google {
@@ -513,10 +513,10 @@
   width: 100%;
   min-height: 2.2rem;
   padding: 0.45rem 0.9rem;
-  border: 1px solid var(--auth-line, #d1d5db);
+  border: 1px solid var(--auth-line, var(--border));
   border-radius: 10px;
   background: #fff;
-  color: #1e293b;
+  color: var(--text-main);
   font-family: var(--auth-font, inherit);
   font-size: 0.8125rem;
   font-weight: 400;
@@ -560,7 +560,7 @@
 
 .auth-google__hint {
   margin: 0;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 0.8rem;
   text-align: center;
 }
@@ -580,11 +580,11 @@
 .auth-password-score__bar {
   height: 0.28rem;
   border-radius: 999px;
-  background: #e5ebf3;
+  background: var(--accent-soft);
 }
 
 .auth-password-score__bar--active {
-  background: var(--auth-accent, #2563eb);
+  background: var(--auth-accent, var(--action-color));
 }
 
 .auth-password-score__meta {
@@ -595,7 +595,7 @@
   font-weight: 400;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #8a97ab;
+  color: var(--text-secondary);
 }
 
 .auth-submit {
@@ -606,7 +606,7 @@
   margin-top: 0.1rem;
   min-height: 2.35rem;
   border-radius: 12px;
-  background: var(--auth-accent, #2563eb);
+  background: var(--auth-accent, var(--action-color));
   box-shadow: none;
   font-family: var(--auth-font, inherit);
   text-transform: uppercase;
@@ -617,7 +617,7 @@
 }
 
 .auth-card--market .ui-button--primary.auth-submit {
-  background: var(--auth-accent, #2563eb);
+  background: var(--auth-accent, var(--action-color));
 }
 
 .auth-card--market .ui-button--primary.auth-submit:hover {
@@ -632,11 +632,11 @@
 .auth-card__footer--center {
   text-align: center;
   font-size: 0.9rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .auth-link {
-  color: var(--auth-accent, #2563eb);
+  color: var(--auth-accent, var(--action-color));
   font-family: var(--auth-font, inherit);
   font-weight: 400;
   text-decoration: none;
@@ -644,17 +644,17 @@
 
 .auth-link:hover {
   text-decoration: underline;
-  color: #1d4ed8;
+  color: var(--action-color);
 }
 
 .auth-link--underline {
   text-decoration: underline;
   text-underline-offset: 0.18em;
-  color: var(--auth-accent, #2563eb);
+  color: var(--auth-accent, var(--action-color));
 }
 
 .auth-card--market .auth-link:hover {
-  color: #1d4ed8;
+  color: var(--action-color);
 }
 
 .auth-link--button {

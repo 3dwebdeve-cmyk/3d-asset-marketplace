@@ -67,7 +67,7 @@ export function AdminUsersPage() {
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="admin-users-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-users-title">Users</h1>
         <p className="home-page__subtitle">Create, review, and manage platform accounts.</p>
 

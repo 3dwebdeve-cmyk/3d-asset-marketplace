@@ -8,7 +8,6 @@ import * as authApi from '../api/authApi'
 import * as cartApi from '../api/cartApi'
 import * as categoriesApi from '../api/categoriesApi'
 import * as pluginsApi from '../api/pluginsApi'
-import * as wishlistApi from '../api/wishlistApi'
 import { AuthModal } from './auth/AuthModal'
 import { ProtectedRoute } from '../routes/ProtectedRoute'
 import { useAuthStore } from '../store/authStore'
@@ -28,14 +27,6 @@ vi.mock('../api/cartApi', async () => {
   return {
     ...actual,
     getCart: vi.fn(),
-  }
-})
-
-vi.mock('../api/wishlistApi', async () => {
-  const actual = await vi.importActual<typeof import('../api/wishlistApi')>('../api/wishlistApi')
-  return {
-    ...actual,
-    listWishlistItems: vi.fn(),
   }
 })
 
@@ -77,14 +68,13 @@ function renderNavbar(initialPath = '/') {
         <Navbar />
         <Routes>
           <Route path="/" element={<div>Home page</div>} />
+          <Route path="/home" element={<div>Marketplace home</div>} />
           <Route path="/login" element={<div>Sign in page</div>} />
           <Route path="/products" element={<div>Products page</div>} />
           <Route path="/3d-models" element={<div>3D Models page</div>} />
           <Route path="/plugins" element={<div>Plugins page</div>} />
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<div>Dashboard page</div>} />
-            <Route path="/dashboard/projects" element={<div>My projects page</div>} />
-            <Route path="/dashboard/wishlist" element={<div>Wishlist page</div>} />
             <Route path="/profile" element={<div>Profile page</div>} />
           </Route>
         </Routes>
@@ -104,12 +94,6 @@ beforeEach(() => {
   resetAuthStore()
   resetAuthUiStore()
   vi.clearAllMocks()
-  vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
-    count: 0,
-    next: null,
-    previous: null,
-    results: [],
-  })
   vi.mocked(cartApi.getCart).mockResolvedValue({
     id: 'cart-id',
     currency: 'USD',
@@ -203,7 +187,7 @@ describe('Navbar', () => {
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
   })
 
-  it('shows user menu with Dashboard, My Projects, My Orders, My Downloads, Wishlist, Profile, and Sign out when logged in', async () => {
+  it('shows user menu with Dashboard, Profile, and Sign out when logged in', async () => {
     const user = userEvent.setup()
     useAuthStore.setState({
       accessToken: 'access-token',
@@ -223,24 +207,12 @@ describe('Navbar', () => {
 
     const menu = await openAccountMenu(user)
     expect(within(menu).getByRole('menuitem', { name: /dashboard/i })).toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: /my projects/i })).toHaveAttribute(
-      'href',
-      '/dashboard/projects',
-    )
-    expect(within(menu).getByRole('menuitem', { name: /my orders/i })).toHaveAttribute(
-      'href',
-      '/dashboard/orders',
-    )
-    expect(within(menu).getByRole('menuitem', { name: /my downloads/i })).toHaveAttribute(
-      'href',
-      '/dashboard/downloads',
-    )
-    expect(within(menu).getByRole('menuitem', { name: /^wishlist/i })).toHaveAttribute(
-      'href',
-      '/dashboard/wishlist',
-    )
     expect(within(menu).getByRole('menuitem', { name: /profile/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /my projects/i })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /my orders/i })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /my downloads/i })).not.toBeInTheDocument()
+    expect(within(menu).queryByRole('menuitem', { name: /^wishlist/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^register$/i })).not.toBeInTheDocument()
   })
@@ -266,26 +238,6 @@ describe('Navbar', () => {
     renderNavbar()
 
     expect(await screen.findByLabelText('3 items in cart')).toHaveTextContent('3')
-  })
-
-  it('shows a wishlist count badge when the customer has saved items', async () => {
-    const user = userEvent.setup()
-    useAuthStore.setState({
-      accessToken: 'access-token',
-      user: testUser,
-      isAuthenticated: true,
-    })
-    vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
-      count: 3,
-      next: null,
-      previous: null,
-      results: [],
-    })
-
-    renderNavbar()
-
-    const menu = await openAccountMenu(user)
-    expect(await within(menu).findByLabelText('3 saved items')).toHaveTextContent('3')
   })
 
   it('shows Admin and Profile for administrators', async () => {
@@ -321,9 +273,9 @@ describe('Navbar', () => {
     await user.click(within(menu).getByRole('menuitem', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/home$/)
     })
-    expect(screen.getByText('Home page')).toBeInTheDocument()
+    expect(screen.getByText('Marketplace home')).toBeInTheDocument()
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
     expect(authApi.logoutUser).toHaveBeenCalledWith()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)

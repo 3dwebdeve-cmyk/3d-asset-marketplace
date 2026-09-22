@@ -11,13 +11,13 @@ import { listCustomerOrders } from '../../api/ordersApi'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   OrderPaymentStatusBadge,
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
 import { getApiErrorMessage } from '../../lib/apiError'
-import { formatFileSize } from '../../lib/productUpload'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
 import type { DownloadEntitlement, DownloadFile } from '../../types/download'
@@ -27,39 +27,13 @@ import {
   type OrderPaymentStatus,
   type OrderStatus,
 } from '../../types/order'
+import { formatMoneyPlain, formatDate, formatDateTime, formatFileSize } from '../../lib/format'
 
 const PAGE_SIZE = 20
 
 type DownloadsTab = 'library' | 'history' | 'invoices'
 type StatusFilter = '' | OrderStatus
 type PaymentFilter = '' | OrderPaymentStatus
-
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date)
-}
-
-function formatDate(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
-}
-
-function formatMoney(amount: string, currency: string): string {
-  return `${currency} ${amount}`
-}
 
 function formatProductType(productType: string): string {
   return productType === 'product' ? 'Product' : 'Plugin'
@@ -125,6 +99,10 @@ export function MyDownloadsPage() {
 
   const onDownload = async (entitlement: DownloadEntitlement, file: DownloadFile) => {
     setDownloadError(null)
+    if (entitlement.product_type !== 'product' && entitlement.product_type !== 'plugin') {
+      setDownloadError('This entitlement cannot be downloaded from the catalog library.')
+      return
+    }
     try {
       await downloadCatalogFile(
         entitlement.product_type,
@@ -355,24 +333,12 @@ export function MyDownloadsPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="dash-list-page__footer" aria-label="History pagination">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={!historyQuery.data?.previous}
-                  onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={!historyQuery.data?.next}
-                  onClick={() => setHistoryPage((current) => current + 1)}
-                >
-                  Next
-                </Button>
-              </div>
+              <Pagination
+                page={historyPage}
+                totalPages={Math.ceil((historyQuery.data?.count ?? 0) / PAGE_SIZE)}
+                onPageChange={setHistoryPage}
+                ariaLabel="History pagination"
+              />
             </>
           )
         ) : invoicesQuery.isLoading ? (
@@ -436,7 +402,7 @@ export function MyDownloadsPage() {
                           </Link>
                         </td>
                         <td>{formatDate(order.created_at)}</td>
-                        <td>{formatMoney(order.total_amount, order.currency)}</td>
+                        <td>{formatMoneyPlain(order.total_amount, order.currency)}</td>
                         <td>
                           <OrderStatusBadge status={order.order_status} />
                         </td>
@@ -455,25 +421,12 @@ export function MyDownloadsPage() {
                 </p>
               ) : null}
             </div>
-            <div className="dash-list-page__footer" aria-label="Invoice pagination">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!invoicesQuery.data?.previous}
-                onClick={() => setInvoicePage((value) => Math.max(1, value - 1))}
-              >
-                Previous
-              </Button>
-              <span className="dash-list-page__footer-meta">Page {invoicePage}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!invoicesQuery.data?.next}
-                onClick={() => setInvoicePage((value) => value + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={invoicePage}
+              totalPages={Math.ceil((invoicesQuery.data?.count ?? 0) / PAGE_SIZE)}
+              onPageChange={setInvoicePage}
+              ariaLabel="Invoice pagination"
+            />
           </>
         )}
       </section>

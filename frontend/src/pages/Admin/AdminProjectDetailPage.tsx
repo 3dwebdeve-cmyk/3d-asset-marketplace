@@ -16,7 +16,7 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type {
   AdminCustomProjectUpdatePayload,
@@ -26,12 +26,8 @@ import type {
 } from '../../types/customProject'
 import { AdminProjectDeliveriesSection } from './AdminProjectDeliveriesSection'
 import { AdminProjectMessagesSection } from './AdminProjectMessagesSection'
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
+import { formatFileSize } from '../../lib/format'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 export function AdminProjectDetailPage() {
   const { projectId = '' } = useParams()
@@ -192,13 +188,17 @@ export function AdminProjectDetailPage() {
   const formReady = hydratedProjectId === projectId && project?.id === projectId
   const designers = designersQuery.data?.results ?? []
 
+  if (!projectId || isHttpNotFound(projectQuery.error)) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="dashboard-page">
       <section
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="project-detail-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="project-detail-title">Manage custom project</h1>
         <div className="dashboard-card__actions">
           <Link className="home-page__cta home-page__cta--secondary" to="/console/projects">

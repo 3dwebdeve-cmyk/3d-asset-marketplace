@@ -125,7 +125,7 @@ export function AdminProductsPage() {
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="admin-products-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-products-title">{isQaQueue ? 'QA queue' : 'Products'}</h1>
         <p className="home-page__subtitle">
           {isQaQueue
