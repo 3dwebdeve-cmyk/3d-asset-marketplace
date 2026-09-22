@@ -197,7 +197,7 @@ describe('CustomerProjectDetailPage', () => {
     )
     renderPage()
 
-    expect(await screen.findByText(/project not found/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     expect(customProjectsApi.listCustomerProjectMessages).not.toHaveBeenCalled()
     expect(screen.queryByRole('heading', { name: 'Messages' })).not.toBeInTheDocument()
   })
@@ -329,10 +329,8 @@ describe('CustomerProjectDetailPage', () => {
     )
     renderPage()
 
-    expect(await screen.findByText(/project not found/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/could not be found or you do not have access/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
   })
 
@@ -342,7 +340,7 @@ describe('CustomerProjectDetailPage', () => {
     )
     renderPage()
 
-    expect(await screen.findByText(/project not found/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/forbidden/i)).not.toBeInTheDocument()
   })
@@ -386,7 +384,7 @@ describe('CustomerProjectDetailPage', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText(/project not found/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     expect(customProjectsApi.getCustomerCustomProject).not.toHaveBeenCalled()
   })
 

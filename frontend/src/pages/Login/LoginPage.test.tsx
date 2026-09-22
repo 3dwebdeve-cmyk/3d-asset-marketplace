@@ -43,6 +43,7 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/" element={<div>Home</div>} />
+          <Route path="/home" element={<div>Marketplace home</div>} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<div>Forgot password page</div>} />
           <Route path="/dashboard" element={<div>Dashboard</div>} />

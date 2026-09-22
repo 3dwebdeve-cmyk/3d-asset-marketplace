@@ -1,6 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AxiosError } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -172,6 +173,23 @@ describe('CustomerOrderDetailPage', () => {
       paidOrder.id,
       paidOrder.invoice_number,
     )
+  })
+
+  it('shows the 404 page when the order does not exist', async () => {
+    const error = new AxiosError('Not found')
+    error.response = {
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: { headers: {} } as never,
+      data: { detail: 'Not found.' },
+    }
+    vi.mocked(ordersApi.getCustomerOrder).mockRejectedValue(error)
+    renderCustomerOrderDetailPage()
+
+    expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
   })
 
   it('shows error state and retries', async () => {

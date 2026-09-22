@@ -1,4 +1,7 @@
-"""Upscale the exact site banner file (no crop, no alternate source)."""
+"""Upscale the exact site banner file (no crop, no alternate source).
+
+Note: production serves site-hero-banner.webp. Convert back to WebP after editing.
+"""
 
 from __future__ import annotations
 
@@ -7,8 +10,8 @@ from pathlib import Path
 from PIL import Image, ImageFilter
 
 PUBLIC = Path(r"E:\ABHAY\Project\3d-asset-marketplace\frontend\public\images")
-SRC = PUBLIC / "site-hero-banner.jpg"
-OUT = PUBLIC / "site-hero-banner.jpg"
+SRC = PUBLIC / "site-hero-banner.webp"
+OUT = PUBLIC / "site-hero-banner.webp"
 
 TARGET_W = 4096
 TARGET_H = 984  # exact 4x of 1024x246

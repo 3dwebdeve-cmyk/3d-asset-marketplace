@@ -94,7 +94,7 @@ export function MarketplaceHero() {
       <div className="home-marketplace-hero__stage">
         <div className="home-marketplace-hero__shade" aria-hidden="true" />
 
-        <div className="home-page__hero-inner home-marketplace-hero__content">
+        <div className="home-marketplace-hero__content">
           <h1 className="home-marketplace-hero__title">
             World&apos;s largest 3D model marketplace
           </h1>

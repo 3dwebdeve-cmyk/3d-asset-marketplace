@@ -3,7 +3,6 @@ import { useForm } from 'react-hook-form'
 
 import { adminLoginUser } from '../../api/authApi'
 import { getApiErrorMessage } from '../../lib/apiError'
-import { toast } from '../../lib/toast'
 import { useAuthStore } from '../../store/authStore'
 import type { LoginResponse } from '../../types/auth'
 import {
@@ -47,10 +46,6 @@ export function useAdminLoginForm(): UseAdminLoginFormResult {
       setSession({ access: data.access, user: data.user }, { remember: true })
       queryClient.setQueryData(['auth', 'me', data.access], data.user)
       queryClient.setQueryData(['auth', 'admin', 'me', data.access], data.user)
-      const firstName = data.user.full_name?.split(' ')[0]
-      toast.success(
-        firstName ? `Administrator signed in. Welcome, ${firstName}!` : 'Administrator signed in',
-      )
     },
   })
 

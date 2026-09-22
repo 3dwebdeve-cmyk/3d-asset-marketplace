@@ -1,12 +1,12 @@
 :root {
   /*
-   * Brand palette — edit these hex values when the combo changes.
-   * Everything else below derives from these tokens.
+   * Brand palette — white / blue / black only.
+   * Do not introduce beige, cream, teal, purple, gold, or gray fills.
    */
   --bg-primary: #ffffff; /* Pure White — page background */
-  --bg-card: #ffffff; /* Pure White — floating cards/containers */
-  --text-main: #06162b; /* Deep Navy — headings & body */
-  --action-color: #1d4d7a; /* Brand Blue — buttons, links, actions */
+  --bg-card: #ffffff; /* Pure White — cards/containers */
+  --text-main: #000000; /* Pure Black — headings & body */
+  --action-color: #1d4ed8; /* Brand blue — buttons, links, actions */
 
   /* Existing app tokens mapped to the palette */
   --bg-main: #ffffff;
@@ -16,10 +16,12 @@
   --text-primary: var(--text-main);
   --text-heading: var(--text-main);
   --text-body: var(--text-main);
-  --text-secondary: color-mix(in srgb, var(--text-main) 72%, var(--bg-primary));
+  --text-secondary: color-mix(in srgb, var(--text-main) 62%, var(--bg-primary));
+  --text-muted: var(--text-secondary);
   --pure-white: #ffffff;
+  --pure-black: #000000;
 
-  /* Derived roles — opacity/mixes of the palette only */
+  /* Derived roles — mixes of white / blue / black only */
   --border: color-mix(in srgb, var(--action-color) 22%, var(--bg-card));
   --accent-soft: color-mix(in srgb, var(--action-color) 12%, var(--bg-card));
   --accent-border: color-mix(in srgb, var(--action-color) 40%, var(--bg-card));
@@ -39,17 +41,17 @@
   --mono: ui-monospace, Consolas, monospace;
 
   /* Exact client banner art — show full image, no crop */
-  --site-hero-image: url('/images/site-hero-banner.jpg');
+  --site-hero-image: url('/images/site-hero-banner.webp');
   --site-hero-aspect: 4224 / 992;
   --site-hero-overlay: linear-gradient(
     105deg,
-    rgba(8, 14, 28, 0.45) 0%,
-    rgba(8, 14, 28, 0.1) 48%,
-    rgba(8, 14, 28, 0) 100%
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 0, 0, 0.1) 48%,
+    rgba(0, 0, 0, 0) 100%
   );
 
-  /* Full-bleed layout; fluid gutters for ~6" phones through ~22" desktops */
-  --site-gutter: clamp(0.75rem, 3.2vw, 1.25rem);
+  /* Side margins: 2.5cm from both left and right edges */
+  --site-gutter: 2.5cm;
   --site-max-width: none;
 
   /* ~15px on 360px phones → ~19px on large desktops */
@@ -64,14 +66,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 480px) {
-    --site-gutter: 0.75rem;
-  }
-
-  @media (min-width: 1600px) {
-    --site-gutter: clamp(1rem, 2.2vw, 1.5rem);
-  }
 }
 
 *,
@@ -123,7 +117,7 @@ textarea {
   /* Intrinsic image ratio — full banner, no crop/stretch */
   aspect-ratio: var(--site-hero-aspect);
   overflow: hidden;
-  background-color: #050814;
+  background-color: var(--pure-black);
   color: #fff;
 }
 
@@ -148,41 +142,14 @@ textarea {
   position: relative;
 }
 
-.home-page {
-  flex: 1;
-  display: flex;
-  width: 100%;
-  text-align: left;
-}
-
-.home-page__hero {
-  width: 100%;
-  padding: clamp(2.5rem, 6vw, 4.5rem) 0;
-}
-
-.home-page__hero-inner {
-  width: min(100%, 56rem);
-  margin: 0;
-  padding: 0 var(--site-gutter);
-  box-sizing: border-box;
-}
-
-.home-page__hero h1 {
-  margin: 0.25rem 0 0.5rem;
-  font-size: clamp(1.5rem, 3vw, 2rem);
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  font-weight: 600;
-  color: var(--text-heading);
-}
-
-.home-page__eyebrow {
+.home-page__eyebrow,
+.admin-page__eyebrow {
   margin: 0 0 0.35rem;
   font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted, #5a6478);
+  color: var(--text-muted, var(--text-secondary));
 }
 
 .home-page__subtitle {
@@ -190,12 +157,6 @@ textarea {
   max-width: 42rem;
   line-height: 1.5;
   color: var(--text-body);
-}
-
-.home-page__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
 }
 
 .home-page__cta {
@@ -351,11 +312,6 @@ button.home-page__cta--secondary {
 }
 
 @media (max-width: 640px) {
-  .home-page__actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .home-page__cta {
     width: 100%;
   }
@@ -514,33 +470,33 @@ button.home-page__cta--secondary {
 }
 
 .status-badge--neutral {
-  background: #f1f3f4;
-  color: #5f6368;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
 }
 
 .status-badge--info {
-  background: #e8f0fe;
-  color: #1a73e8;
+  background: var(--accent-soft);
+  color: var(--action-color);
 }
 
 .status-badge--active {
-  background: color-mix(in srgb, #b45309 15%, var(--bg-card));
-  color: #b45309;
+  background: color-mix(in srgb, var(--action-color) 15%, var(--bg-card));
+  color: var(--action-color);
 }
 
 .status-badge--delivered {
-  background: color-mix(in srgb, #0e7490 15%, var(--bg-card));
-  color: #0e7490;
+  background: color-mix(in srgb, var(--action-color) 15%, var(--bg-card));
+  color: var(--action-color);
 }
 
 .status-badge--success {
-  background: #e6f4ea;
-  color: #1e7e34;
+  background: var(--accent-soft);
+  color: var(--action-color);
 }
 
 .status-badge--danger {
-  background: color-mix(in srgb, #991b1b 15%, var(--bg-card));
-  color: #991b1b;
+  background: color-mix(in srgb, var(--text-main) 15%, var(--bg-card));
+  color: var(--text-main);
 }
 
 /* ─── Project completed banner ──────────────────────────────── */
@@ -550,9 +506,9 @@ button.home-page__cta--secondary {
   gap: 0.5rem;
   padding: 0.85rem 1.1rem;
   border-radius: 8px;
-  background: color-mix(in srgb, #166534 12%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, #166534 35%, var(--bg-card));
-  color: #166534;
+  background: color-mix(in srgb, var(--action-color) 12%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--action-color) 35%, var(--bg-card));
+  color: var(--action-color);
   font-size: 1rem;
   margin-bottom: 1.25rem;
 }
@@ -577,8 +533,8 @@ button.home-page__cta--secondary {
 .project-delete-confirm {
   padding: 0.85rem 1.1rem;
   border-radius: 8px;
-  background: color-mix(in srgb, #991b1b 8%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, #991b1b 30%, var(--bg-card));
+  background: color-mix(in srgb, var(--text-main) 8%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--text-main) 30%, var(--bg-card));
   color: var(--text-main);
   margin-bottom: 1rem;
 }
@@ -897,8 +853,8 @@ button.home-page__cta--secondary {
   height: 1.35rem;
   padding: 0 0.35rem;
   border-radius: 999px;
-  background: #b45309;
-  color: #fff7ed;
+  background: var(--action-color);
+  color: var(--pure-white);
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;

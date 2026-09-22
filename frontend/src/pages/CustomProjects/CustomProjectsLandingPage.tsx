@@ -8,6 +8,7 @@ import {
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
+import '../../styles/marketing.css'
 
 const REQUEST_PATH = '/dashboard/projects/new'
 
@@ -245,23 +246,6 @@ export function CustomProjectsLandingPage() {
                 through the portal.
               </p>
             </div>
-            {canRequest ? (
-              <Link className="custom-projects-portal__cta" to="/dashboard/projects">
-                Access Project Portal <span aria-hidden="true">→</span>
-              </Link>
-            ) : isAdmin ? (
-              <Link className="custom-projects-portal__cta" to="/console/projects">
-                Access Project Portal <span aria-hidden="true">→</span>
-              </Link>
-            ) : (
-              <AuthEntryButton
-                mode="login"
-                returnTo="/dashboard/projects"
-                className="custom-projects-portal__cta"
-              >
-                Access Project Portal <span aria-hidden="true">→</span>
-              </AuthEntryButton>
-            )}
           </div>
         </section>
       </div>

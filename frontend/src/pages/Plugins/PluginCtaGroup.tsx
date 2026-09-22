@@ -13,9 +13,7 @@ export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGr
       productId={pluginId}
       productName={pluginName}
       productSlug={pluginSlug}
-      variant="stacked"
-      showWishlist
-      showCheckoutNote
+      variant="buybox"
     />
   )
 }

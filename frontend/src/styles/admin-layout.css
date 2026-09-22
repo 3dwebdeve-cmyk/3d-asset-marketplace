@@ -21,7 +21,7 @@
   flex-direction: column;
   gap: 1.5rem;
   padding: 1.5rem 1rem;
-  border-right: 1px solid var(--border);
+  border-right: 0;
   background: var(--bg-card);
 }
 

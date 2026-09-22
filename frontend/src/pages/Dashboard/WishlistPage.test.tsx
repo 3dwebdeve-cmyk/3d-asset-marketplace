@@ -4,8 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as cartApi from '../../api/cartApi'
 import * as wishlistApi from '../../api/wishlistApi'
-import { createTestQueryClient } from '../../test/test-utils'
+import {
+  createTestQueryClient,
+  resetAuthStore,
+  testUser,
+} from '../../test/test-utils'
+import { useAuthStore } from '../../store/authStore'
 import type { WishlistItem } from '../../types/wishlist'
 import { WishlistPage } from './WishlistPage'
 
@@ -17,6 +23,17 @@ vi.mock('../../api/wishlistApi', async () => {
     ...actual,
     listWishlistItems: vi.fn(),
     removeWishlistItem: vi.fn(),
+  }
+})
+
+vi.mock('../../api/cartApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/cartApi')>(
+    '../../api/cartApi',
+  )
+  return {
+    ...actual,
+    getCart: vi.fn(),
+    addCartItem: vi.fn(),
   }
 })
 
@@ -46,6 +63,12 @@ const wishlistItem: WishlistItem = {
 
 function renderWishlistPage() {
   const queryClient = createTestQueryClient()
+  useAuthStore.setState({
+    accessToken: 'test-access-token',
+    user: testUser,
+    isAuthenticated: true,
+  })
+
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
@@ -57,6 +80,7 @@ function renderWishlistPage() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  resetAuthStore()
   vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
     count: 1,
     next: null,
@@ -64,6 +88,17 @@ beforeEach(() => {
     results: [wishlistItem],
   })
   vi.mocked(wishlistApi.removeWishlistItem).mockResolvedValue(undefined)
+  vi.mocked(cartApi.getCart).mockResolvedValue({
+    id: 'cart-id',
+    currency: 'USD',
+    subtotal: '0.00',
+    discount_amount: '0.00',
+    total: '0.00',
+    item_count: 0,
+    total_quantity: 0,
+    coupon: null,
+    items: [],
+  })
 })
 
 describe('WishlistPage', () => {
@@ -75,12 +110,16 @@ describe('WishlistPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/loading your wishlist/i)
   })
 
-  it('renders saved wishlist items', async () => {
+  it('renders saved wishlist items with design actions', async () => {
     renderWishlistPage()
     expect(await screen.findByRole('link', { name: 'Oak Chair' })).toHaveAttribute(
       'href',
       '/products/oak-chair',
     )
+    expect(screen.getByRole('button', { name: /add oak chair to cart/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /remove oak chair from wishlist/i }),
+    ).toBeInTheDocument()
   })
 
   it('shows empty state when the wishlist has no items', async () => {
@@ -98,7 +137,7 @@ describe('WishlistPage', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /browse models/i })[0]).toHaveAttribute(
       'href',
-      '/',
+      '/3d-models',
     )
   })
 
@@ -122,12 +161,14 @@ describe('WishlistPage', () => {
     expect(await screen.findByRole('link', { name: /oak chair/i })).toBeInTheDocument()
   })
 
-  it('removes an item from the wishlist', async () => {
+  it('removes an item from the wishlist via the heart control', async () => {
     const user = userEvent.setup()
     renderWishlistPage()
 
     await screen.findByRole('link', { name: /oak chair/i })
-    await user.click(screen.getByRole('button', { name: /^remove$/i }))
+    await user.click(
+      screen.getByRole('button', { name: /remove oak chair from wishlist/i }),
+    )
 
     await waitFor(() => {
       expect(wishlistApi.removeWishlistItem).toHaveBeenCalled()

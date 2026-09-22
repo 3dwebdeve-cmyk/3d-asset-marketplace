@@ -1,9 +1,9 @@
 /* Marketplace hub hero — image-native proportions + fixed background window */
 .home-marketplace-hero {
-  --hero-teal: #00b5ad;
-  --hero-teal-deep: #009690;
-  --hero-ink: #121820;
-  --hero-muted: #757575;
+  --hero-teal: var(--action-color);
+  --hero-teal-deep: var(--action-color);
+  --hero-ink: var(--text-main);
+  --hero-muted: var(--text-secondary);
   --hero-chip: rgba(255, 255, 255, 0.12);
   --hero-chip-border: rgba(255, 255, 255, 0.38);
   --hero-sort: rgba(255, 255, 255, 0.14);
@@ -11,7 +11,7 @@
   --hero-glass-shadow: none;
   --hero-title: 'Libre Baskerville', 'Times New Roman', Georgia, serif;
   --hero-ui: 'Poppins', system-ui, sans-serif;
-  --hero-window-height: min(74vh, 490px);
+  --hero-window-height: min(68vh, 430px);
 
   display: block;
   position: relative;
@@ -21,7 +21,7 @@
   padding: 0;
   color: #fff;
   font-family: var(--hero-ui);
-  background-color: #1b2431;
+  background-color: var(--pure-black);
 }
 
 .products-browse-page--hub > .home-marketplace-hero {
@@ -33,10 +33,10 @@
   position: relative;
   width: 100%;
   height: var(--hero-window-height);
-  min-height: 480px;
+  min-height: 400px;
   overflow: hidden;
-  background-color: #1b2431;
-  background-image: url('/images/home-page-banner.png?v=2');
+  background-color: var(--pure-black);
+  background-image: url('/images/home-page-banner.webp?v=3');
   background-attachment: fixed;
   background-position: center center;
   background-size: cover;
@@ -88,7 +88,7 @@
   margin: 0;
   color: #ffffff;
   font-family: var(--hero-title);
-  font-size: clamp(1.85rem, 4vw, 3rem);
+  font-size: clamp(1.6rem, 3.5vw, 2.55rem);
   font-weight: 700;
   line-height: 1.18;
   letter-spacing: -0.01em;
@@ -98,14 +98,14 @@
 
 .home-marketplace-search {
   display: grid;
-  grid-template-columns: 3.1rem minmax(0, 1fr) 3.15rem;
+  grid-template-columns: 2.75rem minmax(0, 1fr) 2.85rem;
   align-items: stretch;
-  width: min(100%, 40rem);
-  min-height: 3.25rem;
+  width: min(100%, 36rem);
+  min-height: 2.85rem;
   margin: 0.2rem 0 0;
   padding: 0;
   border: 0;
-  border-radius: 0.7rem;
+  border-radius: 0.65rem;
   background: #ffffff;
   box-shadow: none;
   overflow: hidden;
@@ -115,7 +115,7 @@
 .home-marketplace-search__leading {
   display: grid;
   place-items: center;
-  color: #8b93a3;
+  color: var(--text-secondary);
 }
 
 .home-marketplace-search__input {
@@ -261,7 +261,7 @@
   color: var(--hero-ink);
 }
 
-/* White modules slide over the pinned banner */
+/* White modules sit flush under the pinned banner */
 .products-browse-page--hub > .browse-service-cards,
 .products-browse-page--hub > .browse-rail-section {
   position: relative;
@@ -271,6 +271,7 @@
 .products-browse-page--hub > .browse-service-cards {
   margin-top: 0;
   background: #ffffff;
+  border-radius: 0;
   box-shadow: none;
 }
 
@@ -280,7 +281,7 @@
   }
 
   .home-marketplace-hero__stage {
-    min-height: 440px;
+    min-height: 380px;
     background-attachment: scroll; /* Mobile browsers handle scroll better than fixed */
   }
 
@@ -291,14 +292,14 @@
 
   .home-marketplace-hero__title {
     max-width: 14ch;
-    font-size: clamp(1.5rem, 6.5vw, 2.15rem);
+    font-size: clamp(1.35rem, 6vw, 1.9rem);
   }
 
   .home-marketplace-search {
-    grid-template-columns: 2.85rem minmax(0, 1fr) 2.95rem;
+    grid-template-columns: 2.5rem minmax(0, 1fr) 2.65rem;
     width: 100%;
     max-width: 36rem;
-    min-height: 3rem;
+    min-height: 2.75rem;
   }
 
   .home-marketplace-search__input {

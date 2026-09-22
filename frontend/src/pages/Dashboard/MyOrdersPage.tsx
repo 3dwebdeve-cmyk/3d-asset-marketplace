@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { listCustomerOrders } from '../../api/ordersApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   OrderPaymentStatusBadge,
@@ -18,25 +19,12 @@ import {
   type OrderPaymentStatus,
   type OrderStatus,
 } from '../../types/order'
+import { formatMoneyPlain, formatDate } from '../../lib/format'
 
 const PAGE_SIZE = 20
 
 type StatusFilter = '' | OrderStatus
 type PaymentFilter = '' | OrderPaymentStatus
-
-function formatDate(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
-}
-
-function formatMoney(amount: string, currency: string): string {
-  return `${currency} ${amount}`
-}
 
 export function MyOrdersPage() {
   const navigate = useNavigate()
@@ -80,6 +68,7 @@ export function MyOrdersPage() {
   const results = ordersQuery.data?.results ?? []
   const isTrulyEmpty =
     ordersQuery.isSuccess && (ordersQuery.data?.count ?? 0) === 0
+  const totalPages = Math.ceil((ordersQuery.data?.count ?? 0) / PAGE_SIZE)
 
   return (
     <main className="dash-list-page" aria-labelledby="my-orders-title">
@@ -212,7 +201,7 @@ export function MyOrdersPage() {
                           </Link>
                         </td>
                         <td>{formatDate(order.created_at)}</td>
-                        <td>{formatMoney(order.total_amount, order.currency)}</td>
+                        <td>{formatMoneyPlain(order.total_amount, order.currency)}</td>
                         <td>
                           <OrderStatusBadge status={order.order_status} />
                         </td>
@@ -232,25 +221,12 @@ export function MyOrdersPage() {
               ) : null}
             </div>
 
-            <div className="dash-list-page__footer" aria-label="Order pagination">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!ordersQuery.data?.previous}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                Previous
-              </Button>
-              <span className="dash-list-page__footer-meta">Page {page}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!ordersQuery.data?.next}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              ariaLabel="Order pagination"
+            />
           </section>
         </>
       )}

@@ -14,12 +14,13 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type {
   AdminCouponUpdatePayload,
   CouponDiscountType,
 } from '../../types/coupon'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 export function AdminCouponDetailPage() {
   const { couponId = '' } = useParams()
@@ -95,6 +96,10 @@ export function AdminCouponDetailPage() {
     )
   }
 
+  if (!couponId || isHttpNotFound(couponQuery.error)) {
+    return <NotFoundPage />
+  }
+
   if (couponQuery.isError || !couponQuery.data) {
     return (
       <main className="dashboard-page">
@@ -117,7 +122,7 @@ export function AdminCouponDetailPage() {
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="admin-coupon-detail-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-coupon-detail-title">{couponQuery.data.code}</h1>
         <p className="home-page__subtitle">
           Used {couponQuery.data.times_used} time

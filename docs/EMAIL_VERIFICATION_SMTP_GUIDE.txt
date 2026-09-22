@@ -1,0 +1,346 @@
+================================================================================
+  3D ASSET MARKETPLACE — Email Verification & SMTP Setup Guide
+  (How verification emails reach a real inbox such as Gmail)
+================================================================================
+
+Last updated: 2026-09-22
+Related docs:
+  - docs/SMTP_STAGING_CHECKLIST.md
+  - docs/AUTH_STAGING_CHECKLIST.md
+  - docs/PRODUCTION_CHECKLIST.md
+  - backend/.env.example
+
+
+--------------------------------------------------------------------------------
+1. IMPORTANT: WHAT IS ALREADY BUILT VS WHAT YOU CONFIGURE
+--------------------------------------------------------------------------------
+
+ALREADY BUILT IN THIS PROJECT (do not rebuild):
+  - User registration creates accounts with email_verified = False
+  - Celery task sends a verification email after signup
+  - Confirm API: POST /api/v1/auth/email-verification/confirm/
+  - Resend API:  POST /api/v1/auth/email-verification/resend/
+  - Frontend pages: /verify-email/:uid/:token and /verify-email/resend
+  - Customer login is blocked (403 email_not_verified) until verified
+  - Checkout / custom-project money paths also require verified email
+
+YOU ONLY NEED TO CONFIGURE:
+  - A real SMTP email provider
+  - Environment variables (EMAIL_*, FRONTEND_BASE_URL)
+  - Celery worker running so mail tasks are processed
+
+LOCAL DEFAULT TODAY:
+  EMAIL_BACKEND = django.core.mail.backends.console.EmailBackend
+  That means mail is printed to the terminal / Docker logs — it does NOT
+  go to Gmail until you switch to SMTP.
+
+
+--------------------------------------------------------------------------------
+2. PROVIDER SUGGESTION (WHICH ONE TO USE)
+--------------------------------------------------------------------------------
+
+RECOMMENDED FOR THIS PROJECT: Brevo (formerly Sendinblue)
+  Why:
+    - Easy SMTP setup (copy host / user / password into .env)
+    - Free tier is enough for staging + early launch traffic
+    - Good deliverability for transactional mail (verify, reset, receipts)
+    - Dashboard shows bounce / spam / delivery without extra tooling
+    - No AWS account required to get started
+
+STRONG ALTERNATIVE: SendGrid
+  Why:
+    - Industry standard for transactional email
+    - Excellent Django/SMTP docs and examples
+    - Slightly more "enterprise" feel; free tier limits can be tighter
+
+BEST LONG-TERM / HIGH VOLUME: Amazon SES
+  Why:
+    - Cheapest per email at scale
+    - Very reliable once domain is verified and out of sandbox
+  Downside:
+    - More setup (AWS console, domain DNS, sandbox exit request)
+    - Overkill while you are only validating the verification flow
+
+NOT RECOMMENDED FOR PRODUCTION: Gmail / Google Workspace SMTP
+  Why:
+    - Daily sending limits
+    - Google may block "app" mail or treat it as suspicious
+    - Not designed for marketplace transactional volume
+  OK for: a one-time personal smoke test only
+
+SUMMARY TABLE
+  -----------------------------------------------------------------
+  Stage              | Suggested provider
+  -----------------------------------------------------------------
+  Local development  | Console backend (no provider) — copy link from logs
+  Staging / first    | Brevo (recommended) or SendGrid
+    real inbox test  |
+  Production launch  | Brevo or SendGrid (fine) → migrate to SES later if volume grows
+  -----------------------------------------------------------------
+
+DECISION FOR THIS TEAM: start with Brevo for staging and early production.
+Revisit Amazon SES only if monthly email volume or cost becomes a concern.
+
+
+--------------------------------------------------------------------------------
+3. HOW EMAIL VERIFICATION WORKS (QUICK FLOW)
+--------------------------------------------------------------------------------
+
+  1) User registers with email + password
+  2) Backend creates user with email_verified = False (no login tokens)
+  3) After DB commit, Celery enqueues task: accounts.send_email_verification
+  4) Worker sends email with link:
+       {FRONTEND_BASE_URL}/verify-email/{uid}/{token}
+  5) User opens link → SPA auto-calls confirm API → email_verified = True
+  6) User signs in normally
+
+Token lifetime: ~3 days (Django PASSWORD_RESET_TIMEOUT default).
+Token becomes invalid after successful verify (or if email changes).
+
+Resend: user can request another email; API always returns a generic
+message (does not reveal whether the email exists).
+
+
+--------------------------------------------------------------------------------
+4. PREREQUISITES CHECKLIST
+--------------------------------------------------------------------------------
+
+[ ] Project root / host .env exists (Compose reads EMAIL_* into web + worker)
+[ ] Docker Compose (or equivalent) can run: web + worker + Redis
+[ ] You have access to an inbox you control (e.g. your Gmail) for testing
+[ ] For staging/prod: a public FRONTEND_BASE_URL (https://your-domain.com)
+[ ] For local Vite: FRONTEND_BASE_URL=http://localhost:5173 is OK while DEBUG=True
+
+
+--------------------------------------------------------------------------------
+5. STEP-BY-STEP: SET UP BREVO (RECOMMENDED)
+--------------------------------------------------------------------------------
+
+STEP 5.1 — Create a Brevo account
+  1. Go to https://www.brevo.com and sign up
+  2. Verify your Brevo account email
+  3. In Brevo: add and verify your sending domain (or at least a sender email)
+     Domain verification (SPF / DKIM DNS records) greatly improves Gmail delivery
+
+STEP 5.2 — Create SMTP credentials
+  1. Brevo dashboard → SMTP & API (or Settings → SMTP)
+  2. Generate / reveal SMTP key
+  3. Write down:
+       EMAIL_HOST     = smtp-relay.brevo.com
+       EMAIL_PORT     = 587
+       EMAIL_HOST_USER = (the SMTP login Brevo shows, often your Brevo login email)
+       EMAIL_HOST_PASSWORD = (the SMTP key)
+       DEFAULT_FROM_EMAIL  = a verified sender, e.g. noreply@yourdomain.com
+
+  Note: Exact host/login labels can vary slightly in Brevo UI — use the
+  values shown on their SMTP page. Port 587 + TLS is the usual choice.
+
+STEP 5.3 — Edit your .env (project / Compose host env)
+
+  # --- Switch off console mail ---
+  EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+  ALLOW_CONSOLE_EMAIL=False
+
+  # --- Sender ---
+  DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+
+  # --- Brevo SMTP ---
+  EMAIL_HOST=smtp-relay.brevo.com
+  EMAIL_PORT=587
+  EMAIL_HOST_USER=your-brevo-smtp-login
+  EMAIL_HOST_PASSWORD=your-brevo-smtp-key
+  EMAIL_USE_TLS=True
+
+  # --- Links inside emails must open your SPA ---
+  # Local Vite example:
+  # FRONTEND_BASE_URL=http://localhost:5173
+  # Staging / production example:
+  FRONTEND_BASE_URL=https://your-public-site.com
+
+  # --- Staff inboxes (contact form + project alerts) ---
+  CONTACT_ADMIN_RECIPIENTS=you@gmail.com
+  PROJECT_MESSAGE_ADMIN_RECIPIENTS=you@gmail.com
+
+  NEVER commit real passwords / API keys to git.
+
+
+--------------------------------------------------------------------------------
+6. STEP-BY-STEP: ALTERNATIVE — SENDGRID
+--------------------------------------------------------------------------------
+
+  1. Create account at https://sendgrid.com
+  2. Verify sender identity (Single Sender for quick test, or Domain Auth)
+  3. Settings → API Keys → create key with Mail Send permission
+  4. .env values:
+
+       EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+       ALLOW_CONSOLE_EMAIL=False
+       DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+       EMAIL_HOST=smtp.sendgrid.net
+       EMAIL_PORT=587
+       EMAIL_HOST_USER=apikey
+       EMAIL_HOST_PASSWORD=SG.your-sendgrid-api-key
+       EMAIL_USE_TLS=True
+       FRONTEND_BASE_URL=https://your-public-site.com
+
+
+--------------------------------------------------------------------------------
+7. STEP-BY-STEP: RESTART SERVICES
+--------------------------------------------------------------------------------
+
+Mail is sent by the Celery WORKER, not only the Django web process.
+Both must see the same EMAIL_* env.
+
+  docker compose up -d --force-recreate web worker
+
+Confirm worker listens on the email queue (Compose already uses):
+  celery ... -Q celery,email
+
+If Redis / broker is down, tasks may run eagerly or fail — keep Redis up.
+
+
+--------------------------------------------------------------------------------
+8. STEP-BY-STEP: VERIFY CONFIGURATION
+--------------------------------------------------------------------------------
+
+From Compose:
+
+  docker compose exec web python manage.py check_email_config
+  docker compose exec web python manage.py check_email_config --fail-on-warnings
+
+Expect something like:
+  - EMAIL_BACKEND=...smtp.EmailBackend
+  - ALLOW_CONSOLE_EMAIL=False
+  - EMAIL_HOST_set=True
+  - EMAIL_HOST_USER_set=True
+  - EMAIL_HOST_PASSWORD_set=True
+
+Then send a real test message to your Gmail:
+
+  docker compose exec web python manage.py check_email_config --send-test-email you@gmail.com
+
+Open Gmail (and Spam / Promotions).
+If it arrives → SMTP works.
+If not → check provider dashboard (bounces, unverified sender) and worker logs.
+
+
+--------------------------------------------------------------------------------
+9. STEP-BY-STEP: TEST FULL EMAIL VERIFICATION FLOW
+--------------------------------------------------------------------------------
+
+  1. Register a NEW customer account using an inbox you control
+  2. Wait a few seconds (worker processes the task)
+  3. Open the verification email
+  4. Confirm the link host matches FRONTEND_BASE_URL
+  5. Click the link → page should verify successfully
+  6. Click "Continue to sign in" (or go to login) and sign in
+  7. Confirm login succeeds (no email_not_verified error)
+
+Also smoke-test:
+  - Resend verification from /verify-email/resend or login CTA
+  - Optional: password-reset email uses the same SMTP + FRONTEND_BASE_URL
+  - Optional: contact form reaches CONTACT_ADMIN_RECIPIENTS
+
+
+--------------------------------------------------------------------------------
+10. LOCAL DEVELOPMENT WITHOUT SMTP (SHORTCUT)
+--------------------------------------------------------------------------------
+
+Keep console backend while coding:
+
+  EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+
+After register / resend:
+  - Read web or worker logs
+  - Find the line labeled roughly: EMAIL VERIFICATION LINK
+  - Paste that URL into the browser
+
+Or mark verified without email:
+
+  python manage.py verify_email you@example.com
+
+  (or Django admin / SPA admin user detail → toggle email_verified)
+
+
+--------------------------------------------------------------------------------
+11. ENVIRONMENT VARIABLE REFERENCE
+--------------------------------------------------------------------------------
+
+  Variable                        | Purpose
+  --------------------------------|------------------------------------------
+  EMAIL_BACKEND                   | console (dev) or smtp.EmailBackend (real)
+  ALLOW_CONSOLE_EMAIL             | Must be False for staging/prod with DEBUG=False
+  DEFAULT_FROM_EMAIL              | From: address (must be verified at provider)
+  EMAIL_HOST                      | SMTP hostname
+  EMAIL_PORT                      | Usually 587
+  EMAIL_HOST_USER                 | SMTP username / API login
+  EMAIL_HOST_PASSWORD             | SMTP password / API key
+  EMAIL_USE_TLS                   | Usually True on port 587
+  FRONTEND_BASE_URL               | Origin used in verify / reset links
+  CONTACT_ADMIN_RECIPIENTS        | Staff inbox(es) for contact form
+  PROJECT_MESSAGE_ADMIN_RECIPIENTS| Staff inbox(es) for custom-project alerts
+
+
+--------------------------------------------------------------------------------
+12. TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+Mail never arrives
+  [ ] Worker running?  docker compose ps
+  [ ] Same EMAIL_* on web AND worker?
+  [ ] Sender address/domain verified in Brevo/SendGrid?
+  [ ] Check Spam / Promotions in Gmail
+  [ ] Provider dashboard: rejected / bounced?
+  [ ] Run --send-test-email again and watch worker logs
+
+Link opens wrong host (localhost in staging)
+  [ ] Fix FRONTEND_BASE_URL to public HTTPS origin
+  [ ] Resend verification after changing env + recreate web/worker
+
+Login still says email not verified
+  [ ] Confirm API succeeded on the verify page
+  [ ] Check user.email_verified in admin / DB
+  [ ] Token expired (> ~3 days) → use resend
+
+App refuses to start with DEBUG=False
+  [ ] Console backend is blocked unless ALLOW_CONSOLE_EMAIL=True
+  [ ] Staging/prod must use SMTP and ALLOW_CONSOLE_EMAIL=False
+
+
+--------------------------------------------------------------------------------
+13. SIGN-OFF CHECKLIST (RECORD YOUR PROGRESS HERE)
+--------------------------------------------------------------------------------
+
+Provider chosen: _______________  (suggested: Brevo)
+
+[ ] Provider account created
+[ ] Sending domain / sender verified
+[ ] SMTP credentials stored in .env (not in git)
+[ ] FRONTEND_BASE_URL set correctly
+[ ] web + worker recreated with new env
+[ ] check_email_config --fail-on-warnings OK
+[ ] --send-test-email delivered to inbox
+[ ] Register → inbox link → verify → login works
+[ ] Resend verification works
+[ ] (Staging) Checked on phone + desktop
+
+Date completed: _______________
+Operator: _____________________
+
+
+--------------------------------------------------------------------------------
+14. WHAT YOU DO NOT NEED TO BUILD
+--------------------------------------------------------------------------------
+
+  - New verification APIs
+  - New Celery mail framework
+  - New frontend verify pages
+  - Custom "Gmail API" integration
+
+Transactional SMTP is enough. Gmail receives mail like any other mailbox
+once your provider delivers it.
+
+
+================================================================================
+  END OF GUIDE
+================================================================================

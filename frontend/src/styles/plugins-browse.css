@@ -69,7 +69,7 @@
 .plugins-filters {
   align-self: start;
   padding: 1.1rem 1.15rem 1.25rem;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid color-mix(in srgb, var(--text-main) 8%, transparent);
   border-radius: 0.75rem;
   background: #fff;
   box-shadow: none;
@@ -88,13 +88,13 @@
   font-size: 0.85rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: #0f172a;
+  color: var(--text-main);
 }
 
 .plugins-filters__reset {
   border: 0;
   background: transparent;
-  color: #2563eb;
+  color: var(--action-color);
   font: inherit;
   font-size: 0.8rem;
   font-weight: 600;
@@ -115,16 +115,16 @@
   margin: 0 0 0.4rem;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-main);
 }
 
 .plugins-filters__select {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in srgb, var(--text-main) 12%, transparent);
   border-radius: 0.45rem;
   background: #fff;
-  color: #0f172a;
+  color: var(--text-main);
   font: inherit;
   font-size: 0.875rem;
 }
@@ -141,10 +141,10 @@
 }
 
 .plugins-filters__chip {
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid color-mix(in srgb, var(--text-main) 12%, transparent);
   border-radius: 999px;
-  background: #f8fafc;
-  color: #334155;
+  background: var(--bg-primary);
+  color: var(--text-main);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 600;
@@ -153,13 +153,13 @@
 }
 
 .plugins-filters__chip:hover {
-  border-color: #2563eb;
-  color: #2563eb;
+  border-color: var(--action-color);
+  color: var(--action-color);
 }
 
 .plugins-filters__chip--active {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: var(--action-color);
+  border-color: var(--action-color);
   color: #fff;
 }
 
@@ -180,7 +180,7 @@
   margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-main);
 }
 
 .plugins-browse-toolbar__controls {
@@ -196,7 +196,7 @@
   align-items: center;
   gap: 0.45rem;
   font-size: 0.85rem;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .plugins-grid {
@@ -237,7 +237,7 @@
 .plugins-browse .product-card,
 .models-browse .product-card {
   background: #fff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 0.35rem;
   overflow: hidden;
   box-shadow: none;
@@ -250,7 +250,7 @@
 
 .plugins-browse .product-card__wishlist,
 .models-browse .product-card__wishlist {
-  background: rgba(15, 23, 42, 0.35);
+  background: color-mix(in srgb, var(--text-main) 35%, transparent);
   border-color: rgba(255, 255, 255, 0.55);
   color: #fff;
   box-shadow: none;
@@ -258,32 +258,32 @@
 
 .plugins-browse .product-card__price,
 .models-browse .product-card__price {
-  color: #2563eb;
+  color: var(--action-color);
   font-weight: 700;
 }
 
 .plugins-browse .product-card__price--original,
 .models-browse .product-card__price--original {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .plugins-browse-state {
   padding: 2.5rem 1.5rem;
   text-align: center;
-  border: 1px dashed rgba(15, 23, 42, 0.15);
+  border: 1px dashed color-mix(in srgb, var(--text-main) 15%, transparent);
   border-radius: 0.75rem;
   background: #fff;
 }
 
 .plugins-browse-state h3 {
   margin: 0 0 0.5rem;
-  color: #0f172a;
+  color: var(--text-main);
 }
 
 .plugins-browse-state p {
   margin: 0 0 1rem;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .plugins-pagination {
@@ -296,6 +296,6 @@
 
 .plugins-pagination__info {
   font-size: 0.9rem;
-  color: #475569;
+  color: var(--text-secondary);
 }
 

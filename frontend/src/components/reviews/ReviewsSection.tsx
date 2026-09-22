@@ -8,10 +8,12 @@ import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/ErrorState'
 import { FormField } from '../ui/FormField'
+import { Pagination } from '../ui/Pagination'
 import { Spinner } from '../ui/Spinner'
 import { useReviews, type ReviewOrdering } from '../../hooks/useReviews'
 import { useAuthStore } from '../../store/authStore'
 import type { ReviewProductType } from '../../types/review'
+import { formatDate } from '../../lib/format'
 
 const reviewSchema = z.object({
   rating: z.number().int().min(1, 'Select a rating').max(5),
@@ -30,16 +32,6 @@ interface ReviewsSectionProps {
   averageRating: string
   reviewCount: number
   layout?: 'default' | 'hub'
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 
 function formatRelative(value: string): string {
@@ -88,8 +80,6 @@ export function ReviewsSection({
     isSignedIn,
     reviews,
     reviewCount: listCount,
-    hasNextPage,
-    hasPreviousPage,
     isLoading,
     isError,
     refetch,
@@ -349,25 +339,13 @@ export function ReviewsSection({
         </ul>
       )}
 
-      {listCount > 10 ? (
-        <div className="product-detail-reviews__pagination">
-          <Button
-            variant="secondary"
-            disabled={!hasPreviousPage || page <= 1}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            Previous
-          </Button>
-          <span>Page {page}</span>
-          <Button
-            variant="secondary"
-            disabled={!hasNextPage}
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Next
-          </Button>
-        </div>
-      ) : null}
+      <Pagination
+        page={page}
+        totalPages={Math.ceil(listCount / 10)}
+        onPageChange={setPage}
+        ariaLabel="Review pagination"
+        className="product-detail-reviews__pagination"
+      />
     </>
   )
 

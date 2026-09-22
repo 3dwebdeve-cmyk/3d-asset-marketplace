@@ -98,7 +98,7 @@ export function AdminCouponsPage() {
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="admin-coupons-title"
       >
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-coupons-title">Coupons</h1>
         <p className="home-page__subtitle">
           Create discount codes customers can apply on the cart.

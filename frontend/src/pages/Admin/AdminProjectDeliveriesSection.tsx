@@ -8,14 +8,16 @@ import {
   updateAdminCustomProject,
   uploadAdminProjectDelivery,
 } from '../../api/customProjectsApi'
+import {
+  PROJECT_DELIVERY_PAGE_SIZE,
+  ProjectDeliveriesList,
+} from '../../components/projects/ProjectDeliveriesList'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
-import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
-import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
-import { formatFileSize } from '../../lib/productUpload'
+import { formatFileSize } from '../../lib/format'
 import {
   PROJECT_DELIVERY_ACCEPT,
   PROJECT_DELIVERY_FORMAT_LABELS,
@@ -25,20 +27,7 @@ import {
 import { toast } from '../../lib/toast'
 import type { CustomProjectStatus, ProjectDelivery } from '../../types/customProject'
 
-const DELIVERY_PAGE_SIZE = 50
 const NOTES_MAX_LENGTH = 2000
-
-function formatDeliveryDate(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date)
-}
 
 interface AdminProjectDeliveriesSectionProps {
   projectId: string
@@ -65,7 +54,7 @@ export function AdminProjectDeliveriesSection({
     queryFn: () =>
       listAdminProjectDeliveries(projectId, {
         page: 1,
-        page_size: DELIVERY_PAGE_SIZE,
+        page_size: PROJECT_DELIVERY_PAGE_SIZE,
       }),
     enabled: Boolean(projectId),
     retry: false,
@@ -171,11 +160,7 @@ export function AdminProjectDeliveriesSection({
   const onDownload = async (delivery: ProjectDelivery) => {
     setDownloadError(null)
     try {
-      await downloadAdminProjectDelivery(
-        projectId,
-        delivery.id,
-        delivery.file_name,
-      )
+      await downloadAdminProjectDelivery(projectId, delivery.id, delivery.file_name)
     } catch (error) {
       setDownloadError(
         getApiErrorMessage(error, 'Could not download the deliverable. Please try again.'),
@@ -183,7 +168,6 @@ export function AdminProjectDeliveriesSection({
     }
   }
 
-  const deliveries = deliveriesQuery.data?.results ?? []
   const isUploading = uploadMutation.isPending
   const isUpdatingStatus = statusMutation.isPending
   const canMarkDelivered = status === 'in_progress'
@@ -200,7 +184,6 @@ export function AdminProjectDeliveriesSection({
         paths are never exposed).
       </p>
 
-      {downloadError ? <Alert variant="error" message={downloadError} /> : null}
       {statusError ? <Alert variant="error" message={statusError} /> : null}
 
       <div className="admin-project-deliveries__status-actions">
@@ -231,119 +214,78 @@ export function AdminProjectDeliveriesSection({
         </p>
       ) : null}
 
-      {deliveriesQuery.isLoading ? (
-        <Spinner label="Loading deliverables..." />
-      ) : deliveriesQuery.isError ? (
-        <ErrorState
-          title="Could not load deliverables"
-          description={getApiErrorMessage(
-            deliveriesQuery.error,
-            'Deliverables could not be loaded. Please try again.',
-          )}
-          action={
-            <Button
-              variant="secondary"
-              isLoading={deliveriesQuery.isFetching}
-              onClick={() => deliveriesQuery.refetch()}
-            >
-              Retry
+      <ProjectDeliveriesList
+        titleId="admin-project-deliveries-title"
+        deliveries={deliveriesQuery.data?.results ?? []}
+        isLoading={deliveriesQuery.isLoading}
+        isError={deliveriesQuery.isError}
+        isFetching={deliveriesQuery.isFetching}
+        error={deliveriesQuery.error}
+        emptyMessage="No deliverables uploaded yet."
+        downloadError={downloadError}
+        showUploaderEmail
+        onRetry={() => void deliveriesQuery.refetch()}
+        onDownload={(delivery) => void onDownload(delivery)}
+        footer={
+          <form className="admin-create-form" onSubmit={onUploadSubmit} noValidate>
+            {uploadError ? <Alert variant="error" message={uploadError} /> : null}
+            <FormField id="admin-project-delivery-file" label="Upload deliverable">
+              <input
+                ref={fileInputRef}
+                id="admin-project-delivery-file"
+                type="file"
+                accept={PROJECT_DELIVERY_ACCEPT}
+                disabled={isUploading}
+                onChange={onFileChange}
+              />
+            </FormField>
+            <p className="admin-project-deliveries__hint">
+              Allowed: {PROJECT_DELIVERY_FORMAT_LABELS.join(', ')}. Max {PROJECT_DELIVERY_MAX_MB}{' '}
+              MB.
+            </p>
+            {selectedFile ? (
+              <p className="home-page__subtitle" role="status">
+                Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
+                <button
+                  type="button"
+                  className="auth-link admin-project-deliveries__clear-file"
+                  disabled={isUploading}
+                  onClick={() => {
+                    setSelectedFile(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                >
+                  Remove
+                </button>
+              </p>
+            ) : null}
+            <FormField id="admin-project-delivery-notes" label="Notes (optional)">
+              <Input
+                id="admin-project-delivery-notes"
+                value={notes}
+                maxLength={NOTES_MAX_LENGTH}
+                disabled={isUploading}
+                onChange={(event) => setNotes(event.target.value)}
+              />
+            </FormField>
+            <FormField id="admin-project-delivery-version" label="Version (optional)">
+              <Input
+                id="admin-project-delivery-version"
+                type="number"
+                min={1}
+                step={1}
+                value={version}
+                disabled={isUploading}
+                placeholder="Auto next version"
+                onChange={(event) => setVersion(event.target.value)}
+              />
+            </FormField>
+            <Button type="submit" isLoading={isUploading} disabled={!selectedFile}>
+              Upload deliverable
             </Button>
-          }
-        />
-      ) : deliveries.length === 0 ? (
-        <p className="home-page__subtitle" role="status">
-          No deliverables uploaded yet.
-        </p>
-      ) : (
-        <ul className="admin-media-list" aria-label="Project deliverables">
-          {deliveries.map((delivery) => (
-            <li key={delivery.id} className="admin-media-item admin-media-item--file">
-              <span className="admin-format-badge admin-format-badge--large">
-                v{delivery.version}
-              </span>
-              <div className="admin-media-item__content">
-                <p className="admin-media-item__title">{delivery.file_name}</p>
-                <p className="admin-media-item__meta">
-                  Version {delivery.version} · {formatFileSize(delivery.file_size)} ·{' '}
-                  <time dateTime={delivery.created_at}>
-                    {formatDeliveryDate(delivery.created_at)}
-                  </time>
-                  {delivery.uploaded_by_email ? ` · ${delivery.uploaded_by_email}` : ''}
-                </p>
-                {delivery.notes ? (
-                  <p className="admin-project-deliveries__notes">{delivery.notes}</p>
-                ) : null}
-                <div className="admin-media-item__actions">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => void onDownload(delivery)}
-                  >
-                    Download
-                  </Button>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <form className="admin-create-form" onSubmit={onUploadSubmit} noValidate>
-        {uploadError ? <Alert variant="error" message={uploadError} /> : null}
-        <FormField id="admin-project-delivery-file" label="Upload deliverable">
-          <input
-            ref={fileInputRef}
-            id="admin-project-delivery-file"
-            type="file"
-            accept={PROJECT_DELIVERY_ACCEPT}
-            disabled={isUploading}
-            onChange={onFileChange}
-          />
-        </FormField>
-        <p className="admin-project-deliveries__hint">
-          Allowed: {PROJECT_DELIVERY_FORMAT_LABELS.join(', ')}. Max {PROJECT_DELIVERY_MAX_MB} MB.
-        </p>
-        {selectedFile ? (
-          <p className="home-page__subtitle" role="status">
-            Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
-            <button
-              type="button"
-              className="auth-link admin-project-deliveries__clear-file"
-              disabled={isUploading}
-              onClick={() => {
-                setSelectedFile(null)
-                if (fileInputRef.current) fileInputRef.current.value = ''
-              }}
-            >
-              Remove
-            </button>
-          </p>
-        ) : null}
-        <FormField id="admin-project-delivery-notes" label="Notes (optional)">
-          <Input
-            id="admin-project-delivery-notes"
-            value={notes}
-            maxLength={NOTES_MAX_LENGTH}
-            disabled={isUploading}
-            onChange={(event) => setNotes(event.target.value)}
-          />
-        </FormField>
-        <FormField id="admin-project-delivery-version" label="Version (optional)">
-          <Input
-            id="admin-project-delivery-version"
-            type="number"
-            min={1}
-            step={1}
-            value={version}
-            disabled={isUploading}
-            placeholder="Auto next version"
-            onChange={(event) => setVersion(event.target.value)}
-          />
-        </FormField>
-        <Button type="submit" isLoading={isUploading} disabled={!selectedFile}>
-          Upload deliverable
-        </Button>
-      </form>
+          </form>
+        }
+      />
     </section>
   )
 }

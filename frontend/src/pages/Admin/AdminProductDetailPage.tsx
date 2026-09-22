@@ -18,7 +18,7 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type {
   AdminProductUpdatePayload,
@@ -26,6 +26,7 @@ import type {
   ProductStatus,
 } from '../../types/product'
 import { ProductMediaSection } from './ProductMediaSection'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 export function AdminProductDetailPage() {
   const { productId = '' } = useParams()
@@ -178,10 +179,14 @@ export function AdminProductDetailPage() {
   const categoryOptions = categoriesQuery.data?.results ?? []
   const product = productQuery.data
 
+  if (!productId || isHttpNotFound(productQuery.error)) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="admin-product-detail-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-product-detail-title">Manage product</h1>
 
         <div className="dashboard-card__actions">

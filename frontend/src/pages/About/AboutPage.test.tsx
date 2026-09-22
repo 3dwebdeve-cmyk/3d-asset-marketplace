@@ -35,7 +35,7 @@ describe('AboutPage', () => {
     )
     expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
       'href',
-      '/custom-projects',
+      '/dashboard/projects/new',
     )
     expect(screen.getByRole('link', { name: /^contact$/i })).toHaveAttribute('href', '/contact')
   })

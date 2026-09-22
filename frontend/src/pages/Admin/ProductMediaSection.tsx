@@ -15,7 +15,6 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import {
-  formatFileSize,
   formatFormatLabel,
   isPreviewModelFile,
   PREVIEW_MODEL_FORMATS,
@@ -27,24 +26,14 @@ import {
   PRODUCT_IMAGE_FORMAT_LABELS,
   PRODUCT_IMAGE_MAX_MB,
 } from '../../lib/productUpload'
+import { formatFileSize } from '../../lib/format'
+import { FormatBadges } from '../../components/admin/FormatBadges'
 import { toast } from '../../lib/toast'
 import type { AdminProduct } from '../../types/product'
 
 interface ProductMediaSectionProps {
   productId: string
   product: AdminProduct
-}
-
-function FormatBadges({ labels }: { labels: readonly string[] }) {
-  return (
-    <div className="admin-format-badges" aria-label="Supported formats">
-      {labels.map((label) => (
-        <span key={label} className="admin-format-badge">
-          {label}
-        </span>
-      ))}
-    </div>
-  )
 }
 
 export function ProductMediaSection({ productId, product }: ProductMediaSectionProps) {

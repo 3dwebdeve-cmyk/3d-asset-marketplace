@@ -7,8 +7,8 @@
 .dashboard-layout__content .profile-edit-body .page-title {
   margin: 0 0 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #1e293b;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main);
   font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 20px;
   font-weight: 700;
@@ -18,7 +18,7 @@
 
 .dashboard-layout__content .profile-edit-body .section-title {
   margin: 0 0 22px;
-  color: #1e293b;
+  color: var(--text-main);
   font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 16px;
   font-weight: 700;
@@ -27,15 +27,15 @@
 }
 
 .profile-edit-body {
-  --primary: #0066ee;
-  --primary-hover: #0052cc;
-  --primary-light: #eaf2ff;
+  --primary: var(--action-color);
+  --primary-hover: var(--action-color);
+  --primary-light: var(--accent-soft);
 
   box-sizing: border-box;
   min-height: 100%;
   padding: 28px 36px 40px;
   background: #ffffff;
-  color: #1e293b;
+  color: var(--text-main);
   font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.4;
@@ -46,15 +46,15 @@
 .profile-edit-body .page-title {
   margin: 0 0 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #1e293b;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-main);
   font-size: 20px;
   font-weight: 700;
 }
 
 .profile-edit-body .section-title {
   margin: 0 0 22px;
-  color: #1e293b;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: 700;
 }
@@ -62,7 +62,7 @@
 .profile-edit-body .section-title.links-section {
   margin-top: 36px;
   padding-top: 24px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--bg-primary);
 }
 
 .profile-edit-body .profile-form {
@@ -89,9 +89,9 @@
   overflow: hidden;
   border: 1px solid rgb(0 0 0 / 0.06);
   border-radius: 6px;
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-  box-shadow: 0 2px 8px rgb(249 115 22 / 0.2);
-  color: #ffedd5;
+  background: linear-gradient(135deg, var(--action-color) 0%, var(--action-color) 100%);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--action-color) 20%, transparent);
+  color: var(--pure-white);
 }
 
 .profile-edit-body .avatar-thumb img {
@@ -141,7 +141,7 @@
 }
 
 .profile-edit-body .avatar-specs-text {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 11.5px;
   font-weight: 500;
 }
@@ -150,7 +150,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: #64748b;
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
@@ -178,7 +178,7 @@
   width: 160px;
   flex-shrink: 0;
   padding-top: 8px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13.5px;
   font-weight: 500;
 }
@@ -195,10 +195,10 @@
   width: 100%;
   box-sizing: border-box;
   padding: 9px 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border);
   border-radius: 4px;
   background-color: #ffffff;
-  color: #1e293b;
+  color: var(--text-main);
   font-family: inherit;
   font-size: 13.5px;
   outline: none;
@@ -209,24 +209,24 @@
 
 .profile-edit-body .form-input:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgb(0 102 238 / 0.18);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--action-color) 18%, transparent);
 }
 
 .profile-edit-body .form-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .profile-edit-body .form-helper-text {
   margin-top: 6px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
 
 .profile-edit-body .form-error-text {
   margin-top: 6px;
-  color: #b91c1c;
+  color: var(--text-main);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -238,8 +238,8 @@
 }
 
 .profile-edit-body .input-username-readonly {
-  background-color: #f1f5f9;
-  color: #334155;
+  background-color: var(--bg-primary);
+  color: var(--text-main);
   font-weight: 500;
 }
 
@@ -266,7 +266,7 @@
   margin-top: 32px;
   margin-left: 184px;
   padding-top: 24px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border);
 }
 
 .profile-edit-body .btn-save-changes {
@@ -297,7 +297,7 @@
 
 .profile-edit-body .btn-cancel {
   padding: 10px 14px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
@@ -305,7 +305,7 @@
 }
 
 .profile-edit-body .btn-cancel:hover {
-  color: #0f172a;
+  color: var(--text-main);
 }
 
 .profile-edit-body .profile-alerts {

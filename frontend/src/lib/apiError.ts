@@ -2,6 +2,10 @@ import { isAxiosError } from 'axios'
 
 import type { ApiErrorResponse } from '../types/auth'
 
+export function isHttpNotFound(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 404
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (!isAxiosError<ApiErrorResponse>(error)) {
     return fallback

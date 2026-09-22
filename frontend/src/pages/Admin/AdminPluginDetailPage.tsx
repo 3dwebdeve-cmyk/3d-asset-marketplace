@@ -15,7 +15,7 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type {
   AdminPluginUpdatePayload,
@@ -23,6 +23,7 @@ import type {
   PluginStatus,
 } from '../../types/plugin'
 import { PluginMediaSection } from './PluginMediaSection'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 function validatePlugin(form: AdminPluginUpdatePayload): string | null {
   if (!form.category_id) return 'Select a plugin category.'
@@ -140,10 +141,14 @@ export function AdminPluginDetailPage() {
   const formReady = hydratedPluginId === pluginId && plugin?.id === pluginId
   const categories = categoriesQuery.data ?? []
 
+  if (!pluginId || isHttpNotFound(pluginQuery.error)) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="plugin-detail-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="plugin-detail-title">Manage plugin</h1>
         <div className="dashboard-card__actions">
           <Link className="home-page__cta home-page__cta--secondary" to="/console/plugins">

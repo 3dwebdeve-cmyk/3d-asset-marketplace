@@ -2,7 +2,7 @@
   flex: 1;
   width: 100%;
   background: #ffffff;
-  color: #122033;
+  color: var(--text-main);
   text-align: left;
 }
 
@@ -26,11 +26,11 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #7b8494;
+  color: var(--text-secondary);
 }
 
 .about-eyebrow--accent {
-  color: #2563eb;
+  color: var(--action-color);
 }
 
 .about-page h1,
@@ -38,13 +38,13 @@
 .about-page h3 {
   margin: 0;
   letter-spacing: -0.02em;
-  color: #0f1b2d;
+  color: var(--text-main);
 }
 
 .about-page p {
   margin: 0;
   line-height: 1.65;
-  color: #5f6b7a;
+  color: var(--text-secondary);
 }
 
 .about-page svg {
@@ -59,8 +59,8 @@
 
 /* Hero — same banner height/aspect as 3D Models and Plugins */
 .about-hero.site-hero-banner {
-  background-color: #eef1f5;
-  color: #111827;
+  background-color: var(--border);
+  color: var(--text-main);
 }
 
 .about-hero .site-hero-banner__image {
@@ -104,7 +104,7 @@
   line-height: 1.15;
   letter-spacing: -0.03em;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-main);
 }
 
 .about-hero__lead {
@@ -130,7 +130,7 @@
 
 .about-hero__stat {
   padding: 0 0.95rem;
-  border-right: 1px solid #d7dde7;
+  border-right: 1px solid var(--border);
 }
 
 .about-hero__stat:first-child {
@@ -146,13 +146,13 @@
   margin: 0;
   font-size: clamp(1rem, 1.6vw, 1.15rem);
   font-weight: 800;
-  color: #101828;
+  color: var(--text-main);
 }
 
 .about-hero__stat dd {
   margin: 0.15rem 0 0;
   font-size: 0.75rem;
-  color: #6b7380;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 720px) {
@@ -190,7 +190,7 @@
 }
 
 .about-who__copy h2 span {
-  color: #2563eb;
+  color: var(--action-color);
 }
 
 .about-who__copy p + p {
@@ -211,13 +211,13 @@
   border-radius: 1rem;
   background: #fff;
   box-shadow: none;
-  border: 1px solid #eef1f5;
+  border: 1px solid var(--border);
 }
 
 .about-who-card__icon {
   width: 2.4rem;
   height: 2.4rem;
-  color: #2563eb;
+  color: var(--action-color);
 }
 
 .about-who-card h3 {
@@ -236,7 +236,7 @@
   isolation: isolate;
   overflow: hidden;
   padding: clamp(2.75rem, 5.5vw, 4.25rem) 0;
-  background-color: #0b1220;
+  background-color: var(--pure-black);
   background-image: url('/images/about/about-mission.jpg?v=1');
   background-repeat: no-repeat;
   background-position: right center;
@@ -260,7 +260,7 @@
 
 .about-mission .about-eyebrow--accent {
   margin-bottom: 0.85rem;
-  color: #3b82f6;
+  color: var(--action-color);
 }
 
 .about-mission__grid {
@@ -311,7 +311,7 @@
   width: 1.55rem;
   height: 1.55rem;
   margin-top: 0.1rem;
-  color: #3b82f6;
+  color: var(--action-color);
 }
 
 .about-mission__points strong {
@@ -353,7 +353,7 @@
 /* Offer */
 .about-offer {
   padding: clamp(3.5rem, 7vw, 5rem) 0;
-  background: #f7f8fa;
+  background: var(--bg-primary);
 }
 
 .about-offer__header {
@@ -374,7 +374,7 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #8a93a3;
+  color: var(--text-secondary);
 }
 
 .about-offer__grid {
@@ -388,13 +388,13 @@
   border-radius: 1.1rem;
   background: #fff;
   box-shadow: none;
-  border: 1px solid #eef1f5;
+  border: 1px solid var(--border);
 }
 
 .about-offer-card__media {
   position: relative;
   aspect-ratio: 16 / 11;
-  background: #e8ecf1;
+  background: var(--border);
   overflow: hidden;
 }
 
@@ -425,15 +425,15 @@
 }
 
 .about-offer-card__badge--blue {
-  background: #2563eb;
+  background: var(--action-color);
 }
 
 .about-offer-card__badge--green {
-  background: #16a34a;
+  background: var(--action-color);
 }
 
 .about-offer-card__badge--orange {
-  background: #ea580c;
+  background: var(--action-color);
 }
 
 .about-offer-card__body {
@@ -457,7 +457,7 @@
   height: 2rem;
   margin-top: 1rem;
   border-radius: 999px;
-  background: #2563eb;
+  background: var(--action-color);
   color: #fff;
   text-decoration: none;
   box-shadow: none;
@@ -489,7 +489,7 @@
   border-radius: 1.35rem;
   aspect-ratio: 4 / 3;
   min-height: 18rem;
-  background: #e8eef5;
+  background: var(--accent-soft);
   box-shadow: none;
 }
 
@@ -515,13 +515,13 @@
   font-size: clamp(1.85rem, 3.2vw, 2.55rem);
   font-weight: 800;
   line-height: 1.12;
-  color: #0f1b2d;
+  color: var(--text-main);
 }
 
 .about-trust__copy > p {
   max-width: 36rem;
   font-size: 0.98rem;
-  color: #667384;
+  color: var(--text-secondary);
 }
 
 .about-trust__steps {
@@ -546,8 +546,8 @@
   display: grid;
   place-items: center;
   border-radius: 999px;
-  border: 1.6px solid #3b82f6;
-  color: #2563eb;
+  border: 1.6px solid var(--action-color);
+  color: var(--action-color);
   background: transparent;
 }
 
@@ -561,26 +561,26 @@
   margin-bottom: 0.2rem;
   font-size: 0.98rem;
   font-weight: 700;
-  color: #0f1b2d;
+  color: var(--text-main);
 }
 
 .about-trust__steps span {
   font-size: 0.86rem;
   line-height: 1.45;
-  color: #667384;
+  color: var(--text-secondary);
 }
 
 /* CTA — standalone card, separate from global benefits/footer band */
 .about-cta {
   padding: clamp(2rem, 4.5vw, 3.25rem) 0 clamp(2.5rem, 5vw, 3.75rem);
-  background: #f4f7fb;
+  background: var(--bg-primary);
 }
 
 .about-cta__card {
   width: 100%;
   padding: clamp(1.5rem, 3.2vw, 2.35rem) clamp(1.25rem, 3vw, 2.25rem);
   border-radius: 1.15rem;
-  background: #0b1220;
+  background: var(--pure-black);
   box-shadow: none;
   box-sizing: border-box;
 }
@@ -594,7 +594,7 @@
 }
 
 .about-cta .about-eyebrow--accent {
-  color: #93c5fd;
+  color: var(--accent-border);
 }
 
 .about-cta h2 {
@@ -629,7 +629,7 @@
 }
 
 .about-cta__btn--primary {
-  background: #2563eb;
+  background: var(--action-color);
   color: #fff;
   box-shadow: none;
 }

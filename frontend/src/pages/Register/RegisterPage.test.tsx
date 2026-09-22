@@ -25,6 +25,7 @@ function renderRegister() {
       <MemoryRouter initialEntries={['/register']}>
         <Routes>
           <Route path="/" element={<div>Home</div>} />
+          <Route path="/home" element={<div>Marketplace home</div>} />
           <Route path="/register" element={<RegisterPage />} />
         </Routes>
         <AuthModal />

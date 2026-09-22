@@ -10,7 +10,6 @@ import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { FormField } from '../../components/ui/FormField'
 import { getApiErrorMessage } from '../../lib/apiError'
-import { formatFileSize } from '../../lib/productUpload'
 import {
   PROJECT_FILE_ACCEPT,
   PROJECT_FILE_FORMAT_LABELS,
@@ -23,6 +22,7 @@ import type {
   CustomerCustomProject,
   ProjectFileType,
 } from '../../types/customProject'
+import { formatDate, formatFileSize } from '../../lib/format'
 
 const FILE_TYPE_LABELS: Record<ProjectFileType, string> = {
   reference_image: 'Reference image',
@@ -36,17 +36,6 @@ const CLOSED_STATUSES: ReadonlySet<CustomProjectStatus> = new Set([
   'rejected',
   'cancelled',
 ])
-
-function formatDate(value: string | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(date)
-}
 
 interface CustomerProjectReferenceFilesSectionProps {
   project: CustomerCustomProject

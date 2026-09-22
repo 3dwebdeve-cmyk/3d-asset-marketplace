@@ -1,0 +1,133 @@
+.not-found-page {
+  --not-found-heading: #14243b;
+  --not-found-navy: #223c68;
+  --not-found-sub: #788a9e;
+
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 100svh;
+  padding: 32px 20px;
+  background-color: #ffffff;
+  color: var(--not-found-heading);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.not-found-page *,
+.not-found-page *::before,
+.not-found-page *::after {
+  box-sizing: border-box;
+}
+
+.not-found-page__wrapper {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: not-found-fade-in 0.4s ease-out;
+}
+
+@keyframes not-found-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.not-found-page__illustration {
+  width: 100%;
+  max-width: 270px;
+  height: 235px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.not-found-page__svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition: transform 0.35s ease;
+}
+
+.not-found-page__illustration:hover .not-found-page__svg {
+  transform: translateY(-3px) scale(1.02);
+}
+
+.not-found-page__sign {
+  animation: not-found-float 4s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+@keyframes not-found-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.not-found-page__title {
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--not-found-heading);
+  letter-spacing: -0.6px;
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+
+.not-found-page__description {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--not-found-sub);
+  line-height: 1.55;
+  max-width: 360px;
+  margin: 0;
+}
+
+.not-found-page__home-link {
+  color: var(--not-found-navy);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.not-found-page__home-link:hover,
+.not-found-page__home-link:focus-visible {
+  color: var(--not-found-heading);
+}
+
+@media (max-width: 480px) {
+  .not-found-page__illustration {
+    max-width: 230px;
+    height: 200px;
+  }
+
+  .not-found-page__title {
+    font-size: 28px;
+  }
+
+  .not-found-page__description {
+    font-size: 14.5px;
+  }
+}

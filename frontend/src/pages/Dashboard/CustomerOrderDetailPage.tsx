@@ -12,21 +12,13 @@ import {
   OrderPaymentStatusBadge,
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
 import type { CustomerOrderItem } from '../../types/order'
 import type { OrderItemDownloadFile } from '../../types/download'
-
-function formatMoney(amount: string, currency: string): string {
-  return `${currency} ${amount}`
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+import { formatMoneyPlain, formatLocaleDateTime } from '../../lib/format'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 function formatProductType(productType: string): string {
   return productType === 'product' ? 'Product' : 'Plugin'
@@ -147,6 +139,10 @@ export function CustomerOrderDetailPage() {
     )
   }
 
+  if (!orderId || isHttpNotFound(orderQuery.error)) {
+    return <NotFoundPage />
+  }
+
   if (orderQuery.isError || !orderQuery.data) {
     return (
       <main className="dashboard-page">
@@ -211,16 +207,16 @@ export function CustomerOrderDetailPage() {
             <OrderPaymentStatusBadge status={order.payment_status} />
           </p>
           <p>
-            <strong>Total:</strong> {formatMoney(order.total_amount, order.currency)}
+            <strong>Total:</strong> {formatMoneyPlain(order.total_amount, order.currency)}
           </p>
           <p>
-            <strong>Items total:</strong> {formatMoney(order.items_total, order.currency)}
+            <strong>Items total:</strong> {formatMoneyPlain(order.items_total, order.currency)}
           </p>
           <p>
-            <strong>Placed:</strong> {formatDate(order.created_at)}
+            <strong>Placed:</strong> {formatLocaleDateTime(order.created_at)}
           </p>
           <p>
-            <strong>Updated:</strong> {formatDate(order.updated_at)}
+            <strong>Updated:</strong> {formatLocaleDateTime(order.updated_at)}
           </p>
         </div>
 
@@ -245,8 +241,8 @@ export function CustomerOrderDetailPage() {
                     <td>{formatProductType(item.product_type)}</td>
                     <td>{item.title ?? '—'}</td>
                     <td>{item.quantity}</td>
-                    <td>{formatMoney(item.purchase_price, order.currency)}</td>
-                    <td>{formatMoney(item.line_total, order.currency)}</td>
+                    <td>{formatMoneyPlain(item.purchase_price, order.currency)}</td>
+                    <td>{formatMoneyPlain(item.line_total, order.currency)}</td>
                     <td>
                       <OrderItemDownloads item={item} onDownload={onDownload} />
                     </td>

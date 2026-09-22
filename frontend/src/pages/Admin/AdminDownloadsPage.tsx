@@ -6,16 +6,12 @@ import { listAdminDownloadHistory } from '../../api/downloadsApi'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Input } from '../../components/ui/Input'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
 import type { OrderItemProductType } from '../../types/order'
-
-function formatDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString()
-}
+import { formatLocaleDateTime } from '../../lib/format'
 
 function formatProductType(productType: string): string {
   return productType === 'product' ? 'Product' : 'Plugin'
@@ -40,13 +36,11 @@ export function AdminDownloadsPage() {
   })
 
   const results = historyQuery.data?.results ?? []
-  const hasNext = Boolean(historyQuery.data?.next)
-  const hasPrevious = Boolean(historyQuery.data?.previous)
 
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="admin-downloads-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-downloads-title">Download History</h1>
         <p className="home-page__subtitle">
           Audit trail of customer product and plugin downloads.
@@ -116,7 +110,7 @@ export function AdminDownloadsPage() {
                 <tbody>
                   {results.map((entry) => (
                     <tr key={entry.id}>
-                      <td>{formatDate(entry.downloaded_at)}</td>
+                      <td>{formatLocaleDateTime(entry.downloaded_at)}</td>
                       <td>
                         <div>{entry.user_full_name}</div>
                         <div className="home-page__subtitle">{entry.user_email}</div>
@@ -129,24 +123,12 @@ export function AdminDownloadsPage() {
                 </tbody>
               </table>
             </div>
-            <div className="dashboard-card__actions">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!hasPrevious}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!hasNext}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={Math.ceil((historyQuery.data?.count ?? 0) / 20)}
+              onPageChange={setPage}
+              ariaLabel="Download history pagination"
+            />
           </>
         )}
 

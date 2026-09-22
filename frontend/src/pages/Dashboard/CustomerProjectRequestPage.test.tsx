@@ -96,10 +96,6 @@ describe('CustomerProjectRequestPage', () => {
     expect(
       screen.getByRole('button', { name: /save & request project/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /back to my projects/i })).toHaveAttribute(
-      'href',
-      '/dashboard/projects',
-    )
     expect(screen.getByRole('link', { name: /^cancel$/i })).toHaveAttribute(
       'href',
       '/dashboard/projects',

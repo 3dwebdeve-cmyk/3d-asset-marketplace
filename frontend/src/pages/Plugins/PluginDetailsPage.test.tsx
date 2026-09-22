@@ -236,7 +236,8 @@ describe('PluginDetailsPage', () => {
 
     expect(pluginsApi.getPublicPlugin).toHaveBeenCalledWith('uv-unwrap-pro')
     expect(screen.getByText(/one-click uv unwrapping for 3d artists/i)).toBeInTheDocument()
-    expect(screen.getByText(/v2\.1\.0/i)).toBeInTheDocument()
+    expect(screen.getByText('Version')).toBeInTheDocument()
+    expect(screen.getAllByText('2.1.0').length).toBeGreaterThan(0)
     expect(document.title).toContain('UV Unwrap Pro')
   })
 
@@ -253,7 +254,7 @@ describe('PluginDetailsPage', () => {
     expect(screen.getByText(/-33%/i)).toBeInTheDocument()
   })
 
-  it('renders the correct breadcrumb with links', async () => {
+  it('renders a close link back to plugins', async () => {
     renderPluginDetails()
 
     await waitFor(() => {
@@ -262,21 +263,10 @@ describe('PluginDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    const breadcrumb = screen.getByRole('navigation', { name: /breadcrumb/i })
-    const homeLink = breadcrumb.querySelector('a[href="/"]')
-    expect(homeLink).toBeInTheDocument()
-
-    const pluginsLink = breadcrumb.querySelector('a[href="/plugins"]')
-    expect(pluginsLink).toBeInTheDocument()
-
-    const categoryLinks = screen.getAllByRole('link', { name: 'UV Tools' })
-    expect(categoryLinks[0]).toHaveAttribute(
-      'href',
-      `/plugins?category=${encodeURIComponent(categoryId)}`,
-    )
+    expect(screen.getByRole('link', { name: /close/i })).toHaveAttribute('href', '/plugins')
   })
 
-  it('renders compatible software section', async () => {
+  it('renders technical specs including compatibility', async () => {
     renderPluginDetails()
 
     await waitFor(() => {
@@ -285,7 +275,7 @@ describe('PluginDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('heading', { name: /compatible software/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /technical specs/i })).toBeInTheDocument()
     expect(screen.getAllByText(/blender 3\.x, 3ds max 2024/i).length).toBeGreaterThan(0)
   })
 
@@ -335,13 +325,10 @@ describe('PluginDetailsPage', () => {
     renderPluginDetails('/plugins/hidden-plugin')
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /plugin not found/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: /back to plugins/i })).toHaveAttribute(
-      'href',
-      '/plugins',
-    )
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
   })
 
   it('shows error state with retry for non-404 failures', async () => {
@@ -373,7 +360,9 @@ describe('PluginDetailsPage', () => {
     })
 
     expect(screen.getByRole('button', { name: /sign in to add to cart/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /sign in to add to wishlist/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in to buy/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
   })
@@ -419,8 +408,9 @@ describe('PluginDetailsPage', () => {
       product_id: pluginId,
       quantity: 1,
     })
-    const wishlistButtons = screen.getAllByRole('button', { name: /^add to wishlist$/i })
-    await user.click(wishlistButtons[0])
+    await user.click(
+      screen.getByRole('button', { name: /add to wishlist for uv unwrap pro/i }),
+    )
     expect(vi.mocked(wishlistApi.addWishlistItem).mock.calls[0]?.[0]).toEqual({
       product_type: 'plugin',
       product_id: pluginId,
@@ -513,7 +503,7 @@ describe('PluginDetailsPage', () => {
       expect(writeText).toHaveBeenCalled()
     })
     expect(writeText.mock.calls[0]?.[0]).toContain('/plugins/uv-unwrap-pro')
-    expect(useToastStore.getState().toasts[0]?.message).toMatch(/copied/i)
+    expect(useToastStore.getState().toasts).toHaveLength(0)
 
     expect(document.body.textContent).not.toMatch(/storage_path/i)
     expect(document.body.innerHTML).not.toContain('uv_unwrap_pro.zip')
@@ -545,7 +535,7 @@ describe('PluginDetailsPage', () => {
 
     expect(screen.getByText('Version')).toBeInTheDocument()
     expect(screen.getAllByText('2.1.0').length).toBeGreaterThan(0)
-    expect(screen.getByText('File format(s)')).toBeInTheDocument()
+    expect(screen.getByText('Formats')).toBeInTheDocument()
     expect(screen.getByText('ZIP')).toBeInTheDocument()
     expect(screen.getByText('200.0 KB')).toBeInTheDocument()
   })

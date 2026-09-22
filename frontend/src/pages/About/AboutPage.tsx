@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom'
 
 import { ABOUT_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import '../../styles/about.css'
+import '../../styles/marketing.css'
 
 const HERO_STATS = [
   { value: '50K+', label: '3D Assets' },
@@ -330,7 +332,7 @@ export function AboutPage() {
         <div className="about-section-shell about-trust__grid">
           <div className="about-trust__visual">
             <img
-              src="/images/about/about-trust-visual.png"
+              src="/images/about/about-trust-visual.webp"
               alt=""
               width={1600}
               height={1200}
@@ -376,7 +378,7 @@ export function AboutPage() {
               <Link className="about-cta__btn about-cta__btn--primary" to="/3d-models">
                 Browse Models
               </Link>
-              <Link className="about-cta__btn about-cta__btn--ghost" to="/custom-projects">
+              <Link className="about-cta__btn about-cta__btn--ghost" to="/dashboard/projects/new">
                 Custom Projects
               </Link>
               <Link className="about-cta__btn about-cta__btn--ghost" to="/contact">

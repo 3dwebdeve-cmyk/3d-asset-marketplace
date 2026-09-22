@@ -14,9 +14,10 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type { PluginCategoryUpdatePayload } from '../../types/plugin'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 export function AdminPluginCategoryDetailPage() {
   const { categoryId = '' } = useParams()
@@ -102,10 +103,14 @@ export function AdminPluginCategoryDetailPage() {
   const category = categoryQuery.data
   const formReady = hydratedCategoryId === categoryId && category?.id === categoryId
 
+  if (!categoryId || isHttpNotFound(categoryQuery.error)) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="dashboard-page">
       <section className="dashboard-card" aria-labelledby="plugin-category-detail-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="plugin-category-detail-title">Manage plugin category</h1>
         <div className="dashboard-card__actions">
           <Link className="home-page__cta home-page__cta--secondary" to="/console/plugin-categories">

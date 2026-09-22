@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
+import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
@@ -121,7 +122,7 @@ export function AdminProjectsPage() {
   return (
     <main className="dashboard-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="projects-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="projects-title">Custom projects</h1>
         <p className="home-page__subtitle">
           Review customer requests, set quotations, and track delivery status.
@@ -363,25 +364,12 @@ export function AdminProjectsPage() {
                 <p className="home-page__subtitle">No custom projects match your filters.</p>
               ) : null}
             </div>
-            <div className="dashboard-card__actions" aria-label="Custom project pagination">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!projectsQuery.data?.previous}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              >
-                Previous
-              </Button>
-              <span>Page {page}</span>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!projectsQuery.data?.next}
-                onClick={() => setPage((value) => value + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination
+              page={page}
+              totalPages={Math.ceil((projectsQuery.data?.count ?? 0) / 20)}
+              onPageChange={setPage}
+              ariaLabel="Custom project pagination"
+            />
           </>
         )}
       </section>

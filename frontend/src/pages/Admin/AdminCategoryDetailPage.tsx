@@ -15,9 +15,10 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type { AdminCategoryUpdatePayload } from '../../types/category'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 export function AdminCategoryDetailPage() {
   const { categoryId = '' } = useParams()
@@ -88,10 +89,14 @@ export function AdminCategoryDetailPage() {
       (category) => category.id !== categoryId,
     ) ?? []
 
+  if (!categoryId || isHttpNotFound(categoryQuery.error)) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="dashboard-page">
       <section className="dashboard-card" aria-labelledby="admin-category-detail-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-category-detail-title">Manage category</h1>
 
         <div className="dashboard-card__actions">

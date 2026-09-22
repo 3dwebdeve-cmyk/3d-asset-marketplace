@@ -14,8 +14,9 @@ import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { formatFileSize } from '../../lib/format'
+import { FormatBadges } from '../../components/admin/FormatBadges'
 import {
-  formatFileSize,
   formatFormatLabel,
   PLUGIN_IMAGE_ACCEPT,
   PLUGIN_IMAGE_FORMAT_LABELS,
@@ -38,14 +39,6 @@ function validateFile(file: File, extensions: readonly string[], maxMb: number):
   if (file.size <= 0) return 'The selected file is empty.'
   if (file.size > maxMb * 1024 * 1024) return `The selected file must be ${maxMb} MB or smaller.`
   return null
-}
-
-function FormatBadges({ labels }: { labels: readonly string[] }) {
-  return (
-    <div className="admin-format-badges" aria-label="Supported formats">
-      {labels.map((label) => <span key={label} className="admin-format-badge">{label}</span>)}
-    </div>
-  )
 }
 
 export function PluginMediaSection({ pluginId, plugin }: PluginMediaSectionProps) {

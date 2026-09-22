@@ -6,7 +6,6 @@ import { Button } from '../ui/Button'
 import { WishlistToggle } from '../wishlist/WishlistToggle'
 import { useBuyNow } from '../../hooks/useBuyNow'
 import { useAuthStore } from '../../store/authStore'
-import { useToastStore } from '../../store/toastStore'
 import type { CartProductType } from '../../types/cart'
 
 export type CommerceCtaVariant = 'buybox' | 'stacked'
@@ -33,7 +32,6 @@ export function CommerceCtaGroup({
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
-  const addToast = useToastStore((state) => state.addToast)
   const { buyNow, isRedirecting } = useBuyNow()
   const isSignedIn = isAuthenticated && Boolean(accessToken)
   const returnTo = location.pathname
@@ -47,10 +45,6 @@ export function CommerceCtaGroup({
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl)
-        addToast({
-          variant: 'success',
-          message: `${itemLabel} link copied to clipboard.`,
-        })
         return
       }
     } catch {

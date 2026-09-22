@@ -10,7 +10,7 @@ interface AddToCartButtonProps {
   productId: string
   productName: string
   className?: string
-  variant?: 'chip' | 'primary' | 'icon' | 'full'
+  variant?: 'chip' | 'primary' | 'icon' | 'full' | 'marketplace'
 }
 
 export function AddToCartButton({
@@ -25,6 +25,47 @@ export function AddToCartButton({
 
   const returnTo = location.pathname
   const inCart = isInCart(productType, productId)
+
+  if (variant === 'marketplace') {
+    const classes = `product-card__add-cart ${inCart ? 'product-card__add-cart--active' : ''} ${className ?? ''}`.trim()
+    if (!isSignedIn) {
+      return (
+        <AuthEntryButton
+          mode="login"
+          returnTo={returnTo}
+          className={classes}
+          aria-label={`Sign in to add ${productName} to cart`}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="9" cy="20" r="1.5" />
+            <circle cx="17" cy="20" r="1.5" />
+            <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Add to Cart</span>
+        </AuthEntryButton>
+      )
+    }
+
+    return (
+      <button
+        type="button"
+        className={classes}
+        aria-label={inCart ? `${productName} is in cart` : `Add ${productName} to cart`}
+        aria-pressed={inCart}
+        disabled={isPending || inCart}
+        onClick={() => {
+          add(productType, productId)
+        }}
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="9" cy="20" r="1.5" />
+          <circle cx="17" cy="20" r="1.5" />
+          <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span>{inCart ? 'In Cart' : 'Add to Cart'}</span>
+      </button>
+    )
+  }
 
   if (variant === 'icon') {
     if (!isSignedIn) {

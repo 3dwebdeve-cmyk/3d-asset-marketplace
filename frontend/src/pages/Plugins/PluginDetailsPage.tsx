@@ -1,5 +1,5 @@
-import { isAxiosError } from 'axios'
 import { useQuery } from '@tanstack/react-query'
+import { useLayoutEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { getPublicPlugin, listPublicPlugins } from '../../api/pluginsApi'
@@ -8,32 +8,24 @@ import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
+import { formatMoney } from '../../lib/format'
+import { discountPercent } from '../../lib/pricing'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { PluginLicenseType, PublicPluginDetail } from '../../types/plugin'
+import { ProductImageGallery } from '../Products/ProductImageGallery'
 import { PluginCard } from './PluginCard'
 import { PluginCtaGroup } from './PluginCtaGroup'
 import { PluginSpecs } from './PluginSpecs'
-import { ProductImageGallery } from '../Products/ProductImageGallery'
+import '../../styles/product-details.css'
+import '../../styles/product-hub-details.css'
+import '../../styles/plugins-browse.css'
+import '../../styles/products-browse.css'
+import '../../styles/products-browse.css'
 
 const RELATED_PAGE_SIZE = 5
-
-function formatMoney(amount: string, currency: string): string {
-  const value = Number(amount)
-  if (Number.isNaN(value)) {
-    return amount
-  }
-
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'USD',
-      maximumFractionDigits: 2,
-    }).format(value)
-  } catch {
-    return `${currency} ${value.toFixed(2)}`
-  }
-}
 
 function licenseLabel(license: PluginLicenseType): string {
   switch (license) {
@@ -44,20 +36,6 @@ function licenseLabel(license: PluginLicenseType): string {
     default:
       return 'Standard'
   }
-}
-
-function discountPercent(price: string, discountPrice: string): number | null {
-  const original = Number(price)
-  const discounted = Number(discountPrice)
-  if (
-    Number.isNaN(original) ||
-    Number.isNaN(discounted) ||
-    original <= 0 ||
-    discounted >= original
-  ) {
-    return null
-  }
-  return Math.round(((original - discounted) / original) * 100)
 }
 
 function buildPluginPageTitle(pluginName: string): string {
@@ -72,10 +50,15 @@ function buildPluginMetaDescription(pluginName: string, shortDescription: string
   return `View details for ${pluginName} on 3D Asset Marketplace.`
 }
 
+function useScrollPluginPageToTop(resetKey: string): void {
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [resetKey])
+}
+
 function PluginDetailSkeleton() {
   return (
     <div className="product-detail-skeleton" aria-label="Loading plugin details" aria-busy="true">
-      <div className="product-detail-skeleton__breadcrumb" />
       <div className="product-detail-skeleton__layout">
         <div className="product-detail-skeleton__gallery" />
         <div className="product-detail-skeleton__info">
@@ -99,7 +82,6 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
       ? discountPercent(plugin.price, plugin.discount_price)
       : null
   const browseCategoryHref = `/plugins?category=${encodeURIComponent(plugin.category.id)}`
-  const licenses: PluginLicenseType[] = ['standard', 'extended', 'commercial']
 
   const relatedQuery = useQuery({
     queryKey: ['public-plugins-related', plugin.category.id, plugin.id],
@@ -117,168 +99,111 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
 
   return (
     <>
-      <div className="product-detail-layout">
-        <div className="product-detail-layout__media">
-          <nav className="product-detail-breadcrumb" aria-label="Breadcrumb">
-            <ol className="product-detail-breadcrumb__list">
-              <li>
-                <Link to="/">Home</Link>
-              </li>
-              <li>
-                <Link to="/plugins">Plugins</Link>
-              </li>
-              <li>
-                <Link to={browseCategoryHref}>{plugin.category.name}</Link>
-              </li>
-              <li aria-current="page">{plugin.name}</li>
-            </ol>
-          </nav>
+      <header className="product-hub-detail__header">
+        <div className="product-hub-detail__header-text">
+          <p className="product-hub-detail__eyebrow">{plugin.category.name}</p>
+          <h1 className="product-hub-detail__title">{plugin.name}</h1>
+          <div className="product-hub-detail__meta">
+            <RatingDisplay
+              averageRating={plugin.average_rating}
+              reviewCount={plugin.review_count}
+              variant="detail"
+              className=""
+            />
+          </div>
+        </div>
+        <Link to="/plugins" className="product-hub-detail__close">
+          ✕ Close
+        </Link>
+      </header>
 
+      <div className="product-detail-layout product-hub-detail__layout">
+        <div className="product-detail-layout__media">
           <ProductImageGallery
             productName={plugin.name}
             thumbnail={plugin.thumbnail}
             images={plugin.images}
             previewModelUrl=""
+            showStageChrome
+            showPreviewModeThumbs={false}
+            stageOverlays={
+              <WishlistToggle
+                productType="plugin"
+                productId={plugin.id}
+                productName={plugin.name}
+                variant="icon"
+              />
+            }
           />
 
           <p className="product-detail-media-note">
-            Full package download unlocks after purchase. Package file URLs are never exposed on
-            this page.
+            Full package download unlocks after purchase entitlement ships. Preview package URLs are
+            never exposed on this page.
           </p>
         </div>
 
-        <aside className="product-detail-purchase" aria-label="Plugin purchase details">
-          <p className="product-detail-purchase__eyebrow">{plugin.category.name}</p>
-          <h1 className="product-detail-purchase__title">{plugin.name}</h1>
-
-          <div className="product-detail-purchase__meta">
-            <span className="product-detail-purchase__rating">
-              <RatingDisplay
-                averageRating={plugin.average_rating}
-                reviewCount={plugin.review_count}
-                variant="detail"
-                className=""
-              />
-              <span aria-hidden="true"> · </span>
-              {plugin.total_downloads.toLocaleString()} downloads
-            </span>
-            <span className="product-detail-badge product-detail-badge--available">
-              v{plugin.version}
-            </span>
-          </div>
-
-          <div className="product-detail-purchase__price">
-            {hasDiscount && plugin.discount_price ? (
-              <>
-                <span className="product-detail-purchase__price-current">
-                  {formatMoney(plugin.discount_price, plugin.currency)}
-                </span>
-                <span className="product-detail-purchase__price-original">
-                  {formatMoney(plugin.price, plugin.currency)}
-                </span>
-                {salePercent !== null ? (
-                  <span className="product-detail-badge product-detail-badge--sale">
-                    -{salePercent}%
-                  </span>
-                ) : (
-                  <span className="product-detail-badge product-detail-badge--sale">Sale</span>
-                )}
-              </>
-            ) : (
-              <span className="product-detail-purchase__price-current">
-                {formatMoney(plugin.price, plugin.currency)}
-              </span>
-            )}
-          </div>
-          <p className="product-detail-purchase__price-note">
-            Price includes {licenseLabel(plugin.license_type).toLowerCase()} license ·{' '}
-            {plugin.currency}
-          </p>
-
-          {plugin.short_description.trim() ? (
-            <p className="product-detail-purchase__summary">{plugin.short_description}</p>
-          ) : null}
-
-          <div className="product-detail-license" role="group" aria-label="License type">
-            {licenses.map((license) => {
-              const selected = plugin.license_type === license
-              return (
-                <span
-                  key={license}
-                  className={`product-detail-license__option${
-                    selected ? ' product-detail-license__option--selected' : ''
-                  }`}
-                  aria-current={selected ? 'true' : undefined}
-                >
-                  {licenseLabel(license)}
-                  {selected
-                    ? ` · ${formatMoney(
-                        hasDiscount && plugin.discount_price
-                          ? plugin.discount_price
-                          : plugin.price,
-                        plugin.currency,
-                      )}`
-                    : null}
-                </span>
-              )
-            })}
-          </div>
-
-          <PluginCtaGroup
-            pluginId={plugin.id}
-            pluginName={plugin.name}
-            pluginSlug={plugin.slug}
-          />
+        <aside className="product-hub-detail__aside" aria-label="Plugin purchase details">
           <PluginSpecs plugin={plugin} />
+
+          <div className="product-hub-detail__purchase">
+            <div className="product-hub-detail__purchase-row">
+              <div className="product-hub-detail__purchase-info">
+                <div className="product-detail-purchase__price">
+                  {hasDiscount && plugin.discount_price ? (
+                    <>
+                      <span className="product-detail-purchase__price-current">
+                        {formatMoney(plugin.discount_price, plugin.currency)}
+                      </span>
+                      <span className="product-detail-purchase__price-original">
+                        {formatMoney(plugin.price, plugin.currency)}
+                      </span>
+                      {salePercent !== null ? (
+                        <span className="product-detail-badge product-detail-badge--sale">
+                          -{salePercent}%
+                        </span>
+                      ) : (
+                        <span className="product-detail-badge product-detail-badge--sale">Sale</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="product-detail-purchase__price-current">
+                      {formatMoney(plugin.price, plugin.currency)}
+                    </span>
+                  )}
+                </div>
+
+                <p className="product-hub-detail__license">
+                  <span className="product-hub-detail__license-check" aria-hidden="true">
+                    ✓
+                  </span>
+                  {licenseLabel(plugin.license_type)} License
+                </p>
+              </div>
+
+              <PluginCtaGroup
+                pluginId={plugin.id}
+                pluginName={plugin.name}
+                pluginSlug={plugin.slug}
+              />
+            </div>
+
+            {plugin.short_description.trim() ? (
+              <p className="product-detail-purchase__summary">{plugin.short_description}</p>
+            ) : null}
+
+            {plugin.documentation_url.trim() ? (
+              <a
+                href={plugin.documentation_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="product-hub-detail__docs-link"
+              >
+                View documentation
+              </a>
+            ) : null}
+          </div>
         </aside>
       </div>
-
-      <section
-        className="product-detail-description"
-        aria-labelledby="plugin-description-heading"
-      >
-        <h2 id="plugin-description-heading" className="product-detail-section-title">
-          Description
-        </h2>
-        {plugin.description.trim() ? (
-          <p className="product-detail-description__body">{plugin.description}</p>
-        ) : (
-          <p className="product-detail-description__body product-detail-description__body--empty">
-            No full description provided for this plugin.
-          </p>
-        )}
-      </section>
-
-      {plugin.compatibility.trim() ? (
-        <section
-          className="product-detail-description"
-          aria-labelledby="plugin-compat-heading"
-        >
-          <h2 id="plugin-compat-heading" className="product-detail-section-title">
-            Compatible software
-          </h2>
-          <p className="product-detail-description__body">{plugin.compatibility}</p>
-        </section>
-      ) : null}
-
-      {plugin.documentation_url.trim() ? (
-        <section
-          className="product-detail-description"
-          aria-labelledby="plugin-docs-heading"
-        >
-          <h2 id="plugin-docs-heading" className="product-detail-section-title">
-            Documentation
-          </h2>
-          <a
-            href={plugin.documentation_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ui-button ui-button--secondary"
-          >
-            View documentation
-          </a>
-        </section>
-      ) : null}
 
       <ReviewsSection
         productType="plugin"
@@ -286,6 +211,7 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
         catalogSlug={plugin.slug}
         averageRating={plugin.average_rating}
         reviewCount={plugin.review_count}
+        layout="hub"
       />
 
       <section className="product-detail-related" aria-labelledby="plugin-related-heading">
@@ -355,9 +281,9 @@ export function PluginDetailsPage() {
     enabled: Boolean(trimmedSlug),
   })
 
-  const isNotFound =
-    !trimmedSlug ||
-    (isAxiosError(pluginQuery.error) && pluginQuery.error.response?.status === 404)
+  useScrollPluginPageToTop(`${trimmedSlug}:${pluginQuery.data?.id ?? 'pending'}`)
+
+  const isNotFound = !trimmedSlug || isHttpNotFound(pluginQuery.error)
 
   useDocumentSeo({
     title: isNotFound
@@ -375,19 +301,13 @@ export function PluginDetailsPage() {
         : 'Loading plugin details from the marketplace catalog.',
   })
 
+  if (isNotFound) {
+    return <NotFoundPage />
+  }
+
   return (
-    <main className="product-detail-page">
-      {!trimmedSlug || isNotFound ? (
-        <EmptyState
-          title="Plugin not found"
-          description="This plugin is unavailable, unpublished, or the link may be incorrect."
-          action={
-            <Link to="/plugins" className="ui-button ui-button--primary">
-              Back to plugins
-            </Link>
-          }
-        />
-      ) : pluginQuery.isLoading ? (
+    <main className="product-detail-page product-hub-detail">
+      {pluginQuery.isLoading ? (
         <PluginDetailSkeleton />
       ) : pluginQuery.isError || !pluginQuery.data ? (
         <ErrorState

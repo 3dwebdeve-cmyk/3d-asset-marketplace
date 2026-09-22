@@ -52,6 +52,9 @@ CODE_REVIEWER.md
 ARCHITECT_REVIEWER.md
 IMPLEMENTATION_ROADMAP.md
 
+# All Markdown docs stay local (not pushed to remote)
+*.md
+
 # Explicit env files (belt-and-suspenders; .env already covers these)
 backend/.env
 frontend/.env

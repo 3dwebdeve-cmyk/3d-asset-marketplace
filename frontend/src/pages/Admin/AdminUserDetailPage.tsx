@@ -14,9 +14,10 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
-import { getApiErrorMessage } from '../../lib/apiError'
+import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type { AdminUserUpdatePayload } from '../../types/auth'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 export function AdminUserDetailPage() {
   const { userId = '' } = useParams()
@@ -76,10 +77,14 @@ export function AdminUserDetailPage() {
     saveMutation.mutate(form)
   }
 
+  if (!userId || isHttpNotFound(userQuery.error)) {
+    return <NotFoundPage />
+  }
+
   return (
     <main className="dashboard-page">
       <section className="dashboard-card" aria-labelledby="admin-user-detail-title">
-        <p className="home-page__eyebrow">Administrator</p>
+        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-user-detail-title">Manage user</h1>
 
         <div className="dashboard-card__actions">
