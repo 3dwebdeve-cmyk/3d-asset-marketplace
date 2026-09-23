@@ -70,7 +70,7 @@ class Command(BaseCommand):
         )
         self.stdout.write(f"REDIS_URL_set={report.redis_url_set}")
         self.stdout.write(
-            "Confirm Postgres / Redis / Meilisearch / Gunicorn are NOT "
+            "Confirm Postgres / Gunicorn are NOT "
             "published on the public internet - only the SPA/proxy port "
             "(or Cloudflare tunnel). See docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md."
         )

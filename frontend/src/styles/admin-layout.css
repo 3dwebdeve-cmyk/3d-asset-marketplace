@@ -135,6 +135,8 @@
   display: none;
   align-items: center;
   justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   padding: 0.55rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: 10px;

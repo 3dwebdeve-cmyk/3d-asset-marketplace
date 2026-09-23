@@ -25,6 +25,7 @@ export function PluginsBrowsePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [sortOrdering, setSortOrdering] = useState<PluginOrdering>('-created_at')
   const [currentPage, setCurrentPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
@@ -131,9 +132,22 @@ export function PluginsBrowsePage() {
       </section>
 
       <div className="plugins-browse__body">
-        <aside className="plugins-filters" aria-label="Plugin filters">
+        <aside
+          className={`plugins-filters${filtersOpen ? ' plugins-filters--open' : ''}`}
+          aria-label="Plugin filters"
+        >
           <div className="plugins-filters__header">
-            <h2 className="plugins-filters__title">FILTERS</h2>
+            <button
+              type="button"
+              className="plugins-filters__toggle"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              <h2 className="plugins-filters__title">FILTERS</h2>
+              <span className="plugins-filters__toggle-icon" aria-hidden="true">
+                {filtersOpen ? '−' : '+'}
+              </span>
+            </button>
             {isFiltered ? (
               <button
                 type="button"
@@ -145,6 +159,7 @@ export function PluginsBrowsePage() {
             ) : null}
           </div>
 
+          <div className="plugins-filters__panel">
           <div className="plugins-filters__group">
             <p className="plugins-filters__label" id="plugin-compat-label">
               Compatibility
@@ -169,6 +184,7 @@ export function PluginsBrowsePage() {
                 )
               })}
             </div>
+          </div>
           </div>
         </aside>
 

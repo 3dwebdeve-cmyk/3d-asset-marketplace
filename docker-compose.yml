@@ -1,4 +1,4 @@
-# Feature 13 — full local/prod-like stack.
+# Feature 13 — local/prod-like stack (Postgres + web + frontend Nginx).
 # Copy `.env.example` → `.env` at the repo root, then:
 #   docker compose up --build
 #
@@ -15,7 +15,8 @@
 # Browser: http://localhost:8080  (Nginx SPA + /api proxy → Gunicorn)
 # Health:  http://localhost:8080/api/v1/healthz/ (legacy /api/healthz/ still works)
 #
-# Celery worker: same backend image; broker = CELERY_BROKER_URL (Redis DB 0), cache = REDIS_URL (DB 1).
+# Background work (email, etc.) runs in-process (Celery eager; no Redis/worker).
+# Catalog search uses Postgres (no Meilisearch).
 # SPA admin control panel: http://localhost:8080/console/login  (Django admin remains /admin/)
 # Cutover gate: docker compose exec web python manage.py check_cutover --profile staging
 
@@ -33,51 +34,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-    command:
-      - /bin/sh
-      - -c
-      - |
-        if [ -n "$$REDIS_PASSWORD" ]; then
-          exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
-        else
-          exec redis-server --appendonly yes
-        fi
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'if [ -n "$$REDIS_PASSWORD" ]; then redis-cli -a "$$REDIS_PASSWORD" ping; else redis-cli ping; fi',
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  meilisearch:
-    image: getmeili/meilisearch:v1.11.3
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
-      MEILI_ENV: ${MEILI_ENV:-production}
-    volumes:
-      - meili_data:/meili_data
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -fsS http://127.0.0.1:7700/health >/dev/null || exit 1",
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-      start_period: 5s
     restart: unless-stopped
 
   web:
@@ -102,15 +58,11 @@ services:
       ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
-      # Cache/throttles on DB 1; Celery broker on DB 0 (Phase A6).
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/1}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       # SPA console is /console/. Leave True locally; staging/prod: False or IP allowlist.
       DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-True}
       DJANGO_ADMIN_ALLOWED_IPS: ${DJANGO_ADMIN_ALLOWED_IPS:-}
-      MEILI_URL: http://meilisearch:7700
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
+      # Company/VPN CIDRs for /api/v1/auth/admin/ + /api/v1/admin/ (empty = open locally).
+      ADMIN_CONSOLE_ALLOWED_IPS: ${ADMIN_CONSOLE_ALLOWED_IPS:-}
       # Terminate TLS at a reverse proxy / Cloudflare in real prod.
       # See docs/PRODUCTION_CHECKLIST.md for full prod env + rollback policy.
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
@@ -149,10 +101,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
     volumes:
       - media_data:/app/media
     healthcheck:
@@ -178,7 +126,7 @@ services:
         VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
         VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
         VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
-    # Phase A2: only public publish — do NOT add ports for postgres/redis/meilisearch/web (Gunicorn).
+    # Only public publish — do NOT add ports for postgres/web (Gunicorn).
     ports:
       - "${FRONTEND_PORT:-8080}:80"
     depends_on:
@@ -186,85 +134,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  worker:
-    image: ${WEB_IMAGE:-marketplace-web:local}
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      DEBUG: "False"
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_NAME: ${DB_NAME:-marketplace}
-      DB_USER: ${DB_USER:-marketplace}
-      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
-      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,frontend}
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
-      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
-      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/1}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      SKIP_STARTUP_MIGRATE: "True"
-      MEILI_URL: http://meilisearch:7700
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}
-      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
-      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
-      ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-True}
-      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
-      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@3dassetmarketplace.local}
-      EMAIL_HOST: ${EMAIL_HOST:-}
-      EMAIL_PORT: ${EMAIL_PORT:-587}
-      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
-      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
-      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
-      PROJECT_MESSAGE_ADMIN_RECIPIENTS: ${PROJECT_MESSAGE_ADMIN_RECIPIENTS:-}
-      CONTACT_ADMIN_RECIPIENTS: ${CONTACT_ADMIN_RECIPIENTS:-}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      E2E_STRIPE_SIMULATE: ${E2E_STRIPE_SIMULATE:-False}
-      SENTRY_DSN: ${SENTRY_DSN:-}
-      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
-      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
-      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
-      R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
-      R2_PUBLIC_BUCKET: ${R2_PUBLIC_BUCKET:-}
-      R2_PRIVATE_BUCKET: ${R2_PRIVATE_BUCKET:-}
-      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
-      R2_SIGNED_URL_EXPIRY: ${R2_SIGNED_URL_EXPIRY:-300}
-    command: ["celery", "-A", "config", "worker", "--loglevel=info", "--concurrency=2", "-Q", "celery,email"]
-    healthcheck:
-      test: ["CMD-SHELL", "celery -A config inspect ping -t 5"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-      web:
-        condition: service_healthy
-    volumes:
-      - media_data:/app/media
-    restart: unless-stopped
-    # Worker has no HTTP port; Celery inspect ping + restart policy.
-
 volumes:
   postgres_data:
-  redis_data:
-  meili_data:
   media_data:

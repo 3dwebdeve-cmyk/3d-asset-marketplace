@@ -11,7 +11,7 @@
   --hero-glass-shadow: none;
   --hero-title: 'Libre Baskerville', 'Times New Roman', Georgia, serif;
   --hero-ui: 'Poppins', system-ui, sans-serif;
-  --hero-window-height: min(68vh, 430px);
+  --hero-window-height: clamp(18rem, 48vw, 26.875rem);
 
   display: block;
   position: relative;
@@ -32,18 +32,25 @@
 .home-marketplace-hero__stage {
   position: relative;
   width: 100%;
+  max-width: 100%;
   height: var(--hero-window-height);
-  min-height: 400px;
+  min-height: clamp(14rem, 42vw, 22rem);
   overflow: hidden;
   background-color: var(--pure-black);
   background-image: url('/images/home-page-banner.webp?v=3');
-  background-attachment: fixed;
+  background-attachment: scroll;
   background-position: center center;
   background-size: cover;
   background-repeat: no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+@media (min-width: 901px) {
+  .home-marketplace-hero__stage {
+    background-attachment: fixed;
+  }
 }
 
 .home-marketplace-hero__media {
@@ -275,24 +282,42 @@
   box-shadow: none;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .home-marketplace-hero {
-    --hero-window-height: 85vh;
+    --hero-window-height: clamp(14rem, 38vw, 20rem);
   }
 
   .home-marketplace-hero__stage {
-    min-height: 380px;
-    background-attachment: scroll; /* Mobile browsers handle scroll better than fixed */
+    min-height: 14rem;
+    max-height: 20rem;
+    background-attachment: scroll;
+    background-position: center 35%;
+  }
+}
+
+@media (max-width: 700px) {
+  .home-marketplace-hero {
+    --hero-window-height: clamp(13.5rem, 48vw, 18rem);
+  }
+
+  .home-marketplace-hero__stage {
+    min-height: 13rem;
+    max-height: 18rem;
+    height: var(--hero-window-height);
+    overflow: hidden;
+    background-attachment: scroll;
+    background-position: center 30%;
   }
 
   .home-marketplace-hero__content {
-    gap: 0.7rem;
-    padding-block: 1.5rem 2rem;
+    gap: 0.55rem;
+    padding-block: 1rem 1.25rem;
+    overflow: hidden;
   }
 
   .home-marketplace-hero__title {
     max-width: 14ch;
-    font-size: clamp(1.35rem, 6vw, 1.9rem);
+    font-size: clamp(1.2rem, 5.2vw, 1.65rem);
   }
 
   .home-marketplace-search {
@@ -305,15 +330,30 @@
   .home-marketplace-search__input {
     font-size: 0.88rem;
   }
+
+  .home-marketplace-trending,
+  .home-marketplace-sort {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
 }
 
 @media (max-width: 420px) {
+  .home-marketplace-hero {
+    --hero-window-height: 13rem;
+  }
+
+  .home-marketplace-hero__stage {
+    min-height: 12.5rem;
+    max-height: 13.5rem;
+  }
+
   .home-marketplace-hero__content {
-    padding-block: 1.25rem 1.75rem;
+    padding-block: 0.85rem 1.1rem;
   }
 
   .home-marketplace-hero__title {
-    font-size: clamp(1.35rem, 7vw, 1.8rem);
+    font-size: clamp(1.15rem, 5.8vw, 1.45rem);
   }
 
   .home-marketplace-search {

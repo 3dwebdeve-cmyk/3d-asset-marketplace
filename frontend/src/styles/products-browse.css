@@ -262,6 +262,19 @@
   background: #ffffff;
 }
 
+.hub-offer__thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.hub-offer__thumb--contain {
+  object-fit: contain;
+  padding: 0.35rem;
+}
+
 .hub-offer__details {
   position: absolute;
   inset: 0;
@@ -378,7 +391,7 @@
   width: 100%;
   margin-top: auto;
   border-radius: 0.55rem;
-  padding: 0.72rem 0.85rem;
+  padding: 0.48rem 0.85rem;
   font-size: clamp(0.85rem, 0.95vw, 0.95rem);
   font-weight: 700;
 }

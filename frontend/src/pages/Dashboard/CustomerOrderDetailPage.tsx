@@ -13,15 +13,39 @@ import {
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
+import { formatLocaleDateTime, formatMoneyPlain } from '../../lib/format'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
-import type { CustomerOrderItem } from '../../types/order'
 import type { OrderItemDownloadFile } from '../../types/download'
-import { formatMoneyPlain, formatLocaleDateTime } from '../../lib/format'
+import type { CustomerOrderItem } from '../../types/order'
+import '../../styles/invoice-card.css'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 function formatProductType(productType: string): string {
-  return productType === 'product' ? 'Product' : 'Plugin'
+  if (productType === 'product') return 'Product'
+  if (productType === 'plugin') return 'Plugin'
+  return 'Custom project'
+}
+
+function ProductThumb({ productType }: { productType: string }) {
+  if (productType === 'plugin') {
+    return (
+      <div className="invoice-card__thumb" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          <circle cx="12" cy="12" r="3.2" />
+        </svg>
+      </div>
+    )
+  }
+
+  return (
+    <div className="invoice-card__thumb" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M6 19v3M18 19v3M7 11h10M7 4h10v7H7zM7 11v8h10v-8" />
+      </svg>
+    </div>
+  )
 }
 
 function OrderItemDownloads({
@@ -33,43 +57,66 @@ function OrderItemDownloads({
 }) {
   if (!item.can_download) {
     return (
-      <Button
+      <button
         type="button"
-        variant="secondary"
+        className="invoice-card__download-btn"
         disabled
         title="Downloads unlock when order and payment are both paid"
       >
         Download
-      </Button>
+      </button>
     )
   }
 
   if (item.files.length === 0) {
-    return <span className="home-page__subtitle">No files</span>
+    return <span className="invoice-card__muted">No files</span>
   }
 
   if (item.files.length === 1) {
     const file = item.files[0]
     return (
-      <Button type="button" variant="secondary" onClick={() => void onDownload(file)}>
+      <button
+        type="button"
+        className="invoice-card__download-btn"
+        onClick={() => void onDownload(file)}
+      >
         Download
-      </Button>
+      </button>
     )
   }
 
   return (
-    <div className="dashboard-card__actions">
+    <div className="invoice-card__download-stack">
       {item.files.map((file) => (
-        <Button
+        <button
           key={file.id}
           type="button"
-          variant="secondary"
+          className="invoice-card__download-btn"
           onClick={() => void onDownload(file)}
         >
           {file.file_name}
-        </Button>
+        </button>
       ))}
     </div>
+  )
+}
+
+function BackIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </svg>
+  )
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
   )
 }
 
@@ -117,13 +164,14 @@ export function CustomerOrderDetailPage() {
   if (!isCustomerSession) {
     return (
       <main className="dashboard-page">
-        <section className="dashboard-card dashboard-card--wide">
-          <p className="home-page__subtitle" role="status">
+        <section className="invoice-card">
+          <p className="invoice-card__muted" role="status">
             Order details are available for customer accounts.
           </p>
-          <div className="dashboard-card__actions">
-            <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/orders">
-              Back to orders
+          <div className="invoice-card__actions">
+            <Link className="invoice-card__btn-back" to="/dashboard/orders">
+              <BackIcon />
+              <span>Back to orders</span>
             </Link>
           </div>
         </section>
@@ -150,12 +198,13 @@ export function CustomerOrderDetailPage() {
           title="Could not load order"
           description="This order could not be loaded or does not exist."
           action={
-            <div className="dashboard-card__actions">
+            <div className="invoice-card__actions">
               <Button variant="secondary" onClick={() => orderQuery.refetch()}>
                 Retry
               </Button>
-              <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/orders">
-                Back to orders
+              <Link className="invoice-card__btn-back" to="/dashboard/orders">
+                <BackIcon />
+                <span>Back to orders</span>
               </Link>
             </div>
           }
@@ -170,96 +219,140 @@ export function CustomerOrderDetailPage() {
 
   return (
     <main className="dashboard-page">
-      <section className="dashboard-card dashboard-card--wide" aria-labelledby="order-detail-title">
-        <p className="home-page__eyebrow">Customer Dashboard</p>
-        <h1 id="order-detail-title">{order.invoice_number}</h1>
-        <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/orders">
-            Back to orders
-          </Link>
-          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/downloads">
-            My downloads
+      <section className="invoice-card" aria-labelledby="order-detail-title">
+        <p className="invoice-card__eyebrow">Customer Dashboard</p>
+        <h1 id="order-detail-title" className="invoice-card__title">
+          {order.invoice_number}
+        </h1>
+
+        <div className="invoice-card__actions">
+          <Link className="invoice-card__btn-back" to="/dashboard/orders">
+            <BackIcon />
+            <span>Back to orders</span>
           </Link>
           {canDownloadInvoice ? (
-            <Button
+            <button
               type="button"
-              variant="secondary"
+              className="invoice-card__btn-download"
               disabled={isDownloadingInvoice}
               onClick={() => void onDownloadInvoice()}
             >
-              {isDownloadingInvoice ? 'Downloading…' : 'Download invoice'}
-            </Button>
+              <DownloadIcon />
+              <span>{isDownloadingInvoice ? 'Downloading…' : 'Download invoice'}</span>
+            </button>
           ) : null}
-          <Link className="home-page__cta home-page__cta--secondary" to="/dashboard/orders">
-            Back to orders
-          </Link>
         </div>
 
-        {invoiceError ? <Alert variant="error" message={invoiceError} /> : null}
-
-        <div className="dashboard-card__details">
-          <p>
-            <strong>Order status:</strong>{' '}
-            <OrderStatusBadge status={order.order_status} />
-          </p>
-          <p>
-            <strong>Payment status:</strong>{' '}
-            <OrderPaymentStatusBadge status={order.payment_status} />
-          </p>
-          <p>
-            <strong>Total:</strong> {formatMoneyPlain(order.total_amount, order.currency)}
-          </p>
-          <p>
-            <strong>Items total:</strong> {formatMoneyPlain(order.items_total, order.currency)}
-          </p>
-          <p>
-            <strong>Placed:</strong> {formatLocaleDateTime(order.created_at)}
-          </p>
-          <p>
-            <strong>Updated:</strong> {formatLocaleDateTime(order.updated_at)}
-          </p>
-        </div>
-
-        <section className="admin-media-section" aria-labelledby="order-items-title">
-          <h2 id="order-items-title">Line items</h2>
-          {downloadError ? <Alert variant="error" message={downloadError} /> : null}
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th scope="col">Type</th>
-                  <th scope="col">Title</th>
-                  <th scope="col">Qty</th>
-                  <th scope="col">Unit price</th>
-                  <th scope="col">Line total</th>
-                  <th scope="col">Download</th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.items.map((item) => (
-                  <tr key={item.id}>
-                    <td>{formatProductType(item.product_type)}</td>
-                    <td>{item.title ?? '—'}</td>
-                    <td>{item.quantity}</td>
-                    <td>{formatMoneyPlain(item.purchase_price, order.currency)}</td>
-                    <td>{formatMoneyPlain(item.line_total, order.currency)}</td>
-                    <td>
-                      <OrderItemDownloads item={item} onDownload={onDownload} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {order.items.length === 0 ? (
-              <p className="home-page__subtitle">This order has no line items.</p>
-            ) : null}
+        {invoiceError ? (
+          <div className="invoice-card__alert">
+            <Alert variant="error" message={invoiceError} />
           </div>
-          {!order.items.some((item) => item.can_download) ? (
-            <p className="home-page__subtitle" role="note">
-              Downloads unlock when both order and payment status are paid.
-            </p>
+        ) : null}
+
+        <div className="invoice-card__meta">
+          <div className="invoice-card__meta-row">
+            <span className="invoice-card__meta-label">Order status:</span>
+            <span className="invoice-card__meta-value">
+              <OrderStatusBadge status={order.order_status} />
+            </span>
+          </div>
+          <div className="invoice-card__meta-row">
+            <span className="invoice-card__meta-label">Payment status:</span>
+            <span className="invoice-card__meta-value">
+              <OrderPaymentStatusBadge status={order.payment_status} />
+            </span>
+          </div>
+          <div className="invoice-card__meta-row">
+            <span className="invoice-card__meta-label">Total:</span>
+            <span className="invoice-card__meta-value">
+              {formatMoneyPlain(order.total_amount, order.currency)}
+            </span>
+          </div>
+          <div className="invoice-card__meta-row">
+            <span className="invoice-card__meta-label">Items total:</span>
+            <span className="invoice-card__meta-value">
+              {formatMoneyPlain(order.items_total, order.currency)}
+            </span>
+          </div>
+          <div className="invoice-card__meta-row">
+            <span className="invoice-card__meta-label">Placed:</span>
+            <span className="invoice-card__meta-value">
+              {formatLocaleDateTime(order.created_at)}
+            </span>
+          </div>
+          <div className="invoice-card__meta-row">
+            <span className="invoice-card__meta-label">Updated:</span>
+            <span className="invoice-card__meta-value">
+              {formatLocaleDateTime(order.updated_at)}
+            </span>
+          </div>
+        </div>
+
+        <hr className="invoice-card__divider" />
+
+        <h2 id="order-items-title" className="invoice-card__section-title">
+          Line items
+        </h2>
+        {downloadError ? (
+          <div className="invoice-card__alert">
+            <Alert variant="error" message={downloadError} />
+          </div>
+        ) : null}
+
+        <div className="invoice-card__table-wrap">
+          <table className="invoice-card__table">
+            <thead>
+              <tr>
+                <th scope="col" style={{ width: '14%' }}>
+                  Type
+                </th>
+                <th scope="col" style={{ width: '30%' }}>
+                  Title
+                </th>
+                <th scope="col" style={{ width: '10%' }}>
+                  Qty
+                </th>
+                <th scope="col" style={{ width: '15%' }}>
+                  Unit price
+                </th>
+                <th scope="col" style={{ width: '15%' }}>
+                  Line total
+                </th>
+                <th scope="col" style={{ width: '16%' }}>
+                  Download
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {order.items.map((item) => (
+                <tr key={item.id}>
+                  <td>{formatProductType(item.product_type)}</td>
+                  <td>
+                    <div className="invoice-card__product">
+                      <ProductThumb productType={item.product_type} />
+                      <span className="invoice-card__product-name">{item.title ?? '—'}</span>
+                    </div>
+                  </td>
+                  <td>{item.quantity}</td>
+                  <td>{formatMoneyPlain(item.purchase_price, order.currency)}</td>
+                  <td>{formatMoneyPlain(item.line_total, order.currency)}</td>
+                  <td>
+                    <OrderItemDownloads item={item} onDownload={onDownload} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {order.items.length === 0 ? (
+            <p className="invoice-card__muted">This order has no line items.</p>
           ) : null}
-        </section>
+        </div>
+
+        {!order.items.some((item) => item.can_download) ? (
+          <p className="invoice-card__note" role="note">
+            Downloads unlock when both order and payment status are paid.
+          </p>
+        ) : null}
       </section>
     </main>
   )

@@ -5,10 +5,6 @@
 # Requires a real .env with secrets. Do not use local console-email / open-admin defaults.
 
 services:
-  redis:
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
-
   web:
     environment:
       ALLOW_LOCALHOST_FRONTEND: "False"
@@ -21,17 +17,3 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?Set FRONTEND_BASE_URL}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?Set PUBLIC_API_BASE_URL}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
-
-  worker:
-    environment:
-      ALLOW_LOCALHOST_FRONTEND: "False"
-      ALLOW_CONSOLE_EMAIL: "False"
-      EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
-      SECURE_SSL_REDIRECT: "True"
-      SECURE_HSTS_SECONDS: "31536000"
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:?Set CSRF_TRUSTED_ORIGINS}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS}
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?Set FRONTEND_BASE_URL}
-      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?Set PUBLIC_API_BASE_URL}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}

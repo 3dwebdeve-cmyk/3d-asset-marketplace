@@ -80,8 +80,8 @@ class WafReadinessRunTests(SimpleTestCase):
     SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
     CACHES={
         "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": "redis://127.0.0.1:6379/1",
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "waf-prod-locmem",
         }
     },
 )
@@ -109,20 +109,13 @@ class WafReadinessProdLikeTests(SimpleTestCase):
             ssl = next(c for c in result.checks if c.name == "ssl_proxy_header")
             self.assertFalse(ssl.ok)
 
-    def test_non_redis_cache_fails_when_debug_false(self) -> None:
-        with override_settings(
-            CACHES={
-                "default": {
-                    "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-                    "LOCATION": "waf-prod-locmem",
-                }
-            }
-        ):
-            result = run_waf_readiness()
-            cache_check = next(
-                c for c in result.checks if c.name == "shared_throttle_cache"
-            )
-            self.assertFalse(cache_check.ok)
+    def test_locmem_cache_ok_when_debug_false(self) -> None:
+        result = run_waf_readiness()
+        cache_check = next(
+            c for c in result.checks if c.name == "shared_throttle_cache"
+        )
+        self.assertTrue(cache_check.ok)
+        self.assertIn("LocMem", cache_check.detail)
 
     def test_nginx_missing_cf_map_fails(self) -> None:
         fake = Path(__file__).resolve().parent / "_fake_nginx_no_cf.conf"

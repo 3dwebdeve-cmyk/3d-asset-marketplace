@@ -26,11 +26,10 @@
   gap: 0.35rem 0.85rem;
   width: 100%;
   max-width: var(--site-max-width);
-  height: 1.5cm;
   min-height: 1.5cm;
-  max-height: 1.5cm;
+  height: auto;
   margin: 0 auto;
-  padding: 0 var(--site-gutter);
+  padding: 0.35rem var(--site-gutter);
   box-sizing: border-box;
 }
 
@@ -321,10 +320,9 @@ button.navbar__link {
 
 .navbar--marketplace-home .navbar__inner {
   position: relative;
-  height: 1.5cm;
   min-height: 1.5cm;
-  max-height: 1.5cm;
-  padding-block: 0;
+  height: auto;
+  padding-block: 0.35rem;
   gap: 0.65rem;
 }
 
@@ -523,10 +521,59 @@ button.navbar__link {
   margin-left: 0.15rem;
 }
 
+/* Mobile toolbar (hamburger + cart) — hidden on desktop */
+.navbar__toolbar {
+  display: none;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.navbar__menu-button,
+.navbar__drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.navbar__menu-button:hover,
+.navbar__drawer-close:hover {
+  border-color: var(--action-color);
+  color: var(--action-color);
+}
+
+.navbar__mobile-overlay {
+  display: none;
+}
+
+.navbar__drawer {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .navbar__toolbar {
+    display: none !important;
+  }
+
+  .navbar__drawer,
+  .navbar__mobile-overlay {
+    display: none !important;
+  }
+}
+
 @media (max-width: 900px) {
   .navbar__inner {
     flex-wrap: wrap;
-    gap: 0.55rem 1rem;
+    gap: 0.55rem 0.75rem;
   }
 
   .navbar__search {
@@ -535,73 +582,147 @@ button.navbar__link {
     max-width: none;
   }
 
-  .navbar--marketplace-home .navbar__start {
-    flex: 1 1 auto;
-    min-width: 0;
+  .navbar__explore--desktop {
+    display: none;
   }
 
-  /* Stack nav links and account so they never overlap on phones */
-  .navbar--marketplace-home .navbar__actions {
-    flex: 1 1 100%;
+  .navbar__actions--desktop {
+    display: none !important;
+  }
+
+  .navbar__toolbar {
+    display: inline-flex;
+  }
+
+  .navbar__mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 140;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+
+  .navbar__drawer {
+    display: flex;
     flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    overflow-x: visible;
-    gap: 0.45rem;
-    padding-bottom: 0;
-  }
-
-  .navbar--marketplace-home .navbar__primary-links {
-    position: static;
-    transform: none;
-    justify-content: flex-start;
-    flex-wrap: nowrap;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 150;
+    width: min(22rem, 100vw);
+    height: 100dvh;
+    max-height: 100dvh;
+    padding: 0.85rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+    border-left: 1px solid var(--border);
+    background: #fff;
+    box-shadow: none;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.15rem;
-    gap: 0.75rem 1rem;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    text-align: left;
   }
 
-  .navbar--marketplace-home .navbar__account-actions {
+  .navbar__drawer--open {
+    transform: translateX(0);
+  }
+
+  .navbar__drawer[hidden] {
+    display: none;
+  }
+
+  .navbar__drawer--open[hidden] {
+    display: flex;
+  }
+
+  .navbar__drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .navbar__drawer-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .navbar__drawer-nav,
+  .navbar__drawer-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin-bottom: 1.15rem;
+  }
+
+  .navbar__drawer-section-title {
+    margin: 0 0 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .navbar__drawer-link {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.35rem;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .navbar__drawer-link:hover {
+    color: var(--action-color);
+    background: var(--accent-soft);
+  }
+
+  .navbar__drawer-link--button {
     width: 100%;
-    justify-content: flex-end;
-    flex-wrap: wrap;
   }
 
-  .navbar--marketplace-home .navbar__link {
-    white-space: nowrap;
+  .navbar__drawer-link.navbar__link--primary {
+    justify-content: center;
+    margin-top: 0.35rem;
+    background: var(--action-color);
+    color: #fff;
   }
 
-  .navbar:not(.navbar--marketplace-home) .navbar__actions {
-    flex: 1 1 auto;
-    min-width: 0;
+  .navbar__drawer-auth {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .navbar__drawer-link .navbar__explore-icon,
+  .navbar__drawer-link .navbar__explore-image {
+    width: 1.35rem;
+    height: 1.35rem;
+    flex-shrink: 0;
   }
 }
 
 @media (max-width: 640px) {
-  .navbar:not(.navbar--marketplace-home) .navbar__actions {
-    flex: 1 1 100%;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.45rem;
-  }
-
-  .navbar:not(.navbar--marketplace-home) .navbar__primary-links {
-    width: 100%;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.1rem;
-  }
-
-  .navbar:not(.navbar--marketplace-home) .navbar__account-actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
-
   .navbar__search-cat-trigger {
     max-width: 7rem;
     font-size: 0.62rem;
@@ -629,10 +750,9 @@ button.navbar__link {
   }
 
   .navbar__inner {
-    height: 1.5cm;
     min-height: 1.5cm;
-    max-height: 1.5cm;
-    padding-block: 0;
+    height: auto;
+    padding-block: 0.35rem;
     gap: 0.35rem 0.55rem;
   }
 
@@ -662,5 +782,10 @@ button.navbar__link {
   .navbar__icon-btn {
     width: 1.35rem;
     height: 1.35rem;
+  }
+
+  .navbar__menu-button {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
   }
 }

@@ -1,11 +1,19 @@
 /**
  * Cross-cutting responsive refinements for ~6" phones (~360px)
- * through ~22" desktops (~1920px+). Layout/CSS only — no behavior changes.
+ * through ~24" desktops (~1920px+). Layout/CSS only.
+ *
+ * Canonical breakpoints: 640 (phone) / 900 (tablet) / 1100 (laptop) / 1280 (desktop).
  */
 
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  overflow-x: clip;
+}
+
+body {
+  overflow-x: clip;
+  margin: 0;
 }
 
 #root,
@@ -13,6 +21,7 @@ html {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  overflow-x: clip;
 }
 
 .app-shell > main,
@@ -29,26 +38,71 @@ html {
   max-width: 100%;
 }
 
-/* —— Phones / small phablets (~6"–7", ≤480px) —— */
-@media (max-width: 480px) {
-  /* Keep intrinsic banner ratio — do not crop on small screens */
-  .site-hero-banner {
-    aspect-ratio: var(--site-hero-aspect);
-    min-height: 0;
-  }
-
-  .site-hero-banner__image {
-    object-fit: contain;
-    min-height: 0;
-  }
-
-  h1 {
-    font-size: clamp(1.45rem, 7.2vw, 2rem);
-    margin: 1rem 0;
+/* Shared phone padding helper for marketing / auth shells */
+@media (max-width: 640px) {
+  .marketing-page__inner,
+  .auth-modal {
+    padding-inline: max(var(--site-gutter), env(safe-area-inset-left, 0px))
+      max(var(--site-gutter), env(safe-area-inset-right, 0px));
   }
 }
 
-/* —— Large tablets / small laptops —— */
+/*
+ * Site / page hero banners
+ * Keep a wide, compact frame on smaller screens. Do NOT switch to tall
+ * portrait-like ratios — that makes mobile heroes dominate the viewport.
+ * Height is driven by aspect-ratio + max-height caps; content must not
+ * expand the frame (min-height: 0 on grid children in index.css).
+ */
+@media (max-width: 1280px) {
+  .site-hero-banner {
+    --site-hero-aspect: 21 / 7;
+  }
+}
+
+@media (max-width: 1100px) {
+  .site-hero-banner {
+    --site-hero-aspect: 3 / 1;
+    max-height: 16rem;
+  }
+
+  .site-hero-banner__image {
+    object-position: center 38%;
+  }
+}
+
+@media (max-width: 900px) {
+  .site-hero-banner {
+    --site-hero-aspect: 2.4 / 1;
+    max-height: 13.5rem;
+  }
+
+  .site-hero-banner__image {
+    object-fit: cover;
+    object-position: center 32%;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-hero-banner {
+    --site-hero-aspect: 2.15 / 1;
+    max-height: 11.25rem;
+  }
+
+  .site-hero-banner__image {
+    object-fit: cover;
+    object-position: center 28%;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-hero-banner {
+    --site-hero-aspect: 2 / 1;
+    max-height: 9.75rem;
+  }
+}
+
+/* —— Tablets / phablets (≤900px) —— */
 @media (max-width: 900px) {
   .admin-layout__content .dashboard-page {
     padding: 1.15rem;

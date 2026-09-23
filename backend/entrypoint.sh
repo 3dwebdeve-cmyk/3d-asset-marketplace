@@ -6,31 +6,8 @@ python <<'PY'
 import os
 import sys
 import time
-import urllib.error
-import urllib.request
 
 import psycopg2
-
-
-def wait_for_http(url: str, timeout: int = 60) -> None:
-    deadline = time.monotonic() + timeout
-
-    while time.monotonic() < deadline:
-        try:
-            with urllib.request.urlopen(url, timeout=3) as response:
-                if 200 <= response.status < 300:
-                    return
-        except (
-            urllib.error.HTTPError,
-            urllib.error.URLError,
-            TimeoutError,
-        ):
-            pass
-
-        time.sleep(1)
-
-    raise RuntimeError(f"service did not become ready: {url}")
-
 
 host = os.environ.get("DB_HOST", "localhost")
 port = int(os.environ.get("DB_PORT", "5432"))
@@ -57,31 +34,18 @@ while True:
             print(f"database not ready: {exc}", file=sys.stderr, flush=True)
             sys.exit(1)
         time.sleep(1)
-
-meili_url = os.environ.get("MEILI_URL", "").rstrip("/")
-if meili_url:
-    try:
-        wait_for_http(f"{meili_url}/health")
-        print(f"meilisearch ready at {meili_url}", flush=True)
-    except RuntimeError as exc:
-        print(f"meilisearch not ready: {exc}", file=sys.stderr, flush=True)
-        sys.exit(1)
 PY
 
 skip_migrate=0
 case "${SKIP_STARTUP_MIGRATE:-}" in
   1|true|True|yes|YES|on|ON) skip_migrate=1 ;;
 esac
-# Celery workers share this image; web already migrated (depends_on: service_healthy).
-if [ "${1:-}" = "celery" ]; then
-  skip_migrate=1
-fi
 
 if [ "$skip_migrate" -eq 0 ]; then
   python manage.py migrate --noinput
   python manage.py collectstatic --noinput
 else
-  echo "skipping migrate/collectstatic (worker or SKIP_STARTUP_MIGRATE)"
+  echo "skipping migrate/collectstatic (SKIP_STARTUP_MIGRATE)"
 fi
 
 exec "$@"

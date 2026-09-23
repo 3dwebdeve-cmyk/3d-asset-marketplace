@@ -64,11 +64,11 @@
 }
 
 .about-hero .site-hero-banner__image {
-  position: absolute;
-  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  max-width: 100%;
+  object-fit: cover;
+  object-position: center center;
 }
 
 .about-hero__content {
@@ -160,12 +160,29 @@
     display: none;
   }
 
-  .about-hero__copy h1 {
-    font-size: clamp(1.45rem, 6.5vw, 1.9rem);
+  .about-hero__content {
+    padding: 0.85rem var(--site-gutter);
+    gap: 0.35rem;
   }
 
-  .about-hero__content {
-    padding: 1.25rem var(--site-gutter);
+  .about-hero .about-eyebrow {
+    margin-bottom: 0.35rem;
+    font-size: 0.72rem;
+  }
+
+  .about-hero__copy h1 {
+    margin: 0 0 0.35rem;
+    font-size: clamp(1.25rem, 5.5vw, 1.65rem);
+  }
+
+  .about-hero__lead {
+    font-size: 0.82rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
 }
 

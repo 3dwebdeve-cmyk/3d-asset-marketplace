@@ -102,7 +102,8 @@ describe('CartPage', () => {
       'href',
       '/products/oak-chair',
     )
-    expect(screen.getByText('Product')).toBeInTheDocument()
+    expect(screen.getByText('Furniture')).toBeInTheDocument()
+    expect(screen.getByText(/standard license/i)).toBeInTheDocument()
     expect(screen.getAllByText('$59.98').length).toBeGreaterThan(0)
     expect(screen.getByLabelText(/coupon code/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^checkout$/i })).toBeEnabled()

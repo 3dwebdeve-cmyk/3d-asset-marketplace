@@ -150,7 +150,6 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         frontend_base_url_is_localhost,
         frontend_base_url_uses_https,
     )
-    from search.client import master_key_is_weak
 
     debug = bool(getattr(settings_obj, "DEBUG", False))
     secret = str(getattr(settings_obj, "SECRET_KEY", "") or "")
@@ -177,10 +176,9 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         .get("PASSWORD", "")
         or ""
     )
-    redis_set = bool(str(getattr(settings_obj, "REDIS_URL", "") or "").strip())
-    meili_weak = master_key_is_weak(
-        getattr(settings_obj, "MEILI_MASTER_KEY", "") or ""
-    )
+    # Redis / Meilisearch removed from the stack; keep report fields for CLI compat.
+    redis_set = False
+    meili_weak = False
     example_secret = secret_key_is_example(secret)
     wildcard = allowed_hosts_has_wildcard(hosts)
     hosts_local = allowed_hosts_are_local_only(hosts)
@@ -252,26 +250,6 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
             "DB_PASSWORD is empty, shorter than 12 characters, or an "
             "example/trivial value - use a strong unique password."
         )
-    if not debug and meili_weak:
-        warnings.append(
-            "MEILI_MASTER_KEY is empty, shorter than 16 characters, or an "
-            "example placeholder - set a unique key matching the Meili service."
-        )
-    if not debug and not redis_set:
-        warnings.append(
-            "REDIS_URL is empty while DEBUG=False - required for shared cache, "
-            "throttles, and checkout idempotency."
-        )
-
-    from config.redis_urls import redis_url_has_password
-
-    redis_url = str(getattr(settings_obj, "REDIS_URL", "") or "").strip()
-    if not debug and redis_set and not redis_url_has_password(redis_url):
-        warnings.append(
-            "REDIS_URL has no password while DEBUG=False - set REDIS_PASSWORD "
-            "(Compose requirepass) or embed credentials in REDIS_URL / "
-            "CELERY_BROKER_URL."
-        )
 
     admin_enabled = bool(getattr(settings_obj, "DJANGO_ADMIN_ENABLED", True))
     admin_ips = [
@@ -284,6 +262,18 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
             "Django /admin/ is enabled without DJANGO_ADMIN_ALLOWED_IPS while "
             "DEBUG=False - set DJANGO_ADMIN_ENABLED=False (SPA uses /console/) "
             "or restrict to staff VPN/office IPs."
+        )
+
+    console_ips = [
+        str(item).strip()
+        for item in (getattr(settings_obj, "ADMIN_CONSOLE_ALLOWED_IPS", None) or [])
+        if str(item).strip()
+    ]
+    if not debug and not console_ips:
+        warnings.append(
+            "ADMIN_CONSOLE_ALLOWED_IPS is empty while DEBUG=False - "
+            "set company office and/or VPN CIDRs so /console login and "
+            "/api/v1/admin/* are unreachable from the public internet."
         )
 
     allow_localhost_frontend = bool(

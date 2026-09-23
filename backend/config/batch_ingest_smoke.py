@@ -476,17 +476,7 @@ def _apply_happy_path() -> tuple[str, list[str]]:
             f"Unexpected status after import: {product.status}"
         )
 
-    try:
-        from search.client import is_configured
-        from search.indexer import reindex_all
-
-        if is_configured():
-            products_n, plugins_n = reindex_all()
-            warnings.append(f"reindex_search products={products_n} plugins={plugins_n}")
-        else:
-            warnings.append("MEILI_URL unset — reindex skipped (advisory)")
-    except Exception as exc:  # noqa: BLE001 — operator smoke must not leak stack
-        warnings.append(f"reindex advisory: {exc}")
+    warnings.append("Postgres search — reindex not required")
 
     return sku, warnings
 
