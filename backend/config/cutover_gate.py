@@ -25,13 +25,6 @@ from config.mail import (
     frontend_base_url_uses_https,
 )
 from payments.stripe_config import collect_stripe_config_report
-from search.client import (
-    get_client,
-    is_configured as meili_is_configured,
-    is_required as meili_is_required,
-    master_key_is_weak,
-    probe_meilisearch,
-)
 
 CutoverProfile = Literal["local", "staging", "production"]
 
@@ -355,37 +348,12 @@ def _check_ops(profile: CutoverProfile) -> CutoverCheck:
 
 
 def _check_search(profile: CutoverProfile) -> CutoverCheck:
-    configured = meili_is_configured()
-    required = meili_is_required()
-    key = (getattr(settings, "MEILI_MASTER_KEY", "") or "").strip()
-    weak = master_key_is_weak(key)
-    healthy = False
-    if configured:
-        try:
-            client = get_client()
-            healthy = bool(client and probe_meilisearch(client))
-        except Exception:
-            healthy = False
-    detail = (
-        f"configured={configured} required={required} "
-        f"healthy={healthy} weak_key={weak}"
+    del profile
+    return CutoverCheck(
+        name="search_postgres",
+        ok=True,
+        detail="backend=postgres_icontains (Meilisearch removed)",
     )
-    if not _host_like_profile(profile):
-        ok = (not required) or (configured and healthy and not weak)
-        return CutoverCheck(
-            name="search_meili",
-            ok=ok or not required,
-            detail=detail,
-            blocking=required,
-        )
-    if not configured or not healthy or weak:
-        return CutoverCheck(
-            name="search_meili",
-            ok=False,
-            detail=detail,
-            blocking=True,
-        )
-    return CutoverCheck(name="search_meili", ok=True, detail=detail)
 
 
 def _check_healthz() -> CutoverCheck:

@@ -58,7 +58,7 @@ const OFFER_CARDS = [
   {
     title: 'Custom projects',
     text: 'Submit a brief, receive a quotation, collaborate through messaging, and track delivery.',
-    to: '/custom-projects',
+    to: '/dashboard/projects/new',
     image: '/images/about/offer-custom-projects.jpg?v=1',
     imagePosition: 'center',
     badge: 'doc' as const,

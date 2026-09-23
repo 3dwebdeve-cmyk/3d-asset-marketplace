@@ -60,12 +60,6 @@
   box-sizing: border-box;
 }
 
-@media (max-width: 900px) {
-  .plugins-browse__body {
-    grid-template-columns: 1fr;
-  }
-}
-
 .plugins-filters {
   align-self: start;
   padding: 1.1rem 1.15rem 1.25rem;
@@ -73,6 +67,15 @@
   border-radius: 0.75rem;
   background: #fff;
   box-shadow: none;
+}
+
+.plugins-filters__toggle {
+  display: contents;
+  cursor: pointer;
+}
+
+.plugins-filters__toggle-icon {
+  display: none;
 }
 
 .plugins-filters__header {
@@ -89,6 +92,102 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--text-main);
+}
+
+@media (max-width: 900px) {
+  .plugins-browse__body {
+    grid-template-columns: 1fr;
+  }
+
+  .plugins-browse-hero__container {
+    padding: 1rem var(--site-gutter);
+  }
+
+  .plugins-browse-hero__title {
+    margin: 0 0 0.4rem;
+    font-size: clamp(1.35rem, 4.5vw, 1.85rem);
+  }
+
+  .plugins-browse-hero__subtitle {
+    font-size: 0.84rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .plugins-filters__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+  }
+
+  .plugins-filters__toggle-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .plugins-filters__header {
+    margin-bottom: 0;
+  }
+
+  .plugins-filters__panel {
+    display: none;
+    margin-top: 1rem;
+  }
+
+  .plugins-filters--open .plugins-filters__header {
+    margin-bottom: 0;
+  }
+
+  .plugins-filters--open .plugins-filters__panel {
+    display: block;
+  }
+}
+
+@media (max-width: 480px) {
+  .plugins-browse-hero__container {
+    padding: 0.75rem var(--site-gutter);
+  }
+
+  .plugins-browse-hero__title {
+    margin: 0;
+    font-size: clamp(1.2rem, 5.8vw, 1.45rem);
+  }
+
+  .plugins-browse-hero__subtitle {
+    display: none;
+  }
+}
+
+@media (min-width: 901px) {
+  .plugins-filters__panel {
+    display: block !important;
+  }
+
+  .plugins-filters__toggle {
+    display: contents;
+    pointer-events: none;
+  }
+
+  .plugins-filters__toggle-icon {
+    display: none !important;
+  }
 }
 
 .plugins-filters__reset {

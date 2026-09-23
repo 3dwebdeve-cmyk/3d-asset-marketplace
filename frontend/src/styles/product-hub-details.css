@@ -221,13 +221,13 @@
   .product-hub-detail .product-detail-stage__empty,
   .product-hub-detail .product-detail-stage__viewer,
   .product-hub-detail .product-detail-stage__video-wrap {
-    min-height: 240px;
+    min-height: 220px;
   }
 
   .product-hub-detail .product-detail-stage__image,
   .product-hub-detail .product-detail-stage__viewer .model-viewer {
-    height: min(46vh, 320px);
-    min-height: 220px;
+    height: min(42vh, 280px);
+    min-height: 200px;
   }
 }
 

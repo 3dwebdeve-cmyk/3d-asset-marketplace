@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from io import StringIO
-from unittest.mock import patch
 
 from django.core.management import call_command
 from django.test import TestCase, override_settings
@@ -86,8 +85,7 @@ class BatchIngestSmokeTests(TestCase):
         self.assertEqual(by_id["MDL-000201"]["exports"]["fbx"], "Failed")
 
     def test_apply_publishes_happy_sku(self) -> None:
-        with patch("search.client.is_configured", return_value=False):
-            result = run_batch_ingest_smoke(apply=True)
+        result = run_batch_ingest_smoke(apply=True)
         self.assertTrue(result.all_ok, msg=[c for c in result.checks if not c.ok])
         self.assertTrue(result.applied)
         self.assertEqual(result.published_sku, "MDL-000142")
@@ -95,7 +93,7 @@ class BatchIngestSmokeTests(TestCase):
         self.assertEqual(product.status, Product.Status.PUBLISHED)
         self.assertEqual(product.import_batch_id, "i3-batch-ingest-smoke")
         self.assertTrue(
-            any("MEILI_URL unset" in w for w in result.warnings),
+            any("Postgres search" in w for w in result.warnings),
             msg=result.warnings,
         )
 

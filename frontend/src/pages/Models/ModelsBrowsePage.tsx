@@ -66,6 +66,7 @@ export function ModelsBrowsePage() {
     pbr_ready: pbrReadyFromUrl,
     game_ready: gameReadyFromUrl,
   })
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
@@ -235,9 +236,22 @@ export function ModelsBrowsePage() {
       </section>
 
       <div className="plugins-browse__body">
-        <aside className="plugins-filters" aria-label="3D model filters">
+        <aside
+          className={`plugins-filters${filtersOpen ? ' plugins-filters--open' : ''}`}
+          aria-label="3D model filters"
+        >
           <div className="plugins-filters__header">
-            <h2 className="plugins-filters__title">FILTERS</h2>
+            <button
+              type="button"
+              className="plugins-filters__toggle"
+              aria-expanded={filtersOpen}
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              <h2 className="plugins-filters__title">FILTERS</h2>
+              <span className="plugins-filters__toggle-icon" aria-hidden="true">
+                {filtersOpen ? '−' : '+'}
+              </span>
+            </button>
             {isFiltered ? (
               <button
                 type="button"
@@ -249,6 +263,7 @@ export function ModelsBrowsePage() {
             ) : null}
           </div>
 
+          <div className="plugins-filters__panel">
           <div className="plugins-filters__group">
             <p className="plugins-filters__label" id="model-software-label">
               Software
@@ -300,6 +315,7 @@ export function ModelsBrowsePage() {
               })}
             </div>
           </div>
+          </div>
         </aside>
 
         <section className="plugins-browse-main">
@@ -346,7 +362,10 @@ export function ModelsBrowsePage() {
           ) : isError ? (
             <div className="plugins-browse-state">
               <h3>Failed to load 3D models</h3>
-              <p>We encountered an issue fetching models from the store.</p>
+              <p>
+                Search is temporarily unavailable. Clear your search query to browse
+                the catalog, or try again in a moment.
+              </p>
               <Button variant="secondary" onClick={() => refetch()}>
                 Try Again
               </Button>

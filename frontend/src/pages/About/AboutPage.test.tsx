@@ -33,6 +33,10 @@ describe('AboutPage', () => {
       'href',
       '/3d-models',
     )
+    expect(screen.getByRole('link', { name: /open custom projects/i })).toHaveAttribute(
+      'href',
+      '/dashboard/projects/new',
+    )
     expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
       'href',
       '/dashboard/projects/new',

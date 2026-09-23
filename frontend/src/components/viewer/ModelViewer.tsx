@@ -141,8 +141,9 @@ function PreviewModel({
       // which makes it feel effectively "infinite".
       width: Math.max(maxXZ * 7.5, 320),
       depth: Math.max(maxXZ * 7.5, 320),
-      // Wide enough for the model silhouette plus a soft outer fade.
-      shadowScale: Math.max(maxXZ * 4.2, 4.5),
+      // Enough plane for soft edge bleed without a hard silhouette.
+      shadowScale: Math.max(maxXZ * 2.6, 2.8),
+      shadowScaleCore: Math.max(maxXZ * 1.9, 2.1),
     }
   }, [fitted])
 
@@ -180,17 +181,32 @@ function PreviewModel({
         </mesh>
       ) : null}
       {ground ? (
-        <ContactShadows
-          key={url}
-          position={[0, ground.y + 0.001, 0]}
-          opacity={0.88}
-          scale={ground.shadowScale}
-          blur={2.35}
-          far={5}
-          resolution={shadowMapSize}
-          frames={1}
-          color="#000000"
-        />
+        <>
+          {/* Soft outer pool — wide blur so edges do not read as the model outline. */}
+          <ContactShadows
+            key={`${url}-soft`}
+            position={[0, ground.y + 0.001, 0]}
+            opacity={0.11}
+            scale={ground.shadowScale}
+            blur={2.6}
+            far={3.2}
+            resolution={shadowMapSize}
+            frames={1}
+            color="#2f2f2f"
+          />
+          {/* Soft contact core — blurred enough to hide exact silhouette. */}
+          <ContactShadows
+            key={`${url}-core`}
+            position={[0, ground.y + 0.002, 0]}
+            opacity={0.2}
+            scale={ground.shadowScaleCore}
+            blur={1.55}
+            far={2.0}
+            resolution={shadowMapSize}
+            frames={1}
+            color="#252525"
+          />
+        </>
       ) : null}
       <primitive object={fitted} />
     </>
@@ -240,7 +256,6 @@ function ModelViewerCanvas({
   visible: boolean
   pixelRatio: number
 }) {
-  const [wireframe, setWireframe] = useState(false)
   const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
   const [environmentFile, setEnvironmentFile] = useState<string | null>(null)
   const [environmentError, setEnvironmentError] = useState<string | null>(null)
@@ -312,7 +327,7 @@ function ModelViewerCanvas({
           <PreviewModel
             key={modelUrl}
             url={modelUrl}
-            wireframe={wireframe}
+            wireframe={false}
             showGround={selectedEnvironment.showGround}
           />
         </Suspense>
@@ -342,17 +357,6 @@ function ModelViewerCanvas({
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className={`model-viewer__wireframe-btn${
-            wireframe ? ' model-viewer__wireframe-btn--active' : ''
-          }`}
-          aria-pressed={wireframe}
-          aria-label="Wireframe"
-          onClick={() => setWireframe((current) => !current)}
-        >
-          Wireframe
-        </button>
       </div>
       {environmentError ? (
         <p className="model-viewer__hint" role="status" aria-live="polite">

@@ -30,9 +30,6 @@ from payments.stripe_config import collect_stripe_config_report
     STRIPE_PUBLISHABLE_KEY="",
     STRIPE_WEBHOOK_SECRET="",
     E2E_STRIPE_SIMULATE=False,
-    MEILI_URL="",
-    MEILI_REQUIRED=False,
-    REDIS_URL="",
     CACHES={
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -48,6 +45,7 @@ class CutoverGateLocalTests(TestCase):
         )
         by_name = {c.name: c for c in result.checks}
         self.assertTrue(by_name["healthz"].ok, msg=by_name["healthz"].detail)
+        self.assertTrue(by_name["search_postgres"].ok)
         self.assertTrue(result.all_ok)
         self.assertTrue(result.manual_reminders)
 
@@ -89,7 +87,7 @@ def _staging_deploy_report():
         allow_console_email=False,
         db_password_weak=False,
         meili_master_key_weak=False,
-        redis_url_set=True,
+        redis_url_set=False,
         warnings=[],
     )
 
@@ -120,11 +118,6 @@ def _staging_deploy_report():
     STRIPE_PUBLISHABLE_KEY="pk_test_cutover_gate_unit",
     STRIPE_WEBHOOK_SECRET="whsec_cutover_gate_unit_secret",
     E2E_STRIPE_SIMULATE=False,
-    MEILI_URL="http://meili.test:7700",
-    MEILI_MASTER_KEY="strong-meili-master-key-16",
-    MEILI_REQUIRED=True,
-    REDIS_URL="redis://127.0.0.1:6379/1",
-    CELERY_BROKER_URL="redis://127.0.0.1:6379/0",
     DB_PASSWORD="strong-db-password-12",
     CACHES={
         "default": {
@@ -141,23 +134,8 @@ class CutoverGateStagingTests(TestCase):
             password="CutoverGateAdmin1!",
         )
 
-    @patch("config.health.probe_meilisearch", return_value=True)
-    @patch("config.health.get_client", return_value=object())
-    @patch("config.health.meili_is_configured", return_value=True)
-    @patch("config.cutover_gate.probe_meilisearch", return_value=True)
-    @patch("config.cutover_gate.get_client", return_value=object())
-    @patch("config.cutover_gate.meili_is_configured", return_value=True)
     @patch("config.cutover_gate.collect_deploy_config_report")
-    def test_staging_passes_with_test_stripe(
-        self,
-        mock_deploy,
-        _meili_cfg,
-        _client,
-        _probe,
-        _health_cfg,
-        _health_client,
-        _health_probe,
-    ) -> None:
+    def test_staging_passes_with_test_stripe(self, mock_deploy) -> None:
         mock_deploy.return_value = _staging_deploy_report()
         result = run_cutover_gate(
             profile="staging",
@@ -167,24 +145,11 @@ class CutoverGateStagingTests(TestCase):
         stripe = next(c for c in result.checks if c.name == "stripe")
         self.assertTrue(stripe.ok)
         self.assertIn("secret=test", stripe.detail)
+        search = next(c for c in result.checks if c.name == "search_postgres")
+        self.assertTrue(search.ok)
 
-    @patch("config.health.probe_meilisearch", return_value=True)
-    @patch("config.health.get_client", return_value=object())
-    @patch("config.health.meili_is_configured", return_value=True)
-    @patch("config.cutover_gate.probe_meilisearch", return_value=True)
-    @patch("config.cutover_gate.get_client", return_value=object())
-    @patch("config.cutover_gate.meili_is_configured", return_value=True)
     @patch("config.cutover_gate.collect_deploy_config_report")
-    def test_staging_fails_without_administrator(
-        self,
-        mock_deploy,
-        _meili_cfg,
-        _client,
-        _probe,
-        _health_cfg,
-        _health_client,
-        _health_probe,
-    ) -> None:
+    def test_staging_fails_without_administrator(self, mock_deploy) -> None:
         User.objects.filter(role__role_name="Administrator").delete()
         mock_deploy.return_value = _staging_deploy_report()
         result = run_cutover_gate(
@@ -246,20 +211,23 @@ class CutoverCommandFailTests(TestCase):
 
         mock_run.return_value = CutoverGateResult(
             profile="staging",
+            debug=False,
             checks=(
                 CutoverCheck(
-                    name="healthz",
+                    name="deploy",
                     ok=True,
-                    detail="status=200",
+                    detail="ok",
+                    blocking=False,
                 ),
             ),
-            debug=False,
-            warnings=("SMTP deferred",),
-            manual_reminders=("build images",),
+            warnings=("advisory warning",),
+            manual_reminders=(),
         )
         with self.assertRaises(CommandError):
             call_command(
                 "check_cutover",
                 profile="staging",
                 fail_on_warnings=True,
+                skip_django_deploy_check=True,
+                stdout=StringIO(),
             )

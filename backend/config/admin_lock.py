@@ -1,4 +1,8 @@
-"""Optional Django-admin lock (SPA console is /console/; APIs stay /api/v1/admin/)."""
+"""Optional network locks for Django /admin/ and SPA console admin APIs.
+
+SPA UI is served at /console/ (frontend). Real protection is API-side:
+``/api/v1/auth/admin/`` and ``/api/v1/admin/``.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +15,16 @@ from django.http import HttpResponseForbidden, HttpResponseNotFound
 def is_django_admin_path(path: str) -> bool:
     normalized = path or ""
     return normalized == "/admin" or normalized.startswith("/admin/")
+
+
+def is_spa_admin_api_path(path: str) -> bool:
+    """Admin login/session + all /api/v1/admin/* management routes."""
+    normalized = path or ""
+    if normalized == "/api/v1/auth/admin" or normalized.startswith(
+        "/api/v1/auth/admin/"
+    ):
+        return True
+    return normalized == "/api/v1/admin" or normalized.startswith("/api/v1/admin/")
 
 
 def parse_allowed_networks(raw) -> tuple[ipaddress._BaseNetwork, ...]:
@@ -60,11 +74,20 @@ def ip_is_allowed(ip: str, networks: tuple[ipaddress._BaseNetwork, ...]) -> bool
     return any(address in network for network in networks)
 
 
-class DjangoAdminLockMiddleware:
-    """404 when disabled; 403 when allowlist is set and the client IP is not in it.
+def _client_allowed(request, networks: tuple[ipaddress._BaseNetwork, ...]) -> bool:
+    if not networks:
+        return True
+    client_ips = request_client_ips(request)
+    return any(ip_is_allowed(ip, networks) for ip in client_ips)
 
-    Empty ``DJANGO_ADMIN_ALLOWED_IPS`` keeps current behaviour (login redirect).
-    Does not touch ``/api/v1/admin/`` or ``/console/``.
+
+class DjangoAdminLockMiddleware:
+    """404 when Django admin disabled; 403 when allowlists exclude the client IP.
+
+    - ``DJANGO_ADMIN_*`` applies only to ``/admin/``.
+    - ``ADMIN_CONSOLE_ALLOWED_IPS`` applies to SPA console APIs
+      (``/api/v1/auth/admin/`` and ``/api/v1/admin/``).
+    Empty allowlists keep current open behaviour (local Compose).
     """
 
     def __init__(self, get_response):
@@ -72,19 +95,22 @@ class DjangoAdminLockMiddleware:
 
     def __call__(self, request):
         path = getattr(request, "path", "") or ""
-        if not is_django_admin_path(path):
+
+        if is_django_admin_path(path):
+            if not bool(getattr(settings, "DJANGO_ADMIN_ENABLED", True)):
+                return HttpResponseNotFound()
+            networks = parse_allowed_networks(
+                getattr(settings, "DJANGO_ADMIN_ALLOWED_IPS", ())
+            )
+            if networks and not _client_allowed(request, networks):
+                return HttpResponseForbidden()
             return self.get_response(request)
 
-        if not bool(getattr(settings, "DJANGO_ADMIN_ENABLED", True)):
-            return HttpResponseNotFound()
+        if is_spa_admin_api_path(path):
+            networks = parse_allowed_networks(
+                getattr(settings, "ADMIN_CONSOLE_ALLOWED_IPS", ())
+            )
+            if networks and not _client_allowed(request, networks):
+                return HttpResponseForbidden()
 
-        networks = parse_allowed_networks(
-            getattr(settings, "DJANGO_ADMIN_ALLOWED_IPS", ())
-        )
-        if not networks:
-            return self.get_response(request)
-
-        client_ips = request_client_ips(request)
-        if any(ip_is_allowed(ip, networks) for ip in client_ips):
-            return self.get_response(request)
-        return HttpResponseForbidden()
+        return self.get_response(request)

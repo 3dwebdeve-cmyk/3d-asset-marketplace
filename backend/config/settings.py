@@ -19,8 +19,6 @@ from decouple import Config, RepositoryEmpty, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
 
-from config.redis_urls import apply_redis_password
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -291,39 +289,28 @@ DJANGO_ADMIN_ALLOWED_IPS = config(
     default="",
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
-
-# Shared cache for DRF throttles across workers. Prefer Redis in production:
-# REDIS_URL=redis://127.0.0.1:6379/1  (cache / throttles / idempotency)
-# CELERY_BROKER_URL=redis://127.0.0.1:6379/0  (Celery broker; falls back to REDIS_URL)
-# Optional REDIS_PASSWORD is injected into URLs that have no password yet (Compose AUTH).
-REDIS_PASSWORD = config("REDIS_PASSWORD", default="").strip()
-REDIS_URL = apply_redis_password(config("REDIS_URL", default=""), REDIS_PASSWORD)
-if not DEBUG and not REDIS_URL:
-    raise ImproperlyConfigured(
-        "REDIS_URL is required when DEBUG=False so rate limits and cache "
-        "are shared across workers."
-    )
-if REDIS_URL:
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": REDIS_URL,
-        }
-    }
-else:
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "marketplace-default",
-        }
-    }
-
-# Celery — prefer a dedicated broker DB index; fall back to REDIS_URL for DX.
-# Without Redis (local DEBUG) or under tests, tasks run eagerly in-process.
-CELERY_BROKER_URL = apply_redis_password(
-    config("CELERY_BROKER_URL", default="") or REDIS_URL or "memory://",
-    REDIS_PASSWORD,
+# SPA /console/ API lock: when set, only these IPs/CIDRs may hit
+# /api/v1/auth/admin/* and /api/v1/admin/*. Empty = open (local). Use office/VPN egress.
+ADMIN_CONSOLE_ALLOWED_IPS = config(
+    "ADMIN_CONSOLE_ALLOWED_IPS",
+    default="",
+    cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
+
+# In-process LocMem cache (no Redis). Rate limits / idempotency are per-process.
+# REDIS_URL kept as an empty stub so older health checks / env files stay harmless.
+REDIS_URL = ""
+REDIS_PASSWORD = ""
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "marketplace-default",
+    }
+}
+
+# Celery runs in-process (no Redis broker / no worker container).
+# Emails and notifications still send via enqueue_after_commit + eager delay().
+CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = None
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_TASK_ACKS_LATE = True
@@ -332,17 +319,14 @@ CELERY_TASK_TRACK_STARTED = False
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-_celery_broker_is_memory = str(CELERY_BROKER_URL).startswith("memory://")
-CELERY_TASK_ALWAYS_EAGER = _running_tests or _celery_broker_is_memory
+CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_TASK_DEFAULT_RETRY_DELAY = 60
-# Under tests: no retries (avoids backoff sleeps); enqueue still fail-soft.
 CELERY_TASK_ANNOTATIONS = {
     "*": {
         "max_retries": 0 if _running_tests else 5,
     },
 }
-# Route mail tasks to the dedicated ``email`` queue (worker: ``-Q celery,email``).
 CELERY_TASK_ROUTES = {
     "accounts.send_email_verification": {"queue": "email"},
     "accounts.send_password_reset": {"queue": "email"},
@@ -352,26 +336,10 @@ CELERY_TASK_ROUTES = {
     "contact.send_submission": {"queue": "email"},
 }
 
-# Meilisearch for public catalog search.
-# DEBUG=True: blank MEILI_URL → Postgres icontains fallback (local DX).
-# DEBUG=False: MEILI_REQUIRED defaults True — healthz and public search need Meili.
-# Override with MEILI_REQUIRED=true|false.
-MEILI_URL = config("MEILI_URL", default="")
-MEILI_MASTER_KEY = config("MEILI_MASTER_KEY", default="")
-_meili_required_raw = str(config("MEILI_REQUIRED", default="") or "").strip().lower()
-if _meili_required_raw == "":
-    MEILI_REQUIRED = not DEBUG
-elif _meili_required_raw in {"1", "true", "yes", "on"}:
-    MEILI_REQUIRED = True
-elif _meili_required_raw in {"0", "false", "no", "off"}:
-    MEILI_REQUIRED = False
-else:
-    MEILI_REQUIRED = not DEBUG
-# Same as R2: do not hit a live Meili from manage.py test (empty index → 0 hits).
-# Suites that need Meili still use override_settings(MEILI_URL=...).
-if _running_tests:
-    MEILI_URL = ""
-    MEILI_REQUIRED = False
+# Catalog search is Postgres icontains only (Meilisearch removed).
+MEILI_URL = ""
+MEILI_MASTER_KEY = ""
+MEILI_REQUIRED = False
 
 # Legal document versions required at register + checkout (Phase I).
 # Bump a version string when Terms/Privacy change; clients must re-accept.

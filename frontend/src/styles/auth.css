@@ -671,7 +671,10 @@
   z-index: 1100;
   display: grid;
   place-items: center;
-  padding: var(--site-gutter);
+  padding: max(0.75rem, env(safe-area-inset-top, 0px))
+    max(var(--site-gutter), env(safe-area-inset-right, 0px))
+    max(0.75rem, env(safe-area-inset-bottom, 0px))
+    max(var(--site-gutter), env(safe-area-inset-left, 0px));
   box-sizing: border-box;
 }
 

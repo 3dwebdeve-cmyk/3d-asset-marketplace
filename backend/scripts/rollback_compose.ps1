@@ -1,4 +1,4 @@
-# Phase K2 — recreate web/worker/frontend on previous immutable tags (Windows).
+# Phase K2 — recreate web/frontend on previous immutable tags (Windows).
 # Usage (from repo root):
 #   $env:WEB_IMAGE = "marketplace-web:2026-09-18-abc1234"
 #   $env:FRONTEND_IMAGE = "marketplace-frontend:2026-09-18-abc1234"
@@ -9,7 +9,7 @@
 #   $env:PREVIOUS_FRONTEND_IMAGE = "..."
 #   .\backend\scripts\rollback_compose.ps1
 #
-# Does NOT reverse migrations. Does NOT change postgres/redis/meili.
+# Does NOT reverse migrations. Does NOT change postgres.
 # See docs/ROLLBACK_REHEARSAL.md / PRODUCTION_CHECKLIST §4.
 
 $ErrorActionPreference = "Stop"
@@ -36,17 +36,17 @@ if (-not $env:SENTRY_RELEASE) {
 }
 
 Write-Host "Rolling back Compose app services to:"
-Write-Host "  WEB_IMAGE=$($env:WEB_IMAGE)  (web + worker)"
+Write-Host "  WEB_IMAGE=$($env:WEB_IMAGE)  (web)"
 Write-Host "  FRONTEND_IMAGE=$($env:FRONTEND_IMAGE)"
-Write-Host "  (postgres / redis / meilisearch unchanged — no migrate reverse)"
+Write-Host "  (postgres unchanged — no migrate reverse)"
 Write-Host ""
 
-docker compose up -d --no-deps --force-recreate web worker frontend
+docker compose up -d --no-deps --force-recreate web frontend
 
 Write-Host ""
 Write-Host "Waiting for web healthcheck..."
 Start-Sleep -Seconds 5
-docker compose ps web worker frontend
+docker compose ps web frontend
 
 Write-Host ""
 Write-Host "Next:"

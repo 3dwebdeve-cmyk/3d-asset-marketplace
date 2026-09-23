@@ -28,6 +28,7 @@ import { ProtectedRoute } from './routes/ProtectedRoute'
 import './styles/auth.css'
 import './styles/navbar.css'
 import './styles/cart.css'
+import './styles/checkout-success.css'
 import './styles/responsive.css'
 import './styles/marketing.css'
 

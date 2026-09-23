@@ -22,6 +22,7 @@ export function SiteHeroImage({
       alt=""
       width={width}
       height={height}
+      sizes="100vw"
       decoding="async"
       fetchPriority="high"
     />

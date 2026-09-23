@@ -1,5 +1,4 @@
 from decimal import Decimal
-from uuid import uuid4
 
 from django.test import SimpleTestCase, TestCase
 
@@ -7,13 +6,7 @@ from categories.models import Category
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
 from search.documents import plugin_document, product_document
-from search.services import (
-    build_plugin_filters,
-    build_product_filters,
-    map_plugin_sort,
-    map_product_sort,
-    normalize_query,
-)
+from search.services import normalize_query
 
 
 class NormalizeQueryTests(SimpleTestCase):
@@ -22,30 +15,6 @@ class NormalizeQueryTests(SimpleTestCase):
         self.assertIsNone(normalize_query("   "))
         self.assertEqual(normalize_query("  oak  "), "oak")
         self.assertEqual(len(normalize_query("x" * 150) or ""), 100)
-
-
-class FilterAndSortMappingTests(SimpleTestCase):
-    def test_product_filters(self) -> None:
-        category_id = uuid4()
-        self.assertEqual(
-            build_product_filters(category_id=category_id, animated=True, rigged=False),
-            f'category_id = "{category_id}" AND animated = true AND rigged = false',
-        )
-        self.assertIsNone(build_product_filters())
-
-    def test_plugin_filters(self) -> None:
-        category_id = uuid4()
-        self.assertEqual(
-            build_plugin_filters(category_id=category_id),
-            f'category_id = "{category_id}"',
-        )
-        self.assertIsNone(build_plugin_filters())
-
-    def test_sort_defaults_to_created_at_desc(self) -> None:
-        self.assertEqual(map_product_sort(None), ["created_at:desc"])
-        self.assertEqual(map_product_sort("nope"), ["created_at:desc"])
-        self.assertEqual(map_product_sort("price"), ["price:asc"])
-        self.assertEqual(map_plugin_sort("-name"), ["name:desc"])
 
 
 class DocumentBuilderTests(TestCase):
@@ -79,12 +48,12 @@ class DocumentBuilderTests(TestCase):
             category=category,
             name="Mesh Toolkit",
             slug="mesh-toolkit",
+            description="Tools",
+            short_description="Mesh tools",
             compatibility="Blender 4.x",
-            price=Decimal("19.00"),
+            price=Decimal("9.99"),
             status=Plugin.Status.PUBLISHED,
         )
         document = plugin_document(plugin)
         self.assertEqual(document["id"], str(plugin.pk))
         self.assertEqual(document["compatibility"], "Blender 4.x")
-        self.assertEqual(document["category_id"], str(category.pk))
-        self.assertNotIn("software_used", document)

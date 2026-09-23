@@ -40,7 +40,10 @@
   --heading: 'Poppins', system-ui, 'Segoe UI', sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  /* Exact client banner art — show full image, no crop */
+  /*
+   * Exact client banner art. Desktop keeps the native wide ratio;
+   * smaller viewports use fluid ratios in responsive.css so heroes stay readable.
+   */
   --site-hero-image: url('/images/site-hero-banner.webp');
   --site-hero-aspect: 4224 / 992;
   --site-hero-overlay: linear-gradient(
@@ -50,8 +53,16 @@
     rgba(0, 0, 0, 0) 100%
   );
 
-  /* Side margins: 2.5cm from both left and right edges */
-  --site-gutter: 2.5cm;
+  /*
+   * Layout breakpoints (use with max-width / min-width media queries):
+   *   --bp-phone: 640px | --bp-tablet: 900px | --bp-laptop: 1100px | --bp-desktop: 1280px
+   * Side margins: fluid from ~1rem on phones up to 2.5cm on large screens.
+   */
+  --bp-phone: 640px;
+  --bp-tablet: 900px;
+  --bp-laptop: 1100px;
+  --bp-desktop: 1280px;
+  --site-gutter: clamp(1rem, 2.5vw, 2.5cm);
   --site-max-width: none;
 
   /* ~15px on 360px phones → ~19px on large desktops */
@@ -109,12 +120,13 @@ textarea {
 .site-hero-banner {
   position: relative;
   display: grid;
-  grid-template: 1fr / 1fr;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   width: 100%;
+  max-width: 100%;
   height: auto;
   min-height: 0;
   max-height: none;
-  /* Intrinsic image ratio — full banner, no crop/stretch */
+  /* Intrinsic image ratio — full banner on large screens */
   aspect-ratio: var(--site-hero-aspect);
   overflow: hidden;
   background-color: var(--pure-black);
@@ -124,14 +136,21 @@ textarea {
 .site-hero-banner__image {
   grid-area: 1 / 1;
   width: 100%;
+  max-width: 100%;
   height: 100%;
-  object-fit: contain;
+  min-width: 0;
+  min-height: 0;
+  object-fit: cover;
   object-position: center center;
   display: block;
+  align-self: stretch;
+  justify-self: stretch;
 }
 
 .site-hero-banner__overlay {
   grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
   pointer-events: none;
   background: var(--site-hero-overlay);
 }
@@ -140,6 +159,10 @@ textarea {
   grid-area: 1 / 1;
   z-index: 1;
   position: relative;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  align-self: center;
 }
 
 .home-page__eyebrow,

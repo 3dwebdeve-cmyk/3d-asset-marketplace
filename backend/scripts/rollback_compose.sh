@@ -8,7 +8,7 @@
 # Or pass previous tags explicitly:
 #   PREVIOUS_WEB_IMAGE=... PREVIOUS_FRONTEND_IMAGE=... ./backend/scripts/rollback_compose.sh
 #
-# Does NOT reverse migrations. Does NOT change postgres/redis/meili.
+# Does NOT reverse migrations. Does NOT change postgres.
 # See docs/ROLLBACK_REHEARSAL.md / PRODUCTION_CHECKLIST §4.
 
 set -euo pipefail
@@ -37,18 +37,18 @@ fi
 export SENTRY_RELEASE="${SENTRY_RELEASE:-$WEB_IMAGE}"
 
 echo "Rolling back Compose app services to:"
-echo "  WEB_IMAGE=$WEB_IMAGE  (web + worker)"
+echo "  WEB_IMAGE=$WEB_IMAGE  (web)"
 echo "  FRONTEND_IMAGE=$FRONTEND_IMAGE"
-echo "  (postgres / redis / meilisearch unchanged — no migrate reverse)"
+echo "  (postgres unchanged — no migrate reverse)"
 echo ""
 
-docker compose up -d --no-deps --force-recreate web worker frontend
+docker compose up -d --no-deps --force-recreate web frontend
 
 echo ""
 echo "Waiting for web healthcheck..."
 # Compose healthcheck already polls; give containers a moment then show status.
 sleep 5
-docker compose ps web worker frontend
+docker compose ps web frontend
 
 echo ""
 echo "Next:"

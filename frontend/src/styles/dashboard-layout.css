@@ -46,7 +46,7 @@
   width: 100%;
   box-sizing: border-box;
   margin: 0 0 1rem;
-  padding: 0.45rem 0.85rem;
+  padding: 0.55rem 0.85rem;
   border-radius: 999px;
   background: var(--dash-blue);
   color: #ffffff;
@@ -56,7 +56,9 @@
   letter-spacing: 0.01em;
   line-height: 1.25;
   border: none;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-sidebar__cta:hover {
@@ -194,7 +196,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem 0.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.85rem;
   border: 1.5px solid var(--dash-ink);
   border-radius: 999px;
   background: #ffffff;

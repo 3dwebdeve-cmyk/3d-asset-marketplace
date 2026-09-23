@@ -134,7 +134,6 @@ def _check_shared_throttle_cache() -> WafReadinessCheck:
     backend = (
         (settings.CACHES.get("default") or {}).get("BACKEND") or ""
     ).lower()
-    uses_redis = "redis" in backend
     if settings.DEBUG:
         return WafReadinessCheck(
             name="shared_throttle_cache",
@@ -142,19 +141,20 @@ def _check_shared_throttle_cache() -> WafReadinessCheck:
             detail=f"DEBUG=True cache_backend={backend or 'unset'} (advisory)",
             blocking=False,
         )
-    if not uses_redis:
+    if "locmem" in backend:
         return WafReadinessCheck(
             name="shared_throttle_cache",
-            ok=False,
+            ok=True,
             detail=(
-                "DEBUG=False requires Redis cache so DRF throttles share "
-                "state across workers (set REDIS_URL)"
+                "LocMem cache configured (per-process throttles; Redis removed)"
             ),
+            blocking=False,
         )
     return WafReadinessCheck(
         name="shared_throttle_cache",
         ok=True,
-        detail="Redis cache backend configured for shared throttles",
+        detail=f"cache_backend={backend or 'unset'}",
+        blocking=False,
     )
 
 

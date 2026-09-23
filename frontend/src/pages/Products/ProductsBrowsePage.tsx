@@ -204,6 +204,7 @@ const OFFER_SERVICES = [
     title: 'Custom 3D Model',
     cta: 'Get Custom Model',
     icon: 'cube',
+    image: '/images/custom-3Dmodel.png',
     summary: 'High-quality, custom 3D models built precisely for your project needs.',
     points: [
       'Product & game-ready models',
@@ -216,6 +217,7 @@ const OFFER_SERVICES = [
     title: 'Custom Plugin',
     cta: 'Get Custom Plugin',
     icon: 'plugin',
+    image: '/images/custom-plugin.png',
     summary: 'Powerful Blender add-ons and tools to supercharge your workflow.',
     points: [
       'Custom Blender add-ons',
@@ -228,6 +230,7 @@ const OFFER_SERVICES = [
     title: 'Custom Texturing',
     cta: 'Get Custom Texture',
     icon: 'pencil',
+    image: '/images/custom-texture.png',
     summary: 'Realistic and stylized textures that bring your 3D models to life.',
     points: [
       'PBR & stylized texturing',
@@ -240,6 +243,7 @@ const OFFER_SERVICES = [
     title: 'Custom Rendering',
     cta: 'Get Custom Render',
     icon: 'camera',
+    image: '/images/custom-render.png',
     summary: 'High-quality renders with perfect lighting, composition and detail.',
     points: [
       'Photorealistic renders',
@@ -470,9 +474,6 @@ export function ProductsBrowsePage() {
             <h2 id="shop-models-heading" className="browse-rail-section__title">
               Popular 3D Models
             </h2>
-            <Link className="browse-rail-section__view-all" to="/3d-models">
-              Explore All Models
-            </Link>
           </div>
           {isLoading ? (
             <div className="browse-rail browse-rail--cards" aria-label="Loading products">
@@ -516,9 +517,6 @@ export function ProductsBrowsePage() {
             <h2 id="explore-plugins-heading" className="browse-rail-section__title">
               Explore Plugins
             </h2>
-            <Link className="browse-rail-section__view-all" to="/plugins">
-              View All
-            </Link>
           </div>
           {pluginsLoading ? (
             <div className="browse-rail browse-rail--cards" aria-label="Loading plugins">
@@ -564,6 +562,19 @@ export function ProductsBrowsePage() {
             {OFFER_SERVICES.map((offer) => (
               <article key={offer.title} className="hub-offer__card">
                 <div className="hub-offer__media">
+                  {offer.image ? (
+                    <img
+                      className={
+                        offer.image.includes('custom-texture')
+                          ? 'hub-offer__thumb hub-offer__thumb--contain'
+                          : 'hub-offer__thumb'
+                      }
+                      src={offer.image}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : null}
                   <div className="hub-offer__details">
                     <p>{offer.summary}</p>
                     <ul>

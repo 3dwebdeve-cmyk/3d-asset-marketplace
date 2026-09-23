@@ -94,11 +94,6 @@ jobs:
             'DB_PASSWORD=ci-e2e-db-password' \
             'DB_HOST=postgres' \
             'DB_PORT=5432' \
-            'REDIS_URL=redis://redis:6379/1' \
-            'CELERY_BROKER_URL=redis://redis:6379/0' \
-            'MEILI_URL=http://meilisearch:7700' \
-            'MEILI_MASTER_KEY=ci-e2e-meili-master-key' \
-            'MEILI_ENV=development' \
             'FRONTEND_PORT=8080' \
             'VITE_API_BASE_URL=' \
             'ALLOW_CONSOLE_EMAIL=True' \
