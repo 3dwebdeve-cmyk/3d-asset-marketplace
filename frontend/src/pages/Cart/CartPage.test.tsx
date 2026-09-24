@@ -43,7 +43,6 @@ const sampleCart = {
   total: '59.98',
   item_count: 1,
   total_quantity: 2,
-  coupon: null,
   items: [
     {
       id: itemId,
@@ -147,7 +146,6 @@ describe('CartPage', () => {
       total: '0.00',
       item_count: 0,
       total_quantity: 0,
-      coupon: null,
       items: [],
     })
 

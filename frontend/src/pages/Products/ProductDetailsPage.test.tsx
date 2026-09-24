@@ -219,7 +219,6 @@ beforeEach(() => {
     total: '0.00',
     item_count: 0,
     total_quantity: 0,
-    coupon: null,
     items: [],
   })
   vi.mocked(reviewsApi.listReviews).mockResolvedValue({
@@ -486,7 +485,6 @@ describe('ProductDetailsPage', () => {
       total: '0.00',
       item_count: 0,
       total_quantity: 0,
-      coupon: null,
       items: [],
     })
     vi.mocked(cartApi.addCartItem).mockResolvedValue({

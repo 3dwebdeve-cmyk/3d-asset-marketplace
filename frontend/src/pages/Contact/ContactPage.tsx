@@ -53,7 +53,7 @@ const FAQ_ITEMS = [
   {
     question: 'Can you create a custom 3D model for my project?',
     answer:
-      'Yes. Share your brief on this contact form so we can quote scope, formats, and delivery timelines.',
+      'Yes. Share your brief here or start a custom project request so we can quote scope, formats, and delivery timelines.',
   },
   {
     question: 'Do you offer bulk or studio licensing?',

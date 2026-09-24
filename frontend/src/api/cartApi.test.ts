@@ -51,7 +51,6 @@ const cart: Cart = {
   total: '29.99',
   item_count: 1,
   total_quantity: 1,
-  coupon: null,
   items: [cartItem],
 }
 
