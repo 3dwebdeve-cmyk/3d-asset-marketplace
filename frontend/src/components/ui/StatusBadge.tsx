@@ -1,4 +1,3 @@
-import type { CustomProjectStatus } from '../../types/customProject'
 import type { OrderPaymentStatus, OrderStatus } from '../../types/order'
 import {
   ORDER_PAYMENT_STATUS_LABELS,
@@ -6,32 +5,6 @@ import {
 } from '../../types/order'
 
 type BadgeVariant = 'neutral' | 'info' | 'active' | 'delivered' | 'success' | 'danger'
-
-const STATUS_VARIANT: Record<CustomProjectStatus, BadgeVariant> = {
-  submitted: 'neutral',
-  under_review: 'neutral',
-  quoted: 'info',
-  approved: 'active',
-  in_progress: 'active',
-  delivered: 'delivered',
-  completed: 'success',
-  rejected: 'danger',
-  cancelled: 'danger',
-}
-
-interface StatusBadgeProps {
-  status: CustomProjectStatus
-  label: string
-}
-
-export function StatusBadge({ status, label }: StatusBadgeProps) {
-  const variant = STATUS_VARIANT[status] ?? 'neutral'
-  return (
-    <span className={`status-badge status-badge--${variant}`} aria-label={`Status: ${label}`}>
-      {label}
-    </span>
-  )
-}
 
 const ORDER_STATUS_VARIANT: Record<OrderStatus, BadgeVariant> = {
   pending: 'neutral',

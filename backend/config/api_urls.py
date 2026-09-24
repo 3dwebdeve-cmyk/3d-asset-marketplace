@@ -23,8 +23,6 @@ urlpatterns = [
     path("plugin-categories/", include("plugins.category_urls")),
     path("admin/plugins/", include("plugins.admin_urls")),
     path("admin/plugin-categories/", include("plugins.admin_category_urls")),
-    path("custom-projects/", include("custom_projects.urls")),
-    path("admin/custom-projects/", include("custom_projects.admin_urls")),
     path("orders/", include("orders.urls")),
     path("admin/orders/", include("orders.admin_urls")),
     path("admin/payments/", include("payments.admin_urls")),
@@ -36,7 +34,6 @@ urlpatterns = [
     path("admin/reviews/", include("reviews.admin_urls")),
     path("downloads/", include("downloads.urls")),
     path("admin/downloads/", include("downloads.admin_urls")),
-    path("admin/coupons/", include("coupons.admin_urls")),
     path("contact/", include("contact.urls")),
     path("payments/", include("payments.urls")),
 ]

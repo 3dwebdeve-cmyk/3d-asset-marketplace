@@ -35,11 +35,11 @@ describe('AboutPage', () => {
     )
     expect(screen.getByRole('link', { name: /open custom projects/i })).toHaveAttribute(
       'href',
-      '/dashboard/projects/new',
+      '/contact?enquiryType=Custom%203D%20Modeling',
     )
     expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
       'href',
-      '/dashboard/projects/new',
+      '/contact?enquiryType=Custom%203D%20Modeling',
     )
     expect(screen.getByRole('link', { name: /^contact$/i })).toHaveAttribute('href', '/contact')
   })

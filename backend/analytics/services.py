@@ -11,7 +11,6 @@ from django.utils.dateparse import parse_date, parse_datetime
 
 from accounts.models import User
 from categories.models import Category
-from custom_projects.models import CustomProject
 from orders.models import Order, OrderItem
 from payments.models import Payment
 from plugins.models import Plugin
@@ -130,32 +129,6 @@ class DashboardStatsService:
             succeeded=Count("id", filter=Q(status=Payment.Status.SUCCEEDED)),
             pending=Count("id", filter=Q(status=Payment.Status.PENDING)),
         )
-        project_counts = CustomProject.objects.aggregate(
-            pending=Count(
-                "id",
-                filter=Q(
-                    status__in=[
-                        CustomProject.Status.SUBMITTED,
-                        CustomProject.Status.UNDER_REVIEW,
-                        CustomProject.Status.QUOTED,
-                    ]
-                ),
-            ),
-            live=Count(
-                "id",
-                filter=Q(
-                    status__in=[
-                        CustomProject.Status.APPROVED,
-                        CustomProject.Status.IN_PROGRESS,
-                        CustomProject.Status.DELIVERED,
-                    ]
-                ),
-            ),
-            completed=Count(
-                "id",
-                filter=Q(status=CustomProject.Status.COMPLETED),
-            ),
-        )
 
         category_breakdown = [
             CategoryBreakdownItem(
@@ -205,11 +178,6 @@ class DashboardStatsService:
             },
             "plugins": {
                 "total": plugin_counts["total"],
-            },
-            "projects": {
-                "pending": project_counts["pending"],
-                "live": project_counts["live"],
-                "completed": project_counts["completed"],
             },
             "sales": cls._current_month_sales(),
             "payments": {

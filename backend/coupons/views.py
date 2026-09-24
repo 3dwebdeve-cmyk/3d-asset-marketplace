@@ -9,7 +9,6 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminCouponWriteRateThrottle
 from config.api_helpers import domain_error_response
 from coupons.pagination import CouponPagination
 from coupons.serializers import (
@@ -23,6 +22,13 @@ from coupons.services import (
     CouponService,
     CouponUpdateData,
 )
+from rest_framework.throttling import UserRateThrottle
+
+
+class AdminCouponWriteRateThrottle(UserRateThrottle):
+    """Soft-removed coupon admin API (routes unmounted)."""
+
+    scope = "user"
 
 
 def _coupon_error_response(exc: CouponError) -> Response:

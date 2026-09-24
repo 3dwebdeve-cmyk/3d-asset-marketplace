@@ -8,12 +8,10 @@ from typing import Any
 from django.db import IntegrityError, transaction
 
 from cart.services import CartService
-from coupons.services import CouponService
 from orders.entitlements import order_allows_download
 from orders.models import Order, OrderItem
 from orders.notifications import enqueue_payment_receipt
 from orders.services import OrderError, OrderService
-from payments.checkout_service import CheckoutService
 from payments.models import Payment, StripeWebhookEvent
 from payments.payment_common import (
     STALE_LOCAL_PAYMENT_STATUSES,
@@ -63,10 +61,6 @@ class WebhookService:
 
     @classmethod
     def _handle_checkout_completed(cls, session) -> None:
-        # Note: coupon is a nullable FK, so it is intentionally excluded from
-        # select_related here — Postgres rejects SELECT ... FOR UPDATE across
-        # a LEFT OUTER JOIN ("nullable side"). payment.coupon is instead
-        # lazy-loaded (unlocked) just below when needed.
         session_id = stripe_id(session) or str(session_value(session, "id") or "")
         try:
             payment = Payment.objects.select_for_update().select_related("order").get(
@@ -128,10 +122,6 @@ class WebhookService:
         if purchased_keys:
             CartService.remove_items(order.user, purchased_keys)
 
-        if payment.coupon_id is not None:
-            CouponService.increment_usage(payment.coupon)
-
-        CheckoutService._fulfill_custom_project_payment(order)
         # After commit: Stripe fulfillment stays in-process; email is async.
         enqueue_payment_receipt(order)
 
@@ -148,13 +138,6 @@ class WebhookService:
 
         payment.status = Payment.Status.EXPIRED
         payment.save(update_fields=["status", "updated_at"])
-
-        from custom_projects.services import CustomProjectService
-
-        for project_id in payment.order.items.filter(
-            product_type=OrderItem.ProductType.CUSTOM_PROJECT
-        ).values_list("product_id", flat=True):
-            CustomProjectService.revert_quotation_payment_pending(project_id)
 
     @classmethod
     def _handle_payment_failed(cls, payment_intent) -> None:

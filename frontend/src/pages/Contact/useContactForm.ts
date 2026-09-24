@@ -9,6 +9,7 @@ import {
   composeContactMessage,
   defaultContactValues,
   contactSchema,
+  ENQUIRY_TYPES,
   type ContactFormValues,
 } from './contactSchema'
 
@@ -63,6 +64,15 @@ export function useContactForm(): UseContactFormResult {
     const emailFromQuery = searchParams.get('email')?.trim()
     if (emailFromQuery) {
       setValue('email', emailFromQuery, { shouldDirty: true })
+    }
+    const enquiryFromQuery = searchParams.get('enquiryType')?.trim()
+    if (
+      enquiryFromQuery &&
+      (ENQUIRY_TYPES as readonly string[]).includes(enquiryFromQuery)
+    ) {
+      setValue('enquiryType', enquiryFromQuery as ContactFormValues['enquiryType'], {
+        shouldDirty: true,
+      })
     }
   }, [searchParams, setValue])
 

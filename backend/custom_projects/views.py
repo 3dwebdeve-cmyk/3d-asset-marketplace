@@ -13,17 +13,15 @@ from rest_framework.views import APIView
 from accounts.permissions import IsAdministrator, IsEmailVerified
 from accounts.security_log import log_admin_action
 from accounts.throttles import (
-    AdminCustomProjectWriteRateThrottle,
-    CustomProjectWriteRateThrottle,
     DownloadRateThrottle,
     PaymentCheckoutRateThrottle,
 )
+from config.api_helpers import domain_error_response, parse_choice, parse_uuid
 from config.idempotency import (
     build_cache_key,
     get_or_set,
     idempotency_key_from_request,
 )
-from config.api_helpers import domain_error_response, parse_choice, parse_uuid
 from config.media import PrivateFileNotFound, resolve_private_download
 from custom_projects.models import CustomProject, ProjectFile
 from custom_projects.pagination import CustomProjectPagination
@@ -55,6 +53,16 @@ from custom_projects.services import (
 from custom_projects.upload_rules import validate_project_file_upload
 from downloads.serializers import SignedDownloadSerializer
 from payments.services import CheckoutError, CheckoutService
+from rest_framework.throttling import UserRateThrottle
+
+
+# Soft-removed portal (routes unmounted); keep local throttle stubs for unused views.
+class AdminCustomProjectWriteRateThrottle(UserRateThrottle):
+    scope = "user"
+
+
+class CustomProjectWriteRateThrottle(UserRateThrottle):
+    scope = "user"
 
 
 def _message_serializer_context(request: Request, *, scope: str) -> dict:

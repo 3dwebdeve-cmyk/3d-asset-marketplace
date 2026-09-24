@@ -1,27 +1,20 @@
 import { Link } from 'react-router-dom'
 
-import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import {
   CUSTOM_PROJECTS_HERO_IMAGE_SRC,
   SiteHeroImage,
 } from '../../components/SiteHeroImage'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { isAdministrator } from '../../lib/roles'
-import { useAuthStore } from '../../store/authStore'
 import '../../styles/marketing.css'
 
-const REQUEST_PATH = '/dashboard/projects/new'
+const CONTACT_ENQUIRY_PATH =
+  '/contact?enquiryType=' + encodeURIComponent('Custom 3D Modeling')
 
 export function CustomProjectsLandingPage() {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const user = useAuthStore((state) => state.user)
-  const isAdmin = isAdministrator(user?.role)
-  const canRequest = isAuthenticated && !isAdmin
-
   useDocumentSeo({
     title: 'Custom Projects | 3D Asset Marketplace',
     description:
-      'Request custom 3D design work — submit a brief, receive a quote, collaborate, and track delivery in your project portal.',
+      'Request custom 3D design work by email enquiry — share your brief and our team will follow up from the company inbox.',
   })
 
   return (
@@ -34,39 +27,16 @@ export function CustomProjectsLandingPage() {
         <div className="custom-projects-hero__content">
           <h1 id="custom-projects-title">Custom 3D projects, from concept to delivery</h1>
           <p className="custom-projects-hero__lead">
-            Need something that&apos;s not in the catalog? Tell us what you need, get a clear
-            quotation, and work with our studio through a dedicated project portal — messaging,
-            files, revisions, and final delivery.
+            Need something that&apos;s not in the catalog? Send us an enquiry with your brief,
+            budget, and timeline. Our studio manages the conversation by email — no in-app
+            project portal required.
           </p>
           <div className="marketing-actions custom-projects-hero__actions">
-            {canRequest ? (
-              <Link className="home-page__cta" to={REQUEST_PATH}>
-                Start a project request <span aria-hidden="true">→</span>
-              </Link>
-            ) : isAdmin ? (
-              <Link className="home-page__cta" to="/console/projects">
-                Open admin projects <span aria-hidden="true">→</span>
-              </Link>
-            ) : (
-              <AuthEntryButton
-                mode="login"
-                returnTo={REQUEST_PATH}
-                className="home-page__cta"
-              >
-                Sign in to request a project <span aria-hidden="true">→</span>
-              </AuthEntryButton>
-            )}
-            {!isAuthenticated ? (
-              <AuthEntryButton
-                mode="register"
-                returnTo={REQUEST_PATH}
-                className="home-page__cta home-page__cta--secondary"
-              >
-                Create an account
-              </AuthEntryButton>
-            ) : null}
+            <Link className="home-page__cta" to={CONTACT_ENQUIRY_PATH}>
+              Send a project enquiry <span aria-hidden="true">→</span>
+            </Link>
             <Link className="home-page__cta home-page__cta--secondary" to="/contact">
-              Ask a question first
+              Contact us
             </Link>
           </div>
         </div>
@@ -79,7 +49,7 @@ export function CustomProjectsLandingPage() {
         >
           <h2 id="how-it-works">How it works</h2>
           <p className="custom-projects-process__subtitle">
-            Four clear and transparent stages designed to bring your 3D assets to life.
+            Four clear stages — managed with you over email.
           </p>
           <ol className="custom-projects-process__steps">
             <li>
@@ -92,8 +62,8 @@ export function CustomProjectsLandingPage() {
                   </svg>
                 </span>
               </div>
-              <strong>Submit a request</strong>
-              Share your title, description, budget range, and deadline from your dashboard.
+              <strong>Send an enquiry</strong>
+              Share your title, description, budget range, and deadline via the contact form.
             </li>
             <li>
               <div className="custom-projects-process__meta">
@@ -106,7 +76,8 @@ export function CustomProjectsLandingPage() {
                 </span>
               </div>
               <strong>Review &amp; quote</strong>
-              Our team reviews the brief and sends a quotation you can accept or discuss.
+              Our team reviews the brief and replies by email with a quotation you can accept or
+              discuss.
             </li>
             <li>
               <div className="custom-projects-process__meta">
@@ -119,7 +90,7 @@ export function CustomProjectsLandingPage() {
                 </span>
               </div>
               <strong>Approve &amp; produce</strong>
-              Once approved, work moves into production with messaging and file sharing.
+              Once approved, work moves into production with updates shared by email.
             </li>
             <li>
               <div className="custom-projects-process__meta">
@@ -132,7 +103,7 @@ export function CustomProjectsLandingPage() {
                 </span>
               </div>
               <strong>Delivery &amp; complete</strong>
-              Receive deliverables through the portal and mark the project complete when ready.
+              Receive deliverables through arrangements agreed over email with our managers.
             </li>
           </ol>
         </section>
@@ -234,17 +205,21 @@ export function CustomProjectsLandingPage() {
 
         <section
           className="marketing-section custom-projects-portal"
-          aria-labelledby="why-portal"
+          aria-labelledby="why-email"
         >
           <div className="custom-projects-portal__inner">
             <div className="custom-projects-portal__content">
-              <h2 id="why-portal">Why use the project portal</h2>
+              <h2 id="why-email">Managed by email</h2>
               <p>
-                Everything stays in one place: quotations, conversation history, reference files,
-                and delivery packages. You do not need a separate payment or storage account to
-                start — create a free customer account, submit a request, and we handle the rest
-                through the portal.
+                Enquiries go straight to our company inbox. Managers handle quotations, files,
+                and delivery offline — start with a free contact form submission and we will
+                follow up from there.
               </p>
+              <div className="marketing-actions" style={{ marginTop: '1.25rem' }}>
+                <Link className="home-page__cta" to={CONTACT_ENQUIRY_PATH}>
+                  Send a project enquiry <span aria-hidden="true">→</span>
+                </Link>
+              </div>
             </div>
           </div>
         </section>

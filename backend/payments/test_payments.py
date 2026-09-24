@@ -13,7 +13,6 @@ from accounts.legal_service import LegalAcceptanceService
 from accounts.models import Role, User
 from cart.models import Cart, CartItem
 from categories.models import Category
-from coupons.models import Coupon
 from orders.models import Order, OrderItem
 from payments.models import Payment, StripeWebhookEvent
 from plugins.models import Plugin, PluginCategory
@@ -156,42 +155,6 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertIn(f"/checkout/success?order_id={order.id}", call_kwargs["success_url"])
         self.assertIn(f"/checkout/cancel?order_id={order.id}", call_kwargs["cancel_url"])
 
-    @patch("payments.checkout_service.stripe.Coupon.create")
-    @patch("payments.checkout_service.stripe.checkout.Session.create")
-    def test_applies_coupon_discount_as_stripe_coupon(
-        self,
-        mock_session_create,
-        mock_coupon_create,
-    ) -> None:
-        mock_session_create.return_value = _fake_session()
-        mock_coupon_create.return_value = _FakeStripeObject({"id": "stripe_coupon_123"})
-
-        coupon = Coupon.objects.create(
-            code="SAVE10",
-            discount_type=Coupon.DiscountType.FIXED,
-            discount_value=Decimal("10.00"),
-            active=True,
-        )
-        self._authenticate()
-        self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk, quantity=1)
-        cart = Cart.objects.get(user=self.user)
-        cart.coupon = coupon
-        cart.save(update_fields=["coupon"])
-
-        response = self.client.post(self.checkout_url)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        mock_coupon_create.assert_called_once()
-        self.assertEqual(mock_coupon_create.call_args.kwargs["amount_off"], 1000)
-
-        session_kwargs = mock_session_create.call_args.kwargs
-        self.assertEqual(session_kwargs["discounts"], [{"coupon": "stripe_coupon_123"}])
-
-        order = Order.objects.get(pk=response.data["order_id"])
-        self.assertEqual(order.total_amount, Decimal("39.99"))
-        payment = Payment.objects.get(order=order)
-        self.assertEqual(payment.coupon_id, coupon.id)
-
     @override_settings(STRIPE_SECRET_KEY="")
     def test_returns_error_when_stripe_not_configured(self) -> None:
         self._authenticate()
@@ -275,15 +238,6 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
     def setUp(self) -> None:
         super().setUp()
         mail.outbox.clear()
-        self.coupon = Coupon.objects.create(
-            code="SAVE5",
-            discount_type=Coupon.DiscountType.FIXED,
-            discount_value=Decimal("5.00"),
-            active=True,
-        )
-        cart, _ = Cart.objects.get_or_create(user=self.user)
-        cart.coupon = self.coupon
-        cart.save(update_fields=["coupon"])
         self.cart_item = self._add_to_cart(
             CartItem.ProductType.PRODUCT,
             self.product.pk,
@@ -292,7 +246,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         self.order = Order.objects.create(
             user=self.user,
             invoice_number="INV-TEST-PAY-0001",
-            total_amount=Decimal("44.99"),
+            total_amount=Decimal("49.99"),
             currency="USD",
         )
         OrderItem.objects.create(
@@ -306,9 +260,8 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         )
         self.payment = Payment.objects.create(
             order=self.order,
-            coupon=self.coupon,
             stripe_checkout_session_id="cs_test_webhook",
-            amount=Decimal("44.99"),
+            amount=Decimal("49.99"),
             currency="USD",
             status=Payment.Status.PENDING,
         )
@@ -338,9 +291,6 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
         self.assertEqual(self.payment.stripe_payment_intent_id, "pi_test_1")
 
-        self.coupon.refresh_from_db()
-        self.assertEqual(self.coupon.times_used, 1)
-
         self.assertFalse(
             CartItem.objects.filter(pk=self.cart_item.pk).exists(),
             "purchased cart line should be removed after payment succeeds",
@@ -358,8 +308,6 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
 
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_200_OK)
-        self.coupon.refresh_from_db()
-        self.assertEqual(self.coupon.times_used, 1)
         self.assertEqual(StripeWebhookEvent.objects.count(), 1)
 
     def test_documented_webhook_event_types_match_handlers(self) -> None:

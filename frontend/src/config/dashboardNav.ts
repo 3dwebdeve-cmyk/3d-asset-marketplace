@@ -1,6 +1,5 @@
 export type DashboardNavIcon =
   | 'home'
-  | 'projects'
   | 'wishlist'
   | 'orders'
   | 'downloads'
@@ -20,11 +19,6 @@ export const dashboardNavItems: DashboardNavItem[] = [
     label: 'Dashboard',
     icon: 'home',
     end: true,
-  },
-  {
-    to: '/dashboard/projects',
-    label: 'My Projects',
-    icon: 'projects',
   },
   {
     to: '/dashboard/wishlist',

@@ -14,10 +14,10 @@ function renderProtectedRoutes(initialEntry: string) {
         <Route path="/login" element={<div>Login Page</div>} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<div>Dashboard Content</div>} />
-          <Route path="/dashboard/projects" element={<div>My Projects Content</div>} />
+          <Route path="/dashboard/orders" element={<div>My Orders Content</div>} />
           <Route
-            path="/dashboard/projects/:projectId"
-            element={<div>Project Detail Content</div>}
+            path="/dashboard/orders/:orderId"
+            element={<div>Order Detail Content</div>}
           />
         </Route>
       </Routes>
@@ -76,37 +76,20 @@ describe('ProtectedRoute', () => {
     expect(screen.getByText('Login Page')).toBeInTheDocument()
   })
 
-  it('redirects unauthenticated users away from My Projects', () => {
-    renderProtectedRoutes('/dashboard/projects')
+  it('redirects unauthenticated users away from My Orders', () => {
+    renderProtectedRoutes('/dashboard/orders')
     expect(screen.getByText('Login Page')).toBeInTheDocument()
-    expect(screen.queryByText('My Projects Content')).not.toBeInTheDocument()
+    expect(screen.queryByText('My Orders Content')).not.toBeInTheDocument()
   })
 
-  it('redirects unauthenticated users away from project detail', () => {
-    renderProtectedRoutes('/dashboard/projects/11111111-1111-1111-1111-111111111111')
-    expect(screen.getByText('Login Page')).toBeInTheDocument()
-    expect(screen.queryByText('Project Detail Content')).not.toBeInTheDocument()
-  })
-
-  it('allows authenticated users onto My Projects', () => {
+  it('allows authenticated users onto My Orders', () => {
     useAuthStore.setState({
       accessToken: 'access-token',
       user: null,
       isAuthenticated: true,
     })
 
-    renderProtectedRoutes('/dashboard/projects')
-    expect(screen.getByText('My Projects Content')).toBeInTheDocument()
-  })
-
-  it('allows authenticated users onto project detail', () => {
-    useAuthStore.setState({
-      accessToken: 'access-token',
-      user: null,
-      isAuthenticated: true,
-    })
-
-    renderProtectedRoutes('/dashboard/projects/11111111-1111-1111-1111-111111111111')
-    expect(screen.getByText('Project Detail Content')).toBeInTheDocument()
+    renderProtectedRoutes('/dashboard/orders')
+    expect(screen.getByText('My Orders Content')).toBeInTheDocument()
   })
 })

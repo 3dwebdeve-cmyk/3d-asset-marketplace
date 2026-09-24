@@ -53,7 +53,7 @@ const FAQ_ITEMS = [
   {
     question: 'Can you create a custom 3D model for my project?',
     answer:
-      'Yes. Share your brief here or start a custom project request so we can quote scope, formats, and delivery timelines.',
+      'Yes. Share your brief on this contact form so we can quote scope, formats, and delivery timelines.',
   },
   {
     question: 'Do you offer bulk or studio licensing?',
@@ -68,7 +68,7 @@ const FAQ_ITEMS = [
   {
     question: 'Can I attach reference images to my enquiry?',
     answer:
-      'You can select reference files on this form so our team knows what you prepared. For full project file exchange, use the custom project portal after we reply.',
+      'You can select reference files on this form so our team knows what you prepared. We will follow up by email for any further file exchange.',
   },
 ] as const
 
@@ -452,7 +452,7 @@ export function ContactPage() {
               <p className="enquiry-form-card__success-followup">
                 Prefer to browse while you wait?{' '}
                 <Link to="/3d-models">Explore 3D models</Link> or{' '}
-                <Link to="/custom-projects">review custom projects</Link>.
+                <Link to="/custom-projects">learn about custom work</Link>.
               </p>
             )}
           </section>

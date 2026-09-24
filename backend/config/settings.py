@@ -332,7 +332,6 @@ CELERY_TASK_ROUTES = {
     "accounts.send_password_reset": {"queue": "email"},
     "accounts.send_password_changed": {"queue": "email"},
     "orders.send_payment_receipt": {"queue": "email"},
-    "custom_projects.send_notification": {"queue": "email"},
     "contact.send_submission": {"queue": "email"},
 }
 
@@ -380,14 +379,11 @@ REST_FRAMEWORK = {
         "admin_product_write": "60/min",
         "admin_plugin_write": "60/min",
         "admin_order_write": "60/min",
-        "admin_custom_project_write": "60/min",
-        "custom_project_write": "30/min",
         "wishlist_write": "30/min",
         "cart_write": "30/min",
         "review_write": "20/min",
         "admin_review_write": "60/min",
         "download": "30/min",
-        "admin_coupon_write": "60/min",
         "contact_form": "5/hour",
         "category_click": "60/min",
         "payment_checkout": "10/min",
@@ -521,11 +517,6 @@ LOGGING = {
     },
     "loggers": {
         "accounts.security": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "custom_projects.notifications": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,

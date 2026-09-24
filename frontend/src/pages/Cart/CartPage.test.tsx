@@ -19,8 +19,6 @@ vi.mock('../../api/cartApi', async () => {
     updateCartItemQuantity: vi.fn(),
     removeCartItem: vi.fn(),
     clearCart: vi.fn(),
-    applyCartCoupon: vi.fn(),
-    removeCartCoupon: vi.fn(),
   }
 })
 
@@ -105,7 +103,7 @@ describe('CartPage', () => {
     expect(screen.getByText('Furniture')).toBeInTheDocument()
     expect(screen.getByText(/standard license/i)).toBeInTheDocument()
     expect(screen.getAllByText('$59.98').length).toBeGreaterThan(0)
-    expect(screen.getByLabelText(/coupon code/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/coupon code/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^checkout$/i })).toBeEnabled()
   })
 
@@ -138,36 +136,6 @@ describe('CartPage', () => {
       configurable: true,
       value: originalLocation,
     })
-  })
-
-  it('applies a coupon code', async () => {
-    const user = userEvent.setup()
-    vi.mocked(cartApi.applyCartCoupon).mockResolvedValue({
-      ...sampleCart,
-      discount_amount: '6.00',
-      total: '53.98',
-      coupon: {
-        code: 'SAVE10',
-        discount_type: 'percent',
-        discount_value: '10.00',
-      },
-    })
-
-    renderCartPage()
-    await screen.findByRole('link', { name: /oak chair/i })
-
-    await user.type(screen.getByLabelText(/coupon code/i), 'SAVE10')
-    await user.click(screen.getByRole('button', { name: /^apply$/i }))
-
-    await waitFor(() => {
-      expect(vi.mocked(cartApi.applyCartCoupon).mock.calls[0]?.[0]).toEqual({
-        code: 'SAVE10',
-      })
-    })
-    expect(await screen.findByRole('button', { name: /remove coupon/i })).toBeInTheDocument()
-    expect(screen.getByText('SAVE10')).toBeInTheDocument()
-    expect(screen.getByText('−$6.00')).toBeInTheDocument()
-    expect(screen.getByText('$53.98')).toBeInTheDocument()
   })
 
   it('shows empty state when cart has no items', async () => {

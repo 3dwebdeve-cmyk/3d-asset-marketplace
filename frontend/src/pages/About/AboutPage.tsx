@@ -57,8 +57,8 @@ const OFFER_CARDS = [
   },
   {
     title: 'Custom projects',
-    text: 'Submit a brief, receive a quotation, collaborate through messaging, and track delivery.',
-    to: '/dashboard/projects/new',
+    text: 'Share a brief by email, receive a quotation, and collaborate with our studio through delivery.',
+    to: '/contact?enquiryType=Custom%203D%20Modeling',
     image: '/images/about/offer-custom-projects.jpg?v=1',
     imagePosition: 'center',
     badge: 'doc' as const,
@@ -202,8 +202,7 @@ export function AboutPage() {
             <h1 id="about-title">Premium 3D assets and custom design, under one roof</h1>
             <p className="about-hero__lead">
               We build and curate marketplace-ready 3D models and plugins, and we partner with
-              creators who need bespoke design work through a clear project portal — from brief to
-              delivery.
+              creators who need bespoke design work — from brief to delivery by email enquiry.
             </p>
             <dl className="about-hero__stats">
               {HERO_STATS.map((stat) => (
@@ -229,8 +228,8 @@ export function AboutPage() {
               product visualization, architecture, and interactive experiences.
             </p>
             <p>
-              We combine a curated catalog of models and plugins with a structured custom-project
-              portal, so teams can buy what they need today and commission what they cannot find.
+              We combine a curated catalog of models and plugins with custom project enquiries by
+              email, so teams can buy what they need today and commission what they cannot find.
             </p>
             <p>
               Every asset and every project is handled with clear specs, transparent status, and a
@@ -263,8 +262,8 @@ export function AboutPage() {
             <p>
               Creators deserve production-quality assets without guessing about licensing, file
               readiness, or support. Our marketplace focuses on carefully curated models and
-              plugins, while our custom project service gives you a structured way to request
-              original work when off-the-shelf assets are not enough.
+              plugins, while our custom project service lets you request original work by email
+              when off-the-shelf assets are not enough.
             </p>
             <ul className="about-mission__points">
               {MISSION_POINTS.map((point) => (
@@ -343,8 +342,8 @@ export function AboutPage() {
             <h2 id="about-trust-title">A Clear and Reliable Process</h2>
             <p>
               Assets go through quality review before they appear in the catalog. Downloads are
-              purchase-gated and audited. Custom work lives in a dedicated project portal with
-              status tracking, quotations, and messaging — so you always know where things stand.
+              purchase-gated and audited. Custom work starts with an email enquiry — we quote
+              scope, share files, and keep you updated through delivery.
             </p>
             <ul className="about-trust__steps">
               {TRUST_STEPS.map((step) => (
@@ -378,7 +377,10 @@ export function AboutPage() {
               <Link className="about-cta__btn about-cta__btn--primary" to="/3d-models">
                 Browse Models
               </Link>
-              <Link className="about-cta__btn about-cta__btn--ghost" to="/dashboard/projects/new">
+              <Link
+                className="about-cta__btn about-cta__btn--ghost"
+                to="/contact?enquiryType=Custom%203D%20Modeling"
+              >
                 Custom Projects
               </Link>
               <Link className="about-cta__btn about-cta__btn--ghost" to="/contact">

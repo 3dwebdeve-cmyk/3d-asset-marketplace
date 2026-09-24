@@ -11,7 +11,6 @@ from accounts.models import Role, User
 from accounts.throttles import CartWriteRateThrottle
 from cart.models import Cart, CartItem
 from categories.models import Category
-from coupons.models import Coupon
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
 
@@ -140,7 +139,6 @@ class CartAPITests(APITestCase):
         self.assertEqual(response.data["subtotal"], "0.00")
         self.assertEqual(response.data["discount_amount"], "0.00")
         self.assertEqual(response.data["total"], "0.00")
-        self.assertIsNone(response.data["coupon"])
         self.assertEqual(response.data["currency"], "USD")
         self.assertEqual(response.data["items"], [])
 
@@ -278,7 +276,6 @@ class CartAPITests(APITestCase):
         self.assertEqual(response.data["subtotal"], "179.97")
         self.assertEqual(response.data["discount_amount"], "0.00")
         self.assertEqual(response.data["total"], "179.97")
-        self.assertIsNone(response.data["coupon"])
 
     def test_patch_quantity_updates_item(self) -> None:
         cart = Cart.objects.create(user=self.customer)
@@ -378,149 +375,3 @@ class CartAPITests(APITestCase):
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(second.data.get("code"), "throttled")
-
-    def test_apply_percent_coupon_updates_totals(self) -> None:
-        Coupon.objects.create(
-            code="SAVE10",
-            discount_type=Coupon.DiscountType.PERCENT,
-            discount_value=Decimal("10.00"),
-        )
-        self.authenticate()
-        self.client.post(
-            self.cart_url,
-            {
-                "product_type": "product",
-                "product_id": str(self.published_product.pk),
-            },
-            format="json",
-        )
-        coupon_url = reverse("cart:cart-coupon")
-        response = self.client.post(coupon_url, {"code": "save10"}, format="json")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["subtotal"], "29.99")
-        self.assertEqual(response.data["discount_amount"], "3.00")
-        self.assertEqual(response.data["total"], "26.99")
-        self.assertEqual(response.data["coupon"]["code"], "SAVE10")
-
-    def test_apply_fixed_coupon_caps_at_subtotal(self) -> None:
-        Coupon.objects.create(
-            code="BIG50",
-            discount_type=Coupon.DiscountType.FIXED,
-            discount_value=Decimal("50.00"),
-        )
-        self.authenticate()
-        self.client.post(
-            self.cart_url,
-            {
-                "product_type": "product",
-                "product_id": str(self.published_product.pk),
-            },
-            format="json",
-        )
-        response = self.client.post(
-            reverse("cart:cart-coupon"),
-            {"code": "BIG50"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["discount_amount"], "29.99")
-        self.assertEqual(response.data["total"], "0.00")
-
-    def test_apply_rejects_invalid_expired_and_exhausted_coupons(self) -> None:
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        Coupon.objects.create(
-            code="GONE",
-            discount_type=Coupon.DiscountType.PERCENT,
-            discount_value=Decimal("10.00"),
-            active=False,
-        )
-        Coupon.objects.create(
-            code="OLD",
-            discount_type=Coupon.DiscountType.PERCENT,
-            discount_value=Decimal("10.00"),
-            expiry_date=timezone.now().date() - timedelta(days=1),
-        )
-        Coupon.objects.create(
-            code="MAXED",
-            discount_type=Coupon.DiscountType.PERCENT,
-            discount_value=Decimal("10.00"),
-            max_uses=1,
-            times_used=1,
-        )
-        self.authenticate()
-        self.client.post(
-            self.cart_url,
-            {
-                "product_type": "product",
-                "product_id": str(self.published_product.pk),
-            },
-            format="json",
-        )
-        coupon_url = reverse("cart:cart-coupon")
-        for code in ("MISSING", "GONE", "OLD", "MAXED"):
-            response = self.client.post(coupon_url, {"code": code}, format="json")
-            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-            self.assertIn("code", response.data)
-
-    def test_remove_coupon_and_clear_cart_clears_coupon(self) -> None:
-        coupon = Coupon.objects.create(
-            code="CLEARME",
-            discount_type=Coupon.DiscountType.FIXED,
-            discount_value=Decimal("5.00"),
-        )
-        self.authenticate()
-        self.client.post(
-            self.cart_url,
-            {
-                "product_type": "product",
-                "product_id": str(self.published_product.pk),
-            },
-            format="json",
-        )
-        self.client.post(
-            reverse("cart:cart-coupon"),
-            {"code": "CLEARME"},
-            format="json",
-        )
-        removed = self.client.delete(reverse("cart:cart-coupon"))
-        self.assertEqual(removed.status_code, status.HTTP_200_OK)
-        self.assertIsNone(removed.data["coupon"])
-        self.assertEqual(removed.data["discount_amount"], "0.00")
-
-        cart = Cart.objects.get(user=self.customer)
-        cart.coupon = coupon
-        cart.save(update_fields=["coupon"])
-        clear = self.client.delete(self.cart_url)
-        self.assertEqual(clear.status_code, status.HTTP_204_NO_CONTENT)
-        cart.refresh_from_db()
-        self.assertIsNone(cart.coupon_id)
-        self.assertEqual(cart.items.count(), 0)
-
-    def test_stale_coupon_cleared_on_get(self) -> None:
-        coupon = Coupon.objects.create(
-            code="STALE",
-            discount_type=Coupon.DiscountType.PERCENT,
-            discount_value=Decimal("10.00"),
-            active=True,
-        )
-        cart = Cart.objects.create(user=self.customer, coupon=coupon)
-        CartItem.objects.create(
-            cart=cart,
-            product_type=CartItem.ProductType.PRODUCT,
-            product_id=self.published_product.pk,
-            quantity=1,
-        )
-        coupon.active = False
-        coupon.save(update_fields=["active"])
-
-        self.authenticate()
-        response = self.client.get(self.cart_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNone(response.data["coupon"])
-        self.assertEqual(response.data["discount_amount"], "0.00")
-        cart.refresh_from_db()
-        self.assertIsNone(cart.coupon_id)

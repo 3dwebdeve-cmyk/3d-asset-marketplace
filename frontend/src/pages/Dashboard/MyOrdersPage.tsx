@@ -110,18 +110,17 @@ export function MyOrdersPage() {
       ) : isTrulyEmpty ? (
         <section className="dash-list-page__card">
           <p className="dash-list-page__status" role="status">
-            You have no custom project orders yet. Request custom work from My Projects to get
-            started.
+            You have no custom project orders yet. Send us a project enquiry to get started.
           </p>
           <div className="dash-list-page__actions">
             <Link
               className="dash-list-page__btn dash-list-page__btn--primary"
-              to="/dashboard/projects/new"
+              to="/contact?enquiryType=Custom%203D%20Modeling"
             >
               Request custom work
             </Link>
-            <Link className="dash-list-page__btn" to="/dashboard/projects">
-              My projects
+            <Link className="dash-list-page__btn" to="/custom-projects">
+              Learn about custom work
             </Link>
           </div>
         </section>

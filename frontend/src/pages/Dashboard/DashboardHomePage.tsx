@@ -1,12 +1,10 @@
 import { useQueries } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
-import { listCustomerCustomProjects } from '../../api/customProjectsApi'
 import { listDownloadEntitlements } from '../../api/downloadsApi'
 import { listCustomerOrders } from '../../api/ordersApi'
 import { listWishlistItems } from '../../api/wishlistApi'
 import { useAuthStore } from '../../store/authStore'
-import type { CustomerCustomProjectListItem } from '../../types/customProject'
 import type { CustomerOrderListItem } from '../../types/order'
 
 function formatCurrency(amount: number, currency: string): string {
@@ -22,16 +20,6 @@ function formatCurrency(amount: number, currency: string): string {
   }
 }
 
-function countProjectStatuses(projects: CustomerCustomProjectListItem[]) {
-  let inProgress = 0
-  let approved = 0
-  for (const project of projects) {
-    if (project.status === 'in_progress') inProgress += 1
-    if (project.status === 'approved') approved += 1
-  }
-  return { inProgress, approved }
-}
-
 function sumPaidSpend(orders: CustomerOrderListItem[]) {
   let total = 0
   let currency = 'USD'
@@ -45,16 +33,8 @@ function sumPaidSpend(orders: CustomerOrderListItem[]) {
   return { total, currency }
 }
 
-function CardIcon({ name }: { name: 'projects' | 'orders' | 'wishlist' | 'downloads' }) {
+function CardIcon({ name }: { name: 'orders' | 'wishlist' | 'downloads' }) {
   switch (name) {
-    case 'projects':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 8.5 12 4l8 4.5-8 4.5L4 8.5Z" />
-          <path d="m4 12 8 4.5L20 12" />
-          <path d="m4 15.5 8 4.5 8-4.5" />
-        </svg>
-      )
     case 'orders':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -80,16 +60,8 @@ function CardIcon({ name }: { name: 'projects' | 'orders' | 'wishlist' | 'downlo
   }
 }
 
-function ActionIcon({ name }: { name: 'projects' | 'wishlist' | 'orders' | 'downloads' | 'profile' }) {
+function ActionIcon({ name }: { name: 'wishlist' | 'orders' | 'downloads' | 'profile' }) {
   switch (name) {
-    case 'projects':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 8.5 12 4l8 4.5-8 4.5L4 8.5Z" />
-          <path d="m4 12 8 4.5L20 12" />
-          <path d="m4 15.5 8 4.5 8-4.5" />
-        </svg>
-      )
     case 'wishlist':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -123,7 +95,6 @@ function ActionIcon({ name }: { name: 'projects' | 'wishlist' | 'orders' | 'down
 }
 
 const QUICK_ACTIONS = [
-  { to: '/dashboard/projects', label: 'View Projects', icon: 'projects' as const },
   { to: '/dashboard/wishlist', label: 'Saved Wishlist', icon: 'wishlist' as const },
   { to: '/dashboard/orders', label: 'Orders History', icon: 'orders' as const },
   { to: '/dashboard/downloads', label: 'Downloads', icon: 'downloads' as const },
@@ -134,12 +105,8 @@ export function DashboardHomePage() {
   const user = useAuthStore((state) => state.user)
   const firstName = user?.full_name?.trim().split(/\s+/)[0] || 'User'
 
-  const [projectsQuery, ordersQuery, wishlistQuery, downloadsQuery] = useQueries({
+  const [ordersQuery, wishlistQuery, downloadsQuery] = useQueries({
     queries: [
-      {
-        queryKey: ['dashboard', 'home', 'projects'],
-        queryFn: () => listCustomerCustomProjects({ page: 1, page_size: 100 }),
-      },
       {
         queryKey: ['dashboard', 'home', 'orders'],
         queryFn: () => listCustomerOrders({ page: 1, page_size: 100 }),
@@ -155,17 +122,7 @@ export function DashboardHomePage() {
     ],
   })
 
-  const projectStatuses = projectsQuery.data
-    ? countProjectStatuses(projectsQuery.data.results)
-    : null
   const paidSpend = ordersQuery.data ? sumPaidSpend(ordersQuery.data.results) : null
-
-  const projectMeta =
-    projectStatuses != null
-      ? `${projectStatuses.inProgress} in progress · ${projectStatuses.approved} Approved`
-      : projectsQuery.isError
-        ? 'Could not load project details'
-        : 'Loading…'
 
   const ordersMeta =
     paidSpend != null
@@ -181,24 +138,11 @@ export function DashboardHomePage() {
           Welcome back, {firstName}!
         </h1>
         <p className="dash-home__subtitle">
-          Manage your 3D assets, orders, custom projects, and account settings.
+          Manage your 3D assets, orders, downloads, and account settings.
         </p>
       </header>
 
       <section className="dash-home__stats" aria-label="Account summary">
-        <Link to="/dashboard/projects" className="dash-home-stat">
-          <div className="dash-home-stat__top">
-            <p className="dash-home-stat__label">Active Projects</p>
-            <span className="dash-home-stat__icon" aria-hidden="true">
-              <CardIcon name="projects" />
-            </span>
-          </div>
-          <p className="dash-home-stat__value">
-            {projectsQuery.isError ? '—' : projectsQuery.isLoading ? '…' : projectsQuery.data?.count ?? 0}
-          </p>
-          <p className="dash-home-stat__meta">{projectMeta}</p>
-        </Link>
-
         <Link to="/dashboard/orders" className="dash-home-stat">
           <div className="dash-home-stat__top">
             <p className="dash-home-stat__label">Total Orders</p>

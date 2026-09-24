@@ -7,7 +7,6 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
 from categories.models import Category
-from custom_projects.models import CustomProject
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
 
@@ -71,24 +70,6 @@ class AdminDashboardStatsAPITests(APITestCase):
             slug="mesh-toolkit",
             price=Decimal("20.00"),
         )
-        CustomProject.objects.create(
-            customer=self.customer_user,
-            title="Pending crate",
-            description="Awaiting admin review for a stylized crate request.",
-            status=CustomProject.Status.SUBMITTED,
-        )
-        CustomProject.objects.create(
-            customer=self.customer_user,
-            title="Live armor set",
-            description="Approved custom armor modeling work in progress.",
-            status=CustomProject.Status.IN_PROGRESS,
-        )
-        CustomProject.objects.create(
-            customer=self.customer_user,
-            title="Finished weapon",
-            description="Completed custom weapon deliverable for the client.",
-            status=CustomProject.Status.COMPLETED,
-        )
 
         self.stats_url = reverse("analytics_admin:admin-dashboard-stats")
         self.admin_login_url = reverse("accounts:admin-login")
@@ -130,9 +111,6 @@ class AdminDashboardStatsAPITests(APITestCase):
         self.assertEqual(response.data["categories"]["total"], 2)
         self.assertEqual(response.data["categories"]["live"], 1)
         self.assertEqual(response.data["plugins"]["total"], 1)
-        self.assertEqual(response.data["projects"]["pending"], 1)
-        self.assertEqual(response.data["projects"]["live"], 1)
-        self.assertEqual(response.data["projects"]["completed"], 1)
         self.assertEqual(response.data["sales"]["monthly_revenue"], "0.00")
         self.assertEqual(response.data["sales"]["monthly_orders"], 0)
         self.assertEqual(response.data["sales"]["currency"], "USD")

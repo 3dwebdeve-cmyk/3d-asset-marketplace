@@ -22,12 +22,6 @@ class AdminDashboardPluginsStatsSerializer(serializers.Serializer):
     total = serializers.IntegerField()
 
 
-class AdminDashboardProjectsStatsSerializer(serializers.Serializer):
-    pending = serializers.IntegerField()
-    live = serializers.IntegerField()
-    completed = serializers.IntegerField()
-
-
 class AdminDashboardSalesStatsSerializer(serializers.Serializer):
     monthly_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
     monthly_orders = serializers.IntegerField()
@@ -53,7 +47,6 @@ class AdminDashboardStatsSerializer(serializers.Serializer):
     products = AdminDashboardProductsStatsSerializer()
     categories = AdminDashboardCategoriesStatsSerializer()
     plugins = AdminDashboardPluginsStatsSerializer()
-    projects = AdminDashboardProjectsStatsSerializer()
     sales = AdminDashboardSalesStatsSerializer()
     payments = AdminDashboardPaymentsStatsSerializer()
     category_breakdown = AdminDashboardCategoryBreakdownSerializer(many=True)
