@@ -49,14 +49,6 @@ class AdminOrderWriteRateThrottle(UserRateThrottle):
     scope = "admin_order_write"
 
 
-class AdminCustomProjectWriteRateThrottle(UserRateThrottle):
-    scope = "admin_custom_project_write"
-
-
-class CustomProjectWriteRateThrottle(UserRateThrottle):
-    scope = "custom_project_write"
-
-
 class WishlistWriteRateThrottle(UserRateThrottle):
     scope = "wishlist_write"
 
@@ -75,10 +67,6 @@ class AdminReviewWriteRateThrottle(UserRateThrottle):
 
 class DownloadRateThrottle(UserRateThrottle):
     scope = "download"
-
-
-class AdminCouponWriteRateThrottle(UserRateThrottle):
-    scope = "admin_coupon_write"
 
 
 class ContactFormRateThrottle(AnonRateThrottle):

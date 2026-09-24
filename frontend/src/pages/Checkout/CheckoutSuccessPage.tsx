@@ -72,7 +72,6 @@ export function CheckoutSuccessPage() {
   const [searchParams] = useSearchParams()
   const orderIdFromUrl = searchParams.get('order_id') ?? ''
   const orderId = orderIdFromUrl || peekCheckoutOrderId() || ''
-  const projectId = searchParams.get('project_id') ?? ''
   const queryClient = useQueryClient()
   const startedAtRef = useRef(Date.now())
   const confirmAttemptedRef = useRef(false)
@@ -108,7 +107,6 @@ export function CheckoutSuccessPage() {
     Boolean(order) &&
     order?.payment_status === 'pending' &&
     Date.now() - startedAtRef.current >= POLL_TIMEOUT_MS
-  const isQuotationCheckout = Boolean(projectId)
 
   useEffect(() => {
     if (!orderId || !order || order.payment_status !== 'pending' || hasTimedOut) {
@@ -131,13 +129,8 @@ export function CheckoutSuccessPage() {
   useEffect(() => {
     if (isPaid) {
       void queryClient.invalidateQueries({ queryKey: ['cart'] })
-      if (projectId) {
-        void queryClient.invalidateQueries({
-          queryKey: ['customer', 'custom-projects'],
-        })
-      }
     }
-  }, [isPaid, projectId, queryClient])
+  }, [isPaid, queryClient])
 
   if (!orderId) {
     return (
@@ -237,26 +230,15 @@ export function CheckoutSuccessPage() {
             {isPaid ? (
               <>
                 <p className="checkout-success-page__thankyou" role="status">
-                  {isQuotationCheckout
-                    ? 'Thanks for paying your quotation. Your project team can continue the work.'
-                    : 'Thanks for your purchase! Your items are ready to download.'}
+                  Thanks for your purchase! Your items are ready to download.
                 </p>
                 <div className="checkout-success-page__actions">
-                  {isQuotationCheckout ? (
-                    <Link
-                      className="checkout-success-page__btn checkout-success-page__btn--primary"
-                      to={`/dashboard/projects/${projectId}`}
-                    >
-                      Back to project
-                    </Link>
-                  ) : (
-                    <Link
-                      className="checkout-success-page__btn checkout-success-page__btn--primary"
-                      to="/dashboard/downloads"
-                    >
-                      My downloads
-                    </Link>
-                  )}
+                  <Link
+                    className="checkout-success-page__btn checkout-success-page__btn--primary"
+                    to="/dashboard/downloads"
+                  >
+                    My downloads
+                  </Link>
                   <Link
                     className="checkout-success-page__btn checkout-success-page__btn--secondary"
                     to={`/dashboard/orders/${order.id}`}

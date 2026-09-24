@@ -102,7 +102,7 @@ describe('MyOrdersPage', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /request custom work/i })).toHaveAttribute(
       'href',
-      '/dashboard/projects/new',
+      '/contact?enquiryType=Custom%203D%20Modeling',
     )
   })
 

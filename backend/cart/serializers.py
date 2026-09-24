@@ -43,12 +43,6 @@ class CartItemSerializer(serializers.Serializer):
     catalog = CartCatalogSerializer(allow_null=True)
 
 
-class AppliedCouponSerializer(serializers.Serializer):
-    code = serializers.CharField()
-    discount_type = serializers.CharField()
-    discount_value = serializers.CharField()
-
-
 class CartSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     currency = serializers.CharField()
@@ -57,9 +51,4 @@ class CartSerializer(serializers.Serializer):
     total = serializers.CharField()
     item_count = serializers.IntegerField()
     total_quantity = serializers.IntegerField()
-    coupon = AppliedCouponSerializer(allow_null=True)
     items = CartItemSerializer(many=True)
-
-
-class CartCouponApplySerializer(serializers.Serializer):
-    code = serializers.CharField(max_length=32, trim_whitespace=True)

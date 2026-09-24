@@ -37,7 +37,6 @@ class CelerySettingsTests(SimpleTestCase):
             send_password_reset_task,
         )
         from contact.tasks import send_contact_submission_task
-        from custom_projects.tasks import send_project_notification_task
         from orders.tasks import send_payment_receipt_task
 
         for task in (
@@ -45,7 +44,6 @@ class CelerySettingsTests(SimpleTestCase):
             send_password_reset_task,
             send_password_changed_task,
             send_payment_receipt_task,
-            send_project_notification_task,
             send_contact_submission_task,
         ):
             self.assertEqual(task.queue, "email")

@@ -1,20 +1,17 @@
-"""Stripe Checkout session create/confirm for cart and quotations."""
+"""Stripe Checkout session create/confirm for cart checkout."""
 
 from __future__ import annotations
 
 import logging
 import uuid
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.utils import timezone
 
-from orders.models import Order, OrderItem
-from orders.notifications import enqueue_payment_receipt
+from orders.models import Order
 from orders.services import OrderError, OrderService
 from payments.models import Payment
 from payments.payment_common import (
@@ -62,7 +59,7 @@ class CheckoutService:
             raise CheckoutError("Payments are not configured. Please try again later.")
 
         try:
-            order, discount_amount, coupon = OrderService.create_from_cart(user)
+            order = OrderService.create_from_cart(user)
         except OrderError as exc:
             raise CheckoutError(exc.message, field=exc.field) from exc
 
@@ -74,7 +71,6 @@ class CheckoutService:
             session_id = f"{E2E_CHECKOUT_SESSION_PREFIX}{uuid.uuid4().hex}"
             Payment.objects.create(
                 order=order,
-                coupon=coupon,
                 stripe_checkout_session_id=session_id,
                 amount=order.total_amount,
                 currency=order.currency,
@@ -107,21 +103,10 @@ class CheckoutService:
                 }
             )
 
-        discounts: list[dict[str, str]] = []
-        if discount_amount > Decimal("0.00"):
-            stripe_coupon = stripe.Coupon.create(
-                amount_off=to_cents(discount_amount),
-                currency=currency_lower,
-                duration="once",
-                name=f"Order {order.invoice_number} discount",
-            )
-            discounts.append({"coupon": stripe_coupon.id})
-
         try:
             session = stripe.checkout.Session.create(
                 mode="payment",
                 line_items=line_items,
-                discounts=discounts or None,
                 customer_email=user.email,
                 client_reference_id=str(user.id),
                 success_url=success_url,
@@ -135,7 +120,6 @@ class CheckoutService:
 
         Payment.objects.create(
             order=order,
-            coupon=coupon,
             stripe_checkout_session_id=session.id,
             amount=order.total_amount,
             currency=order.currency,
@@ -143,154 +127,6 @@ class CheckoutService:
         )
 
         return {"checkout_url": session.url, "order_id": str(order.id)}
-
-    @classmethod
-    def _expire_stripe_sessions(cls, session_ids: list[str]) -> None:
-        """Best-effort expire open Stripe Checkout Sessions (superseded checkouts)."""
-        if not settings.STRIPE_SECRET_KEY:
-            return
-        for session_id in session_ids:
-            if not session_id or session_id.startswith("free_quote_"):
-                continue
-            try:
-                stripe.checkout.Session.expire(session_id)
-            except stripe.error.StripeError as exc:
-                logger.warning(
-                    "Unable to expire superseded Stripe session %s: %s",
-                    session_id,
-                    exc,
-                )
-
-    @classmethod
-    def _expire_pending_quotation_sessions(
-        cls,
-        *,
-        user: User,
-        project_id: UUID,
-    ) -> None:
-        """Expire Stripe sessions for prior unfinished quotation checkouts."""
-        session_ids = list(
-            Payment.objects.filter(
-                order__user=user,
-                order__order_status=Order.OrderStatus.PENDING,
-                order__payment_status=Order.PaymentStatus.PENDING,
-                status=Payment.Status.PENDING,
-                order__items__product_type=OrderItem.ProductType.CUSTOM_PROJECT,
-                order__items__product_id=project_id,
-            )
-            .exclude(stripe_checkout_session_id="")
-            .values_list("stripe_checkout_session_id", flat=True)
-            .distinct()
-        )
-        cls._expire_stripe_sessions(session_ids)
-
-    @classmethod
-    def create_quotation_checkout_session(
-        cls,
-        user: User,
-        project_id: UUID,
-        *,
-        accepted_legal=None,
-    ) -> dict[str, str]:
-        from custom_projects.models import CustomProject
-
-        cls._require_legal_acceptance(user, accepted_legal=accepted_legal)
-
-        # Close prior open Stripe sessions before local supersede cancels those orders.
-        cls._expire_pending_quotation_sessions(user=user, project_id=project_id)
-
-        try:
-            order = OrderService.create_from_quotation(user, project_id)
-        except OrderError as exc:
-            raise CheckoutError(exc.message, field=exc.field) from exc
-
-        # Mark project payment as pending while Stripe Checkout is open.
-        CustomProject.objects.filter(pk=project_id).exclude(
-            payment_status=CustomProject.PaymentStatus.PAID
-        ).update(
-            payment_status=CustomProject.PaymentStatus.PENDING,
-            updated_at=timezone.now(),
-        )
-
-        frontend_base_url = settings.FRONTEND_BASE_URL.rstrip("/")
-
-        if order.total_amount <= Decimal("0.00"):
-            # Free / zero quotes: fulfill without Stripe hosted checkout.
-            with transaction.atomic():
-                Payment.objects.create(
-                    order=order,
-                    stripe_checkout_session_id=f"free_quote_{order.id}",
-                    amount=order.total_amount,
-                    currency=order.currency,
-                    status=Payment.Status.SUCCEEDED,
-                )
-                OrderService.update_order_status(order, Order.OrderStatus.PAID)
-                OrderService.update_payment_status(order, Order.PaymentStatus.PAID)
-                cls._fulfill_custom_project_payment(order)
-                enqueue_payment_receipt(order)
-            return {
-                "checkout_url": (
-                    f"{frontend_base_url}/checkout/success"
-                    f"?order_id={order.id}&project_id={project_id}"
-                ),
-                "order_id": str(order.id),
-                "project_id": str(project_id),
-            }
-
-        if not settings.STRIPE_SECRET_KEY:
-            raise CheckoutError("Payments are not configured. Please try again later.")
-
-        line_item = order.items.first()
-        title = (line_item.title if line_item else None) or "Custom project quotation"
-        currency_lower = order.currency.lower()
-
-        try:
-            session = stripe.checkout.Session.create(
-                mode="payment",
-                line_items=[
-                    {
-                        "price_data": {
-                            "currency": currency_lower,
-                            "product_data": {"name": title},
-                            "unit_amount": to_cents(order.total_amount),
-                        },
-                        "quantity": 1,
-                    }
-                ],
-                customer_email=user.email,
-                client_reference_id=str(user.id),
-                success_url=(
-                    f"{frontend_base_url}/checkout/success"
-                    f"?order_id={order.id}&project_id={project_id}"
-                ),
-                cancel_url=(
-                    f"{frontend_base_url}/checkout/cancel"
-                    f"?order_id={order.id}&project_id={project_id}"
-                ),
-                metadata={
-                    "order_id": str(order.id),
-                    "project_id": str(project_id),
-                    "checkout_type": "quotation",
-                },
-            )
-        except stripe.error.StripeError as exc:
-            raise CheckoutError(
-                "Unable to start checkout. Please try again.",
-            ) from exc
-
-        Payment.objects.create(
-            order=order,
-            stripe_checkout_session_id=session.id,
-            amount=order.total_amount,
-            currency=order.currency,
-            status=Payment.Status.PENDING,
-        )
-
-        return {
-            "checkout_url": session.url,
-            "order_id": str(order.id),
-            "project_id": str(project_id),
-        }
 
     @classmethod
     def confirm_checkout_session(cls, user: User, order_id: UUID) -> Order:
@@ -376,13 +212,3 @@ class CheckoutService:
             WebhookService._handle_checkout_completed(session)
         order.refresh_from_db()
         return order
-
-    @classmethod
-    def _fulfill_custom_project_payment(cls, order: Order) -> None:
-        from custom_projects.services import CustomProjectService
-
-        project_ids = order.items.filter(
-            product_type=OrderItem.ProductType.CUSTOM_PROJECT
-        ).values_list("product_id", flat=True)
-        for project_id in project_ids:
-            CustomProjectService.mark_quotation_paid(project_id)

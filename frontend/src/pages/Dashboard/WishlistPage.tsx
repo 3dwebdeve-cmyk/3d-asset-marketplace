@@ -312,9 +312,14 @@ export function WishlistPage() {
             }
           />
         ) : isTrulyEmpty ? (
-          <p className="home-page__subtitle" role="status">
-            Your wishlist is empty. Browse the marketplace to save items for later.
-          </p>
+          <div className="wishlist-empty-state">
+            <p className="home-page__subtitle" role="status">
+              Your wishlist is empty. Browse the marketplace to save items for later.
+            </p>
+            <Link className="home-page__cta" to="/3d-models">
+              Browse models
+            </Link>
+          </div>
         ) : results.length === 0 ? (
           <p className="home-page__subtitle" role="status">
             No {filter === 'all' ? 'items' : filter === 'product' ? 'products' : 'plugins'} on

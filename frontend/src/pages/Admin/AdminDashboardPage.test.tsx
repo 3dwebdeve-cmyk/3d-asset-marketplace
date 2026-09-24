@@ -23,7 +23,6 @@ const sampleStats = {
   products: { total: 8, published: 5, draft: 2, archived: 1 },
   categories: { total: 4, live: 3 },
   plugins: { total: 0 },
-  projects: { pending: 0, live: 0, completed: 0 },
   sales: { monthly_revenue: '0.00', monthly_orders: 0, currency: 'USD' },
   payments: { succeeded: 2, pending: 1 },
   category_breakdown: [

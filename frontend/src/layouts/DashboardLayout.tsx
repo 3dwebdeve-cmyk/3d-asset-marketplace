@@ -22,14 +22,6 @@ function NavIcon({ name }: { name: DashboardNavIcon }) {
           <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5.5v-6h-3v6H5a1 1 0 0 1-1-1v-9.5Z" />
         </svg>
       )
-    case 'projects':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M4 8.5 12 4l8 4.5-8 4.5L4 8.5Z" />
-          <path d="m4 12 8 4.5L20 12" />
-          <path d="m4 15.5 8 4.5 8-4.5" />
-        </svg>
-      )
     case 'wishlist':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -80,7 +72,7 @@ export function DashboardLayout() {
 
   useDocumentSeo({
     title: 'Dashboard | 3D HUB',
-    description: 'Manage your projects, orders, downloads, and account.',
+    description: 'Manage your orders, downloads, and account.',
     robots: 'noindex, nofollow',
   })
 
@@ -118,13 +110,13 @@ export function DashboardLayout() {
       >
         <Link
           className="dashboard-sidebar__cta"
-          to="/dashboard/projects/new"
+          to="/contact?enquiryType=Custom%203D%20Modeling"
           onClick={() => setIsMobileNavOpen(false)}
         >
           <span className="dashboard-sidebar__cta-icon" aria-hidden="true">
             +
           </span>
-          Request a new project
+          Request a custom project
         </Link>
 
         <nav id={navId} className="dashboard-sidebar__nav" aria-label="Dashboard sections">

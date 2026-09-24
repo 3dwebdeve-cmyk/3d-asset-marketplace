@@ -445,10 +445,11 @@ export function ProductsBrowsePage() {
         <section
           className="browse-rail-section browse-rail-section--categories"
           aria-labelledby="trending-categories-heading"
+          role="region"
         >
           <div className="browse-rail-section__header">
             <h2 id="trending-categories-heading" className="browse-rail-section__title">
-              Explore 3D Categories
+              Trending Categories
             </h2>
           </div>
           <div className="browse-category-grid">
@@ -472,7 +473,7 @@ export function ProductsBrowsePage() {
         <section className="browse-rail-section browse-rail-section--models" aria-labelledby="shop-models-heading">
           <div className="browse-rail-section__header">
             <h2 id="shop-models-heading" className="browse-rail-section__title">
-              Popular 3D Models
+              Shop 3D Models
             </h2>
           </div>
           {isLoading ? (

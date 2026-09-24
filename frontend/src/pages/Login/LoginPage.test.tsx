@@ -47,7 +47,7 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<div>Forgot password page</div>} />
           <Route path="/dashboard" element={<div>Dashboard</div>} />
-          <Route path="/dashboard/projects/new" element={<div>New project</div>} />
+          <Route path="/dashboard/orders" element={<div>My orders</div>} />
           <Route path="/checkout/success" element={<div>Checkout success</div>} />
           <Route path="/console" element={<div>Admin home</div>} />
         </Routes>
@@ -76,7 +76,7 @@ describe('LoginPage redirect', () => {
 
     renderLogin({
       pathname: '/login',
-      state: { from: { pathname: '/dashboard/projects/new' } },
+      state: { from: { pathname: '/dashboard/orders' } },
     })
 
     await waitFor(() => {
@@ -93,9 +93,9 @@ describe('LoginPage redirect', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/projects/new')
+      expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/orders')
     })
-    expect(screen.getByText('New project')).toBeInTheDocument()
+    expect(screen.getByText('My orders')).toBeInTheDocument()
   })
 
   it('preserves checkout success query string from state.from after login', async () => {
@@ -141,11 +141,11 @@ describe('LoginPage redirect', () => {
 
     renderLogin({
       pathname: '/login',
-      state: { from: { pathname: '/dashboard/projects/new' } },
+      state: { from: { pathname: '/dashboard/orders' } },
     })
 
-    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/projects/new')
-    expect(screen.getByText('New project')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/orders')
+    expect(screen.getByText('My orders')).toBeInTheDocument()
   })
 
   it('falls back to dashboard when no from state is present', async () => {

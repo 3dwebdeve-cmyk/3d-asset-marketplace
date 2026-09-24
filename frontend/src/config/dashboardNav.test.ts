@@ -16,7 +16,7 @@ describe('dashboardNavItems', () => {
 describe('isDashboardChromePath', () => {
   it('matches dashboard and profile routes', () => {
     expect(isDashboardChromePath('/dashboard')).toBe(true)
-    expect(isDashboardChromePath('/dashboard/projects')).toBe(true)
+    expect(isDashboardChromePath('/dashboard/orders')).toBe(true)
     expect(isDashboardChromePath('/dashboard/password')).toBe(true)
     expect(isDashboardChromePath('/profile')).toBe(true)
   })

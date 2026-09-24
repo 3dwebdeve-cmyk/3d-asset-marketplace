@@ -229,22 +229,22 @@ describe('ProductsBrowsePage', () => {
       '/custom-projects',
     )
     expect(
-      screen.getByText(/high-quality, custom 3d models built precisely/i, { hidden: true }),
+      screen.getByText(/high-quality, custom 3d models built precisely/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/product & game-ready models/i, { hidden: true })).toBeInTheDocument()
-    expect(screen.getByText(/clean & optimized topology/i, { hidden: true })).toBeInTheDocument()
+    expect(screen.getByText(/product & game-ready models/i)).toBeInTheDocument()
+    expect(screen.getByText(/clean & optimized topology/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/powerful blender add-ons and tools/i, { hidden: true }),
+      screen.getByText(/powerful blender add-ons and tools/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/custom blender add-ons/i, { hidden: true })).toBeInTheDocument()
+    expect(screen.getByText(/custom blender add-ons/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/realistic and stylized textures that bring/i, { hidden: true }),
+      screen.getByText(/realistic and stylized textures that bring/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/pbr & stylized texturing/i, { hidden: true })).toBeInTheDocument()
+    expect(screen.getByText(/pbr & stylized texturing/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/high-quality renders with perfect lighting/i, { hidden: true }),
+      screen.getByText(/high-quality renders with perfect lighting/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/photorealistic renders/i, { hidden: true })).toBeInTheDocument()
+    expect(screen.getByText(/photorealistic renders/i)).toBeInTheDocument()
   })
 
   it('searches the 3D models route from the reference hero', async () => {

@@ -21,9 +21,7 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Users', to: adminPath('users'), enabled: true },
   { label: 'Orders', to: adminPath('orders'), enabled: true },
   { label: 'Payments', to: adminPath('payments'), enabled: true },
-  { label: 'Coupons', to: adminPath('coupons'), enabled: true },
   { label: 'Reviews', to: adminPath('reviews'), enabled: true },
   { label: 'Downloads', to: adminPath('downloads'), enabled: true },
-  { label: 'Projects', to: adminPath('projects'), enabled: true },
   { label: 'Analytics', to: adminPath('analytics'), enabled: true },
 ]

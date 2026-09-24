@@ -4,10 +4,8 @@ import type { Cart, CartItem } from '../types/cart'
 import { apiClient } from './client'
 import {
   addCartItem,
-  applyCartCoupon,
   clearCart,
   getCart,
-  removeCartCoupon,
   removeCartItem,
   updateCartItemQuantity,
 } from './cartApi'
@@ -53,7 +51,6 @@ const cart: Cart = {
   total: '29.99',
   item_count: 1,
   total_quantity: 1,
-  coupon: null,
   items: [cartItem],
 }
 
@@ -113,33 +110,5 @@ describe('cartApi', () => {
     await clearCart()
 
     expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/cart/')
-  })
-
-  it('applies a coupon', async () => {
-    const discounted = {
-      ...cart,
-      discount_amount: '3.00',
-      total: '26.99',
-      coupon: {
-        code: 'SAVE10',
-        discount_type: 'percent' as const,
-        discount_value: '10.00',
-      },
-    }
-    vi.mocked(apiClient.post).mockResolvedValue({ data: discounted })
-
-    const result = await applyCartCoupon({ code: 'SAVE10' })
-
-    expect(apiClient.post).toHaveBeenCalledWith('/api/v1/cart/coupon/', { code: 'SAVE10' })
-    expect(result.coupon?.code).toBe('SAVE10')
-  })
-
-  it('removes a coupon', async () => {
-    vi.mocked(apiClient.delete).mockResolvedValue({ data: cart })
-
-    const result = await removeCartCoupon()
-
-    expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/cart/coupon/')
-    expect(result.coupon).toBeNull()
   })
 })

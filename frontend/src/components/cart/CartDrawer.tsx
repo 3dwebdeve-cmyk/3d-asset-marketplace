@@ -114,7 +114,6 @@ export function CartDrawer() {
               <span>Total</span>
               <strong>{formatCartPrice(cart.total, cart.currency)}</strong>
             </div>
-            <p className="cart-drawer__discount-note">Discount codes applied at checkout</p>
             <Button
               type="button"
               className="cart-checkout-button cart-checkout-button--secure"

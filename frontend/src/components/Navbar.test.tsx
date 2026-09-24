@@ -102,7 +102,6 @@ beforeEach(() => {
     total: '0.00',
     item_count: 0,
     total_quantity: 0,
-    coupon: null,
     items: [],
   })
   vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
@@ -231,7 +230,6 @@ describe('Navbar', () => {
       total: '59.98',
       item_count: 2,
       total_quantity: 3,
-      coupon: null,
       items: [],
     })
 

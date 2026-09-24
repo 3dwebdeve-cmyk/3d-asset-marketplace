@@ -5,7 +5,6 @@ import { useCheckout } from '../../hooks/useCheckout'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
-import { CartCouponForm } from '../../components/cart/CartCouponForm'
 import { CartLineItem, formatCartPrice } from '../../components/cart/CartLineItem'
 
 export function CartPage() {
@@ -17,10 +16,6 @@ export function CartPage() {
     updateQuantity,
     remove,
     clear,
-    applyCoupon,
-    removeCoupon,
-    couponError,
-    clearCouponError,
     refetch,
   } = useCart()
   const { startCheckout, isRedirecting } = useCheckout()
@@ -104,28 +99,12 @@ export function CartPage() {
             </div>
 
             <footer className="cart-page__footer">
-              <CartCouponForm
-                coupon={cart?.coupon ?? null}
-                isPending={isPending}
-                error={couponError}
-                onApply={applyCoupon}
-                onRemove={removeCoupon}
-                onClearError={clearCouponError}
-              />
               <div className="cart-summary cart-summary--page">
                 <span>Subtotal</span>
                 <strong>
                   {formatCartPrice(cart?.subtotal ?? '0.00', cart?.currency ?? 'USD')}
                 </strong>
               </div>
-              {cart && Number(cart.discount_amount) > 0 ? (
-                <div className="cart-summary cart-summary--discount">
-                  <span>Discount</span>
-                  <strong>
-                    −{formatCartPrice(cart.discount_amount, cart.currency)}
-                  </strong>
-                </div>
-              ) : null}
               <div className="cart-summary cart-summary--page cart-summary--total">
                 <span>Total</span>
                 <strong>

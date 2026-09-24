@@ -19,12 +19,6 @@ export interface AdminDashboardPluginsStats {
   total: number
 }
 
-export interface AdminDashboardProjectsStats {
-  pending: number
-  live: number
-  completed: number
-}
-
 export interface AdminDashboardSalesStats {
   monthly_revenue: string
   monthly_orders: number
@@ -50,7 +44,6 @@ export interface AdminDashboardStats {
   products: AdminDashboardProductsStats
   categories: AdminDashboardCategoriesStats
   plugins: AdminDashboardPluginsStats
-  projects: AdminDashboardProjectsStats
   sales: AdminDashboardSalesStats
   payments: AdminDashboardPaymentsStats
   category_breakdown: AdminDashboardCategoryBreakdown[]

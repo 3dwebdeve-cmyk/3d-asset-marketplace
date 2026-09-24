@@ -74,6 +74,7 @@ export function AuthModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby={panelTitleId}
+        data-testid="customer-auth-dialog"
       >
         {mode === 'login' ? (
           <AuthLoginPanel titleId={panelTitleId} />

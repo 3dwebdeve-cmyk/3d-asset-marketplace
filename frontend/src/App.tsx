@@ -92,12 +92,6 @@ const DashboardHomePage = lazy(() =>
   })),
 )
 
-const MyProjectsPage = lazy(() =>
-  import('./pages/Dashboard/MyProjectsPage').then((module) => ({
-    default: module.MyProjectsPage,
-  })),
-)
-
 const MyOrdersPage = lazy(() =>
   import('./pages/Dashboard/MyOrdersPage').then((module) => ({
     default: module.MyOrdersPage,
@@ -131,18 +125,6 @@ const CheckoutSuccessPage = lazy(() =>
 const CheckoutCancelPage = lazy(() =>
   import('./pages/Checkout/CheckoutCancelPage').then((module) => ({
     default: module.CheckoutCancelPage,
-  })),
-)
-
-const CustomerProjectRequestPage = lazy(() =>
-  import('./pages/Dashboard/CustomerProjectRequestPage').then((module) => ({
-    default: module.CustomerProjectRequestPage,
-  })),
-)
-
-const CustomerProjectDetailPage = lazy(() =>
-  import('./pages/Dashboard/CustomerProjectDetailPage').then((module) => ({
-    default: module.CustomerProjectDetailPage,
   })),
 )
 
@@ -220,16 +202,6 @@ const AdminPluginCategoryDetailPage = lazy(() =>
     default: module.AdminPluginCategoryDetailPage,
   })),
 )
-const AdminProjectsPage = lazy(() =>
-  import('./pages/Admin/AdminProjectsPage').then((module) => ({
-    default: module.AdminProjectsPage,
-  })),
-)
-const AdminProjectDetailPage = lazy(() =>
-  import('./pages/Admin/AdminProjectDetailPage').then((module) => ({
-    default: module.AdminProjectDetailPage,
-  })),
-)
 const AdminOrdersPage = lazy(() =>
   import('./pages/Admin/AdminOrdersPage').then((module) => ({
     default: module.AdminOrdersPage,
@@ -263,16 +235,6 @@ const AdminDownloadsPage = lazy(() =>
 const AdminAnalyticsPage = lazy(() =>
   import('./pages/Admin/AdminAnalyticsPage').then((module) => ({
     default: module.AdminAnalyticsPage,
-  })),
-)
-const AdminCouponsPage = lazy(() =>
-  import('./pages/Admin/AdminCouponsPage').then((module) => ({
-    default: module.AdminCouponsPage,
-  })),
-)
-const AdminCouponDetailPage = lazy(() =>
-  import('./pages/Admin/AdminCouponDetailPage').then((module) => ({
-    default: module.AdminCouponDetailPage,
   })),
 )
 
@@ -374,21 +336,12 @@ function AppRoutes() {
             <Route element={<ProtectedRoute />}>
               <Route element={<DashboardLayout />}>
                 <Route path="/dashboard" element={<DashboardHomePage />} />
-                <Route path="/dashboard/projects" element={<MyProjectsPage />} />
                 <Route path="/dashboard/orders" element={<MyOrdersPage />} />
                 <Route path="/dashboard/downloads" element={<MyDownloadsPage />} />
                 <Route path="/dashboard/wishlist" element={<WishlistPage />} />
                 <Route
                   path="/dashboard/password"
                   element={<Navigate to="/profile" replace />}
-                />
-                <Route
-                  path="/dashboard/projects/new"
-                  element={<CustomerProjectRequestPage />}
-                />
-                <Route
-                  path="/dashboard/projects/:projectId"
-                  element={<CustomerProjectDetailPage />}
                 />
                 <Route
                   path="/dashboard/orders/:orderId"
@@ -425,11 +378,6 @@ function AppRoutes() {
                 path={`${ADMIN_BASE}/plugin-categories/:categoryId`}
                 element={<AdminPluginCategoryDetailPage />}
               />
-              <Route path={`${ADMIN_BASE}/projects`} element={<AdminProjectsPage />} />
-              <Route
-                path={`${ADMIN_BASE}/projects/:projectId`}
-                element={<AdminProjectDetailPage />}
-              />
               <Route path={`${ADMIN_BASE}/orders`} element={<AdminOrdersPage />} />
               <Route
                 path={`${ADMIN_BASE}/orders/:orderId`}
@@ -439,11 +387,6 @@ function AppRoutes() {
               <Route
                 path={`${ADMIN_BASE}/payments/:paymentId`}
                 element={<AdminPaymentDetailPage />}
-              />
-              <Route path={`${ADMIN_BASE}/coupons`} element={<AdminCouponsPage />} />
-              <Route
-                path={`${ADMIN_BASE}/coupons/:couponId`}
-                element={<AdminCouponDetailPage />}
               />
               <Route path={`${ADMIN_BASE}/reviews`} element={<AdminReviewsPage />} />
               <Route path={`${ADMIN_BASE}/downloads`} element={<AdminDownloadsPage />} />

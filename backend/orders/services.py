@@ -12,8 +12,6 @@ from django.db.models import Count, Q, QuerySet
 from django.utils import timezone
 
 from accounts.models import User
-from coupons.models import Coupon
-from django.utils.text import slugify
 from orders.models import Order, OrderItem
 from plugins.models import Plugin
 from products.models import Product
@@ -307,14 +305,10 @@ class OrderService:
 
     @classmethod
     @transaction.atomic
-    def create_from_cart(cls, user: User) -> tuple[Order, Decimal, Coupon | None]:
+    def create_from_cart(cls, user: User) -> Order:
         """Snapshot the user's cart into a PENDING order for checkout.
 
         Only available cart lines are included (mirrors CartService totals).
-        Returns the created order, the discount amount applied at checkout
-        time, and the coupon that produced it (if any), so the caller (e.g.
-        the payments app) can build a matching Stripe Checkout Session and
-        later increment coupon usage once payment succeeds.
         """
         from cart.services import CartService
 
@@ -377,95 +371,6 @@ class OrderService:
             ]
         )
 
-        return cls.get(order.pk), envelope.totals.discount_amount, envelope.coupon
-
-    @classmethod
-    @transaction.atomic
-    def create_from_quotation(cls, user: User, project_id: UUID) -> Order:
-        """Snapshot an accepted custom-project quotation into a PENDING order."""
-        from custom_projects.models import CustomProject, ProjectQuotation
-
-        try:
-            project = CustomProject.objects.select_for_update().get(
-                pk=project_id,
-                customer=user,
-            )
-        except CustomProject.DoesNotExist as exc:
-            raise OrderError("Project not found.") from exc
-
-        if project.status in {
-            CustomProject.Status.CANCELLED,
-            CustomProject.Status.REJECTED,
-            CustomProject.Status.COMPLETED,
-        }:
-            raise OrderError("This project cannot be paid in its current status.")
-
-        if project.payment_status == CustomProject.PaymentStatus.PAID:
-            raise OrderError("This quotation has already been paid.")
-
-        try:
-            quotation = ProjectQuotation.objects.get(project_id=project.id)
-        except ProjectQuotation.DoesNotExist as exc:
-            raise OrderError("No quotation is available to pay.") from exc
-
-        if quotation.status != ProjectQuotation.Status.ACCEPTED:
-            raise OrderError(
-                "Only an accepted quotation can be paid.",
-                field="quotation",
-            )
-
-        already_paid = OrderItem.objects.filter(
-            product_type=OrderItem.ProductType.CUSTOM_PROJECT,
-            product_id=project.id,
-            order__user=user,
-            order__order_status=Order.OrderStatus.PAID,
-            order__payment_status=Order.PaymentStatus.PAID,
-        ).exists()
-        if already_paid:
-            raise OrderError("This quotation has already been paid.")
-
-        from payments.models import Payment
-
-        # Retire any prior unfinished quotation checkouts for this project.
-        pending_order_ids = list(
-            OrderItem.objects.filter(
-                product_type=OrderItem.ProductType.CUSTOM_PROJECT,
-                product_id=project.id,
-                order__user=user,
-                order__order_status=Order.OrderStatus.PENDING,
-                order__payment_status=Order.PaymentStatus.PENDING,
-            ).values_list("order_id", flat=True)
-        )
-        if pending_order_ids:
-            Order.objects.filter(pk__in=pending_order_ids).update(
-                order_status=Order.OrderStatus.CANCELLED,
-                payment_status=Order.PaymentStatus.CANCELLED,
-                updated_at=timezone.now(),
-            )
-            Payment.objects.filter(
-                order_id__in=pending_order_ids,
-                status=Payment.Status.PENDING,
-            ).update(status=Payment.Status.EXPIRED)
-
-        title = project.title.strip() or "Custom project"
-        slug = slugify(title)[:255] or None
-        amount = quotation.amount
-        currency = (quotation.currency or project.currency or "USD").upper()[:3]
-
-        order = cls._create_order_with_unique_invoice(
-            user=user,
-            total_amount=amount,
-            currency=currency,
-        )
-        OrderItem.objects.create(
-            order=order,
-            product_type=OrderItem.ProductType.CUSTOM_PROJECT,
-            product_id=project.id,
-            title=title,
-            slug=slug,
-            quantity=1,
-            purchase_price=amount,
-        )
         return cls.get(order.pk)
 
     @classmethod
@@ -580,14 +485,6 @@ class OrderService:
                 locked.payment_status = Order.PaymentStatus.REFUNDED
                 update_fields.append("payment_status")
             locked.save(update_fields=update_fields)
-
-            from custom_projects.services import CustomProjectService
-
-            project_ids = locked.items.filter(
-                product_type=OrderItem.ProductType.CUSTOM_PROJECT
-            ).values_list("product_id", flat=True)
-            for project_id in project_ids:
-                CustomProjectService.revert_quotation_after_refund(project_id)
 
         return cls.get(order.pk)
 

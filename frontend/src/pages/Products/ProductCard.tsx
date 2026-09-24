@@ -1,10 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import type { PublicProduct } from '../../types/product'
 
 interface ProductCardProps {
   product: PublicProduct
+}
+
+function formatCardPrice(amount: number): string {
+  return `$ ${amount.toFixed(2)}`
 }
 
 export function ProductCard({ product }: ProductCardProps) {
@@ -17,8 +22,8 @@ export function ProductCard({ product }: ProductCardProps) {
   const displayPrice = hasDiscount
     ? Number(product.discount_price)
     : Number(product.price)
-  const formattedPrice = `$${displayPrice.toFixed(2)}`
-  const formattedOriginal = `$${Number(product.price).toFixed(2)}`
+  const formattedPrice = formatCardPrice(displayPrice)
+  const formattedOriginal = formatCardPrice(Number(product.price))
   const categoryLabel = product.category?.name?.trim() ?? ''
   const detailPath = `/products/${product.slug}`
 
@@ -51,6 +56,13 @@ export function ProductCard({ product }: ProductCardProps) {
             </div>
           )}
         </Link>
+
+        <WishlistToggle
+          productType="product"
+          productId={product.id}
+          productName={product.name}
+          variant="icon"
+        />
 
         {categoryLabel ? (
           <span className="product-card__badge-category">{categoryLabel}</span>

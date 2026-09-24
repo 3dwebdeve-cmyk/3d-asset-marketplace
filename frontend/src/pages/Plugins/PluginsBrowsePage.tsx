@@ -161,6 +161,35 @@ export function PluginsBrowsePage() {
 
           <div className="plugins-filters__panel">
           <div className="plugins-filters__group">
+            <label className="plugins-filters__label" htmlFor="plugin-category">
+              Category
+            </label>
+            <select
+              id="plugin-category"
+              value={selectedCategoryId}
+              onChange={(event) => {
+                const value = event.target.value
+                setSelectedCategoryId(value)
+                setCurrentPage(1)
+
+                const nextParams = new URLSearchParams(searchParams)
+                if (value) nextParams.set('category', value)
+                else nextParams.delete('category')
+
+                setSearchParams(nextParams, { replace: true })
+              }}
+              className="plugins-filters__select"
+            >
+              <option value="">All categories</option>
+              {(categoriesData?.results ?? []).map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="plugins-filters__group">
             <p className="plugins-filters__label" id="plugin-compat-label">
               Compatibility
             </p>

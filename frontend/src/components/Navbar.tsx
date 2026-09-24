@@ -547,7 +547,12 @@ export function Navbar() {
             ) : (
               <>
                 <div className="navbar__guest-auth-pill">
-                  <AuthEntryButton mode="login" returnTo={location.pathname} className="navbar__link">
+                  <AuthEntryButton
+                    mode="login"
+                    returnTo={location.pathname}
+                    className="navbar__link"
+                    data-testid="customer-login-trigger"
+                  >
                     {isMarketplaceHome ? 'Login' : 'Sign in'}
                   </AuthEntryButton>
                   <AuthEntryButton
@@ -729,6 +734,7 @@ export function Navbar() {
                 mode="login"
                 returnTo={location.pathname}
                 className="navbar__drawer-link"
+                data-testid="customer-login-trigger"
                 onClick={closeMobileNav}
               >
                 Sign in

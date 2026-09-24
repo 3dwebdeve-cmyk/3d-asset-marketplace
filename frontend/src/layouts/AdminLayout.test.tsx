@@ -102,7 +102,7 @@ describe('AdminLayout', () => {
     )
   })
 
-  it('enables plugins, projects, orders, and analytics', async () => {
+  it('enables plugins, orders, and analytics', async () => {
     renderAdminLayout()
 
     await waitFor(() => {
@@ -113,10 +113,8 @@ describe('AdminLayout', () => {
       'href',
       '/console/plugins',
     )
-    expect(screen.getByRole('link', { name: /^projects$/i })).toHaveAttribute(
-      'href',
-      '/console/projects',
-    )
+    expect(screen.queryByRole('link', { name: /^projects$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^coupons$/i })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^orders$/i })).toHaveAttribute(
       'href',
       '/console/orders',

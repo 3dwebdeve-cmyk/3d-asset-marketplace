@@ -71,18 +71,6 @@ export function AdminDashboardPage() {
 
           <div className="admin-stats-grid admin-stats-grid--secondary">
             <article className="admin-stat-card">
-              <h2 className="admin-stat-card__label">Pending projects</h2>
-              <p className="admin-stat-card__value">{stats.projects.pending}</p>
-              <p className="admin-stat-card__meta">Awaiting admin review</p>
-            </article>
-            <article className="admin-stat-card">
-              <h2 className="admin-stat-card__label">Live projects</h2>
-              <p className="admin-stat-card__value">{stats.projects.live}</p>
-              <p className="admin-stat-card__meta">
-                {stats.projects.completed} completed overall
-              </p>
-            </article>
-            <article className="admin-stat-card">
               <h2 className="admin-stat-card__label">Monthly sales</h2>
               <p className="admin-stat-card__value">
                 {formatMoney(stats.sales.monthly_revenue, stats.sales.currency)}
@@ -146,9 +134,6 @@ export function AdminDashboardPage() {
         </Link>
         <Link className="home-page__cta home-page__cta--secondary" to="/console/plugins">
           Manage plugins
-        </Link>
-        <Link className="home-page__cta home-page__cta--secondary" to="/console/projects">
-          Manage projects
         </Link>
         <Link className="home-page__cta home-page__cta--secondary" to="/console/orders">
           Manage orders
