@@ -15,10 +15,15 @@ export const E2E_UNVERIFIED_PASSWORD =
   process.env.E2E_UNVERIFIED_PASSWORD ?? 'E2eUnverifiedPass123!'
 
 async function openCustomerLoginDialog(page: Page): Promise<Locator> {
-  await page.goto('/')
-  await page.getByRole('button', { name: /^(Login|Sign in)$/ }).first().click()
+  // `/` only redirects to `/home`; land on the hub directly so the navbar
+  // login control is stable before we interact with it.
+  await page.goto('/home')
 
-  const dialog = page.getByRole('dialog')
+  const trigger = page.getByTestId('customer-login-trigger')
+  await expect(trigger).toBeVisible()
+  await trigger.click()
+
+  const dialog = page.getByTestId('customer-auth-dialog')
   await expect(dialog).toBeVisible()
   return dialog
 }
@@ -56,8 +61,7 @@ export async function loginAsBuyer(page: Page): Promise<void> {
     throw new Error(`Buyer login failed with HTTP ${loginResponse.status()}.`)
   }
 
-  // Modal login returns users to the page where they opened it. Since this
-  // helper starts at "/", a successful login intentionally stays at "/".
+  // Modal login returns users to the page where they opened it (`/home`).
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('button', { name: /^Hi, E2E$/i })).toBeVisible()
 }
