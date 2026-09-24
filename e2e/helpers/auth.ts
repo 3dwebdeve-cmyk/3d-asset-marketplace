@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 export const E2E_BUYER_EMAIL = process.env.E2E_BUYER_EMAIL ?? 'e2e-buyer@example.com'
 export const E2E_BUYER_PASSWORD = process.env.E2E_BUYER_PASSWORD ?? 'E2eBuyerPass123!'
@@ -14,19 +14,43 @@ export const E2E_UNVERIFIED_EMAIL =
 export const E2E_UNVERIFIED_PASSWORD =
   process.env.E2E_UNVERIFIED_PASSWORD ?? 'E2eUnverifiedPass123!'
 
-export async function loginAsBuyer(page: Page): Promise<void> {
+async function openCustomerLoginDialog(page: Page): Promise<Locator> {
   await page.goto('/')
   await page.getByRole('button', { name: /^(Login|Sign in)$/ }).first().click()
-  await page.locator('#auth-email').fill(E2E_BUYER_EMAIL)
-  await page.locator('#auth-password').fill(E2E_BUYER_PASSWORD)
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+/**
+ * Scope to the dialog and target the form submit control. A bare /sign in/i
+ * name match is unsafe here because AuthModeTabs also exposes "Sign In".
+ */
+async function submitCustomerLogin(page: Page, dialog: Locator) {
+  const submitButton = dialog.locator('form.auth-form button[type="submit"]')
+
+  await expect(submitButton).toBeVisible()
+  await expect(submitButton).toBeEnabled()
+  await expect(submitButton).toHaveAccessibleName(/sign in/i)
 
   const loginResponsePromise = page.waitForResponse(
     (response) =>
       response.url().endsWith('/api/v1/auth/login/') &&
       response.request().method() === 'POST',
   )
-  await page.getByRole('button', { name: /Sign in to 3D Hub/i }).click()
-  const loginResponse = await loginResponsePromise
+
+  await submitButton.click()
+  return loginResponsePromise
+}
+
+export async function loginAsBuyer(page: Page): Promise<void> {
+  const dialog = await openCustomerLoginDialog(page)
+
+  await dialog.locator('#auth-email').fill(E2E_BUYER_EMAIL)
+  await dialog.locator('#auth-password').fill(E2E_BUYER_PASSWORD)
+
+  const loginResponse = await submitCustomerLogin(page, dialog)
 
   if (!loginResponse.ok()) {
     throw new Error(`Buyer login failed with HTTP ${loginResponse.status()}.`)
@@ -34,7 +58,7 @@ export async function loginAsBuyer(page: Page): Promise<void> {
 
   // Modal login returns users to the page where they opened it. Since this
   // helper starts at "/", a successful login intentionally stays at "/".
-  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(dialog).toBeHidden()
   await expect(page.getByRole('button', { name: /^Hi, E2E$/i })).toBeVisible()
 }
 
@@ -64,18 +88,12 @@ export async function loginAsAdmin(page: Page): Promise<void> {
 }
 
 export async function attemptUnverifiedLogin(page: Page): Promise<void> {
-  await page.goto('/')
-  await page.getByRole('button', { name: /^(Login|Sign in)$/ }).first().click()
-  await page.locator('#auth-email').fill(E2E_UNVERIFIED_EMAIL)
-  await page.locator('#auth-password').fill(E2E_UNVERIFIED_PASSWORD)
+  const dialog = await openCustomerLoginDialog(page)
 
-  const loginResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/api/v1/auth/login/') &&
-      response.request().method() === 'POST',
-  )
-  await page.getByRole('button', { name: /Sign in to 3D Hub/i }).click()
-  const loginResponse = await loginResponsePromise
+  await dialog.locator('#auth-email').fill(E2E_UNVERIFIED_EMAIL)
+  await dialog.locator('#auth-password').fill(E2E_UNVERIFIED_PASSWORD)
+
+  const loginResponse = await submitCustomerLogin(page, dialog)
 
   expect(loginResponse.status()).toBe(403)
 }
