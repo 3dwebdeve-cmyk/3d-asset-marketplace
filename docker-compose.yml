@@ -1,0 +1,139 @@
+# Feature 13 — local/prod-like stack (Postgres + web + frontend Nginx).
+# Copy `.env.example` → `.env` at the repo root, then:
+#   docker compose up --build
+#
+# Immutable staging/prod tags (Phase K1):
+#   ./backend/scripts/build_immutable_images.sh   # or .ps1 on Windows
+#   # sets WEB_IMAGE / FRONTEND_IMAGE / IMAGE_TAG — avoid relying on :latest alone
+#   docker compose up -d
+#
+# Rollback rehearsal (Phase K2) — previous tags, app services only:
+#   PREVIOUS_WEB_IMAGE=… PREVIOUS_FRONTEND_IMAGE=… ./backend/scripts/rollback_compose.sh
+#   docker compose exec web python manage.py check_rollback_rehearsal --profile staging
+#   See docs/ROLLBACK_REHEARSAL.md (no migrate reverse)
+#
+# Browser: http://localhost:8080  (Nginx SPA + /api proxy → Gunicorn)
+# Health:  http://localhost:8080/api/v1/healthz/ (legacy /api/healthz/ still works)
+#
+# Background work (email, etc.) runs in-process (Celery eager; no Redis/worker).
+# Catalog search uses Postgres (no Meilisearch).
+# SPA admin control panel: http://localhost:8080/console/login  (Django admin remains /admin/)
+# Cutover gate: docker compose exec web python manage.py check_cutover --profile staging
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-marketplace}
+      POSTGRES_USER: ${DB_USER:-marketplace}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    image: ${WEB_IMAGE:-marketplace-web:local}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DEBUG: "False"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-marketplace}
+      DB_USER: ${DB_USER:-marketplace}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,frontend}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
+      # Local Compose uses localhost SPA URLs with DEBUG=False; production must leave this False.
+      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
+      # SPA console is /console/. Leave True locally; staging/prod: False or IP allowlist.
+      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-True}
+      DJANGO_ADMIN_ALLOWED_IPS: ${DJANGO_ADMIN_ALLOWED_IPS:-}
+      # Company/VPN CIDRs for /api/v1/auth/admin/ + /api/v1/admin/ (empty = open locally).
+      ADMIN_CONSOLE_ALLOWED_IPS: ${ADMIN_CONSOLE_ALLOWED_IPS:-}
+      # Terminate TLS at a reverse proxy / Cloudflare in real prod.
+      # See docs/PRODUCTION_CHECKLIST.md for full prod env + rollback policy.
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      # Required when DEBUG=False on a public host (https://… SPA/API origins).
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      # Set 31536000 after HTTPS works end-to-end; keep 0 only while staging TLS.
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      # Local Compose defaults to console mail; production must set SMTP + ALLOW_CONSOLE_EMAIL=False.
+      ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-True}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@3dassetmarketplace.local}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+      PROJECT_MESSAGE_ADMIN_RECIPIENTS: ${PROJECT_MESSAGE_ADMIN_RECIPIENTS:-}
+      CONTACT_ADMIN_RECIPIENTS: ${CONTACT_ADMIN_RECIPIENTS:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      E2E_STRIPE_SIMULATE: ${E2E_STRIPE_SIMULATE:-False}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_ENDPOINT_URL: ${R2_ENDPOINT_URL:-}
+      R2_PUBLIC_BUCKET: ${R2_PUBLIC_BUCKET:-}
+      R2_PRIVATE_BUCKET: ${R2_PRIVATE_BUCKET:-}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+      R2_SIGNED_URL_EXPIRY: ${R2_SIGNED_URL_EXPIRY:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - media_data:/app/media
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --show-error --silent http://127.0.0.1:8000/api/v1/healthz/ || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-marketplace-frontend:local}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
+    # Only public publish — do NOT add ports for postgres/web (Gunicorn).
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  media_data:

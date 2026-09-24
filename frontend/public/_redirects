@@ -1,0 +1,2 @@
+# Cloudflare Pages SPA fallback (Docker uses nginx.conf try_files instead).
+/*    /index.html   200

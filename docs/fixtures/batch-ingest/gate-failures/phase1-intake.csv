@@ -1,0 +1,4 @@
+Model_ID,Price,Currency,Discount Price,Short Description,Description,Thumbnail Path,Gallery Image Paths,License Type,Tags,Rigged,Animated,PBR Ready,Game Ready,Software Used
+MDL-000201,39.99,USD,,Table with preview only,Fails export gate: no FBX/OBJ/MAX Success.,,,standard,,,FALSE,FALSE,TRUE,TRUE,3ds Max 2024
+MDL-000202,,USD,,Vase without price,Fails intake gate: Price blank.,,,standard,,,FALSE,FALSE,TRUE,FALSE,3ds Max 2024
+MDL-000203,49.99,USD,,Sofa without thumbnail,Fails thumbnail gate: no path and no thumbnail.jpg.,,,standard,,,FALSE,FALSE,TRUE,TRUE,3ds Max 2024

@@ -1,0 +1,66 @@
+# Python
+.venv/
+venv/
+backend/.venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+
+# Environment
+.env
+
+# Media uploads (avatars, etc.)
+backend/media/
+backend/staticfiles/
+
+# Node
+node_modules/
+
+# Playwright E2E
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+e2e/playwright/.cache/
+
+# Build
+dist/
+build/
+
+# Logs
+*.log
+
+# Postgres dumps (Phase J backup script)
+backups/
+*.dump
+debug-*.log
+
+# Local Cursor IDE / agent workflow (do not commit)
+.cursor/skills/
+.cursor/commands/
+.cursor/settings.json
+.cursor/debug-*.log
+
+# Local Meilisearch binary (Phase E / I1 operator smoke; not for remote)
+tools/meilisearch.exe
+tools/data.ms/
+tools/dumps/
+backend/.tools/
+
+# Local agent standards & roadmap (kept on disk, not for remote)
+TESTING.md
+CODE_REVIEWER.md
+ARCHITECT_REVIEWER.md
+IMPLEMENTATION_ROADMAP.md
+
+# All Markdown docs stay local (not pushed to remote)
+*.md
+
+# Explicit env files (belt-and-suspenders; .env already covers these)
+backend/.env
+frontend/.env
+.env.local
+frontend/.env.local
+backend/.env.local
+
+
+backend/.meili_docker.env

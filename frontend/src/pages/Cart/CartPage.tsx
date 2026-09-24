@@ -1,0 +1,142 @@
+import { Link } from 'react-router-dom'
+
+import { useCart } from '../../hooks/useCart'
+import { useCheckout } from '../../hooks/useCheckout'
+import { Button } from '../../components/ui/Button'
+import { ErrorState } from '../../components/ui/ErrorState'
+import { Spinner } from '../../components/ui/Spinner'
+import { CartLineItem, formatCartPrice } from '../../components/cart/CartLineItem'
+
+export function CartPage() {
+  const {
+    cart,
+    isLoading,
+    isError,
+    isPending,
+    updateQuantity,
+    remove,
+    clear,
+    refetch,
+  } = useCart()
+  const { startCheckout, isRedirecting } = useCheckout()
+
+  const isEmpty = cart?.item_count === 0
+  const showTopActions = !isLoading && !isEmpty
+
+  return (
+    <main className="dashboard-page cart-page">
+      <section className="dashboard-card dashboard-card--wide" aria-labelledby="cart-title">
+        <p className="home-page__eyebrow">Shopping</p>
+        <h1 id="cart-title">Your cart</h1>
+        <p className="home-page__subtitle">
+          Review items before checkout. Prices reflect current catalog values.
+        </p>
+
+        {showTopActions ? (
+          <div className="dashboard-card__actions">
+            <Link className="home-page__cta home-page__cta--secondary" to="/home">
+              Browse models
+            </Link>
+            <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
+              Browse plugins
+            </Link>
+            <Button
+              type="button"
+              variant="secondary"
+              isLoading={isPending}
+              onClick={() => clear()}
+            >
+              Clear cart
+            </Button>
+          </div>
+        ) : null}
+
+        {isLoading ? (
+          <Spinner label="Loading your cart..." />
+        ) : isError ? (
+          <ErrorState
+            title="Could not load your cart"
+            description="Your cart could not be loaded. Please try again."
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void refetch()
+                }}
+              >
+                Retry
+              </Button>
+            }
+          />
+        ) : isEmpty ? (
+          <div>
+            <p className="home-page__subtitle" role="status">
+              Your cart is empty. Add products or plugins to get started.
+            </p>
+            <div className="dashboard-card__actions">
+              <Link className="home-page__cta" to="/home">
+                Browse models
+              </Link>
+              <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
+                Browse plugins
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="cart-page__items">
+              {cart?.items.map((item) => (
+                <CartLineItem
+                  key={item.id}
+                  item={item}
+                  currency={cart.currency}
+                  isUpdating={isPending}
+                  isRemoving={isPending}
+                  onUpdateQuantity={updateQuantity}
+                  onRemove={remove}
+                />
+              ))}
+            </div>
+
+            <footer className="cart-page__footer">
+              <div className="cart-summary cart-summary--page">
+                <span>Subtotal</span>
+                <strong>
+                  {formatCartPrice(cart?.subtotal ?? '0.00', cart?.currency ?? 'USD')}
+                </strong>
+              </div>
+              <div className="cart-summary cart-summary--page cart-summary--total">
+                <span>Total</span>
+                <strong>
+                  {formatCartPrice(cart?.total ?? '0.00', cart?.currency ?? 'USD')}
+                </strong>
+              </div>
+              <p className="cart-summary__note">
+                Unavailable items are excluded from the subtotal.
+              </p>
+              <p className="cart-summary__note cart-summary__note--legal">
+                By checking out you agree to our{' '}
+                <Link className="auth-link" to="/terms">
+                  Terms of Service
+                </Link>{' '}
+                and{' '}
+                <Link className="auth-link" to="/privacy">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+              <Button
+                type="button"
+                className="cart-checkout-button"
+                isLoading={isRedirecting}
+                onClick={() => startCheckout()}
+              >
+                Checkout
+              </Button>
+            </footer>
+          </>
+        )}
+      </section>
+    </main>
+  )
+}

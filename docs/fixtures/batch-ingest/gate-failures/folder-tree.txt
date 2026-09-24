@@ -1,0 +1,19 @@
+# MDL-000201 — has preview + thumb; package formats failed on report
+C:/batch/out/MDL-000201/
+├── preview.glb
+└── thumbnail.jpg
+
+# MDL-000202 — complete disk; intake Price blank
+C:/batch/out/MDL-000202/
+├── preview.glb
+├── thumbnail.jpg
+├── package.zip
+└── source/
+    └── model.fbx
+
+# MDL-000203 — no thumbnail.jpg; intake Thumbnail Path blank
+C:/batch/out/MDL-000203/
+├── preview.glb
+├── package.zip
+└── source/
+    └── model.fbx

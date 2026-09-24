@@ -1,0 +1,109 @@
+/* Site pagination — white / black / blue only (matches provided design) */
+
+.ui-pagination-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 1.75rem;
+}
+
+.ui-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.ui-pagination__nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--action-color);
+  color: var(--pure-white);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.ui-pagination__nav-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.ui-pagination__nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ui-pagination__pages {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-main) 6%, var(--bg-card));
+}
+
+.ui-pagination__page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.35rem;
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ui-pagination__page:hover {
+  color: var(--action-color);
+}
+
+.ui-pagination__page--active {
+  border-color: var(--action-color);
+  color: var(--action-color);
+  background: var(--bg-card);
+}
+
+.ui-pagination__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 2rem;
+  color: var(--text-main);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .ui-pagination {
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+}

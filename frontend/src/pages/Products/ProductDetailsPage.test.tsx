@@ -1,0 +1,572 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { AxiosError } from 'axios'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import * as productsApi from '../../api/productsApi'
+import * as cartApi from '../../api/cartApi'
+import * as paymentsApi from '../../api/paymentsApi'
+import * as wishlistApi from '../../api/wishlistApi'
+import * as reviewsApi from '../../api/reviewsApi'
+import {
+  createTestQueryClient,
+  resetAuthStore,
+  resetToastStore,
+  testUser,
+} from '../../test/test-utils'
+import { useAuthStore } from '../../store/authStore'
+import { useToastStore } from '../../store/toastStore'
+import type { PublicProductDetail } from '../../types/product'
+import { ProductDetailsPage } from './ProductDetailsPage'
+import { Toaster } from '../../components/ui/Toaster'
+
+vi.mock('../../api/productsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/productsApi')>(
+    '../../api/productsApi',
+  )
+  return {
+    ...actual,
+    getPublicProduct: vi.fn(),
+    listPublicProducts: vi.fn(),
+  }
+})
+
+vi.mock('../../api/cartApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/cartApi')>('../../api/cartApi')
+  return {
+    ...actual,
+    getCart: vi.fn(),
+    addCartItem: vi.fn(),
+  }
+})
+
+vi.mock('../../api/paymentsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/paymentsApi')>(
+    '../../api/paymentsApi',
+  )
+  return {
+    ...actual,
+    createCheckoutSession: vi.fn(),
+  }
+})
+
+vi.mock('../../api/wishlistApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/wishlistApi')>(
+    '../../api/wishlistApi',
+  )
+  return {
+    ...actual,
+    listWishlistItems: vi.fn(),
+    addWishlistItem: vi.fn(),
+    removeWishlistItem: vi.fn(),
+  }
+})
+
+vi.mock('../../api/reviewsApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/reviewsApi')>(
+    '../../api/reviewsApi',
+  )
+  return {
+    ...actual,
+    listReviews: vi.fn(),
+    getReviewEligibility: vi.fn(),
+    createReview: vi.fn(),
+  }
+})
+
+vi.mock('../../components/viewer/LazyModelViewer', () => ({
+  LazyModelViewer: ({ ariaLabel }: { ariaLabel: string }) => (
+    <div data-testid="lazy-model-viewer" role="img" aria-label={ariaLabel} />
+  ),
+}))
+
+const categoryId = '44bba207-8a0c-490d-abdf-5a383ed2111b'
+const productId = 'b3d66e20-e133-4506-a6c5-a47d2ee5cd00'
+const relatedProductId = 'c4e77f31-f244-5617-b7d6-b58e3ff6de11'
+
+const sampleDetail: PublicProductDetail = {
+  id: productId,
+  name: 'Cyberpunk Drone 3D',
+  slug: 'cyberpunk-drone-3d',
+  description: 'A detailed sci-fi drone for cinematic scenes.',
+  short_description: 'Futuristic sci-fi drone asset',
+  price: '49.99',
+  currency: 'USD',
+  discount_price: '39.99',
+  thumbnail: 'https://cdn.example.com/thumb.jpg',
+  preview_model: 'https://cdn.example.com/preview.glb',
+  preview_video: '',
+  polygon_count: 12000,
+  vertex_count: 8000,
+  software_used: 'Blender',
+  animated: true,
+  rigged: false,
+  pbr_ready: true,
+  game_ready: true,
+  license_type: 'standard',
+  average_rating: '4.80',
+  review_count: 12,
+  total_downloads: 120,
+  category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
+  images: [
+    {
+      id: 'img-1',
+      image_url: 'https://cdn.example.com/a.jpg',
+      display_order: 0,
+      is_primary: true,
+      created_at: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: 'img-2',
+      image_url: 'https://cdn.example.com/b.jpg',
+      display_order: 1,
+      is_primary: false,
+      created_at: '2026-01-01T00:00:00Z',
+    },
+  ],
+  files: [
+    {
+      id: 'file-1',
+      file_name: 'drone.glb',
+      file_format: 'glb',
+      file_size: 1024,
+      version: '1.0',
+      is_preview: true,
+    },
+  ],
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-02T00:00:00Z',
+}
+
+const relatedList = {
+  count: 2,
+  next: null,
+  previous: null,
+  results: [
+    {
+      id: productId,
+      name: 'Cyberpunk Drone 3D',
+      slug: 'cyberpunk-drone-3d',
+      short_description: 'Futuristic sci-fi drone asset',
+      price: '49.99',
+      currency: 'USD',
+      discount_price: '39.99',
+      thumbnail: '',
+      software_used: 'Blender',
+      category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
+      license_type: 'standard' as const,
+      average_rating: '4.80',
+      review_count: 0,
+      total_downloads: 120,
+      created_at: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: relatedProductId,
+      name: 'Neon Hoverbike',
+      slug: 'neon-hoverbike',
+      short_description: 'Street-ready hoverbike',
+      price: '59.00',
+      currency: 'USD',
+      discount_price: null,
+      thumbnail: '',
+      software_used: 'Maya',
+      category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
+      license_type: 'extended' as const,
+      average_rating: '4.20',
+      review_count: 0,
+      total_downloads: 40,
+      created_at: '2026-01-03T00:00:00Z',
+    },
+  ],
+}
+
+function renderProductDetails(initialPath = '/products/cyberpunk-drone-3d') {
+  const queryClient = createTestQueryClient()
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/products/:slug" element={<ProductDetailsPage />} />
+          <Route path="/login" element={<div>Login page</div>} />
+          <Route path="/products" element={<div>Browse page</div>} />
+          <Route path="/3d-models" element={<div>3D Models catalog page</div>} />
+        </Routes>
+        <Toaster />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  resetAuthStore()
+  resetToastStore()
+  vi.mocked(productsApi.getPublicProduct).mockResolvedValue(sampleDetail)
+  vi.mocked(productsApi.listPublicProducts).mockResolvedValue(relatedList)
+  vi.mocked(wishlistApi.listWishlistItems).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(cartApi.getCart).mockResolvedValue({
+    id: 'cart-id',
+    currency: 'USD',
+    subtotal: '0.00',
+    discount_amount: '0.00',
+    total: '0.00',
+    item_count: 0,
+    total_quantity: 0,
+    items: [],
+  })
+  vi.mocked(reviewsApi.listReviews).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
+  vi.mocked(reviewsApi.getReviewEligibility).mockResolvedValue({
+    can_review: false,
+    has_reviewed: false,
+    review: null,
+  })
+})
+
+describe('ProductDetailsPage', () => {
+  it('scrolls to the top when the product page is opened', async () => {
+    const scrollTo = vi.fn()
+    Object.defineProperty(window, 'scrollTo', {
+      configurable: true,
+      writable: true,
+      value: scrollTo,
+    })
+
+    renderProductDetails()
+
+    expect(scrollTo).toHaveBeenCalled()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+  })
+
+  it('loads the public product by slug and renders hero details', async () => {
+    renderProductDetails()
+
+    expect(screen.getByLabelText(/loading product details/i)).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(productsApi.getPublicProduct).toHaveBeenCalledWith('cyberpunk-drone-3d')
+    expect(screen.getByText(/standard license/i)).toBeInTheDocument()
+    expect(screen.getByText(/-20%/i)).toBeInTheDocument()
+    expect(screen.getByText(/futuristic sci-fi drone asset/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /technical specs/i })).toBeInTheDocument()
+    expect(screen.getByText(/^polygons$/i)).toBeInTheDocument()
+    expect(screen.getByText('12,000')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /close/i })).toHaveAttribute('href', '/3d-models')
+    expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('lazy-model-viewer')).toBeInTheDocument()
+    expect(document.title).toContain('Cyberpunk Drone 3D')
+
+    const browseCategory = screen.getByRole('link', { name: /browse sci-fi assets/i })
+    expect(browseCategory).toHaveAttribute(
+      'href',
+      `/3d-models?category=${encodeURIComponent(categoryId)}`,
+    )
+  })
+
+  it('keeps the image stage when no preview model is available', async () => {
+    vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
+      ...sampleDetail,
+      preview_model: '',
+    })
+
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('lazy-model-viewer')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /view larger image of cyberpunk drone 3d/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('does not mount the viewer for unsafe preview_model URLs', async () => {
+    vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
+      ...sampleDetail,
+      preview_model: 'https://cdn.example.com/private/package.zip',
+    })
+
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('lazy-model-viewer')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('private/package.zip')
+  })
+
+  it('shows not-found state for unpublished or missing products', async () => {
+    const error = new AxiosError('Not found')
+    error.response = {
+      status: 404,
+      statusText: 'Not Found',
+      headers: {},
+      config: { headers: {} } as never,
+      data: { detail: 'Not found.' },
+    }
+    vi.mocked(productsApi.getPublicProduct).mockRejectedValue(error)
+
+    renderProductDetails('/products/hidden-desk')
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+  })
+
+  it('shows error state with retry for non-404 failures', async () => {
+    vi.mocked(productsApi.getPublicProduct).mockRejectedValue(new Error('network down'))
+
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /failed to load product/i })).toBeInTheDocument()
+    })
+
+    vi.mocked(productsApi.getPublicProduct).mockResolvedValue(sampleDetail)
+    await userEvent.click(screen.getByRole('button', { name: /try again/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+  })
+
+  it('supports keyboard-accessible image gallery lightbox', async () => {
+    const user = userEvent.setup()
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /show image 1 of 2/i }))
+    await user.click(
+      screen.getByRole('button', { name: /view larger image of cyberpunk drone 3d/i }),
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: /image viewer/i })
+    expect(within(dialog).getByAltText(/cyberpunk drone 3d image 1/i)).toBeInTheDocument()
+
+    await user.keyboard('{ArrowRight}')
+    expect(within(dialog).getByAltText(/cyberpunk drone 3d image 2/i)).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /image viewer/i })).not.toBeInTheDocument()
+    })
+  })
+
+  it('prompts guests to sign in for cart and wishlist CTAs', async () => {
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(
+      screen.getAllByRole('button', { name: /sign in to add to cart/i }).length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign in to buy/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
+  })
+
+  it('shows working add-to-cart and wishlist controls for authenticated users', async () => {
+    const user = userEvent.setup()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      postLogoutRedirect: null,
+    })
+    vi.mocked(wishlistApi.addWishlistItem).mockResolvedValue({
+      id: '11111111-1111-1111-1111-111111111111',
+      product_type: 'product',
+      product_id: productId,
+      catalog: null,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    })
+    vi.mocked(cartApi.addCartItem).mockResolvedValue({
+      id: '22222222-2222-2222-2222-222222222222',
+      product_type: 'product',
+      product_id: productId,
+      quantity: 1,
+      unit_price: '39.99',
+      line_total: '39.99',
+      catalog: null,
+    })
+
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: /^buy now$/i })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: /add to cart/i }))
+    expect(vi.mocked(cartApi.addCartItem).mock.calls[0]?.[0]).toEqual({
+      product_type: 'product',
+      product_id: productId,
+      quantity: 1,
+    })
+    await user.click(
+      screen.getByRole('button', { name: /add to wishlist for cyberpunk drone 3d/i }),
+    )
+    expect(vi.mocked(wishlistApi.addWishlistItem).mock.calls[0]?.[0]).toEqual({
+      product_type: 'product',
+      product_id: productId,
+    })
+  })
+
+  it('starts Stripe checkout when Buy now is clicked', async () => {
+    const user = userEvent.setup()
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, href: '' },
+    })
+
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      postLogoutRedirect: null,
+    })
+    vi.mocked(cartApi.getCart).mockResolvedValue({
+      id: 'cart-id',
+      currency: 'USD',
+      subtotal: '0.00',
+      discount_amount: '0.00',
+      total: '0.00',
+      item_count: 0,
+      total_quantity: 0,
+      items: [],
+    })
+    vi.mocked(cartApi.addCartItem).mockResolvedValue({
+      id: '22222222-2222-2222-2222-222222222222',
+      product_type: 'product',
+      product_id: productId,
+      quantity: 1,
+      unit_price: '39.99',
+      line_total: '39.99',
+      catalog: null,
+    })
+    vi.mocked(paymentsApi.createCheckoutSession).mockResolvedValue({
+      checkout_url: 'https://checkout.stripe.com/pay/cs_test_product',
+      order_id: 'order-id',
+    })
+
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /^buy now$/i }))
+
+    await waitFor(() => {
+      expect(cartApi.addCartItem).toHaveBeenCalledWith({
+        product_type: 'product',
+        product_id: productId,
+        quantity: 1,
+      })
+      expect(paymentsApi.createCheckoutSession).toHaveBeenCalledTimes(1)
+      expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_test_product')
+    })
+
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    })
+  })
+
+  it('copies the share link and excludes package storage paths from the document', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /cyberpunk drone 3d/i }),
+      ).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /share link for/i }))
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalled()
+    })
+    expect(writeText.mock.calls[0]?.[0]).toContain('/products/cyberpunk-drone-3d')
+    expect(useToastStore.getState().toasts).toHaveLength(0)
+
+    expect(document.body.textContent).not.toMatch(/storage_path/i)
+    expect(document.body.innerHTML).not.toContain('secret.zip')
+    expect(document.body.textContent).not.toContain('https://cdn.example.com/preview.glb')
+  })
+
+  it('renders related products from the same category and excludes the current product', async () => {
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /neon hoverbike/i })).toBeInTheDocument()
+    })
+
+    expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
+      expect.objectContaining({ category_id: categoryId }),
+    )
+    expect(
+      screen.getAllByRole('heading', { name: /cyberpunk drone 3d/i }).length,
+    ).toBe(1)
+  })
+})

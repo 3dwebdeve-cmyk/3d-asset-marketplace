@@ -1,0 +1,17 @@
+.venv
+venv
+__pycache__
+*.py[cod]
+.env
+*.log
+media
+staticfiles
+.pytest_cache
+.mypy_cache
+.coverage
+htmlcov
+.git
+.gitignore
+**/test_*.py
+**/tests.py
+**/tests/

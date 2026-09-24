@@ -1,0 +1,5 @@
+A quotation is ready for your custom project.
+
+Project: {{ project_title }}
+Open the project:
+{{ project_link }}

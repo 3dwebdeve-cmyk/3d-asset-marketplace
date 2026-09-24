@@ -1,0 +1,52 @@
+import { QueryClient } from '@tanstack/react-query'
+
+import { useAuthStore } from '../store/authStore'
+import { useAuthUiStore } from '../store/authUiStore'
+import { useToastStore } from '../store/toastStore'
+import type { AuthUser } from '../types/auth'
+
+export function createTestQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: 0,
+      },
+    },
+  })
+}
+
+export function resetAuthStore(): void {
+  useAuthStore.setState({
+    accessToken: null,
+    user: null,
+    isAuthenticated: false,
+    rememberSession: true,
+    postLogoutRedirect: null,
+  })
+  localStorage.clear()
+}
+
+export function resetToastStore(): void {
+  useToastStore.setState({ toasts: [] })
+}
+
+export function resetAuthUiStore(): void {
+  useAuthUiStore.setState({
+    isOpen: false,
+    mode: 'login',
+    returnTo: null,
+  })
+}
+
+export const testUser: AuthUser = {
+  id: '11111111-1111-1111-1111-111111111111',
+  full_name: 'Test User',
+  email: 'test@example.com',
+  phone: '',
+  country: 'India',
+  avatar: '',
+  role: 'Customer',
+  email_verified: true,
+  created_at: '2024-01-01T00:00:00Z',
+}

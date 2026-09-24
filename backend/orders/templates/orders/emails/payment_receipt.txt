@@ -1,0 +1,21 @@
+Hi {{ customer_name }},
+
+Thank you for your payment. Your order has been confirmed.
+
+Invoice: {{ invoice_number }}
+
+Order summary:
+{{ items_summary }}
+
+Items total: {{ items_total }}
+Total paid: {{ total_amount }}
+
+View your order:
+{{ order_link }}
+
+Download your assets:
+{{ downloads_link }}
+
+Your invoice PDF is attached to this email.
+
+— 3D Asset Marketplace

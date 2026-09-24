@@ -1,0 +1,5 @@
+Your custom project has been completed.
+
+Project: {{ project_title }}
+Open the project:
+{{ project_link }}
