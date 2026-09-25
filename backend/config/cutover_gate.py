@@ -129,31 +129,41 @@ def _check_email(profile: CutoverProfile, *, require_smtp: bool) -> CutoverCheck
     backend = (getattr(settings, "EMAIL_BACKEND", "") or "").strip()
     allow_console = bool(getattr(settings, "ALLOW_CONSOLE_EMAIL", False))
     host = (getattr(settings, "EMAIL_HOST", "") or "").strip()
+    brevo_key = bool((getattr(settings, "BREVO_API_KEY", "") or "").strip())
     console = "console" in backend.lower()
-    smtp = "smtp" in backend.lower()
+    brevo = "brevo" in backend.lower()
+    smtp = "smtp" in backend.lower() and not brevo
     contact = _parse_recipients(
         getattr(settings, "CONTACT_ADMIN_RECIPIENTS", "") or ""
     )
     project = _parse_recipients(
         getattr(settings, "PROJECT_MESSAGE_ADMIN_RECIPIENTS", "") or ""
     )
+    mode = (
+        "console"
+        if console
+        else ("brevo" if brevo else ("smtp" if smtp else "other"))
+    )
     detail = (
-        f"backend={'console' if console else ('smtp' if smtp else 'other')} "
+        f"backend={mode} "
+        f"BREVO_API_KEY_set={brevo_key} "
         f"EMAIL_HOST_set={bool(host)} "
         f"ALLOW_CONSOLE_EMAIL={allow_console} "
         f"contact_recipients={len(contact)} "
         f"project_recipients={len(project)}"
     )
 
-    must_smtp = require_smtp or profile == "production"
-    if must_smtp:
+    must_outbound = require_smtp or profile == "production"
+    if must_outbound:
         problems: list[str] = []
         if console or allow_console:
             problems.append("console mail not allowed")
-        if not smtp:
-            problems.append("EMAIL_BACKEND must be SMTP")
-        if not host:
+        if not smtp and not brevo:
+            problems.append("EMAIL_BACKEND must be SMTP or Brevo API")
+        if smtp and not host:
             problems.append("EMAIL_HOST empty")
+        if brevo and not brevo_key:
+            problems.append("BREVO_API_KEY empty")
         if not contact or not project:
             problems.append("staff recipients incomplete")
         if problems:
@@ -165,12 +175,14 @@ def _check_email(profile: CutoverProfile, *, require_smtp: bool) -> CutoverCheck
             )
         return CutoverCheck(name="email_smtp", ok=True, detail=detail)
 
-    if _host_like_profile(profile) and (console or allow_console or not smtp):
+    if _host_like_profile(profile) and (
+        console or allow_console or (not smtp and not brevo)
+    ):
         return CutoverCheck(
             name="email_smtp",
             ok=True,
             detail=(
-                f"{detail}; SMTP deferred (Phase A3) — "
+                f"{detail}; SMTP/Brevo deferred (Phase A3) — "
                 "blocking on --require-smtp / production profile"
             ),
             blocking=False,
