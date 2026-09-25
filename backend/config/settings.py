@@ -534,13 +534,28 @@ LOGGING = {
     },
 }
 
-# Dev default: print emails to the console. Override with SMTP env vars in production.
+# --- Email ---
+# Prefer Brevo HTTP API when BREVO_API_KEY is set (works on hosts that block
+# outbound SMTP, e.g. Render free web services). Otherwise default to console.
+BREVO_API_KEY = config("BREVO_API_KEY", default="").strip()
+_BREVO_BACKEND = "config.brevo_email_backend.BrevoAPIEmailBackend"
 EMAIL_BACKEND = config(
     "EMAIL_BACKEND",
-    default="django.core.mail.backends.console.EmailBackend",
+    default=(
+        _BREVO_BACKEND
+        if BREVO_API_KEY
+        else "django.core.mail.backends.console.EmailBackend"
+    ),
 )
+# If ops left SMTP configured but also set BREVO_API_KEY (Render free), use API.
+if (
+    BREVO_API_KEY
+    and "smtp" in EMAIL_BACKEND.lower()
+    and "brevo" not in EMAIL_BACKEND.lower()
+):
+    EMAIL_BACKEND = _BREVO_BACKEND
 # Local Compose may force DEBUG=False while still using console mail.
-# Production must set ALLOW_CONSOLE_EMAIL=False (or omit) and use SMTP.
+# Production must set ALLOW_CONSOLE_EMAIL=False (or omit) and use SMTP or Brevo API.
 ALLOW_CONSOLE_EMAIL = config(
     "ALLOW_CONSOLE_EMAIL",
     cast=bool,
@@ -554,8 +569,18 @@ if (
 ):
     raise ImproperlyConfigured(
         "EMAIL_BACKEND must not use the console backend when DEBUG=False. "
-        "Configure SMTP for production, or set ALLOW_CONSOLE_EMAIL=True only "
-        "for local Compose / staging experiments."
+        "Configure BREVO_API_KEY (recommended on Render free) or SMTP, "
+        "or set ALLOW_CONSOLE_EMAIL=True only for local Compose / staging experiments."
+    )
+if (
+    not DEBUG
+    and not _running_tests
+    and "brevo_email_backend" in EMAIL_BACKEND.lower()
+    and not BREVO_API_KEY
+):
+    raise ImproperlyConfigured(
+        "EMAIL_BACKEND is Brevo API but BREVO_API_KEY is empty. "
+        "Set BREVO_API_KEY from Brevo → SMTP & API → API keys."
     )
 DEFAULT_FROM_EMAIL = config(
     "DEFAULT_FROM_EMAIL",

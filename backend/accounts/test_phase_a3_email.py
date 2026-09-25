@@ -54,6 +54,7 @@ class CheckEmailConfigLocalTests(TestCase):
     DEBUG=False,
     EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
     ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="",
     EMAIL_HOST="",
     EMAIL_HOST_USER="",
     EMAIL_HOST_PASSWORD="",
@@ -68,8 +69,30 @@ class CheckEmailConfigProdGapsTests(TestCase):
 
 @override_settings(
     DEBUG=False,
+    EMAIL_BACKEND="config.brevo_email_backend.BrevoAPIEmailBackend",
+    ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="x" * 40,
+    EMAIL_HOST="",
+    EMAIL_HOST_USER="",
+    EMAIL_HOST_PASSWORD="",
+    DEFAULT_FROM_EMAIL="webmaster@example.com",
+    CONTACT_ADMIN_RECIPIENTS="ops@example.com",
+    PROJECT_MESSAGE_ADMIN_RECIPIENTS="projects@example.com",
+)
+class CheckEmailConfigBrevoReadyTests(TestCase):
+    def test_ready_when_brevo_key_set(self) -> None:
+        out = StringIO()
+        call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        text = out.getvalue()
+        self.assertIn("BREVO_API_KEY_set=True", text)
+        self.assertIn("Email/Brevo config looks ready", text)
+
+
+@override_settings(
+    DEBUG=False,
     EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
     ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="",
     EMAIL_HOST="smtp.example.com",
     EMAIL_PORT=587,
     EMAIL_USE_TLS=True,
@@ -110,3 +133,4 @@ class CheckEmailConfigReadyTests(TestCase):
                     send_test_email="smoke@example.com",
                 )
         self.assertIn("Failed to send test email", str(ctx.exception))
+
