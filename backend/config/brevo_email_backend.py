@@ -7,6 +7,7 @@ Set BREVO_API_KEY and EMAIL_BACKEND=config.brevo_email_backend.BrevoAPIEmailBack
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
@@ -44,6 +45,33 @@ def _split_from_email(raw: str) -> tuple[str, str]:
     return "", ""
 
 
+def _api_address(raw: str) -> dict[str, str]:
+    name, email = parseaddr(raw or "")
+    result = {"email": email.strip()}
+    if name.strip():
+        result["name"] = name.strip()
+    return result
+
+
+def _attachments(message) -> list[dict[str, str]]:
+    result: list[dict[str, str]] = []
+    for attachment in message.attachments:
+        if hasattr(attachment, "get_payload"):
+            content = attachment.get_payload(decode=True) or b""
+            filename = attachment.get_filename() or "attachment"
+        else:
+            filename, content, _mimetype = attachment
+            if isinstance(content, str):
+                content = content.encode("utf-8")
+        result.append(
+            {
+                "name": str(filename),
+                "content": base64.b64encode(bytes(content)).decode("ascii"),
+            }
+        )
+    return result
+
+
 class BrevoAPIEmailBackend(BaseEmailBackend):
     """Send messages through Brevo's transactional email REST API."""
 
@@ -53,6 +81,8 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
 
         api_key = (getattr(settings, "BREVO_API_KEY", "") or "").strip()
         if not api_key:
+            if self.fail_silently:
+                return 0
             raise BrevoAPIError(
                 "BREVO_API_KEY is empty. Create an API key in Brevo "
                 "(SMTP & API → API keys) and set it on the host."
@@ -84,11 +114,17 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
 
         payload: dict = {
             "sender": {"email": sender_email},
-            "to": [{"email": addr} for addr in recipients],
+            "to": [_api_address(addr) for addr in recipients],
             "subject": message.subject or "(no subject)",
         }
         if sender_name:
             payload["sender"]["name"] = sender_name
+        else:
+            configured_name = (
+                getattr(settings, "BREVO_SENDER_NAME", "") or ""
+            ).strip()
+            if configured_name:
+                payload["sender"]["name"] = configured_name
 
         body = message.body or ""
         if message.content_subtype == "html":
@@ -107,9 +143,19 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
         if "textContent" not in payload and "htmlContent" not in payload:
             payload["textContent"] = body or " "
 
+        if message.cc:
+            payload["cc"] = [_api_address(addr) for addr in message.cc]
+        if message.bcc:
+            payload["bcc"] = [_api_address(addr) for addr in message.bcc]
+        if message.reply_to:
+            payload["replyTo"] = _api_address(message.reply_to[0])
+        attachments = _attachments(message)
+        if attachments:
+            payload["attachment"] = attachments
+
         data = json.dumps(payload).encode("utf-8")
         request = Request(
-            BREVO_SMTP_EMAIL_URL,
+            getattr(settings, "BREVO_API_URL", BREVO_SMTP_EMAIL_URL),
             data=data,
             method="POST",
             headers={
@@ -119,7 +165,8 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
             },
         )
         try:
-            with urlopen(request, timeout=30) as response:
+            timeout = int(getattr(settings, "BREVO_API_TIMEOUT_SECONDS", 15))
+            with urlopen(request, timeout=timeout) as response:
                 status = getattr(response, "status", 200)
                 raw = response.read()
         except HTTPError as exc:
@@ -134,4 +181,5 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
             raise BrevoAPIError(
                 f"Brevo API HTTP {status}: {raw.decode('utf-8', errors='replace')[:500]}"
             )
-        logger.info("brevo_email_sent recipients=%s subject=%r", recipients, message.subject)
+        # Never place recipient addresses in application logs.
+        logger.info("brevo_email_sent recipient_count=%s", len(recipients))

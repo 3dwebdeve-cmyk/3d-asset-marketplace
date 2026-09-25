@@ -22,7 +22,7 @@ class Command(BaseCommand):
             default="local",
             help=(
                 "Gate strictness. staging = test Stripe + public hosts; "
-                "production = live Stripe + SMTP + Sentry required."
+                "production = live Stripe + external email + Sentry required."
             ),
         )
         parser.add_argument(
@@ -42,7 +42,7 @@ class Command(BaseCommand):
             "--require-smtp",
             action="store_true",
             help=(
-                "Treat SMTP + real staff recipients as blocking "
+                "Treat Brevo API/SMTP + real staff recipients as blocking "
                 "(always on for --profile production)."
             ),
         )
