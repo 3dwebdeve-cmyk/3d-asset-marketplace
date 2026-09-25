@@ -55,7 +55,7 @@ def send_text_mail(
     recipients: Sequence[str],
     from_email: str | None = None,
 ) -> None:
-    """Send a plain-text email. Raises on SMTP failure for Celery retries."""
+    """Send a plain-text email. Raises on provider failure for Celery retries."""
     send_mail(
         subject=safe_email_text(subject),
         message=body,

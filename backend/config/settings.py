@@ -538,6 +538,16 @@ LOGGING = {
 # Prefer Brevo HTTP API when BREVO_API_KEY is set (works on hosts that block
 # outbound SMTP, e.g. Render free web services). Otherwise default to console.
 BREVO_API_KEY = config("BREVO_API_KEY", default="").strip()
+BREVO_SENDER_NAME = config("BREVO_SENDER_NAME", default="3D Asset Marketplace")
+BREVO_API_URL = config(
+    "BREVO_API_URL",
+    default="https://api.brevo.com/v3/smtp/email",
+)
+BREVO_API_TIMEOUT_SECONDS = config(
+    "BREVO_API_TIMEOUT_SECONDS",
+    default=15,
+    cast=int,
+)
 _BREVO_BACKEND = "config.brevo_email_backend.BrevoAPIEmailBackend"
 EMAIL_BACKEND = config(
     "EMAIL_BACKEND",

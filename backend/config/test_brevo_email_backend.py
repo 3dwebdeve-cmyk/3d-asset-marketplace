@@ -83,3 +83,21 @@ class BrevoAPIEmailBackendTests(SimpleTestCase):
             with self.assertRaises(BrevoAPIError) as ctx:
                 send_mail("S", "B", None, ["u@example.com"], fail_silently=False)
         self.assertIn("401", str(ctx.exception))
+
+    def test_pdf_attachment_is_sent_as_base64(self) -> None:
+        mock_response = MagicMock(status=201)
+        mock_response.read.return_value = b'{"messageId":"x"}'
+        mock_response.__enter__.return_value = mock_response
+        message = EmailMessage("Receipt", "Attached", to=["user@example.com"])
+        message.attach("invoice.pdf", b"pdf-content", "application/pdf")
+
+        with patch(
+            "config.brevo_email_backend.urlopen", return_value=mock_response
+        ) as mock_urlopen:
+            self.assertEqual(message.send(fail_silently=False), 1)
+
+        payload = json.loads(mock_urlopen.call_args.args[0].data)
+        self.assertEqual(payload["attachment"][0]["name"], "invoice.pdf")
+        self.assertEqual(
+            payload["attachment"][0]["content"], "cGRmLWNvbnRlbnQ="
+        )
