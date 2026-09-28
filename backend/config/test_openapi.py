@@ -7,6 +7,14 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "openapi-tests",
+        }
+    }
+)
 class OpenAPISchemaTests(SimpleTestCase):
     @override_settings(DEBUG=True)
     def test_schema_endpoint_returns_openapi(self) -> None:

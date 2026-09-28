@@ -297,16 +297,28 @@ ADMIN_CONSOLE_ALLOWED_IPS = config(
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
 
-# In-process LocMem cache (no Redis). Rate limits / idempotency are per-process.
+# Postgres-backed cache (no Redis) so throttle counters, login lockouts and
+# idempotency keys are shared by every Gunicorn worker and survive restarts.
+# Table is created by `manage.py createcachetable` (entrypoint.sh).
+# MAX_ENTRIES must stay high: culling a small cache would wipe throttle counters.
 # REDIS_URL kept as an empty stub so older health checks / env files stay harmless.
 REDIS_URL = ""
 REDIS_PASSWORD = ""
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "marketplace-default",
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "marketplace_cache",
+        "OPTIONS": {
+            "MAX_ENTRIES": config("CACHE_MAX_ENTRIES", default=100000, cast=int),
+            "CULL_FREQUENCY": 10,
+        },
     }
 }
+
+LOGIN_LOCKOUT_MAX_FAILURES = config("LOGIN_LOCKOUT_MAX_FAILURES", default=10, cast=int)
+LOGIN_LOCKOUT_WINDOW_SECONDS = config(
+    "LOGIN_LOCKOUT_WINDOW_SECONDS", default=15 * 60, cast=int
+)
 
 # Celery runs in-process (no Redis broker / no worker container).
 # Emails and notifications still send via enqueue_after_commit + eager delay().
@@ -364,16 +376,24 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
+    # Gunicorn is only reachable through Nginx, which sets X-Forwarded-For to
+    # the single Cloudflare-verified client IP.
+    "NUM_PROXIES": 1,
     "DEFAULT_THROTTLE_RATES": {
         "anon": "120/min",
         "user": "300/min",
         "auth_login": "5/min",
         "auth_register": "3/min",
+        "legal_accept": "10/hour",
         "auth_password_reset": "5/hour",
+        "auth_password_reset_email": "3/hour",
         "auth_password_reset_confirm": "10/hour",
+        "auth_change_password": "10/hour",
         "auth_email_verification_resend": "5/hour",
+        "auth_email_verification_resend_email": "3/hour",
         "auth_email_verification_confirm": "10/hour",
         "auth_token_refresh": "20/min",
+        "catalog_search": "30/min",
         "avatar_upload": "10/hour",
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
@@ -387,6 +407,9 @@ REST_FRAMEWORK = {
         "contact_form": "5/hour",
         "category_click": "60/min",
         "payment_checkout": "10/min",
+        "custom_project_write": "30/min",
+        "admin_custom_project_write": "60/min",
+        "admin_coupon_write": "60/min",
     },
 }
 

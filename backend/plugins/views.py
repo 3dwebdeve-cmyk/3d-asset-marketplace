@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminPluginWriteRateThrottle
+from accounts.throttles import AdminPluginWriteRateThrottle, CatalogSearchRateThrottle
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
 from plugins.models import Plugin
@@ -99,6 +99,12 @@ class PluginCategoryDetailView(PublicCatalogCacheMixin, APIView):
 class PluginListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = PluginPagination
+
+    def get_throttles(self) -> list:
+        throttles = super().get_throttles()
+        if normalize_query(self.request.query_params.get("search")):
+            throttles.append(CatalogSearchRateThrottle())
+        return throttles
 
     def get(self, request: Request) -> Response:
         category_id = parse_uuid(

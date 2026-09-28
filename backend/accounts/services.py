@@ -130,7 +130,10 @@ class AuthenticationService:
         user = authenticate(username=email, password=data.password)
 
         if user is None:
-            raise AuthenticationError("Invalid email or password.")
+            raise AuthenticationError(
+                "Invalid email or password.",
+                code="invalid_credentials",
+            )
 
         return user
 
