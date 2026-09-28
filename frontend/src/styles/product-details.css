@@ -82,11 +82,9 @@
   border-radius: 1.15rem;
   overflow: hidden;
   background:
-    radial-gradient(
-      circle at 18% 12%,
+    radial-gradient(circle at 18% 12%,
       color-mix(in srgb, var(--action-color) 10%, transparent),
-      transparent 42%
-    ),
+      transparent 42%),
     var(--bg-card);
   box-shadow: none;
   min-height: 440px;
@@ -745,12 +743,10 @@ button.product-detail-cta__link {
 .product-detail-skeleton__line,
 .product-detail-skeleton__cta {
   border-radius: 0.75rem;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--action-color) 8%, var(--bg-card)) 0%,
-    color-mix(in srgb, var(--action-color) 16%, var(--bg-card)) 50%,
-    color-mix(in srgb, var(--action-color) 8%, var(--bg-card)) 100%
-  );
+  background: linear-gradient(90deg,
+      color-mix(in srgb, var(--action-color) 8%, var(--bg-card)) 0%,
+      color-mix(in srgb, var(--action-color) 16%, var(--bg-card)) 50%,
+      color-mix(in srgb, var(--action-color) 8%, var(--bg-card)) 100%);
   background-size: 200% 100%;
   animation: product-detail-shimmer 1.4s ease-in-out infinite;
 }
@@ -823,6 +819,7 @@ button.product-detail-cta__link {
   0% {
     background-position: 200% 0;
   }
+
   100% {
     background-position: -200% 0;
   }

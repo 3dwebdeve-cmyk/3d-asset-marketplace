@@ -1,46 +1,19 @@
-import { useState } from 'react'
-import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 export function SiteFooter() {
   const year = new Date().getFullYear()
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-
-  const onSubscribe = (event: FormEvent) => {
-    event.preventDefault()
-    const trimmed = email.trim()
-    navigate(trimmed ? `/contact?email=${encodeURIComponent(trimmed)}` : '/contact')
-  }
 
   return (
     <footer className="site-footer">
       <div className="site-footer__inner">
         <div className="site-footer__brand-col">
           <Link className="site-footer__brand" to="/home">
-            3D HUB
+            <img src="/images/AssetHive%203D.svg?v=2" alt="AssetHive 3D" />
           </Link>
           <p className="site-footer__blurb">
             The world&apos;s premium 3D model marketplace for creators, game developers,
             animators, and VFX studios worldwide.
           </p>
-          <form className="site-footer__subscribe" onSubmit={onSubscribe}>
-            <label className="visually-hidden" htmlFor="footer-subscribe-email">
-              Email for updates
-            </label>
-            <input
-              id="footer-subscribe-email"
-              type="email"
-              className="site-footer__subscribe-input"
-              placeholder="Enter your email..."
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-            />
-            <button type="submit" className="site-footer__subscribe-btn">
-              Subscribe
-            </button>
-          </form>
         </div>
 
         <nav className="site-footer__columns" aria-label="Footer">
@@ -104,7 +77,7 @@ export function SiteFooter() {
         </nav>
 
         <div className="site-footer__bottom">
-          <p className="site-footer__copy">© {year} 3D HUB. All rights reserved.</p>
+          <p className="site-footer__copy">© {year} AssetHive 3D. All rights reserved.</p>
         </div>
       </div>
     </footer>

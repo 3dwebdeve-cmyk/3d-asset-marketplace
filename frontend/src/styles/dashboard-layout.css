@@ -356,6 +356,7 @@
 }
 
 @media (max-width: 480px) {
+
   .dashboard-layout__content .dashboard-page,
   .dashboard-layout__content .auth-page {
     padding: 0.75rem;

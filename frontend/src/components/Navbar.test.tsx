@@ -153,8 +153,8 @@ describe('Navbar', () => {
       'href',
       '/custom-projects',
     )
-    expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^signup$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^log\s*in$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^sign\s*up$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^messages$/i })).toHaveAttribute('href', '/contact')
     expect(screen.getByRole('button', { name: /^account$/i })).toBeInTheDocument()
 
@@ -277,6 +277,51 @@ describe('Navbar', () => {
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
     expect(authApi.logoutUser).toHaveBeenCalledWith()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(screen.getByRole('button', { name: /^log\s*in$/i })).toBeInTheDocument()
+  })
+
+  it('renders mobile drawer with LOGIN, SIGN UP, Menu dropdown headings, and Explore dropdown', async () => {
+    const user = userEvent.setup()
+    const origMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('max-width: 900px'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+
+    renderNavbar('/home')
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i })
+    await user.click(menuButton)
+
+    // The drawer should display LOGIN and SIGN UP at the top
     expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^sign up$/i })).toBeInTheDocument()
+
+    // Menu accordion trigger button should be present
+    expect(screen.getByRole('button', { name: /^menu$/i })).toBeInTheDocument()
+
+    // Menu headings should be present
+    expect(screen.getByRole('link', { name: /^home$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^3d model$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^plugin$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^custom project$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^about$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^contact$/i })).toBeInTheDocument()
+
+    // Explore dropdown trigger button should be present
+    const exploreTrigger = screen.getByRole('button', { name: /^explore$/i })
+    expect(exploreTrigger).toBeInTheDocument()
+
+    // Open Explore dropdown
+    await user.click(exploreTrigger)
+    expect(screen.getByRole('button', { name: /^all categories$/i })).toBeInTheDocument()
+
+    window.matchMedia = origMatchMedia
   })
 })

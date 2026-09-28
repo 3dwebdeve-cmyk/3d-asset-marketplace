@@ -3,10 +3,14 @@
    * Brand palette — white / blue / black only.
    * Do not introduce beige, cream, teal, purple, gold, or gray fills.
    */
-  --bg-primary: #ffffff; /* Pure White — page background */
-  --bg-card: #ffffff; /* Pure White — cards/containers */
-  --text-main: #000000; /* Pure Black — headings & body */
-  --action-color: #1d4ed8; /* Brand blue — buttons, links, actions */
+  --bg-primary: #ffffff;
+  /* Pure White — page background */
+  --bg-card: #ffffff;
+  /* Pure White — cards/containers */
+  --text-main: #000000;
+  /* Pure Black — headings & body */
+  --action-color: #1d4ed8;
+  /* Brand blue — buttons, links, actions */
 
   /* Existing app tokens mapped to the palette */
   --bg-main: #ffffff;
@@ -46,12 +50,10 @@
    */
   --site-hero-image: url('/images/site-hero-banner.webp');
   --site-hero-aspect: 4224 / 992;
-  --site-hero-overlay: linear-gradient(
-    105deg,
-    rgba(0, 0, 0, 0.45) 0%,
-    rgba(0, 0, 0, 0.1) 48%,
-    rgba(0, 0, 0, 0) 100%
-  );
+  --site-hero-overlay: linear-gradient(105deg,
+      rgba(0, 0, 0, 0.45) 0%,
+      rgba(0, 0, 0, 0.1) 48%,
+      rgba(0, 0, 0, 0) 100%);
 
   /*
    * Layout breakpoints (use with max-width / min-width media queries):
@@ -155,7 +157,7 @@ textarea {
   background: var(--site-hero-overlay);
 }
 
-.site-hero-banner > *:not(.site-hero-banner__image):not(.site-hero-banner__overlay) {
+.site-hero-banner>*:not(.site-hero-banner__image):not(.site-hero-banner__overlay) {
   grid-area: 1 / 1;
   z-index: 1;
   position: relative;
@@ -922,15 +924,18 @@ h1 {
   letter-spacing: -0.02em;
   margin: 1.25rem 0;
 }
+
 h2 {
   font-size: 24px;
   line-height: 1.25;
   letter-spacing: -0.02em;
   margin: 0 0 8px;
+
   @media (max-width: 1024px) {
     font-size: 20px;
   }
 }
+
 p {
   margin: 0;
 }
