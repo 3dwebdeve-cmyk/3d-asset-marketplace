@@ -80,8 +80,8 @@ class WafReadinessRunTests(SimpleTestCase):
     SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
     CACHES={
         "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "waf-prod-locmem",
+            "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+            "LOCATION": "marketplace_cache",
         }
     },
 )
@@ -109,13 +109,29 @@ class WafReadinessProdLikeTests(SimpleTestCase):
             ssl = next(c for c in result.checks if c.name == "ssl_proxy_header")
             self.assertFalse(ssl.ok)
 
-    def test_locmem_cache_ok_when_debug_false(self) -> None:
+    def test_database_cache_ok_when_debug_false(self) -> None:
         result = run_waf_readiness()
         cache_check = next(
             c for c in result.checks if c.name == "shared_throttle_cache"
         )
         self.assertTrue(cache_check.ok)
-        self.assertIn("LocMem", cache_check.detail)
+        self.assertIn("DatabaseCache", cache_check.detail)
+
+    def test_locmem_cache_fails_when_debug_false(self) -> None:
+        with override_settings(
+            CACHES={
+                "default": {
+                    "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                    "LOCATION": "waf-prod-locmem",
+                }
+            }
+        ):
+            result = run_waf_readiness()
+        cache_check = next(
+            c for c in result.checks if c.name == "shared_throttle_cache"
+        )
+        self.assertFalse(cache_check.ok)
+        self.assertFalse(result.all_ok)
 
     def test_nginx_missing_cf_map_fails(self) -> None:
         fake = Path(__file__).resolve().parent / "_fake_nginx_no_cf.conf"
@@ -130,5 +146,29 @@ class WafReadinessProdLikeTests(SimpleTestCase):
                     c for c in result.checks if c.name == "nginx_cf_client_ip"
                 )
                 self.assertFalse(nginx_check.ok)
+        finally:
+            fake.unlink(missing_ok=True)
+
+    def test_nginx_trusting_raw_cf_header_fails(self) -> None:
+        fake = Path(__file__).resolve().parent / "_fake_nginx_raw_cf.conf"
+        fake.write_text(
+            "map $http_cf_connecting_ip $real_client_ip {\n"
+            "    default $http_cf_connecting_ip;\n"
+            '    ""      $remote_addr;\n'
+            "}\n"
+            "proxy_set_header X-Real-IP $real_client_ip;\n",
+            encoding="utf-8",
+        )
+        try:
+            with patch(
+                "config.waf_readiness._nginx_conf_candidates",
+                return_value=[fake],
+            ):
+                result = run_waf_readiness()
+                nginx_check = next(
+                    c for c in result.checks if c.name == "nginx_cf_client_ip"
+                )
+                self.assertFalse(nginx_check.ok)
+                self.assertIn("set_real_ip_from", nginx_check.detail)
         finally:
             fake.unlink(missing_ok=True)

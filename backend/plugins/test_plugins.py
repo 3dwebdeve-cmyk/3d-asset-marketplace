@@ -23,6 +23,15 @@ from plugins.upload_rules import (
 )
 
 
+# Query-count assertions must not include DatabaseCache throttle bookkeeping.
+LOCMEM_CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "plugin-tests",
+    }
+}
+
+
 def make_image_bytes() -> bytes:
     buffer = io.BytesIO()
     Image.new("RGB", (32, 32), color=(40, 100, 180)).save(buffer, format="PNG")
@@ -61,6 +70,7 @@ class PluginTestMixin:
         self.client.force_authenticate(user=self.admin_user)
 
 
+@override_settings(CACHES=LOCMEM_CACHES)
 class PluginPublicAPITests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -185,6 +195,7 @@ class PluginPublicAPITests(APITestCase):
         self.assertEqual(published_response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+@override_settings(CACHES=LOCMEM_CACHES)
 class PluginAdminAPITests(PluginTestMixin, APITestCase):
     def setUp(self) -> None:
         cache.clear()

@@ -110,12 +110,9 @@ class ProductService:
 
     @classmethod
     def _normalize_search(cls, search: str | None) -> str | None:
-        if not search:
-            return None
-        query = search.strip()
-        if not query:
-            return None
-        return query[:100]
+        from search.services import normalize_query
+
+        return normalize_query(search)
 
     @classmethod
     def list_public(

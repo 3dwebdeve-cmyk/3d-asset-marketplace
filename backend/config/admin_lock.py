@@ -46,24 +46,18 @@ def parse_allowed_networks(raw) -> tuple[ipaddress._BaseNetwork, ...]:
     return tuple(networks)
 
 
-def request_client_ips(request) -> tuple[str, ...]:
-    """Prefer edge-provided visitor IP (Nginx CF map / X-Real-IP), then REMOTE_ADDR."""
+def request_client_ip(request) -> str:
+    """Single trusted client IP: Nginx-set X-Real-IP, else the TCP peer.
+
+    Gunicorn is only reachable through Nginx, which overwrites X-Real-IP with the
+    Cloudflare-verified visitor IP and strips CF-Connecting-IP. Never read
+    CF-Connecting-IP or X-Forwarded-For here: clients can set those directly.
+    """
     meta = getattr(request, "META", {}) or {}
-    candidates: list[str] = []
-    for key in ("HTTP_CF_CONNECTING_IP", "HTTP_X_REAL_IP", "REMOTE_ADDR"):
-        raw = str(meta.get(key) or "").strip()
-        if raw:
-            candidates.append(raw.split(",")[0].strip())
-    forwarded = str(meta.get("HTTP_X_FORWARDED_FOR") or "").strip()
-    if forwarded:
-        candidates.append(forwarded.split(",")[0].strip())
-    seen: set[str] = set()
-    unique: list[str] = []
-    for ip in candidates:
-        if ip and ip not in seen:
-            seen.add(ip)
-            unique.append(ip)
-    return tuple(unique)
+    real_ip = str(meta.get("HTTP_X_REAL_IP") or "").strip()
+    if real_ip:
+        return real_ip
+    return str(meta.get("REMOTE_ADDR") or "").strip()
 
 
 def ip_is_allowed(ip: str, networks: tuple[ipaddress._BaseNetwork, ...]) -> bool:
@@ -77,8 +71,7 @@ def ip_is_allowed(ip: str, networks: tuple[ipaddress._BaseNetwork, ...]) -> bool
 def _client_allowed(request, networks: tuple[ipaddress._BaseNetwork, ...]) -> bool:
     if not networks:
         return True
-    client_ips = request_client_ips(request)
-    return any(ip_is_allowed(ip, networks) for ip in client_ips)
+    return ip_is_allowed(request_client_ip(request), networks)
 
 
 class DjangoAdminLockMiddleware:

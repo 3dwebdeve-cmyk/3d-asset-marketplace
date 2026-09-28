@@ -58,11 +58,11 @@ from rest_framework.throttling import UserRateThrottle
 
 # Soft-removed portal (routes unmounted); keep local throttle stubs for unused views.
 class AdminCustomProjectWriteRateThrottle(UserRateThrottle):
-    scope = "user"
+    scope = "admin_custom_project_write"
 
 
 class CustomProjectWriteRateThrottle(UserRateThrottle):
-    scope = "user"
+    scope = "custom_project_write"
 
 
 def _message_serializer_context(request: Request, *, scope: str) -> dict:

@@ -51,16 +51,35 @@ from accounts.services import (
     PasswordResetService,
     ProfileService,
 )
+from accounts import login_guard
 from accounts.throttles import (
     AvatarUploadRateThrottle,
+    ChangePasswordRateThrottle,
     EmailVerificationConfirmRateThrottle,
+    EmailVerificationResendEmailRateThrottle,
     EmailVerificationResendRateThrottle,
+    LegalAcceptRateThrottle,
     LoginRateThrottle,
     PasswordResetConfirmRateThrottle,
+    PasswordResetEmailRateThrottle,
     PasswordResetRateThrottle,
     RegisterRateThrottle,
     TokenRefreshRateThrottle,
 )
+
+
+def _login_locked_response() -> Response:
+    minutes = max(1, login_guard.retry_after_seconds() // 60)
+    return Response(
+        {
+            "detail": (
+                "Too many failed sign-in attempts for this account. "
+                f"Please try again in {minutes} minutes."
+            ),
+            "code": "throttled",
+        },
+        status=status.HTTP_429_TOO_MANY_REQUESTS,
+    )
 
 
 def _issue_auth_response(user, *, remember: bool) -> Response:
@@ -103,7 +122,7 @@ class LegalAcceptView(APIView):
     """Record acceptance of current legal document versions for the auth user."""
 
     permission_classes = [IsAuthenticated]
-    throttle_classes = [RegisterRateThrottle]
+    throttle_classes = [LegalAcceptRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = LegalAcceptSerializer(data=request.data)
@@ -134,10 +153,16 @@ class LoginView(APIView):
             password=serializer.validated_data["password"],
         )
 
+        if login_guard.is_locked(credentials.email):
+            log_auth_failure(scope="customer_login_locked", email=credentials.email)
+            return _login_locked_response()
+
         try:
             user = AuthenticationService.authenticate_customer(credentials)
         except AuthenticationError as exc:
             log_auth_failure(scope="customer_login", email=credentials.email)
+            if exc.code == "invalid_credentials":
+                login_guard.record_failure(credentials.email)
             if exc.code == "email_not_verified":
                 return Response(
                     {"detail": exc.message, "code": exc.code},
@@ -145,6 +170,7 @@ class LoginView(APIView):
                 )
             raise AuthenticationFailed(exc.message) from exc
 
+        login_guard.reset(credentials.email)
         return _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
@@ -190,12 +216,19 @@ class AdminLoginView(APIView):
             password=serializer.validated_data["password"],
         )
 
+        if login_guard.is_locked(credentials.email):
+            log_auth_failure(scope="admin_login_locked", email=credentials.email)
+            return _login_locked_response()
+
         try:
             user = AuthenticationService.authenticate_administrator(credentials)
         except AuthenticationError as exc:
             log_auth_failure(scope="admin_login", email=credentials.email)
+            if exc.code == "invalid_credentials":
+                login_guard.record_failure(credentials.email)
             raise AuthenticationFailed(exc.message) from exc
 
+        login_guard.reset(credentials.email)
         return _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
@@ -297,6 +330,7 @@ class CookieTokenRefreshView(APIView):
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ChangePasswordRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = ChangePasswordSerializer(
@@ -334,7 +368,7 @@ class ChangePasswordView(APIView):
 
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PasswordResetRateThrottle]
+    throttle_classes = [PasswordResetRateThrottle, PasswordResetEmailRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = PasswordResetRequestSerializer(data=request.data)
@@ -382,7 +416,10 @@ class PasswordResetConfirmView(APIView):
 
 class EmailVerificationResendView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [EmailVerificationResendRateThrottle]
+    throttle_classes = [
+        EmailVerificationResendRateThrottle,
+        EmailVerificationResendEmailRateThrottle,
+    ]
 
     def post(self, request: Request) -> Response:
         serializer = EmailVerificationResendSerializer(data=request.data)

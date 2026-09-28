@@ -28,7 +28,7 @@ from rest_framework.throttling import UserRateThrottle
 class AdminCouponWriteRateThrottle(UserRateThrottle):
     """Soft-removed coupon admin API (routes unmounted)."""
 
-    scope = "user"
+    scope = "admin_coupon_write"
 
 
 def _coupon_error_response(exc: CouponError) -> Response:
