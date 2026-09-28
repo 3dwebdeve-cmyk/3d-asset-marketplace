@@ -136,7 +136,11 @@ def _check_deploy_hygiene(*, run_django_deploy: bool) -> SecuritySmokeCheck:
 
 
 def _check_login_throttle(client: APIClient) -> SecuritySmokeCheck:
-    cache.clear()
+    # Delete only the test client's counter: the cache is shared with live traffic.
+    cache.delete(
+        LoginRateThrottle.cache_format
+        % {"scope": LoginRateThrottle.scope, "ident": "127.0.0.1"}
+    )
     login_url = reverse("accounts:login")
     payload = {
         "email": f"security-smoke-{uuid.uuid4().hex[:8]}@example.com",

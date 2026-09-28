@@ -259,10 +259,12 @@ class PluginService:
         search: str | None,
         ordering: str | None,
     ) -> QuerySet[Plugin]:
+        from search.services import normalize_query
+
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
-        if search and search.strip():
-            query = search.strip()[:100]
+        query = normalize_query(search)
+        if query:
             queryset = queryset.filter(
                 Q(name__icontains=query)
                 | Q(description__icontains=query)

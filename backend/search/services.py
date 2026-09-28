@@ -13,6 +13,8 @@ from plugins.models import Plugin
 from products.models import Product
 
 MAX_QUERY_LENGTH = 100
+# Single-character icontains matches nearly every row and is a cheap DB-load lever.
+MIN_QUERY_LENGTH = 2
 
 
 @dataclass(frozen=True)
@@ -27,7 +29,7 @@ def normalize_query(search: str | None) -> str | None:
     if not search:
         return None
     query = search.strip()
-    if not query:
+    if len(query) < MIN_QUERY_LENGTH:
         return None
     return query[:MAX_QUERY_LENGTH]
 

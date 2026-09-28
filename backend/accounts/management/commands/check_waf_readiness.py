@@ -10,7 +10,7 @@ from config.waf_readiness import WafReadinessError, run_waf_readiness
 class Command(BaseCommand):
     help = (
         "Run Phase H3 WAF readiness: auth throttle rates/classes, shared "
-        "Redis cache when DEBUG=False, Nginx CF-Connecting-IP map, SSL proxy "
+        "DatabaseCache when DEBUG=False, Nginx Cloudflare-only real IP, SSL proxy "
         "header. Does not call Cloudflare. See docs/CLOUDFLARE_WAF_CHECKLIST.md."
     )
 

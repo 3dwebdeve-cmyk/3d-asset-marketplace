@@ -43,6 +43,7 @@ esac
 
 if [ "$skip_migrate" -eq 0 ]; then
   python manage.py migrate --noinput
+  python manage.py createcachetable
   python manage.py collectstatic --noinput
 else
   echo "skipping migrate/collectstatic (SKIP_STARTUP_MIGRATE)"
