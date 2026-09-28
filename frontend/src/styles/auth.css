@@ -546,7 +546,7 @@
   border-radius: 10px;
 }
 
-.auth-google__overlay > div,
+.auth-google__overlay>div,
 .auth-google__overlay iframe {
   width: 100% !important;
   height: 100% !important;
@@ -671,10 +671,7 @@
   z-index: 1100;
   display: grid;
   place-items: center;
-  padding: max(0.75rem, env(safe-area-inset-top, 0px))
-    max(var(--site-gutter), env(safe-area-inset-right, 0px))
-    max(0.75rem, env(safe-area-inset-bottom, 0px))
-    max(var(--site-gutter), env(safe-area-inset-left, 0px));
+  padding: max(0.75rem, env(safe-area-inset-top, 0px)) max(var(--site-gutter), env(safe-area-inset-right, 0px)) max(0.75rem, env(safe-area-inset-bottom, 0px)) max(var(--site-gutter), env(safe-area-inset-left, 0px));
   box-sizing: border-box;
 }
 

@@ -43,6 +43,8 @@ export function Navbar() {
   const [exploreOpen, setExploreOpen] = useState(false)
   const [searchCatOpen, setSearchCatOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [drawerMenuOpen, setDrawerMenuOpen] = useState(true)
+  const [drawerExploreOpen, setDrawerExploreOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null)
   const exploreRef = useRef<HTMLDivElement>(null)
   const searchCatRef = useRef<HTMLDivElement>(null)
@@ -239,14 +241,17 @@ export function Navbar() {
 
   return (
     <header
-      className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}${
-        mobileNavOpen ? ' navbar--mobile-open' : ''
-      }`}
+      className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}${mobileNavOpen ? ' navbar--mobile-open' : ''
+        }`}
     >
       <nav className="navbar__inner" aria-label="Main">
         <div className="navbar__start">
-          <Link className="navbar__brand" to="/home" onClick={closeMobileNav}>
-            3D HUB
+          <Link className="navbar__brand" to="/home" onClick={closeMobileNav} aria-label="AssetHive 3D">
+            <img
+              src="/images/AssetHive%203D.svg"
+              alt="AssetHive 3D"
+              className="navbar__brand-logo"
+            />
           </Link>
 
           {isMarketplaceHome && !isCompactNav ? (
@@ -349,9 +354,8 @@ export function Navbar() {
                       <button
                         type="button"
                         role="menuitem"
-                        className={`navbar__explore-item${
-                          categoryId === category.id ? ' navbar__explore-item--active' : ''
-                        }`}
+                        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''
+                          }`}
                         key={category.id}
                         onClick={() => {
                           setCategoryId(category.id)
@@ -430,180 +434,180 @@ export function Navbar() {
             </button>
           </div>
         ) : (
-        <div className="navbar__actions navbar__actions--desktop">
-          <div className="navbar__primary-links">
-            <Link
-              className="navbar__link"
-              to="/home"
-              aria-current={isHomeHub ? 'page' : undefined}
+          <div className="navbar__actions navbar__actions--desktop">
+            <div className="navbar__primary-links">
+              <Link
+                className="navbar__link"
+                to="/home"
+                aria-current={isHomeHub ? 'page' : undefined}
+              >
+                Home
+              </Link>
+              <Link className="navbar__link" to="/3d-models">
+                3D Model
+              </Link>
+              <Link className="navbar__link" to="/plugins">
+                Plugins
+              </Link>
+              <Link className="navbar__link" to="/custom-projects">
+                Custom Projects
+              </Link>
+              <Link className="navbar__link" to="/about">
+                About
+              </Link>
+              <Link className="navbar__link" to="/contact">
+                Contact
+              </Link>
+            </div>
+
+            <div
+              className={`navbar__account-actions${!isAuthenticated ? ' navbar__account-actions--guest' : ''
+                }`}
             >
-              Home
-            </Link>
-            <Link className="navbar__link" to="/3d-models">
-              3D Model
-            </Link>
-            <Link className="navbar__link" to="/plugins">
-              Plugins
-            </Link>
-            <Link className="navbar__link" to="/custom-projects">
-              Custom Projects
-            </Link>
-            <Link className="navbar__link" to="/about">
-              About
-            </Link>
-            <Link className="navbar__link" to="/contact">
-              Contact
-            </Link>
-          </div>
+              {isAuthenticated ? (
+                <>
+                  {renderCartButton('navbar__cart-button--desktop')}
 
-          <div
-            className={`navbar__account-actions${
-              !isAuthenticated ? ' navbar__account-actions--guest' : ''
-            }`}
-          >
-            {isAuthenticated ? (
-              <>
-                {renderCartButton('navbar__cart-button--desktop')}
-
-                <div className="navbar__account" ref={accountRef}>
-                  <button
-                    type="button"
-                    className="navbar__account-trigger"
-                    aria-label={`Hi, ${firstName}`}
-                    aria-expanded={accountOpen}
-                    aria-haspopup="menu"
-                    onClick={() => setAccountOpen((open) => !open)}
-                  >
-                    {user?.avatar ? (
-                      <img
-                        className="navbar__account-avatar"
-                        src={user.avatar}
-                        alt=""
-                        width={26}
-                        height={26}
-                      />
-                    ) : (
-                      <span className="navbar__account-avatar" aria-hidden="true" />
-                    )}
-                    <span>Hi, {firstName}</span>
-                    <span className="navbar__account-caret" aria-hidden="true">
-                      ▾
-                    </span>
-                  </button>
-                  {accountOpen ? (
-                    <div className="navbar__account-menu" role="menu">
-                      {isAdministrator(user?.role) ? (
-                        <>
-                          <Link
-                            role="menuitem"
-                            className="navbar__account-item"
-                            to="/console"
-                            onClick={() => setAccountOpen(false)}
-                          >
-                            Admin
-                          </Link>
-                          <Link
-                            role="menuitem"
-                            className="navbar__account-item"
-                            to="/profile"
-                            onClick={() => setAccountOpen(false)}
-                          >
-                            Profile
-                          </Link>
-                        </>
+                  <div className="navbar__account" ref={accountRef}>
+                    <button
+                      type="button"
+                      className="navbar__account-trigger"
+                      aria-label={`Hi, ${firstName}`}
+                      aria-expanded={accountOpen}
+                      aria-haspopup="menu"
+                      onClick={() => setAccountOpen((open) => !open)}
+                    >
+                      {user?.avatar ? (
+                        <img
+                          className="navbar__account-avatar"
+                          src={user.avatar}
+                          alt=""
+                          width={26}
+                          height={26}
+                        />
                       ) : (
-                        <>
-                          <Link
-                            role="menuitem"
-                            className="navbar__account-item"
-                            to="/dashboard"
-                            onClick={() => setAccountOpen(false)}
-                          >
-                            Dashboard
-                          </Link>
-                          <Link
-                            role="menuitem"
-                            className="navbar__account-item"
-                            to="/profile"
-                            onClick={() => setAccountOpen(false)}
-                          >
-                            Profile
-                          </Link>
-                        </>
+                        <span className="navbar__account-avatar" aria-hidden="true" />
                       )}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="navbar__account-item navbar__account-item--button"
-                        disabled={logoutMutation.isPending}
-                        onClick={() => logoutMutation.mutate()}
-                      >
-                        Sign out
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="navbar__guest-auth-pill">
-                  <AuthEntryButton
-                    mode="login"
-                    returnTo={location.pathname}
-                    className="navbar__link"
-                    data-testid="customer-login-trigger"
-                  >
-                    {isMarketplaceHome ? 'Login' : 'Sign in'}
-                  </AuthEntryButton>
-                  <AuthEntryButton
-                    mode="register"
-                    returnTo={location.pathname}
-                    className="navbar__link navbar__link--primary"
-                  >
-                    {isMarketplaceHome ? 'Signup' : 'Register'}
-                  </AuthEntryButton>
-                </div>
-                {isMarketplaceHome ? (
-                  <>
-                    <Link className="navbar__home-utility" to="/contact" aria-label="Messages">
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="14"
-                        height="14"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        aria-hidden="true"
-                      >
-                        <rect x="3" y="5" width="18" height="14" rx="2" />
-                        <path d="m4 7 8 6 8-6" />
-                      </svg>
-                    </Link>
+                      <span>Hi, {firstName}</span>
+                      <span className="navbar__account-caret" aria-hidden="true">
+                        ▾
+                      </span>
+                    </button>
+                    {accountOpen ? (
+                      <div className="navbar__account-menu" role="menu">
+                        {isAdministrator(user?.role) ? (
+                          <>
+                            <Link
+                              role="menuitem"
+                              className="navbar__account-item"
+                              to="/console"
+                              onClick={() => setAccountOpen(false)}
+                            >
+                              Admin
+                            </Link>
+                            <Link
+                              role="menuitem"
+                              className="navbar__account-item"
+                              to="/profile"
+                              onClick={() => setAccountOpen(false)}
+                            >
+                              Profile
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <Link
+                              role="menuitem"
+                              className="navbar__account-item"
+                              to="/dashboard"
+                              onClick={() => setAccountOpen(false)}
+                            >
+                              Dashboard
+                            </Link>
+                            <Link
+                              role="menuitem"
+                              className="navbar__account-item"
+                              to="/profile"
+                              onClick={() => setAccountOpen(false)}
+                            >
+                              Profile
+                            </Link>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="navbar__account-item navbar__account-item--button"
+                          disabled={logoutMutation.isPending}
+                          onClick={() => logoutMutation.mutate()}
+                        >
+                          Sign out
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="navbar__guest-auth-pill">
                     <AuthEntryButton
                       mode="login"
                       returnTo={location.pathname}
-                      className="navbar__home-utility"
-                      aria-label="Account"
+                      className="navbar__link"
+                      data-testid="customer-login-trigger"
                     >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width="14"
-                        height="14"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        aria-hidden="true"
-                      >
-                        <circle cx="12" cy="8" r="3" />
-                        <path d="M5.5 20c.8-4 3-6 6.5-6s5.7 2 6.5 6" />
-                      </svg>
+                      {isMarketplaceHome ? 'Log in' : 'Sign in'}
                     </AuthEntryButton>
-                  </>
-                ) : null}
-              </>
-            )}
+                    <span className="navbar__guest-auth-divider" aria-hidden="true" />
+                    <AuthEntryButton
+                      mode="register"
+                      returnTo={location.pathname}
+                      className="navbar__link navbar__link--primary"
+                    >
+                      {isMarketplaceHome ? 'Sign up' : 'Register'}
+                    </AuthEntryButton>
+                  </div>
+                  {isMarketplaceHome ? (
+                    <>
+                      <Link className="navbar__home-utility" to="/contact" aria-label="Messages">
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          aria-hidden="true"
+                        >
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <path d="m4 7 8 6 8-6" />
+                        </svg>
+                      </Link>
+                      <AuthEntryButton
+                        mode="login"
+                        returnTo={location.pathname}
+                        className="navbar__home-utility"
+                        aria-label="Account"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="8" r="3" />
+                          <path d="M5.5 20c.8-4 3-6 6.5-6s5.7 2 6.5 6" />
+                        </svg>
+                      </AuthEntryButton>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </div>
           </div>
-        </div>
         )}
       </nav>
 
@@ -617,140 +621,210 @@ export function Navbar() {
       ) : null}
 
       {isCompactNav ? (
-      <div
-        id={mobileNavId}
-        className={`navbar__drawer${mobileNavOpen ? ' navbar__drawer--open' : ''}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Site menu"
-        hidden={!mobileNavOpen}
-      >
-        <div className="navbar__drawer-header">
-          <p className="navbar__drawer-title">Menu</p>
-          <button
-            type="button"
-            className="navbar__drawer-close"
-            aria-label="Close menu"
-            onClick={closeMobileNav}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
-
-        <nav className="navbar__drawer-nav" aria-label="Primary">
-          <Link className="navbar__drawer-link" to="/home" onClick={closeMobileNav}>
-            Home
-          </Link>
-          <Link className="navbar__drawer-link" to="/3d-models" onClick={closeMobileNav}>
-            3D Model
-          </Link>
-          <Link className="navbar__drawer-link" to="/plugins" onClick={closeMobileNav}>
-            Plugins
-          </Link>
-          <Link className="navbar__drawer-link" to="/custom-projects" onClick={closeMobileNav}>
-            Custom Projects
-          </Link>
-          <Link className="navbar__drawer-link" to="/about" onClick={closeMobileNav}>
-            About
-          </Link>
-          <Link className="navbar__drawer-link" to="/contact" onClick={closeMobileNav}>
-            Contact
-          </Link>
-        </nav>
-
-        <div className="navbar__drawer-section">
-          <p className="navbar__drawer-section-title">Explore</p>
-          <button
-            type="button"
-            className="navbar__drawer-link navbar__drawer-link--button"
-            onClick={() => {
-              closeMobileNav()
-              navigate(isPluginsRoute ? '/plugins' : '/3d-models')
-            }}
-          >
-            <AllCategoriesIcon className="navbar__explore-icon" />
-            <span>All Categories</span>
-          </button>
-          {exploreCategories.map((category) => {
-            const Icon = getCategoryIcon(category.slug)
-            return (
-              <button
-                type="button"
-                className="navbar__drawer-link navbar__drawer-link--button"
-                key={category.id}
-                onClick={() => {
-                  closeMobileNav()
-                  if (!isPluginsRoute) {
-                    trackCategoryClick(category.id)
-                    navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
-                  } else {
-                    navigate(`/plugins?category=${encodeURIComponent(category.id)}`)
-                  }
-                }}
-              >
-                {'image' in category && category.image ? (
-                  <img className="navbar__explore-image" src={category.image} alt="" />
-                ) : (
-                  <Icon className="navbar__explore-icon" />
-                )}
-                <span>{category.name}</span>
-              </button>
-            )
-          })}
-          {(isPluginsRoute ? pluginCategoriesQuery.isLoading : productCategoriesQuery.isLoading) ? (
-            <p className="navbar__explore-status">Loading categories…</p>
-          ) : null}
-        </div>
-
-        <div className="navbar__drawer-section navbar__drawer-section--account">
-          {isAuthenticated ? (
-            <>
-              {isAdministrator(user?.role) ? (
-                <Link className="navbar__drawer-link" to="/console" onClick={closeMobileNav}>
-                  Admin
-                </Link>
-              ) : (
-                <Link className="navbar__drawer-link" to="/dashboard" onClick={closeMobileNav}>
-                  Dashboard
-                </Link>
-              )}
-              <Link className="navbar__drawer-link" to="/profile" onClick={closeMobileNav}>
-                Profile
+        <div
+          id={mobileNavId}
+          className={`navbar__drawer${mobileNavOpen ? ' navbar__drawer--open' : ''}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Site menu"
+          hidden={!mobileNavOpen}
+        >
+          {/* Top Header & Auth Section (matches Image 2) */}
+          <div className="navbar__drawer-top">
+            <div className="navbar__drawer-top-header">
+              <Link to="/home" onClick={closeMobileNav} className="navbar__drawer-brand-link">
+                <img
+                  src="/images/AssetHive%203D.svg"
+                  alt="AssetHive 3D"
+                  className="navbar__drawer-brand-logo"
+                />
               </Link>
               <button
                 type="button"
-                className="navbar__drawer-link navbar__drawer-link--button"
-                disabled={logoutMutation.isPending}
-                onClick={() => logoutMutation.mutate()}
+                className="navbar__drawer-close"
+                aria-label="Close menu"
+                onClick={closeMobileNav}
               >
-                {logoutMutation.isPending ? 'Signing out…' : 'Sign out'}
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
               </button>
-            </>
-          ) : (
-            <div className="navbar__drawer-auth">
-              <AuthEntryButton
-                mode="login"
-                returnTo={location.pathname}
-                className="navbar__drawer-link"
-                data-testid="customer-login-trigger"
-                onClick={closeMobileNav}
-              >
-                Sign in
-              </AuthEntryButton>
-              <AuthEntryButton
-                mode="register"
-                returnTo={location.pathname}
-                className="navbar__drawer-link navbar__link--primary"
-                onClick={closeMobileNav}
-              >
-                Register
-              </AuthEntryButton>
             </div>
-          )}
+
+            {isAuthenticated ? (
+              <div className="navbar__drawer-user">
+                <div className="navbar__drawer-user-info">
+                  {user?.avatar ? (
+                    <img className="navbar__account-avatar" src={user.avatar} alt="" />
+                  ) : (
+                    <span className="navbar__account-avatar" />
+                  )}
+                  <span className="navbar__drawer-user-name">Hi, {firstName}</span>
+                </div>
+                <div className="navbar__drawer-auth-buttons">
+                  {isAdministrator(user?.role) ? (
+                    <Link className="navbar__drawer-btn navbar__drawer-btn--subtle" to="/console" onClick={closeMobileNav}>
+                      ADMIN
+                    </Link>
+                  ) : (
+                    <Link className="navbar__drawer-btn navbar__drawer-btn--subtle" to="/dashboard" onClick={closeMobileNav}>
+                      DASHBOARD
+                    </Link>
+                  )}
+                  <Link className="navbar__drawer-btn navbar__drawer-btn--subtle" to="/profile" onClick={closeMobileNav}>
+                    PROFILE
+                  </Link>
+                  <button
+                    type="button"
+                    className="navbar__drawer-btn navbar__drawer-btn--signup"
+                    disabled={logoutMutation.isPending}
+                    onClick={() => {
+                      closeMobileNav()
+                      logoutMutation.mutate()
+                    }}
+                  >
+                    {logoutMutation.isPending ? 'SIGNING OUT…' : 'SIGN OUT'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="navbar__drawer-auth-buttons">
+                <AuthEntryButton
+                  mode="login"
+                  returnTo={location.pathname}
+                  className="navbar__drawer-btn navbar__drawer-btn--login"
+                  data-testid="mobile-drawer-login-btn"
+                  onClick={closeMobileNav}
+                >
+                  LOGIN
+                </AuthEntryButton>
+                <AuthEntryButton
+                  mode="register"
+                  returnTo={location.pathname}
+                  className="navbar__drawer-btn navbar__drawer-btn--signup"
+                  data-testid="mobile-drawer-signup-btn"
+                  onClick={closeMobileNav}
+                >
+                  SIGN UP
+                </AuthEntryButton>
+              </div>
+            )}
+          </div>
+
+          {/* Drawer Menu & Explore Accordions */}
+          <div className="navbar__drawer-body">
+            {/* Menu Dropdown Accordion */}
+            <div className={`navbar__drawer-accordion${drawerMenuOpen ? ' navbar__drawer-accordion--open' : ''}`}>
+              <button
+                type="button"
+                className="navbar__drawer-accordion-trigger"
+                aria-expanded={drawerMenuOpen}
+                onClick={() => setDrawerMenuOpen((open) => !open)}
+              >
+                <span>MENU</span>
+                <svg
+                  className={`navbar__drawer-chevron${drawerMenuOpen ? ' navbar__drawer-chevron--open' : ''}`}
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M7 10l5 5 5-5z" />
+                </svg>
+              </button>
+              {drawerMenuOpen ? (
+                <nav className="navbar__drawer-subnav" aria-label="Menu links">
+                  <Link className="navbar__drawer-sublink" to="/home" onClick={closeMobileNav}>
+                    Home
+                  </Link>
+                  <Link className="navbar__drawer-sublink" to="/3d-models" onClick={closeMobileNav}>
+                    3D model
+                  </Link>
+                  <Link className="navbar__drawer-sublink" to="/plugins" onClick={closeMobileNav}>
+                    Plugin
+                  </Link>
+                  <Link className="navbar__drawer-sublink" to="/custom-projects" onClick={closeMobileNav}>
+                    Custom project
+                  </Link>
+                  <div className="navbar__drawer-subdivider" role="separator" />
+                  <Link className="navbar__drawer-sublink" to="/about" onClick={closeMobileNav}>
+                    About
+                  </Link>
+                  <Link className="navbar__drawer-sublink" to="/contact" onClick={closeMobileNav}>
+                    Contact
+                  </Link>
+                </nav>
+              ) : null}
+            </div>
+
+            {/* Explore Dropdown Accordion */}
+            <div className={`navbar__drawer-accordion${drawerExploreOpen ? ' navbar__drawer-accordion--open' : ''}`}>
+              <button
+                type="button"
+                className="navbar__drawer-accordion-trigger"
+                aria-expanded={drawerExploreOpen}
+                onClick={() => setDrawerExploreOpen((open) => !open)}
+              >
+                <span>EXPLORE</span>
+                <svg
+                  className={`navbar__drawer-chevron${drawerExploreOpen ? ' navbar__drawer-chevron--open' : ''}`}
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M7 10l5 5 5-5z" />
+                </svg>
+              </button>
+              {drawerExploreOpen ? (
+                <div className="navbar__drawer-subnav navbar__drawer-subnav--explore">
+                  <button
+                    type="button"
+                    className="navbar__drawer-sublink navbar__drawer-sublink--button"
+                    onClick={() => {
+                      closeMobileNav()
+                      navigate(isPluginsRoute ? '/plugins' : '/3d-models')
+                    }}
+                  >
+                    <AllCategoriesIcon className="navbar__drawer-cat-icon" />
+                    <span>All Categories</span>
+                  </button>
+                  {exploreCategories.map((category) => {
+                    const Icon = getCategoryIcon(category.slug)
+                    return (
+                      <button
+                        type="button"
+                        className="navbar__drawer-sublink navbar__drawer-sublink--button"
+                        key={category.id}
+                        onClick={() => {
+                          closeMobileNav()
+                          if (!isPluginsRoute) {
+                            trackCategoryClick(category.id)
+                            navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
+                          } else {
+                            navigate(`/plugins?category=${encodeURIComponent(category.id)}`)
+                          }
+                        }}
+                      >
+                        {'image' in category && category.image ? (
+                          <img className="navbar__drawer-cat-image" src={category.image} alt="" />
+                        ) : (
+                          <Icon className="navbar__drawer-cat-icon" />
+                        )}
+                        <span>{category.name}</span>
+                      </button>
+                    )
+                  })}
+                  {(isPluginsRoute ? pluginCategoriesQuery.isLoading : productCategoriesQuery.isLoading) ? (
+                    <p className="navbar__drawer-status">Loading categories…</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
-      </div>
       ) : null}
     </header>
   )

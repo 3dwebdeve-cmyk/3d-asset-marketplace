@@ -152,15 +152,31 @@ function useAutoScrollRail(
     let paused = false
     let frame = 0
     let last = performance.now()
-    const speedPxPerSec = 36
+    const speedPxPerSec = 40
 
     const tick = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05)
       last = now
       if (!paused && rail.scrollWidth > rail.clientWidth + 1) {
-        const maxScroll = rail.scrollWidth - rail.clientWidth
-        const next = rail.scrollLeft + speedPxPerSec * dt
-        rail.scrollLeft = next >= maxScroll - 0.5 ? 0 : next
+        const firstDup = rail.querySelector('[data-cycle="1"]') as HTMLElement | null
+        const firstChild = rail.firstElementChild as HTMLElement | null
+        if (firstDup && firstChild) {
+          const cycleWidth = firstDup.offsetLeft - firstChild.offsetLeft
+          if (cycleWidth > 0) {
+            rail.scrollLeft += speedPxPerSec * dt
+            if (rail.scrollLeft >= cycleWidth) {
+              rail.scrollLeft -= cycleWidth
+            }
+          } else {
+            const maxScroll = rail.scrollWidth - rail.clientWidth
+            const next = rail.scrollLeft + speedPxPerSec * dt
+            rail.scrollLeft = next >= maxScroll - 0.5 ? 0 : next
+          }
+        } else {
+          const maxScroll = rail.scrollWidth - rail.clientWidth
+          const next = rail.scrollLeft + speedPxPerSec * dt
+          rail.scrollLeft = next >= maxScroll - 0.5 ? 0 : next
+        }
       }
       frame = requestAnimationFrame(tick)
     }
@@ -197,6 +213,25 @@ function useAutoScrollRail(
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [railRef, enabled])
+}
+
+function getRailDisplayItems<T extends { id: string }>(items: T[]) {
+  if (items.length <= 1) {
+    return items.map((item) => ({ item, cycle: 0, key: item.id }))
+  }
+  const minTarget = 8
+  const repetitions = Math.max(2, Math.ceil(minTarget / items.length))
+  const list: { item: T; cycle: number; key: string }[] = []
+  for (let cycle = 0; cycle < repetitions; cycle++) {
+    for (const item of items) {
+      list.push({
+        item,
+        cycle,
+        key: cycle === 0 ? item.id : `${item.id}-cycle-${cycle}`,
+      })
+    }
+  }
+  return list
 }
 
 const OFFER_SERVICES = [
@@ -504,8 +539,13 @@ export function ProductsBrowsePage() {
               ref={productsRailRef}
               aria-label="Shop 3D Models"
             >
-              {filteredProducts.map((product) => (
-                <div key={product.id} className="browse-rail__item">
+              {getRailDisplayItems(filteredProducts).map(({ item: product, cycle, key }) => (
+                <div
+                  key={key}
+                  className="browse-rail__item"
+                  data-cycle={cycle}
+                  aria-hidden={cycle > 0 ? true : undefined}
+                >
                   <ProductCard product={product} />
                 </div>
               ))}
@@ -541,8 +581,13 @@ export function ProductsBrowsePage() {
               ref={pluginsRailRef}
               aria-label="Explore Plugins"
             >
-              {plugins.map((plugin) => (
-                <div key={plugin.id} className="browse-rail__item">
+              {getRailDisplayItems(plugins).map(({ item: plugin, cycle, key }) => (
+                <div
+                  key={key}
+                  className="browse-rail__item"
+                  data-cycle={cycle}
+                  aria-hidden={cycle > 0 ? true : undefined}
+                >
                   <PluginCard plugin={plugin} />
                 </div>
               ))}

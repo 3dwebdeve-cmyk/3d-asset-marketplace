@@ -19,7 +19,7 @@
   color: var(--hub-text);
 }
 
-.product-hub-detail > * {
+.product-hub-detail>* {
   width: 100%;
   max-width: var(--site-max-width);
   margin-left: auto;
@@ -104,6 +104,7 @@
 }
 
 @media (min-width: 960px) {
+
   .product-hub-detail.product-detail-page .product-hub-detail__layout,
   .product-hub-detail .product-hub-detail__layout.product-detail-layout,
   .product-hub-detail .product-detail-layout.product-hub-detail__layout {

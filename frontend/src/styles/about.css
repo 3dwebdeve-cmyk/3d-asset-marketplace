@@ -210,7 +210,7 @@
   color: var(--action-color);
 }
 
-.about-who__copy p + p {
+.about-who__copy p+p {
   margin-top: 0.9rem;
 }
 
@@ -266,13 +266,11 @@
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    rgba(5, 10, 22, 0.88) 0%,
-    rgba(5, 10, 22, 0.62) 38%,
-    rgba(5, 10, 22, 0.22) 62%,
-    rgba(5, 10, 22, 0.08) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(5, 10, 22, 0.88) 0%,
+      rgba(5, 10, 22, 0.62) 38%,
+      rgba(5, 10, 22, 0.22) 62%,
+      rgba(5, 10, 22, 0.08) 100%);
 }
 
 .about-mission .about-eyebrow--accent {
@@ -301,7 +299,7 @@
   color: #fff;
 }
 
-.about-mission__copy > p {
+.about-mission__copy>p {
   max-width: 42rem;
   font-size: clamp(0.9rem, 1.35vw, 1rem);
   line-height: 1.65;
@@ -510,7 +508,7 @@
   box-shadow: none;
 }
 
-.about-trust__visual > img {
+.about-trust__visual>img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -535,7 +533,7 @@
   color: var(--text-main);
 }
 
-.about-trust__copy > p {
+.about-trust__copy>p {
   max-width: 36rem;
   font-size: 0.98rem;
   color: var(--text-secondary);
@@ -663,6 +661,7 @@
 }
 
 @media (max-width: 980px) {
+
   .about-who__grid,
   .about-mission__grid,
   .about-offer__grid {
@@ -699,6 +698,7 @@
 }
 
 @media (max-width: 720px) {
+
   .about-mission__points,
   .about-trust__steps {
     grid-template-columns: 1fr;
