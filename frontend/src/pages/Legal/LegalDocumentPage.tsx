@@ -112,8 +112,9 @@ function TermsBody() {
       <section>
         <h2>5. Custom projects</h2>
         <p>
-          Custom project quotations, messaging, and deliverables are handled in your project portal.
-          Accepting a quotation and paying for it creates a binding purchase for that scoped work.
+          Custom project enquiries, quotations, communication, and delivery arrangements are
+          handled directly with our team by email. Any agreed scope, pricing, payment terms, and
+          delivery terms will be provided in that correspondence.
         </p>
       </section>
       <section>
