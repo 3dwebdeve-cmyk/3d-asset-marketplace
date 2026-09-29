@@ -1,5 +1,0 @@
-Your custom project deliverables are ready.
-
-Project: {{ project_title }}
-Open the project:
-{{ project_link }}

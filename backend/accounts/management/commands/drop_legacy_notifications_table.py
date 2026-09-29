@@ -42,7 +42,7 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(
                     "Table exists. Re-run with --confirm after backup to DROP it. "
-                    "Email-only alerts remain (orders/custom_projects/contact)."
+                    "Email-only alerts remain (orders/contact)."
                 )
             )
             return

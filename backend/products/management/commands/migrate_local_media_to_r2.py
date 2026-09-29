@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = (
         "Copy leftover local MEDIA_ROOT files to Cloudflare R2 and rewrite "
         "public thumbnail/preview/gallery/avatar URLs. Also copies private "
-        "catalog packages and custom-project files/messages/deliveries. "
+        "catalog packages. "
         "Requires R2_* env vars. Use --dry-run to report without writing."
     )
 

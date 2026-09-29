@@ -22,7 +22,7 @@ class IsAdministrator(BasePermission):
 class IsEmailVerified(BasePermission):
     """Require an authenticated user whose email address is verified.
 
-    Used as defense-in-depth on checkout and custom-project write endpoints.
+    Used as defense-in-depth on checkout and other verified-account endpoints.
     Customer login already rejects unverified accounts.
     """
 
