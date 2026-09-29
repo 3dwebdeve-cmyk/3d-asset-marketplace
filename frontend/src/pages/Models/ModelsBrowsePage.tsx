@@ -1,8 +1,8 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
-import { listPublicProducts } from '../../api/productsApi'
+import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
 import { SiteHeroImage } from '../../components/SiteHeroImage'
@@ -11,19 +11,21 @@ import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { ProductCard } from '../Products/ProductCard'
 import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
+import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
 
-const SOFTWARE_CHIPS = ['Blender', 'Maya', '3ds Max', 'Cinema 4D'] as const
-
-type TraitKey = 'rigged' | 'animated' | 'pbr_ready' | 'game_ready'
-
-const TRAIT_CHIPS: { key: TraitKey; label: string }[] = [
-  { key: 'rigged', label: 'Rigged' },
-  { key: 'animated', label: 'Animated' },
-  { key: 'pbr_ready', label: 'PBR' },
-  { key: 'game_ready', label: 'Game-ready' },
+const FORMAT_OPTIONS = [
+  { value: 'blend', label: 'Blender (.blend)' },
+  { value: 'fbx,obj', label: 'FBX/OBJ' },
+  { value: 'uasset', label: 'Unreal Asset' },
+  { value: 'unitypackage', label: 'Unity Package' },
 ]
+const LICENSE_OPTIONS = [
+  { value: 'standard', label: 'Standard License' },
+  { value: 'extended', label: 'Extended License' },
+]
+type TraitKey = 'rigged' | 'animated' | 'pbr_ready' | 'game_ready'
 
 const SORT_OPTIONS = [
   '-created_at',
@@ -46,6 +48,7 @@ function readTraitFromUrl(searchParams: URLSearchParams, key: TraitKey): boolean
 }
 
 export function ModelsBrowsePage() {
+  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
@@ -98,15 +101,21 @@ export function ModelsBrowsePage() {
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
 
-  const setSearchInUrl = (value: string) => {
-    const nextParams = new URLSearchParams(searchParams)
-    const trimmed = value.trim().slice(0, 100)
-    if (trimmed) {
-      nextParams.set('search', trimmed)
-    } else {
-      nextParams.delete('search')
-    }
-    setSearchParams(nextParams, { replace: true })
+  const formats = searchParams.get('formats')?.split(',').filter(Boolean) ?? []
+  const licenses = searchParams.get('licenses')?.split(',').filter(Boolean) ?? []
+  const minPrice = Math.max(0, Math.min(200, Number(searchParams.get('min_price')) || 0))
+  const maxPrice = Math.max(minPrice, Math.min(200, Number(searchParams.get('max_price') ?? 200) || 0))
+  const updateFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setCurrentPage(1)
+    setSearchParams(next, { replace: true })
+  }
+  const toggleFilter = (key: string, current: string[], value: string) => {
+    const values = value.split(',')
+    const active = values.every((item) => current.includes(item))
+    updateFilter(key, (active ? current.filter((item) => !values.includes(item)) : [...new Set([...current, ...values])]).join(','))
   }
 
   const handleSortChange = (sort: SortOption) => {
@@ -118,26 +127,6 @@ export function ModelsBrowsePage() {
       nextParams.delete('ordering')
     } else {
       nextParams.set('ordering', sort)
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
-
-  const handleSoftwareChip = (term: string) => {
-    setSearchInput(term)
-    setCurrentPage(1)
-    setSearchInUrl(term)
-  }
-
-  const handleTraitToggle = (key: TraitKey) => {
-    const nextValue = !traits[key]
-    setTraits((prev) => ({ ...prev, [key]: nextValue }))
-    setCurrentPage(1)
-
-    const nextParams = new URLSearchParams(searchParams)
-    if (nextValue) {
-      nextParams.set(key, '1')
-    } else {
-      nextParams.delete(key)
     }
     setSearchParams(nextParams, { replace: true })
   }
@@ -162,6 +151,7 @@ export function ModelsBrowsePage() {
     nextParams.delete('pbr_ready')
     nextParams.delete('game_ready')
     nextParams.delete('ordering')
+    for (const key of ['formats', 'licenses', 'min_price', 'max_price']) nextParams.delete(key)
     setSearchParams(nextParams, { replace: true })
   }
 
@@ -179,7 +169,6 @@ export function ModelsBrowsePage() {
   } = useQuery({
     queryKey: [
       'public-models-browse',
-      currentPage,
       selectedCategoryId,
       debouncedSearch,
       sortOrdering,
@@ -189,9 +178,7 @@ export function ModelsBrowsePage() {
       traits.game_ready,
     ],
     queryFn: () =>
-      listPublicProducts({
-        page: currentPage,
-        page_size: PAGE_SIZE,
+      loadModelCatalog({
         category_id: selectedCategoryId || undefined,
         search: debouncedSearch || undefined,
         ordering: sortOrdering,
@@ -199,19 +186,37 @@ export function ModelsBrowsePage() {
         animated: traits.animated || undefined,
         pbr_ready: traits.pbr_ready || undefined,
         game_ready: traits.game_ready || undefined,
-      }),
+      }, queryClient),
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })
 
-  const products = productsData?.results ?? []
-  const totalCount = productsData?.count ?? 0
+  const priceMatches = (product: NonNullable<typeof productsData>[number]) => {
+    const price = Number(product.discount_price ?? product.price)
+    return price >= minPrice && (maxPrice === 200 || price <= maxPrice)
+  }
+  const priceFiltered = (productsData ?? []).filter(priceMatches)
+  const facets = {
+    formats: Object.fromEntries(FORMAT_OPTIONS.map(({ value }) => [value,
+      priceFiltered.filter((product) => value.split(',').some((format) => product.formats.includes(format))).length,
+    ])),
+    licenses: Object.fromEntries(LICENSE_OPTIONS.map(({ value }) => [value,
+      priceFiltered.filter((product) => product.license_type === value).length,
+    ])),
+  }
+  const filteredProducts = priceFiltered.filter((product) =>
+    (formats.length === 0 || formats.some((format) => product.formats.includes(format))) &&
+    (licenses.length === 0 || licenses.includes(product.license_type)),
+  )
+  const totalCount = filteredProducts.length
+  const products = filteredProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
   const hasActiveTrait = Object.values(traits).some(Boolean)
   const isFiltered =
     Boolean(searchInput) ||
     Boolean(selectedCategoryId) ||
     sortOrdering !== '-created_at' ||
-    hasActiveTrait
+    hasActiveTrait || formats.length > 0 || licenses.length > 0 || minPrice > 0 || maxPrice < 200
 
   const selectedCategoryName = useMemo(() => {
     if (!selectedCategoryId) return null
@@ -252,15 +257,7 @@ export function ModelsBrowsePage() {
                 {filtersOpen ? '−' : '+'}
               </span>
             </button>
-            {isFiltered ? (
-              <button
-                type="button"
-                className="plugins-filters__reset"
-                onClick={handleResetFilters}
-              >
-                Clear Filters
-              </button>
-            ) : null}
+            <svg className="model-filters__settings" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18M8 3v6M16 9v6M10 15v6" /></svg>
           </div>
 
           <div className="plugins-filters__panel">
@@ -293,66 +290,43 @@ export function ModelsBrowsePage() {
             </select>
           </div>
 
-          <div className="plugins-filters__group">
-            <p className="plugins-filters__label" id="model-software-label">
-              Software
-            </p>
-            <div
-              className="plugins-filters__chips"
-              role="group"
-              aria-labelledby="model-software-label"
-            >
-              {SOFTWARE_CHIPS.map((term) => {
-                const active = searchInput.trim().toLowerCase() === term.toLowerCase()
-                return (
-                  <button
-                    key={term}
-                    type="button"
-                    className={`plugins-filters__chip${active ? ' plugins-filters__chip--active' : ''}`}
-                    onClick={() => handleSoftwareChip(term)}
-                    aria-pressed={active}
-                  >
-                    {term}
-                  </button>
-                )
-              })}
+          <fieldset className="model-filters__group">
+            <legend>Format</legend>
+            {FORMAT_OPTIONS.map(({ value, label }) => (
+              <label className="model-filters__option" key={value}>
+                <input type="checkbox" checked={value.split(',').every((item) => formats.includes(item))} onChange={() => toggleFilter('formats', formats, value)} />
+                <span>{label}</span><span className="model-filters__count">{isLoading ? '\u2014' : facets.formats[value]}</span>
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="model-filters__group">
+            <legend>Price</legend>
+            <div className="model-filters__range">
+              <div className="model-filters__track" style={{ background: `linear-gradient(to right, #ddd ${minPrice / 2}%, var(--action-color) ${minPrice / 2}%, var(--action-color) ${maxPrice / 2}%, #ddd ${maxPrice / 2}%)` }} />
+              <input aria-label="Minimum price" type="range" min="0" max="200" value={minPrice} onChange={(e) => updateFilter('min_price', String(Math.min(Number(e.target.value), maxPrice)))} />
+              <input aria-label="Maximum price" type="range" min="0" max="200" value={maxPrice} onChange={(e) => updateFilter('max_price', String(Math.max(Number(e.target.value), minPrice)))} />
             </div>
-          </div>
-
-          <div className="plugins-filters__group">
-            <p className="plugins-filters__label" id="model-traits-label">
-              Features
-            </p>
-            <div
-              className="plugins-filters__chips"
-              role="group"
-              aria-labelledby="model-traits-label"
-            >
-              {TRAIT_CHIPS.map(({ key, label }) => {
-                const active = traits[key]
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`plugins-filters__chip${active ? ' plugins-filters__chip--active' : ''}`}
-                    onClick={() => handleTraitToggle(key)}
-                    aria-pressed={active}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+            <div className="model-filters__prices"><span>${minPrice}</span><span>${maxPrice}{maxPrice === 200 ? '+' : ''}</span></div>
+          </fieldset>
+          <fieldset className="model-filters__group">
+            <legend>License</legend>
+            {LICENSE_OPTIONS.map(({ value, label }) => (
+              <label className="model-filters__option" key={value}>
+                <input type="checkbox" checked={licenses.includes(value)} onChange={() => toggleFilter('licenses', licenses, value)} />
+                <span>{label}</span><span className="model-filters__count">{isLoading ? '\u2014' : facets.licenses[value]}</span>
+              </label>
+            ))}
+          </fieldset>
+          <button type="button" className="model-filters__clear" onClick={handleResetFilters}>
+            <span aria-hidden="true">&#8635;</span> Clear Filters
+          </button>
           </div>
         </aside>
 
         <section className="plugins-browse-main">
           <div className="plugins-browse-toolbar">
-            <p className="plugins-browse-toolbar__count" aria-live="polite">
-              {isLoading
-                ? 'Loading models…'
-                : `${totalCount} Model${totalCount === 1 ? '' : 's'} found`}
+            <p className="plugins-browse-toolbar__count">
+              3D model
             </p>
             <div className="plugins-browse-toolbar__controls">
               <label className="plugins-browse-toolbar__sort" htmlFor="model-sort-select">

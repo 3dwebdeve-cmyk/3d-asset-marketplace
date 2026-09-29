@@ -284,7 +284,7 @@ describe('Navbar', () => {
     const user = userEvent.setup()
     const origMatchMedia = window.matchMedia
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-      matches: query.includes('max-width: 900px'),
+      matches: query.includes('max-width: 1200px'),
       media: query,
       onchange: null,
       addListener: vi.fn(),
