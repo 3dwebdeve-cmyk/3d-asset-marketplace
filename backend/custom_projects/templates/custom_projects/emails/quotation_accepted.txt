@@ -1,6 +1,0 @@
-A customer accepted the quotation on a custom project.
-
-Project: {{ project_title }}
-Customer: {{ customer_name }}
-Open the project:
-{{ project_link }}

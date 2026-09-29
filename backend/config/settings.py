@@ -72,7 +72,6 @@ INSTALLED_APPS = [
     'categories',
     'products',
     'plugins',
-    'custom_projects',
     'orders',
     'analytics',
     'wishlist',
@@ -407,8 +406,6 @@ REST_FRAMEWORK = {
         "contact_form": "5/hour",
         "category_click": "60/min",
         "payment_checkout": "10/min",
-        "custom_project_write": "30/min",
-        "admin_custom_project_write": "60/min",
         "admin_coupon_write": "60/min",
     },
 }

@@ -257,7 +257,7 @@
 
 .navbar__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.55rem 0.85rem;
   flex: 0 1 auto;
@@ -273,7 +273,7 @@
 
 .navbar__primary-links {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.55rem 0.85rem;
   flex: 0 1 auto;
@@ -287,6 +287,7 @@
 }
 
 .navbar__link {
+  white-space: nowrap;
   font-size: 0.68rem;
   font-weight: 600;
   color: var(--text-main);
@@ -599,7 +600,7 @@ button.navbar__link {
   display: none;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1201px) {
   .navbar__toolbar {
     display: none !important;
   }
@@ -610,7 +611,7 @@ button.navbar__link {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .navbar__inner {
     flex-wrap: wrap;
     gap: 0.55rem 0.75rem;
@@ -620,6 +621,25 @@ button.navbar__link {
     order: 3;
     flex: 1 1 100%;
     max-width: none;
+    height: 2.75rem;
+  }
+
+  .navbar__search-input {
+    font-size: 1rem;
+  }
+
+  .navbar__search-submit {
+    flex: 0 0 2.75rem;
+  }
+
+  .navbar__search-cat-trigger {
+    font-size: 0.75rem;
+  }
+
+  .navbar__search-cat-menu {
+    box-sizing: border-box;
+    max-height: min(28rem, 60dvh);
+    overflow-y: auto;
   }
 
   .navbar__explore--desktop {
@@ -929,15 +949,37 @@ button.navbar__link {
   }
 }
 
+/* Keep the model search beside the brand at every compact viewport width. */
+@media (max-width: 1200px) {
+  .navbar--models .navbar__inner {
+    flex-wrap: nowrap;
+  }
+
+  .navbar--models .navbar__search {
+    position: relative;
+    order: 0;
+    flex: 1 1 0;
+  }
+
+  .navbar--models .navbar__search-cat {
+    position: static;
+  }
+
+  .navbar--models .navbar__search-cat-menu {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
   .navbar__search-cat-trigger {
     max-width: 7rem;
-    font-size: 0.62rem;
+    font-size: 0.75rem;
     padding: 0 0.4rem;
   }
 
   .navbar__search-input {
-    font-size: 0.7rem;
+    font-size: 1rem;
     padding: 0 0.45rem;
   }
 }
@@ -999,5 +1041,42 @@ button.navbar__link {
   .navbar__menu-button {
     min-width: 2.5rem;
     min-height: 2.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .navbar--models .navbar__inner {
+    gap: 0.4rem;
+    padding-inline: 0.5rem;
+  }
+
+  .navbar--models .navbar__brand-logo {
+    width: clamp(4.25rem, 19vw, 7rem);
+    height: auto;
+  }
+
+  .navbar--models .navbar__search-cat-trigger {
+    max-width: 5.75rem;
+    padding-inline: 0.3rem;
+    font-size: 0.65rem;
+  }
+
+  .navbar--models .navbar__search-input {
+    padding-inline: 0.3rem;
+    font-size: 0.8rem;
+  }
+
+  .navbar--models .navbar__search-submit {
+    flex-basis: 1.75rem;
+    padding-inline: 0.25rem;
+  }
+
+  .navbar--models .navbar__search-cat-menu {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.5rem;
+  }
+
+  .navbar--models .navbar__toolbar {
+    gap: 0.25rem;
   }
 }

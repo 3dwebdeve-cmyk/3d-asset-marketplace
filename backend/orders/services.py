@@ -447,7 +447,7 @@ class OrderService:
 
     @classmethod
     def mark_refunded(cls, order: Order) -> Order:
-        """Mark a paid order refunded and revert linked custom-project payments.
+        """Mark a paid order refunded and revoke linked download entitlements.
 
         Idempotent when both order and payment statuses are already refunded.
         Downloads are denied automatically via ``order_allows_download`` /

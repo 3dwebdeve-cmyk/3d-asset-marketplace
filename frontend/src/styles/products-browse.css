@@ -84,6 +84,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  align-self: stretch;
   min-width: 0;
 }
 
@@ -97,7 +98,7 @@
 }
 
 .browse-service-card__text {
-  margin: 0.4rem 0 0;
+  margin: 0.4rem 0 0.9rem;
   max-width: 15.5rem;
   font-size: 0.78rem;
   line-height: 1.45;
@@ -124,7 +125,7 @@
   align-items: center;
   justify-content: center;
   align-self: flex-start;
-  margin-top: 0.9rem;
+  margin-top: auto;
   min-height: 2rem;
   padding: 0.4rem 1rem;
   border: none;
@@ -136,14 +137,13 @@
   letter-spacing: 0.06em;
   text-decoration: none;
   text-transform: uppercase;
-  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.2);
+  box-shadow: none;
   cursor: pointer;
   transition: filter 0.15s ease, transform 0.15s ease;
 }
 
 .browse-service-card:first-child .browse-service-card__btn {
   background: var(--action-color);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--action-color) 35%, transparent);
 }
 
 .browse-service-card__btn:hover,
@@ -472,7 +472,7 @@
 }
 
 .browse-rail--cards:has(.product-card--marketplace) {
-  grid-auto-columns: calc(((100% - 2.5rem) / 3) - 3px);
+  grid-auto-columns: calc(((100% - 2.5rem) / 3.2) - 3px);
   gap: 1.25rem;
 }
 

@@ -16,6 +16,7 @@ vi.mock('../../api/productsApi', async () => {
   return {
     ...actual,
     listPublicProducts: vi.fn(),
+    getPublicProduct: vi.fn(),
   }
 })
 
@@ -99,6 +100,13 @@ function renderModelsBrowsePage(initialPath = '/3d-models') {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(productsApi.listPublicProducts).mockResolvedValue(samplePublicProducts)
+  vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
+    ...samplePublicProducts.results[0],
+    description: '', preview_model: '', preview_video: '', polygon_count: null, vertex_count: null,
+    animated: false, rigged: false, pbr_ready: false, game_ready: false,
+    images: [], updated_at: '2026-01-01T00:00:00Z',
+    files: [{ id: 'file-1', file_name: 'chair.blend', file_format: 'blend', file_size: 100, version: '1', is_preview: false }],
+  })
   vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue(sampleCategories)
 })
 
@@ -148,7 +156,7 @@ describe('ModelsBrowsePage', () => {
     })
   })
 
-  it('applies software chip as search filter', async () => {
+  it('applies format checkbox filter', async () => {
     const user = userEvent.setup()
     renderModelsBrowsePage()
 
@@ -156,16 +164,16 @@ describe('ModelsBrowsePage', () => {
       expect(screen.getByText('Oak Chair')).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: /^blender$/i }))
+    await user.click(screen.getByRole('checkbox', { name: /blender/i }))
 
-    await waitFor(() => {
-      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
-        expect.objectContaining({ search: 'Blender' }),
-      )
-    })
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /blender/i }))
+    await user.click(screen.getByRole('checkbox', { name: /unity package/i }))
+    expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument()
+    expect(productsApi.getPublicProduct).toHaveBeenCalledWith('oak-chair')
   })
 
-  it('applies trait chip filter from URL and toggle', async () => {
+  it('preserves legacy trait URLs while applying a license filter', async () => {
     const user = userEvent.setup()
     renderModelsBrowsePage('/3d-models?rigged=1')
 
@@ -175,13 +183,39 @@ describe('ModelsBrowsePage', () => {
       )
     })
 
-    await user.click(screen.getByRole('button', { name: /^animated$/i }))
+    await user.click(screen.getByRole('checkbox', { name: /extended license/i }))
 
-    await waitFor(() => {
-      expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
-        expect.objectContaining({ rigged: true, animated: true }),
-      )
-    })
+    await waitFor(() => expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument())
+    expect(productsApi.listPublicProducts).toHaveBeenLastCalledWith(expect.objectContaining({ rigged: true }))
+  })
+
+  it('restores price and format filters from the URL and clears them', async () => {
+    const user = userEvent.setup()
+    renderModelsBrowsePage('/3d-models?formats=blend&licenses=standard&min_price=10&max_price=100')
+    await waitFor(() => expect(screen.getByText('Oak Chair')).toBeInTheDocument())
+    expect(screen.getByRole('checkbox', { name: /blender/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /standard license/i })).toBeChecked()
+    expect(screen.getByRole('slider', { name: 'Minimum price' })).toHaveValue('10')
+    await user.click(screen.getByRole('button', { name: /clear filters/i }))
+    expect(screen.getByRole('checkbox', { name: /blender/i })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /standard license/i })).not.toBeChecked()
+    for (const [params] of vi.mocked(productsApi.listPublicProducts).mock.calls) {
+      for (const key of ['formats', 'licenses', 'min_price', 'max_price', 'include_facets']) {
+        expect(params).not.toHaveProperty(key)
+      }
+    }
+    expect(screen.getByRole('slider', { name: 'Maximum price' })).toHaveValue('200')
+  })
+
+  it('filters across API pages using discounted prices', async () => {
+    vi.mocked(productsApi.listPublicProducts)
+      .mockResolvedValueOnce({ ...samplePublicProducts, count: 2, next: '/api/v1/products/?page=2', results: [{ ...samplePublicProducts.results[0], id: 'expensive', price: '300', discount_price: null, name: 'Expensive Chair' }] })
+      .mockResolvedValueOnce({ ...samplePublicProducts, count: 2 })
+    renderModelsBrowsePage('/3d-models?min_price=10&max_price=20')
+    await waitFor(() => expect(screen.getByText('Oak Chair')).toBeInTheDocument())
+    expect(screen.queryByText('Expensive Chair')).not.toBeInTheDocument()
+    expect(screen.getByText('3D model')).toBeInTheDocument()
+    expect(productsApi.listPublicProducts).toHaveBeenCalledWith(expect.objectContaining({ page: 2 }))
   })
 
   it('sorts models by price low to high', async () => {
