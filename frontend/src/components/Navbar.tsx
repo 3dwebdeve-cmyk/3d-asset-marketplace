@@ -54,8 +54,36 @@ export function Navbar() {
   const accountRef = useRef<HTMLDivElement>(null)
   const exploreRef = useRef<HTMLDivElement>(null)
   const searchCatRef = useRef<HTMLDivElement>(null)
+  const exploreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleExploreMouseEnter = () => {
+    if (exploreTimerRef.current) {
+      clearTimeout(exploreTimerRef.current)
+      exploreTimerRef.current = null
+    }
+    setExploreOpen(true)
+  }
+
+  const handleExploreMouseLeave = () => {
+    exploreTimerRef.current = setTimeout(() => {
+      setExploreOpen(false)
+      exploreTimerRef.current = null
+    }, 180)
+  }
 
   useEffect(() => {
+    return () => {
+      if (exploreTimerRef.current) {
+        clearTimeout(exploreTimerRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (exploreTimerRef.current) {
+      clearTimeout(exploreTimerRef.current)
+      exploreTimerRef.current = null
+    }
     setAccountOpen(false)
     setExploreOpen(false)
     setSearchCatOpen(false)
@@ -282,19 +310,36 @@ export function Navbar() {
           </Link>
 
           {isMarketplaceHome && !isCompactNav ? (
-            <div className="navbar__explore navbar__explore--desktop" ref={exploreRef}>
+            <div
+              className="navbar__explore navbar__explore--desktop"
+              ref={exploreRef}
+              onMouseEnter={handleExploreMouseEnter}
+              onMouseLeave={handleExploreMouseLeave}
+            >
               <button
                 type="button"
                 className="navbar__explore-trigger"
                 aria-expanded={exploreOpen}
                 aria-haspopup="menu"
-                onClick={() => setExploreOpen((open) => !open)}
+                onClick={() => {
+                  if (exploreTimerRef.current) {
+                    clearTimeout(exploreTimerRef.current)
+                    exploreTimerRef.current = null
+                  }
+                  setExploreOpen(true)
+                }}
               >
                 Explore
                 <span aria-hidden="true">⌄</span>
               </button>
               {exploreOpen ? (
-                <div className="navbar__explore-menu" role="menu" aria-label="Explore categories">
+                <div
+                  className="navbar__explore-menu"
+                  role="menu"
+                  aria-label="Explore categories"
+                  onMouseEnter={handleExploreMouseEnter}
+                  onMouseLeave={handleExploreMouseLeave}
+                >
                   <button
                     type="button"
                     role="menuitem"
