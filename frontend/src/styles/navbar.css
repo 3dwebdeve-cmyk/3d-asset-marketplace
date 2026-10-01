@@ -60,7 +60,7 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 0.8rem;
+  gap: 1.6rem;
 }
 
 .navbar__explore {
@@ -70,23 +70,26 @@
 .navbar__explore-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  color: inherit;
+  gap: 0.35rem;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #000000;
+  cursor: pointer;
   font: inherit;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   line-height: 1;
   text-decoration: none;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
-.navbar__explore-trigger {
-  padding: 0.12rem 0.28rem;
-  border: 0;
-  background: transparent;
-  color: var(--action-color);
-  cursor: pointer;
-  font-size: 0.68rem;
+.navbar__explore-trigger:hover,
+.navbar__explore-trigger[aria-expanded="true"] {
+  color: #222222;
+  opacity: 0.8;
 }
 
 .navbar__explore-menu {
