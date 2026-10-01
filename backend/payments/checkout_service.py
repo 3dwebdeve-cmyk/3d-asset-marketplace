@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from orders.models import Order
@@ -26,7 +25,9 @@ from payments.payment_common import (
     to_cents,
 )
 
-User = get_user_model()
+if TYPE_CHECKING:
+    from accounts.models import User
+
 logger = logging.getLogger(__name__)
 
 
