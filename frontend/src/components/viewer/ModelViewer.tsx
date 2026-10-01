@@ -155,11 +155,14 @@ function PreviewModel({
       y: box.min.y - 0.02,
       // Make the floor so large that its edge is never visible at our orbit distances,
       // which makes it feel effectively "infinite".
-      width: Math.max(maxXZ * 7.5, 320),
-      depth: Math.max(maxXZ * 7.5, 320),
-      // Enough plane for soft edge bleed without a hard silhouette.
-      shadowScale: Math.max(maxXZ * 2.6, 2.8),
-      shadowScaleCore: Math.max(maxXZ * 1.9, 2.1),
+      width: Math.max(maxXZ * 8, 360),
+      depth: Math.max(maxXZ * 8, 360),
+      // Wide spread ambient shadow pool with smooth gradient falloff
+      shadowScaleSpread: Math.max(maxXZ * 4.2, 4.4),
+      // Soft mid body shadow for natural grounding
+      shadowScaleMid: Math.max(maxXZ * 2.8, 3.0),
+      // Gentle contact core under the model base
+      shadowScaleCore: Math.max(maxXZ * 1.7, 1.9),
     }
   }, [fitted])
 
@@ -198,29 +201,41 @@ function PreviewModel({
       ) : null}
       {showGround && ground ? (
         <>
-          {/* Soft outer pool — wide blur so edges do not read as the model outline. */}
+          {/* Diffused wide spread shadow pool — broad scale and high blur for smooth, non-sharp dissipation */}
           <ContactShadows
-            key={`${url}-soft`}
+            key={`${url}-spread`}
             position={[0, ground.y + 0.001, 0]}
-            opacity={0.11}
-            scale={ground.shadowScale}
-            blur={2.6}
-            far={3.2}
+            opacity={0.32}
+            scale={ground.shadowScaleSpread}
+            blur={3.2}
+            far={4.0}
             resolution={shadowMapSize}
             frames={1}
-            color="#2f2f2f"
+            color="#1e1e24"
           />
-          {/* Soft contact core — blurred enough to hide exact silhouette. */}
+          {/* Soft mid body shadow — smooth falloff adding depth without sharp contours */}
+          <ContactShadows
+            key={`${url}-mid`}
+            position={[0, ground.y + 0.002, 0]}
+            opacity={0.36}
+            scale={ground.shadowScaleMid}
+            blur={2.4}
+            far={2.8}
+            resolution={shadowMapSize}
+            frames={1}
+            color="#141418"
+          />
+          {/* Grounding core shadow — softly anchors the model to the floor */}
           <ContactShadows
             key={`${url}-core`}
-            position={[0, ground.y + 0.002, 0]}
-            opacity={0.2}
+            position={[0, ground.y + 0.003, 0]}
+            opacity={0.42}
             scale={ground.shadowScaleCore}
-            blur={1.55}
-            far={2.0}
+            blur={1.6}
+            far={1.8}
             resolution={shadowMapSize}
             frames={1}
-            color="#252525"
+            color="#0c0c0e"
           />
         </>
       ) : null}

@@ -39,8 +39,12 @@ export function Navbar() {
   const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
   const isHomeHub = currentPath === '/home'
   const isCompactNav = useMediaQuery('(max-width: 1200px)')
-  const [categoryId, setCategoryId] = useState('')
-  const [searchInput, setSearchInput] = useState('')
+  const searchParams = new URLSearchParams(location.search)
+  const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
+  const searchFromUrl = searchParams.get('search')?.trim() ?? ''
+
+  const [categoryId, setCategoryId] = useState(categoryFromUrl)
+  const [searchInput, setSearchInput] = useState(searchFromUrl)
   const [accountOpen, setAccountOpen] = useState(false)
   const [exploreOpen, setExploreOpen] = useState(false)
   const [searchCatOpen, setSearchCatOpen] = useState(false)
@@ -50,15 +54,43 @@ export function Navbar() {
   const accountRef = useRef<HTMLDivElement>(null)
   const exploreRef = useRef<HTMLDivElement>(null)
   const searchCatRef = useRef<HTMLDivElement>(null)
+  const exploreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleExploreMouseEnter = () => {
+    if (exploreTimerRef.current) {
+      clearTimeout(exploreTimerRef.current)
+      exploreTimerRef.current = null
+    }
+    setExploreOpen(true)
+  }
+
+  const handleExploreMouseLeave = () => {
+    exploreTimerRef.current = setTimeout(() => {
+      setExploreOpen(false)
+      exploreTimerRef.current = null
+    }, 180)
+  }
 
   useEffect(() => {
+    return () => {
+      if (exploreTimerRef.current) {
+        clearTimeout(exploreTimerRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (exploreTimerRef.current) {
+      clearTimeout(exploreTimerRef.current)
+      exploreTimerRef.current = null
+    }
     setAccountOpen(false)
     setExploreOpen(false)
     setSearchCatOpen(false)
     setMobileNavOpen(false)
-    setCategoryId('')
-    setSearchInput('')
-  }, [location.pathname])
+    setCategoryId(categoryFromUrl)
+    setSearchInput(searchFromUrl)
+  }, [location.pathname, location.search])
 
   useEffect(() => {
     if (!isCompactNav) {
@@ -184,6 +216,27 @@ export function Navbar() {
     },
   })
 
+  const handleSelectCategory = (newCatId: string) => {
+    setCategoryId(newCatId)
+    setSearchCatOpen(false)
+    setExploreOpen(false)
+
+    const targetPath = isPluginsRoute ? '/plugins' : '/3d-models'
+    const nextParams = new URLSearchParams()
+    if (newCatId) {
+      nextParams.set('category', newCatId)
+      if (!isPluginsRoute) {
+        trackCategoryClick(newCatId)
+      }
+    }
+    const query = searchInput.trim().slice(0, 100)
+    if (query) {
+      nextParams.set('search', query)
+    }
+    const qs = nextParams.toString()
+    navigate(qs ? `${targetPath}?${qs}` : targetPath)
+  }
+
   const handleSearchSubmit = (event: FormEvent) => {
     event.preventDefault()
     const params = new URLSearchParams()
@@ -257,27 +310,41 @@ export function Navbar() {
           </Link>
 
           {isMarketplaceHome && !isCompactNav ? (
-            <div className="navbar__explore navbar__explore--desktop" ref={exploreRef}>
+            <div
+              className="navbar__explore navbar__explore--desktop"
+              ref={exploreRef}
+              onMouseEnter={handleExploreMouseEnter}
+              onMouseLeave={handleExploreMouseLeave}
+            >
               <button
                 type="button"
                 className="navbar__explore-trigger"
                 aria-expanded={exploreOpen}
                 aria-haspopup="menu"
-                onClick={() => setExploreOpen((open) => !open)}
+                onClick={() => {
+                  if (exploreTimerRef.current) {
+                    clearTimeout(exploreTimerRef.current)
+                    exploreTimerRef.current = null
+                  }
+                  setExploreOpen(true)
+                }}
               >
                 Explore
                 <span aria-hidden="true">⌄</span>
               </button>
               {exploreOpen ? (
-                <div className="navbar__explore-menu" role="menu" aria-label="Explore categories">
+                <div
+                  className="navbar__explore-menu"
+                  role="menu"
+                  aria-label="Explore categories"
+                  onMouseEnter={handleExploreMouseEnter}
+                  onMouseLeave={handleExploreMouseLeave}
+                >
                   <button
                     type="button"
                     role="menuitem"
-                    className="navbar__explore-item"
-                    onClick={() => {
-                      setExploreOpen(false)
-                      navigate('/3d-models')
-                    }}
+                    className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
+                    onClick={() => handleSelectCategory('')}
                   >
                     <AllCategoriesIcon className="navbar__explore-icon" />
                     <span className="navbar__explore-label">All Categories</span>
@@ -288,13 +355,9 @@ export function Navbar() {
                       <button
                         type="button"
                         role="menuitem"
-                        className="navbar__explore-item"
+                        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''}`}
                         key={category.id}
-                        onClick={() => {
-                          setExploreOpen(false)
-                          trackCategoryClick(category.id)
-                          navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
-                        }}
+                        onClick={() => handleSelectCategory(category.id)}
                       >
                         {category.image ? (
                           <img className="navbar__explore-image" src={category.image} alt="" />
@@ -326,7 +389,7 @@ export function Navbar() {
                 className="navbar__search-cat-trigger"
                 aria-expanded={searchCatOpen}
                 aria-haspopup="menu"
-                aria-label="All Categories"
+                aria-label={searchCatLabel}
                 onClick={() => setSearchCatOpen((open) => !open)}
               >
                 <span className="navbar__search-cat-trigger-label">{searchCatLabel}</span>
@@ -342,10 +405,7 @@ export function Navbar() {
                     type="button"
                     role="menuitem"
                     className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
-                    onClick={() => {
-                      setCategoryId('')
-                      setSearchCatOpen(false)
-                    }}
+                    onClick={() => handleSelectCategory('')}
                   >
                     <AllCategoriesIcon className="navbar__explore-icon" />
                     <span className="navbar__explore-label">All Categories</span>
@@ -359,10 +419,7 @@ export function Navbar() {
                         className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''
                           }`}
                         key={category.id}
-                        onClick={() => {
-                          setCategoryId(category.id)
-                          setSearchCatOpen(false)
-                        }}
+                        onClick={() => handleSelectCategory(category.id)}
                       >
                         {'image' in category && category.image ? (
                           <img
@@ -787,7 +844,7 @@ export function Navbar() {
                     className="navbar__drawer-sublink navbar__drawer-sublink--button"
                     onClick={() => {
                       closeMobileNav()
-                      navigate(isPluginsRoute ? '/plugins' : '/3d-models')
+                      handleSelectCategory('')
                     }}
                   >
                     <AllCategoriesIcon className="navbar__drawer-cat-icon" />
@@ -802,12 +859,7 @@ export function Navbar() {
                         key={category.id}
                         onClick={() => {
                           closeMobileNav()
-                          if (!isPluginsRoute) {
-                            trackCategoryClick(category.id)
-                            navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
-                          } else {
-                            navigate(`/plugins?category=${encodeURIComponent(category.id)}`)
-                          }
+                          handleSelectCategory(category.id)
                         }}
                       >
                         {'image' in category && category.image ? (
