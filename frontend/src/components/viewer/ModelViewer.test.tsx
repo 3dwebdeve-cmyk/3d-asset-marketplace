@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Object3D } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,16 +35,22 @@ vi.mock('@react-three/drei', () => ({
   Environment: ({
     files,
     backgroundBlurriness,
+    background,
+    environmentIntensity,
     children,
   }: {
     files?: string
     backgroundBlurriness?: number
+    background?: boolean
+    environmentIntensity?: number
     children?: import('react').ReactNode
   }) => (
     <div
       data-testid="viewer-environment"
       data-files={files ?? ''}
       data-background-blurriness={backgroundBlurriness ?? ''}
+      data-background={String(background)}
+      data-intensity={environmentIntensity}
     >
       {children}
     </div>
@@ -151,6 +157,90 @@ describe('ModelViewer', () => {
         '/hdri/forest_slope_1k.hdr',
       )
     })
+  })
+
+  it('removes studio lights when Natural lighting is active and restores them on return', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
+    )
+    await screen.findByTestId('viewer-environment')
+    expect(container.querySelectorAll('directionallight')).toHaveLength(3)
+
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
+        'data-files', '/hdri/forest_slope_1k.hdr',
+      )
+    })
+    expect(container.querySelectorAll('directionallight')).toHaveLength(0)
+    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(0)
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true')
+
+    await user.click(screen.getByRole('radio', { name: 'Studio' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
+        'data-files', '/hdri/studio_small_08_1k.hdr',
+      )
+    })
+    expect(container.querySelectorAll('directionallight')).toHaveLength(3)
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
+  })
+
+  it('clears the previous HDRI while the selected environment is pending', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
+    )
+    await screen.findByTestId('viewer-environment')
+    let resolveNatural!: (response: { ok: boolean }) => void
+    vi.mocked(fetch).mockReturnValueOnce(new Promise((resolve) => {
+      resolveNatural = resolve as typeof resolveNatural
+    }))
+
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
+    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
+    expect(container.querySelectorAll('directionallight')).toHaveLength(0)
+    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(2)
+    expect(screen.getByTestId('r3f-canvas').querySelector('primitive')).toBeInTheDocument()
+
+    await act(async () => resolveNatural({ ok: true }))
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
+      'data-files', '/hdri/forest_slope_1k.hdr',
+    )
+    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(0)
+  })
+
+  it('ignores a late response from a previously selected environment', async () => {
+    const user = userEvent.setup()
+    let resolveStudio!: (response: { ok: boolean }) => void
+    vi.mocked(fetch).mockReturnValueOnce(new Promise((resolve) => {
+      resolveStudio = resolve as typeof resolveStudio
+    }))
+    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />)
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
+    await screen.findByTestId('viewer-environment')
+
+    await act(async () => resolveStudio({ ok: true }))
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
+      'data-files', '/hdri/forest_slope_1k.hdr',
+    )
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true')
+  })
+
+  it('uses only neutral fallback lights if Natural HDRI is unavailable', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
+    )
+    await screen.findByTestId('viewer-environment')
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false } as Response)
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
+
+    expect(await screen.findByText(/Natural HDRI is unavailable/)).toBeInTheDocument()
+    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
+    expect(container.querySelectorAll('directionallight')).toHaveLength(0)
+    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(2)
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {

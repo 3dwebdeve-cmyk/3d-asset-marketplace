@@ -5,7 +5,7 @@ import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
-import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
+import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, type HdriEnvironmentId } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
@@ -18,30 +18,46 @@ export interface ModelViewerProps {
 }
 
 function SceneLights({
+  environmentId,
   environmentFile,
   environmentIntensity,
   lightMultiplier,
   showBackground,
   backgroundBlur,
 }: {
+  environmentId: HdriEnvironmentId
   environmentFile: string | null
   environmentIntensity: number
   lightMultiplier: number
   showBackground: boolean
   backgroundBlur: number
 }) {
+  const naturalFallback = (
+    <>
+      <ambientLight intensity={0.18} />
+      <hemisphereLight args={['#ffffff', '#c4cad3', 0.3]} />
+    </>
+  )
   return (
     <>
-      {/* Brighter fill + key for a clearer studio read. Soft contact shadow is separate. */}
-      <ambientLight intensity={0.42 * lightMultiplier} />
-      <hemisphereLight args={['#ffffff', '#c4cad3', 0.48 * lightMultiplier]} />
-      <directionalLight position={[5.2, 9.5, 4.2]} intensity={1.65 * lightMultiplier} />
-      <directionalLight position={[-3.5, 2.5, -4]} intensity={0.45 * lightMultiplier} />
-      <directionalLight position={[1.5, 3.5, 6]} intensity={0.35 * lightMultiplier} />
+      {environmentId === 'studio' ? (
+        <>
+          {/* Keep overhead illumination gentle so white surfaces retain shading.
+              These lights belong only to the studio preset. */}
+          <ambientLight intensity={0.18 * lightMultiplier} />
+          <hemisphereLight args={['#ffffff', '#c4cad3', 0.3 * lightMultiplier]} />
+          <directionalLight position={[5.2, 9.5, 4.2]} intensity={0.85 * lightMultiplier} />
+          <directionalLight position={[-3.5, 2.5, -4]} intensity={0.45 * lightMultiplier} />
+          <directionalLight position={[1.5, 3.5, 6]} intensity={0.35 * lightMultiplier} />
+        </>
+      ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
         // Own Suspense so HDRI load does not remount/tear down PreviewModel
         // (Canvas wraps all children in one Suspense boundary).
-        <Suspense fallback={null}>
+        <Suspense
+          key={environmentFile}
+          fallback={environmentId === 'natural' ? naturalFallback : null}
+        >
           {/* Blur must be passed to drei Environment — it applies background in useLayoutEffect;
               a separate useEffect often runs before the HDRI texture exists and gets reset to 0. */}
           <Environment
@@ -180,7 +196,7 @@ function PreviewModel({
           />
         </mesh>
       ) : null}
-      {ground ? (
+      {showGround && ground ? (
         <>
           {/* Soft outer pool — wide blur so edges do not read as the model outline. */}
           <ContactShadows
@@ -257,42 +273,51 @@ function ModelViewerCanvas({
   pixelRatio: number
 }) {
   const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
-  const [environmentFile, setEnvironmentFile] = useState<string | null>(null)
-  const [environmentError, setEnvironmentError] = useState<string | null>(null)
+  const [environmentStatus, setEnvironmentStatus] = useState<{
+    path: string
+    available: boolean
+    error: string | null
+  } | null>(null)
   const selectedEnvironment = useMemo(
     () =>
       HDRI_ENVIRONMENTS.find((option) => option.id === environmentId) ?? HDRI_ENVIRONMENTS[0],
     [environmentId],
   )
+  // Never pair an old HDRI with the newly selected preset's settings.
+  const currentStatus = environmentStatus?.path === selectedEnvironment.hdrPath
+    ? environmentStatus
+    : null
+  const environmentFile = currentStatus?.available ? currentStatus.path : null
+  const environmentError = currentStatus?.error ?? null
 
   useEffect(() => {
     const controller = new AbortController()
     const hdrPath = selectedEnvironment.hdrPath
-    setEnvironmentError(null)
-    // Keep the previous HDR mounted until the next path is confirmed so
-    // Environment does not remount through a null gap and suspend the canvas.
     if (typeof fetch !== 'function') {
-      setEnvironmentFile(hdrPath)
+      setEnvironmentStatus({ path: hdrPath, available: true, error: null })
       return () => controller.abort()
     }
 
     fetch(hdrPath, { method: 'HEAD', signal: controller.signal })
       .then((response) => {
+        if (controller.signal.aborted) return
         if (response.ok) {
-          setEnvironmentFile(hdrPath)
+          setEnvironmentStatus({ path: hdrPath, available: true, error: null })
           return
         }
-        setEnvironmentFile(null)
-        setEnvironmentError(
-          `${selectedEnvironment.label} HDRI is unavailable. Using default preview lighting.`,
-        )
+        setEnvironmentStatus({
+          path: hdrPath,
+          available: false,
+          error: `${selectedEnvironment.label} HDRI is unavailable. Using default preview lighting.`,
+        })
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setEnvironmentFile(null)
-          setEnvironmentError(
-            `${selectedEnvironment.label} HDRI failed to load. Using default preview lighting.`,
-          )
+          setEnvironmentStatus({
+            path: hdrPath,
+            available: false,
+            error: `${selectedEnvironment.label} HDRI failed to load. Using default preview lighting.`,
+          })
         }
       })
 
@@ -306,8 +331,10 @@ function ModelViewerCanvas({
         camera={{ position: [0, 0.9, 2.3], fov: 42, near: 0.1, far: 200 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
-          gl.toneMapping = THREE.ACESFilmicToneMapping
-          gl.toneMappingExposure = 1.06
+          // Commerce tone mapping compresses highlights while preserving
+          // product colors and the shading in bright fabric/materials.
+          gl.toneMapping = THREE.NeutralToneMapping
+          gl.toneMappingExposure = 1
         }}
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
@@ -317,6 +344,7 @@ function ModelViewerCanvas({
           <color attach="background" args={['#ffffff']} />
         ) : null}
         <SceneLights
+          environmentId={selectedEnvironment.id}
           environmentFile={environmentFile}
           environmentIntensity={selectedEnvironment.environmentIntensity}
           lightMultiplier={selectedEnvironment.lightMultiplier}

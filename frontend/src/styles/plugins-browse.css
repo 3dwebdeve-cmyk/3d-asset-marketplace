@@ -11,6 +11,15 @@
   width: 100%;
 }
 
+.plugins-browse-hero--products .site-hero-banner__image {
+  object-fit: cover;
+  object-position: center top;
+}
+
+.plugins-browse-hero--character .site-hero-banner__image {
+  object-position: center top;
+}
+
 .plugins-browse-hero__container {
   align-self: center;
   width: 100%;
@@ -42,11 +51,16 @@
 
 /* 3D Models — dark banner art → white Contact-style typography */
 .models-browse .plugins-browse-hero__title {
-  color: #fff;
+  color: #e4be8a;
 }
 
 .models-browse .plugins-browse-hero__subtitle {
   color: rgba(255, 255, 255, 0.82);
+}
+
+.models-browse .plugins-browse-hero__subtitle strong {
+  color: #f2c078;
+  font-weight: 700;
 }
 
 .plugins-browse__body {

@@ -333,7 +333,7 @@ describe('ProductsBrowsePage', () => {
     await waitFor(() => {
       expect(within(categorySection).getAllByRole('button')).toHaveLength(12)
     })
-    expect(categoriesApi.listTrendingCategories).toHaveBeenCalledWith(12)
+    expect(categoriesApi.listTrendingCategories).toHaveBeenCalledWith(50)
   })
 
   it('renders backend categories and filters the existing models route', async () => {
@@ -341,7 +341,7 @@ describe('ProductsBrowsePage', () => {
     renderProductsBrowsePage()
 
     await waitFor(() => {
-      expect(categoriesApi.listTrendingCategories).toHaveBeenCalledWith(12)
+      expect(categoriesApi.listTrendingCategories).toHaveBeenCalledWith(50)
     })
 
     const categorySection = screen.getByRole('region', {

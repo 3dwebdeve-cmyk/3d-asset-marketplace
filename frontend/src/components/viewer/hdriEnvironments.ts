@@ -5,7 +5,7 @@ export interface HdriEnvironmentOption {
   label: string
   hdrPath: string
   environmentIntensity: number
-  /** Multiplier for the viewer's direct lights (not the HDRI). */
+  /** Multiplier for studio direct lights (not the HDRI); unused in Natural mode. */
   lightMultiplier: number
   background: boolean
   /** Blur applied to the visible HDRI backdrop only (0 = sharp, 1 = very blurred). */
@@ -19,7 +19,7 @@ export const HDRI_ENVIRONMENTS: readonly HdriEnvironmentOption[] = [
     id: 'studio',
     label: 'Studio',
     hdrPath: '/hdri/studio_small_08_1k.hdr',
-    environmentIntensity: 1.05,
+    environmentIntensity: 0.8,
     lightMultiplier: 1,
     // Lighting only — visible HDRI reads gray; white solid + white ground stay seamless.
     background: false,
@@ -31,7 +31,7 @@ export const HDRI_ENVIRONMENTS: readonly HdriEnvironmentOption[] = [
     label: 'Natural',
     hdrPath: '/hdri/forest_slope_1k.hdr',
     environmentIntensity: 1.0,
-    lightMultiplier: 1,
+    lightMultiplier: 0,
     background: true,
     backgroundBlur: 0.65,
     showGround: false,

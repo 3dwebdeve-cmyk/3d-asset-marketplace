@@ -83,7 +83,6 @@ export function ReviewsSection({
     isLoading,
     isError,
     refetch,
-    canReview,
     hasReviewed,
     myReview,
     isEligibilityLoading,
@@ -117,13 +116,11 @@ export function ReviewsSection({
   const reviewText = watch('review_text') ?? ''
 
   useEffect(() => {
-    if (myReview) {
-      reset({
+    reset(myReview ? {
         rating: myReview.rating,
         review_text: myReview.review_text,
-      })
-    }
-  }, [myReview, reset])
+      } : { rating: 0, review_text: '' })
+  }, [myReview, productId, currentUser?.id, reset])
 
   const onSubmit = handleSubmit((values) => {
     const parsed = reviewSchema.safeParse(values)
@@ -160,11 +157,11 @@ export function ReviewsSection({
           >
             Sign in
           </AuthEntryButton>{' '}
-          to leave a review after purchasing this item.
+          to leave a review or comment. Everyone can read the comments.
         </p>
       ) : isEligibilityLoading ? (
         <Spinner label="Checking review eligibility..." />
-      ) : canReview ? (
+      ) : (
         <form className="product-detail-reviews__form" onSubmit={onSubmit} noValidate>
           {isHub ? (
             <div className="product-detail-reviews__name-field">
@@ -274,10 +271,6 @@ export function ReviewsSection({
                   : 'Submit review'}
           </Button>
         </form>
-      ) : (
-        <p className="product-detail-reviews__gate">
-          Purchase this item to leave a review.
-        </p>
       )}
     </div>
   )
@@ -297,7 +290,7 @@ export function ReviewsSection({
           }
         />
       ) : reviews.length === 0 ? (
-        <p className="product-detail-reviews__empty">Be the first to leave a review.</p>
+        <p className="product-detail-reviews__empty">No reviews or comments yet.</p>
       ) : (
         <ul className="product-detail-reviews__list">
           {reviews.map((review) => (
@@ -312,9 +305,6 @@ export function ReviewsSection({
                   <div className="product-detail-reviews__item-top">
                     <div className="product-detail-reviews__item-identity">
                       <strong>{review.author.full_name}</strong>
-                      {isHub ? (
-                        <span className="product-detail-reviews__verified">Verified Buyer</span>
-                      ) : null}
                     </div>
                     <time dateTime={review.created_at}>
                       {isHub ? formatRelative(review.created_at) : formatDate(review.created_at)}
@@ -361,7 +351,7 @@ export function ReviewsSection({
               <span className="product-detail-reviews__title-icon" aria-hidden="true">
                 ★
               </span>
-              Reviews &amp; Comments ({reviewCount})
+              Reviews &amp; Comments ({isLoading || isError ? reviewCount : listCount})
             </>
           ) : (
             'Reviews'
