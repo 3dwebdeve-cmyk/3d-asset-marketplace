@@ -177,6 +177,9 @@ class CheckoutService:
                 "id": session_id,
                 "payment_intent": f"pi_e2e_{uuid.uuid4().hex[:24]}",
                 "payment_status": "paid",
+                "amount_total": to_cents(payment.amount),
+                "currency": payment.currency.lower(),
+                "client_reference_id": str(user.pk),
                 "metadata": {"order_id": str(order.id)},
             }
             with transaction.atomic():
