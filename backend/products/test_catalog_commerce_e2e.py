@@ -20,6 +20,7 @@ from categories.models import Category
 from downloads.models import DownloadHistory
 from orders.models import Order
 from payments.models import Payment
+from payments.payment_common import to_cents
 from payments.test_payments import _FakeEvent, _fake_session
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
@@ -176,7 +177,15 @@ class CatalogImportCommerceE2ETests(APITestCase):
         event = _FakeEvent(
             "evt_e2e_paid",
             "checkout.session.completed",
-            {"id": "cs_test_e2e", "payment_intent": "pi_e2e_1"},
+            {
+                "id": "cs_test_e2e",
+                "payment_intent": "pi_e2e_1",
+                "payment_status": "paid",
+                "amount_total": to_cents(payment.amount),
+                "currency": payment.currency.lower(),
+                "client_reference_id": str(self.customer.pk),
+                "metadata": {"order_id": str(order.pk)},
+            },
         )
         with patch("payments.views.stripe.Webhook.construct_event", return_value=event):
             webhook = self.client.post(

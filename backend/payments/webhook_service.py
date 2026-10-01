@@ -19,6 +19,7 @@ from payments.payment_common import (
     TERMINAL_PAYMENT_STATUSES,
     session_value,
     stripe_id,
+    to_cents,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 STRIPE_WEBHOOK_EVENT_TYPES: frozenset[str] = frozenset(
     {
         "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
         "checkout.session.expired",
         "payment_intent.payment_failed",
         "charge.refunded",
@@ -48,7 +50,10 @@ class WebhookService:
             except IntegrityError:
                 return
 
-            if event.type == "checkout.session.completed":
+            if event.type in {
+                "checkout.session.completed",
+                "checkout.session.async_payment_succeeded",
+            }:
                 cls._handle_checkout_completed(event.data.object)
             elif event.type == "checkout.session.expired":
                 cls._handle_checkout_expired(event.data.object)
@@ -73,6 +78,19 @@ class WebhookService:
             return
 
         order = payment.order
+        validation_error = cls._checkout_fulfillment_validation_error(
+            session,
+            payment=payment,
+            order=order,
+        )
+        if validation_error:
+            logger.warning(
+                "Ignoring Stripe checkout fulfillment for payment %s: %s",
+                payment.pk,
+                validation_error,
+            )
+            return
+
         # Superseded / cancelled checkouts must not fulfill (stale Stripe session).
         if (
             payment.status in STALE_LOCAL_PAYMENT_STATUSES
@@ -124,6 +142,49 @@ class WebhookService:
 
         # After commit: Stripe fulfillment stays in-process; email is async.
         enqueue_payment_receipt(order)
+
+    @classmethod
+    def _checkout_fulfillment_validation_error(
+        cls,
+        session,
+        *,
+        payment: Payment,
+        order: Order,
+    ) -> str | None:
+        """Return a safe log reason when a Stripe session must not fulfill."""
+        if str(session_value(session, "payment_status") or "").lower() != "paid":
+            return "Stripe payment_status is not paid"
+
+        metadata = session_value(session, "metadata") or {}
+        metadata_order_id = str(session_value(metadata, "order_id") or "")
+        if metadata_order_id != str(order.pk):
+            return "metadata order_id does not match the stored order"
+
+        client_reference_id = str(
+            session_value(session, "client_reference_id") or ""
+        )
+        if client_reference_id != str(order.user_id):
+            return "client_reference_id does not match the order customer"
+
+        session_currency = str(session_value(session, "currency") or "").upper()
+        payment_currency = str(payment.currency or "").upper()
+        order_currency = str(order.currency or "").upper()
+        if not session_currency or session_currency != payment_currency:
+            return "Stripe currency does not match the stored payment"
+        if payment_currency != order_currency:
+            return "stored payment currency does not match the order"
+
+        raw_amount_total = session_value(session, "amount_total")
+        try:
+            amount_total = int(raw_amount_total)
+        except (TypeError, ValueError):
+            return "Stripe amount_total is missing or invalid"
+        if amount_total != to_cents(payment.amount):
+            return "Stripe amount_total does not match the stored payment"
+        if payment.amount != order.total_amount:
+            return "stored payment amount does not match the order"
+
+        return None
 
     @classmethod
     def _handle_checkout_expired(cls, session) -> None:
