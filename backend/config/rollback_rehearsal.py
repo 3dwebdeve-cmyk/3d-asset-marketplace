@@ -314,6 +314,10 @@ def _check_webhook_idempotency() -> RollbackCheck:
         {
             "id": session_id,
             "payment_intent": f"pi_rollback_{token}",
+            "payment_status": "paid",
+            "amount_total": 1999,
+            "currency": "usd",
+            "client_reference_id": str(user.pk),
             "metadata": {"order_id": str(order.pk)},
         },
     )
