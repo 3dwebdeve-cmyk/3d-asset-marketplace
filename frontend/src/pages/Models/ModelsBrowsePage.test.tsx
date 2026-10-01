@@ -31,7 +31,19 @@ vi.mock('../../api/categoriesApi', async () => {
 })
 
 const categoryId = '11aab317-9a1c-401e-acdf-5b373ed3222c'
+const productsBannerCategoryId = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
+const foodCategoryId = 'ab4bbb55-f14e-4df3-a039-0547104229d3'
+const characterCategoryId = '4ac87021-da4e-4470-9ab9-b52772444655'
 const productId = 'a2e77f31-f244-4607-b7d6-b58e3ff6de11'
+
+const additionalBannerCategories = [
+  { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/homepage%20images/banner_industrial_v24.jpg' },
+  { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/homepage%20images/banner_printing_v24.jpg' },
+  { id: 'b7b73085-a662-4daa-ac90-d07b89976b3c', name: 'Assets / Props', slug: 'assets-props', banner: '/homepage%20images/banner_props_v24.jpg' },
+  { id: '4ecdc1ea-68b4-4e08-93de-d8e2d34ec1ad', name: 'Interactive / WebAr', slug: 'interactive-webar', banner: '/homepage%20images/banner_webar_v24.jpg' },
+  { id: 'e673b81b-2bc8-4f83-8dfc-081b9812a525', name: 'Architectural 3D Models', slug: 'architectural-3d-models', banner: '/homepage%20images/banner_architecture_v24.jpg' },
+  { id: 'bc9bac17-4585-4c7c-95f1-34791f081d54', name: 'Interior 3D Models', slug: 'interior-3d-models', banner: '/homepage%20images/banner_interior_v24.jpg' },
+]
 
 const samplePublicProducts = {
   count: 1,
@@ -68,7 +80,7 @@ const samplePublicProducts = {
 }
 
 const sampleCategories = {
-  count: 1,
+  count: 3 + additionalBannerCategories.length,
   next: null,
   previous: null,
   results: [
@@ -81,6 +93,31 @@ const sampleCategories = {
       parent: null,
       created_at: '2026-01-01T00:00:00Z',
     },
+    {
+      id: foodCategoryId,
+      name: 'Food & Drink',
+      slug: 'food-drink',
+      description: 'Food and drink models',
+      image: '',
+      parent: null,
+      created_at: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: characterCategoryId,
+      name: 'Character',
+      slug: 'character',
+      description: 'Character models',
+      image: '',
+      parent: null,
+      created_at: '2026-01-01T00:00:00Z',
+    },
+    ...additionalBannerCategories.map(({ banner: _banner, ...category }) => ({
+      ...category,
+      description: `${category.name} models`,
+      image: '',
+      parent: null,
+      created_at: '2026-01-01T00:00:00Z',
+    })),
   ],
 }
 
@@ -143,7 +180,7 @@ describe('ModelsBrowsePage', () => {
   })
 
   it('applies category filter from URL query string', async () => {
-    renderModelsBrowsePage(`/3d-models?category=${encodeURIComponent(categoryId)}`)
+    const { container } = renderModelsBrowsePage(`/3d-models?category=${encodeURIComponent(categoryId)}`)
 
     await waitFor(() => {
       expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
@@ -152,9 +189,75 @@ describe('ModelsBrowsePage', () => {
     })
 
     await waitFor(() => {
+      expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
+        'src',
+        '/homepage%20images/banner_furniture_v24.jpg',
+      )
+    })
+
+    await waitFor(() => {
       expect(screen.getByLabelText(/^category$/i)).toHaveValue(categoryId)
     })
   })
+
+  it('uses the products banner for its assigned category URL', async () => {
+    const { container } = renderModelsBrowsePage(
+      `/3d-models?category=${productsBannerCategoryId}`,
+    )
+
+    await waitFor(() => {
+      expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
+        'src',
+        '/homepage%20images/banner_products_v24.jpg',
+      )
+    })
+
+    expect(container.querySelector('.site-hero-banner')).toHaveClass(
+      'plugins-browse-hero--products',
+    )
+  })
+
+  it('uses the food banner for the Food & Drink category', async () => {
+    const { container } = renderModelsBrowsePage(`/3d-models?category=${foodCategoryId}`)
+
+    await waitFor(() => {
+      expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
+        'src',
+        '/homepage%20images/banner_food_v24.jpg',
+      )
+    })
+  })
+
+  it('uses the character banner for the Character category', async () => {
+    const { container } = renderModelsBrowsePage(
+      `/3d-models?category=${characterCategoryId}`,
+    )
+
+    await waitFor(() => {
+      expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
+        'src',
+        '/homepage%20images/banner_character_v24.jpg',
+      )
+    })
+
+    expect(container.querySelector('.site-hero-banner')).toHaveClass(
+      'plugins-browse-hero--character',
+    )
+  })
+
+  it.each(additionalBannerCategories)(
+    'uses the assigned banner for the $name category',
+    async ({ id, banner }) => {
+      const { container } = renderModelsBrowsePage(`/3d-models?category=${id}`)
+
+      await waitFor(() => {
+        expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
+          'src',
+          banner,
+        )
+      })
+    },
+  )
 
   it('applies format checkbox filter', async () => {
     const user = userEvent.setup()

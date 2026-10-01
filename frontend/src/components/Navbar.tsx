@@ -33,6 +33,7 @@ export function Navbar() {
   const currentPath = location.pathname.toLowerCase()
   const isPluginsRoute = currentPath.startsWith('/plugins')
   const isModelsRoute = currentPath.startsWith('/3d-models')
+  const isProductRoute = currentPath === '/products' || currentPath.startsWith('/products/')
   // `/` redirects to the marketplace home hub. Keep the branded nav on both
   // so the header does not flash the inner-page style before the redirect.
   const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
@@ -242,7 +243,7 @@ export function Navbar() {
 
   return (
     <header
-      className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}${isModelsRoute ? ' navbar--models' : ''}${mobileNavOpen ? ' navbar--mobile-open' : ''
+      className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}${isModelsRoute ? ' navbar--models' : ''}${isProductRoute ? ' navbar--products' : ''}${mobileNavOpen ? ' navbar--mobile-open' : ''
         }`}
     >
       <nav className="navbar__inner" aria-label="Main">
