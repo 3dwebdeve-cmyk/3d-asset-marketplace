@@ -1,10 +1,11 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactElement, RefObject } from 'react'
+import type { RefObject } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listTrendingCategories } from '../../api/categoriesApi'
 import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
+import { getCategoryIcon } from '../../components/categoryIcons'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { Button } from '../../components/ui/Button'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
@@ -17,9 +18,6 @@ import '../../styles/products-browse.css'
 
 const HUB_PREVIEW_SIZE = 6
 
-type IconProps = { className?: string }
-type IconComponent = (props: IconProps) => ReactElement
-
 interface BrowseService {
   title: string
   description: string
@@ -28,93 +26,11 @@ interface BrowseService {
   iconSrc: string
 }
 
-function FurnitureIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M5 13h14v3H5v-3ZM7 16v3M17 16v3M6 13V9a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v4"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function VehiclesIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M4 14h16l-1.5-5.2A2 2 0 0 0 16.6 7H7.4a2 2 0 0 0-1.9 1.8L4 14Z"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path d="M4 14v3h2.5M20 14v3h-2.5M7 17.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM20 17.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" stroke="currentColor" strokeWidth="1.7" />
-    </svg>
-  )
-}
-
-function ArchitectureIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M4 20h16M6 20V9l6-4 6 4v11M9 12h1M9 15h1M14 12h1M14 15h1"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function SciFiIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
-      <path
-        d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function DefaultCategoryIcon({ className }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 8v8M8 12h8" />
-    </svg>
-  )
-}
-
-const CATEGORY_ICONS: Record<string, IconComponent> = {
-  furniture: FurnitureIcon,
-  vehicles: VehiclesIcon,
-  architecture: ArchitectureIcon,
-  'sci-fi': SciFiIcon,
-  'sci-fi-assets': SciFiIcon,
-  scifi: SciFiIcon,
-}
-
-function getCategoryIcon(slug: string): IconComponent | undefined {
-  const normalized = slug.trim().toLowerCase()
-  if (CATEGORY_ICONS[normalized]) return CATEGORY_ICONS[normalized]
-  const match = Object.keys(CATEGORY_ICONS).find((key) => normalized.includes(key))
-  return match ? CATEGORY_ICONS[match] : undefined
-}
+const CATEGORY_DISPLAY_ORDER = [
+  'furniture', 'products', 'toys', 'electronics', 'food-drink', 'character',
+  'industrial', '3d-printing', 'assets-props', 'interactive-webar',
+  'architectural-3d-models', 'interior-3d-models',
+]
 
 const BROWSE_SERVICES: BrowseService[] = [
   {
@@ -357,6 +273,21 @@ function CategoryTile({
 }) {
   const [imgError, setImgError] = useState(false)
   const IconComponent = getCategoryIcon(category.slug)
+  const localCategoryImages: Record<string, string> = {
+    furniture: '/homepage%20images/furniture.png',
+    products: '/homepage%20images/products.png',
+    toys: '/homepage%20images/toys.png',
+    electronics: '/homepage%20images/electronics.png',
+    'food-drink': '/homepage%20images/food.png',
+    character: '/homepage%20images/character.png',
+    industrial: '/homepage%20images/industrial.png',
+    '3d-printing': '/homepage%20images/printing.png',
+    'assets-props': '/homepage%20images/props.png',
+    'interactive-webar': '/homepage%20images/webar.png',
+    'architectural-3d-models': '/homepage%20images/architecture.png',
+    'interior-3d-models': '/homepage%20images/interior.png',
+  }
+  const imageSrc = localCategoryImages[category.slug.toLowerCase()] ?? category.image
 
   return (
     <button
@@ -366,9 +297,9 @@ function CategoryTile({
       aria-label={`Browse ${category.name} 3D models`}
     >
       <div className="browse-category-card__media">
-        {category.image && !imgError ? (
+        {imageSrc && !imgError ? (
           <img
-            src={category.image}
+            src={imageSrc}
             alt=""
             className="browse-category-card__image"
             onError={() => setImgError(true)}
@@ -381,11 +312,7 @@ function CategoryTile({
       </div>
       <div className="browse-category-card__content">
         <div className="browse-category-card__icon-badge" aria-hidden="true">
-          {IconComponent ? (
-            <IconComponent className="browse-category-card__icon" />
-          ) : (
-            <DefaultCategoryIcon className="browse-category-card__icon" />
-          )}
+          <IconComponent className="browse-category-card__icon" />
         </div>
         <span className="browse-category-card__name">{category.name}</span>
       </div>
@@ -420,8 +347,8 @@ export function ProductsBrowsePage() {
   const pluginsRailRef = useRef<HTMLDivElement>(null)
 
   const { data: trendingCategories = [] } = useQuery({
-    queryKey: ['public-categories-trending', { limit: 12 }],
-    queryFn: () => listTrendingCategories(12),
+    queryKey: ['public-categories-trending', { limit: 50 }],
+    queryFn: () => listTrendingCategories(50),
     staleTime: 1000 * 60,
   })
 
@@ -460,7 +387,13 @@ export function ProductsBrowsePage() {
 
   const filteredProducts = useMemo(() => productsData?.results ?? [], [productsData])
 
-  const categories = trendingCategories.slice(0, 12)
+  const categories = [...trendingCategories].sort((a, b) => {
+    const rank = (slug: string) => {
+      const index = CATEGORY_DISPLAY_ORDER.indexOf(slug.trim().toLowerCase())
+      return index === -1 ? CATEGORY_DISPLAY_ORDER.length : index
+    }
+    return rank(a.slug) - rank(b.slug)
+  }).slice(0, 12)
   const plugins = pluginsData?.results ?? []
 
   useAutoScrollRail(productsRailRef, !isCatalogMode && filteredProducts.length > 1)

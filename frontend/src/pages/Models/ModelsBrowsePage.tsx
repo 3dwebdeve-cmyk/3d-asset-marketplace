@@ -14,6 +14,20 @@ import '../../styles/products-browse.css'
 import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
+const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
+const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
+  furniture: '/homepage%20images/banner_furniture_v24.jpg',
+  toys: '/homepage%20images/banner_toys_v24.jpg',
+  electronics: '/homepage%20images/banner_electronic_v24.jpg',
+  'food-drink': '/homepage%20images/banner_food_v24.jpg',
+  character: '/homepage%20images/banner_character_v24.jpg',
+  industrial: '/homepage%20images/banner_industrial_v24.jpg',
+  '3d-printing': '/homepage%20images/banner_printing_v24.jpg',
+  'assets-props': '/homepage%20images/banner_props_v24.jpg',
+  'interactive-webar': '/homepage%20images/banner_webar_v24.jpg',
+  'architectural-3d-models': '/homepage%20images/banner_architecture_v24.jpg',
+  'interior-3d-models': '/homepage%20images/banner_interior_v24.jpg',
+}
 
 const FORMAT_OPTIONS = [
   { value: 'blend', label: 'Blender (.blend)' },
@@ -218,24 +232,37 @@ export function ModelsBrowsePage() {
     sortOrdering !== '-created_at' ||
     hasActiveTrait || formats.length > 0 || licenses.length > 0 || minPrice > 0 || maxPrice < 200
 
-  const selectedCategoryName = useMemo(() => {
+  const selectedCategory = useMemo(() => {
     if (!selectedCategoryId) return null
-    return categoriesData?.results.find((cat) => cat.id === selectedCategoryId)?.name ?? null
+    return categoriesData?.results.find((cat) => cat.id === selectedCategoryId) ?? null
   }, [categoriesData?.results, selectedCategoryId])
 
-  const heroTitle = selectedCategoryName ?? '3D Model'
+  const heroTitle = selectedCategory?.name ?? '3D Model'
+  const usesProductsBanner =
+    selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
+  const usesCharacterBanner = selectedCategory?.slug === 'character'
+  const heroImageSrc = usesProductsBanner
+    ? '/homepage%20images/banner_products_v24.jpg'
+    : selectedCategory
+      ? CATEGORY_BANNER_BY_SLUG[selectedCategory.slug]
+      : undefined
 
   return (
     <main className="plugins-browse models-browse">
-      <section className="plugins-browse-hero site-hero-banner">
-        <SiteHeroImage />
+      <section
+        className={`plugins-browse-hero site-hero-banner${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}`}
+      >
+        <SiteHeroImage src={heroImageSrc} />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
           <p className="plugins-browse-hero__subtitle">
-            Premium 3D models for games, film, architecture, and product design. Browse
-            production-ready assets built for Blender, Maya, 3ds Max, and Cinema 4D.
+            Premium 3D models for games, film, and architecture.
+            <br />
+            Production-ready assets for product design and visualization.
+            <br />
+            Optimized for <strong>Blender, Maya, 3ds Max, and Cinema 4D.</strong>
           </p>
         </div>
       </section>
