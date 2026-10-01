@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
 import { loadModelCatalog } from './modelCatalog'
@@ -27,6 +27,13 @@ const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
   'interactive-webar': '/homepage%20images/banner_webar_v24.jpg',
   'architectural-3d-models': '/homepage%20images/banner_architecture_v24.jpg',
   'interior-3d-models': '/homepage%20images/banner_interior_v24.jpg',
+  'cloth-items': '/homepage%20images/banner_cloth_v24.jpg',
+  household: '/homepage%20images/banner_household_v24.jpg',
+  'lifestyle-visualisation': '/homepage%20images/banner_lifestyle_v24.jpg',
+  'lifestyle-visualization': '/homepage%20images/banner_lifestyle_v24.jpg',
+  lights: '/homepage%20images/banner_lights_v24.jpg',
+  'plants-vegetation': '/homepage%20images/banner_plants_v24.jpg',
+  products: '/homepage%20images/banner_products_v24.jpg',
 }
 
 const FORMAT_OPTIONS = [
@@ -84,6 +91,28 @@ export function ModelsBrowsePage() {
     game_ready: gameReadyFromUrl,
   })
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const categoryDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!categoryDropdownOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!categoryDropdownRef.current?.contains(event.target as Node)) {
+        setCategoryDropdownOpen(false)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCategoryDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [categoryDropdownOpen])
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
@@ -288,33 +317,103 @@ export function ModelsBrowsePage() {
           </div>
 
           <div className="plugins-filters__panel">
-          <div className="plugins-filters__group">
+          <div className="plugins-filters__group" ref={categoryDropdownRef}>
             <label className="plugins-filters__label" htmlFor="model-category">
               Category
             </label>
-            <select
-              id="model-category"
-              value={selectedCategoryId}
-              onChange={(event) => {
-                const value = event.target.value
-                setSelectedCategoryId(value)
-                setCurrentPage(1)
+            <div className="custom-select-dropdown">
+              <button
+                type="button"
+                id="model-category-trigger"
+                className={`custom-select-trigger${categoryDropdownOpen ? ' custom-select-trigger--open' : ''}`}
+                aria-expanded={categoryDropdownOpen}
+                aria-haspopup="listbox"
+                onClick={() => setCategoryDropdownOpen((open) => !open)}
+              >
+                <span className="custom-select-label">
+                  {selectedCategory?.name ?? 'All categories'}
+                </span>
+                <svg
+                  className={`custom-select-arrow${categoryDropdownOpen ? ' custom-select-arrow--open' : ''}`}
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
 
-                const nextParams = new URLSearchParams(searchParams)
-                if (value) nextParams.set('category', value)
-                else nextParams.delete('category')
+              {categoryDropdownOpen ? (
+                <ul className="custom-select-menu" role="listbox" aria-label="Select Category">
+                  <li
+                    role="option"
+                    aria-selected={selectedCategoryId === ''}
+                    className={`custom-select-option${selectedCategoryId === '' ? ' custom-select-option--active' : ''}`}
+                    onClick={() => {
+                      setSelectedCategoryId('')
+                      setCurrentPage(1)
+                      setCategoryDropdownOpen(false)
+                      const nextParams = new URLSearchParams(searchParams)
+                      nextParams.delete('category')
+                      setSearchParams(nextParams, { replace: true })
+                    }}
+                  >
+                    All categories
+                  </li>
+                  {(categoriesData?.results ?? []).map((category) => (
+                    <li
+                      key={category.id}
+                      role="option"
+                      aria-selected={selectedCategoryId === category.id}
+                      className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
+                      onClick={() => {
+                        setSelectedCategoryId(category.id)
+                        setCurrentPage(1)
+                        setCategoryDropdownOpen(false)
+                        trackCategoryClick(category.id)
+                        const nextParams = new URLSearchParams(searchParams)
+                        nextParams.set('category', category.id)
+                        setSearchParams(nextParams, { replace: true })
+                      }}
+                    >
+                      {category.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
 
-                setSearchParams(nextParams, { replace: true })
-              }}
-              className="plugins-filters__select"
-            >
-              <option value="">All categories</option>
-              {(categoriesData?.results ?? []).map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+              <select
+                id="model-category"
+                aria-label="Category"
+                value={selectedCategoryId}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setSelectedCategoryId(value)
+                  setCurrentPage(1)
+                  if (value) trackCategoryClick(value)
+
+                  const nextParams = new URLSearchParams(searchParams)
+                  if (value) nextParams.set('category', value)
+                  else nextParams.delete('category')
+
+                  setSearchParams(nextParams, { replace: true })
+                }}
+                className="custom-select-native"
+                tabIndex={-1}
+                aria-hidden="true"
+              >
+                <option value="">All categories</option>
+                {(categoriesData?.results ?? []).map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <fieldset className="model-filters__group">

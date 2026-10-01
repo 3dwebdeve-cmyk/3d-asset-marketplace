@@ -324,4 +324,46 @@ describe('Navbar', () => {
 
     window.matchMedia = origMatchMedia
   })
+
+  it('navigates and filters immediately when selecting a category or All Categories from the search category dropdown', async () => {
+    const user = userEvent.setup()
+    const categoryId = 'arch-cat-123'
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: categoryId,
+          name: 'Architectural 3D Models',
+          slug: 'architectural-3d-models',
+          description: '',
+          image: '',
+          parent: null,
+          created_at: '2026-09-08T00:00:00Z',
+        },
+      ],
+    })
+
+    renderNavbar('/3d-models')
+
+    // Open the category dropdown in search bar
+    const categorySelectBtn = screen.getByRole('button', { name: /all categories/i })
+    await user.click(categorySelectBtn)
+
+    // Click the Architectural 3D Models category
+    const catItem = await screen.findByRole('menuitem', { name: /architectural 3d models/i })
+    await user.click(catItem)
+
+    expect(screen.getByTestId('location')).toHaveTextContent(`/3d-models?category=${categoryId}`)
+
+    // Open dropdown again and click "All Categories"
+    const archSelectBtn = screen.getByRole('button', { name: /architectural 3d models/i })
+    await user.click(archSelectBtn)
+
+    const allCatItem = await screen.findByRole('menuitem', { name: /^all categories$/i })
+    await user.click(allCatItem)
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/3d-models')
+  })
 })
