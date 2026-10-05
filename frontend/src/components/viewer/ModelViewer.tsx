@@ -389,9 +389,8 @@ function ModelViewerCanvas({
             <button
               key={option.id}
               type="button"
-              className={`model-viewer__chip${
-                environmentId === option.id ? ' model-viewer__chip--active' : ''
-              }`}
+              className={`model-viewer__chip${environmentId === option.id ? ' model-viewer__chip--active' : ''
+                }`}
               role="radio"
               aria-checked={environmentId === option.id}
               onClick={() => setEnvironmentId(option.id)}

@@ -68,6 +68,14 @@ export function AddToCartButton({
   }
 
   if (variant === 'icon') {
+    const iconCart = (
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="9" cy="20" r="1.5" />
+        <circle cx="17" cy="20" r="1.5" />
+        <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+
     if (!isSignedIn) {
       return (
         <AuthEntryButton
@@ -76,7 +84,7 @@ export function AddToCartButton({
           className={`product-detail-stage__overlay-btn ${className ?? ''}`.trim()}
           aria-label={`Sign in to add ${productName} to cart`}
         >
-          <span aria-hidden="true">🛒</span>
+          {iconCart}
         </AuthEntryButton>
       )
     }
@@ -92,7 +100,7 @@ export function AddToCartButton({
           add(productType, productId)
         }}
       >
-        <span aria-hidden="true">🛒</span>
+        {iconCart}
       </button>
     )
   }
@@ -139,6 +147,14 @@ export function AddToCartButton({
       ? `ui-button ui-button--primary product-detail-cta__full ${className ?? ''}`.trim()
       : `product-detail-cta__chip ${className ?? ''}`.trim()
 
+  const cartIconSvg = (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '6px', verticalAlign: '-2px' }}>
+      <circle cx="9" cy="20" r="1.5" />
+      <circle cx="17" cy="20" r="1.5" />
+      <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+
   if (!isSignedIn) {
     return (
       <AuthEntryButton
@@ -150,7 +166,14 @@ export function AddToCartButton({
             : `ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link ${className ?? ''}`.trim()
         }
       >
-        Sign in to add to cart
+        {variant === 'primary' ? (
+          <>
+            {cartIconSvg}
+            Add to Shopping Cart
+          </>
+        ) : (
+          'Sign in to add to cart'
+        )}
       </AuthEntryButton>
     )
   }
@@ -169,7 +192,8 @@ export function AddToCartButton({
       }}
       title={inCart ? `${productName} is already in your cart` : undefined}
     >
-      {inCart ? 'In cart' : idleLabel}
+      {variant === 'primary' && cartIconSvg}
+      {inCart ? (variant === 'primary' ? 'In Shopping Cart' : 'In cart') : idleLabel}
     </Button>
   )
 }

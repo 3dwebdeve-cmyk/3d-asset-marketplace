@@ -8,6 +8,7 @@ import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { AddToCartButton } from '../../components/cart/AddToCartButton'
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import {
   buildProductMetaDescription,
@@ -25,6 +26,7 @@ import { ProductImageGallery } from './ProductImageGallery'
 import { ProductSpecs } from './ProductSpecs'
 import '../../styles/product-details.css'
 import '../../styles/product-hub-details.css'
+import '../../styles/products-browse.css'
 
 const RELATED_PAGE_SIZE = 5
 
@@ -91,7 +93,15 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
       <header className="product-hub-detail__header">
         <div className="product-hub-detail__header-text">
           <p className="product-hub-detail__eyebrow">{product.category.name}</p>
-          <h1 className="product-hub-detail__title">{product.name}</h1>
+          <h1 className="product-hub-detail__title">
+            {product.name}
+            <span className="product-hub-detail__verified-badge" title="Verified Asset" aria-label="Verified">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="#1d6bf3" aria-hidden="true">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#1d6bf3" />
+                <path d="m10 15.17-3.59-3.58L5 13l5 5 9-9-1.41-1.42L10 15.17z" fill="#ffffff" />
+              </svg>
+            </span>
+          </h1>
           <div className="product-hub-detail__meta">
             <RatingDisplay
               averageRating={product.average_rating}
@@ -115,14 +125,21 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             previewModelUrl={product.preview_model}
             previewVideoUrl={product.preview_video}
             showStageChrome
-            showPreviewModeThumbs={false}
             stageOverlays={
-              <WishlistToggle
-                productType="product"
-                productId={product.id}
-                productName={product.name}
-                variant="icon"
-              />
+              <>
+                <WishlistToggle
+                  productType="product"
+                  productId={product.id}
+                  productName={product.name}
+                  variant="icon"
+                />
+                <AddToCartButton
+                  productType="product"
+                  productId={product.id}
+                  productName={product.name}
+                  variant="icon"
+                />
+              </>
             }
           />
 
@@ -274,9 +291,9 @@ export function ProductDetailsPage() {
       ? 'The requested product could not be found.'
       : productQuery.data
         ? buildProductMetaDescription(
-            productQuery.data.name,
-            productQuery.data.short_description,
-          )
+          productQuery.data.name,
+          productQuery.data.short_description,
+        )
         : 'Loading product details from the marketplace catalog.',
   })
 

@@ -356,6 +356,14 @@
 
 .auth-icon-field {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.auth-icon-field__control {
+  position: relative;
+  width: 100%;
 }
 
 .auth-icon-field__icon,
@@ -396,6 +404,7 @@
 }
 
 .auth-icon-field__input {
+  width: 100%;
   padding: 0.55rem 0.75rem;
   border-radius: 10px;
   background: #fff;
@@ -406,6 +415,7 @@
   font-weight: 400;
   letter-spacing: -0.011em;
   color: var(--auth-ink, var(--text-main));
+  box-sizing: border-box;
 }
 
 .auth-icon-field__input::placeholder {
@@ -426,6 +436,72 @@
   outline-offset: 0;
   border-color: var(--auth-accent, var(--action-color));
   background: #fff;
+}
+
+/* Error States and Attached Pop */
+.auth-icon-field--has-error .auth-icon-field__input,
+.auth-card--market .ui-input--error {
+  border-color: #fca5a5;
+  background: #fff;
+}
+
+.auth-icon-field--has-error .auth-icon-field__input {
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-bottom-color: #fee2e2;
+}
+
+.auth-card--market .ui-input--error:focus,
+.auth-icon-field--has-error .auth-icon-field__input:focus {
+  outline: 2px solid rgba(239, 68, 68, 0.35);
+  outline-offset: 0;
+  border-color: #ef4444;
+}
+
+.auth-field-error-pop {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  background-color: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  color: #991b1b;
+  font-family: var(--auth-font, inherit);
+  font-size: 0.76rem;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: -0.008em;
+  box-sizing: border-box;
+  width: 100%;
+  animation: authErrorPopFade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes authErrorPopFade {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-field-error-pop__icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  color: #dc2626;
+  margin-top: 0.05rem;
+}
+
+.auth-field-error-pop__text {
+  flex: 1;
+  color: #991b1b;
+  font-weight: 400;
+  text-align: left;
 }
 
 .auth-form__options {
