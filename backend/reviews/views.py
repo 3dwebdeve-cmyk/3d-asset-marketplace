@@ -169,18 +169,13 @@ class ReviewEligibilityView(APIView):
         try:
             normalized = ReviewService._normalize_product_type(product_type)
             ReviewService._validate_catalog_item(normalized, product_id)
-            can_review = ReviewService.user_has_purchased(
-                request.user,
-                normalized,
-                product_id,
-            )
             existing = ReviewService.get_mine(request.user, normalized, product_id)
         except ReviewError as exc:
             return _error_response(exc)
 
         return Response(
             {
-                "can_review": can_review,
+                "can_review": True,
                 "has_reviewed": existing is not None,
                 "review": ReviewPublicSerializer(existing).data if existing else None,
             }

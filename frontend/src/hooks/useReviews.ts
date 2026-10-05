@@ -59,7 +59,7 @@ export function useReviews({
       createReview({
         product_type: productType,
         product_id: productId,
-        rating: payload.rating,
+        rating: payload.rating ?? null,
         review_text: payload.review_text,
       }),
     onSuccess: async () => {

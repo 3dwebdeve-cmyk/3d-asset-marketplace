@@ -135,19 +135,7 @@ class ReviewAPITests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_create_review_requires_paid_purchase(self) -> None:
-        OrderService.create(
-            OrderCreateData(
-                user_id=self.customer.pk,
-                items=(
-                    OrderItemCreateData(
-                        product_type="product",
-                        product_id=self.product.pk,
-                        quantity=1,
-                    ),
-                ),
-            )
-        )
+    def test_authenticated_user_can_comment_without_purchase(self) -> None:
         self.authenticate()
 
         response = self.client.post(
@@ -155,30 +143,26 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "rating": 5,
                 "review_text": "Nice chair",
             },
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(response.data["code"], "not_purchased")
-
-    def test_create_review_requires_payment_status_paid(self) -> None:
-        """Order marked paid without payment_status=paid must not unlock reviews."""
-        order = OrderService.create(
-            OrderCreateData(
-                user_id=self.customer.pk,
-                items=(
-                    OrderItemCreateData(
-                        product_type="product",
-                        product_id=self.product.pk,
-                        quantity=1,
-                    ),
-                ),
-            )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data["rating"])
+        self.assertEqual(response.data["review_text"], "Nice chair")
+        self.assertTrue(
+            Review.objects.filter(
+                user=self.customer,
+                product_type=Review.ProductType.PRODUCT,
+                product_id=self.product.pk,
+            ).exists()
         )
-        OrderService.update_order_status(order, Order.OrderStatus.PAID)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.review_count, 0)
+        self.assertEqual(self.product.average_rating, Decimal("0.00"))
+
+    def test_empty_comment_and_rating_are_rejected(self) -> None:
         self.authenticate()
 
         response = self.client.post(
@@ -186,14 +170,13 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "rating": 5,
-                "review_text": "Should be blocked",
+                "review_text": "   ",
             },
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(response.data["code"], "not_purchased")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("review_text", response.data)
 
     def test_create_review_after_paid_order_updates_aggregates(self) -> None:
         self.create_paid_order(self.customer)
@@ -281,7 +264,6 @@ class ReviewAPITests(APITestCase):
         self.assertEqual(response.data["results"][0]["id"], str(visible.pk))
 
     def test_mine_and_eligibility_endpoints(self) -> None:
-        self.create_paid_order(self.customer)
         self.authenticate()
 
         eligibility = self.client.get(
