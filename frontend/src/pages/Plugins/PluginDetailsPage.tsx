@@ -23,7 +23,6 @@ import '../../styles/product-details.css'
 import '../../styles/product-hub-details.css'
 import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
-import '../../styles/products-browse.css'
 
 const RELATED_PAGE_SIZE = 5
 
@@ -295,9 +294,9 @@ export function PluginDetailsPage() {
       ? 'The requested plugin could not be found.'
       : pluginQuery.data
         ? buildPluginMetaDescription(
-            pluginQuery.data.name,
-            pluginQuery.data.short_description,
-          )
+          pluginQuery.data.name,
+          pluginQuery.data.short_description,
+        )
         : 'Loading plugin details from the marketplace catalog.',
   })
 

@@ -33,6 +33,7 @@ export function AuthLoginPanel({
     emailNotVerified,
     isSuccess,
     onSubmit,
+    resetServerError,
   } = useLoginForm()
   const {
     isSubmitting: isGoogleSubmitting,
@@ -67,7 +68,27 @@ export function AuthLoginPanel({
     void navigate('/verify-email/resend')
   }
 
-  const displayError = serverError ?? googleError
+  const isPasswordCredentialError = Boolean(
+    serverError &&
+      (serverError.toLowerCase().includes('password') ||
+        serverError.toLowerCase().includes('credential') ||
+        serverError.toLowerCase().includes('invalid email or password') ||
+        serverError.toLowerCase().includes('incorrect') ||
+        serverError.toLowerCase().includes('no active account')),
+  )
+
+  const passwordErrorMessage =
+    errors.password?.message ??
+    (isPasswordCredentialError
+      ? 'The password you entered is incorrect. Please check and try again.'
+      : undefined)
+
+  const topDisplayError = isPasswordCredentialError
+    ? googleError
+    : (serverError ?? googleError)
+
+  const emailFieldProps = register('email')
+  const passwordFieldProps = register('password')
 
   return (
     <>
@@ -80,7 +101,7 @@ export function AuthLoginPanel({
         </p>
       </header>
 
-      {displayError ? <Alert variant="error" message={displayError} /> : null}
+      {topDisplayError ? <Alert variant="error" message={topDisplayError} /> : null}
 
       {emailNotVerified ? (
         <p className="auth-card__footer">
@@ -128,7 +149,13 @@ export function AuthLoginPanel({
           error={errors.email?.message}
           aria-invalid={Boolean(errors.email)}
           aria-describedby={errors.email ? 'auth-email-error' : undefined}
-          {...register('email')}
+          {...emailFieldProps}
+          onChange={(e) => {
+            if (serverError) {
+              resetServerError()
+            }
+            void emailFieldProps.onChange(e)
+          }}
         />
 
         <AuthIconField
@@ -136,10 +163,10 @@ export function AuthLoginPanel({
           label="Password"
           revealable
           autoComplete="current-password"
-          hasError={Boolean(errors.password)}
-          error={errors.password?.message}
-          aria-invalid={Boolean(errors.password)}
-          aria-describedby={errors.password ? 'auth-password-error' : undefined}
+          hasError={Boolean(passwordErrorMessage)}
+          error={passwordErrorMessage}
+          aria-invalid={Boolean(passwordErrorMessage)}
+          aria-describedby={passwordErrorMessage ? 'auth-password-error' : undefined}
           labelAside={
             <button
               type="button"
@@ -149,7 +176,13 @@ export function AuthLoginPanel({
               Forgot password?
             </button>
           }
-          {...register('password')}
+          {...passwordFieldProps}
+          onChange={(e) => {
+            if (serverError) {
+              resetServerError()
+            }
+            void passwordFieldProps.onChange(e)
+          }}
         />
 
         <label className="auth-check" htmlFor="auth-remember_me">

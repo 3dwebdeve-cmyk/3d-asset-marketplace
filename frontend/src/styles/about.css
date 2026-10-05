@@ -100,7 +100,7 @@
 .about-hero__copy h1 {
   margin: 0 0 0.85rem;
   max-width: min(100%, 22ch);
-  font-size: clamp(1.7rem, 3.2vw, 2.85rem);
+  font-size: clamp(1.6rem, 2.5vw, 2.25rem);
   line-height: 1.15;
   letter-spacing: -0.03em;
   font-weight: 700;
@@ -201,7 +201,7 @@
 
 .about-who__copy h2 {
   margin-bottom: 1.1rem;
-  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-size: clamp(1.5rem, 2vw, 1.9rem);
   line-height: 1.15;
   font-weight: 800;
 }
@@ -292,7 +292,7 @@
 .about-mission__copy h2 {
   margin-bottom: 0.9rem;
   max-width: 16ch;
-  font-size: clamp(1.85rem, 3.2vw, 2.65rem);
+  font-size: clamp(1.5rem, 2vw, 1.9rem);
   line-height: 1.12;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -380,7 +380,7 @@
 }
 
 .about-offer__header h2 {
-  font-size: clamp(1.7rem, 3vw, 2.2rem);
+  font-size: clamp(1.5rem, 2vw, 1.9rem);
   font-weight: 800;
 }
 
@@ -491,11 +491,17 @@
   background: #ffffff;
 }
 
+.about-trust .about-section-shell {
+  padding-inline: clamp(1rem, 5vw, 5cm);
+}
+
 .about-trust__grid {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: clamp(2rem, 5vw, 4rem);
-  align-items: center;
+  max-width: 78rem;
+  margin-inline: auto;
+  grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
+  gap: clamp(2rem, 4vw, 3.5rem);
+  align-items: start;
 }
 
 .about-trust__visual {
@@ -503,7 +509,10 @@
   overflow: hidden;
   border-radius: 1.35rem;
   aspect-ratio: 4 / 3;
-  min-height: 18rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 28rem;
+  justify-self: start;
   background: var(--accent-soft);
   box-shadow: none;
 }
@@ -527,7 +536,7 @@
 
 .about-trust__copy h2 {
   margin-bottom: 0.9rem;
-  font-size: clamp(1.85rem, 3.2vw, 2.55rem);
+  font-size: clamp(1.4rem, 1.8vw, 1.7rem);
   font-weight: 800;
   line-height: 1.12;
   color: var(--text-main);
@@ -535,12 +544,12 @@
 
 .about-trust__copy>p {
   max-width: 36rem;
-  font-size: 0.98rem;
+  font-size: 0.9rem;
   color: var(--text-secondary);
 }
 
 .about-trust__steps {
-  margin: 2.1rem 0 0;
+  margin: 1.5rem 0 0;
   padding: 0;
   list-style: none;
   display: grid;
@@ -574,13 +583,13 @@
 .about-trust__steps strong {
   display: block;
   margin-bottom: 0.2rem;
-  font-size: 0.98rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--text-main);
 }
 
 .about-trust__steps span {
-  font-size: 0.86rem;
+  font-size: 0.8rem;
   line-height: 1.45;
   color: var(--text-secondary);
 }
@@ -614,7 +623,7 @@
 
 .about-cta h2 {
   margin-bottom: 0.7rem;
-  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  font-size: clamp(1.5rem, 2vw, 1.9rem);
   font-weight: 800;
   color: #fff;
 }
@@ -660,6 +669,28 @@
   filter: brightness(1.08);
 }
 
+@media (max-width: 1400px) {
+  .about-trust__steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .about-trust__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .about-trust__visual {
+    justify-self: center;
+  }
+
+  .about-trust__copy {
+    width: 100%;
+    max-width: 28rem;
+    justify-self: center;
+  }
+}
+
 @media (max-width: 980px) {
 
   .about-who__grid,
@@ -675,20 +706,6 @@
   .about-mission__points,
   .about-trust__steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .about-trust__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .about-trust__visual {
-    max-width: 34rem;
-    width: 100%;
-    justify-self: center;
-  }
-
-  .about-trust__copy {
-    max-width: none;
   }
 
   .about-mission__tagline {

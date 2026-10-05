@@ -271,21 +271,25 @@ export function Navbar() {
       >
         <svg
           viewBox="0 0 24 24"
-          width="18"
-          height="18"
+          width="19"
+          height="19"
           aria-hidden="true"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.8"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         >
-          <path d="M6 6h15l-1.5 9h-12z" />
-          <path d="M6 6l-1-3H2" />
-          <circle cx="9" cy="20" r="1.2" fill="currentColor" stroke="none" />
-          <circle cx="18" cy="20" r="1.2" fill="currentColor" stroke="none" />
+          <path d="M2.5 3h3.2l2.4 11.5a1.5 1.5 0 0 0 1.5 1.2h8.8a1.5 1.5 0 0 0 1.5-1.2L22 6.5H6.2" />
+          <path d="M10 6.5v8" />
+          <path d="M14 6.5v8" />
+          <path d="M18 6.5v6" />
+          <circle cx="9" cy="20.5" r="1.5" fill="currentColor" stroke="none" />
+          <circle cx="18" cy="20.5" r="1.5" fill="currentColor" stroke="none" />
         </svg>
         {(cartCountQuery.data ?? 0) > 0 ? (
           <span
-            className="project-unread-badge navbar__cart-badge"
+            className="navbar__cart-badge"
             aria-label={`${cartCountQuery.data} item${cartCountQuery.data === 1 ? '' : 's'} in cart`}
           >
             {formatUnreadBadge(cartCountQuery.data ?? 0)}
