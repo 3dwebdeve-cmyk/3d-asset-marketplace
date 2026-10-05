@@ -42,28 +42,6 @@ function ArrowUpRightIcon({ size = 9 }: { size?: number }) {
   )
 }
 
-function ImageFrameIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      aria-hidden="true"
-    >
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2.2" />
-      <circle cx="9" cy="10" r="1.5" />
-      <path
-        d="m6.5 16.5 3.2-3.4a1.2 1.2 0 0 1 1.7 0L14 15.5l1.4-1.4a1.2 1.2 0 0 1 1.7 0l1.9 1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
 function SearchIcon({ size = 18, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
   return (
     <svg
@@ -127,9 +105,6 @@ export function MarketplaceHero() {
             onSubmit={onSearchSubmit}
             role="search"
           >
-            <span className="home-marketplace-search__leading" aria-hidden="true">
-              <ImageFrameIcon />
-            </span>
             <input
               type="search"
               className="home-marketplace-search__input"

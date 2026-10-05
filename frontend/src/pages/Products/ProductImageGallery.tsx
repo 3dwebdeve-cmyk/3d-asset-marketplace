@@ -356,6 +356,8 @@ export function ProductImageGallery({
           ) : null}
           {galleryImages.map((image, index) => {
             const failed = imgErrorIds.has(image.id)
+            if (failed) return null
+
             return (
               <li key={image.id}>
                 <button
@@ -368,18 +370,13 @@ export function ProductImageGallery({
                   onClick={() => selectImage(index)}
                   aria-label={`Show image ${index + 1} of ${galleryImages.length}`}
                   aria-current={showImageStage && index === safeIndex ? 'true' : undefined}
-                  disabled={failed}
                 >
-                  {failed ? (
-                    <span className="product-detail-gallery__thumb-fallback" aria-hidden="true" />
-                  ) : (
-                    <img
-                      src={image.src}
-                      alt=""
-                      className="product-detail-gallery__thumb-image"
-                      onError={() => markFailed(image.id)}
-                    />
-                  )}
+                  <img
+                    src={image.src}
+                    alt=""
+                    className="product-detail-gallery__thumb-image"
+                    onError={() => markFailed(image.id)}
+                  />
                 </button>
               </li>
             )

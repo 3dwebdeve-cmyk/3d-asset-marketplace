@@ -101,10 +101,10 @@ export function ProductSpecs({ product }: ProductSpecsProps) {
 
   const licenseLabel =
     product.license_type === 'extended'
-      ? 'Standard Commercial (Royalty-Free)'
+      ? 'Standard Commercial'
       : product.license_type === 'editorial'
         ? 'Editorial Use'
-        : 'Standard Commercial (Royalty-Free)'
+        : 'Standard Commercial'
 
   const rows: Array<{ label: string; value: string }> = [
     { label: 'Polygons', value: product.polygon_count ? formatCount(product.polygon_count) : '42,500' },
