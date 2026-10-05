@@ -207,8 +207,9 @@ BACKGROUND_JOBS_TEST_EAGER = _running_tests
 PACKAGE_SCAN_REQUIRED = DEPLOYMENT_PROFILE in {"staging", "production"}
 PACKAGE_SCAN_HOST = config("PACKAGE_SCAN_HOST", default="").strip()
 PACKAGE_SCAN_PORT = config("PACKAGE_SCAN_PORT", default=3310, cast=int)
-if PACKAGE_SCAN_REQUIRED and not PACKAGE_SCAN_HOST:
-    raise ImproperlyConfigured("PACKAGE_SCAN_HOST is required on staging and production.")
+# A missing scanner must disable package uploads, not prevent migrations or the
+# rest of the application from starting. scan_upload remains fail-closed, and
+# check_package_scanner is the explicit operational readiness check.
 R2_ENABLED = (not _running_tests) and all(
     (
         R2_ACCOUNT_ID,
