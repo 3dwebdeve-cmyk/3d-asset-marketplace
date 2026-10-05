@@ -1,5 +1,13 @@
 Implementation validation - 2026-10-05
 
+Deployment follow-up: scanner availability no longer blocks settings import or
+migrations. Production upload scanning remains mandatory and fails closed when
+the scanner is missing/unreachable. check_package_scanner provides a separate
+operational readiness check. Verified with 23 targeted tests, including loading
+production settings in a subprocess without a scanner, and production Compose
+configuration validation with an empty scanner host. Other production requirements
+remain enforced; this fixes the logged scanner error, not all possible host issues.
+
 Implemented code changes
 Phase 1
 - Google ownership of an unverified registration invalidates its old password and

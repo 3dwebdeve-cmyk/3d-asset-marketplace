@@ -14,8 +14,12 @@ Release procedure (do not deploy without the external checks below)
    must be disabled or separately network restricted. Malformed, empty required
    networks and whole-internet networks are rejected.
 5. Provision a PRIVATE ClamAV clamd server with fresh signatures. Configure
-   PACKAGE_SCAN_HOST and PACKAGE_SCAN_PORT (3310 by default). Never publish clamd
-   publicly: its TCP interface is unauthenticated. Configure StreamMaxLength >=50MB,
+   PACKAGE_SCAN_HOST and PACKAGE_SCAN_PORT (3310 by default).
+   Run python manage.py check_package_scanner explicitly before enabling uploads.
+   A missing scanner no longer stops web startup or migrations; production package
+   uploads still fail closed until a configured scanner approves each file.
+   Never publish clamd publicly: its TCP interface is unauthenticated.
+   Configure StreamMaxLength >=50MB,
    ScanArchive yes, AlertExceedsMax yes, and strict scan-size/recursion limits.
    Test a clean upload, the harmless EICAR test file, an archive exceeding scan
    limits and scanner downtime; all but the clean upload must be rejected.
