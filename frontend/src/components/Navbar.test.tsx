@@ -158,7 +158,8 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /^messages$/i })).toHaveAttribute('href', '/contact')
     expect(screen.getByRole('button', { name: /^account$/i })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /^explore/i }))
+    await user.hover(screen.getByRole('button', { name: /^explore/i }))
+    expect(await screen.findByRole('menu', { name: /explore categories/i })).toBeInTheDocument()
     await user.click(
       await screen.findByRole('menuitem', { name: /furniture/i }),
     )

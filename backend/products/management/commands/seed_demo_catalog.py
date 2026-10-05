@@ -16,6 +16,7 @@ from categories.models import Category
 from config.package_audit import PublishedPackageAuditService
 from config.storages import build_public_media_url, get_private_storage, get_public_storage
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
+from products.demo_preview import build_demo_preview
 from products.models import Product, ProductFile, ProductImage
 
 DEMO_PRODUCTS = (
@@ -260,11 +261,7 @@ class Command(BaseCommand):
             image_url = cls._public_asset_url(frontend_base, image_path)
             if not include_preview:
                 return image_url, ""
-            preview = (
-                f"{frontend_base}/fixtures/e2e-preview.glb"
-                if frontend_base
-                else "/fixtures/e2e-preview.glb"
-            )
+            preview = cls._public_asset_url(frontend_base, f"/fixtures/{slug}.glb")
             return image_url, preview
 
         image_key = f"products/images/demo/{slug}.jpg"
@@ -273,10 +270,7 @@ class Command(BaseCommand):
         if not include_preview:
             return image_url, ""
         preview_key = f"products/previews/demo/{slug}.glb"
-        cls._save_public_bytes(
-            preview_key,
-            f"glTF-binary-demo-preview-{slug}".encode(),
-        )
+        cls._save_public_bytes(preview_key, build_demo_preview(slug))
         return image_url, build_public_media_url(preview_key)
 
     @staticmethod

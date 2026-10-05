@@ -410,6 +410,52 @@ function ModelViewerCanvas({
   )
 }
 
+/**
+ * Minimal recovery scene used when an optional HDRI or shadow effect fails.
+ * Keeping this path free of environment textures and post-processing lets a
+ * valid GLB remain usable on browsers that cannot render the enhanced scene.
+ */
+function StableModelViewerCanvas({
+  modelUrl,
+  ariaLabel,
+  visible,
+  pixelRatio,
+}: {
+  modelUrl: string
+  ariaLabel: string
+  visible: boolean
+  pixelRatio: number
+}) {
+  return (
+    <div className="model-viewer" role="img" aria-label={ariaLabel}>
+      <Canvas
+        className="model-viewer__canvas"
+        camera={{ position: [0, 0.9, 2.8], fov: 42, near: 0.1, far: 200 }}
+        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        dpr={pixelRatio}
+        frameloop={visible ? 'always' : 'never'}
+      >
+        <color attach="background" args={['#ffffff']} />
+        <ambientLight intensity={0.45} />
+        <hemisphereLight args={['#ffffff', '#c4cad3', 0.5]} />
+        <directionalLight position={[5, 8, 4]} intensity={1.1} />
+        <Suspense fallback={null}>
+          <PreviewModel key={modelUrl} url={modelUrl} wireframe={false} showGround={false} />
+        </Suspense>
+        <OrbitControls
+          makeDefault
+          enableDamping
+          dampingFactor={0.08}
+          minDistance={0.5}
+          maxDistance={20}
+          maxPolarAngle={Math.PI * 0.92}
+        />
+      </Canvas>
+      <ViewerProgressOverlay />
+    </div>
+  )
+}
+
 export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps) {
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
@@ -441,9 +487,20 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
     >
       <ErrorBoundary
         fallback={
-          <div className="model-viewer model-viewer--empty">
-            <ModelViewerError message="The preview model could not be loaded. It may be missing or unsupported." />
-          </div>
+          <ErrorBoundary
+            fallback={
+              <div className="model-viewer model-viewer--empty">
+                <ModelViewerError message="The preview model could not be loaded. It may be missing or unsupported." />
+              </div>
+            }
+          >
+            <StableModelViewerCanvas
+              modelUrl={trimmedUrl}
+              ariaLabel={ariaLabel}
+              visible={visible}
+              pixelRatio={pixelRatio}
+            />
+          </ErrorBoundary>
         }
       >
         <ModelViewerCanvas
