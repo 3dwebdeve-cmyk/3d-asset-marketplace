@@ -68,7 +68,9 @@ class GoogleLoginTests(APITestCase):
         existing.refresh_from_db()
         self.assertEqual(existing.google_id, "google-sub-123")
         self.assertTrue(existing.email_verified)
-        self.assertTrue(existing.has_usable_password())
+        self.assertFalse(existing.has_usable_password())
+        self.assertFalse(existing.check_password("Password123!"))
+        self.assertEqual(existing.token_version, 1)
 
     @patch("accounts.services.settings.GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
     @patch("google.oauth2.id_token.verify_oauth2_token")

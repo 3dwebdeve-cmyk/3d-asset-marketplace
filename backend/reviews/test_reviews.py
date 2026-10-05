@@ -178,6 +178,27 @@ class ReviewAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("review_text", response.data)
 
+    def test_non_buyer_cannot_affect_rating(self) -> None:
+        self.authenticate()
+        response = self.client.post(self.list_url, {
+            "product_type": "product", "product_id": str(self.product.pk),
+            "rating": 5, "review_text": "Not purchased",
+        }, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Review.objects.filter(user=self.customer).exists())
+
+    def test_edit_does_not_unhide_moderated_comment(self) -> None:
+        review = Review.objects.create(user=self.customer, product_type="product",
+            product_id=self.product.pk, rating=None, review_text="Hidden", is_hidden=True)
+        self.authenticate()
+        response = self.client.post(self.list_url, {
+            "product_type": "product", "product_id": str(self.product.pk),
+            "review_text": "Edited",
+        }, format="json")
+        self.assertEqual(response.status_code, 200)
+        review.refresh_from_db()
+        self.assertTrue(review.is_hidden)
+
     def test_create_review_after_paid_order_updates_aggregates(self) -> None:
         self.create_paid_order(self.customer)
         self.authenticate()
@@ -282,7 +303,6 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "rating": 4,
                 "review_text": "Solid",
             },
             format="json",
@@ -296,7 +316,7 @@ class ReviewAPITests(APITestCase):
             },
         )
         self.assertEqual(mine.status_code, status.HTTP_200_OK)
-        self.assertEqual(mine.data["rating"], 4)
+        self.assertIsNone(mine.data["rating"])
 
         eligibility2 = self.client.get(
             self.eligibility_url,

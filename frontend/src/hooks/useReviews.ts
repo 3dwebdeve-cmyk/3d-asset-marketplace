@@ -97,6 +97,7 @@ export function useReviews({
     isError: listQuery.isError,
     refetch: listQuery.refetch,
     canReview: isSignedIn,
+    canRate: eligibilityQuery.data?.can_rate ?? false,
     hasReviewed: eligibilityQuery.data?.has_reviewed ?? false,
     myReview: isSignedIn ? eligibilityQuery.data?.review ?? null : null,
     isEligibilityLoading: eligibilityQuery.isLoading,

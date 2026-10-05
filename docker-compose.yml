@@ -15,7 +15,7 @@
 # Browser: http://localhost:8080  (Nginx SPA + /api proxy → Gunicorn)
 # Health:  http://localhost:8080/api/v1/healthz/ (legacy /api/healthz/ still works)
 #
-# Background work (email, etc.) runs in-process (Celery eager; no Redis/worker).
+# Background email is persisted in PostgreSQL and delivered by the worker.
 # Catalog search uses Postgres (no Meilisearch).
 # SPA admin control panel: http://localhost:8080/console/login  (Django admin remains /admin/)
 # Cutover gate: docker compose exec web python manage.py check_cutover --profile staging
@@ -46,6 +46,7 @@ services:
         required: false
     environment:
       DEBUG: "False"
+      DEPLOYMENT_PROFILE: development
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${DB_NAME:-marketplace}
@@ -106,14 +107,30 @@ services:
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "curl --fail --show-error --silent http://127.0.0.1:8000/api/v1/healthz/ || exit 1",
+          "CMD",
+          "python", "scripts/healthcheck.py",
         ]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 60s
     restart: unless-stopped
+
+  worker:
+    extends:
+      service: web
+    command: ["python", "manage.py", "process_background_jobs"]
+    environment:
+      SKIP_STARTUP_MIGRATE: "True"
+    healthcheck:
+      test: ["CMD", "python", "manage.py", "check_background_jobs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      web:
+        condition: service_healthy
 
   frontend:
     image: ${FRONTEND_IMAGE:-marketplace-frontend:local}

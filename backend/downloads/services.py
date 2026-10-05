@@ -67,7 +67,7 @@ class DownloadService:
             order__user=user,
             order__order_status=Order.OrderStatus.PAID,
             order__payment_status=Order.PaymentStatus.PAID,
-        ).values_list("product_type", "product_id")
+        ).exclude(order__payment__status="disputed").values_list("product_type", "product_id")
         seen: set[tuple[str, UUID]] = set()
         keys: list[tuple[str, UUID]] = []
         for product_type, product_id in rows:
@@ -327,6 +327,7 @@ class DownloadService:
                 product_type=product_type,
                 product_id=product_id,
             )
+            .exclude(order__payment__status="disputed")
             .select_related("order")
             .order_by("-order__created_at")
             .first()

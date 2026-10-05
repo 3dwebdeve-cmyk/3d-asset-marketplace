@@ -9,6 +9,7 @@ from uuid import UUID
 
 from django.conf import settings
 from django.db import transaction
+from config.locking import advisory_lock
 
 from orders.models import Order
 from orders.services import OrderError, OrderService
@@ -53,6 +54,11 @@ class CheckoutService:
         *,
         accepted_legal=None,
     ) -> dict[str, str]:
+        with advisory_lock(f"checkout-user:{user.pk}"):
+            return cls._create_checkout_session_locked(user, accepted_legal=accepted_legal)
+
+    @classmethod
+    def _create_checkout_session_locked(cls, user, *, accepted_legal=None):
         cls._require_legal_acceptance(user, accepted_legal=accepted_legal)
 
         simulate = e2e_stripe_simulate_enabled()
@@ -60,13 +66,16 @@ class CheckoutService:
             raise CheckoutError("Payments are not configured. Please try again later.")
 
         try:
-            order = OrderService.create_from_cart(user)
+            order = OrderService.create_from_cart(user, reuse_pending=True)
         except OrderError as exc:
             raise CheckoutError(exc.message, field=exc.field) from exc
 
         frontend_base_url = settings.FRONTEND_BASE_URL.rstrip("/")
         success_url = f"{frontend_base_url}/checkout/success?order_id={order.id}"
         cancel_url = f"{frontend_base_url}/checkout/cancel?order_id={order.id}"
+        existing = Payment.objects.filter(order=order, status=Payment.Status.PENDING).first()
+        if existing and existing.checkout_url:
+            return {"checkout_url": existing.checkout_url, "order_id": str(order.id)}
 
         if simulate:
             session_id = f"{E2E_CHECKOUT_SESSION_PREFIX}{uuid.uuid4().hex}"
@@ -76,6 +85,7 @@ class CheckoutService:
                 amount=order.total_amount,
                 currency=order.currency,
                 status=Payment.Status.PENDING,
+                checkout_url=success_url,
             )
             logger.info(
                 "e2e_stripe_simulate checkout created order_id=%s",
@@ -113,6 +123,7 @@ class CheckoutService:
                 success_url=success_url,
                 cancel_url=cancel_url,
                 metadata={"order_id": str(order.id)},
+                idempotency_key=f"checkout-order-{order.id}",
             )
         except stripe.error.StripeError as exc:
             raise CheckoutError(
@@ -125,6 +136,7 @@ class CheckoutService:
             amount=order.total_amount,
             currency=order.currency,
             status=Payment.Status.PENDING,
+            checkout_url=session.url,
         )
 
         return {"checkout_url": session.url, "order_id": str(order.id)}

@@ -81,6 +81,7 @@ export function ReviewsSection({
 
   const {
     isSignedIn,
+    canRate,
     reviews,
     reviewCount: listCount,
     isLoading,
@@ -144,14 +145,14 @@ export function ReviewsSection({
       return
     }
 
-    if (!isHub && parsed.data.rating === 0) {
+    if (!isHub && canRate && parsed.data.rating === 0) {
       setError('rating', { type: 'manual', message: 'Select a rating' })
       return
     }
 
     submitReview(
       {
-        rating: parsed.data.rating || null,
+        rating: canRate ? parsed.data.rating || null : null,
         review_text: parsed.data.review_text?.trim() ?? '',
       },
       { onSuccess: () => reset({ rating: 0, review_text: '' }) },
@@ -215,6 +216,7 @@ export function ReviewsSection({
                 <button
                   key={value}
                   type="button"
+                  disabled={!canRate || isSubmitting}
                   className={`product-detail-reviews__star${
                     selectedRating >= value ? ' product-detail-reviews__star--active' : ''
                   }`}
@@ -229,6 +231,8 @@ export function ReviewsSection({
               ))}
             </div>
           </FormField>
+
+          {!canRate ? <p className="product-detail-reviews__gate">You can post a comment. Star ratings are available to verified purchasers.</p> : null}
 
           {isHub ? (
             <div className="form-field">
@@ -276,7 +280,7 @@ export function ReviewsSection({
             type="submit"
             className={isHub ? 'product-detail-reviews__submit' : undefined}
             disabled={
-              isSubmitting || (isHub ? !selectedRating && !reviewText.trim() : !selectedRating)
+              isSubmitting || (!selectedRating && !reviewText.trim())
             }
           >
             {isSubmitting

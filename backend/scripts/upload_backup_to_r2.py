@@ -40,6 +40,10 @@ def main() -> int:
     access_key = (os.environ.get("R2_ACCESS_KEY_ID") or "").strip()
     secret_key = (os.environ.get("R2_SECRET_ACCESS_KEY") or "").strip()
     bucket = (os.environ.get("R2_PRIVATE_BUCKET") or "").strip()
+    public_bucket = (os.environ.get("R2_PUBLIC_BUCKET") or "").strip()
+    if public_bucket and bucket == public_bucket:
+        print("Refusing to upload a database backup to the public bucket.", file=sys.stderr)
+        return 1
     if not access_key or not secret_key or not bucket:
         print(
             "R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_PRIVATE_BUCKET are required.",

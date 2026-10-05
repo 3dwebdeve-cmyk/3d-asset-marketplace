@@ -49,7 +49,7 @@ export function LegalDocumentPage({ kind }: LegalDocumentPageProps) {
           <p className="marketing-page__eyebrow">Legal</p>
           <h1>{copy.heading}</h1>
           <p className="home-page__subtitle">
-            Document version <strong>{copy.version}</strong>. By creating an account or completing
+            Document version <strong>{LEGAL_DOCUMENT_VERSIONS[kind]}</strong>. By creating an account or completing
             checkout, you confirm you have read this document.
           </p>
           <p className="home-page__subtitle">

@@ -112,6 +112,8 @@ class AdminUserService:
         target: User,
         data: AdminUserUpdateData,
     ) -> User:
+        target = User.objects.select_for_update().select_related("role").get(pk=target.pk)
+        previous_security_state = (target.role_id, target.is_active, target.email_verified)
         update_fields: list[str] = ["updated_at"]
 
         if data.full_name is not None:
@@ -148,6 +150,10 @@ class AdminUserService:
                 target.email_verified = False
                 update_fields.append("email_verified")
 
+        if previous_security_state != (target.role_id, target.is_active, target.email_verified):
+            AuthenticationService.bump_token_version(target)
+            update_fields.append("token_version")
+            AuthenticationService.blacklist_all_refresh_tokens(target)
         target.save(update_fields=list(dict.fromkeys(update_fields)))
         return target
 

@@ -194,14 +194,18 @@ class LoginLockoutAPITests(APITestCase):
             REMOTE_ADDR=ip,
         )
 
-    def test_lockout_after_failures_from_different_ips(self) -> None:
+    def test_failures_from_other_clients_do_not_lock_out_owner(self) -> None:
         for index in range(3):
             response = self._login("WrongPassword1!", f"203.0.113.{index + 1}")
             self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         locked = self._login(self.password, "203.0.113.50")
-        self.assertEqual(locked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-        self.assertEqual(locked.data.get("code"), "throttled")
+        self.assertEqual(locked.status_code, status.HTTP_200_OK)
+
+    def test_same_client_is_locked_after_repeated_failures(self) -> None:
+        for _ in range(3):
+            self._login("WrongPassword1!", "203.0.113.1")
+        self.assertEqual(self._login(self.password, "203.0.113.1").status_code, 429)
 
     def test_successful_login_resets_failure_counter(self) -> None:
         for index in range(2):

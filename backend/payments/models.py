@@ -14,6 +14,7 @@ class Payment(models.Model):
         FAILED = "failed", "Failed"
         EXPIRED = "expired", "Expired"
         REFUNDED = "refunded", "Refunded"
+        DISPUTED = "disputed", "Disputed"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     order = models.OneToOneField(
@@ -39,12 +40,14 @@ class Payment(models.Model):
         blank=True,
         db_index=True,
     )
+    checkout_url = models.TextField(blank=True, default="")
     amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.00"))],
     )
     currency = models.CharField(max_length=3, default="USD")
+    refunded_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     status = models.CharField(
         max_length=16,
         choices=Status.choices,
@@ -80,3 +83,12 @@ class StripeWebhookEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.event_type}:{self.stripe_event_id}"
+
+
+class IdempotencyRecord(models.Model):
+    """Durable successful HTTP responses; coordinated with PostgreSQL locks."""
+
+    key = models.CharField(max_length=64, primary_key=True)
+    body = models.JSONField()
+    status_code = models.PositiveSmallIntegerField()
+    expires_at = models.DateTimeField(db_index=True)
