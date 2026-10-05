@@ -8,6 +8,7 @@ from zipfile import BadZipFile, ZipFile
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
+from django.conf import settings
 
 PLUGIN_FILE_MAX_BYTES = 50 * 1024 * 1024
 PLUGIN_ARCHIVE_MAX_UNCOMPRESSED_BYTES = 500 * 1024 * 1024
@@ -95,9 +96,14 @@ def validate_plugin_file_upload(uploaded: UploadedFile) -> ValidatedPluginFileUp
         uploaded.seek(0)
         if extension == ".zip":
             _validate_zip_metadata(uploaded)
+        elif getattr(settings, "PACKAGE_SCAN_REQUIRED", False):
+            raise ValidationError({"file": "Use ZIP packages so archive paths and sizes can be inspected."})
     finally:
         uploaded.seek(0)
 
+    from config.upload_security import scan_upload
+
+    scan_upload(uploaded)
     return ValidatedPluginFileUpload(
         file=uploaded,
         extension=extension,

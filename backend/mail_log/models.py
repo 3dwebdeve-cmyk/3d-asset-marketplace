@@ -3,6 +3,21 @@ from __future__ import annotations
 import uuid
 
 from django.db import models
+from django.utils import timezone
+
+
+class BackgroundJob(models.Model):
+    """Transactional outbox. Only the application can create task payloads."""
+
+    task_name = models.CharField(max_length=255)
+    args = models.JSONField(default=list)
+    kwargs = models.JSONField(default=dict)
+    status = models.CharField(max_length=16, default="queued", db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
+    lease_id = models.UUIDField(null=True)
+    lease_until = models.DateTimeField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class OutboundEmailLog(models.Model):

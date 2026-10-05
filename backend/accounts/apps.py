@@ -8,3 +8,4 @@ class AccountsConfig(AppConfig):
     def ready(self) -> None:
         # Register Phase A2 deploy security checks (config.E001 / E002 / W001).
         from config import deploy_checks  # noqa: F401
+        from config import schema  # noqa: F401

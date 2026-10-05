@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import Any
 
 from django.db import IntegrityError, transaction
@@ -18,6 +19,7 @@ from payments.payment_common import (
     TERMINAL_ORDER_STATUSES,
     TERMINAL_PAYMENT_STATUSES,
     session_value,
+    stripe,
     stripe_id,
     to_cents,
 )
@@ -32,6 +34,8 @@ STRIPE_WEBHOOK_EVENT_TYPES: frozenset[str] = frozenset(
         "checkout.session.expired",
         "payment_intent.payment_failed",
         "charge.refunded",
+        "charge.dispute.created",
+        "charge.dispute.closed",
     }
 )
 
@@ -43,10 +47,11 @@ class WebhookService:
         # crash rolls back the event row and Stripe retries can succeed.
         with transaction.atomic():
             try:
-                StripeWebhookEvent.objects.create(
-                    stripe_event_id=event.id,
-                    event_type=event.type,
-                )
+                with transaction.atomic():
+                    StripeWebhookEvent.objects.create(
+                        stripe_event_id=event.id,
+                        event_type=event.type,
+                    )
             except IntegrityError:
                 return
 
@@ -61,6 +66,8 @@ class WebhookService:
                 cls._handle_payment_failed(event.data.object)
             elif event.type == "charge.refunded":
                 cls._handle_charge_refunded(event.data.object)
+            elif event.type in {"charge.dispute.created", "charge.dispute.closed"}:
+                cls._handle_dispute(event.data.object, closed=event.type.endswith(".closed"))
             elif event.type not in STRIPE_WEBHOOK_EVENT_TYPES:
                 logger.info("Ignoring unhandled Stripe event type=%s", event.type)
 
@@ -72,7 +79,7 @@ class WebhookService:
                 stripe_checkout_session_id=session_id
             )
         except Payment.DoesNotExist:
-            return
+            raise RuntimeError("Checkout payment is not available yet; retry delivery.")
 
         if payment.status == Payment.Status.SUCCEEDED:
             return
@@ -214,13 +221,6 @@ class WebhookService:
 
         Partial refunds (``charge.refunded`` is false) are ignored in Phase B.
         """
-        if not bool(session_value(charge, "refunded")):
-            logger.info(
-                "Ignoring partial charge.refunded charge_id=%s",
-                stripe_id(charge) or session_value(charge, "id"),
-            )
-            return
-
         intent_id = stripe_id(session_value(charge, "payment_intent"))
         if not intent_id:
             logger.warning(
@@ -240,12 +240,23 @@ class WebhookService:
                 "charge.refunded for unknown payment_intent=%s",
                 intent_id,
             )
-            return
+            raise RuntimeError("Refund payment is not available yet; retry delivery.")
 
         if payment.status == Payment.Status.REFUNDED:
             return
 
-        if payment.status != Payment.Status.SUCCEEDED:
+        # Partial refunds retain access; record the cumulative amount for audit.
+        raw_refunded = session_value(charge, "amount_refunded")
+        if raw_refunded is not None:
+            amount = Decimal(str(raw_refunded)) / 100
+            if amount < 0 or amount > payment.amount:
+                raise ValueError("Refund amount is outside the payment amount.")
+            payment.refunded_amount = max(payment.refunded_amount, amount)
+            payment.save(update_fields=["refunded_amount", "updated_at"])
+        if not bool(session_value(charge, "refunded")):
+            return
+
+        if payment.status not in {Payment.Status.SUCCEEDED, Payment.Status.DISPUTED}:
             logger.warning(
                 "Ignoring charge.refunded for non-succeeded payment %s "
                 "(status=%s intent=%s)",
@@ -253,7 +264,7 @@ class WebhookService:
                 payment.status,
                 intent_id,
             )
-            return
+            raise RuntimeError("Payment has not settled yet; retry refund delivery.")
 
         payment.status = Payment.Status.REFUNDED
         payment.save(update_fields=["status", "updated_at"])
@@ -267,3 +278,19 @@ class WebhookService:
                 payment.order_id,
             )
             raise
+
+    @classmethod
+    def _handle_dispute(cls, dispute, *, closed):
+        intent_id = stripe_id(session_value(dispute, "payment_intent"))
+        if not intent_id:
+            raise ValueError("Dispute does not contain a payment intent.")
+        payment = Payment.objects.select_for_update().get(stripe_payment_intent_id=intent_id)
+        if payment.status == Payment.Status.REFUNDED:
+            return
+        if payment.status not in {Payment.Status.SUCCEEDED, Payment.Status.DISPUTED}:
+            raise RuntimeError("Disputed payment has not settled yet; retry delivery.")
+        # Retrieve authoritative state: delayed 'created' must not undo 'won'.
+        current = stripe.Dispute.retrieve(stripe_id(dispute))
+        state = str(session_value(current, "status") or "")
+        payment.status = Payment.Status.SUCCEEDED if state == "won" else Payment.Status.DISPUTED
+        payment.save(update_fields=["status", "updated_at"])

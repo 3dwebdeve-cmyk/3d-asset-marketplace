@@ -223,9 +223,9 @@ class AuthenticationService:
         full_name = str(payload.get("name") or "").strip() or email.split("@")[0]
         picture = str(payload.get("picture") or "").strip()
 
-        user = User.objects.select_related("role").filter(google_id=google_sub).first()
+        user = User.objects.select_for_update().select_related("role").filter(google_id=google_sub).first()
         if user is None:
-            user = User.objects.select_related("role").filter(email=email).first()
+            user = User.objects.select_for_update().select_related("role").filter(email=email).first()
 
         if user is not None:
             if not user.is_active:
@@ -240,6 +240,13 @@ class AuthenticationService:
                 )
 
             update_fields: list[str] = []
+            if not user.email_verified:
+                # The original registrant has never proved ownership of this inbox.
+                # Google ownership must not activate a password chosen by that person.
+                user.set_unusable_password()
+                cls.bump_token_version(user)
+                update_fields.extend(["password", "token_version"])
+                cls.blacklist_all_refresh_tokens(user)
             if not user.google_id:
                 user.google_id = google_sub
                 update_fields.append("google_id")

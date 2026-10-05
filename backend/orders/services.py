@@ -305,7 +305,7 @@ class OrderService:
 
     @classmethod
     @transaction.atomic
-    def create_from_cart(cls, user: User) -> Order:
+    def create_from_cart(cls, user: User, *, reuse_pending: bool = False) -> Order:
         """Snapshot the user's cart into a PENDING order for checkout.
 
         Only available cart lines are included (mirrors CartService totals).
@@ -343,6 +343,24 @@ class OrderService:
             )
             for item in available_items
         ]
+
+        if reuse_pending:
+            from datetime import timedelta
+            from django.utils import timezone
+
+            expected = {(kind, pk, qty, price) for kind, pk, qty, price, title, slug in resolved_items}
+            candidates = Order.objects.filter(
+                user=user, order_status=Order.OrderStatus.PENDING,
+                payment_status=Order.PaymentStatus.PENDING,
+                total_amount=envelope.totals.total, currency=envelope.totals.currency,
+                created_at__gte=timezone.now() - timedelta(minutes=25),
+                payment__status="pending",
+            ).prefetch_related("items").order_by("-created_at")[:10]
+            for candidate in candidates:
+                actual = {(item.product_type, item.product_id, item.quantity, item.purchase_price)
+                          for item in candidate.items.all()}
+                if actual == expected:
+                    return cls.get(candidate.pk)
 
         order = cls._create_order_with_unique_invoice(
             user=user,

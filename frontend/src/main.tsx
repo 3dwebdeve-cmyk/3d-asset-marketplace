@@ -7,6 +7,7 @@ import './styles/toast.css'
 import App from './App.tsx'
 import { Toaster } from './components/ui/Toaster'
 import { initFrontendSentry } from './lib/sentry'
+import { LegalVersionBootstrap } from './components/LegalVersionBootstrap'
 
 initFrontendSentry()
 
@@ -29,7 +30,7 @@ createRoot(document.getElementById('root')!, {
 }).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <LegalVersionBootstrap><App /></LegalVersionBootstrap>
       <Toaster />
     </QueryClientProvider>
   </StrictMode>,

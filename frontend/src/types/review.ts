@@ -18,6 +18,7 @@ export interface Review {
 
 export interface ReviewEligibility {
   can_review: boolean
+  can_rate?: boolean
   has_reviewed: boolean
   review: Review | null
 }

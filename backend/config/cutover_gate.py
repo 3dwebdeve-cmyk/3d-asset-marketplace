@@ -84,11 +84,11 @@ def _check_deploy(profile: CutoverProfile) -> CutoverCheck:
             detail=detail + " (local profile — host gates advisory)",
             blocking=False,
         )
-    if report.warnings:
+    if report.warnings or report.debug:
         return CutoverCheck(
             name="deploy_secrets",
             ok=False,
-            detail=f"{detail}; issues={len(report.warnings)}",
+            detail=f"{detail}; issues={len(report.warnings) + int(report.debug)}",
             blocking=True,
         )
     return CutoverCheck(name="deploy_secrets", ok=True, detail=detail)
@@ -110,7 +110,7 @@ def _check_django_deploy(profile: CutoverProfile, *, enabled: bool) -> CutoverCh
             detail="check --deploy clean",
         )
     # Local / DEBUG=True almost always fails deploy checks.
-    if not _host_like_profile(profile) or settings.DEBUG:
+    if not _host_like_profile(profile):
         return CutoverCheck(
             name="django_deploy_check",
             ok=True,

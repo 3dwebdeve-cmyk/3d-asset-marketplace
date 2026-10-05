@@ -6,21 +6,15 @@ import logging
 from typing import Any
 
 from django.conf import settings
-from django.db import transaction
 
 logger = logging.getLogger("config.celery")
 
 
 def enqueue_after_commit(task: Any, *args: Any, **kwargs: Any) -> None:
-    """Schedule ``task.delay(*args, **kwargs)`` after DB commit.
+    """Persist work in the caller's transaction; workers see only committed rows.
 
-    Failures to reach the broker are logged and never raised to the caller so
-    request handlers (including Stripe webhooks) stay non-blocking.
-
-    When ``CELERY_TASK_ALWAYS_EAGER`` is True (tests / local without Redis), the
-    task runs immediately. Django ``TestCase`` never commits its wrap transaction,
-    so ``on_commit`` would otherwise never fire; eager same-process delivery can
-    also see the caller's uncommitted rows.
+    Tests alone use eager delivery because TestCase transactions never commit.
+    Production queue failures propagate instead of claiming work was accepted.
     """
 
     task_name = getattr(task, "name", getattr(task, "__name__", "unknown"))
@@ -34,7 +28,11 @@ def enqueue_after_commit(task: Any, *args: Any, **kwargs: Any) -> None:
                 task_name,
             )
 
-    if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+    if getattr(settings, "BACKGROUND_JOBS_TEST_EAGER", False):
         _enqueue()
     else:
-        transaction.on_commit(_enqueue)
+        from mail_log.models import BackgroundJob
+
+        BackgroundJob.objects.create(
+            task_name=task_name, args=list(args), kwargs=kwargs,
+        )

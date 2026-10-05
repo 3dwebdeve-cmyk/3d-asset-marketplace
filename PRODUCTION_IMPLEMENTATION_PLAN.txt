@@ -1,0 +1,38 @@
+Production implementation plan
+
+Status: code implementation completed locally across all three phases. Test and
+audit results are recorded in PRODUCTION_VALIDATION.txt. The external release
+checks below are NOT completed and remain mandatory before production launch.
+
+Phase 1 - Account, review and payment security
+- Protect Google account linking, revoke old credentials and sessions.
+- Serialize refresh-token rotation and revoke sessions on account changes.
+- Preserve moderation; allow comments but require purchases for star ratings.
+- Make login counters atomic and scope lockouts to account/client pairs.
+- Reject malformed admin allowlists and unsafe payment simulation.
+- Upgrade vulnerable dependencies.
+
+Phase 2 - Reliable commerce and operations
+- Serialize checkout retries and send stable Stripe idempotency keys.
+- Retry payment events that cannot yet be matched; reconcile refund/dispute state.
+- Persist background work in PostgreSQL and deliver after commit with retries.
+- Make contact acknowledgements truthful; add worker readiness checks.
+- Verify health response bodies and complete restores rather than redirects/table existence.
+
+Phase 3 - Production defenses and release verification
+- Inspect package contents; require malware scanning in production.
+- Enforce separate public/private storage, secure cookies, HTTPS and valid admin networks.
+- Scrub reset/verification links and sensitive telemetry in errors and traces.
+- Fetch current legal-document versions from the server.
+- Enforce release gates; add dependency scans and usable API schema metadata.
+- Run backend/frontend regression tests, build, lint, migration and dependency checks.
+
+External release gates (cannot be certified by local code tests)
+- Deploy images, migrations, background worker and malware scanner on staging.
+- Verify live TLS/origin firewall/admin network or MFA gateway.
+- Verify R2 public/private access, product package availability and backup permissions.
+- Exercise real Stripe completion, refund/dispute and email delivery.
+- Restore database AND stored objects; run load tests, alert and rollback drills.
+- Do not label production ready until these checks have recorded evidence.
+
+Progress and commands are recorded in PRODUCTION_VALIDATION.txt at completion.

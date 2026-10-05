@@ -20,11 +20,12 @@ def user_owns_catalog_item(
         order__payment_status=Order.PaymentStatus.PAID,
         product_type=product_type,
         product_id=product_id,
-    ).exists()
+    ).exclude(order__payment__status="disputed").exists()
 
 
 def order_allows_download(order: Order) -> bool:
     return (
         order.order_status == Order.OrderStatus.PAID
         and order.payment_status == Order.PaymentStatus.PAID
+        and getattr(getattr(order, "payment", None), "status", None) != "disputed"
     )

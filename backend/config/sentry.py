@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import unquote_plus
 from typing import Any
 
 import sentry_sdk
@@ -62,6 +63,14 @@ _JWT_RE = re.compile(
 
 
 def _scrub_string(value: str) -> str:
+    value = re.sub(
+        r"/(reset-password|verify-email)/[^/?#]+/[^/?#]+",
+        r"/\1/[Filtered]/[Filtered]", value, flags=re.I,
+    )
+    value = re.sub(
+        r"([?&](?:token|access_token|refresh_token|password|secret|email|x-amz-[^=&#]+)=)[^&#\s]*",
+        r"\1[Filtered]", value, flags=re.I,
+    )
     scrubbed = _BEARER_RE.sub("Bearer [Filtered]", value)
     scrubbed = _JWT_RE.sub("[Filtered]", scrubbed)
     return _EMAIL_RE.sub("[filtered-email]", scrubbed)
@@ -84,7 +93,8 @@ def _scrub_query_string(query: str) -> str:
             parts.append(piece)
             continue
         key, _, value = piece.partition("=")
-        if key.lower() in _SENSITIVE_QUERY_KEYS:
+        normalized = unquote_plus(key).lower()
+        if normalized in _SENSITIVE_QUERY_KEYS or normalized.startswith("x-amz-"):
             parts.append(f"{key}=[Filtered]")
         else:
             parts.append(f"{key}={_scrub_string(value)}")
@@ -176,7 +186,22 @@ def before_send(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any] |
     if isinstance(message, str):
         event["message"] = _scrub_string(message)
 
-    return event
+    return _scrub_recursive(event)
+
+
+def _scrub_recursive(value):
+    if isinstance(value, str):
+        return _scrub_string(value)
+    if isinstance(value, list):
+        return [_scrub_recursive(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: "[Filtered]" if re.search(
+                r"password|token|secret|authorization|cookie|email|api[_-]?key", str(key), re.I,
+            ) else _scrub_recursive(item)
+            for key, item in value.items()
+        }
+    return value
 
 
 def init_sentry(
@@ -197,6 +222,7 @@ def init_sentry(
         traces_sample_rate=traces_sample_rate,
         max_request_body_size="never",
         before_send=before_send,
+        before_send_transaction=before_send,
         event_scrubber=EventScrubber(denylist=_EXTRA_DENYLIST, recursive=True),
     )
 

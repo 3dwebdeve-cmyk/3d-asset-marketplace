@@ -52,6 +52,7 @@ from accounts.services import (
     ProfileService,
 )
 from accounts import login_guard
+from django.db import transaction
 from accounts.throttles import (
     AvatarUploadRateThrottle,
     ChangePasswordRateThrottle,
@@ -153,7 +154,8 @@ class LoginView(APIView):
             password=serializer.validated_data["password"],
         )
 
-        if login_guard.is_locked(credentials.email):
+        client_ip = LoginRateThrottle().get_ident(request)
+        if login_guard.is_locked(credentials.email, client_ip):
             log_auth_failure(scope="customer_login_locked", email=credentials.email)
             return _login_locked_response()
 
@@ -162,7 +164,7 @@ class LoginView(APIView):
         except AuthenticationError as exc:
             log_auth_failure(scope="customer_login", email=credentials.email)
             if exc.code == "invalid_credentials":
-                login_guard.record_failure(credentials.email)
+                login_guard.record_failure(credentials.email, client_ip)
             if exc.code == "email_not_verified":
                 return Response(
                     {"detail": exc.message, "code": exc.code},
@@ -170,7 +172,7 @@ class LoginView(APIView):
                 )
             raise AuthenticationFailed(exc.message) from exc
 
-        login_guard.reset(credentials.email)
+        login_guard.reset(credentials.email, client_ip)
         return _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
@@ -216,7 +218,8 @@ class AdminLoginView(APIView):
             password=serializer.validated_data["password"],
         )
 
-        if login_guard.is_locked(credentials.email):
+        client_ip = LoginRateThrottle().get_ident(request)
+        if login_guard.is_locked(credentials.email, client_ip):
             log_auth_failure(scope="admin_login_locked", email=credentials.email)
             return _login_locked_response()
 
@@ -225,10 +228,10 @@ class AdminLoginView(APIView):
         except AuthenticationError as exc:
             log_auth_failure(scope="admin_login", email=credentials.email)
             if exc.code == "invalid_credentials":
-                login_guard.record_failure(credentials.email)
+                login_guard.record_failure(credentials.email, client_ip)
             raise AuthenticationFailed(exc.message) from exc
 
-        login_guard.reset(credentials.email)
+        login_guard.reset(credentials.email, client_ip)
         return _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
@@ -296,11 +299,6 @@ class CookieTokenRefreshView(APIView):
             old_refresh = RefreshToken(raw)
             user_id = old_refresh.payload.get("user_id")
             try:
-                old_refresh.blacklist()
-            except AttributeError:
-                pass
-
-            try:
                 user = User.objects.get(pk=user_id)
             except User.DoesNotExist as exc:
                 raise AuthenticationFailed("Invalid refresh token.") from exc
@@ -314,7 +312,15 @@ class CookieTokenRefreshView(APIView):
             if refresh_tv != int(getattr(user, "token_version", 0) or 0):
                 raise TokenError("Token is invalid or expired")
 
-            tokens = AuthenticationService.build_tokens(user)
+            # Recheck token validity after obtaining the account lock. Concurrent
+            # requests must not both consume the same refresh token.
+            with transaction.atomic():
+                user = User.objects.select_for_update().get(pk=user.pk)
+                old_refresh = RefreshToken(raw)
+                if not user.is_active or refresh_tv != user.token_version:
+                    raise TokenError("Token is invalid or expired")
+                old_refresh.blacklist()
+                tokens = AuthenticationService.build_tokens(user)
         except TokenError:
             response = Response(
                 {"detail": "Token is invalid or expired", "code": "token_not_valid"},

@@ -11,6 +11,12 @@ import logging
 from dataclasses import dataclass
 
 from django.conf import settings
+from rest_framework.exceptions import APIException
+
+
+class ContactUnavailable(APIException):
+    status_code = 503
+    default_detail = "Contact delivery is not configured. Please try again later."
 
 from accounts.models import User
 from accounts.services import AuthenticationService
@@ -30,7 +36,7 @@ class ContactSubmissionData:
 
 
 class ContactService:
-    SUCCESS_DETAIL = "Message sent — we'll reply by email."
+    SUCCESS_DETAIL = "Your enquiry has been received for delivery."
 
     @staticmethod
     def _safe_email_text(value: str) -> str:
@@ -70,7 +76,7 @@ class ContactService:
         recipients = cls._configured_recipients()
         if not recipients:
             logger.warning("contact_form_email_skipped reason=no_admin_recipients")
-            return cls.SUCCESS_DETAIL
+            raise ContactUnavailable()
 
         from contact.tasks import send_contact_submission_task
 

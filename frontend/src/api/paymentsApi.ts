@@ -14,6 +14,7 @@ export async function createCheckoutSession(
   const { data } = await apiClient.post<CheckoutSessionResponse>(
     '/api/v1/payments/checkout/',
     { accepted_legal: acceptedLegal },
+    { headers: { 'Idempotency-Key': crypto.randomUUID() } },
   )
   return data
 }
