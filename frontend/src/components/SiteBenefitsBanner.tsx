@@ -120,28 +120,16 @@ const FEATURES: readonly FeatureItem[] = [
 export function SiteBenefitsBanner() {
   return (
     <section className="site-features-banner" aria-label="Our features">
-      {/* Desktop view — wide SVG banner image untouched */}
-      <img
-        src="/Our%20Features.svg"
-        alt="Our features: Secure Checkout, Regular Updates, Instant Downloads, Fair Pricing, Global Support"
-        className="site-features-banner__image"
-        width={1920}
-        height={131}
-        loading="lazy"
-        decoding="async"
-      />
-
-      {/* Mobile inspect view — rendered using exact Our Features.svg vector paths */}
-      <div className="site-features-banner__mobile" aria-hidden="true">
-        <div className="site-features-banner__mobile-inner">
+      <div className="site-features-banner__content">
+        <div className="site-features-banner__grid">
           {FEATURES.map((item) => (
-            <div key={item.title} className="site-features-banner__mobile-item">
-              <span className="site-features-banner__mobile-icon">
+            <div key={item.title} className="site-features-banner__item">
+              <span className="site-features-banner__icon">
                 {item.icon}
               </span>
-              <div className="site-features-banner__mobile-info">
-                <p className="site-features-banner__mobile-title">{item.title}</p>
-                <p className="site-features-banner__mobile-text">{item.text}</p>
+              <div className="site-features-banner__info">
+                <p className="site-features-banner__title">{item.title}</p>
+                <p className="site-features-banner__text">{item.text}</p>
               </div>
             </div>
           ))}

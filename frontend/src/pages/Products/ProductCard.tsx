@@ -44,6 +44,8 @@ export function ProductCard({ product }: ProductCardProps) {
               <svg
                 className="product-card__placeholder-icon"
                 viewBox="0 0 24 24"
+                width="44"
+                height="44"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"

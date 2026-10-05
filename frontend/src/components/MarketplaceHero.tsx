@@ -2,19 +2,29 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const TRENDING_TAGS = [
+interface TrendingTag {
+  label: string
+  search: string
+}
+
+interface SortPill {
+  label: string
+  ordering: string
+}
+
+const TRENDING_TAGS: readonly TrendingTag[] = [
   { label: '3D Models', search: '' },
   { label: '3D character', search: '3D character' },
   { label: 'Game Environment', search: 'Game Environment' },
   { label: 'Low Poly', search: 'Low Poly' },
   { label: 'Sci-Fi Vehicles', search: 'Sci-Fi Vehicles' },
-] as const
+]
 
-const SORT_PILLS = [
+const SORT_PILLS: readonly SortPill[] = [
   { label: 'Newest', ordering: '-created_at' },
   { label: 'Top Selling', ordering: '-total_downloads' },
   { label: 'Trending', ordering: '-review_count' },
-] as const
+]
 
 function ArrowUpRightIcon({ size = 9 }: { size?: number }) {
   return (
@@ -74,6 +84,8 @@ function SearchIcon({ size = 18, strokeWidth = 2 }: { size?: number; strokeWidth
 export function MarketplaceHero() {
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
+  const [activeSort, setActiveSort] = useState<string>('-review_count')
+  const [activeTag, setActiveTag] = useState<string | null>(null)
 
   const navigateToModels = (search: string, ordering = '') => {
     const params = new URLSearchParams()
@@ -87,6 +99,17 @@ export function MarketplaceHero() {
   const onSearchSubmit = (event: FormEvent) => {
     event.preventDefault()
     navigateToModels(searchInput)
+  }
+
+  const handleTagClick = (tag: TrendingTag) => {
+    setActiveTag(tag.label)
+    setSearchInput(tag.search)
+    navigateToModels(tag.search)
+  }
+
+  const handleSortClick = (pill: SortPill) => {
+    setActiveSort(pill.ordering)
+    navigateToModels(searchInput, pill.ordering)
   }
 
   return (
@@ -129,9 +152,12 @@ export function MarketplaceHero() {
             {TRENDING_TAGS.map((tag) => (
               <button
                 type="button"
-                className="home-marketplace-trending__chip"
+                className={`home-marketplace-trending__chip${
+                  activeTag === tag.label ? ' home-marketplace-trending__chip--active' : ''
+                }`}
                 key={tag.label}
-                onClick={() => navigateToModels(tag.search)}
+                aria-pressed={activeTag === tag.label}
+                onClick={() => handleTagClick(tag)}
               >
                 <ArrowUpRightIcon />
                 {tag.label}
@@ -144,12 +170,11 @@ export function MarketplaceHero() {
               <button
                 type="button"
                 key={pill.label}
-                className={
-                  pill.label === 'Trending'
-                    ? 'home-marketplace-sort__btn home-marketplace-sort__btn--active'
-                    : 'home-marketplace-sort__btn'
-                }
-                onClick={() => navigateToModels('', pill.ordering)}
+                className={`home-marketplace-sort__btn${
+                  activeSort === pill.ordering ? ' home-marketplace-sort__btn--active' : ''
+                }`}
+                aria-pressed={activeSort === pill.ordering}
+                onClick={() => handleSortClick(pill)}
               >
                 <ArrowUpRightIcon size={10} />
                 {pill.label}

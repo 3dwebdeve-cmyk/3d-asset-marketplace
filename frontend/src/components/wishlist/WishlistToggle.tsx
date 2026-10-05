@@ -26,6 +26,35 @@ export function WishlistToggle({
   const returnTo = location.pathname
   const wishlisted = isWishlisted(productType, productId)
 
+  const heartIcon = (filled: boolean) => (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill={filled ? '#ef4444' : 'none'}
+      stroke={filled ? '#ef4444' : 'currentColor'}
+      strokeWidth="2"
+      aria-hidden="true"
+      style={{ marginRight: '6px', verticalAlign: '-2px' }}
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+
+  const stageHeartIcon = (
+    <svg
+      viewBox="0 0 24 24"
+      width="17"
+      height="17"
+      fill={wishlisted ? '#ef4444' : 'none'}
+      stroke={wishlisted ? '#ef4444' : 'currentColor'}
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+
   if (!isSignedIn) {
     if (variant === 'icon') {
       return (
@@ -35,9 +64,7 @@ export function WishlistToggle({
           className={`product-card__wishlist product-card__wishlist--guest product-detail-stage__overlay-btn ${className ?? ''}`.trim()}
           aria-label={`Sign in to add ${productName} to wishlist`}
         >
-          <span className="product-card__wishlist-icon" aria-hidden="true">
-            ♡
-          </span>
+          {stageHeartIcon}
         </AuthEntryButton>
       )
     }
@@ -49,7 +76,8 @@ export function WishlistToggle({
           returnTo={returnTo}
           className={`ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link ${className ?? ''}`.trim()}
         >
-          Sign in to add to wishlist
+          {heartIcon(false)}
+          Add to Wishlist
         </AuthEntryButton>
       )
     }
@@ -79,9 +107,7 @@ export function WishlistToggle({
           toggle(productType, productId)
         }}
       >
-        <span className="product-card__wishlist-icon" aria-hidden="true">
-          {wishlisted ? '♥' : '♡'}
-        </span>
+        {stageHeartIcon}
       </button>
     )
   }
@@ -98,8 +124,8 @@ export function WishlistToggle({
           toggle(productType, productId)
         }}
       >
-        <span aria-hidden="true">{wishlisted ? '♥' : '♡'}</span>{' '}
-        {wishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+        {heartIcon(wishlisted)}
+        {wishlisted ? 'In Wishlist' : 'Add to Wishlist'}
       </Button>
     )
   }

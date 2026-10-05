@@ -253,4 +253,42 @@ describe('LoginPage redirect', () => {
     })
     expect(useAuthUiStore.getState().isOpen).toBe(false)
   })
+
+  it('shows attached error pop below password when user enters wrong password', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authApi.loginUser).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 401,
+        data: { detail: 'No active account found with the given credentials' },
+      },
+    })
+
+    renderLogin('/login')
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/email id/i), 'wrong@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'WrongPassword123!')
+    await user.click(
+      within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
+        name: /sign in to 3d hub/i,
+      }),
+    )
+
+    const errorPop = await screen.findByRole('alert')
+    expect(errorPop).toHaveTextContent(
+      'The password you entered is incorrect. Please check and try again.',
+    )
+    expect(errorPop).toHaveClass('auth-field-error-pop')
+    expect(screen.getByLabelText(/^password$/i)).toHaveAttribute('aria-invalid', 'true')
+
+    // Typing in the password field clears the error pop
+    await user.type(screen.getByLabelText(/^password$/i), 'a')
+    expect(
+      screen.queryByText('The password you entered is incorrect. Please check and try again.'),
+    ).not.toBeInTheDocument()
+  })
 })

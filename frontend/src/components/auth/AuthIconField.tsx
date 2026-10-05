@@ -94,6 +94,7 @@ export function AuthIconField({
 }: AuthIconFieldProps) {
   const [visible, setVisible] = useState(false)
   const inputType = revealable ? (visible ? 'text' : 'password') : type
+  const isErrorActive = Boolean(hasError || error)
 
   return (
     <div className="form-field">
@@ -106,49 +107,65 @@ export function AuthIconField({
       <div
         className={`auth-icon-field${revealable ? ' auth-icon-field--revealable' : ''}${
           showIcon ? ' auth-icon-field--with-icon' : ''
-        }`}
+        }${isErrorActive ? ' auth-icon-field--has-error' : ''}`}
       >
-        {showIcon ? (
-          <span className="auth-icon-field__icon">
-            <FieldIcon name={icon} />
-          </span>
-        ) : null}
-        <input
-          id={id}
-          type={inputType}
-          className={`ui-input auth-icon-field__input${hasError ? ' ui-input--error' : ''}${
-            className ? ` ${className}` : ''
-          }`}
-          {...inputProps}
-        />
-        {revealable ? (
-          <button
-            type="button"
-            className="auth-icon-field__reveal"
-            onClick={() => setVisible((current) => !current)}
-            aria-label={visible ? 'Hide password' : 'Show password'}
-            aria-pressed={visible}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true" className="auth-icon-field__svg">
-              <path
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"
-              />
-              <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.75" />
-              {visible ? (
-                <path fill="none" stroke="currentColor" strokeWidth="1.75" d="M4 20 20 4" />
-              ) : null}
+        <div className="auth-icon-field__control">
+          {showIcon ? (
+            <span className="auth-icon-field__icon">
+              <FieldIcon name={icon} />
+            </span>
+          ) : null}
+          <input
+            id={id}
+            type={inputType}
+            className={`ui-input auth-icon-field__input${isErrorActive ? ' ui-input--error' : ''}${
+              className ? ` ${className}` : ''
+            }`}
+            {...inputProps}
+          />
+          {revealable ? (
+            <button
+              type="button"
+              className="auth-icon-field__reveal"
+              onClick={() => setVisible((current) => !current)}
+              aria-label={visible ? 'Hide password' : 'Show password'}
+              aria-pressed={visible}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="auth-icon-field__svg">
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"
+                />
+                <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.75" />
+                {visible ? (
+                  <path fill="none" stroke="currentColor" strokeWidth="1.75" d="M4 20 20 4" />
+                ) : null}
+              </svg>
+            </button>
+          ) : null}
+        </div>
+        {error ? (
+          <div id={`${id}-error`} className="auth-field-error-pop" role="alert">
+            <svg
+              className="auth-field-error-pop__icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
-          </button>
+            <span className="auth-field-error-pop__text">{error}</span>
+          </div>
         ) : null}
       </div>
-      {error ? (
-        <p id={`${id}-error`} className="form-field__error" role="alert">
-          {error}
-        </p>
-      ) : null}
     </div>
   )
 }

@@ -62,7 +62,7 @@ export function ProductImageGallery({
   previewModelUrl,
   previewVideoUrl = '',
   showStageChrome = false,
-  showPreviewModeThumbs = true,
+  showPreviewModeThumbs = false,
   stageOverlays,
 }: ProductImageGalleryProps) {
   const galleryId = useId()
@@ -140,21 +140,98 @@ export function ProductImageGallery({
     setLightboxOpen(false)
   }, [])
 
+  const totalCount =
+    (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + galleryImages.length || 1
+
+  const currentCount = showModelStage
+    ? 1
+    : showVideoStage
+      ? hasSafePreviewModel
+        ? 2
+        : 1
+      : (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + safeIndex + 1
+
+  const counterLabel = `${currentCount} / ${totalCount}`
+
   const showPrevious = useCallback(() => {
-    if (galleryImages.length < 2) {
+    if (totalCount <= 1) {
       return
     }
-    setActiveIndex((current) => (current - 1 + galleryImages.length) % galleryImages.length)
-    setViewMode('image')
-  }, [galleryImages.length])
+    if (showModelStage) {
+      if (galleryImages.length > 0) {
+        setActiveIndex(galleryImages.length - 1)
+        setViewMode('image')
+      }
+    } else if (showVideoStage) {
+      if (hasSafePreviewModel) {
+        setViewMode('model')
+      } else if (galleryImages.length > 0) {
+        setActiveIndex(galleryImages.length - 1)
+        setViewMode('image')
+      }
+    } else {
+      if (safeIndex > 0) {
+        setActiveIndex(safeIndex - 1)
+        setViewMode('image')
+      } else if (hasSafePreviewVideo) {
+        setViewMode('video')
+      } else if (hasSafePreviewModel) {
+        setViewMode('model')
+      } else {
+        setActiveIndex(galleryImages.length - 1)
+        setViewMode('image')
+      }
+    }
+  }, [
+    totalCount,
+    showModelStage,
+    showVideoStage,
+    safeIndex,
+    galleryImages.length,
+    hasSafePreviewModel,
+    hasSafePreviewVideo,
+  ])
 
   const showNext = useCallback(() => {
-    if (galleryImages.length < 2) {
+    if (totalCount <= 1) {
       return
     }
-    setActiveIndex((current) => (current + 1) % galleryImages.length)
-    setViewMode('image')
-  }, [galleryImages.length])
+    if (showModelStage) {
+      if (hasSafePreviewVideo) {
+        setViewMode('video')
+      } else if (galleryImages.length > 0) {
+        setActiveIndex(0)
+        setViewMode('image')
+      }
+    } else if (showVideoStage) {
+      if (galleryImages.length > 0) {
+        setActiveIndex(0)
+        setViewMode('image')
+      } else if (hasSafePreviewModel) {
+        setViewMode('model')
+      }
+    } else {
+      if (safeIndex < galleryImages.length - 1) {
+        setActiveIndex(safeIndex + 1)
+        setViewMode('image')
+      } else if (hasSafePreviewModel) {
+        setViewMode('model')
+      } else if (hasSafePreviewVideo) {
+        setViewMode('video')
+      } else {
+        setActiveIndex(0)
+        setViewMode('image')
+      }
+    }
+  }, [
+    totalCount,
+    showModelStage,
+    showVideoStage,
+    safeIndex,
+    galleryImages.length,
+    hasSafePreviewModel,
+    hasSafePreviewVideo,
+  ])
 
   const selectImage = useCallback((index: number) => {
     setActiveIndex(index)
@@ -192,11 +269,6 @@ export function ProductImageGallery({
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [lightboxOpen, closeLightbox, showPrevious, showNext])
-
-  const counterLabel =
-    showImageStage && galleryImages.length > 0
-      ? `${safeIndex + 1} / ${galleryImages.length}`
-      : null
 
   return (
     <div className="product-detail-gallery">
@@ -254,35 +326,8 @@ export function ProductImageGallery({
           </button>
         )}
 
-        {showStageChrome && counterLabel ? (
-          <span className="product-detail-stage__counter" aria-live="polite">
-            {counterLabel}
-          </span>
-        ) : null}
-
         {showStageChrome && stageOverlays ? (
           <div className="product-detail-stage__overlays">{stageOverlays}</div>
-        ) : null}
-
-        {showStageChrome && showImageStage && galleryImages.length > 1 ? (
-          <>
-            <button
-              type="button"
-              className="product-detail-stage__nav product-detail-stage__nav--prev"
-              onClick={showPrevious}
-              aria-label="Previous image"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="product-detail-stage__nav product-detail-stage__nav--next"
-              onClick={showNext}
-              aria-label="Next image"
-            >
-              ›
-            </button>
-          </>
         ) : null}
       </div>
 

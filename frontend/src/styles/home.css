@@ -216,6 +216,12 @@
   outline: none;
 }
 
+.home-marketplace-trending__chip--active {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+}
+
 .home-marketplace-sort {
   display: flex;
   flex-wrap: wrap;

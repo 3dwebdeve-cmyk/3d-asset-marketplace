@@ -17,6 +17,7 @@ interface UseLoginFormResult {
   emailNotVerified: boolean
   isSuccess: boolean
   onSubmit: (values: LoginFormValues) => void
+  resetServerError: () => void
 }
 
 export function useLoginForm(): UseLoginFormResult {
@@ -83,5 +84,6 @@ export function useLoginForm(): UseLoginFormResult {
       mutation.error.response?.data?.code === 'email_not_verified',
     isSuccess: mutation.isSuccess,
     onSubmit,
+    resetServerError: mutation.reset,
   }
 }
