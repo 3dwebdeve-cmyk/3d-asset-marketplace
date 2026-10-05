@@ -11,7 +11,13 @@ class ReviewAuthorSerializer(serializers.Serializer):
 class ReviewCreateSerializer(serializers.Serializer):
     product_type = serializers.ChoiceField(choices=Review.ProductType.choices)
     product_id = serializers.UUIDField()
-    rating = serializers.IntegerField(min_value=1, max_value=5)
+    rating = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        default=None,
+        min_value=1,
+        max_value=5,
+    )
     review_text = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -19,6 +25,13 @@ class ReviewCreateSerializer(serializers.Serializer):
         max_length=2000,
         trim_whitespace=True,
     )
+
+    def validate(self, attrs: dict) -> dict:
+        if attrs.get("rating") is None and not attrs.get("review_text", "").strip():
+            raise serializers.ValidationError(
+                {"review_text": ["Write a comment or select a rating."]}
+            )
+        return attrs
 
 
 class ReviewPublicSerializer(serializers.ModelSerializer):

@@ -181,7 +181,7 @@ export function AdminReviewsPage() {
                           </Link>
                           <div className="home-page__subtitle">{review.product_type}</div>
                         </td>
-                        <td>{review.rating} / 5</td>
+                        <td>{review.rating === null ? '—' : `${review.rating} / 5`}</td>
                         <td>{excerpt(review.review_text)}</td>
                         <td>
                           <span

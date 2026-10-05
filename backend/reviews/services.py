@@ -8,7 +8,6 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Avg, Count, Q, QuerySet
 
-from orders.entitlements import user_owns_catalog_item
 from plugins.models import Plugin
 from products.models import Product
 from reviews.models import Review
@@ -129,23 +128,21 @@ class ReviewService:
         *,
         product_type: str,
         product_id: UUID,
-        rating: int,
+        rating: int | None,
         review_text: str = "",
     ) -> tuple[Review, bool]:
-        if not (1 <= rating <= 5):
+        if rating is not None and not (1 <= rating <= 5):
             raise ReviewError("Rating must be between 1 and 5.", field="rating")
 
         normalized_type = cls._normalize_product_type(product_type)
         cls._validate_catalog_item(normalized_type, product_id)
 
-        if not cls.user_has_purchased(user, normalized_type, product_id):
-            raise ReviewError(
-                "You must purchase this item before leaving a review.",
-                code="not_purchased",
-                status_code=403,
-            )
-
         text = (review_text or "").strip()
+        if rating is None and not text:
+            raise ReviewError(
+                "Write a comment or select a rating.",
+                field="review_text",
+            )
         if len(text) > 2000:
             raise ReviewError(
                 "Review text must be at most 2000 characters.",
@@ -183,16 +180,6 @@ class ReviewService:
         with transaction.atomic():
             Review.objects.filter(pk=review.pk).delete()
             cls._recompute_aggregates(product_type, product_id)
-
-    @classmethod
-    def user_has_purchased(
-        cls,
-        user: User,
-        product_type: str,
-        product_id: UUID,
-    ) -> bool:
-        # Same entitlement gate as downloads — both order and payment must be paid.
-        return user_owns_catalog_item(user, product_type, product_id)
 
     @classmethod
     def build_catalog_titles(
@@ -236,7 +223,7 @@ class ReviewService:
             product_id=product_id,
             is_hidden=False,
         ).aggregate(
-            review_count=Count("id"),
+            review_count=Count("rating"),
             average_rating=Avg("rating"),
         )
         count = int(stats["review_count"] or 0)

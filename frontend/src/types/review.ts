@@ -9,7 +9,7 @@ export interface Review {
   id: string
   product_type: ReviewProductType
   product_id: string
-  rating: number
+  rating: number | null
   review_text: string
   author: ReviewAuthor
   created_at: string
@@ -25,7 +25,7 @@ export interface ReviewEligibility {
 export interface ReviewCreatePayload {
   product_type: ReviewProductType
   product_id: string
-  rating: number
+  rating?: number | null
   review_text?: string
 }
 
@@ -53,7 +53,7 @@ export interface AdminReview {
   id: string
   product_type: ReviewProductType
   product_id: string
-  rating: number
+  rating: number | null
   review_text: string
   is_hidden: boolean
   author: ReviewAuthor
