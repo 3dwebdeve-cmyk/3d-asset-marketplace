@@ -134,11 +134,6 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
               />
             }
           />
-
-          <p className="product-detail-media-note">
-            Full package download unlocks after purchase entitlement ships. Preview package URLs are
-            never exposed on this page.
-          </p>
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Plugin purchase details">

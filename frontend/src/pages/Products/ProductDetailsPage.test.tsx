@@ -77,8 +77,8 @@ vi.mock('../../api/reviewsApi', async () => {
 })
 
 vi.mock('../../components/viewer/LazyModelViewer', () => ({
-  LazyModelViewer: ({ ariaLabel }: { ariaLabel: string }) => (
-    <div data-testid="lazy-model-viewer" role="img" aria-label={ariaLabel} />
+  LazyModelViewer: ({ ariaLabel, modelUrl }: { ariaLabel: string; modelUrl: string }) => (
+    <div data-testid="lazy-model-viewer" role="img" aria-label={ariaLabel} data-model-url={modelUrl} />
   ),
 }))
 
@@ -308,6 +308,22 @@ describe('ProductDetailsPage', () => {
     expect(
       screen.getByRole('button', { name: /view larger image of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
+  })
+
+  it('uses the real demo preview for a catalog entry seeded with the triangle fixture', async () => {
+    vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
+      ...sampleDetail,
+      name: 'Demo Plant Pot',
+      slug: 'demo-plant-pot',
+      preview_model: 'http://localhost:5173/fixtures/e2e-preview.glb',
+    })
+
+    renderProductDetails('/products/demo-plant-pot')
+
+    expect(await screen.findByTestId('lazy-model-viewer')).toHaveAttribute(
+      'data-model-url',
+      `${window.location.origin}/fixtures/demo-plant-pot.glb`,
+    )
   })
 
   it('does not mount the viewer for unsafe preview_model URLs', async () => {

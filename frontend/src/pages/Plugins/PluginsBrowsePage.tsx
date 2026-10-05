@@ -1,20 +1,70 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
+import { getPublicPlugin, listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
 import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import type { PluginOrdering } from '../../types/plugin'
+import type { PluginLicenseType, PluginOrdering, PublicPlugin } from '../../types/plugin'
 import { PluginCard } from './PluginCard'
 import '../../styles/plugins-browse.css'
-import '../../styles/products-browse.css'
 import '../../styles/products-browse.css'
 
 const PAGE_SIZE = 12
 
-const COMPAT_CHIPS = ['Blender', 'Maya', '3ds Max', 'Cinema 4D'] as const
+const FORMAT_FILTERS = [
+  { id: 'blender', label: 'Blender (.blend)', extensions: ['blend'] },
+  { id: 'fbx-obj', label: 'FBX/OBJ', extensions: ['fbx', 'obj'] },
+  { id: 'unreal', label: 'Unreal Asset', extensions: ['uasset', 'uproject'] },
+  { id: 'unity', label: 'Unity Package', extensions: ['unitypackage'] },
+] as const
+
+const LICENSE_FILTERS: ReadonlyArray<{ id: PluginLicenseType; label: string }> = [
+  { id: 'standard', label: 'Standard License' },
+  { id: 'extended', label: 'Extended License' },
+]
+
+function matchesFormat(formats: readonly string[], formatId: string): boolean {
+  const filter = FORMAT_FILTERS.find((item) => item.id === formatId)
+  return Boolean(filter?.extensions.some((extension) => formats.includes(extension)))
+}
+
+async function loadPluginCatalog(params: {
+  categoryId: string
+  search: string
+  ordering: PluginOrdering
+}) {
+  const plugins: PublicPlugin[] = []
+  let page = 1
+  let hasNext = true
+
+  while (hasNext) {
+    const response = await listPublicPlugins({
+      page,
+      page_size: 100,
+      category_id: params.categoryId || undefined,
+      search: params.search || undefined,
+      ordering: params.ordering,
+    })
+    plugins.push(...response.results)
+    hasNext = Boolean(response.next)
+    page += 1
+  }
+
+  const formatsById: Record<string, string[]> = {}
+  for (let start = 0; start < plugins.length; start += 6) {
+    const batch = plugins.slice(start, start + 6)
+    const details = await Promise.allSettled(batch.map((plugin) => getPublicPlugin(plugin.slug)))
+    details.forEach((result, index) => {
+      formatsById[batch[index].id] = result.status === 'fulfilled'
+        ? result.value.files.map((file) => file.file_format.toLowerCase().replace(/^\./, ''))
+        : []
+    })
+  }
+
+  return { plugins, formatsById }
+}
 
 export function PluginsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -25,6 +75,10 @@ export function PluginsBrowsePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [sortOrdering, setSortOrdering] = useState<PluginOrdering>('-created_at')
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedFormats, setSelectedFormats] = useState<string[]>([])
+  const [selectedLicenses, setSelectedLicenses] = useState<PluginLicenseType[]>([])
+  const [minPrice, setMinPrice] = useState(0)
+  const [maxPrice, setMaxPrice] = useState(200)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
   const categoryDropdownRef = useRef<HTMLDivElement>(null)
@@ -61,32 +115,37 @@ export function PluginsBrowsePage() {
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
 
-  const setSearchInUrl = (value: string) => {
-    const nextParams = new URLSearchParams(searchParams)
-    const trimmed = value.trim().slice(0, 100)
-    if (trimmed) {
-      nextParams.set('search', trimmed)
-    } else {
-      nextParams.delete('search')
-    }
-    setSearchParams(nextParams, { replace: true })
-  }
-
   const handleSortChange = (sort: PluginOrdering) => {
     setSortOrdering(sort)
     setCurrentPage(1)
   }
 
-  const handleCompatChip = (term: string) => {
-    setSearchInput(term)
+  const toggleFormat = (formatId: string) => {
+    setSelectedFormats((current) =>
+      current.includes(formatId)
+        ? current.filter((item) => item !== formatId)
+        : [...current, formatId],
+    )
     setCurrentPage(1)
-    setSearchInUrl(term)
+  }
+
+  const toggleLicense = (license: PluginLicenseType) => {
+    setSelectedLicenses((current) =>
+      current.includes(license)
+        ? current.filter((item) => item !== license)
+        : [...current, license],
+    )
+    setCurrentPage(1)
   }
 
   const handleResetFilters = () => {
     setSearchInput('')
     setSelectedCategoryId('')
     setSortOrdering('-created_at')
+    setSelectedFormats([])
+    setSelectedLicenses([])
+    setMinPrice(0)
+    setMaxPrice(200)
     setCurrentPage(1)
 
     const nextParams = new URLSearchParams(searchParams)
@@ -109,27 +168,66 @@ export function PluginsBrowsePage() {
   } = useQuery({
     queryKey: [
       'public-plugins-browse',
-      currentPage,
       selectedCategoryId,
       debouncedSearch,
       sortOrdering,
     ],
-    queryFn: () =>
-      listPublicPlugins({
-        page: currentPage,
-        page_size: PAGE_SIZE,
-        category_id: selectedCategoryId || undefined,
-        search: debouncedSearch || undefined,
-        ordering: sortOrdering,
-      }),
+    queryFn: () => loadPluginCatalog({
+      categoryId: selectedCategoryId,
+      search: debouncedSearch,
+      ordering: sortOrdering,
+    }),
     placeholderData: keepPreviousData,
   })
 
-  const plugins = pluginsData?.results ?? []
-  const totalCount = pluginsData?.count ?? 0
+  const availablePlugins = useMemo(() => pluginsData?.plugins ?? [], [pluginsData?.plugins])
+  const formatsById = pluginsData?.formatsById
+  const filteredPlugins = useMemo(
+    () =>
+      availablePlugins.filter((plugin) => {
+        const price = Number(plugin.discount_price ?? plugin.price)
+        const matchesSelectedFormats =
+          selectedFormats.length === 0 ||
+          selectedFormats.some((formatId) => matchesFormat(formatsById?.[plugin.id] ?? [], formatId))
+        const matchesSelectedLicenses =
+          selectedLicenses.length === 0 || selectedLicenses.includes(plugin.license_type)
+        const matchesPrice =
+          price >= minPrice && (maxPrice >= 200 || price <= maxPrice)
+        return matchesSelectedFormats && matchesSelectedLicenses && matchesPrice
+      }),
+    [availablePlugins, formatsById, maxPrice, minPrice, selectedFormats, selectedLicenses],
+  )
+  const totalCount = filteredPlugins.length
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+  const plugins = filteredPlugins.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const formatCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        FORMAT_FILTERS.map((format) => [
+          format.id,
+          availablePlugins.filter((plugin) => matchesFormat(formatsById?.[plugin.id] ?? [], format.id)).length,
+        ]),
+      ),
+    [availablePlugins, formatsById],
+  )
+  const licenseCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        LICENSE_FILTERS.map((license) => [
+          license.id,
+          availablePlugins.filter((plugin) => plugin.license_type === license.id).length,
+        ]),
+      ),
+    [availablePlugins],
+  )
   const isFiltered =
-    Boolean(searchInput) || Boolean(selectedCategoryId) || sortOrdering !== '-created_at'
+    Boolean(searchInput) ||
+    Boolean(selectedCategoryId) ||
+    sortOrdering !== '-created_at' ||
+    selectedFormats.length > 0 ||
+    selectedLicenses.length > 0 ||
+    minPrice > 0 ||
+    maxPrice < 200
 
   const selectedCategoryName = useMemo(() => {
     if (!selectedCategoryId) return null
@@ -170,15 +268,18 @@ export function PluginsBrowsePage() {
                 {filtersOpen ? '−' : '+'}
               </span>
             </button>
-            {isFiltered ? (
-              <button
-                type="button"
-                className="plugins-filters__reset"
-                onClick={handleResetFilters}
-              >
-                Clear Filters
-              </button>
-            ) : null}
+            <svg
+              className="plugins-filters__header-icon"
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              aria-hidden="true"
+            >
+              <path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M7 14v6" />
+            </svg>
           </div>
 
           <div className="plugins-filters__panel">
@@ -279,31 +380,81 @@ export function PluginsBrowsePage() {
             </div>
           </div>
 
-          <div className="plugins-filters__group">
-            <p className="plugins-filters__label" id="plugin-compat-label">
-              Compatibility
-            </p>
-            <div
-              className="plugins-filters__chips"
-              role="group"
-              aria-labelledby="plugin-compat-label"
-            >
-              {COMPAT_CHIPS.map((term) => {
-                const active = searchInput.trim().toLowerCase() === term.toLowerCase()
-                return (
-                  <button
-                    key={term}
-                    type="button"
-                    className={`plugins-filters__chip${active ? ' plugins-filters__chip--active' : ''}`}
-                    onClick={() => handleCompatChip(term)}
-                    aria-pressed={active}
-                  >
-                    {term}
-                  </button>
-                )
-              })}
+          <fieldset className="plugins-filters__group plugins-filters__fieldset">
+            <legend className="plugins-filters__label">Format</legend>
+            {FORMAT_FILTERS.map((format) => (
+              <label className="plugins-filters__option" key={format.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedFormats.includes(format.id)}
+                  onChange={() => toggleFormat(format.id)}
+                />
+                <span className="plugins-filters__option-name">{format.label}</span>
+                <span className="plugins-filters__option-count">{formatCounts[format.id]}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset className="plugins-filters__group plugins-filters__fieldset">
+            <legend className="plugins-filters__label">Price</legend>
+            <div className="plugins-filters__price-range">
+              <div
+                className="plugins-filters__price-track"
+                style={{ left: `${minPrice / 2}%`, right: `${100 - maxPrice / 2}%` }}
+              />
+              <input
+                type="range"
+                min="0"
+                max="200"
+                step="5"
+                value={minPrice}
+                aria-label="Minimum price"
+                onChange={(event) => {
+                  setMinPrice(Math.min(Number(event.target.value), maxPrice))
+                  setCurrentPage(1)
+                }}
+              />
+              <input
+                type="range"
+                min="0"
+                max="200"
+                step="5"
+                value={maxPrice}
+                aria-label="Maximum price"
+                onChange={(event) => {
+                  setMaxPrice(Math.max(Number(event.target.value), minPrice))
+                  setCurrentPage(1)
+                }}
+              />
             </div>
-          </div>
+            <div className="plugins-filters__price-labels">
+              <span>${minPrice}</span>
+              <span>${maxPrice}{maxPrice === 200 ? '+' : ''}</span>
+            </div>
+          </fieldset>
+
+          <fieldset className="plugins-filters__group plugins-filters__fieldset">
+            <legend className="plugins-filters__label">License</legend>
+            {LICENSE_FILTERS.map((license) => (
+              <label className="plugins-filters__option" key={license.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedLicenses.includes(license.id)}
+                  onChange={() => toggleLicense(license.id)}
+                />
+                <span className="plugins-filters__option-name">{license.label}</span>
+                <span className="plugins-filters__option-count">{licenseCounts[license.id]}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <button
+            type="button"
+            className="plugins-filters__clear"
+            onClick={handleResetFilters}
+          >
+            <span aria-hidden="true">↻</span> Clear Filters
+          </button>
           </div>
         </aside>
 

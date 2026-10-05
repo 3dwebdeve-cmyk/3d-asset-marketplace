@@ -103,7 +103,7 @@
 
 .home-marketplace-search {
   display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr) 2.85rem;
+  grid-template-columns: minmax(0, 1fr) 2.85rem;
   align-items: stretch;
   width: min(100%, 36rem);
   min-height: 2.85rem;
@@ -117,16 +117,10 @@
   text-align: left;
 }
 
-.home-marketplace-search__leading {
-  display: grid;
-  place-items: center;
-  color: var(--text-secondary);
-}
-
 .home-marketplace-search__input {
   min-width: 0;
   height: 100%;
-  padding: 0.7rem 0.4rem;
+  padding: 0.7rem 0.9rem;
   border: 0;
   outline: 0;
   color: var(--hero-ink);
