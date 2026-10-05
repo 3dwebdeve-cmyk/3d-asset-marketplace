@@ -143,16 +143,6 @@ export function ProductImageGallery({
   const totalCount =
     (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + galleryImages.length || 1
 
-  const currentCount = showModelStage
-    ? 1
-    : showVideoStage
-      ? hasSafePreviewModel
-        ? 2
-        : 1
-      : (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + safeIndex + 1
-
-  const counterLabel = `${currentCount} / ${totalCount}`
-
   const showPrevious = useCallback(() => {
     if (totalCount <= 1) {
       return
