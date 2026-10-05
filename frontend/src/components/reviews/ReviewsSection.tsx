@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useLocation } from 'react-router-dom'
 import { z } from 'zod'
@@ -16,8 +16,11 @@ import type { ReviewProductType } from '../../types/review'
 import { formatDate } from '../../lib/format'
 
 const reviewSchema = z.object({
-  rating: z.number().int().min(1, 'Select a rating').max(5),
+  rating: z.number().int().min(0).max(5),
   review_text: z.string().max(2000, 'Review must be at most 2000 characters').optional(),
+}).refine((value) => value.rating > 0 || Boolean(value.review_text?.trim()), {
+  path: ['review_text'],
+  message: 'Write a comment or select a rating',
 })
 
 type ReviewFormValues = {
@@ -114,13 +117,17 @@ export function ReviewsSection({
 
   const selectedRating = watch('rating')
   const reviewText = watch('review_text') ?? ''
+  const hydratedFormKey = useRef<string | null>(null)
 
   useEffect(() => {
+    const formKey = JSON.stringify([productType, productId, currentUser?.id])
+    if (isEligibilityLoading || hydratedFormKey.current === formKey) return
+    hydratedFormKey.current = formKey
     reset(myReview ? {
-        rating: myReview.rating,
+        rating: myReview.rating ?? 0,
         review_text: myReview.review_text,
       } : { rating: 0, review_text: '' })
-  }, [myReview, productId, currentUser?.id, reset])
+  }, [myReview, productType, productId, currentUser?.id, isEligibilityLoading, reset])
 
   const onSubmit = handleSubmit((values) => {
     const parsed = reviewSchema.safeParse(values)
@@ -137,10 +144,18 @@ export function ReviewsSection({
       return
     }
 
-    submitReview({
-      rating: parsed.data.rating,
-      review_text: parsed.data.review_text?.trim() ?? '',
-    })
+    if (!isHub && parsed.data.rating === 0) {
+      setError('rating', { type: 'manual', message: 'Select a rating' })
+      return
+    }
+
+    submitReview(
+      {
+        rating: parsed.data.rating || null,
+        review_text: parsed.data.review_text?.trim() ?? '',
+      },
+      { onSuccess: () => reset({ rating: 0, review_text: '' }) },
+    )
   })
 
   const ratingNumber = Number(averageRating)
@@ -260,7 +275,9 @@ export function ReviewsSection({
           <Button
             type="submit"
             className={isHub ? 'product-detail-reviews__submit' : undefined}
-            disabled={isSubmitting || !selectedRating}
+            disabled={
+              isSubmitting || (isHub ? !selectedRating && !reviewText.trim() : !selectedRating)
+            }
           >
             {isSubmitting
               ? 'Saving…'
@@ -310,15 +327,17 @@ export function ReviewsSection({
                       {isHub ? formatRelative(review.created_at) : formatDate(review.created_at)}
                     </time>
                   </div>
-                  <span
-                    className="product-detail-reviews__item-stars"
-                    aria-label={`${review.rating} out of 5 stars`}
-                  >
-                    {'★'.repeat(review.rating)}
-                    <span className="product-detail-reviews__item-stars-empty" aria-hidden="true">
-                      {'★'.repeat(5 - review.rating)}
+                  {review.rating !== null ? (
+                    <span
+                      className="product-detail-reviews__item-stars"
+                      aria-label={`${review.rating} out of 5 stars`}
+                    >
+                      {'★'.repeat(review.rating)}
+                      <span className="product-detail-reviews__item-stars-empty" aria-hidden="true">
+                        {'★'.repeat(5 - review.rating)}
+                      </span>
                     </span>
-                  </span>
+                  ) : null}
                 </div>
               </div>
               {review.review_text.trim() ? (

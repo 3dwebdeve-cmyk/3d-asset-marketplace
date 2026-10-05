@@ -463,6 +463,85 @@ describe('ProductDetailsPage', () => {
     })
   })
 
+  it('clears posted and updated comments after saving, but preserves failed submissions', async () => {
+    const user = userEvent.setup()
+    useAuthStore.setState({
+      accessToken: 'access-token',
+      user: testUser,
+      isAuthenticated: true,
+      postLogoutRedirect: null,
+    })
+    vi.mocked(reviewsApi.getReviewEligibility).mockResolvedValue({
+      can_review: true,
+      has_reviewed: false,
+      review: null,
+    })
+    const savedReview = {
+      id: '33333333-3333-3333-3333-333333333333',
+      product_type: 'product' as const,
+      product_id: productId,
+      rating: null,
+      review_text: 'Works well in Blender.',
+      author: { id: testUser.id, full_name: testUser.full_name },
+      created_at: '2026-10-05T12:00:00Z',
+      updated_at: '2026-10-05T12:00:00Z',
+    }
+    vi.mocked(reviewsApi.createReview).mockImplementation(async (payload) => {
+      const review = { ...savedReview, review_text: payload.review_text ?? '' }
+      vi.mocked(reviewsApi.getReviewEligibility).mockResolvedValue({
+        can_review: true,
+        has_reviewed: true,
+        review,
+      })
+      return review
+    })
+
+    renderProductDetails()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /post comment/i })).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByRole('textbox', { name: /comment/i }), 'Works well in Blender.')
+    await user.click(screen.getByRole('button', { name: /post comment/i }))
+
+    await waitFor(() => {
+      expect(reviewsApi.createReview).toHaveBeenCalledWith({
+        product_type: 'product',
+        product_id: productId,
+        rating: null,
+        review_text: 'Works well in Blender.',
+      })
+    })
+
+    const commentBox = screen.getByRole('textbox', { name: /comment/i })
+    await waitFor(() => {
+      expect(commentBox).toHaveValue('')
+      expect(screen.getByRole('button', { name: /update review/i })).toBeDisabled()
+    })
+
+    await user.type(commentBox, 'Updated comment.')
+    await user.click(screen.getByRole('button', { name: /update review/i }))
+    await waitFor(() => {
+      expect(reviewsApi.createReview).toHaveBeenLastCalledWith({
+        product_type: 'product',
+        product_id: productId,
+        rating: null,
+        review_text: 'Updated comment.',
+      })
+      expect(commentBox).toHaveValue('')
+      expect(screen.getByRole('button', { name: /update review/i })).toBeDisabled()
+    })
+
+    vi.mocked(reviewsApi.createReview).mockRejectedValueOnce(new Error('Save failed'))
+    await user.type(commentBox, 'Keep this draft.')
+    await user.click(screen.getByRole('button', { name: /update review/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /update review/i })).toBeEnabled()
+      expect(commentBox).toHaveValue('Keep this draft.')
+    })
+  })
+
   it('starts Stripe checkout when Buy now is clicked', async () => {
     const user = userEvent.setup()
     const originalLocation = window.location

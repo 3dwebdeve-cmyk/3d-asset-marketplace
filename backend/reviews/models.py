@@ -20,6 +20,8 @@ class Review(models.Model):
     product_id = models.UUIDField(db_index=True)
     rating = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
+        null=True,
+        blank=True,
     )
     review_text = models.TextField(max_length=2000, blank=True)
     is_hidden = models.BooleanField(default=False, db_index=True)
