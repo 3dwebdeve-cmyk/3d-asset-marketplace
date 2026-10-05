@@ -8,6 +8,8 @@ const SENSITIVE_KEY_RE =
 function scrubValue(value: unknown): unknown {
   if (typeof value === 'string') {
     return value
+      .replace(/\/(reset-password|verify-email)\/[^/?#]+\/[^/?#]+/gi, '/$1/[Filtered]/[Filtered]')
+      .replace(/([?&](?:token|access_token|refresh_token|password|secret|email|x-amz-[^=&#]+)=)[^&#\s]*/gi, '$1[Filtered]')
       .replace(/\bBearer\s+[A-Za-z0-9\-._~+/]+=*/gi, 'Bearer [Filtered]')
       .replace(
         /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g,
@@ -76,7 +78,10 @@ export function initFrontendSentry(): void {
       if (typeof event.message === 'string') {
         event.message = scrubEventData(event.message)
       }
-      return event
+      return scrubEventData(event)
+    },
+    beforeSendTransaction(event) {
+      return scrubEventData(event)
     },
     beforeBreadcrumb(breadcrumb) {
       if (breadcrumb.data) {

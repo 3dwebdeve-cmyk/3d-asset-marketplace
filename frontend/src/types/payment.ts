@@ -16,6 +16,7 @@ export type PaymentStatus =
   | 'failed'
   | 'expired'
   | 'refunded'
+  | 'disputed'
 
 export type PaymentStatusFilter =
   | PaymentStatus
@@ -39,6 +40,7 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   failed: 'Failed',
   expired: 'Cancelled',
   refunded: 'Refunded',
+  disputed: 'Disputed',
 }
 
 export interface AdminPaymentListItem {

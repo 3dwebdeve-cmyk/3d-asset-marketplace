@@ -415,6 +415,8 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
                     "checkout.session.expired",
                     "payment_intent.payment_failed",
                     "charge.refunded",
+                    "charge.dispute.created",
+                    "charge.dispute.closed",
                 }
             ),
         )
@@ -570,7 +572,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.order.order_status, Order.OrderStatus.PAID)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
 
-    def test_charge_refunded_unknown_intent_is_noop(self) -> None:
+    def test_charge_refunded_unknown_intent_requests_retry(self) -> None:
         self._mark_paid_with_intent("pi_test_known")
         event = _FakeEvent(
             "evt_test_unknown_pi",
@@ -582,10 +584,41 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             },
         )
         response = self._post_webhook(event)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
-        self.assertEqual(StripeWebhookEvent.objects.count(), 1)
+        self.assertEqual(StripeWebhookEvent.objects.count(), 0)
+
+    @patch("payments.webhook_service.stripe.Dispute.retrieve")
+    def test_dispute_revokes_access_and_won_dispute_restores_it(self, retrieve):
+        from orders.entitlements import user_owns_catalog_item
+
+        self._mark_paid_with_intent("pi_disputed")
+        retrieve.return_value = {"id": "dp_test", "status": "needs_response"}
+        dispute = {"id": "dp_test", "payment_intent": "pi_disputed"}
+        self.assertEqual(self._post_webhook(_FakeEvent(
+            "evt_dispute_created", "charge.dispute.created", dispute,
+        )).status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.DISPUTED)
+        self.assertFalse(user_owns_catalog_item(self.user, "product", self.product.pk))
+        retrieve.return_value = {"id": "dp_test", "status": "won"}
+        self.assertEqual(self._post_webhook(_FakeEvent(
+            "evt_dispute_won", "charge.dispute.closed", dispute,
+        )).status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
+
+    def test_partial_refund_amount_is_recorded(self):
+        self._mark_paid_with_intent("pi_partial_audit")
+        event = _FakeEvent("evt_partial_audit", "charge.refunded", {
+            "id": "ch_partial", "payment_intent": "pi_partial_audit",
+            "refunded": False, "amount_refunded": 100,
+        })
+        self.assertEqual(self._post_webhook(event).status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.refunded_amount, Decimal("1.00"))
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
 
 
 @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")

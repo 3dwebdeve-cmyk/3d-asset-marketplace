@@ -19,6 +19,7 @@ from reviews.serializers import (
     ReviewPublicSerializer,
 )
 from reviews.services import ReviewError, ReviewService
+from orders.entitlements import user_owns_catalog_item
 
 
 def _error_response(exc: ReviewError) -> Response:
@@ -176,6 +177,7 @@ class ReviewEligibilityView(APIView):
         return Response(
             {
                 "can_review": True,
+                "can_rate": user_owns_catalog_item(request.user, normalized, product_id),
                 "has_reviewed": existing is not None,
                 "review": ReviewPublicSerializer(existing).data if existing else None,
             }

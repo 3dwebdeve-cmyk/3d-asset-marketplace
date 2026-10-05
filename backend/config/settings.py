@@ -47,6 +47,13 @@ if len(SECRET_KEY.encode("utf-8")) < 32:
 # SECURITY WARNING: don't run with debug turned on in production!
 
 DEBUG = config("DEBUG", cast=bool, default=False)
+DEPLOYMENT_PROFILE = config(
+    "DEPLOYMENT_PROFILE", default="development" if DEBUG else "production",
+).strip()
+if DEPLOYMENT_PROFILE not in {"development", "test", "staging", "production"}:
+    raise ImproperlyConfigured("Unknown DEPLOYMENT_PROFILE.")
+if DEPLOYMENT_PROFILE in {"staging", "production"} and DEBUG:
+    raise ImproperlyConfigured("DEBUG must be False on staging and production.")
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
     default="127.0.0.1,localhost",
@@ -188,12 +195,20 @@ R2_SECRET_ACCESS_KEY = config("R2_SECRET_ACCESS_KEY", default="").strip()
 R2_ENDPOINT_URL = config("R2_ENDPOINT_URL", default="").strip()
 R2_PUBLIC_BUCKET = config("R2_PUBLIC_BUCKET", default="").strip()
 R2_PRIVATE_BUCKET = config("R2_PRIVATE_BUCKET", default="").strip()
+if R2_PUBLIC_BUCKET and R2_PUBLIC_BUCKET == R2_PRIVATE_BUCKET:
+    raise ImproperlyConfigured("R2 public and private buckets must be different.")
 R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
 R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=300, cast=int)
 if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
     R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 _running_tests = "test" in sys.argv or "pytest" in " ".join(sys.argv).lower()
+BACKGROUND_JOBS_TEST_EAGER = _running_tests
+PACKAGE_SCAN_REQUIRED = DEPLOYMENT_PROFILE in {"staging", "production"}
+PACKAGE_SCAN_HOST = config("PACKAGE_SCAN_HOST", default="").strip()
+PACKAGE_SCAN_PORT = config("PACKAGE_SCAN_PORT", default=3310, cast=int)
+if PACKAGE_SCAN_REQUIRED and not PACKAGE_SCAN_HOST:
+    raise ImproperlyConfigured("PACKAGE_SCAN_HOST is required on staging and production.")
 R2_ENABLED = (not _running_tests) and all(
     (
         R2_ACCOUNT_ID,
@@ -264,6 +279,8 @@ STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
 # (same path as a verified checkout.session.completed webhook).
 E2E_STRIPE_SIMULATE = config("E2E_STRIPE_SIMULATE", cast=bool, default=False)
 if E2E_STRIPE_SIMULATE:
+    if not DEBUG and config("DEPLOYMENT_PROFILE", default="production") != "test":
+        raise ImproperlyConfigured("Payment simulation is restricted to DEBUG or the explicit test profile.")
     _stripe_secret = STRIPE_SECRET_KEY or ""
     if _stripe_secret.startswith("sk_live_"):
         raise ImproperlyConfigured(
@@ -279,6 +296,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 52 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 AUTH_USER_MODEL = "accounts.User"
+TEST_RUNNER = "config.test_runner.MarketplaceTestRunner"
 
 # Django contrib admin at /admin/ (SPA console is /console/). Default on so local
 # Compose keeps working. Staging/prod: set DJANGO_ADMIN_ENABLED=False or an IP allowlist.
@@ -295,6 +313,22 @@ ADMIN_CONSOLE_ALLOWED_IPS = config(
     default="",
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
+if DEPLOYMENT_PROFILE in {"staging", "production"}:
+    import ipaddress
+
+    for label, values, required in (
+        ("ADMIN_CONSOLE_ALLOWED_IPS", ADMIN_CONSOLE_ALLOWED_IPS, True),
+        ("DJANGO_ADMIN_ALLOWED_IPS", DJANGO_ADMIN_ALLOWED_IPS, DJANGO_ADMIN_ENABLED),
+    ):
+        if required and not values:
+            raise ImproperlyConfigured(f"{label} must restrict administrator access.")
+        for value in values:
+            try:
+                network = ipaddress.ip_network(value, strict=False)
+            except ValueError as exc:
+                raise ImproperlyConfigured(f"{label} contains an invalid IP/CIDR.") from exc
+            if network.prefixlen == 0:
+                raise ImproperlyConfigured(f"{label} must not allow the whole internet.")
 
 # Postgres-backed cache (no Redis) so throttle counters, login lockouts and
 # idempotency keys are shared by every Gunicorn worker and survive restarts.
@@ -320,7 +354,8 @@ LOGIN_LOCKOUT_WINDOW_SECONDS = config(
 )
 
 # Celery runs in-process (no Redis broker / no worker container).
-# Emails and notifications still send via enqueue_after_commit + eager delay().
+# Celery supplies registered task functions and test-only eager execution.
+# Production delivery uses the PostgreSQL outbox worker, not the memory broker.
 CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = None
 CELERY_TASK_IGNORE_RESULT = True
@@ -333,6 +368,7 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_TASK_DEFAULT_RETRY_DELAY = 60
+EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", default=30, cast=int)
 CELERY_TASK_ANNOTATIONS = {
     "*": {
         "max_retries": 0 if _running_tests else 5,
@@ -370,7 +406,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "config.pagination.StandardPagination",
     "EXCEPTION_HANDLER": "accounts.exceptions.custom_exception_handler",
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "config.schema.MarketplaceSchema",
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
@@ -415,6 +451,17 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Canonical HTTP API under /api/v1/.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "DISABLE_ERRORS_AND_WARNINGS": False,
+    "ENUM_NAME_OVERRIDES": {
+        "ProductStatusEnum": "products.models.Product.Status",
+        "PluginStatusEnum": "plugins.models.Plugin.Status",
+        "StripePaymentStatusEnum": "payments.models.Payment.Status",
+        "OrderStateEnum": "orders.models.Order.OrderStatus",
+        "CatalogItemTypeEnum": "reviews.models.Review.ProductType",
+        "OrderItemTypeEnum": "orders.models.OrderItem.ProductType",
+        "ProductLicenseEnum": "products.models.Product.LicenseType",
+        "PluginLicenseEnum": "plugins.models.Plugin.LicenseType",
+    },
 }
 
 SIMPLE_JWT = {
@@ -442,6 +489,8 @@ if _jwt_refresh_secure in {"", "none"}:
     JWT_REFRESH_COOKIE_SECURE = None
 else:
     JWT_REFRESH_COOKIE_SECURE = _jwt_refresh_secure in {"1", "true", "yes", "on"}
+if DEPLOYMENT_PROFILE in {"staging", "production"} and JWT_REFRESH_COOKIE_SECURE is False:
+    raise ImproperlyConfigured("Refresh cookies must be Secure on staging and production.")
 
 # Production hardening (applied when DEBUG is False).
 if not DEBUG:

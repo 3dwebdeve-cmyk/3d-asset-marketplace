@@ -49,4 +49,8 @@ else
   echo "skipping migrate/collectstatic (SKIP_STARTUP_MIGRATE)"
 fi
 
+case "${DEPLOYMENT_PROFILE:-development}" in
+  production|staging) python manage.py check_cutover --profile "${DEPLOYMENT_PROFILE}" ;;
+esac
+
 exec "$@"

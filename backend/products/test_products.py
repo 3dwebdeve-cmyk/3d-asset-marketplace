@@ -1,5 +1,7 @@
 import io
 import tempfile
+import struct
+from zipfile import ZipFile
 from decimal import Decimal
 
 from django.core.cache import cache
@@ -20,6 +22,19 @@ def make_image_bytes(format_name: str = "PNG", size=(64, 64), color=(20, 120, 20
     buffer = io.BytesIO()
     image = Image.new("RGB", size, color=color)
     image.save(buffer, format=format_name)
+    return buffer.getvalue()
+
+
+def make_glb_bytes():
+    document = b'{"asset":{"version":"2.0"}}'
+    document += b" " * (-len(document) % 4)
+    return struct.pack("<4sIIII", b"glTF", 2, 20 + len(document), len(document), 0x4E4F534A) + document
+
+
+def make_usdz_bytes():
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        archive.writestr("chair.usda", '#usda 1.0\n')
     return buffer.getvalue()
 
 
@@ -565,7 +580,7 @@ class ProductMediaUploadAPITests(APITestCase):
         self._authenticate_as_admin()
         glb = SimpleUploadedFile(
             "preview.glb",
-            b"glTF binary placeholder content",
+            make_glb_bytes(),
             content_type="model/gltf-binary",
         )
 
@@ -587,7 +602,7 @@ class ProductMediaUploadAPITests(APITestCase):
         self._authenticate_as_admin()
         glb = SimpleUploadedFile(
             "auto-preview.glb",
-            b"glTF binary auto preview content",
+            make_glb_bytes(),
             content_type="model/gltf-binary",
         )
 
@@ -606,7 +621,7 @@ class ProductMediaUploadAPITests(APITestCase):
         self._authenticate_as_admin()
         usdz = SimpleUploadedFile(
             "chair.usdz",
-            b"PK\x03\x04 usdz placeholder content",
+            make_usdz_bytes(),
             content_type="model/vnd.usdz+zip",
         )
 

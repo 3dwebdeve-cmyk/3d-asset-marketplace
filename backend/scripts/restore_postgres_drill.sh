@@ -138,18 +138,17 @@ run_docker_drill() {
 
   echo "restore_postgres_drill: pg_restore --clean --if-exists"
   docker exec -e PGPASSWORD="$DB_PASSWORD" "$CONTAINER" \
-    pg_restore -U "$DB_USER" -d "$DB_NAME" --clean --if-exists /restore/dump.dump \
-    || true
-  # pg_restore may exit non-zero for benign role/extension notices on a fresh cluster.
+    pg_restore -U "$DB_USER" -d "$DB_NAME" --clean --if-exists --no-owner --no-privileges --exit-on-error /restore/dump.dump
+  # Ownership/ACL differences are excluded explicitly; every restore error fails.
 
   local TABLE_COUNT
   TABLE_COUNT="$(
     docker exec -e PGPASSWORD="$DB_PASSWORD" "$CONTAINER" \
       psql -U "$DB_USER" -d "$DB_NAME" -Atc \
-      "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+      "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','roles','orders','order_items','payments','stripe_webhook_events','products','product_files','django_migrations');"
   )"
 
-  if [[ -z "$TABLE_COUNT" || "$TABLE_COUNT" -lt 1 ]]; then
+  if [[ "$TABLE_COUNT" != 9 ]]; then
     echo "restore_postgres_drill: FAIL — no public tables after restore (count=${TABLE_COUNT:-empty})" >&2
     exit 1
   fi
@@ -206,16 +205,15 @@ run_local_drill() {
 
   echo "restore_postgres_drill: pg_restore --clean --if-exists into ${RESTORE_DRILL_LOCAL_DB}"
   pg_restore -h "$RESTORE_DRILL_CONN_HOST" -p "$RESTORE_DRILL_CONN_PORT" -U "$RESTORE_DRILL_CONN_USER" -d "$RESTORE_DRILL_LOCAL_DB" \
-    --clean --if-exists "$DUMP_PATH" \
-    || true
+    --clean --if-exists --no-owner --no-privileges --exit-on-error "$DUMP_PATH"
 
   local TABLE_COUNT
   TABLE_COUNT="$(
     psql -h "$RESTORE_DRILL_CONN_HOST" -p "$RESTORE_DRILL_CONN_PORT" -U "$RESTORE_DRILL_CONN_USER" -d "$RESTORE_DRILL_LOCAL_DB" -Atc \
-      "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';"
+      "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('users','roles','orders','order_items','payments','stripe_webhook_events','products','product_files','django_migrations');"
   )"
 
-  if [[ -z "$TABLE_COUNT" || "$TABLE_COUNT" -lt 1 ]]; then
+  if [[ "$TABLE_COUNT" != 9 ]]; then
     echo "restore_postgres_drill: FAIL — no public tables after restore (count=${TABLE_COUNT:-empty})" >&2
     exit 1
   fi

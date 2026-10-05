@@ -29,6 +29,8 @@ TERMINAL_PAYMENT_STATUSES = {
 STALE_LOCAL_PAYMENT_STATUSES = {
     Payment.Status.EXPIRED,
     Payment.Status.FAILED,
+    Payment.Status.DISPUTED,
+    Payment.Status.REFUNDED,
 }
 
 PAYMENT_STATUS_FILTER_ALIASES = {
@@ -77,7 +79,10 @@ class AdminPaymentError(Exception):
 
 
 def e2e_stripe_simulate_enabled() -> bool:
-    return bool(getattr(settings, "E2E_STRIPE_SIMULATE", False))
+    enabled = bool(getattr(settings, "E2E_STRIPE_SIMULATE", False))
+    if enabled and getattr(settings, "DEPLOYMENT_PROFILE", "development") in {"staging", "production"}:
+        raise CheckoutError("Payment simulation is forbidden on staging and production.")
+    return enabled
 
 
 def to_cents(amount: Decimal) -> int:

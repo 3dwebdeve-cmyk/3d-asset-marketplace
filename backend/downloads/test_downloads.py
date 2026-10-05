@@ -131,13 +131,20 @@ class DownloadAPITests(APITestCase):
         buffer = BytesIO()
         with ZipFile(buffer, "w") as archive:
             archive.writestr("model.glb", b"glTF")
+        content = buffer.getvalue()
+        mime = "application/zip"
+        if name.endswith(".glb"):
+            from products.test_products import make_glb_bytes
+
+            content = make_glb_bytes()
+            mime = "model/gltf-binary"
         response = self.client.post(
             self.admin_product_files_url,
             {
-                "file": SimpleUploadedFile(
+          "file": SimpleUploadedFile(
                     name,
-                    buffer.getvalue(),
-                    content_type="application/zip",
+                    content,
+                    content_type=mime,
                 ),
                 "version": "1.0",
                 "is_preview": is_preview,

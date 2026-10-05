@@ -9,6 +9,7 @@ from __future__ import annotations
 import ipaddress
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.http import HttpResponseForbidden, HttpResponseNotFound
 
 
@@ -41,8 +42,8 @@ def parse_allowed_networks(raw) -> tuple[ipaddress._BaseNetwork, ...]:
     for value in values:
         try:
             networks.append(ipaddress.ip_network(value, strict=False))
-        except ValueError:
-            continue
+        except ValueError as exc:
+            raise ImproperlyConfigured("Administrator IP allowlist contains an invalid IP/CIDR.") from exc
     return tuple(networks)
 
 

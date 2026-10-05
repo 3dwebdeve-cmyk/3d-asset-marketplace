@@ -1,6 +1,7 @@
 """Django /admin/ and SPA console API network locks."""
 
 from django.http import HttpResponse
+from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from config.admin_lock import (
@@ -30,6 +31,10 @@ class DjangoAdminLockHelperTests(SimpleTestCase):
     def test_parse_cidrs(self) -> None:
         networks = parse_allowed_networks("127.0.0.1, 10.0.0.0/8")
         self.assertEqual(len(networks), 2)
+
+    def test_invalid_allowlist_fails_closed(self) -> None:
+        with self.assertRaises(ImproperlyConfigured):
+            parse_allowed_networks("invalid-cidr")
 
 
 class DjangoAdminLockMiddlewareTests(SimpleTestCase):

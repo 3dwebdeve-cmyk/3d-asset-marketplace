@@ -205,6 +205,9 @@ def validate_product_file_upload(uploaded: UploadedFile) -> ValidatedProductFile
         )
 
     file_format = _EXTENSION_TO_FORMAT[extension]
+    from config.upload_security import inspect_product_content
+
+    inspect_product_content(uploaded, extension)
     return ValidatedProductFileUpload(
         file=uploaded,
         extension=extension,

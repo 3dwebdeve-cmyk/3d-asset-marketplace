@@ -38,6 +38,12 @@ from payments.stripe_config import collect_stripe_config_report
     },
 )
 class CutoverGateLocalTests(TestCase):
+    def test_debug_mode_cannot_pass_production_gate(self):
+        from config.cutover_gate import _check_deploy, _check_django_deploy
+
+        self.assertFalse(_check_deploy("production").ok)
+        self.assertFalse(_check_django_deploy("production", enabled=True).ok)
+
     def test_local_profile_passes_without_host_secrets(self) -> None:
         result = run_cutover_gate(
             profile="local",

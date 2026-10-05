@@ -11,6 +11,7 @@ from django.db.models import Avg, Count, Q, QuerySet
 from plugins.models import Plugin
 from products.models import Product
 from reviews.models import Review
+from orders.entitlements import user_owns_catalog_item
 from search.tasks import enqueue_sync_plugin, enqueue_sync_product
 
 User = get_user_model()
@@ -137,6 +138,11 @@ class ReviewService:
         normalized_type = cls._normalize_product_type(product_type)
         cls._validate_catalog_item(normalized_type, product_id)
 
+        if rating is not None and not user_owns_catalog_item(user, normalized_type, product_id):
+            raise ReviewError(
+                "Only verified purchasers can leave a star rating. You can still post a comment.",
+                field="rating", code="not_purchased", status_code=403,
+            )
         text = (review_text or "").strip()
         if rating is None and not text:
             raise ReviewError(
@@ -157,7 +163,6 @@ class ReviewService:
                 defaults={
                     "rating": rating,
                     "review_text": text,
-                    "is_hidden": False,
                 },
             )
             cls._recompute_aggregates(normalized_type, product_id)

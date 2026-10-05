@@ -1,0 +1,65 @@
+Release procedure (do not deploy without the external checks below)
+
+1. Back up the database AND private/public stored objects. Keep the last image tags.
+2. Deploy the application image containing the new mail_log/payments migrations.
+   Run python manage.py migrate --noinput and createcachetable.
+3. Run python manage.py process_background_jobs as a continuously restarted worker.
+   Local development also needs this worker now; HTTP requests persist email rather
+   than sending it synchronously. Set DEBUG=True for local .env/processes only.
+   Compose includes a worker. Other hosting providers need a separate worker service
+   running the same image/configuration. Do not expose its ports.
+4. Set DEPLOYMENT_PROFILE=production (staging for test deployments), DEBUG=False,
+   E2E_STRIPE_SIMULATE=False, secure cookies, real HTTPS origins and SMTP/Brevo.
+   Keep administrator access restricted to valid office/VPN CIDRs. Django /admin/
+   must be disabled or separately network restricted. Malformed, empty required
+   networks and whole-internet networks are rejected.
+5. Provision a PRIVATE ClamAV clamd server with fresh signatures. Configure
+   PACKAGE_SCAN_HOST and PACKAGE_SCAN_PORT (3310 by default). Never publish clamd
+   publicly: its TCP interface is unauthenticated. Configure StreamMaxLength >=50MB,
+   ScanArchive yes, AlertExceedsMax yes, and strict scan-size/recursion limits.
+   Test a clean upload, the harmless EICAR test file, an archive exceeding scan
+   limits and scanner downtime; all but the clean upload must be rejected.
+   Production RAR/7z uploads are rejected; use inspectable ZIP packages.
+   Imported and existing stored packages also need an offline malware/content
+   audit before publication: uploading new files does not certify old objects.
+6. Use DIFFERENT public/private R2 buckets. Disable public access and custom domains
+   on the private bucket, restrict storage keys, and verify anonymous access fails.
+   Test signed URL expiry and the availability of every published download.
+7. Subscribe the Stripe endpoint to checkout.session.completed,
+   checkout.session.async_payment_succeeded, checkout.session.expired,
+   payment_intent.payment_failed, charge.refunded, charge.dispute.created,
+   charge.dispute.closed. Exercise retries, delayed/out-of-order events and duplicates.
+   Partial refunds are recorded and keep access (existing policy). Full refunds
+   revoke access. Open/lost disputes suspend downloads; won disputes restore access.
+   Replay previously acknowledged unmatched events from Stripe as appropriate;
+   new retry logic does not automatically recover old acknowledged deliveries.
+8. Run python manage.py check_cutover --profile production and
+   python manage.py check_background_jobs. Record outcomes. Monitor exhausted jobs
+   and stale worker heartbeats; investigate failures and explicitly requeue after
+   resolving them. Outbox delivery is at-least-once: a crash after SMTP delivery can
+   produce a duplicate email. Job arguments are private database data and may contain
+   short-lived email links; successful jobs are deleted immediately. Establish failed
+   job retention/access controls and never publish a database dump.
+9. Restrict direct-origin traffic to trusted proxies; never expose Gunicorn or DB.
+   Nginx trusts TLS headers only from its listed Cloudflare TCP peers. A different
+   load balancer requires explicit trusted-peer configuration and TLS verification.
+   Refresh the network list against https://www.cloudflare.com/ips/ before release.
+10. Test TLS/HSTS, frontend CSP (also on separately hosted SPAs), mail deliverability,
+    database AND object restore, alert delivery, realistic load and rollback.
+    The database restore drill now fails on any restore error and requires critical
+    application tables. It does not restore R2 files or certify recovery objectives.
+
+Safety notes
+- New migrations are additive; do not reverse them to roll back an app image.
+- API schema generation is source-only: serializer-backed endpoints expose their
+  serializer fields, manual dictionary endpoints use free-form JSON. Free-form
+  schemas do not certify precise payload contracts; keep integration tests.
+- Structural format checks and malware signatures reduce risk, not guarantee that
+  every native model/plugin is safe to open. Keep manual asset review and provenance.
+- Local test passes do not prove cloud ACLs, TLS/firewall policy, SMTP delivery,
+  payment dashboard subscriptions, scanner configuration or recovery readiness.
+
+Implementation references
+- ClamAV: https://docs.clamav.net/manual/Usage/Scanning.html
+- Cloudflare origin controls:
+  https://developers.cloudflare.com/fundamentals/concepts/cloudflare-ip-addresses/

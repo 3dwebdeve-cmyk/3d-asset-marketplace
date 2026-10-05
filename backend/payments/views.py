@@ -66,6 +66,7 @@ class CreateCheckoutSessionView(APIView):
             body, code = get_or_set(
                 build_cache_key("checkout", request.user.pk, idem_key),
                 _produce,
+                ttl=30 * 60,
             )
             return Response(body, status=code)
 
