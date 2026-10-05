@@ -15,6 +15,7 @@ import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
+const PRODUCTS_BANNER_IMAGE_SRC = '/16a.jpg'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
   furniture: '/homepage%20images/banner_furniture_v24.jpg',
   toys: '/homepage%20images/banner_toys_v24.jpg',
@@ -33,7 +34,7 @@ const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
   'lifestyle-visualization': '/homepage%20images/banner_lifestyle_v24.jpg',
   lights: '/homepage%20images/banner_lights_v24.jpg',
   'plants-vegetation': '/homepage%20images/banner_plants_v24.jpg',
-  products: '/homepage%20images/banner_products_v24.jpg',
+  products: PRODUCTS_BANNER_IMAGE_SRC,
 }
 
 const FORMAT_OPTIONS = [
@@ -271,7 +272,7 @@ export function ModelsBrowsePage() {
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
   const usesCharacterBanner = selectedCategory?.slug === 'character'
   const heroImageSrc = usesProductsBanner
-    ? '/homepage%20images/banner_products_v24.jpg'
+    ? PRODUCTS_BANNER_IMAGE_SRC
     : selectedCategory
       ? CATEGORY_BANNER_BY_SLUG[selectedCategory.slug]
       : undefined
