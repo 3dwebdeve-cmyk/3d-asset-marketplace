@@ -9,7 +9,7 @@
   --hub-bg: #ffffff;
   --hub-card: #ffffff;
   --hub-radius: 12px;
-  --hub-gold: var(--action-color);
+  --hub-gold: #d99a00;
 
   /* Full-bleed so side margins match the page */
   width: 100%;
@@ -363,10 +363,6 @@
   background: var(--hub-blue-soft);
   color: var(--hub-blue);
   font-size: 0.7rem;
-}
-
-.product-hub-detail .product-detail-media-note {
-  color: var(--hub-muted);
 }
 
 /* Specs card */
@@ -805,6 +801,11 @@
 }
 
 .product-hub-detail .product-detail-reviews__star--active {
+  color: var(--hub-gold);
+}
+
+.product-hub-detail .product-detail-reviews__star:hover,
+.product-hub-detail .product-detail-reviews__star:focus-visible {
   color: var(--hub-gold);
 }
 

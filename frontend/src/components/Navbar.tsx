@@ -55,6 +55,7 @@ export function Navbar() {
   const exploreRef = useRef<HTMLDivElement>(null)
   const searchCatRef = useRef<HTMLDivElement>(null)
   const exploreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchCatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleExploreMouseEnter = () => {
     if (exploreTimerRef.current) {
@@ -71,10 +72,28 @@ export function Navbar() {
     }, 180)
   }
 
+  const handleSearchCatMouseEnter = () => {
+    if (searchCatTimerRef.current) {
+      clearTimeout(searchCatTimerRef.current)
+      searchCatTimerRef.current = null
+    }
+    setSearchCatOpen(true)
+  }
+
+  const handleSearchCatMouseLeave = () => {
+    searchCatTimerRef.current = setTimeout(() => {
+      setSearchCatOpen(false)
+      searchCatTimerRef.current = null
+    }, 180)
+  }
+
   useEffect(() => {
     return () => {
       if (exploreTimerRef.current) {
         clearTimeout(exploreTimerRef.current)
+      }
+      if (searchCatTimerRef.current) {
+        clearTimeout(searchCatTimerRef.current)
       }
     }
   }, [])
@@ -83,6 +102,10 @@ export function Navbar() {
     if (exploreTimerRef.current) {
       clearTimeout(exploreTimerRef.current)
       exploreTimerRef.current = null
+    }
+    if (searchCatTimerRef.current) {
+      clearTimeout(searchCatTimerRef.current)
+      searchCatTimerRef.current = null
     }
     setAccountOpen(false)
     setExploreOpen(false)
@@ -192,6 +215,11 @@ export function Navbar() {
   })
   const AllCategoriesIcon = getAllCategoriesIcon()
   const selectedSearchCategory = exploreCategories.find((cat) => cat.id === categoryId)
+  const categoryHasChildren = (categoryIdToCheck: string) =>
+    categories.some(
+      (category) =>
+        'parent' in category && category.parent != null && category.parent.id === categoryIdToCheck,
+    )
   const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
   const searchCategoriesLoading = isPluginsRoute
     ? pluginCategoriesQuery.isLoading
@@ -271,12 +299,12 @@ export function Navbar() {
       >
         <svg
           viewBox="0 0 24 24"
-          width="19"
-          height="19"
+          width="22"
+          height="22"
           aria-hidden="true"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.9"
+          strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
@@ -300,7 +328,7 @@ export function Navbar() {
 
   return (
     <header
-      className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}${isModelsRoute ? ' navbar--models' : ''}${isProductRoute ? ' navbar--products' : ''}${mobileNavOpen ? ' navbar--mobile-open' : ''
+      className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}${isModelsRoute ? ' navbar--models' : ''}${isProductRoute ? ' navbar--products' : ''}${isPluginsRoute ? ' navbar--plugins' : ''}${mobileNavOpen ? ' navbar--mobile-open' : ''
         }`}
     >
       <nav className="navbar__inner" aria-label="Main">
@@ -350,8 +378,9 @@ export function Navbar() {
                     className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
                     onClick={() => handleSelectCategory('')}
                   >
-                    <AllCategoriesIcon className="navbar__explore-icon" />
+                    <AllCategoriesIcon className="navbar__explore-icon navbar__explore-icon--all" />
                     <span className="navbar__explore-label">All Categories</span>
+                    <span className="navbar__explore-chevron" aria-hidden="true">›</span>
                   </button>
                   {exploreCategories.map((category) => {
                     const Icon = getCategoryIcon(category.slug)
@@ -366,9 +395,12 @@ export function Navbar() {
                         {category.image ? (
                           <img className="navbar__explore-image" src={category.image} alt="" />
                         ) : (
-                          <Icon className="navbar__explore-icon" />
+                          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
                         )}
                         <span className="navbar__explore-label">{category.name}</span>
+                        {categoryHasChildren(category.id) ? (
+                          <span className="navbar__explore-chevron" aria-hidden="true">›</span>
+                        ) : null}
                       </button>
                     )
                   })}
@@ -386,7 +418,12 @@ export function Navbar() {
 
         {!isMarketplaceHome ? (
           <form className="navbar__search" onSubmit={handleSearchSubmit} role="search">
-            <div className="navbar__search-cat" ref={searchCatRef}>
+            <div
+              className="navbar__search-cat"
+              ref={searchCatRef}
+              onMouseEnter={handleSearchCatMouseEnter}
+              onMouseLeave={handleSearchCatMouseLeave}
+            >
               <button
                 type="button"
                 id="navbar-category-select"
@@ -394,7 +431,7 @@ export function Navbar() {
                 aria-expanded={searchCatOpen}
                 aria-haspopup="menu"
                 aria-label={searchCatLabel}
-                onClick={() => setSearchCatOpen((open) => !open)}
+                onClick={() => setSearchCatOpen(true)}
               >
                 <span className="navbar__search-cat-trigger-label">{searchCatLabel}</span>
                 <span aria-hidden="true">⌄</span>
@@ -411,8 +448,9 @@ export function Navbar() {
                     className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
                     onClick={() => handleSelectCategory('')}
                   >
-                    <AllCategoriesIcon className="navbar__explore-icon" />
+                    <AllCategoriesIcon className="navbar__explore-icon navbar__explore-icon--all" />
                     <span className="navbar__explore-label">All Categories</span>
+                    <span className="navbar__explore-chevron" aria-hidden="true">›</span>
                   </button>
                   {exploreCategories.map((category) => {
                     const Icon = getCategoryIcon(category.slug)
@@ -432,9 +470,12 @@ export function Navbar() {
                             alt=""
                           />
                         ) : (
-                          <Icon className="navbar__explore-icon" />
+                          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
                         )}
                         <span className="navbar__explore-label">{category.name}</span>
+                        {categoryHasChildren(category.id) ? (
+                          <span className="navbar__explore-chevron" aria-hidden="true">›</span>
+                        ) : null}
                       </button>
                     )
                   })}

@@ -4,14 +4,34 @@ from __future__ import annotations
 
 from decimal import Decimal
 from io import StringIO
+import json
+import struct
 
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from categories.models import Category
 from config.package_audit import PublishedPackageAuditService
 from plugins.models import Plugin, PluginCategory, PluginImage
+from products.demo_preview import build_demo_preview
 from products.models import Product, ProductImage
+
+
+class DemoPreviewTests(SimpleTestCase):
+    def test_each_demo_product_has_a_distinct_valid_glb(self) -> None:
+        previews = [
+            build_demo_preview(slug)
+            for slug in ("demo-oak-chair", "demo-desk-lamp", "demo-plant-pot")
+        ]
+        self.assertEqual(len(set(previews)), 3)
+        for preview in previews:
+            magic, version, length = struct.unpack_from("<III", preview)
+            self.assertEqual(magic, 0x46546C67)
+            self.assertEqual(version, 2)
+            self.assertEqual(length, len(preview))
+            json_length = struct.unpack_from("<I", preview, 12)[0]
+            document = json.loads(preview[20:20 + json_length])
+            self.assertGreater(len(document["meshes"]), 1)
 
 
 @override_settings(FRONTEND_BASE_URL="http://localhost:5173")
@@ -38,9 +58,7 @@ class SeedDemoCatalogCommandTests(TestCase):
         self.assertTrue(chair.has_preview)
         self.assertTrue(chair.has_thumbnail)
         self.assertTrue(chair.thumbnail.endswith("/images/about/offer-3d-models.jpg"))
-        self.assertTrue(
-            chair.preview_model.endswith("/fixtures/e2e-preview.glb")
-        )
+        self.assertTrue(chair.preview_model.endswith("/fixtures/demo-oak-chair.glb"))
         self.assertTrue(
             ProductImage.objects.filter(product=chair, is_primary=True).exists()
         )
