@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Wait for PostgreSQL before migrate / Gunicorn.
+# Wait for PostgreSQL before running the release job or application.
 python <<'PY'
 import os
 import sys
@@ -36,21 +36,17 @@ while True:
         time.sleep(1)
 PY
 
-skip_migrate=0
-case "${SKIP_STARTUP_MIGRATE:-}" in
-  1|true|True|yes|YES|on|ON) skip_migrate=1 ;;
-esac
-
-if [ "$skip_migrate" -eq 0 ]; then
-  python manage.py migrate --noinput
-  python manage.py createcachetable
-  python manage.py collectstatic --noinput
-else
-  echo "skipping migrate/collectstatic (SKIP_STARTUP_MIGRATE)"
-fi
-
-case "${DEPLOYMENT_PROFILE:-development}" in
-  production|staging) python manage.py check_cutover --profile "${DEPLOYMENT_PROFILE}" ;;
+case "${SKIP_STARTUP_CUTOVER:-}" in
+  1|true|True|yes|YES|on|ON) ;;
+  *)
+    case "${DEPLOYMENT_PROFILE:-development}" in
+      production|staging)
+        python manage.py check_cutover --profile "${DEPLOYMENT_PROFILE}"
+        python manage.py check_db_runtime_role
+        python manage.py check_package_scanner --check-signatures
+        ;;
+    esac
+    ;;
 esac
 
 exec "$@"

@@ -49,9 +49,33 @@ jobs:
             'DB_HOST=localhost' \
             'DB_PORT=5432' > .env
       - name: OpenAPI schema check
-        run: python manage.py spectacular --file /tmp/openapi.yml
+        run: python manage.py spectacular --validate --file /tmp/openapi.yml
+      - name: Strict migration and Django checks
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py check
       - name: Run tests
         run: python manage.py test --verbosity=1
+      - name: Verify restricted runtime database role on disposable CI database
+        env:
+          DB_NAME: marketplace_db
+          DB_HOST: localhost
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_MIGRATION_USER: postgres
+          DB_MIGRATION_PASSWORD: postgres
+          DB_RUNTIME_USER: ci_runtime
+          DB_RUNTIME_PASSWORD: ci-runtime-password-strong
+          ADMIN_CONSOLE_ALLOWED_IPS: 127.0.0.1/32
+          DJANGO_ADMIN_ALLOWED_IPS: 127.0.0.1/32
+          FRONTEND_BASE_URL: https://ci.example.invalid
+          ALLOW_CONSOLE_EMAIL: "True"
+        run: |
+          python manage.py migrate --noinput
+          python scripts/provision_runtime_role.py
+          DB_USER=ci_runtime DB_PASSWORD="$DB_RUNTIME_PASSWORD" \
+            DEPLOYMENT_PROFILE=staging DEBUG=False \
+            python manage.py check_db_runtime_role
 
   frontend:
     runs-on: ubuntu-latest
@@ -114,6 +138,7 @@ jobs:
       - name: Build and start Compose stack
         run: |
           set -o pipefail
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml config --quiet
           if ! docker compose \
             -f docker-compose.yml \
             -f docker-compose.e2e.yml \
@@ -143,6 +168,24 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps -a
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color --tail=300 web
           exit 1
+
+      - name: Verify actual outbox worker and release migration
+        run: |
+          for i in $(seq 1 12); do
+            if docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T worker \
+              python manage.py check_background_jobs; then
+              break
+            fi
+            if [ "$i" -eq 12 ]; then
+              echo "Outbox worker never reported a live heartbeat"
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps -a
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color --tail=200 worker
+              exit 1
+            fi
+            sleep 5
+          done
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \
+            python manage.py migrate --check
 
       - name: Seed E2E commerce fixtures
         run: |

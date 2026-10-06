@@ -36,6 +36,31 @@ services:
       retries: 5
     restart: unless-stopped
 
+  migrate:
+    image: ${WEB_IMAGE:-marketplace-web:local}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DEBUG: "False"
+      DEPLOYMENT_PROFILE: development
+      SKIP_STARTUP_CUTOVER: "True"
+      SKIP_STARTUP_MIGRATE: "True"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-marketplace}
+      DB_USER: ${DB_MIGRATION_USER:-${DB_USER:-marketplace}}
+      DB_PASSWORD: ${DB_MIGRATION_PASSWORD:-${DB_PASSWORD:?Set DB_PASSWORD in .env}}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py createcachetable"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   web:
     image: ${WEB_IMAGE:-marketplace-web:local}
     build:
@@ -50,8 +75,9 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${DB_NAME:-marketplace}
-      DB_USER: ${DB_USER:-marketplace}
-      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_USER: ${DB_RUNTIME_USER:-${DB_USER:-marketplace}}
+      DB_PASSWORD: ${DB_RUNTIME_PASSWORD:-${DB_PASSWORD:?Set DB_PASSWORD in .env}}
+      SKIP_STARTUP_MIGRATE: "True"
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,frontend}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
@@ -86,6 +112,7 @@ services:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PAYMENT_MODE: ${STRIPE_PAYMENT_MODE:-test}
       E2E_STRIPE_SIMULATE: ${E2E_STRIPE_SIMULATE:-False}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
@@ -100,8 +127,8 @@ services:
       R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
       R2_SIGNED_URL_EXPIRY: ${R2_SIGNED_URL_EXPIRY:-300}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - media_data:/app/media
     healthcheck:

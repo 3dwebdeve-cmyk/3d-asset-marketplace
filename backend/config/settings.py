@@ -186,6 +186,8 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+MIN_DISK_FREE_MB = config("MIN_DISK_FREE_MB", default=1024, cast=int)
+MAX_DB_SIZE_MB = config("MAX_DB_SIZE_MB", default=10240, cast=int)
 PUBLIC_API_BASE_URL = config("PUBLIC_API_BASE_URL", default="http://127.0.0.1:8000")
 
 # Cloudflare R2 (Feature 14). All values required before named S3 backends activate.
@@ -204,9 +206,13 @@ if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
 
 _running_tests = "test" in sys.argv or "pytest" in " ".join(sys.argv).lower()
 BACKGROUND_JOBS_TEST_EAGER = _running_tests
+BACKGROUND_JOBS_EXPECTED_WORKERS = config("BACKGROUND_JOBS_EXPECTED_WORKERS", default=1, cast=int)
+BACKGROUND_JOBS_MAX_READY_AGE_SECONDS = config("BACKGROUND_JOBS_MAX_READY_AGE_SECONDS", default=300, cast=int)
+BACKGROUND_JOBS_MAX_RUN_SECONDS = config("BACKGROUND_JOBS_MAX_RUN_SECONDS", default=1800, cast=int)
 PACKAGE_SCAN_REQUIRED = DEPLOYMENT_PROFILE in {"staging", "production"}
 PACKAGE_SCAN_HOST = config("PACKAGE_SCAN_HOST", default="").strip()
 PACKAGE_SCAN_PORT = config("PACKAGE_SCAN_PORT", default=3310, cast=int)
+PACKAGE_SCAN_SIGNATURE_MAX_AGE_DAYS = config("PACKAGE_SCAN_SIGNATURE_MAX_AGE_DAYS", default=3, cast=int)
 # A missing scanner must disable package uploads, not prevent migrations or the
 # rest of the application from starting. scan_upload remains fail-closed, and
 # check_package_scanner is the explicit operational readiness check.
@@ -274,6 +280,9 @@ else:
 STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
 STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
 STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
+STRIPE_PAYMENT_MODE = config("STRIPE_PAYMENT_MODE", default="test").strip().lower()
+if STRIPE_PAYMENT_MODE not in {"test", "live"}:
+    raise ImproperlyConfigured("STRIPE_PAYMENT_MODE must be test or live.")
 
 # Browser E2E / Compose overlay only. Never enable with live Stripe keys.
 # When True, checkout returns the SPA success URL and confirm fulfills locally

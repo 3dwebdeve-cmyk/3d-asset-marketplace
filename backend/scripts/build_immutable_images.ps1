@@ -35,9 +35,11 @@ Write-Host "  FRONTEND_IMAGE=$($env:FRONTEND_IMAGE)"
 Write-Host "  SENTRY_RELEASE=$($env:SENTRY_RELEASE)"
 
 docker compose build web worker frontend
+if ($LASTEXITCODE -ne 0) { throw "Docker image build failed with exit code $LASTEXITCODE" }
 
 if ($env:PUSH -eq "1") {
   docker compose push web worker frontend
+  if ($LASTEXITCODE -ne 0) { throw "Docker image push failed with exit code $LASTEXITCODE" }
 }
 
 Write-Host ""

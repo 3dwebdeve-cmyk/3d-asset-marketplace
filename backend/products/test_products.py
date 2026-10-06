@@ -6,6 +6,8 @@ from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.test import override_settings
 from django.urls import reverse
 from PIL import Image
@@ -262,14 +264,14 @@ class ProductAdminAPITests(APITestCase):
                 "name": "Glass Pavilion",
                 "price": "89.50",
                 "short_description": "Modern glass structure",
-                "status": "published",
+                "status": "draft",
             },
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["slug"], "glass-pavilion")
-        self.assertEqual(response.data["status"], "published")
+        self.assertEqual(response.data["status"], "draft")
         self.assertTrue(Product.objects.filter(slug="glass-pavilion").exists())
 
     def test_admin_rejects_inactive_category(self) -> None:
@@ -292,10 +294,13 @@ class ProductAdminAPITests(APITestCase):
 
     def test_admin_update_product(self) -> None:
         self._authenticate_as_admin()
+        package_path = default_storage.save('products/files/admin-update.zip', ContentFile(b'package'))
+        ProductFile.objects.create(product=self.product, file_name='admin-update.zip', file_format='zip',
+                                   file_size=7, storage_path=package_path)
 
         response = self.client.patch(
             self.detail_url,
-            {"status": "published", "price": "150.00"},
+            {"status": "published", "price": "150.00", "preview_model": "https://example.com/model.glb"},
             format="json",
         )
 

@@ -1,0 +1,144 @@
+# Backend production fixes: three-phase implementation plan
+
+Date: 6 October 2026 (Asia/Calcutta)
+Branch: `backend-bug-fix-2026-10-06`
+Status: Phases 1 and 2 approved and implemented locally on 6 October 2026;
+validation is recorded in BACKEND_PHASE1_VALIDATION_2026-10-06.txt and
+BACKEND_PHASE2_VALIDATION_2026-10-06.txt. Phase 3 remains unapproved and has
+not been started. Existing catalog content issues remain documented for
+correction before launch.
+
+This plan addresses the remaining findings from the backend review. It supplements the earlier PRODUCTION_IMPLEMENTATION_PLAN.txt and PRODUCTION_VALIDATION.txt; those files describe previous work and are not evidence that the findings below have been resolved.
+
+## Approval and payment constraints
+
+- Before implementing EACH phase, explain its changes, expected behavior, tests, migrations/configuration changes, and material risks; request explicit user approval. Approval for one phase does not authorize the next phase.
+- After each approved phase, report the results and remaining issues before requesting approval for the following phase.
+- Preserve Stripe test credentials throughout all three phases. Do not replace, rotate, print, commit, or switch them to live credentials. Live payment activation is outside this plan and requires a separate explicit user instruction.
+- Keep real Stripe sandbox tests separate from mocked/simulated automated tests. Simulation must remain disabled on staging/production profiles.
+- Do not deploy to external hosting, modify Stripe Dashboard settings, change cloud access policies, or run destructive data operations merely because code changes were approved. Include any such actions explicitly in the relevant approval request.
+
+Verified local credential status on 6 October 2026, without printing values:
+
+| Item | Result |
+| --- | --- |
+| Effective backend secret key | Test mode (`sk_test_` prefix) |
+| Effective backend publishable key | Test mode (`pk_test_` prefix) |
+| Backend webhook signing secret | Present |
+| Effective payment simulation | `False` |
+| Process-level Stripe key overrides | None present during verification |
+
+These checks establish local configured key modes, not remote deployment configuration, credential validity, or the webhook endpoint's environment. A `whsec_` prefix cannot distinguish test from live. Verify the endpoint belongs to the same Stripe sandbox/test account before integration testing. Do not expose its value.
+
+## Checks needed before implementation
+
+### Repository and baseline
+
+1. Confirm the branch, clean working tree, and applicable repository instructions. Record the starting commit and preserve unrelated changes.
+2. Review existing tests and production documents against the current code. Reproduce each suspected concurrency/recovery failure before fixing it; passing existing tests does not cover untested scenarios.
+3. Resolve the effective local `DEBUG=release` setting to a valid boolean for development/test execution. Identify whether the value comes from process environment or a file. Do not change production settings to debug mode.
+4. Confirm local PostgreSQL connectivity and use a disposable, uniquely named test database. Avoid dropping an existing shared test database. Confirm Docker's engine is running before container checks.
+5. Establish baseline backend tests, migration drift, schema validation, and dependency audit. The review ran 82 targeted tests successfully with temporary test-only overrides; it did not rerun the entire suite or validate a container deployment.
+
+### Decisions and operational inventory
+
+6. Confirm launch currencies, rounding/minimum-payment rules, whether free products are supported, and the existing partial-refund entitlement policy. Recommended initial scope: an explicit supported-currency allowlist; currency conversion must match every allowed currency.
+7. Confirm checkout retry/session lifetime behavior and what happens when customers modify a cart while a checkout remains open. Decide how to handle superseded sessions and two genuinely paid attempts without losing a customer's payment.
+8. Inventory published products/plugins, required previews, private packages, imported assets, and existing orders. Produce a read-only audit before tightening publish rules. Decide how to handle already-published broken items and preserve legitimate previous purchases.
+9. Identify the actual hosting/proxy topology, trusted peers, domains, TLS termination, administrator access method, Compose overlays, images, and deployment commands. Verify origin firewall restrictions and prevent direct Gunicorn/database exposure.
+10. Inventory PostgreSQL roles/grants, migration privileges, object ownership, connection limits, database size, and backup capability. Confirm the runtime application can use a restricted role without breaking required functions.
+11. Verify R2 public/private buckets are separate, private objects are not public, keys have appropriate scope, and backups include objects as well as database records. Confirm access for a disposable restore drill.
+12. Verify ClamAV availability, private networking, current signatures, archive/stream size limits, and the procedure for auditing existing/imported packages.
+13. Verify email sender/provider configuration, staff recipients, actual delivery, worker supervision, queue backlog, and failed jobs. Define retention and requeue permissions.
+14. Verify error monitoring, alert destinations, backup schedules, recovery objectives, expected concurrent traffic/catalog size, and last known-good image versions.
+15. Verify sandbox Stripe credentials/endpoint ownership/subscriptions and remote secret overrides without printing secrets. Record test-account identity and the permitted sandbox test scenarios.
+
+Missing cloud/host access does not block independent local code work, but affected operational checks remain unverified. Record them honestly and obtain the necessary access before claiming completion of their release criteria.
+
+## Phase 1 — Correct payments, account security, and catalog publishing
+
+Purpose: prevent incorrect charges, incomplete session revocation, and purchases that cannot be delivered.
+
+### Implementation scope
+
+1. Introduce an explicit supported-currency policy and currency-aware amount conversion shared by checkout, fulfillment validation, and refund accounting. Reject unknown currencies and invalid precision; define free/minimum-price behavior explicitly.
+2. Make password change/reset operations atomic. Lock and reload the user before validating credentials/reset tokens, increment token version safely, revoke sessions, and persist the notification job in the same transaction. Reuse the account-locking convention already used by refresh rotation/admin security changes.
+3. Apply readiness checks consistently to every product publishing path, including manual create/PATCH and approval. Align plugin/package checks where necessary. Require an actual deliverable package; do not rely solely on metadata flags. Keep existing/imported asset audits explicit.
+
+### Validation and completion criteria
+
+- Verify exact Stripe minor units for each supported currency; include JPY if supported. Unknown `ZZZ` must be rejected. Checkout and refund conversion must agree.
+- Test concurrent reset-token consumption, password changes, refresh rotation, and relevant administrator changes. Old sessions must remain revoked; failed transactions must not leave partial account changes.
+- Test all publishing entry points and missing/invalid/unavailable packages. A failed publish must not expose a sellable item.
+- Run affected regression suites, migration drift checks, and the full backend suite before completion. Report any required migration and its data impact.
+- Confirm Stripe secret/publishable key modes remain test without printing values.
+
+### Approval explanation
+
+Explain the chosen currency/free-product policy, account transaction changes, publish restrictions, any data migration, and how existing catalog entries are affected. Ask approval before making these changes.
+
+## Phase 2 — Recover checkout, serialize payment events, and operate jobs reliably
+
+Purpose: make timeouts, retries, concurrent events, and worker failures recoverable.
+
+### Implementation scope
+
+1. Persist a checkout attempt and stable Stripe idempotency key before the external call. Avoid holding long database transactions/locks during Stripe network operations. Recover ambiguous outcomes using the same attempt/key; do not create a replacement session simply because the first response was lost.
+2. Define checkout attempt states, expiry, supersession, and reconciliation. Reconcile stuck pending attempts and remotely paid sessions with missing local records. Provide safe, auditable operator recovery and protect against duplicate fulfillment.
+3. Use consistent locking/conditional transitions for completion, expiry, failure, refunds, and disputes. Verify payment-intent association before settlement and cover relevant asynchronous outcomes. Preserve the current partial-refund access policy unless explicitly changed.
+4. Make cart writes safe under concurrent updates and coordinate snapshot/removal semantics with checkout. Verify invoice-number collision retries use savepoints rather than continuing inside a broken transaction.
+5. Add operational support for failed-job inspection/requeue, queue age/backlog alerts, and retention. Improve worker health to distinguish a live process from a stuck or unhealthy worker; account for legitimate long jobs and multiple workers.
+6. Test actual outbox worker execution, lease expiry, crash recovery, bounded retry/backoff, and at-least-once delivery. Document that email can be delivered twice after a crash following provider acceptance.
+
+### Validation and completion criteria
+
+- Inject a Stripe timeout after remote creation and a crash before local persistence; retries must recover without unintentionally creating another checkout.
+- Test concurrent checkout requests, modified carts, duplicate/out-of-order webhooks, expiry/completion races, refunds, and disputed/won payments.
+- Test worker restart, lease recovery, failed-job requeue, queue monitoring, and sensitive-payload retention.
+- Run commerce/download/account regressions and full backend tests after changes.
+- Exercise sandbox payment completion/refund/dispute scenarios only after verifying test credentials and endpoint ownership. No live charges or live-key changes.
+- Document schema changes, additive migration strategy, reconciliation commands, and operator responsibilities.
+
+### Approval explanation
+
+Explain the checkout attempt lifecycle, payment-state rules, migration/backfill needs, job recovery behavior, and any sandbox API calls or data writes. Ask approval before implementing this phase; obtain explicit authorization for any proposed external actions.
+
+## Phase 3 — Harden deployment and prove staging readiness
+
+Purpose: make releases, recovery, and production operations verifiable while retaining test payments.
+
+### Implementation scope
+
+1. Separate restricted database runtime credentials from administration/migration credentials. Plan object ownership/grants and test migrations with the intended deployment roles.
+2. Move migrations/cache-table setup to a controlled release step; avoid competing migrations during application starts. Build immutable images and verify deployment startup ordering.
+3. Update shell and PowerShell rollback scripts to include web, worker, and frontend, preserve the exact Compose overlays/configuration, propagate command failures, and wait for real readiness. Keep additive migrations compatible with the previous application version where possible.
+4. Strengthen release checks: scanner readiness, worker/queue health, published package audit, and recorded external verification. A configuration-only gate must not imply that cloud ACLs, delivery, backups, or restore tests succeeded.
+5. Keep deployment security profile and payment mode deliberate. The current production cutover gate requires live keys; it must not silently push this work to live payments. Use staging for sandbox verification. If production-profile infrastructure must run test payments, introduce an explicit test payment mode with strict key-mode validation while retaining every production security check. Live activation remains separately authorized and outside these phases.
+6. Verify TLS, cookies, origin restrictions, administrator access, private storage, signed URL expiry, and malware scanning on the actual deployment. Audit existing assets, not only new uploads.
+7. Schedule database/object backups and demonstrate recovery to disposable infrastructure. Record measured recovery times and data loss against agreed objectives; verify restored purchases and downloads.
+8. Add cleanup schedules for expired token/session/idempotency records and defined failed-job/log retention. Protect sensitive data and monitor cleanup failures.
+9. Add monitoring/alerts for application errors, payment reconciliation problems, worker backlog/failures, scanner availability/signature freshness, backups, disk and database capacity. Demonstrate alert delivery.
+10. Run realistic concurrent staging load tests. Measure latency/error rate, database/cache contention, search queries, uploads/scanner load, and worker throughput. Optimize only against observed bottlenecks.
+11. Extend CI with the new failure/concurrency regressions, real worker tests, strict schema checks, dependency audits, and a production-security configuration/container smoke test using test payments or appropriate mocks.
+
+### Validation and completion criteria
+
+- Both application and worker deploy/rollback together with the intended security configuration. Restricted database runtime credentials pass application tests.
+- Actual staging integration proves private downloads, real sandbox Stripe behavior, email delivery, scanner fail-closed behavior, and alert delivery.
+- Database AND object restore succeeds; rollback and load results are recorded.
+- CI, full backend regression suite, relevant frontend/E2E flows, build, schema validation, and migration checks pass.
+- Deployment retains Stripe test credentials, and webhook ownership is verified. Test-mode readiness is explicitly distinguished from live commercial launch.
+- Every outstanding external check has recorded evidence or is clearly marked blocked/unverified. No blanket production-ready claim while required checks remain unfinished.
+
+### Approval explanation
+
+Explain deployment/role changes, release gates, backup/restore/load/rollback scope, maintenance schedules, and the exact host/cloud actions requested. Ask approval before implementation. Identify destructive or externally visible operations individually and use disposable environments for drills.
+
+## Suggested execution order and reporting
+
+1. Complete the read-only prerequisite inventory and resolve policy choices.
+2. Request Phase 1 approval, implement and verify it, then report its results.
+3. Request Phase 2 approval, implement and verify it, then report its results.
+4. Request Phase 3 approval, implement and verify authorized local/external work, then report evidence and outstanding access-dependent checks.
+
+For each phase report changed files, user-visible behavior, tests run/results, schema/configuration changes, Stripe key modes, risks, and remaining work. Record evidence in a new dated validation file so historical results are not confused with this implementation.

@@ -315,8 +315,8 @@ class ProductQAWorkflowAPITests(APITestCase):
         slugs = {row["slug"] for row in public.data["results"]}
         self.assertIn(product.slug, slugs)
 
-    def test_manual_draft_to_published_still_works(self) -> None:
-        """Admin create/publish path without import_batch_id remains ungated."""
+    def test_manual_create_cannot_bypass_publish_gates(self) -> None:
+        """Manual products must be created as drafts before package upload."""
         self._authenticate_as_admin()
         create = self.client.post(
             self.admin_list_url,
@@ -328,12 +328,8 @@ class ProductQAWorkflowAPITests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(create.data["status"], "published")
-        # Admin serializer exposes QA metadata; public serializers must not.
-        self.assertIn("reject_reason", create.data)
-        self.assertIn("reviewed_by", create.data)
-
+        self.assertEqual(create.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Product.objects.filter(name='Manual Prop').exists())
         draft = Product.objects.create(
             category=self.furniture,
             name="Manual Draft",
@@ -350,7 +346,20 @@ class ProductQAWorkflowAPITests(APITestCase):
             {"status": "published"},
             format="json",
         )
+        self.assertEqual(patch.status_code, status.HTTP_400_BAD_REQUEST)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, Product.Status.DRAFT)
+        package_path = 'products/files/manual-publish.zip'
+        self._write_package(package_path)
+        ProductFile.objects.create(product=draft, file_name='manual-publish.zip', file_format='zip',
+                                   file_size=10, storage_path=package_path)
+        patch = self.client.patch(detail_url, {
+            'status': 'published', 'preview_model': 'https://example.com/manual.glb',
+        }, format='json')
         self.assertEqual(patch.status_code, status.HTTP_200_OK)
+        # Admin serializer exposes QA metadata; public serializers must not.
+        self.assertIn('reject_reason', patch.data)
+        self.assertIn('reviewed_by', patch.data)
         draft.refresh_from_db()
         self.assertEqual(draft.status, Product.Status.PUBLISHED)
 

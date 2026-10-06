@@ -9,6 +9,11 @@
 # Never commit real secrets; CI writes a disposable .env from placeholders.
 
 services:
+  migrate:
+    environment:
+      DEPLOYMENT_PROFILE: test
+      E2E_STRIPE_SIMULATE: "False"
+
   web:
     environment:
       DEPLOYMENT_PROFILE: test
@@ -23,6 +28,11 @@ services:
       ALLOW_LOCALHOST_FRONTEND: "True"
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       SENTRY_DSN: ""
+
+  # worker extends the base web service, so it does not inherit web's overrides above.
+  worker:
+    environment:
+      DEPLOYMENT_PROFILE: test
 
   frontend:
     environment: {}
