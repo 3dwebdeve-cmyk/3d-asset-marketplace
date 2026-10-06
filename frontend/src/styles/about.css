@@ -57,8 +57,10 @@
   stroke-linejoin: round;
 }
 
-/* Hero — same banner height/aspect as 3D Models and Plugins */
+/* Compact About banner */
 .about-hero.site-hero-banner {
+  --site-hero-aspect: 5 / 1;
+  max-height: 18rem;
   background-color: var(--border);
   color: var(--text-main);
 }
@@ -80,7 +82,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: clamp(1.75rem, 3vw, 2.75rem) var(--site-gutter);
+  padding: clamp(1.25rem, 2.25vw, 2rem) var(--site-gutter);
   box-sizing: border-box;
   text-align: left;
 }
@@ -100,7 +102,7 @@
 .about-hero__copy h1 {
   margin: 0 0 0.85rem;
   max-width: min(100%, 22ch);
-  font-size: clamp(1.6rem, 2.5vw, 2.25rem);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
   line-height: 1.15;
   letter-spacing: -0.03em;
   font-weight: 700;
@@ -110,7 +112,7 @@
 .about-hero__lead {
   margin: 0;
   max-width: min(100%, 42rem);
-  font-size: clamp(0.92rem, 1.4vw, 1.02rem);
+  font-size: clamp(0.82rem, 1.1vw, 0.92rem);
   font-weight: 400;
   line-height: 1.55;
   color: rgba(17, 24, 39, 0.82);
@@ -144,18 +146,23 @@
 
 .about-hero__stat dt {
   margin: 0;
-  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  font-size: clamp(0.9rem, 1.25vw, 1rem);
   font-weight: 800;
   color: var(--text-main);
 }
 
 .about-hero__stat dd {
   margin: 0.15rem 0 0;
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: var(--text-secondary);
 }
 
 @media (max-width: 720px) {
+  .about-hero.site-hero-banner {
+    --site-hero-aspect: 2.4 / 1;
+    max-height: 10rem;
+  }
+
   .about-hero__stats {
     display: none;
   }
@@ -172,11 +179,11 @@
 
   .about-hero__copy h1 {
     margin: 0 0 0.35rem;
-    font-size: clamp(1.25rem, 5.5vw, 1.65rem);
+    font-size: clamp(1.1rem, 4.8vw, 1.4rem);
   }
 
   .about-hero__lead {
-    font-size: 0.82rem;
+    font-size: 0.75rem;
     line-height: 1.4;
     display: -webkit-box;
     -webkit-box-orient: vertical;
