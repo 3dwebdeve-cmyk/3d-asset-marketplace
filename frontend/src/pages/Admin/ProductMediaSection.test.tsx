@@ -118,9 +118,9 @@ describe('ProductMediaSection', () => {
   it('rejects oversized previews before sending the upload', () => {
     renderMediaSection()
     const file = new File(['model'], 'chair.glb')
-    Object.defineProperty(file, 'size', { value: 13 * 1024 * 1024 })
+    Object.defineProperty(file, 'size', { value: 26 * 1024 * 1024 })
     fireEvent.change(document.getElementById('product-file-upload')!, { target: { files: [file] } })
-    expect(screen.getByRole('alert')).toHaveTextContent('Preview model must be 12 MB or smaller.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Preview model must be 25 MB or smaller.')
     expect(uploadProductFile).not.toHaveBeenCalled()
   })
 

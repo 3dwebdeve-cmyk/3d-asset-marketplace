@@ -11,8 +11,8 @@ from PIL import Image, UnidentifiedImageError
 
 PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 PRODUCT_FILE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
-# Interactive GLB/glTF previews must stay small enough for the browser viewer.
-PRODUCT_PREVIEW_MAX_BYTES = 12 * 1024 * 1024  # 12 MB
+# Interactive GLB/glTF previews for the browser viewer.
+PRODUCT_PREVIEW_MAX_BYTES = 25 * 1024 * 1024  # 25 MB
 PRODUCT_PREVIEW_EXTENSIONS = frozenset({".glb", ".gltf"})
 
 PRODUCT_IMAGE_ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
