@@ -296,13 +296,21 @@ class CatalogImportService:
         if price_dec < Decimal("0"):
             return "invalid_price"
 
+        from config.currency import normalize_currency, to_minor_units
+
         currency_raw = item.get("currency")
         if currency_raw is None or str(currency_raw).strip() == "":
             currency = "USD"
         else:
             currency = str(currency_raw).strip().upper()
-            if len(currency) != 3 or not currency.isalpha():
-                return "invalid_currency"
+        try:
+            normalize_currency(currency)
+        except ValueError:
+            return 'invalid_currency'
+        try:
+            to_minor_units(price_dec, currency)
+        except ValueError:
+            return 'invalid_price'
 
         media = item.get("media") or {}
         thumbnail_key = str(media.get("thumbnail_key") or "").strip()

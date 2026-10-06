@@ -69,6 +69,34 @@ class Payment(models.Model):
         return f"payment:{self.order.invoice_number}"
 
 
+class CheckoutAttempt(models.Model):
+    """Committed before Stripe is called so retries reuse one operation key."""
+
+    class Status(models.TextChoices):
+        PREPARED = "prepared", "Prepared"
+        READY = "ready", "Session ready"
+        REVIEW = "review", "Needs reconciliation"
+        EXPIRED = "expired", "Expired or superseded"
+
+    order = models.OneToOneField(
+        Order, on_delete=models.CASCADE, related_name="checkout_attempt",
+    )
+    idempotency_key = models.UUIDField(default=uuid.uuid4, unique=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PREPARED)
+    stripe_checkout_session_id = models.CharField(max_length=255, null=True, blank=True, unique=True)
+    checkout_url = models.TextField(blank=True, default="")
+    request_payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "checkout_attempts"
+        indexes = [models.Index(fields=["status", "created_at"])]
+
+    def __str__(self) -> str:
+        return f"checkout-attempt:{self.order_id}:{self.status}"
+
+
 class StripeWebhookEvent(models.Model):
     """Idempotency record for processed Stripe webhook deliveries."""
 

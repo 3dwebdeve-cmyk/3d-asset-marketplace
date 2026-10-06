@@ -22,7 +22,8 @@ class Command(BaseCommand):
             default="local",
             help=(
                 "Gate strictness. staging = test Stripe + public hosts; "
-                "production = live Stripe + external email + Sentry required."
+                "production = full security checks with STRIPE_PAYMENT_MODE, "
+                "defaulting to test payments."
             ),
         )
         parser.add_argument(

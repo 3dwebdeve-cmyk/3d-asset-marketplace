@@ -96,6 +96,9 @@ echo "backup_postgres: ok bytes=${SIZE} file=${DUMP_PATH}"
 if [[ "${BACKUP_UPLOAD_R2:-0}" == "1" ]]; then
   python3 "$ROOT_DIR/backend/scripts/upload_backup_to_r2.py" "$DUMP_PATH"
 fi
+if [[ "${BACKUP_OBJECTS:-0}" == "1" ]]; then
+  python3 "$ROOT_DIR/backend/scripts/object_backup_drill.py" backup --execute
+fi
 
 # Local retention only — R2 object lifecycle is configured separately in Cloudflare.
 retention_days="${BACKUP_RETENTION_DAYS:-}"
@@ -105,7 +108,7 @@ if [[ -n "$retention_days" ]]; then
     exit 1
   fi
   echo "backup_postgres: pruning local marketplace-*.dump older than ${retention_days} day(s) in ${BACKUP_DIR}"
-  find "$BACKUP_DIR" -maxdepth 1 -type f -name 'marketplace-*.dump' -mtime "+${retention_days}" -print -delete || true
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name 'marketplace-*.dump' -mtime "+${retention_days}" -print -delete
 fi
 
 echo "backup_postgres: restore drill (disposable volume preferred):"

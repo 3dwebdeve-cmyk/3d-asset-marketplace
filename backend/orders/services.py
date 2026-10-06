@@ -312,6 +312,7 @@ class OrderService:
         """
         from cart.services import CartService
 
+        CartService.lock_cart(user)
         envelope = CartService.get_cart_envelope(user)
         available_items = [
             item
@@ -353,8 +354,9 @@ class OrderService:
                 user=user, order_status=Order.OrderStatus.PENDING,
                 payment_status=Order.PaymentStatus.PENDING,
                 total_amount=envelope.totals.total, currency=envelope.totals.currency,
-                created_at__gte=timezone.now() - timedelta(minutes=25),
-                payment__status="pending",
+            ).filter(
+                Q(checkout_attempt__status__in=['prepared', 'ready', 'review'])
+                | Q(created_at__gte=timezone.now() - timedelta(minutes=25), payment__status="pending")
             ).prefetch_related("items").order_by("-created_at")[:10]
             for candidate in candidates:
                 actual = {(item.product_type, item.product_id, item.quantity, item.purchase_price)
@@ -402,14 +404,18 @@ class OrderService:
         for _attempt in range(5):
             invoice_number = cls._generate_invoice_number()
             try:
-                return Order.objects.create(
-                    user=user,
-                    invoice_number=invoice_number,
-                    total_amount=total_amount,
-                    currency=currency,
-                    order_status=Order.OrderStatus.PENDING,
-                    payment_status=Order.PaymentStatus.PENDING,
-                )
+                # A collision must roll back to a savepoint before the next
+                # attempt; otherwise PostgreSQL leaves the outer transaction
+                # unusable until rollback.
+                with transaction.atomic():
+                    return Order.objects.create(
+                        user=user,
+                        invoice_number=invoice_number,
+                        total_amount=total_amount,
+                        currency=currency,
+                        order_status=Order.OrderStatus.PENDING,
+                        payment_status=Order.PaymentStatus.PENDING,
+                    )
             except IntegrityError:
                 if _attempt == 4:
                     raise OrderError(

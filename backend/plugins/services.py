@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 
 from config.media import private_object_exists
+from config.currency import normalize_currency, validate_catalog_prices
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
 from plugins.storage import PluginMediaStorageService
 from plugins.upload_rules import ValidatedPluginFileUpload
@@ -309,6 +310,8 @@ class PluginService:
                 "Create as draft, upload a package file, then publish.",
                 field="status",
             )
+        currency = cls._normalize_currency(data.currency)
+        cls._validate_currency_prices(currency, data.price, data.discount_price)
         plugin = Plugin.objects.create(
             category=cls._resolve_category(data.category_id),
             name=name,
@@ -316,7 +319,7 @@ class PluginService:
             description=data.description.strip(),
             short_description=data.short_description.strip(),
             price=data.price,
-            currency=cls._normalize_currency(data.currency),
+            currency=currency,
             discount_price=data.discount_price,
             thumbnail=data.thumbnail.strip(),
             version=cls._normalize_version(data.version),
@@ -331,6 +334,7 @@ class PluginService:
     @classmethod
     @transaction.atomic
     def update_plugin(cls, plugin: Plugin, data: PluginUpdateData) -> Plugin:
+        plugin = Plugin.objects.select_for_update().get(pk=plugin.pk)
         update_fields: list[str] = ["updated_at"]
         if data.category_id is not None:
             plugin.category = cls._resolve_category(data.category_id)
@@ -380,16 +384,12 @@ class PluginService:
         if data.license_type is not None:
             plugin.license_type = cls._normalize_license(data.license_type)
             update_fields.append("license_type")
-        becoming_published = False
         if data.status is not None:
             new_status = cls._normalize_status(data.status)
-            becoming_published = (
-                new_status == Plugin.Status.PUBLISHED
-                and plugin.status != Plugin.Status.PUBLISHED
-            )
             plugin.status = new_status
             update_fields.append("status")
-        if becoming_published:
+        cls._validate_currency_prices(plugin.currency, plugin.price, plugin.discount_price)
+        if plugin.status == Plugin.Status.PUBLISHED:
             cls._validate_publish_ready(plugin)
         plugin.save(update_fields=list(dict.fromkeys(update_fields)))
         updated = cls.get_by_id(plugin.pk)
@@ -518,13 +518,17 @@ class PluginService:
 
     @staticmethod
     def _normalize_currency(currency: str) -> str:
-        normalized = currency.strip().upper()
-        if len(normalized) != 3 or not normalized.isalpha():
-            raise PluginError(
-                "Currency must be a 3-letter ISO code.",
-                field="currency",
-            )
-        return normalized
+        try:
+            return normalize_currency(currency)
+        except ValueError as exc:
+            raise PluginError(str(exc), field='currency') from exc
+
+    @staticmethod
+    def _validate_currency_prices(currency, price, discount):
+        try:
+            validate_catalog_prices(currency, price, discount)
+        except ValueError as exc:
+            raise PluginError(str(exc), field='price') from exc
 
     @staticmethod
     def _normalize_version(version: str) -> str:
@@ -558,6 +562,7 @@ class PluginService:
     @classmethod
     def _validate_publish_ready(cls, plugin: Plugin) -> None:
         """Require a resolvable private package before draft → published."""
+        cls._validate_currency_prices(plugin.currency, plugin.price, plugin.discount_price)
         files = list(
             PluginFile.objects.filter(plugin=plugin).only("storage_path")
         )

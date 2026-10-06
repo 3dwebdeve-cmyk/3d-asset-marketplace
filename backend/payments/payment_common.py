@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any
 
 import stripe
@@ -13,6 +13,7 @@ from django.utils.dateparse import parse_date, parse_datetime
 
 from orders.models import Order
 from payments.models import Payment
+from config.currency import to_minor_units
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -85,8 +86,9 @@ def e2e_stripe_simulate_enabled() -> bool:
     return enabled
 
 
-def to_cents(amount: Decimal) -> int:
-    return int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+def to_cents(amount: Decimal, currency: str = 'USD') -> int:
+    """Compatibility name; returns minor units, including whole yen for JPY."""
+    return to_minor_units(amount, currency)
 
 
 def session_value(session: Any, key: str) -> Any:

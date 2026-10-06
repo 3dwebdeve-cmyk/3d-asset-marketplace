@@ -9,6 +9,11 @@
 # Never commit real secrets; CI writes a disposable .env from placeholders.
 
 services:
+  migrate:
+    environment:
+      DEPLOYMENT_PROFILE: test
+      E2E_STRIPE_SIMULATE: "False"
+
   web:
     environment:
       DEPLOYMENT_PROFILE: test

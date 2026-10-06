@@ -298,7 +298,12 @@ class AuthenticationService:
             BlacklistedToken.objects.get_or_create(token=outstanding)
 
     @staticmethod
+    @transaction.atomic
     def change_password(user: User, current_password: str, new_password: str) -> None:
+        # Authentication may have loaded this user before another security change.
+        user = User.objects.select_for_update().get(pk=user.pk)
+        if not user.is_active:
+            raise AuthenticationError('Account is inactive.')
         if not user.email_verified:
             raise AuthenticationError(
                 "Please verify your email address before changing your password.",
@@ -429,7 +434,7 @@ class PasswordResetService:
         token: str,
         new_password: str,
     ) -> None:
-        user = cls._get_user_from_uid(uid)
+        user = cls._get_user_from_uid(uid, for_update=True)
         if user is None or not password_reset_token_generator.check_token(user, token):
             log_password_reset(action="confirm_failure", email=None)
             raise AuthenticationError("Invalid or expired password reset link.")
@@ -438,6 +443,10 @@ class PasswordResetService:
         AuthenticationService.bump_token_version(user)
         user.save(update_fields=["password", "token_version", "updated_at"])
         AuthenticationService.blacklist_all_refresh_tokens(user)
+        from accounts.tasks import send_password_changed_task
+        from config.celery_utils import enqueue_after_commit
+
+        enqueue_after_commit(send_password_changed_task, str(user.pk))
         log_password_reset(
             action="confirm_success",
             email=user.email,
@@ -445,11 +454,14 @@ class PasswordResetService:
         )
 
     @staticmethod
-    def _get_user_from_uid(uid: str) -> User | None:
+    def _get_user_from_uid(uid: str, *, for_update: bool = False) -> User | None:
         """Resolve a urlsafe base64 user id. Invalid/truncated uids return None."""
         try:
             user_id = force_str(urlsafe_base64_decode(uid))
-            return User.objects.filter(pk=user_id, is_active=True).first()
+            queryset = User.objects.filter(pk=user_id, is_active=True)
+            if for_update:
+                queryset = queryset.select_for_update()
+            return queryset.first()
         except (TypeError, ValueError, OverflowError, ValidationError):
             return None
 

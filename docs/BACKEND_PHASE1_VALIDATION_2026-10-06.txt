@@ -1,0 +1,102 @@
+Phase 1 implementation and validation - 6 October 2026
+
+Branch: backend-bug-fix-2026-10-06
+Authorization: user explicitly requested implementation of Phase 1.
+Scope: currency correctness, credential mutation safety, publishing readiness.
+Phases 2 and 3 have not been started. No commit, push, or deployment performed.
+
+Implemented behavior
+
+1. Currency policy
+- Supported currencies: USD, EUR, GBP, INR (two decimal places), and JPY
+  (whole yen). Unknown currencies and invalid precision are rejected.
+- Shared exact conversion is used for checkout line items, simulated confirmation,
+  fulfillment amount validation, sandbox smoke helpers, and refund accounting.
+- Catalog create/update and batch import enforce currency/precision rules.
+- Currency floor checks reject unsupported zero-total checkout and amounts below
+  USD 0.50, EUR 0.50, GBP 0.30, INR 0.50, and JPY 50.
+- These floors do not certify merchant-country/settlement/payment-method support;
+  Stripe remains authoritative for account-specific limits. Adding currencies
+  requires deliberate precision/refund tests and account support verification.
+- Zero-price catalog rows are permitted, but a whole zero-total order cannot be
+  fulfilled through checkout until a separate free-order flow is implemented.
+
+2. Password changes and resets
+- Password change reloads and locks the user inside a database transaction before
+  checking active/verified state and current password.
+- Reset confirmation locks the current user before validating/consuming its token.
+- Password mutation, token-version increment, outstanding refresh revocation,
+  and the password-change notification job are committed together.
+- Concurrent credential operations cannot overwrite changes using stale account
+  snapshots or roll the token version backwards. Outbox failures roll back the
+  password mutation; successful resets now also notify the account owner.
+
+3. Publishing
+- Products must be created as drafts before packages can be attached.
+- Manual publication/PATCH and QA approval require a private package object and a
+  preview pointer, plus valid category/pricing. Flags alone do not establish readiness.
+- Batch approvals retain their SKU requirement; manual products need not gain a
+  batch SKU. Imported products retain the dedicated approval-path restriction.
+- Product mutation/approval and plugin mutation reload/lock their current rows.
+- Plugin currency rules and package readiness also apply to published updates.
+- Existing tests expecting ungated publishing were revised to cover rejection
+  before packages/previews exist and success after supplying them.
+
+Verification
+- Initial new 11-test regression run: 9 failures and 2 errors on old code. It
+  reproduced stale credential writes, lost token-version increments, concurrent
+  password/reset reuse, outbox rollback failure, and publishing/currency gaps.
+- Full backend regression suite after changes: 633 tests passed, using fast
+  password hashing ONLY in that test process. Production hashers were unchanged.
+- Focused Phase 1 suite: 20 tests passed with the normal configured password hasher.
+  Includes simultaneous reset/change requests, reset versus refresh, outbox failure
+  rollback, invalid monetary precision, and JPY checkout/partial/full refund flow.
+- JPY integration tests use mocked Stripe calls and signed-handler test events;
+  no external Stripe transactions were created.
+- Django system check: clean.
+- makemigrations --check --dry-run: no drift; no migration required.
+- OpenAPI generation with --validate: passed.
+- pip check: no broken requirements. No dependencies added or changed; a fresh
+  vulnerability audit was not performed in this phase.
+- Git whitespace check: passed.
+
+Test isolation notes
+- Tests used uniquely named disposable PostgreSQL databases, not the live local
+  application database or an existing shared test database.
+- The effective DEBUG=release setting was bypassed with a temporary valid boolean
+  only in validation processes. Saved environment files were not edited.
+- Full-suite Windows temp-file failures were resolved in the test process by using
+  disposable directories inside the workspace with inherited sandbox-compatible
+  ACLs. The temporary directories were removed after verification.
+- Normal-hasher focused tests were rerun after adding the full JPY refund assertion.
+
+Stripe credential confirmation
+- Effective local backend STRIPE_SECRET_KEY: test mode (sk_test_ prefix).
+- Effective local backend STRIPE_PUBLISHABLE_KEY: test mode (pk_test_ prefix).
+- Webhook signing secret present; E2E_STRIPE_SIMULATE remains False.
+- No saved credentials were changed, printed, committed, or switched to live.
+- Remote deployed configuration, key validity, and the webhook endpoint's sandbox
+  ownership were not verified. A whsec_ prefix cannot distinguish test from live.
+
+Read-only local catalog inventory / outstanding content work
+- Products: 7, all USD. Plugins: 4, all USD.
+- Orders: 38, all USD. Payments: 36, all USD.
+- Seven published products have no non-preview package row; two of those published
+  products also lack a preview pointer. No published plugin lacks a package row.
+- No existing product, order, payment, user, or stored object was migrated, deleted,
+  archived, or repaired during implementation. Tests used disposable fixtures.
+- The new publication gates apply to service writes; they do not retrospectively
+  unpublish existing rows or certify assets written directly by fixtures/scripts.
+  Correct/audit existing content before launch. Package-row existence alone is
+  not proof of cloud object availability, malware status, or private access policy.
+
+Remaining work
+- Obtain separate approval before Phase 2 checkout recovery, webhook state/race
+  handling, reconciliation, cart/invoice concurrency, and worker reliability work.
+- Obtain separate approval before Phase 3 deployment, database privilege, storage,
+  scanning, monitoring, backup/restore, load, and rollback verification work.
+- Phase 1 code completion is not a production-readiness certification.
+
+Primary technical references
+- https://docs.stripe.com/currencies
+- https://docs.djangoproject.com/en/6.0/ref/models/querysets/#select-for-update

@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from categories.models import Category
 from config.media import private_object_exists
+from config.currency import normalize_currency, validate_catalog_prices
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 from products.storage import ProductMediaStorageService
 from products.upload_rules import (
@@ -284,6 +285,7 @@ class ProductService:
         category = cls._resolve_category(data.category_id)
         cls._validate_pricing(data.price, data.discount_price)
         currency = cls._normalize_currency(data.currency)
+        cls._validate_currency_prices(currency, data.price, data.discount_price)
         license_type = cls._normalize_license(data.license_type)
         status = cls._normalize_status(data.status)
         sku = cls._validate_sku_unique(data.sku)
@@ -293,6 +295,9 @@ class ProductService:
                 "Imported products must be published via the approve endpoint.",
                 field="status",
             )
+
+        if status == Product.Status.PUBLISHED:
+            raise ProductError('Create as draft, upload a package and preview, then publish.', field='status')
 
         product = Product.objects.create(
             category=category,
@@ -329,6 +334,7 @@ class ProductService:
     @classmethod
     @transaction.atomic
     def update_product(cls, product: Product, data: ProductUpdateData) -> Product:
+        product = Product.objects.select_for_update().get(pk=product.pk)
         update_fields: list[str] = ["updated_at"]
 
         if data.category_id is not None:
@@ -464,6 +470,9 @@ class ProductService:
                 setattr(product, field_name, value)
                 update_fields.append(field_name)
 
+        cls._validate_currency_prices(product.currency, product.price, product.discount_price)
+        if product.status == Product.Status.PUBLISHED:
+            cls._validate_publish_ready(product)
         product.save(update_fields=list(dict.fromkeys(update_fields)))
         updated = cls.get_by_id(product.pk)
         enqueue_sync_product(updated.pk)
@@ -478,16 +487,16 @@ class ProductService:
         )
 
     @classmethod
-    def _validate_publish_ready(cls, product: Product) -> None:
+    def _validate_publish_ready(cls, product: Product, *, require_sku: bool = False) -> None:
         """Conservative publish gates for the QA approve path (Feature 16 Phase 8).
 
         Aligned with docs/batch-ingest-contract.md sellability needs: identity,
         pricing, category, web preview, and at least one paid package file.
-        Manual draft→published via admin create/PATCH is unchanged.
+        Manual publishing uses the same delivery checks; SKUs remain required for batch approval.
         """
         errors: dict[str, list[str]] = {}
 
-        if not product.sku:
+        if (require_sku or product.import_batch_id) and not product.sku:
             errors["sku"] = ["SKU is required before publish."]
 
         name = (product.name or "").strip()
@@ -498,6 +507,11 @@ class ProductService:
             errors["category"] = ["Category is required before publish."]
         elif not Category.objects.filter(pk=product.category_id, is_active=True).exists():
             errors["category"] = ["Category not found or inactive."]
+
+        try:
+            cls._validate_currency_prices(product.currency, product.price, product.discount_price)
+        except ProductError as exc:
+            errors['price'] = [exc.message]
 
         if product.price is None or product.price < Decimal("0.00"):
             errors["price"] = ["A valid non-negative price is required."]
@@ -531,13 +545,14 @@ class ProductService:
     @transaction.atomic
     def approve_product(cls, product: Product, *, reviewer) -> Product:
         """pending_review → published with publish gates. Clears reject_reason."""
+        product = Product.objects.select_for_update().get(pk=product.pk)
         if product.status != Product.Status.PENDING_REVIEW:
             raise ProductError(
                 f"Cannot approve product with status '{product.status}'.",
                 field="status",
             )
         cls._validate_status_transition(product.status, Product.Status.PUBLISHED)
-        cls._validate_publish_ready(product)
+        cls._validate_publish_ready(product, require_sku=True)
 
         product.status = Product.Status.PUBLISHED
         product.reviewed_at = timezone.now()
@@ -802,13 +817,17 @@ class ProductService:
 
     @staticmethod
     def _normalize_currency(currency: str) -> str:
-        normalized = currency.strip().upper()
-        if len(normalized) != 3 or not normalized.isalpha():
-            raise ProductError(
-                "Currency must be a 3-letter ISO code.",
-                field="currency",
-            )
-        return normalized
+        try:
+            return normalize_currency(currency)
+        except ValueError as exc:
+            raise ProductError(str(exc), field='currency') from exc
+
+    @staticmethod
+    def _validate_currency_prices(currency, price, discount):
+        try:
+            validate_catalog_prices(currency, price, discount)
+        except ValueError as exc:
+            raise ProductError(str(exc), field='price') from exc
 
     @staticmethod
     def _normalize_license(license_type: str) -> str:

@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 import logging
-from decimal import Decimal
 from typing import Any
 
 from django.db import IntegrityError, transaction
 
 from cart.services import CartService
+from config.currency import from_minor_units
 from orders.entitlements import order_allows_download
 from orders.models import Order, OrderItem
 from orders.notifications import enqueue_payment_receipt
 from orders.services import OrderError, OrderService
-from payments.models import Payment, StripeWebhookEvent
+from payments.models import CheckoutAttempt, Payment, StripeWebhookEvent
 from payments.payment_common import (
     STALE_LOCAL_PAYMENT_STATUSES,
     TERMINAL_ORDER_STATUSES,
@@ -31,6 +31,7 @@ STRIPE_WEBHOOK_EVENT_TYPES: frozenset[str] = frozenset(
     {
         "checkout.session.completed",
         "checkout.session.async_payment_succeeded",
+        "checkout.session.async_payment_failed",
         "checkout.session.expired",
         "payment_intent.payment_failed",
         "charge.refunded",
@@ -62,6 +63,8 @@ class WebhookService:
                 cls._handle_checkout_completed(event.data.object)
             elif event.type == "checkout.session.expired":
                 cls._handle_checkout_expired(event.data.object)
+            elif event.type == "checkout.session.async_payment_failed":
+                cls._handle_checkout_failed(event.data.object)
             elif event.type == "payment_intent.payment_failed":
                 cls._handle_payment_failed(event.data.object)
             elif event.type == "charge.refunded":
@@ -79,7 +82,7 @@ class WebhookService:
                 stripe_checkout_session_id=session_id
             )
         except Payment.DoesNotExist:
-            raise RuntimeError("Checkout payment is not available yet; retry delivery.")
+            payment = cls._recover_payment(session)
 
         if payment.status == Payment.Status.SUCCEEDED:
             return
@@ -112,6 +115,11 @@ class WebhookService:
                 order.order_status,
                 order.payment_status,
             )
+            if payment.status in {Payment.Status.EXPIRED, Payment.Status.FAILED} or (
+                order.order_status == Order.OrderStatus.CANCELLED
+                and payment.status == Payment.Status.PENDING
+            ):
+                raise RuntimeError("Paid stale checkout requires operator reconciliation.")
             return
 
         if (
@@ -128,6 +136,11 @@ class WebhookService:
             return
 
         payment_intent = stripe_id(session_value(session, "payment_intent"))
+        if (
+            payment.stripe_payment_intent_id
+            and payment.stripe_payment_intent_id != payment_intent
+        ):
+            raise ValueError("Checkout payment intent does not match the stored intent.")
         payment.status = Payment.Status.SUCCEEDED
         payment.stripe_payment_intent_id = payment_intent
         payment.save(update_fields=["status", "stripe_payment_intent_id", "updated_at"])
@@ -145,10 +158,54 @@ class WebhookService:
             in {OrderItem.ProductType.PRODUCT, OrderItem.ProductType.PLUGIN}
         }
         if purchased_keys:
-            CartService.remove_items(order.user, purchased_keys)
+            CartService.remove_items(order.user, purchased_keys, before=order.created_at)
 
         # After commit: Stripe fulfillment stays in-process; email is async.
         enqueue_payment_receipt(order)
+
+    @classmethod
+    def _recover_payment(cls, session):
+        """A webhook may beat the response that persists the Stripe session."""
+        session_id = stripe_id(session) or str(session_value(session, "id") or "")
+        metadata = session_value(session, "metadata") or {}
+        order_id = str(session_value(metadata, "order_id") or "")
+        if not session_id or not order_id:
+            raise RuntimeError("Checkout session cannot be associated; retry delivery.")
+        try:
+            attempt = CheckoutAttempt.objects.select_for_update().select_related("order").get(
+                order_id=order_id
+            )
+        except (CheckoutAttempt.DoesNotExist, ValueError):
+            raise RuntimeError("Checkout attempt is not available yet; retry delivery.") from None
+        if attempt.status == CheckoutAttempt.Status.EXPIRED:
+            raise RuntimeError("Expired checkout unexpectedly settled; investigate payment.")
+        if attempt.stripe_checkout_session_id not in (None, session_id):
+            raise ValueError("Checkout attempt session does not match the webhook.")
+        order = attempt.order
+        payment = Payment(
+            order=order, stripe_checkout_session_id=session_id,
+            amount=order.total_amount, currency=order.currency,
+        )
+        reason = cls._checkout_fulfillment_validation_error(
+            session, payment=payment, order=order, require_paid=False,
+        )
+        if reason:
+            raise ValueError(f"Untrusted checkout recovery: {reason}")
+        payment, _ = Payment.objects.get_or_create(
+            order=order,
+            defaults={
+                "stripe_checkout_session_id": session_id,
+                "amount": order.total_amount,
+                "currency": order.currency,
+                "checkout_url": attempt.checkout_url,
+            },
+        )
+        if payment.stripe_checkout_session_id != session_id:
+            raise ValueError("Stored payment session does not match the webhook.")
+        attempt.stripe_checkout_session_id = session_id
+        attempt.status = CheckoutAttempt.Status.READY
+        attempt.save(update_fields=["stripe_checkout_session_id", "status", "updated_at"])
+        return payment
 
     @classmethod
     def _checkout_fulfillment_validation_error(
@@ -157,9 +214,10 @@ class WebhookService:
         *,
         payment: Payment,
         order: Order,
+        require_paid: bool = True,
     ) -> str | None:
         """Return a safe log reason when a Stripe session must not fulfill."""
-        if str(session_value(session, "payment_status") or "").lower() != "paid":
+        if require_paid and str(session_value(session, "payment_status") or "").lower() != "paid":
             return "Stripe payment_status is not paid"
 
         metadata = session_value(session, "metadata") or {}
@@ -186,7 +244,13 @@ class WebhookService:
             amount_total = int(raw_amount_total)
         except (TypeError, ValueError):
             return "Stripe amount_total is missing or invalid"
-        if amount_total != to_cents(payment.amount):
+        try:
+            expected_amount = to_cents(payment.amount, payment.currency)
+        except ValueError:
+            return 'Stored payment amount/currency is invalid'
+        if isinstance(raw_amount_total, bool) or str(raw_amount_total) != str(amount_total):
+            return 'Stripe amount_total is not an integer'
+        if amount_total != expected_amount:
             return "Stripe amount_total does not match the stored payment"
         if payment.amount != order.total_amount:
             return "stored payment amount does not match the order"
@@ -197,23 +261,41 @@ class WebhookService:
     def _handle_checkout_expired(cls, session) -> None:
         session_id = stripe_id(session) or str(session_value(session, "id") or "")
         try:
-            payment = Payment.objects.select_related("order").get(
+            payment = Payment.objects.select_for_update().select_related("order").get(
                 stripe_checkout_session_id=session_id,
                 status=Payment.Status.PENDING,
             )
         except Payment.DoesNotExist:
-            return
+            if Payment.objects.filter(stripe_checkout_session_id=session_id).exists():
+                return
+            try:
+                payment = cls._recover_payment(session)
+            except RuntimeError:
+                return
 
         payment.status = Payment.Status.EXPIRED
         payment.save(update_fields=["status", "updated_at"])
+        CheckoutAttempt.objects.filter(order_id=payment.order_id).update(status=CheckoutAttempt.Status.EXPIRED)
+
+    @classmethod
+    def _handle_checkout_failed(cls, session) -> None:
+        session_id = stripe_id(session) or str(session_value(session, "id") or "")
+        try:
+            payment = Payment.objects.select_for_update().get(stripe_checkout_session_id=session_id)
+        except Payment.DoesNotExist:
+            payment = cls._recover_payment(session)
+        if payment.status == Payment.Status.PENDING:
+            payment.status = Payment.Status.FAILED
+            payment.save(update_fields=["status", "updated_at"])
+            CheckoutAttempt.objects.filter(order_id=payment.order_id).update(status=CheckoutAttempt.Status.EXPIRED)
 
     @classmethod
     def _handle_payment_failed(cls, payment_intent) -> None:
         intent_id = stripe_id(payment_intent)
-        Payment.objects.filter(
-            stripe_payment_intent_id=intent_id,
-            status=Payment.Status.PENDING,
-        ).update(status=Payment.Status.FAILED)
+        # A PaymentIntent can fail during a still-open Checkout session and then
+        # succeed with a different payment method. Only the terminal Checkout
+        # event may fail the local payment.
+        logger.info("Stripe payment intent failed intent_id=%s", intent_id)
 
     @classmethod
     def _handle_charge_refunded(cls, charge: Any) -> None:
@@ -248,7 +330,7 @@ class WebhookService:
         # Partial refunds retain access; record the cumulative amount for audit.
         raw_refunded = session_value(charge, "amount_refunded")
         if raw_refunded is not None:
-            amount = Decimal(str(raw_refunded)) / 100
+            amount = from_minor_units(raw_refunded, payment.currency)
             if amount < 0 or amount > payment.amount:
                 raise ValueError("Refund amount is outside the payment amount.")
             payment.refunded_amount = max(payment.refunded_amount, amount)

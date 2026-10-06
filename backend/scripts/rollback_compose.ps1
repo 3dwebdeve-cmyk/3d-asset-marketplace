@@ -1,57 +1,31 @@
-# Phase K2 — recreate web/frontend on previous immutable tags (Windows).
-# Usage (from repo root):
-#   $env:WEB_IMAGE = "marketplace-web:2026-09-18-abc1234"
-#   $env:FRONTEND_IMAGE = "marketplace-frontend:2026-09-18-abc1234"
-#   .\backend\scripts\rollback_compose.ps1
-#
-# Or:
-#   $env:PREVIOUS_WEB_IMAGE = "..."
-#   $env:PREVIOUS_FRONTEND_IMAGE = "..."
-#   .\backend\scripts\rollback_compose.ps1
-#
-# Does NOT reverse migrations. Does NOT change postgres.
-# See docs/ROLLBACK_REHEARSAL.md / PRODUCTION_CHECKLIST §4.
+# Recreate web, worker, and frontend on previous immutable image tags.
+# Preserve the caller's COMPOSE_FILE, COMPOSE_PROFILES and environment.
+# This does not reverse database migrations.
 
 $ErrorActionPreference = "Stop"
+function Invoke-Checked {
+  param([string]$File, [string[]]$Arguments)
+  & $File @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "$File failed with exit code $LASTEXITCODE" }
+}
+
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $Root
+if ($env:PREVIOUS_WEB_IMAGE) { $env:WEB_IMAGE = $env:PREVIOUS_WEB_IMAGE }
+if ($env:PREVIOUS_FRONTEND_IMAGE) { $env:FRONTEND_IMAGE = $env:PREVIOUS_FRONTEND_IMAGE }
+if (-not $env:WEB_IMAGE -or -not $env:FRONTEND_IMAGE) { throw "Set previous WEB_IMAGE and FRONTEND_IMAGE." }
+if ($env:WEB_IMAGE.EndsWith(":latest") -or $env:FRONTEND_IMAGE.EndsWith(":latest")) { throw "Refusing mutable :latest tags." }
+if (-not $env:SENTRY_RELEASE) { $env:SENTRY_RELEASE = $env:WEB_IMAGE }
 
-if ($env:PREVIOUS_WEB_IMAGE) {
-  $env:WEB_IMAGE = $env:PREVIOUS_WEB_IMAGE
-}
-if ($env:PREVIOUS_FRONTEND_IMAGE) {
-  $env:FRONTEND_IMAGE = $env:PREVIOUS_FRONTEND_IMAGE
-}
+Write-Host "Rollback images: web/worker=$($env:WEB_IMAGE) frontend=$($env:FRONTEND_IMAGE)"
+Write-Host "Compose files: $($env:COMPOSE_FILE)"
+Invoke-Checked docker @("compose", "config", "--quiet")
+Invoke-Checked docker @("compose", "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "180", "web", "worker", "frontend")
 
-if (-not $env:WEB_IMAGE -or -not $env:FRONTEND_IMAGE) {
-  Write-Error "Set WEB_IMAGE + FRONTEND_IMAGE (or PREVIOUS_WEB_IMAGE + PREVIOUS_FRONTEND_IMAGE)."
-}
-
-if ($env:WEB_IMAGE.EndsWith(":latest") -or $env:FRONTEND_IMAGE.EndsWith(":latest")) {
-  Write-Error "Refuse :latest tags — use git SHA / semver immutable tags."
-}
-
-if (-not $env:SENTRY_RELEASE) {
-  $env:SENTRY_RELEASE = $env:WEB_IMAGE
-}
-
-Write-Host "Rolling back Compose app services to:"
-Write-Host "  WEB_IMAGE=$($env:WEB_IMAGE)  (web)"
-Write-Host "  FRONTEND_IMAGE=$($env:FRONTEND_IMAGE)"
-Write-Host "  (postgres unchanged — no migrate reverse)"
-Write-Host ""
-
-docker compose up -d --no-deps --force-recreate web frontend
-
-Write-Host ""
-Write-Host "Waiting for web healthcheck..."
-Start-Sleep -Seconds 5
-docker compose ps web frontend
-
-Write-Host ""
-Write-Host "Next:"
-Write-Host "  curl -fsS http://localhost:8080/api/v1/healthz/"
-Write-Host "  docker compose exec web python manage.py check_rollback_rehearsal --profile staging --fail-on-warnings"
-Write-Host "  # optional live Stripe test replay:"
-Write-Host "  docker compose exec web python manage.py check_rollback_rehearsal --profile staging --smoke-webhook --fail-on-warnings"
-Write-Host "Date the rehearsal in docs/ROLLBACK_REHEARSAL.md"
+$port = if ($env:FRONTEND_PORT) { $env:FRONTEND_PORT } else { "8080" }
+$baseUrl = if ($env:ROLLBACK_BASE_URL) { $env:ROLLBACK_BASE_URL.TrimEnd('/') } else { "http://localhost:$port" }
+Invoke-Checked curl.exe @("--fail", "--silent", "--show-error", "$baseUrl/api/v1/healthz/")
+Invoke-Checked curl.exe @("--fail", "--silent", "--show-error", "$baseUrl/")
+Invoke-Checked docker @("compose", "exec", "-T", "worker", "python", "manage.py", "check_background_jobs")
+Invoke-Checked docker @("compose", "ps", "web", "worker", "frontend")
+Write-Host "Rollback services ready. Run check_rollback_rehearsal and record host evidence."

@@ -204,7 +204,7 @@ def run_sandbox_fulfill_smoke(*, cleanup: bool = True) -> StripeFulfillSmokeResu
             payment_intent_id=payment_intent_id,
             order_id=str(order.pk),
             customer_id=str(user.pk),
-            amount_total=to_cents(payment.amount),
+            amount_total=to_cents(payment.amount, payment.currency),
             currency=payment.currency,
         )
 
