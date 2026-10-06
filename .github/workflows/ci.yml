@@ -66,6 +66,10 @@ jobs:
           DB_MIGRATION_PASSWORD: postgres
           DB_RUNTIME_USER: ci_runtime
           DB_RUNTIME_PASSWORD: ci-runtime-password-strong
+          ADMIN_CONSOLE_ALLOWED_IPS: 127.0.0.1/32
+          DJANGO_ADMIN_ALLOWED_IPS: 127.0.0.1/32
+          FRONTEND_BASE_URL: https://ci.example.invalid
+          ALLOW_CONSOLE_EMAIL: "True"
         run: |
           python manage.py migrate --noinput
           python scripts/provision_runtime_role.py
