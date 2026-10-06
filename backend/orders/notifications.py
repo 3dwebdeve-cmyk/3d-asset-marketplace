@@ -112,8 +112,3 @@ def enqueue_payment_receipt(order: Order) -> None:
     from orders.tasks import send_payment_receipt_task
 
     enqueue_after_commit(send_payment_receipt_task, str(order.pk))
-
-
-def send_payment_receipt(order: Order) -> None:
-    """Enqueue receipt email (compat alias). Never raises to the caller."""
-    enqueue_payment_receipt(order)

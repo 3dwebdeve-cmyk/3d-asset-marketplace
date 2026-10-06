@@ -62,7 +62,7 @@ def inspect_product_content(uploaded, extension):
                     chunk_header = uploaded.read(8)
                     if len(chunk_header) != 8:
                         raise ValueError()
-                    remaining_size, remaining_type = struct.unpack("<II", chunk_header)
+                    remaining_size, _ = struct.unpack("<II", chunk_header)
                     if remaining_size % 4 or remaining_size > length - uploaded.tell():
                         raise ValueError()
                     uploaded.seek(remaining_size, 1)

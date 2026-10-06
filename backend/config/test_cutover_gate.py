@@ -92,8 +92,6 @@ def _staging_deploy_report():
         allow_localhost_frontend=False,
         allow_console_email=False,
         db_password_weak=False,
-        meili_master_key_weak=False,
-        redis_url_set=False,
         warnings=[],
     )
 

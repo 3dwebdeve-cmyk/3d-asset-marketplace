@@ -138,8 +138,6 @@ class DeployConfigReport:
     allow_localhost_frontend: bool
     allow_console_email: bool
     db_password_weak: bool
-    meili_master_key_weak: bool
-    redis_url_set: bool
     warnings: list[str]
 
 
@@ -176,9 +174,6 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         .get("PASSWORD", "")
         or ""
     )
-    # Redis / Meilisearch removed from the stack; keep report fields for CLI compat.
-    redis_set = False
-    meili_weak = False
     example_secret = secret_key_is_example(secret)
     wildcard = allowed_hosts_has_wildcard(hosts)
     hosts_local = allowed_hosts_are_local_only(hosts)
@@ -312,8 +307,6 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         allow_localhost_frontend=allow_localhost_frontend,
         allow_console_email=allow_console_email,
         db_password_weak=weak_db,
-        meili_master_key_weak=meili_weak,
-        redis_url_set=redis_set,
         warnings=warnings,
     )
 

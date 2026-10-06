@@ -8,22 +8,6 @@ class WishlistAddSerializer(serializers.Serializer):
     product_id = serializers.UUIDField()
 
 
-class WishlistCatalogSerializer(serializers.Serializer):
-    name = serializers.CharField()
-    slug = serializers.SlugField()
-    short_description = serializers.CharField(allow_blank=True)
-    thumbnail = serializers.URLField(allow_blank=True)
-    price = serializers.CharField()
-    discount_price = serializers.CharField(allow_null=True)
-    currency = serializers.CharField()
-    license_type = serializers.CharField()
-    average_rating = serializers.CharField()
-    version = serializers.CharField(required=False, allow_blank=True)
-    compatibility = serializers.CharField(required=False, allow_blank=True)
-    category = serializers.DictField()
-    is_available = serializers.BooleanField()
-
-
 class WishlistItemSerializer(serializers.ModelSerializer):
     catalog = serializers.SerializerMethodField()
 

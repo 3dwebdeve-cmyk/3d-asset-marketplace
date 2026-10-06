@@ -37,26 +37,6 @@ class OutboundEmailLog(models.Model):
         FAILED = "failed", "Failed"
         SKIPPED = "skipped", "Skipped"
 
-    class EventType(models.TextChoices):
-        PROJECT_CREATED = "project_created", "Project created"
-        QUOTATION_SENT = "quotation_sent", "Quotation sent"
-        QUOTATION_ACCEPTED = "quotation_accepted", "Quotation accepted"
-        PROJECT_DELIVERED = "project_delivered", "Project delivered"
-        PROJECT_COMPLETED = "project_completed", "Project completed"
-        MESSAGE_CUSTOMER_TO_STAFF = (
-            "message_created_customer_to_staff",
-            "Message customer → staff",
-        )
-        MESSAGE_STAFF_TO_CUSTOMER = (
-            "message_created_staff_to_customer",
-            "Message staff → customer",
-        )
-        PAYMENT_RECEIPT = "payment_receipt", "Payment receipt"
-        EMAIL_VERIFICATION = "email_verification", "Email verification"
-        PASSWORD_RESET = "password_reset", "Password reset"
-        PASSWORD_CHANGED = "password_changed", "Password changed"
-        CONTACT_SUBMISSION = "contact_submission", "Contact submission"
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event_type = models.CharField(max_length=64, db_index=True)
     status = models.CharField(

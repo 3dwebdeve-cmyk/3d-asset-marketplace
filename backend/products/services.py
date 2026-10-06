@@ -19,8 +19,6 @@ from products.upload_rules import (
     validate_product_file_upload,
     validate_product_image_upload,
 )
-from search.tasks import enqueue_sync_product
-
 
 class ProductError(Exception):
     def __init__(
@@ -328,7 +326,6 @@ class ProductService:
             license_type=license_type,
             status=status,
         )
-        enqueue_sync_product(product.pk)
         return product
 
     @classmethod
@@ -475,7 +472,6 @@ class ProductService:
             cls._validate_publish_ready(product)
         product.save(update_fields=list(dict.fromkeys(update_fields)))
         updated = cls.get_by_id(product.pk)
-        enqueue_sync_product(updated.pk)
         return updated
 
     @classmethod
@@ -569,7 +565,6 @@ class ProductService:
             ]
         )
         approved = cls.get_by_id(product.pk)
-        enqueue_sync_product(approved.pk)
         return approved
 
     @classmethod
@@ -610,7 +605,6 @@ class ProductService:
             update_fields.append("qa_notes")
         product.save(update_fields=update_fields)
         rejected = cls.get_by_id(product.pk)
-        enqueue_sync_product(rejected.pk)
         return rejected
 
     @classmethod
@@ -626,7 +620,6 @@ class ProductService:
         product.status = Product.Status.PENDING_REVIEW
         product.save(update_fields=["status", "updated_at"])
         requeued = cls.get_by_id(product.pk)
-        enqueue_sync_product(requeued.pk)
         return requeued
 
     @classmethod
