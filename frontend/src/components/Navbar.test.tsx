@@ -155,8 +155,8 @@ describe('Navbar', () => {
     )
     expect(screen.getByRole('button', { name: /^log\s*in$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^sign\s*up$/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^messages$/i })).toHaveAttribute('href', '/contact')
-    expect(screen.getByRole('button', { name: /^account$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^messages$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^account$/i })).not.toBeInTheDocument()
 
     await user.hover(screen.getByRole('button', { name: /^explore/i }))
     expect(await screen.findByRole('menu', { name: /explore categories/i })).toBeInTheDocument()
@@ -206,6 +206,8 @@ describe('Navbar', () => {
     expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
 
     const menu = await openAccountMenu(user)
+    expect(within(menu).getByText(testUser.full_name)).toBeInTheDocument()
+    expect(within(menu).getByText(testUser.email)).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /dashboard/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /profile/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()

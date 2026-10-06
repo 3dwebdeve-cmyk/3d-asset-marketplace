@@ -72,6 +72,7 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
     }
 
     reset({
+      full_name: profile.full_name ?? '',
       company_name: profile.company_name ?? '',
       website: profile.website ?? '',
       address: profile.address ?? '',
@@ -89,11 +90,13 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
       if (storedUser) {
         setUser({
           ...storedUser,
+          full_name: data.full_name,
           country: data.country,
         })
       }
 
       reset({
+        full_name: data.full_name ?? '',
         company_name: data.company_name ?? '',
         website: data.website ?? '',
         address: data.address ?? '',
@@ -139,6 +142,7 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
     }
 
     mutation.mutate({
+      full_name: parsed.data.full_name,
       company_name: parsed.data.company_name,
       website: parsed.data.website,
       address: parsed.data.address,

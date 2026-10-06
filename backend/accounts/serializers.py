@@ -332,6 +332,12 @@ class AvatarUploadSerializer(serializers.Serializer):
 
 
 class ProfileUpdateSerializer(serializers.Serializer):
+    full_name = serializers.CharField(
+        max_length=255,
+        min_length=2,
+        required=False,
+        trim_whitespace=True,
+    )
     company_name = serializers.CharField(
         max_length=255,
         required=False,
@@ -362,6 +368,7 @@ class ProfileUpdateSerializer(serializers.Serializer):
         return ProfileService.update_profile(
             instance.user,
             ProfileUpdateData(
+                full_name=validated_data.get("full_name"),
                 company_name=validated_data.get("company_name"),
                 website=validated_data.get("website"),
                 address=validated_data.get("address"),

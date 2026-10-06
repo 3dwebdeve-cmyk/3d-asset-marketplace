@@ -362,7 +362,7 @@ export function Navbar() {
                 }}
               >
                 Explore
-                <span aria-hidden="true">⌄</span>
+                <span className="navbar__explore-trigger-chevron" aria-hidden="true" />
               </button>
               {exploreOpen ? (
                 <div
@@ -434,7 +434,7 @@ export function Navbar() {
                 onClick={() => setSearchCatOpen(true)}
               >
                 <span className="navbar__search-cat-trigger-label">{searchCatLabel}</span>
-                <span aria-hidden="true">⌄</span>
+                <span className="navbar__search-cat-trigger-chevron" aria-hidden="true" />
               </button>
               {searchCatOpen ? (
                 <div
@@ -599,22 +599,36 @@ export function Navbar() {
                     </button>
                     {accountOpen ? (
                       <div className="navbar__account-menu" role="menu">
+                        <div className="navbar__account-menu-header">
+                          {user?.avatar ? (
+                            <img className="navbar__account-menu-avatar" src={user.avatar} alt="" />
+                          ) : (
+                            <span className="navbar__account-menu-avatar" aria-hidden="true" />
+                          )}
+                          <div className="navbar__account-menu-identity">
+                            <strong>{user?.full_name || firstName}</strong>
+                            <span>{user?.email}</span>
+                          </div>
+                        </div>
+                        <div className="navbar__account-menu-links">
                         {isAdministrator(user?.role) ? (
                           <>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/console' ? ' navbar__account-item--active' : ''}`}
                               to="/console"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--grid" aria-hidden="true" />
                               Admin
                             </Link>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/profile' ? ' navbar__account-item--active' : ''}`}
                               to="/profile"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--profile" aria-hidden="true" />
                               Profile
                             </Link>
                           </>
@@ -622,22 +636,26 @@ export function Navbar() {
                           <>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/dashboard' ? ' navbar__account-item--active' : ''}`}
                               to="/dashboard"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--grid" aria-hidden="true" />
                               Dashboard
                             </Link>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/profile' ? ' navbar__account-item--active' : ''}`}
                               to="/profile"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--profile" aria-hidden="true" />
                               Profile
                             </Link>
                           </>
                         )}
+                        </div>
+                        <div className="navbar__account-menu-signout">
                         <button
                           type="button"
                           role="menuitem"
@@ -645,8 +663,10 @@ export function Navbar() {
                           disabled={logoutMutation.isPending}
                           onClick={() => logoutMutation.mutate()}
                         >
+                          <span className="navbar__account-item-icon navbar__account-item-icon--signout" aria-hidden="true" />
                           Sign out
                         </button>
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -671,43 +691,6 @@ export function Navbar() {
                       {isMarketplaceHome ? 'Sign up' : 'Register'}
                     </AuthEntryButton>
                   </div>
-                  {isMarketplaceHome ? (
-                    <>
-                      <Link className="navbar__home-utility" to="/contact" aria-label="Messages">
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="14"
-                          height="14"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          aria-hidden="true"
-                        >
-                          <rect x="3" y="5" width="18" height="14" rx="2" />
-                          <path d="m4 7 8 6 8-6" />
-                        </svg>
-                      </Link>
-                      <AuthEntryButton
-                        mode="login"
-                        returnTo={location.pathname}
-                        className="navbar__home-utility"
-                        aria-label="Account"
-                      >
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="14"
-                          height="14"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          aria-hidden="true"
-                        >
-                          <circle cx="12" cy="8" r="3" />
-                          <path d="M5.5 20c.8-4 3-6 6.5-6s5.7 2 6.5 6" />
-                        </svg>
-                      </AuthEntryButton>
-                    </>
-                  ) : null}
                 </>
               )}
             </div>
