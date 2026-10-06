@@ -694,32 +694,150 @@ button.navbar__link {
   top: calc(100% + 0.45rem);
   right: 0;
   z-index: 50;
-  min-width: 12.5rem;
-  padding: 0.4rem;
-  border: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent);
-  border-radius: 0.55rem;
+  width: max-content;
+  min-width: 11rem;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text-main) 14%, transparent);
+  border-radius: 0.75rem;
   background: #fff;
-  box-shadow: none;
+  box-shadow: 0 0.75rem 2rem color-mix(in srgb, #0b1730 14%, transparent);
+}
+
+.navbar__account-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent);
+}
+
+.navbar__account-menu-avatar {
+  display: block;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #edf1f7;
+  object-fit: cover;
+}
+
+.navbar__account-menu-identity {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.navbar__account-menu-identity strong,
+.navbar__account-menu-identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar__account-menu-identity strong {
+  color: var(--text-main);
+  font-size: 0.88rem;
+  line-height: 1.15;
+}
+
+.navbar__account-menu-identity span {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.navbar__account-menu-links {
   display: grid;
   gap: 0.15rem;
+  padding: 0.55rem;
 }
 
 .navbar__account-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  justify-content: flex-start;
+  gap: 0.6rem;
   padding: 0.55rem 0.65rem;
-  border-radius: 0.35rem;
+  border-radius: 0.5rem;
   color: var(--text-main);
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 .navbar__account-item:hover {
   background: color-mix(in srgb, var(--action-color) 8%, transparent);
   color: var(--action-color);
+}
+
+.navbar__account-item--active {
+  background: color-mix(in srgb, var(--action-color) 13%, #fff);
+  color: var(--action-color);
+}
+
+.navbar__account-item-icon {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 1.1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: currentColor;
+}
+
+.navbar__account-item-icon--grid::before {
+  content: '';
+  position: absolute;
+  top: 0.13rem;
+  left: 0.13rem;
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 0.1rem;
+  background: currentColor;
+  box-shadow: 0.5rem 0 currentColor, 0 0.5rem currentColor, 0.5rem 0.5rem currentColor;
+}
+
+.navbar__account-item-icon--profile::before {
+  content: '';
+  position: absolute;
+  top: 0.05rem;
+  left: 0.35rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.navbar__account-item-icon--profile::after {
+  content: '';
+  position: absolute;
+  left: 0.13rem;
+  bottom: 0.05rem;
+  width: 0.84rem;
+  height: 0.52rem;
+  border-radius: 0.65rem 0.65rem 0.18rem 0.18rem;
+  background: currentColor;
+}
+
+.navbar__account-menu-signout {
+  padding: 0.55rem;
+  border-top: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent);
+}
+
+.navbar__account-item-icon--signout {
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 0.15rem;
+  box-sizing: border-box;
+}
+
+.navbar__account-item-icon--signout::after {
+  content: '›';
+  position: absolute;
+  top: -0.4rem;
+  right: -0.38rem;
+  font-size: 1.35rem;
+  font-weight: 500;
 }
 
 .navbar__account-item--button {
@@ -729,7 +847,13 @@ button.navbar__link {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  color: var(--text-main);
+  color: #846f6f;
+  font-size: 0.72rem;
+}
+
+.navbar__account-item--button:hover {
+  background: #fff0f0;
+  color: #d64545;
 }
 
 .navbar__account-item--button:disabled {
@@ -1217,7 +1341,9 @@ button.navbar__link {
   .navbar__account-menu {
     right: 0;
     left: auto;
-    width: min(22rem, calc(100vw - 1.5rem));
+    width: max-content;
+    min-width: 11rem;
+    max-width: calc(100vw - 1.5rem);
   }
 }
 

@@ -599,22 +599,36 @@ export function Navbar() {
                     </button>
                     {accountOpen ? (
                       <div className="navbar__account-menu" role="menu">
+                        <div className="navbar__account-menu-header">
+                          {user?.avatar ? (
+                            <img className="navbar__account-menu-avatar" src={user.avatar} alt="" />
+                          ) : (
+                            <span className="navbar__account-menu-avatar" aria-hidden="true" />
+                          )}
+                          <div className="navbar__account-menu-identity">
+                            <strong>{user?.full_name || firstName}</strong>
+                            <span>{user?.email}</span>
+                          </div>
+                        </div>
+                        <div className="navbar__account-menu-links">
                         {isAdministrator(user?.role) ? (
                           <>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/console' ? ' navbar__account-item--active' : ''}`}
                               to="/console"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--grid" aria-hidden="true" />
                               Admin
                             </Link>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/profile' ? ' navbar__account-item--active' : ''}`}
                               to="/profile"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--profile" aria-hidden="true" />
                               Profile
                             </Link>
                           </>
@@ -622,22 +636,26 @@ export function Navbar() {
                           <>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/dashboard' ? ' navbar__account-item--active' : ''}`}
                               to="/dashboard"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--grid" aria-hidden="true" />
                               Dashboard
                             </Link>
                             <Link
                               role="menuitem"
-                              className="navbar__account-item"
+                              className={`navbar__account-item${currentPath === '/profile' ? ' navbar__account-item--active' : ''}`}
                               to="/profile"
                               onClick={() => setAccountOpen(false)}
                             >
+                              <span className="navbar__account-item-icon navbar__account-item-icon--profile" aria-hidden="true" />
                               Profile
                             </Link>
                           </>
                         )}
+                        </div>
+                        <div className="navbar__account-menu-signout">
                         <button
                           type="button"
                           role="menuitem"
@@ -645,8 +663,10 @@ export function Navbar() {
                           disabled={logoutMutation.isPending}
                           onClick={() => logoutMutation.mutate()}
                         >
+                          <span className="navbar__account-item-icon navbar__account-item-icon--signout" aria-hidden="true" />
                           Sign out
                         </button>
+                        </div>
                       </div>
                     ) : null}
                   </div>

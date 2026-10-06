@@ -206,6 +206,8 @@ describe('Navbar', () => {
     expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
 
     const menu = await openAccountMenu(user)
+    expect(within(menu).getByText(testUser.full_name)).toBeInTheDocument()
+    expect(within(menu).getByText(testUser.email)).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /dashboard/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /profile/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
