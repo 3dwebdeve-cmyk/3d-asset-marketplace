@@ -60,6 +60,7 @@ export interface UserProfile {
 }
 
 export interface ProfileUpdatePayload {
+  full_name?: string
   company_name?: string
   website?: string
   address?: string

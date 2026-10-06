@@ -579,6 +579,7 @@ class EmailVerificationService:
 
 @dataclass(frozen=True)
 class ProfileUpdateData:
+    full_name: str | None = None
     company_name: str | None = None
     website: str | None = None
     address: str | None = None
@@ -599,6 +600,18 @@ class ProfileService:
     @transaction.atomic
     def update_profile(cls, user: User, data: ProfileUpdateData) -> UserProfile:
         profile = cls.get_or_create_profile(user)
+        user_updates = {
+            field: value
+            for field, value in (
+                ("full_name", data.full_name),
+            )
+            if value is not None and getattr(user, field) != value
+        }
+        if user_updates:
+            for field, value in user_updates.items():
+                setattr(user, field, value)
+            user.save(update_fields=[*user_updates.keys(), "updated_at"])
+
         updates = {
             field: value
             for field, value in (

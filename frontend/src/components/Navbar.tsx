@@ -362,7 +362,7 @@ export function Navbar() {
                 }}
               >
                 Explore
-                <span aria-hidden="true">⌄</span>
+                <span className="navbar__explore-trigger-chevron" aria-hidden="true" />
               </button>
               {exploreOpen ? (
                 <div
@@ -434,7 +434,7 @@ export function Navbar() {
                 onClick={() => setSearchCatOpen(true)}
               >
                 <span className="navbar__search-cat-trigger-label">{searchCatLabel}</span>
-                <span aria-hidden="true">⌄</span>
+                <span className="navbar__search-cat-trigger-chevron" aria-hidden="true" />
               </button>
               {searchCatOpen ? (
                 <div
@@ -671,43 +671,6 @@ export function Navbar() {
                       {isMarketplaceHome ? 'Sign up' : 'Register'}
                     </AuthEntryButton>
                   </div>
-                  {isMarketplaceHome ? (
-                    <>
-                      <Link className="navbar__home-utility" to="/contact" aria-label="Messages">
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="14"
-                          height="14"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          aria-hidden="true"
-                        >
-                          <rect x="3" y="5" width="18" height="14" rx="2" />
-                          <path d="m4 7 8 6 8-6" />
-                        </svg>
-                      </Link>
-                      <AuthEntryButton
-                        mode="login"
-                        returnTo={location.pathname}
-                        className="navbar__home-utility"
-                        aria-label="Account"
-                      >
-                        <svg
-                          viewBox="0 0 24 24"
-                          width="14"
-                          height="14"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          aria-hidden="true"
-                        >
-                          <circle cx="12" cy="8" r="3" />
-                          <path d="M5.5 20c.8-4 3-6 6.5-6s5.7 2 6.5 6" />
-                        </svg>
-                      </AuthEntryButton>
-                    </>
-                  ) : null}
                 </>
               )}
             </div>

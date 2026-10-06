@@ -15,25 +15,25 @@ import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
-const PRODUCTS_BANNER_IMAGE_SRC = '/16a.jpg'
+const PRODUCTS_BANNER_IMAGE_SRC = '/banner%20image/16.jpg'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/homepage%20images/banner_furniture_v24.jpg',
-  toys: '/homepage%20images/banner_toys_v24.jpg',
-  electronics: '/homepage%20images/banner_electronic_v24.jpg',
-  'food-drink': '/homepage%20images/banner_food_v24.jpg',
-  character: '/homepage%20images/banner_character_v24.jpg',
-  industrial: '/homepage%20images/banner_industrial_v24.jpg',
-  '3d-printing': '/homepage%20images/banner_printing_v24.jpg',
-  'assets-props': '/homepage%20images/banner_props_v24.jpg',
-  'interactive-webar': '/homepage%20images/banner_webar_v24.jpg',
-  'architectural-3d-models': '/homepage%20images/banner_architecture_v24.jpg',
-  'interior-3d-models': '/homepage%20images/banner_interior_v24.jpg',
-  'cloth-items': '/homepage%20images/banner_cloth_v24.jpg',
+  furniture: '/banner%20image/08.jpg',
+  toys: '/banner%20image/17.jpg',
+  electronics: '/banner%20image/06.jpg',
+  'food-drink': '/banner%20image/07.jpg',
+  character: '/banner%20image/04.jpg',
+  industrial: '/banner%20image/10.jpg',
+  '3d-printing': '/banner%20image/01.jpg',
+  'assets-props': '/banner%20image/03.jpg',
+  'interactive-webar': '/banner%20image/11.jpg',
+  'architectural-3d-models': '/banner%20image/02.jpg',
+  'interior-3d-models': '/banner%20image/12.jpg',
+  'cloth-items': '/banner%20image/05.jpg',
   household: '/homepage%20images/banner_household_v24.jpg',
-  'lifestyle-visualisation': '/homepage%20images/banner_lifestyle_v24.jpg',
-  'lifestyle-visualization': '/homepage%20images/banner_lifestyle_v24.jpg',
-  lights: '/homepage%20images/banner_lights_v24.jpg',
-  'plants-vegetation': '/homepage%20images/banner_plants_v24.jpg',
+  'lifestyle-visualisation': '/banner%20image/13.jpg',
+  'lifestyle-visualization': '/banner%20image/13.jpg',
+  lights: '/banner%20image/14.jpg',
+  'plants-vegetation': '/banner%20image/15.jpg',
   products: PRODUCTS_BANNER_IMAGE_SRC,
 }
 
@@ -267,7 +267,9 @@ export function ModelsBrowsePage() {
     return categoriesData?.results.find((cat) => cat.id === selectedCategoryId) ?? null
   }, [categoriesData?.results, selectedCategoryId])
 
-  const heroTitle = selectedCategory?.name ?? '3D Model'
+  const heroTitle = selectedCategory?.slug === '3d-printing'
+    ? '3D Printing'
+    : selectedCategory?.name ?? '3D Model'
   const usesProductsBanner =
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
   const usesCharacterBanner = selectedCategory?.slug === 'character'
