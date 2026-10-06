@@ -317,6 +317,7 @@ class ProfileAPITests(APITestCase):
     def test_patch_profile_updates_fields(self) -> None:
         self._authenticate()
         payload = {
+            "full_name": "Updated Profile User",
             "company_name": "Acme Studios",
             "website": "https://acme.example.com",
             "address": "12 Market Street",
@@ -327,6 +328,7 @@ class ProfileAPITests(APITestCase):
         response = self.client.patch(self.profile_url, payload, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["full_name"], "Updated Profile User")
         self.assertEqual(response.data["company_name"], "Acme Studios")
         self.assertEqual(response.data["website"], "https://acme.example.com")
         self.assertEqual(response.data["address"], "12 Market Street")

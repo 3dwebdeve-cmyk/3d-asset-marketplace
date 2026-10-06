@@ -37,12 +37,16 @@ const characterCategoryId = '4ac87021-da4e-4470-9ab9-b52772444655'
 const productId = 'a2e77f31-f244-4607-b7d6-b58e3ff6de11'
 
 const additionalBannerCategories = [
-  { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/homepage%20images/banner_industrial_v24.jpg' },
-  { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/homepage%20images/banner_printing_v24.jpg' },
-  { id: 'b7b73085-a662-4daa-ac90-d07b89976b3c', name: 'Assets / Props', slug: 'assets-props', banner: '/homepage%20images/banner_props_v24.jpg' },
-  { id: '4ecdc1ea-68b4-4e08-93de-d8e2d34ec1ad', name: 'Interactive / WebAr', slug: 'interactive-webar', banner: '/homepage%20images/banner_webar_v24.jpg' },
-  { id: 'e673b81b-2bc8-4f83-8dfc-081b9812a525', name: 'Architectural 3D Models', slug: 'architectural-3d-models', banner: '/homepage%20images/banner_architecture_v24.jpg' },
-  { id: 'bc9bac17-4585-4c7c-95f1-34791f081d54', name: 'Interior 3D Models', slug: 'interior-3d-models', banner: '/homepage%20images/banner_interior_v24.jpg' },
+  { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/banner%20image/10.jpg' },
+  { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/banner%20image/01.jpg' },
+  { id: 'b7b73085-a662-4daa-ac90-d07b89976b3c', name: 'Assets / Props', slug: 'assets-props', banner: '/banner%20image/03.jpg' },
+  { id: '4ecdc1ea-68b4-4e08-93de-d8e2d34ec1ad', name: 'Interactive / WebAr', slug: 'interactive-webar', banner: '/banner%20image/11.jpg' },
+  { id: 'e673b81b-2bc8-4f83-8dfc-081b9812a525', name: 'Architectural 3D Models', slug: 'architectural-3d-models', banner: '/banner%20image/02.jpg' },
+  { id: 'bc9bac17-4585-4c7c-95f1-34791f081d54', name: 'Interior 3D Models', slug: 'interior-3d-models', banner: '/banner%20image/12.jpg' },
+  { id: 'e1404a6f-57d0-4828-982a-c4b7c781492a', name: 'Cloth Items', slug: 'cloth-items', banner: '/banner%20image/05.jpg' },
+  { id: 'd3de2c3d-3672-4655-a653-39b68c705ace', name: 'Lights', slug: 'lights', banner: '/banner%20image/14.jpg' },
+  { id: '851a9576-3864-4231-a1e6-305deb54ecd7', name: 'Plants / Vegetation', slug: 'plants-vegetation', banner: '/banner%20image/15.jpg' },
+  { id: 'fc78161b-0d3e-477b-ad33-4d859dcfd358', name: 'LifeStyle / Visualisation', slug: 'lifestyle-visualisation', banner: '/banner%20image/13.jpg' },
 ]
 
 const samplePublicProducts = {
@@ -191,7 +195,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/homepage%20images/banner_furniture_v24.jpg',
+        '/banner%20image/08.jpg',
       )
     })
 
@@ -208,7 +212,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/16a.jpg',
+        '/banner%20image/16.jpg',
       )
     })
 
@@ -223,7 +227,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/homepage%20images/banner_food_v24.jpg',
+        '/banner%20image/07.jpg',
       )
     })
   })
@@ -236,7 +240,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/homepage%20images/banner_character_v24.jpg',
+        '/banner%20image/04.jpg',
       )
     })
 
@@ -258,6 +262,14 @@ describe('ModelsBrowsePage', () => {
       })
     },
   )
+
+  it('capitalizes 3D in the 3D Printing banner title', async () => {
+    renderModelsBrowsePage('/3d-models?category=f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0')
+
+    expect(
+      await screen.findByRole('heading', { name: '3D Printing' }),
+    ).toBeInTheDocument()
+  })
 
   it('applies format checkbox filter', async () => {
     const user = userEvent.setup()

@@ -292,7 +292,7 @@ function CategoryTile({
   return (
     <button
       type="button"
-      className="browse-category-card"
+      className={`browse-category-card browse-category-card--${category.slug.toLowerCase()}`}
       onClick={onSelect}
       aria-label={`Browse ${category.name} 3D models`}
     >

@@ -217,6 +217,47 @@
   font-size: 13px;
 }
 
+.profile-edit-body .profile-password-input {
+  position: relative;
+}
+
+.profile-edit-body .profile-password-input .form-input {
+  padding-right: 44px;
+}
+
+.profile-edit-body .profile-password-input__toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  transform: translateY(-50%);
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.profile-edit-body .profile-password-input__toggle:hover,
+.profile-edit-body .profile-password-input__toggle:focus-visible {
+  color: var(--primary);
+  outline: none;
+  background: color-mix(in srgb, var(--action-color) 8%, transparent);
+}
+
+.profile-edit-body .profile-password-input__toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+}
+
 .profile-edit-body .form-helper-text {
   margin-top: 6px;
   color: var(--text-secondary);
@@ -229,6 +270,10 @@
   color: var(--text-main);
   font-size: 12px;
   line-height: 1.35;
+}
+
+.profile-edit-body .form-error-text--danger {
+  color: #b42318;
 }
 
 .profile-edit-body .username-input-group {
