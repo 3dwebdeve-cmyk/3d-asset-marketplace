@@ -15,6 +15,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
+from corsheaders.defaults import default_headers
 from decouple import Config, RepositoryEmpty, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
@@ -524,6 +525,9 @@ CORS_ALLOWED_ORIGINS = config(
 )
 # Required for SPA cookie-based refresh (same-origin via Nginx/Vite proxy preferred).
 CORS_ALLOW_CREDENTIALS = True
+# Cross-origin SPA hosts send Idempotency-Key on checkout; browsers drop the
+# request at preflight unless it is listed here.
+CORS_ALLOW_HEADERS = (*default_headers, "idempotency-key")
 
 # Backend/API CSP. The separately deployed frontend host must emit its own CSP
 # header at the CDN or web-server layer.
