@@ -169,6 +169,30 @@ describe('Navbar', () => {
     )
   })
 
+  it('hides Demo Assets from the Explore categories menu', async () => {
+    const user = userEvent.setup()
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{
+        id: 'demo-assets-id',
+        name: 'Demo Assets',
+        slug: 'demo-assets',
+        description: '',
+        image: '',
+        parent: null,
+        created_at: '2026-09-08T00:00:00Z',
+      }],
+    })
+
+    renderNavbar('/home')
+    await user.hover(screen.getByRole('button', { name: /^explore/i }))
+    const menu = await screen.findByRole('menu', { name: /explore categories/i })
+
+    expect(within(menu).queryByRole('menuitem', { name: /demo assets/i })).not.toBeInTheDocument()
+  })
+
   it('shows Sign in and Register when logged out', () => {
     renderNavbar('/about')
 
@@ -185,6 +209,28 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['/3d-models', /^3d model$/i],
+    ['/plugins', /^plugins$/i],
+    ['/custom-projects', /^custom projects$/i],
+    ['/about', /^about$/i],
+    ['/contact', /^contact$/i],
+  ])('marks the matching navbar link active on %s', (path, linkName) => {
+    renderNavbar(path as string)
+    const activeLink = screen.getByRole('link', { name: linkName as RegExp })
+
+    expect(activeLink).toHaveClass('navbar__link--active')
+    expect(activeLink).toHaveAttribute('aria-current', 'page')
+    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(1)
+  })
+
+  it('keeps the Home navbar link black on the Home page', () => {
+    renderNavbar('/home')
+
+    expect(screen.getByRole('link', { name: /^home$/i })).not.toHaveClass('navbar__link--active')
+    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(0)
   })
 
   it('shows user menu with Dashboard, Profile, and Sign out when logged in', async () => {

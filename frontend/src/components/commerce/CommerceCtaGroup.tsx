@@ -18,6 +18,8 @@ export interface CommerceCtaGroupProps {
   variant?: CommerceCtaVariant
   showWishlist?: boolean
   showCheckoutNote?: boolean
+  showShare?: boolean
+  useStandardGuestLabels?: boolean
 }
 
 export function CommerceCtaGroup({
@@ -28,6 +30,8 @@ export function CommerceCtaGroup({
   variant = 'stacked',
   showWishlist = false,
   showCheckoutNote = false,
+  showShare = true,
+  useStandardGuestLabels = false,
 }: CommerceCtaGroupProps) {
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -73,11 +77,11 @@ export function CommerceCtaGroup({
           : 'ui-button ui-button--primary product-detail-cta__buy product-detail-cta__link'
       }
     >
-      Sign in to buy
+      {useStandardGuestLabels ? (isBuybox ? 'Buy Now' : 'Buy now') : 'Sign in to buy'}
     </AuthEntryButton>
   )
 
-  const shareControl = isBuybox ? (
+  const shareControl = !showShare ? null : isBuybox ? (
     <button
       type="button"
       className="product-detail-cta__share-link"
@@ -112,6 +116,7 @@ export function CommerceCtaGroup({
             productId={productId}
             productName={productName}
             variant="full"
+            guestLabel={useStandardGuestLabels ? 'Add to cart' : undefined}
           />
         </div>
         {shareControl}

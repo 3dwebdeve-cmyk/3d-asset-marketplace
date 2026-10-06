@@ -190,9 +190,6 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
               />
             </div>
 
-            {product.short_description.trim() ? (
-              <p className="product-detail-purchase__summary">{product.short_description}</p>
-            ) : null}
           </div>
         </aside>
       </div>

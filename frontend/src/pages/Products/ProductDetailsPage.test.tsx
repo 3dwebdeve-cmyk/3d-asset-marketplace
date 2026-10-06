@@ -13,11 +13,12 @@ import * as reviewsApi from '../../api/reviewsApi'
 import {
   createTestQueryClient,
   resetAuthStore,
+  resetAuthUiStore,
   resetToastStore,
   testUser,
 } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
-import { useToastStore } from '../../store/toastStore'
+import { useAuthUiStore } from '../../store/authUiStore'
 import type { PublicProductDetail } from '../../types/product'
 import { ProductDetailsPage } from './ProductDetailsPage'
 import { Toaster } from '../../components/ui/Toaster'
@@ -202,6 +203,7 @@ function renderProductDetails(initialPath = '/products/cyberpunk-drone-3d') {
 beforeEach(() => {
   vi.clearAllMocks()
   resetAuthStore()
+  resetAuthUiStore()
   resetToastStore()
   vi.mocked(productsApi.getPublicProduct).mockResolvedValue(sampleDetail)
   vi.mocked(productsApi.listPublicProducts).mockResolvedValue(relatedList)
@@ -270,7 +272,7 @@ describe('ProductDetailsPage', () => {
     expect(productsApi.getPublicProduct).toHaveBeenCalledWith('cyberpunk-drone-3d')
     expect(screen.getByText(/standard license/i)).toBeInTheDocument()
     expect(screen.getByText(/-20%/i)).toBeInTheDocument()
-    expect(screen.getByText(/futuristic sci-fi drone asset/i)).toBeInTheDocument()
+    expect(screen.queryByText(/futuristic sci-fi drone asset/i)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /technical specs/i })).toBeInTheDocument()
     expect(screen.getByText(/^polygons$/i)).toBeInTheDocument()
     expect(screen.getByText('12,000')).toBeInTheDocument()
@@ -411,6 +413,7 @@ describe('ProductDetailsPage', () => {
   })
 
   it('prompts guests to sign in for cart and wishlist CTAs', async () => {
+    const user = userEvent.setup()
     renderProductDetails()
 
     await waitFor(() => {
@@ -420,13 +423,25 @@ describe('ProductDetailsPage', () => {
     })
 
     expect(
-      screen.getAllByRole('button', { name: /sign in to add to cart/i }).length,
+      screen.getAllByRole('button', { name: /^add to cart$/i }).length,
     ).toBeGreaterThanOrEqual(1)
     expect(
       screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /sign in to buy/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^buy now$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/sign in to leave a review/i)).not.toBeInTheDocument()
+
+    const commentBox = screen.getByRole('textbox', { name: /comment/i })
+    const sendButton = screen.getByRole('button', { name: /^send$/i })
+    expect(sendButton).toBeDisabled()
+
+    await user.type(commentBox, 'Is this compatible with Blender?')
+    expect(sendButton).toBeEnabled()
+    await user.click(sendButton)
+
+    expect(useAuthUiStore.getState().isOpen).toBe(true)
+    expect(useAuthUiStore.getState().mode).toBe('login')
   })
 
   it('shows working add-to-cart and wishlist controls for authenticated users', async () => {
@@ -622,13 +637,7 @@ describe('ProductDetailsPage', () => {
     })
   })
 
-  it('copies the share link and excludes package storage paths from the document', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    })
-
+  it('hides the share control and short summary and excludes package storage paths', async () => {
     renderProductDetails()
 
     await waitFor(() => {
@@ -637,13 +646,8 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    await userEvent.click(screen.getByRole('button', { name: /share link for/i }))
-
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalled()
-    })
-    expect(writeText.mock.calls[0]?.[0]).toContain('/products/cyberpunk-drone-3d')
-    expect(useToastStore.getState().toasts).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Futuristic sci-fi drone asset')).not.toBeInTheDocument()
 
     expect(document.body.textContent).not.toMatch(/storage_path/i)
     expect(document.body.innerHTML).not.toContain('secret.zip')

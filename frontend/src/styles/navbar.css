@@ -129,7 +129,7 @@
   max-width: calc(100vw - (2 * var(--site-gutter)));
   padding: 0.75rem 0.85rem;
   border: 1px solid rgba(120, 149, 166, 0.22);
-  border-radius: 0.75rem;
+  border-radius: 0;
   background:
     radial-gradient(circle at 88% 88%, rgba(255, 255, 255, 0.94), transparent 24%),
     linear-gradient(135deg, #f4f9fc 0%, #edf4f8 58%, #f8fbfd 100%);
@@ -166,22 +166,23 @@
 
 .navbar__explore-item:hover,
 .navbar__explore-item:focus-visible {
-  background: #dff2fc;
-  color: var(--text-main);
+  background: transparent;
+  color: #63b8e6;
 }
 
 .navbar__explore-icon,
 .navbar__explore-image {
   display: block;
   flex: 0 0 auto;
-  width: 1.25rem;
-  height: 1.25rem;
-  color: #7297aa;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: #7f8b92;
 }
 
 .navbar__explore-item:hover .navbar__explore-icon,
 .navbar__explore-item:focus-visible .navbar__explore-icon {
-  filter: saturate(1.18);
+  color: #63b8e6;
+  filter: none;
 }
 
 .navbar__explore-image {
@@ -202,49 +203,6 @@
   font-size: 1.2rem;
   font-weight: 400;
   line-height: 0.8;
-}
-
-.navbar__explore-icon--all,
-.navbar__explore-icon--architectural-3d-models,
-.navbar__explore-icon--character,
-.navbar__explore-icon--interactive-webar,
-.navbar__explore-icon--electronics {
-  color: #77a9c1;
-}
-
-.navbar__explore-icon--demo-assets,
-.navbar__explore-icon--assets-props {
-  color: #8a9e9b;
-}
-
-.navbar__explore-icon--food-drink,
-.navbar__explore-icon--industrial {
-  color: #c99b57;
-}
-
-.navbar__explore-icon--household,
-.navbar__explore-icon--cloth-items,
-.navbar__explore-icon--furniture,
-.navbar__explore-icon--products {
-  color: #c99397;
-}
-
-.navbar__explore-icon--lifestyle-visualisation,
-.navbar__explore-icon--plants-vegetation,
-.navbar__explore-icon--3d-printing {
-  color: #78aa86;
-}
-
-.navbar__explore-icon--toys {
-  color: #8e87b4;
-}
-
-.navbar__explore-icon--interior-3d-models {
-  color: #a79d81;
-}
-
-.navbar__explore-icon--lights {
-  color: #c3a044;
 }
 
 .navbar__explore-status {
@@ -423,6 +381,10 @@ button.navbar__link {
 .navbar__link:hover {
   color: var(--action-color);
   text-decoration: none;
+}
+
+.navbar__link--active {
+  color: var(--action-color);
 }
 
 .navbar__link--muted {

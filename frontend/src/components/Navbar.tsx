@@ -206,8 +206,12 @@ export function Navbar() {
     ? (pluginCategoriesQuery.data?.results ?? [])
     : (productCategoriesQuery.data?.results ?? [])
 
-  // Keep Explore/search menus compact: top-level categories only.
+  // Keep Explore/search menus compact: top-level categories only, excluding
+  // the internal demo category from customer-facing navigation.
   const exploreCategories = categories.filter((category) => {
+    if (category.slug === 'demo-assets' || category.name.trim().toLowerCase() === 'demo assets') {
+      return false
+    }
     if ('parent' in category) {
       return category.parent == null
     }
@@ -547,19 +551,39 @@ export function Navbar() {
               >
                 Home
               </Link>
-              <Link className="navbar__link" to="/3d-models">
+              <Link
+                className={`navbar__link${isModelsRoute ? ' navbar__link--active' : ''}`}
+                to="/3d-models"
+                aria-current={isModelsRoute ? 'page' : undefined}
+              >
                 3D Model
               </Link>
-              <Link className="navbar__link" to="/plugins">
+              <Link
+                className={`navbar__link${isPluginsRoute ? ' navbar__link--active' : ''}`}
+                to="/plugins"
+                aria-current={isPluginsRoute ? 'page' : undefined}
+              >
                 Plugins
               </Link>
-              <Link className="navbar__link" to="/custom-projects">
+              <Link
+                className={`navbar__link${currentPath.startsWith('/custom-projects') ? ' navbar__link--active' : ''}`}
+                to="/custom-projects"
+                aria-current={currentPath.startsWith('/custom-projects') ? 'page' : undefined}
+              >
                 Custom Projects
               </Link>
-              <Link className="navbar__link" to="/about">
+              <Link
+                className={`navbar__link${currentPath === '/about' ? ' navbar__link--active' : ''}`}
+                to="/about"
+                aria-current={currentPath === '/about' ? 'page' : undefined}
+              >
                 About
               </Link>
-              <Link className="navbar__link" to="/contact">
+              <Link
+                className={`navbar__link${currentPath === '/contact' ? ' navbar__link--active' : ''}`}
+                to="/contact"
+                aria-current={currentPath === '/contact' ? 'page' : undefined}
+              >
                 Contact
               </Link>
             </div>
