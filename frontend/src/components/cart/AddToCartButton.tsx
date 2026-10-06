@@ -11,6 +11,7 @@ interface AddToCartButtonProps {
   productName: string
   className?: string
   variant?: 'chip' | 'primary' | 'icon' | 'full' | 'marketplace'
+  guestLabel?: string
 }
 
 export function AddToCartButton({
@@ -19,6 +20,7 @@ export function AddToCartButton({
   productName,
   className,
   variant = 'chip',
+  guestLabel,
 }: AddToCartButtonProps) {
   const location = useLocation()
   const { isSignedIn, isInCart, add, isPending } = useCart()
@@ -113,7 +115,7 @@ export function AddToCartButton({
           returnTo={returnTo}
           className={`ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link ${className ?? ''}`.trim()}
         >
-          Add to cart
+          {guestLabel ?? 'Sign in to add to cart'}
         </AuthEntryButton>
       )
     }

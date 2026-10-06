@@ -15,6 +15,7 @@ export function ProductCtaGroup({ productId, productName, productSlug }: Product
       productSlug={productSlug}
       variant="buybox"
       showShare={false}
+      useStandardGuestLabels
     />
   )
 }
