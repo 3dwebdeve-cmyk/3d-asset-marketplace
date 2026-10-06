@@ -73,7 +73,6 @@ def _check_deploy(profile: CutoverProfile) -> CutoverCheck:
         f"SECRET_KEY_is_example={report.secret_key_is_example} "
         f"ALLOWED_HOSTS_local_only={report.allowed_hosts_local_only} "
         f"CSRF_count={report.csrf_trusted_origins_count} "
-        f"REDIS_set={report.redis_url_set} "
         f"ALLOW_LOCALHOST_FRONTEND={report.allow_localhost_frontend} "
         f"ALLOW_CONSOLE_EMAIL={report.allow_console_email}"
     )

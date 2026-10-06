@@ -220,8 +220,7 @@ class Command(BaseCommand):
                 f"products={','.join(product_slugs)} "
                 f"plugins={','.join(plugin_slugs)}"
                 f"{' (R2 public URLs)' if use_r2_public else ''}. "
-                "Run: python manage.py reindex_search && "
-                "python manage.py audit_published_packages --fail-on-missing"
+                "Run: python manage.py audit_published_packages --fail-on-missing"
             )
         )
 

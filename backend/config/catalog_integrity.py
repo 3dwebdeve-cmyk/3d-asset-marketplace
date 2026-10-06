@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 from uuid import UUID
 
 from django.db.models import QuerySet
@@ -125,19 +124,3 @@ def collect_catalog_integrity_report() -> CatalogIntegrityReport:
         ),
     )
     return CatalogIntegrityReport(buckets=buckets)
-
-
-def report_as_dict(report: CatalogIntegrityReport) -> dict[str, Any]:
-    return {
-        "ok": report.ok,
-        "blocking_orphans": report.blocking_orphans,
-        "advisory_orphans": report.advisory_orphans,
-        "buckets": {
-            bucket.name: {
-                "product": bucket.product_orphans,
-                "plugin": bucket.plugin_orphans,
-                "blocking": bucket.blocking,
-            }
-            for bucket in report.buckets
-        },
-    }

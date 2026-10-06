@@ -48,12 +48,6 @@ class CelerySettingsTests(SimpleTestCase):
         ):
             self.assertEqual(task.queue, "email")
 
-    def test_search_sync_tasks_use_default_queue(self) -> None:
-        from search.tasks import sync_plugin_task, sync_product_task
-
-        for task in (sync_product_task, sync_plugin_task):
-            self.assertNotEqual(getattr(task, "queue", None), "email")
-
     def test_celery_app_loads(self) -> None:
         from config.celery import app
 

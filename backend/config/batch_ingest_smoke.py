@@ -2,7 +2,7 @@
 
 Validates frozen column headers in ``docs/fixtures/batch-ingest/``, dry-runs
 the Feature 16 ready-to-import gate via ``CatalogImportService``, and optionally
-applies happy-path import → QA approve → Meilisearch reindex.
+applies happy-path import → QA approve.
 """
 
 from __future__ import annotations
@@ -434,7 +434,7 @@ def _pick_reviewer() -> User:
 
 
 def _apply_happy_path() -> tuple[str, list[str]]:
-    """Import happy fixture → approve → reindex. Returns (sku, warnings)."""
+    """Import happy fixture → approve. Returns (sku, warnings)."""
     warnings: list[str] = []
     _ensure_furniture_category()
     reviewer = _pick_reviewer()
@@ -475,8 +475,6 @@ def _apply_happy_path() -> tuple[str, list[str]]:
         raise BatchIngestSmokeError(
             f"Unexpected status after import: {product.status}"
         )
-
-    warnings.append("Postgres search — reindex not required")
 
     return sku, warnings
 

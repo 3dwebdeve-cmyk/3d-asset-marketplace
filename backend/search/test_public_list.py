@@ -10,7 +10,6 @@ from accounts.throttles import CatalogSearchRateThrottle
 from categories.models import Category
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
-from search.services import hydrate_products, search_published_products
 
 
 class PostgresPublicSearchApiTests(APITestCase):
@@ -75,13 +74,6 @@ class PostgresPublicSearchApiTests(APITestCase):
 
         browse = self.client.get(self.list_url)
         self.assertEqual(browse.status_code, status.HTTP_200_OK)
-
-    def test_meili_helpers_are_noops(self) -> None:
-        self.assertIsNone(
-            search_published_products(query="chair", page=1, page_size=10)
-        )
-        ordered = hydrate_products([self.table.pk, self.chair.pk])
-        self.assertEqual([item.slug for item in ordered], ["pine-table", "oak-chair"])
 
 
 class PostgresPluginSearchApiTests(APITestCase):
