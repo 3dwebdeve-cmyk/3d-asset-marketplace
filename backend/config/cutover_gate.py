@@ -196,15 +196,16 @@ def _check_email(profile: CutoverProfile, *, require_smtp: bool) -> CutoverCheck
 
 
 def _check_stripe(profile: CutoverProfile) -> CutoverCheck:
-    if profile == "production":
+    payment_mode = getattr(settings, "STRIPE_PAYMENT_MODE", "test")
+    if profile == "production" and payment_mode == "live":
         report = collect_stripe_config_report(require_live_mode=True)
-    elif profile == "staging":
+    elif profile in {"staging", "production"}:
         report = collect_stripe_config_report(require_test_mode=True)
     else:
         report = collect_stripe_config_report()
 
     detail = (
-        f"secret={report.secret_mode} publishable={report.publishable_mode} "
+        f"payment_mode={payment_mode} secret={report.secret_mode} publishable={report.publishable_mode} "
         f"webhook_set={report.webhook_secret_set} "
         f"webhook_valid={report.webhook_secret_looks_valid} "
         f"E2E_SIMULATE={report.e2e_simulate}"
@@ -223,6 +224,10 @@ def _check_stripe(profile: CutoverProfile) -> CutoverCheck:
             detail=f"{detail}; issues={len(report.warnings)}",
             blocking=True,
         )
+    if profile == "staging" and payment_mode != "test":
+        return CutoverCheck(name="stripe", ok=False, detail=detail + "; staging requires test payments")
+    if profile == "production" and payment_mode == "test" and report.e2e_simulate:
+        return CutoverCheck(name="stripe", ok=False, detail=detail + "; simulation forbidden")
     return CutoverCheck(name="stripe", ok=True, detail=detail)
 
 
@@ -427,7 +432,7 @@ def _manual_reminders(profile: CutoverProfile) -> tuple[str, ...]:
     )
     if profile == "production":
         return base + (
-            "Switch Stripe Dashboard webhook + sk_live_/pk_live_ only after staging OK",
+            "Keep Stripe test keys for this release; live activation is a separate decision",
             "Cut DNS / Cloudflare proxied; confirm TLS + HSTS after HTTPS works",
         )
     if profile == "staging":

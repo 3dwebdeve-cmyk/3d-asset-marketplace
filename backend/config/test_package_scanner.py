@@ -1,8 +1,10 @@
 import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -58,3 +60,19 @@ class ScannerReadinessTests(SimpleTestCase):
         call_command("check_package_scanner", stdout=out)
         connection.sendall.assert_called_once_with(b"zPING\0")
         self.assertIn("scanner reachable", out.getvalue())
+
+    @patch("accounts.management.commands.check_package_scanner.socket.create_connection")
+    def test_signature_freshness_is_checked(self, connect):
+        ping = MagicMock()
+        ping.__enter__.return_value.recv.return_value = b"PONG\0"
+        version = MagicMock()
+        date = format_datetime(datetime.now(timezone.utc) - timedelta(days=1))
+        version.__enter__.return_value.recv.return_value = f"ClamAV 1.0/123/{date}\0".encode()
+        connect.side_effect = [ping, version]
+        call_command("check_package_scanner", check_signatures=True, stdout=StringIO())
+        stale = MagicMock()
+        old = format_datetime(datetime.now(timezone.utc) - timedelta(days=5))
+        stale.__enter__.return_value.recv.return_value = f"ClamAV 1.0/123/{old}\0".encode()
+        connect.side_effect = [ping, stale]
+        with self.assertRaises(CommandError):
+            call_command("check_package_scanner", check_signatures=True, stdout=StringIO())

@@ -17,7 +17,17 @@ class BackgroundJob(models.Model):
     available_at = models.DateTimeField(default=timezone.now, db_index=True)
     lease_id = models.UUIDField(null=True)
     lease_until = models.DateTimeField(null=True)
+    started_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class BackgroundWorker(models.Model):
+    """Per-process heartbeat; retained briefly for worker diagnostics."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    started_at = models.DateTimeField(auto_now_add=True)
+    heartbeat_at = models.DateTimeField(default=timezone.now, db_index=True)
+    current_job_id = models.BigIntegerField(null=True, blank=True)
 
 
 class OutboundEmailLog(models.Model):

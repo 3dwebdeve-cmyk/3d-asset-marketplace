@@ -39,16 +39,20 @@ export SENTRY_RELEASE="${SENTRY_RELEASE:-$WEB_IMAGE}"
 echo "Rolling back Compose app services to:"
 echo "  WEB_IMAGE=$WEB_IMAGE  (web)"
 echo "  FRONTEND_IMAGE=$FRONTEND_IMAGE"
+echo "  worker uses WEB_IMAGE; Compose files=${COMPOSE_FILE:-default}"
 echo "  (postgres unchanged — no migrate reverse)"
 echo ""
 
-docker compose up -d --no-deps --force-recreate web frontend
+docker compose config --quiet
+docker compose up -d --no-deps --force-recreate --wait --wait-timeout 180 web worker frontend
 
 echo ""
-echo "Waiting for web healthcheck..."
-# Compose healthcheck already polls; give containers a moment then show status.
-sleep 5
-docker compose ps web frontend
+echo "Verifying web, worker, and frontend readiness..."
+BASE_URL="${ROLLBACK_BASE_URL:-http://localhost:${FRONTEND_PORT:-8080}}"
+curl --fail --silent --show-error "${BASE_URL%/}/api/v1/healthz/" >/dev/null
+curl --fail --silent --show-error "${BASE_URL%/}/" >/dev/null
+docker compose exec -T worker python manage.py check_background_jobs
+docker compose ps web worker frontend
 
 echo ""
 echo "Next:"

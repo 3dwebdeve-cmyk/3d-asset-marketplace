@@ -25,6 +25,7 @@ cd "$ROOT_DIR"
 SCHEDULE="${BACKUP_CRON_SCHEDULE:-15 2 * * *}"
 RETENTION="${BACKUP_RETENTION_DAYS:-14}"
 UPLOAD_R2="${BACKUP_UPLOAD_R2:-1}"
+BACKUP_OBJECTS="${BACKUP_OBJECTS:-1}"
 LOG_FILE="${BACKUP_CRON_LOG:-/var/log/marketplace-backup.log}"
 SCRIPT="${ROOT_DIR}/backend/scripts/backup_postgres.sh"
 MARKER="backend/scripts/backup_postgres.sh"
@@ -42,7 +43,7 @@ if [[ ! "$RETENTION" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
-CRON_LINE="${SCHEDULE} cd ${ROOT_DIR} && BACKUP_RETENTION_DAYS=${RETENTION} BACKUP_UPLOAD_R2=${UPLOAD_R2} ${SCRIPT} >> ${LOG_FILE} 2>&1"
+CRON_LINE="${SCHEDULE} cd ${ROOT_DIR} && BACKUP_RETENTION_DAYS=${RETENTION} BACKUP_UPLOAD_R2=${UPLOAD_R2} BACKUP_OBJECTS=${BACKUP_OBJECTS} ${SCRIPT} >> ${LOG_FILE} 2>&1"
 
 if [[ "${INSTALL_BACKUP_CRON_DRY_RUN:-0}" == "1" ]]; then
   echo "install_backup_cron: dry-run line:"
@@ -64,7 +65,7 @@ FILTERED="$(printf '%s\n' "$EXISTING" | grep -vF "$MARKER" || true)"
 } | grep -v '^$' | crontab -
 
 echo "install_backup_cron: installed"
-echo "install_backup_cron: schedule=${SCHEDULE} retention_days=${RETENTION} upload_r2=${UPLOAD_R2}"
+echo "install_backup_cron: schedule=${SCHEDULE} retention_days=${RETENTION} upload_r2=${UPLOAD_R2} objects=${BACKUP_OBJECTS}"
 echo "install_backup_cron: log=${LOG_FILE}"
 echo "install_backup_cron: confirm with: crontab -l | grep backup_postgres"
 echo "install_backup_cron: configure Cloudflare R2 lifecycle on backups/postgres/ separately (30–90 days)."
