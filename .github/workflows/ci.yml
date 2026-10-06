@@ -171,8 +171,19 @@ jobs:
 
       - name: Verify actual outbox worker and release migration
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T worker \
-            python manage.py check_background_jobs
+          for i in $(seq 1 12); do
+            if docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T worker \
+              python manage.py check_background_jobs; then
+              break
+            fi
+            if [ "$i" -eq 12 ]; then
+              echo "Outbox worker never reported a live heartbeat"
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps -a
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color --tail=200 worker
+              exit 1
+            fi
+            sleep 5
+          done
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \
             python manage.py migrate --check
 
