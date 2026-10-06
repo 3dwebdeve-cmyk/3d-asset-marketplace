@@ -32,6 +32,7 @@ RUN chmod +x /app/entrypoint.sh \
 RUN SECRET_KEY=build-only-secret-key-at-least-32-bytes-long \
     DB_NAME=build DB_USER=build DB_PASSWORD=build \
     DEPLOYMENT_PROFILE=development \
+    ALLOW_LOCALHOST_FRONTEND=True ALLOW_CONSOLE_EMAIL=True \
     python manage.py collectstatic --noinput
 
 USER app
