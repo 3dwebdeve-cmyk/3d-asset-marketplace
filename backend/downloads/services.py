@@ -16,8 +16,6 @@ from orders.entitlements import user_owns_catalog_item
 from orders.models import Order, OrderItem
 from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
-from search.tasks import enqueue_sync_plugin, enqueue_sync_product
-
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -358,12 +356,10 @@ class DownloadService:
                 Product.objects.filter(pk=product_id).update(
                     total_downloads=F("total_downloads") + 1
                 )
-                enqueue_sync_product(product_id)
             else:
                 Plugin.objects.filter(pk=product_id).update(
                     total_downloads=F("total_downloads") + 1
                 )
-                enqueue_sync_plugin(product_id)
 
     @classmethod
     def _deliver_owned_file(

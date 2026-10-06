@@ -14,8 +14,6 @@ from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
 from plugins.storage import PluginMediaStorageService
 from plugins.upload_rules import ValidatedPluginFileUpload
 from products.upload_rules import ValidatedProductImageUpload
-from search.tasks import enqueue_sync_plugin
-
 
 class PluginError(Exception):
     def __init__(self, message: str, field: str | None = None) -> None:
@@ -328,7 +326,6 @@ class PluginService:
             license_type=cls._normalize_license(data.license_type),
             status=status,
         )
-        enqueue_sync_plugin(plugin.pk)
         return plugin
 
     @classmethod
@@ -393,7 +390,6 @@ class PluginService:
             cls._validate_publish_ready(plugin)
         plugin.save(update_fields=list(dict.fromkeys(update_fields)))
         updated = cls.get_by_id(plugin.pk)
-        enqueue_sync_plugin(updated.pk)
         return updated
 
     @classmethod

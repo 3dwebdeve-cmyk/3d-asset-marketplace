@@ -97,8 +97,6 @@ class DeploySystemChecksTests(SimpleTestCase):
     CORS_ALLOWED_ORIGINS=["http://localhost:5173"],
     PUBLIC_API_BASE_URL="http://127.0.0.1:8000",
     CSRF_TRUSTED_ORIGINS=[],
-    REDIS_URL="",
-    MEILI_MASTER_KEY="dev_master_key_change_me",
     DATABASES={
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -126,8 +124,6 @@ class CheckDeployConfigLocalTests(TestCase):
     CSRF_TRUSTED_ORIGINS=[],
     SECURE_SSL_REDIRECT=False,
     SECURE_HSTS_SECONDS=0,
-    REDIS_URL="",
-    MEILI_MASTER_KEY="",
     ALLOW_LOCALHOST_FRONTEND=True,
     ALLOW_CONSOLE_EMAIL=True,
     DATABASES={
@@ -148,13 +144,10 @@ class CheckDeployConfigProdGapsTests(TestCase):
         self.assertTrue(report.secret_key_is_example)
         self.assertTrue(report.allowed_hosts_local_only)
         self.assertTrue(report.db_password_weak)
-        self.assertFalse(report.meili_master_key_weak)
-        self.assertFalse(report.redis_url_set)
         self.assertTrue(report.allow_localhost_frontend)
         self.assertTrue(report.allow_console_email)
         self.assertGreaterEqual(len(report.warnings), 4)
         joined = " ".join(report.warnings)
-        self.assertNotIn("REDIS_URL", joined)
         self.assertIn("DJANGO_ADMIN", joined)
         self.assertIn("ADMIN_CONSOLE_ALLOWED_IPS", joined)
 
@@ -169,10 +162,8 @@ class CheckDeployConfigProdGapsTests(TestCase):
     CSRF_TRUSTED_ORIGINS=["https://shop.example.com"],
     SECURE_SSL_REDIRECT=True,
     SECURE_HSTS_SECONDS=31536000,
-    REDIS_URL="",
     DJANGO_ADMIN_ENABLED=False,
     ADMIN_CONSOLE_ALLOWED_IPS=["10.0.0.0/8"],
-    MEILI_MASTER_KEY="",
     ALLOW_LOCALHOST_FRONTEND=False,
     ALLOW_CONSOLE_EMAIL=False,
     DATABASES={
@@ -206,10 +197,8 @@ class CheckDeployConfigReadyTests(TestCase):
     CSRF_TRUSTED_ORIGINS=["https://shop.example.com"],
     SECURE_SSL_REDIRECT=True,
     SECURE_HSTS_SECONDS=31536000,
-    REDIS_URL="",
     DJANGO_ADMIN_ENABLED=False,
     ADMIN_CONSOLE_ALLOWED_IPS=["10.0.0.0/8"],
-    MEILI_MASTER_KEY="",
     ALLOW_LOCALHOST_FRONTEND=False,
     ALLOW_CONSOLE_EMAIL=False,
     DATABASES={

@@ -54,9 +54,6 @@ class ProductionGuardTests(SimpleTestCase):
     def test_celery_runs_eager_without_redis(self) -> None:
         self.assertEqual(settings.CELERY_BROKER_URL, "memory://")
         self.assertTrue(settings.CELERY_TASK_ALWAYS_EAGER)
-        self.assertEqual(settings.REDIS_URL, "")
-        self.assertFalse(settings.MEILI_REQUIRED)
-        self.assertEqual(settings.MEILI_URL, "")
 
     def test_static_root_configured(self) -> None:
         self.assertTrue(str(settings.STATIC_ROOT).endswith("staticfiles"))

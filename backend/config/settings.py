@@ -344,9 +344,6 @@ if DEPLOYMENT_PROFILE in {"staging", "production"}:
 # idempotency keys are shared by every Gunicorn worker and survive restarts.
 # Table is created by `manage.py createcachetable` (entrypoint.sh).
 # MAX_ENTRIES must stay high: culling a small cache would wipe throttle counters.
-# REDIS_URL kept as an empty stub so older health checks / env files stay harmless.
-REDIS_URL = ""
-REDIS_PASSWORD = ""
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
@@ -391,11 +388,6 @@ CELERY_TASK_ROUTES = {
     "orders.send_payment_receipt": {"queue": "email"},
     "contact.send_submission": {"queue": "email"},
 }
-
-# Catalog search is Postgres icontains only (Meilisearch removed).
-MEILI_URL = ""
-MEILI_MASTER_KEY = ""
-MEILI_REQUIRED = False
 
 # Legal document versions required at register + checkout (Phase I).
 # Bump a version string when Terms/Privacy change; clients must re-accept.

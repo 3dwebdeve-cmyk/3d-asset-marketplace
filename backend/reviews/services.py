@@ -12,8 +12,6 @@ from plugins.models import Plugin
 from products.models import Product
 from reviews.models import Review
 from orders.entitlements import user_owns_catalog_item
-from search.tasks import enqueue_sync_plugin, enqueue_sync_product
-
 User = get_user_model()
 
 ALLOWED_PUBLIC_ORDERING = {
@@ -243,14 +241,12 @@ class ReviewService:
                 average_rating=average,
                 review_count=count,
             )
-            enqueue_sync_product(product_id)
             return
 
         Plugin.objects.filter(pk=product_id).update(
             average_rating=average,
             review_count=count,
         )
-        enqueue_sync_plugin(product_id)
 
     @classmethod
     def _normalize_product_type(cls, product_type: str) -> str:
