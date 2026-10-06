@@ -113,7 +113,7 @@ export function AddToCartButton({
           returnTo={returnTo}
           className={`ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link ${className ?? ''}`.trim()}
         >
-          Sign in to add to cart
+          Add to cart
         </AuthEntryButton>
       )
     }

@@ -75,7 +75,7 @@ export function CommerceCtaGroup({
           : 'ui-button ui-button--primary product-detail-cta__buy product-detail-cta__link'
       }
     >
-      Sign in to buy
+      {isBuybox ? 'Buy Now' : 'Buy now'}
     </AuthEntryButton>
   )
 

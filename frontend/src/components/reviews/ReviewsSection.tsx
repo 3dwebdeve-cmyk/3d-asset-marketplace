@@ -165,16 +165,34 @@ export function ReviewsSection({
   const formPanel = (
     <div className="product-detail-reviews__form-panel">
       {!isSignedIn ? (
-        <p className="product-detail-reviews__gate">
+        <div className="product-detail-reviews__form product-detail-reviews__form--guest">
+          <div className="form-field">
+            <label className="visually-hidden" htmlFor="guest-review-text">
+              Comment
+            </label>
+            <div className="product-detail-reviews__textarea-wrap">
+              <textarea
+                id="guest-review-text"
+                className="auth-input product-detail-reviews__textarea"
+                rows={5}
+                maxLength={2000}
+                placeholder="Write a comment or ask about Blender/Unreal compatibility…"
+                {...register('review_text')}
+              />
+              <p className="product-detail-reviews__counter" aria-live="polite">
+                {reviewText.length} / 2000
+              </p>
+            </div>
+          </div>
           <AuthEntryButton
             mode="login"
             returnTo={location.pathname}
-            className="auth-link auth-link--button"
+            className="ui-button ui-button--primary product-detail-reviews__submit"
+            disabled={!reviewText.trim()}
           >
-            Sign in
-          </AuthEntryButton>{' '}
-          to leave a review or comment. Everyone can read the comments.
-        </p>
+            Send
+          </AuthEntryButton>
+        </div>
       ) : isEligibilityLoading ? (
         <Spinner label="Checking review eligibility..." />
       ) : (
