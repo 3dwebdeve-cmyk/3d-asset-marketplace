@@ -18,6 +18,7 @@ export interface CommerceCtaGroupProps {
   variant?: CommerceCtaVariant
   showWishlist?: boolean
   showCheckoutNote?: boolean
+  showShare?: boolean
 }
 
 export function CommerceCtaGroup({
@@ -28,6 +29,7 @@ export function CommerceCtaGroup({
   variant = 'stacked',
   showWishlist = false,
   showCheckoutNote = false,
+  showShare = true,
 }: CommerceCtaGroupProps) {
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -77,7 +79,7 @@ export function CommerceCtaGroup({
     </AuthEntryButton>
   )
 
-  const shareControl = isBuybox ? (
+  const shareControl = !showShare ? null : isBuybox ? (
     <button
       type="button"
       className="product-detail-cta__share-link"
