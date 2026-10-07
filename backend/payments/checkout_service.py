@@ -36,6 +36,31 @@ logger = logging.getLogger(__name__)
 
 
 class CheckoutService:
+    @staticmethod
+    def _stripe_error_code(exc: stripe.error.StripeError) -> str:
+        code = str(getattr(exc, "code", "") or "")
+        if code:
+            return code
+        body = getattr(exc, "json_body", None)
+        if isinstance(body, dict):
+            error = body.get("error")
+            if isinstance(error, dict):
+                return str(error.get("code") or "")
+        return ""
+
+    @classmethod
+    def _expire_local_pending_checkout(cls, payment: Payment) -> None:
+        """Close a verified-stale local checkout without touching paid rows."""
+        with transaction.atomic():
+            locked = Payment.objects.select_for_update().get(pk=payment.pk)
+            if locked.status != Payment.Status.PENDING:
+                raise CheckoutError('An earlier checkout changed while retrying.')
+            locked.status = Payment.Status.EXPIRED
+            locked.save(update_fields=['status', 'updated_at'])
+            CheckoutAttempt.objects.filter(order_id=locked.order_id).update(
+                status=CheckoutAttempt.Status.EXPIRED,
+            )
+
     @classmethod
     def _request_payload(cls, order: Order, user: User) -> dict[str, Any]:
         frontend_base_url = settings.FRONTEND_BASE_URL.rstrip("/")
@@ -199,6 +224,7 @@ class CheckoutService:
     @classmethod
     def _supersede_other_checkouts(cls, user, *, current_order_id, simulate: bool) -> None:
         """Expire earlier open sessions before a changed cart gets another one."""
+        payment_mode = getattr(settings, "STRIPE_PAYMENT_MODE", "test")
         old_payments = Payment.objects.select_related('order').filter(
             order__user=user, status=Payment.Status.PENDING,
             order__order_status=Order.OrderStatus.PENDING,
@@ -211,22 +237,45 @@ class CheckoutService:
                 try:
                     remote = stripe.checkout.Session.retrieve(session_id)
                     remote_status = str(session_value(remote, 'status') or '')
+                    remote_payment_status = str(
+                        session_value(remote, 'payment_status') or ''
+                    )
                     if remote_status == 'open':
                         stripe.checkout.Session.expire(session_id)
                         remote_status = 'expired'
                 except stripe.error.StripeError as exc:
+                    error_code = cls._stripe_error_code(exc)
+                    if payment_mode == "test" and error_code == "resource_missing":
+                        # Sandbox sessions may disappear after test data is
+                        # cleared or the account/key is changed. They cannot be
+                        # charged through the currently configured test account,
+                        # so release only the local pending checkout. Live mode
+                        # intentionally remains fail-closed.
+                        logger.warning(
+                            "expiring_missing_sandbox_checkout order_id=%s session_id=%s",
+                            payment.order_id,
+                            session_id,
+                        )
+                        cls._expire_local_pending_checkout(payment)
+                        continue
                     raise CheckoutError('An earlier checkout needs verification before retrying.') from exc
+            if (
+                payment_mode == "test"
+                and remote_status == "complete"
+                and remote_payment_status == "unpaid"
+            ):
+                # A completed-but-unpaid sandbox session cannot accept another
+                # payment. Release the stale local row so testers can retry.
+                logger.warning(
+                    "expiring_unpaid_completed_sandbox_checkout order_id=%s session_id=%s",
+                    payment.order_id,
+                    session_id,
+                )
+                cls._expire_local_pending_checkout(payment)
+                continue
             if remote_status != 'expired':
                 raise CheckoutError('An earlier checkout needs verification before retrying.')
-            with transaction.atomic():
-                locked = Payment.objects.select_for_update().get(pk=payment.pk)
-                if locked.status != Payment.Status.PENDING:
-                    raise CheckoutError('An earlier checkout changed while retrying.')
-                locked.status = Payment.Status.EXPIRED
-                locked.save(update_fields=['status', 'updated_at'])
-                CheckoutAttempt.objects.filter(order_id=locked.order_id).update(
-                    status=CheckoutAttempt.Status.EXPIRED,
-                )
+            cls._expire_local_pending_checkout(payment)
 
         # An unresolved attempt may have created a session remotely even though
         # its local Payment row is absent. Require recovery before changing carts.
