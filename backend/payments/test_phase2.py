@@ -226,6 +226,90 @@ class CheckoutRecoveryTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(old_payment.status, Payment.Status.EXPIRED)
         self.assertEqual(old_attempt.status, CheckoutAttempt.Status.EXPIRED)
 
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
+    def test_paid_pending_checkout_is_fulfilled_before_new_checkout(self, retrieve, create):
+        old_order = OrderService.create_from_cart(self.user)
+        old_payment = Payment.objects.create(
+            order=old_order,
+            stripe_checkout_session_id="cs_paid_old",
+            amount=old_order.total_amount,
+            currency=old_order.currency,
+        )
+        self._add_to_cart("plugin", self.plugin.pk)
+        retrieve.return_value = {
+            "id": "cs_paid_old",
+            "status": "complete",
+            "payment_status": "paid",
+            "payment_intent": "pi_paid_old",
+            "amount_total": 4999,
+            "currency": "usd",
+            "client_reference_id": str(self.user.pk),
+            "metadata": {"order_id": str(old_order.pk)},
+        }
+        create.return_value = _fake_session("cs_after_paid_old")
+
+        result = CheckoutService.create_checkout_session(self.user)
+
+        self.assertEqual(result["checkout_url"], _fake_session("cs_after_paid_old").url)
+        old_payment.refresh_from_db()
+        old_order.refresh_from_db()
+        self.assertEqual(old_payment.status, Payment.Status.SUCCEEDED)
+        self.assertEqual(old_order.payment_status, Order.PaymentStatus.PAID)
+        new_order = Order.objects.get(pk=result["order_id"])
+        self.assertEqual(
+            list(new_order.items.values_list("product_type", flat=True)),
+            ["plugin"],
+        )
+
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
+    def test_stale_matching_attempt_starts_a_new_checkout(self, retrieve, create):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        old_order = OrderService.create_from_cart(self.user)
+        old_payment = Payment.objects.create(
+            order=old_order,
+            stripe_checkout_session_id="cs_stale_expired",
+            amount=old_order.total_amount,
+            currency=old_order.currency,
+        )
+        old_attempt = CheckoutAttempt.objects.create(
+            order=old_order,
+            status=CheckoutAttempt.Status.REVIEW,
+            stripe_checkout_session_id="cs_stale_expired",
+        )
+        stale_at = timezone.now() - timedelta(hours=24)
+        CheckoutAttempt.objects.filter(pk=old_attempt.pk).update(created_at=stale_at)
+        Order.objects.filter(pk=old_order.pk).update(created_at=stale_at)
+        sessionless_order = Order.objects.create(
+            user=self.user,
+            invoice_number="STALE-PREPARED",
+            total_amount="1.00",
+        )
+        sessionless = CheckoutAttempt.objects.create(
+            order=sessionless_order,
+            status=CheckoutAttempt.Status.PREPARED,
+        )
+        retrieve.return_value = {
+            "id": "cs_stale_expired",
+            "status": "expired",
+            "payment_status": "unpaid",
+        }
+        create.return_value = _fake_session("cs_after_stale")
+
+        result = CheckoutService.create_checkout_session(self.user)
+
+        self.assertNotEqual(result["order_id"], str(old_order.pk))
+        self.assertEqual(result["checkout_url"], _fake_session("cs_after_stale").url)
+        old_payment.refresh_from_db()
+        old_attempt.refresh_from_db()
+        sessionless.refresh_from_db()
+        self.assertEqual(old_payment.status, Payment.Status.EXPIRED)
+        self.assertEqual(old_attempt.status, CheckoutAttempt.Status.EXPIRED)
+        self.assertEqual(sessionless.status, CheckoutAttempt.Status.EXPIRED)
+
     def test_legacy_pending_payment_is_backfilled_for_reconciliation(self):
         order = OrderService.create_from_cart(self.user)
         payment = Payment.objects.create(
