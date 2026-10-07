@@ -163,6 +163,24 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Order.objects.count(), 0)
 
+    @patch(
+        "payments.views.CheckoutService.create_checkout_session",
+        side_effect=RuntimeError("unexpected checkout failure"),
+    )
+    def test_unexpected_error_returns_safe_json_response(self, _mock_checkout) -> None:
+        self._authenticate()
+
+        with self.assertLogs("payments.views", level="ERROR") as captured:
+            response = self.client.post(self.checkout_url)
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(response.data["code"], "checkout_internal_error")
+        self.assertEqual(
+            response.data["detail"],
+            "Unable to start checkout. Please try again.",
+        )
+        self.assertIn("checkout_session_create_failed", captured.output[0])
+
     @override_settings(
         E2E_STRIPE_SIMULATE=True,
         STRIPE_SECRET_KEY="sk_test_e2e_dummy",

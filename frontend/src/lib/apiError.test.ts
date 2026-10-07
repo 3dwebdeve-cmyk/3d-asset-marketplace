@@ -68,6 +68,13 @@ describe('getApiErrorMessage', () => {
       'SKU is required before publish. At least one sellable package file is required before publish.',
     )
   })
+
+  it('uses the caller context for an HTML 500 response', () => {
+    const error = axiosError(500, '<html>Server Error</html>' as unknown as ApiErrorResponse)
+    expect(getApiErrorMessage(error, 'Could not start checkout. Please try again.')).toBe(
+      'Could not start checkout. Please try again.',
+    )
+  })
 })
 
 describe('isHttpNotFound', () => {
