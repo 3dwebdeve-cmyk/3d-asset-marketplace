@@ -171,10 +171,9 @@ def verify_r2_buckets() -> dict[str, str]:
     return results
 
 
-def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
-    """Short-lived GET URL for a private R2 object. Never call when R2 is off."""
+def _generate_presigned_attachment_url(bucket: str, object_key: str, *, file_name: str) -> str:
     if not getattr(settings, "R2_ENABLED", False):
-        raise RuntimeError("Private presigned URLs require R2.")
+        raise RuntimeError("Presigned URLs require R2.")
 
     key = object_key.lstrip("/")
     if not key or ".." in key:
@@ -186,7 +185,7 @@ def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
         return client.generate_presigned_url(
             "get_object",
             Params={
-                "Bucket": str(settings.R2_PRIVATE_BUCKET),
+                "Bucket": bucket,
                 "Key": key,
                 "ResponseContentDisposition": (
                     f'attachment; filename="{content_disposition_filename(file_name)}"'
@@ -196,3 +195,17 @@ def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
         )
 
     return call_with_storage_retries(_presign)
+
+
+def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
+    """Short-lived GET URL for a private R2 object. Never call when R2 is off."""
+    return _generate_presigned_attachment_url(
+        str(settings.R2_PRIVATE_BUCKET), object_key, file_name=file_name
+    )
+
+
+def generate_public_presigned_url(object_key: str, *, file_name: str) -> str:
+    """Short-lived attachment GET URL for a public R2 object (forces download)."""
+    return _generate_presigned_attachment_url(
+        str(settings.R2_PUBLIC_BUCKET), object_key, file_name=file_name
+    )

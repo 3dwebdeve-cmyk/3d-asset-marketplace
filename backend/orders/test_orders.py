@@ -1000,6 +1000,10 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         catalog_ids = {item["id"] for item in catalog.data["results"]}
         self.assertIn(str(self.order.id), catalog_ids)
         self.assertNotIn(str(custom_order.id), catalog_ids)
+        catalog_row = next(
+            item for item in catalog.data["results"] if item["id"] == str(self.order.id)
+        )
+        self.assertEqual(catalog_row["item_count"], 2)
 
         custom = self.client.get(self.list_url, {"item_type": "custom_project"})
         self.assertEqual(custom.status_code, status.HTTP_200_OK)

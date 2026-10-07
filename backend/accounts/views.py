@@ -321,12 +321,17 @@ class CookieTokenRefreshView(APIView):
                     raise TokenError("Token is invalid or expired")
                 old_refresh.blacklist()
                 tokens = AuthenticationService.build_tokens(user)
-        except TokenError:
+        except TokenError as exc:
             response = Response(
                 {"detail": "Token is invalid or expired", "code": "token_not_valid"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-            clear_refresh_cookie(response)
+            # An already-rotated token is rejected, but deleting the cookie here
+            # races the successful rotation's Set-Cookie and signs the buyer out
+            # when checkout returns from Stripe. Expired or malformed tokens
+            # still clear the dead cookie.
+            if "blacklist" not in str(exc).lower():
+                clear_refresh_cookie(response)
             return response
 
         response = Response({"access": tokens["access"]}, status=status.HTTP_200_OK)

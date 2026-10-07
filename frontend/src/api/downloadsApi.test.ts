@@ -4,6 +4,7 @@ import { apiClient } from './client'
 import {
   buildCatalogDownloadPath,
   downloadCatalogFile,
+  downloadCatalogFileByUrl,
   listAdminDownloadHistory,
   listDownloadEntitlements,
   listDownloadHistory,
@@ -110,6 +111,36 @@ describe('downloadsApi', () => {
     expect(anchor.download).toBe('hero.zip')
     expect(anchor.target).toBe('_blank')
     expect(click).toHaveBeenCalled()
+  })
+
+  it('requests only the downloads path from an absolute API link', async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: new Blob(['glb']),
+      headers: { 'content-type': 'model/gltf-binary' },
+    })
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const anchor = { click: vi.fn(), href: '', download: '', rel: '', target: '' } as unknown as HTMLAnchorElement
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+
+    const absolute =
+      'http://127.0.0.1:8000/api/v1/downloads/products/prod-id/files/file-id/download/'
+    await downloadCatalogFileByUrl(absolute, 'tree.glb')
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/api/v1/downloads/products/prod-id/files/file-id/download/',
+      { responseType: 'blob' },
+    )
+  })
+
+  it('rejects catalog download paths outside the downloads API', async () => {
+    await expect(downloadCatalogFileByUrl('https://evil.example/steal', 'pack.zip')).rejects.toThrow(
+      'Invalid download URL.',
+    )
+    await expect(
+      downloadCatalogFileByUrl('/api/v1/downloads/../auth/logout/', 'pack.zip'),
+    ).rejects.toThrow('Invalid download URL.')
+    expect(apiClient.get).not.toHaveBeenCalled()
   })
 
   it('rejects non-http signed URLs', async () => {

@@ -31,6 +31,7 @@ vi.mock('../../api/ordersApi', async () => {
   return {
     ...actual,
     listCustomerOrders: vi.fn(),
+    downloadCustomerOrderInvoice: vi.fn(),
   }
 })
 
@@ -64,11 +65,11 @@ const catalogInvoice: CustomerOrderListItem = {
   updated_at: '2026-09-17T00:00:00Z',
 }
 
-function renderMyDownloadsPage() {
+function renderMyDownloadsPage(initialEntry = '/dashboard/downloads') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <MyDownloadsPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -147,6 +148,40 @@ describe('MyDownloadsPage', () => {
     ).toHaveAttribute('href', `/dashboard/orders/${catalogInvoice.id}`)
     expect(ordersApi.listCustomerOrders).toHaveBeenCalledWith(
       expect.objectContaining({ item_type: 'catalog' }),
+    )
+  })
+
+  it('keeps purchases without downloadable files visible in the library', async () => {
+    vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([
+      { ...entitlement, files: [] },
+    ])
+    renderMyDownloadsPage()
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('Hero Sword')).toBeInTheDocument()
+    expect(within(table).getByText(/no downloadable files yet/i)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/do not have any downloadable purchases yet/i),
+    ).not.toBeInTheDocument()
+  })
+
+  it('opens the invoices tab from ?tab=invoices and downloads an invoice PDF', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ordersApi.downloadCustomerOrderInvoice).mockResolvedValue(undefined)
+    renderMyDownloadsPage('/dashboard/downloads?tab=invoices')
+
+    expect(screen.getByRole('tab', { name: /^invoices$/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await user.click(
+      await screen.findByRole('button', {
+        name: `Download invoice ${catalogInvoice.invoice_number}`,
+      }),
+    )
+    expect(ordersApi.downloadCustomerOrderInvoice).toHaveBeenCalledWith(
+      catalogInvoice.id,
+      catalogInvoice.invoice_number,
     )
   })
 })

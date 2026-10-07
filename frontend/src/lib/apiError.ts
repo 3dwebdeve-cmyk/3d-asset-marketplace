@@ -27,7 +27,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
       return 'Service endpoint not found. Please restart the backend and try again.'
     }
     if (status === 500) {
-      return 'Server error during sign-in. Please try again.'
+      return fallback
     }
     return fallback
   }

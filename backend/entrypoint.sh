@@ -36,6 +36,12 @@ while True:
         time.sleep(1)
 PY
 
+# Render's free tier does not provide an interactive shell or pre-deploy
+# command. Apply committed migrations after PostgreSQL is reachable and before
+# Gunicorn starts so the running code and database schema stay in sync.
+echo "Applying database migrations..."
+python manage.py migrate --noinput
+
 case "${SKIP_STARTUP_CUTOVER:-}" in
   1|true|True|yes|YES|on|ON) ;;
   *)

@@ -152,6 +152,29 @@ describe('CustomerOrderDetailPage', () => {
     )
   })
 
+  it('shows a placeholder when a paid item has no downloadable files', async () => {
+    vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue({
+      ...paidOrder,
+      items: [{ ...paidOrder.items[0], files: [] }],
+    })
+    renderCustomerOrderDetailPage()
+
+    await screen.findByRole('heading', { name: paidOrder.invoice_number })
+    expect(screen.getByText('No files')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^download$/i })).not.toBeInTheDocument()
+  })
+
+  it('shows an error when the file download fails', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue(paidOrder)
+    vi.mocked(downloadsApi.downloadCatalogFileByUrl).mockRejectedValue(new Error('boom'))
+    renderCustomerOrderDetailPage()
+
+    await screen.findByRole('heading', { name: paidOrder.invoice_number })
+    await user.click(screen.getByRole('button', { name: /^download$/i }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+  })
+
   it('hides download invoice when order is not paid', async () => {
     renderCustomerOrderDetailPage()
 

@@ -139,7 +139,9 @@ class OrderService:
         ordering: str = "-created_at",
         item_type: str | None = None,
     ) -> QuerySet[Order]:
-        queryset = Order.objects.filter(user=user).annotate(item_count=Count("items"))
+        queryset = Order.objects.filter(user=user).annotate(
+            item_count=Count("items", distinct=True)
+        )
         if order_status:
             queryset = queryset.filter(order_status=order_status)
         if payment_status:
@@ -350,12 +352,18 @@ class OrderService:
             from django.utils import timezone
 
             expected = {(kind, pk, qty, price) for kind, pk, qty, price, title, slug in resolved_items}
+            # Stripe drops idempotency keys after 24 hours. Reusing an older
+            # attempt blocks checkout instead of starting a new session.
+            fresh_attempt_after = timezone.now() - timedelta(hours=23)
             candidates = Order.objects.filter(
                 user=user, order_status=Order.OrderStatus.PENDING,
                 payment_status=Order.PaymentStatus.PENDING,
                 total_amount=envelope.totals.total, currency=envelope.totals.currency,
             ).filter(
-                Q(checkout_attempt__status__in=['prepared', 'ready', 'review'])
+                Q(
+                    checkout_attempt__status__in=['prepared', 'ready', 'review'],
+                    checkout_attempt__created_at__gte=fresh_attempt_after,
+                )
                 | Q(created_at__gte=timezone.now() - timedelta(minutes=25), payment__status="pending")
             ).prefetch_related("items").order_by("-created_at")[:10]
             for candidate in candidates:

@@ -368,6 +368,131 @@ class DownloadAPITests(APITestCase):
         self.assertEqual(len(response.data[0]["files"]), 1)
         self.assertEqual(str(response.data[0]["files"][0]["id"]), str(product_file.pk))
 
+    def _preview_download_url(self, preview_file: ProductFile) -> str:
+        return reverse(
+            "downloads:product-file-download",
+            kwargs={"product_id": self.product.pk, "file_id": preview_file.pk},
+        )
+
+    def test_glb_only_product_exposes_preview_to_paid_owner(self) -> None:
+        preview_file = self._upload_product_file(name="model.glb")
+        self.assertTrue(preview_file.is_preview)
+        self.create_paid_order(self.customer)
+        self.authenticate()
+
+        entitlements = self.client.get(self.entitlements_url)
+        self.assertEqual(entitlements.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(entitlements.data), 1)
+        files = entitlements.data[0]["files"]
+        self.assertEqual([str(f["id"]) for f in files], [str(preview_file.pk)])
+        self.assertNotIn("storage_path", files[0])
+
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = b"".join(response.streaming_content)
+        self.assertTrue(content.startswith(b"glTF"))
+        self.assertIn("attachment", response["Content-Disposition"])
+        history = DownloadHistory.objects.get()
+        self.assertEqual(history.file_id, preview_file.pk)
+
+    def test_glb_only_preview_non_owner_returns_404(self) -> None:
+        preview_file = self._upload_product_file(name="model.glb")
+        self.create_paid_order(self.customer)
+        self.authenticate(self.other_customer)
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(DownloadHistory.objects.count(), 0)
+
+    def test_glb_only_preview_unpaid_order_returns_404(self) -> None:
+        preview_file = self._upload_product_file(name="model.glb")
+        OrderService.create(
+            OrderCreateData(
+                user_id=self.customer.pk,
+                items=(
+                    OrderItemCreateData(
+                        product_type="product",
+                        product_id=self.product.pk,
+                        quantity=1,
+                    ),
+                ),
+                currency="USD",
+            )
+        )
+        self.authenticate()
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_preview_not_downloadable_when_package_exists(self) -> None:
+        package_file = self._upload_product_file()
+        preview_file = self._upload_product_file(name="model.glb")
+        self.create_paid_order(self.customer)
+        self.authenticate()
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        detail = self.client.get(
+            reverse("orders:order-detail", kwargs={"order_id": Order.objects.get().pk})
+        )
+        file_ids = [str(f["id"]) for f in detail.data["items"][0]["files"]]
+        self.assertEqual(file_ids, [str(package_file.pk)])
+
+    def test_order_detail_includes_glb_fallback_file(self) -> None:
+        preview_file = self._upload_product_file(name="model.glb")
+        order = self.create_paid_order(self.customer)
+        self.authenticate()
+        response = self.client.get(
+            reverse("orders:order-detail", kwargs={"order_id": order.pk})
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        item = response.data["items"][0]
+        self.assertTrue(item["can_download"])
+        self.assertEqual([str(f["id"]) for f in item["files"]], [str(preview_file.pk)])
+        self.assertIn("/download/", item["files"][0]["download_url"])
+
+    def test_preview_fallback_rejects_non_preview_storage_prefix(self) -> None:
+        preview_file = ProductFile.objects.create(
+            product=self.product,
+            file_name="model.glb",
+            file_format="glb",
+            file_size=12,
+            storage_path=f"products/files/{self.product.pk}/model.glb",
+            is_preview=True,
+        )
+        self.create_paid_order(self.customer)
+        self.authenticate()
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(DownloadHistory.objects.count(), 0)
+
+    @override_settings(R2_ENABLED=True, R2_SIGNED_URL_EXPIRY=300)
+    @patch("config.media.generate_public_presigned_url")
+    @patch("config.media.get_public_storage")
+    def test_glb_only_owner_receives_signed_json_from_public_bucket(
+        self,
+        mock_get_public_storage,
+        mock_presign,
+    ) -> None:
+        preview_file = ProductFile.objects.create(
+            product=self.product,
+            file_name="model.glb",
+            file_format="glb",
+            file_size=12,
+            storage_path=f"products/previews/{self.product.pk}/model.glb",
+            is_preview=True,
+        )
+        self.create_paid_order(self.customer)
+        mock_get_public_storage.return_value.exists.return_value = True
+        mock_presign.return_value = "https://acc.r2.cloudflarestorage.com/pub/model.glb?X-Amz-Signature=t"
+        self.authenticate()
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["download_url"], mock_presign.return_value)
+        self.assertEqual(response.data["expires_in"], 300)
+        self.assertEqual(response.data["file_name"], "model.glb")
+        mock_presign.assert_called_once_with(
+            f"products/previews/{self.product.pk}/model.glb", file_name="model.glb"
+        )
+
     def test_customer_history_lists_own_downloads_only(self) -> None:
         product_file = self._upload_product_file()
         self.create_paid_order(self.customer)

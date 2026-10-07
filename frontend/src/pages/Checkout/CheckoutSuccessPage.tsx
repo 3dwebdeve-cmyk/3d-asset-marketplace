@@ -1,18 +1,22 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { getCustomerOrder } from '../../api/ordersApi'
 import { confirmCheckoutSession } from '../../api/paymentsApi'
+import { OrderItemDownloads } from '../../components/orders/OrderItemDownloads'
+import { Alert } from '../../components/ui/Alert'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import {
   clearCheckoutOrderId,
   peekCheckoutOrderId,
 } from '../../lib/checkoutReturn'
+import { formatFileSize } from '../../lib/format'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { useOrderDownloads } from '../../hooks/useOrderDownloads'
 import { ORDER_PAYMENT_STATUS_LABELS } from '../../types/order'
-import type { OrderPaymentStatus } from '../../types/order'
+import type { CustomerOrder, OrderPaymentStatus } from '../../types/order'
 
 const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 45_000
@@ -68,6 +72,65 @@ function PendingBadge() {
   )
 }
 
+function PurchasedDownloads({
+  order,
+  onDownload,
+  onUnavailable,
+  downloadingFileId,
+}: {
+  order: CustomerOrder
+  onDownload: ReturnType<typeof useOrderDownloads>['downloadFile']
+  onUnavailable: (title: string) => void
+  downloadingFileId: string | null
+}) {
+  return (
+    <section
+      className="checkout-success-page__downloads"
+      aria-labelledby="checkout-success-downloads-title"
+    >
+      <h2 id="checkout-success-downloads-title" className="checkout-success-page__downloads-title">
+        Your downloads
+      </h2>
+      <ul className="checkout-success-page__download-list">
+        {order.items.map((item) => {
+          const singleFile = item.files.length === 1 ? item.files[0] : null
+          return (
+            <li key={item.id} className="checkout-success-page__download-item">
+              <div className="checkout-success-page__download-info">
+                <span className="checkout-success-page__download-name">
+                  {item.title ?? 'Purchased item'}
+                </span>
+                {singleFile ? (
+                  <span className="checkout-success-page__download-meta">
+                    {singleFile.file_format.toUpperCase()} · {formatFileSize(singleFile.file_size)}
+                  </span>
+                ) : null}
+              </div>
+              {item.can_download && item.files.length === 0 ? (
+                <button
+                  type="button"
+                  className="checkout-success-page__download-btn"
+                  onClick={() => onUnavailable(item.title ?? 'This model')}
+                >
+                  Download
+                </button>
+              ) : (
+                <OrderItemDownloads
+                  item={item}
+                  onDownload={onDownload}
+                  downloadingFileId={downloadingFileId}
+                  classBlock="checkout-success-page"
+                  emptyLabel="Files are being prepared"
+                />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 export function CheckoutSuccessPage() {
   const [searchParams] = useSearchParams()
   const orderIdFromUrl = searchParams.get('order_id') ?? ''
@@ -75,6 +138,15 @@ export function CheckoutSuccessPage() {
   const queryClient = useQueryClient()
   const startedAtRef = useRef(Date.now())
   const confirmAttemptedRef = useRef(false)
+  const [missingFileMessage, setMissingFileMessage] = useState<string | null>(null)
+  const {
+    downloadFile,
+    downloadInvoice,
+    fileError,
+    invoiceError,
+    downloadingFileId,
+    downloadingInvoiceId,
+  } = useOrderDownloads()
 
   useDocumentSeo({
     title: 'Checkout confirmation | 3D Asset Marketplace',
@@ -129,8 +201,14 @@ export function CheckoutSuccessPage() {
   useEffect(() => {
     if (isPaid) {
       void queryClient.invalidateQueries({ queryKey: ['cart'] })
+      void queryClient.invalidateQueries({ queryKey: ['downloads'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['orders'],
+        predicate: (query) => query.queryKey[1] !== 'detail' || query.queryKey[2] !== orderId,
+      })
     }
-  }, [isPaid, queryClient])
+  }, [isPaid, orderId, queryClient])
 
   if (!orderId) {
     return (
@@ -232,13 +310,37 @@ export function CheckoutSuccessPage() {
                 <p className="checkout-success-page__thankyou" role="status">
                   Thanks for your purchase! Your items are ready to download.
                 </p>
+                <PurchasedDownloads
+                  order={order}
+                  onDownload={downloadFile}
+                  downloadingFileId={downloadingFileId}
+                  onUnavailable={(title) => {
+                    setMissingFileMessage(
+                      `${title} has no model file attached yet. Upload the model on the product, then use Download here.`,
+                    )
+                  }}
+                />
+                {fileError || missingFileMessage ? (
+                  <div className="checkout-success-page__alert">
+                    <Alert variant="error" message={fileError ?? missingFileMessage ?? ''} />
+                  </div>
+                ) : null}
+                {invoiceError ? (
+                  <div className="checkout-success-page__alert">
+                    <Alert variant="error" message={invoiceError} />
+                  </div>
+                ) : null}
                 <div className="checkout-success-page__actions">
-                  <Link
-                    className="checkout-success-page__btn checkout-success-page__btn--primary"
-                    to="/dashboard/downloads"
-                  >
-                    My downloads
-                  </Link>
+                  {order.order_status === 'paid' ? (
+                    <button
+                      type="button"
+                      className="checkout-success-page__btn checkout-success-page__btn--secondary"
+                      disabled={downloadingInvoiceId === order.id}
+                      onClick={() => void downloadInvoice(order.id, order.invoice_number)}
+                    >
+                      {downloadingInvoiceId === order.id ? 'Downloading…' : 'Download invoice'}
+                    </button>
+                  ) : null}
                   <Link
                     className="checkout-success-page__btn checkout-success-page__btn--secondary"
                     to={`/dashboard/orders/${order.id}`}
@@ -246,6 +348,9 @@ export function CheckoutSuccessPage() {
                     View order
                   </Link>
                 </div>
+                <Link className="checkout-success-page__text-link" to="/dashboard/downloads">
+                  Go to my library
+                </Link>
               </>
             ) : hasTimedOut ? (
               <>
