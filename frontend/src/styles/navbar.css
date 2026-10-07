@@ -1363,3 +1363,44 @@ button.navbar__link {
     gap: 0.25rem;
   }
 }
+
+/* Preserve the navbar's original type scale while page content stays compact. */
+.navbar__search-cat-trigger,
+.navbar__search-input,
+.navbar__explore-item {
+  font-size: clamp(11.25px, calc(0.28vw + 10.2px), 14.25px);
+}
+
+.navbar__link {
+  font-size: clamp(10.2px, calc(0.24vw + 9.35px), 12.92px);
+}
+
+.navbar__user,
+.navbar__account-trigger {
+  font-size: clamp(14.25px, calc(0.27vw + 13.3px), 18.05px);
+}
+
+.navbar__account-menu-identity strong {
+  font-size: clamp(13.2px, calc(0.25vw + 12.3px), 16.72px);
+}
+
+.navbar__account-menu-identity span,
+.navbar__account-item,
+.navbar__explore-status {
+  font-size: clamp(11.25px, calc(0.22vw + 10.45px), 15.2px);
+}
+
+/* Keep the brand mark the same size as it appears on the Home page. */
+.navbar .navbar__brand-logo {
+  width: auto;
+  height: clamp(23.25px, calc(0.44vw + 21.7px), 29.45px);
+  max-width: clamp(142.5px, calc(2.66vw + 133px), 180.5px);
+}
+
+@media (max-width: 540px) {
+  .navbar .navbar__brand-logo {
+    width: auto;
+    height: 20.25px;
+    max-width: 120px;
+  }
+}

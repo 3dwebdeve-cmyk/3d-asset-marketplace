@@ -109,6 +109,12 @@ beforeEach(() => {
 })
 
 describe('PluginsBrowsePage', () => {
+  it('labels the plugin results section', () => {
+    renderPluginsBrowsePage()
+
+    expect(screen.getByText('Plugin', { selector: '.plugins-browse-toolbar__count' })).toBeInTheDocument()
+  })
+
   it('renders hero title and plugin list', async () => {
     renderPluginsBrowsePage()
 

@@ -239,7 +239,7 @@ export function PluginsBrowsePage() {
   return (
     <main className="plugins-browse">
       <section className="plugins-browse-hero site-hero-banner">
-        <SiteHeroImage src={PLUGINS_HERO_IMAGE_SRC} width={4224} height={992} />
+        <SiteHeroImage src={PLUGINS_HERO_IMAGE_SRC} width={2804} height={561} />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
@@ -460,6 +460,9 @@ export function PluginsBrowsePage() {
 
         <section className="plugins-browse-main">
           <div className="plugins-browse-toolbar">
+            <p className="plugins-browse-toolbar__count">
+              Plugin
+            </p>
             <div className="plugins-browse-toolbar__controls">
               <label className="plugins-browse-toolbar__sort" htmlFor="plugin-sort-select">
                 <span>Sort by:</span>

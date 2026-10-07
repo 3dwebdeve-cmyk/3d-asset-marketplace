@@ -112,9 +112,6 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             />
           </div>
         </div>
-        <Link to="/3d-models" className="product-hub-detail__close">
-          ✕ Close
-        </Link>
       </header>
 
       <div className="product-detail-layout product-hub-detail__layout">
@@ -194,68 +191,79 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
         </aside>
       </div>
 
-      <ReviewsSection
-        productType="product"
-        productId={product.id}
-        catalogSlug={product.slug}
-        averageRating={product.average_rating}
-        reviewCount={product.review_count}
-        layout="hub"
-      />
-
-      <section className="product-detail-related" aria-labelledby="product-related-heading">
-        <div className="product-detail-related__header">
-          <h2 id="product-related-heading" className="product-detail-section-title">
-            Similar products
+      <div className="product-hub-detail__lower-grid">
+        <section className="product-hub-detail__description" aria-labelledby="product-description-heading">
+          <h2 id="product-description-heading" className="product-detail-section-title">
+            Description
           </h2>
-          <Link to={browseCategoryHref} className="product-detail-related__browse">
-            Browse {product.category.name}
-          </Link>
-        </div>
+          <div className="product-hub-detail__description-copy">
+            {product.description || product.short_description || 'No description is available for this asset.'}
+          </div>
+        </section>
 
-        {relatedQuery.isLoading ? (
-          <div
-            className="products-grid products-grid--skeleton"
-            aria-label="Loading similar products"
-          >
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="product-card-skeleton">
-                <div className="product-card-skeleton__media" />
-                <div className="product-card-skeleton__body">
-                  <div className="product-card-skeleton__line product-card-skeleton__line--short" />
-                  <div className="product-card-skeleton__line" />
+        <ReviewsSection
+          productType="product"
+          productId={product.id}
+          catalogSlug={product.slug}
+          averageRating={product.average_rating}
+          reviewCount={product.review_count}
+          layout="hub"
+        />
+
+        <section className="product-detail-related" aria-labelledby="product-related-heading">
+          <div className="product-detail-related__header">
+            <h2 id="product-related-heading" className="product-detail-section-title">
+              Similar products
+            </h2>
+            <Link to={browseCategoryHref} className="product-detail-related__browse">
+              Browse {product.category.name}
+            </Link>
+          </div>
+
+          {relatedQuery.isLoading ? (
+            <div
+              className="products-grid products-grid--skeleton"
+              aria-label="Loading similar products"
+            >
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="product-card-skeleton">
+                  <div className="product-card-skeleton__media" />
+                  <div className="product-card-skeleton__body">
+                    <div className="product-card-skeleton__line product-card-skeleton__line--short" />
+                    <div className="product-card-skeleton__line" />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : relatedQuery.isError ? (
-          <ErrorState
-            title="Could not load similar products"
-            description="Try refreshing this section."
-            action={
-              <Button variant="secondary" onClick={() => relatedQuery.refetch()}>
-                Try again
-              </Button>
-            }
-          />
-        ) : relatedProducts.length === 0 ? (
-          <EmptyState
-            title="No similar products yet"
-            description={`There are no other published products in ${product.category.name} right now.`}
-            action={
-              <Link to="/3d-models" className="ui-button ui-button--secondary">
-                Browse all products
-              </Link>
-            }
-          />
-        ) : (
-          <div className="products-grid">
-            {relatedProducts.map((item) => (
-              <ProductCard key={item.id} product={item} />
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          ) : relatedQuery.isError ? (
+            <ErrorState
+              title="Could not load similar products"
+              description="Try refreshing this section."
+              action={
+                <Button variant="secondary" onClick={() => relatedQuery.refetch()}>
+                  Try again
+                </Button>
+              }
+            />
+          ) : relatedProducts.length === 0 ? (
+            <EmptyState
+              title="No similar products yet"
+              description={`There are no other published products in ${product.category.name} right now.`}
+              action={
+                <Link to="/3d-models" className="ui-button ui-button--secondary">
+                  Browse all products
+                </Link>
+              }
+            />
+          ) : (
+            <div className="products-grid">
+              {relatedProducts.map((item) => (
+                <ProductCard key={item.id} product={item} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </>
   )
 }

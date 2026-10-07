@@ -265,7 +265,7 @@
 
 .hub-offer__media {
   position: relative;
-  aspect-ratio: 5 / 3;
+  aspect-ratio: 16 / 9;
   min-height: 9.5rem;
   overflow: hidden;
   border-radius: 0.65rem;

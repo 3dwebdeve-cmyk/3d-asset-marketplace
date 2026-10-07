@@ -11,13 +11,48 @@
   width: 100%;
 }
 
-.plugins-browse-hero--products .site-hero-banner__image {
+.plugins-browse > .plugins-browse-hero.site-hero-banner {
+  --site-hero-aspect: 5 / 1;
+  max-height: 18rem;
+}
+
+.plugins-browse > .plugins-browse-hero .site-hero-banner__image {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
   object-fit: cover;
-  object-position: center top;
+  object-position: center center;
+}
+
+@media (max-width: 720px) {
+  .plugins-browse > .plugins-browse-hero.site-hero-banner {
+    --site-hero-aspect: 2.4 / 1;
+    max-height: 10rem;
+  }
+}
+
+.plugins-browse-hero--products .site-hero-banner__image {
+  object-fit: contain;
+  object-position: center center;
 }
 
 .plugins-browse-hero--character .site-hero-banner__image {
   object-position: center top;
+}
+
+.plugins-browse-hero--plants,
+.plugins-browse-hero--toys,
+.plugins-browse-hero--interior,
+.plugins-browse-hero--interactive {
+  background: #0b1117;
+}
+
+.plugins-browse-hero--plants .site-hero-banner__image,
+.plugins-browse-hero--toys .site-hero-banner__image,
+.plugins-browse-hero--interior .site-hero-banner__image,
+.plugins-browse-hero--interactive .site-hero-banner__image {
+  object-fit: contain;
+  object-position: center center;
 }
 
 .plugins-browse-hero__container {
@@ -353,6 +388,37 @@
 @media (max-width: 640px) {
   .models-browse .plugins-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Keep plugin cards the same compact width as 3D-model cards instead of
+   stretching a short result set across the full catalog row. */
+.plugins-browse:not(.models-browse) .plugins-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 404px));
+  justify-content: center;
+}
+
+.plugins-browse:not(.models-browse) .plugins-browse-toolbar__count {
+  margin-left: max(0px, calc((100% - 1248.8px) / 2));
+}
+
+@media (max-width: 1100px) {
+  .plugins-browse:not(.models-browse) .plugins-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 404px));
+  }
+
+  .plugins-browse:not(.models-browse) .plugins-browse-toolbar__count {
+    margin-left: max(0px, calc((100% - 826.4px) / 2));
+  }
+}
+
+@media (max-width: 640px) {
+  .plugins-browse:not(.models-browse) .plugins-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plugins-browse:not(.models-browse) .plugins-browse-toolbar__count {
+    margin-left: 0;
   }
 }
 
