@@ -139,7 +139,9 @@ class OrderService:
         ordering: str = "-created_at",
         item_type: str | None = None,
     ) -> QuerySet[Order]:
-        queryset = Order.objects.filter(user=user).annotate(item_count=Count("items"))
+        queryset = Order.objects.filter(user=user).annotate(
+            item_count=Count("items", distinct=True)
+        )
         if order_status:
             queryset = queryset.filter(order_status=order_status)
         if payment_status:
