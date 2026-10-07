@@ -135,8 +135,30 @@ async function parseSignedDownload(data: Blob): Promise<SignedDownloadResponse> 
   return parsed
 }
 
+function catalogDownloadRequestPath(downloadUrl: string): string {
+  let parsed: URL
+  try {
+    parsed = new URL(downloadUrl, window.location.origin)
+  } catch {
+    throw new Error('Invalid download URL.')
+  }
+
+  // Order payloads use absolute API links. Keep only the downloads path so the
+  // bearer token stays on our API client and is never sent to another host.
+  if (
+    !parsed.pathname.startsWith('/api/v1/downloads/') ||
+    parsed.username ||
+    parsed.password
+  ) {
+    throw new Error('Invalid download URL.')
+  }
+
+  return `${parsed.pathname}${parsed.search}`
+}
+
 async function fetchCatalogDownload(downloadUrl: string, fileName: string): Promise<void> {
-  const response = await apiClient.get<Blob | SignedDownloadResponse>(downloadUrl, {
+  const requestPath = catalogDownloadRequestPath(downloadUrl)
+  const response = await apiClient.get<Blob | SignedDownloadResponse>(requestPath, {
     responseType: 'blob',
   })
   const contentType = headerValue(response.headers, 'content-type')

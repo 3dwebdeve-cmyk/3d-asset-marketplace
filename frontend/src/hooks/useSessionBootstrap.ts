@@ -5,6 +5,36 @@ import { getCurrentUser, refreshAccessToken } from '../api/authApi'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 
+function isRotatedRefreshRejection(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+  const data = (error as { response?: { data?: { code?: unknown } } }).response?.data
+  return data?.code === 'token_not_valid'
+}
+
+/**
+ * One retry covers a refresh cookie that was just rotated by a parallel
+ * request (checkout return). A missing cookie is not retried.
+ */
+async function readAccessFromRefreshCookie(): Promise<string | null> {
+  try {
+    const { access } = await refreshAccessToken()
+    return access
+  } catch (error) {
+    if (!isRotatedRefreshRejection(error)) {
+      return null
+    }
+  }
+
+  try {
+    const { access } = await refreshAccessToken()
+    return access
+  } catch {
+    return null
+  }
+}
+
 /**
  * Restores a session from the httpOnly refresh cookie on first paint.
  * Once ready, gaining a token via login must NOT remount the router
@@ -29,17 +59,12 @@ export function useSessionBootstrap(): boolean {
     let cancelled = false
 
     void (async () => {
-      try {
-        const { access } = await refreshAccessToken()
-        if (!cancelled) {
-          restoreAccess(access)
-        }
-      } catch {
-        // No usable refresh cookie — continue as guest.
-      } finally {
-        if (!cancelled) {
-          setCookieProbeDone(true)
-        }
+      const access = await readAccessFromRefreshCookie()
+      if (!cancelled && access) {
+        restoreAccess(access)
+      }
+      if (!cancelled) {
+        setCookieProbeDone(true)
       }
     })()
 

@@ -181,10 +181,21 @@ class AuthenticationAPITests(APITestCase):
         me_response = self.client.get(self.me_url)
         self.assertEqual(me_response.status_code, status.HTTP_200_OK)
 
-        # Rotated/blacklisted refresh token must no longer work.
+        # Rotated/blacklisted refresh token must no longer work, and must not
+        # delete the replacement cookie a concurrent checkout return just stored.
         self.client.cookies[self.refresh_cookie] = old_refresh
         reused = self.client.post(self.refresh_url, {}, format="json")
         self.assertEqual(reused.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn(self.refresh_cookie, reused.cookies)
+
+    def test_refresh_clears_cookie_when_token_is_malformed(self) -> None:
+        self.client.cookies[self.refresh_cookie] = "not-a-valid-refresh-token"
+        response = self.client.post(self.refresh_url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        cleared = response.cookies.get(self.refresh_cookie)
+        self.assertIsNotNone(cleared)
+        self.assertEqual(cleared.value, "")
 
     def test_refresh_rejects_body_refresh_without_cookie(self) -> None:
         from accounts.services import AuthenticationService

@@ -20,7 +20,36 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
 }
 
-let refreshRequest: Promise<string> | null = null
+async function requestFreshAccessToken(): Promise<string> {
+  const response = await axios.post<RefreshResponse>(
+    `${apiBaseUrl}${API_PREFIX}/auth/token/refresh/`,
+    {},
+    {
+      withCredentials: true,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+  )
+  return response.data.access
+}
+
+/**
+ * One in-flight cookie rotation for the whole page.
+ * Stripe sends the buyer back with a full reload. React StrictMode (and a
+ * second tab) can otherwise present the same refresh cookie twice; the loser
+ * is already blacklisted and its 401 used to delete the replacement cookie.
+ */
+let sessionRefresh: Promise<string> | null = null
+
+export function refreshSessionAccessToken(): Promise<string> {
+  if (!sessionRefresh) {
+    sessionRefresh = requestFreshAccessToken().finally(() => {
+      sessionRefresh = null
+    })
+  }
+  return sessionRefresh
+}
 
 export const apiClient = axios.create({
   baseURL: apiBaseUrl,
@@ -47,20 +76,6 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
-async function requestFreshAccessToken(): Promise<string> {
-  const response = await axios.post<RefreshResponse>(
-    `${apiBaseUrl}${API_PREFIX}/auth/token/refresh/`,
-    {},
-    {
-      withCredentials: true,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    },
-  )
-  return response.data.access
-}
-
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -85,11 +100,8 @@ apiClient.interceptors.response.use(
     originalRequest._retry = true
 
     try {
-      refreshRequest ??= requestFreshAccessToken().then((access) => {
-        updateAccessToken(access)
-        return access
-      })
-      const newAccess = await refreshRequest
+      const newAccess = await refreshSessionAccessToken()
+      updateAccessToken(newAccess)
 
       const headers = AxiosHeaders.from(originalRequest.headers)
       headers.set('Authorization', `Bearer ${newAccess}`)
@@ -102,8 +114,6 @@ apiClient.interceptors.response.use(
         id: SESSION_EXPIRED_TOAST_ID,
       })
       return Promise.reject(refreshError)
-    } finally {
-      refreshRequest = null
     }
   },
 )
