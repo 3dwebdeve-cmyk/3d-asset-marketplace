@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { getCustomerOrder } from '../../api/ordersApi'
@@ -75,10 +75,12 @@ function PendingBadge() {
 function PurchasedDownloads({
   order,
   onDownload,
+  onUnavailable,
   downloadingFileId,
 }: {
   order: CustomerOrder
   onDownload: ReturnType<typeof useOrderDownloads>['downloadFile']
+  onUnavailable: (title: string) => void
   downloadingFileId: string | null
 }) {
   return (
@@ -104,13 +106,23 @@ function PurchasedDownloads({
                   </span>
                 ) : null}
               </div>
-              <OrderItemDownloads
-                item={item}
-                onDownload={onDownload}
-                downloadingFileId={downloadingFileId}
-                classBlock="checkout-success-page"
-                emptyLabel="Files are being prepared"
-              />
+              {item.can_download && item.files.length === 0 ? (
+                <button
+                  type="button"
+                  className="checkout-success-page__download-btn"
+                  onClick={() => onUnavailable(item.title ?? 'This model')}
+                >
+                  Download
+                </button>
+              ) : (
+                <OrderItemDownloads
+                  item={item}
+                  onDownload={onDownload}
+                  downloadingFileId={downloadingFileId}
+                  classBlock="checkout-success-page"
+                  emptyLabel="Files are being prepared"
+                />
+              )}
             </li>
           )
         })}
@@ -126,6 +138,7 @@ export function CheckoutSuccessPage() {
   const queryClient = useQueryClient()
   const startedAtRef = useRef(Date.now())
   const confirmAttemptedRef = useRef(false)
+  const [missingFileMessage, setMissingFileMessage] = useState<string | null>(null)
   const {
     downloadFile,
     downloadInvoice,
@@ -301,10 +314,15 @@ export function CheckoutSuccessPage() {
                   order={order}
                   onDownload={downloadFile}
                   downloadingFileId={downloadingFileId}
+                  onUnavailable={(title) => {
+                    setMissingFileMessage(
+                      `${title} has no model file attached yet. Upload the model on the product, then use Download here.`,
+                    )
+                  }}
                 />
-                {fileError ? (
+                {fileError || missingFileMessage ? (
                   <div className="checkout-success-page__alert">
-                    <Alert variant="error" message={fileError} />
+                    <Alert variant="error" message={fileError ?? missingFileMessage ?? ''} />
                   </div>
                 ) : null}
                 {invoiceError ? (
@@ -316,7 +334,7 @@ export function CheckoutSuccessPage() {
                   {order.order_status === 'paid' ? (
                     <button
                       type="button"
-                      className="checkout-success-page__btn checkout-success-page__btn--primary"
+                      className="checkout-success-page__btn checkout-success-page__btn--secondary"
                       disabled={downloadingInvoiceId === order.id}
                       onClick={() => void downloadInvoice(order.id, order.invoice_number)}
                     >

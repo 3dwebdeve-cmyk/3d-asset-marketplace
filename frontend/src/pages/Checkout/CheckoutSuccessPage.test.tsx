@@ -135,6 +135,7 @@ describe('CheckoutSuccessPage', () => {
       paidOrder.items[0].files[0].download_url,
       'hero-sword.glb',
     )
+    expect(screen.queryByRole('button', { name: /download model/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /my downloads/i })).not.toBeInTheDocument()
   })
 
@@ -164,14 +165,17 @@ describe('CheckoutSuccessPage', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument()
   })
 
-  it('shows a preparing note when a paid item has no files', async () => {
+  it('shows a download button when a paid item has no files yet', async () => {
+    const user = userEvent.setup()
     vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue({
       ...paidOrder,
       items: [{ ...paidOrder.items[0], files: [] }],
     })
     renderCheckoutSuccessPage()
 
-    expect(await screen.findByText(/files are being prepared/i)).toBeInTheDocument()
+    const downloads = await screen.findByRole('region', { name: /your downloads/i })
+    await user.click(within(downloads).getByRole('button', { name: /^download$/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no model file attached yet/i)
   })
 
   it('does not show download or invoice buttons while payment is pending', async () => {
