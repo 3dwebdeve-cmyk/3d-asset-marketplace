@@ -111,7 +111,7 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
             />
           </div>
         </div>
-        <Link to="/plugins" className="product-hub-detail__close">
+        <Link to="/plugins" className="product-hub-detail__close" aria-label="Close">
           ✕ Close
         </Link>
       </header>

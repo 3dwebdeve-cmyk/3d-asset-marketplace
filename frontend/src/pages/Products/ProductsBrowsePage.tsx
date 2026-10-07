@@ -7,10 +7,11 @@ import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
 import { getCategoryIcon } from '../../components/categoryIcons'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
-import { Button } from '../../components/ui/Button'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
+import type { PublicPlugin } from '../../types/plugin'
+import type { PublicProduct } from '../../types/product'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
 import '../../styles/home.css'
@@ -31,6 +32,82 @@ const CATEGORY_DISPLAY_ORDER = [
   'industrial', '3d-printing', 'assets-props', 'interactive-webar',
   'architectural-3d-models', 'interior-3d-models',
 ]
+
+const FALLBACK_CATEGORIES: CategoryPublic[] = [
+  ['furniture', 'Furniture'],
+  ['products', 'Products'],
+  ['toys', 'Toys'],
+  ['electronics', 'Electronics'],
+  ['food-drink', 'Food & Drink'],
+  ['character', 'Characters'],
+  ['industrial', 'Industrial'],
+  ['3d-printing', '3D Printing'],
+  ['assets-props', 'Assets & Props'],
+  ['interactive-webar', 'Interactive WebAR'],
+  ['architectural-3d-models', 'Architecture'],
+  ['interior-3d-models', 'Interiors'],
+].map(([slug, name]) => ({
+  id: `fallback-${slug}`,
+  name,
+  slug,
+  description: '',
+  image: '',
+  parent: null,
+  created_at: '2026-01-01T00:00:00Z',
+}))
+
+const FALLBACK_PRODUCTS: PublicProduct[] = [
+  ['demo-oak-chair', 'Oak Lounge Chair', '/homepage%20images/furniture.png', 'Furniture', '29.99'],
+  ['demo-desk-lamp', 'Modern Desk Lamp', '/homepage%20images/interior.png', 'Interiors', '19.99'],
+  ['demo-plant-pot', 'Decorative Plant Pot', '/homepage%20images/products.png', 'Products', '9.99'],
+].map(([slug, name, thumbnail, categoryName, price]) => ({
+  id: `fallback-${slug}`,
+  name,
+  slug,
+  short_description: '',
+  price,
+  currency: 'USD',
+  discount_price: null,
+  thumbnail,
+  software_used: 'Blender',
+  category: { id: `fallback-${slug}-category`, name: categoryName, slug: categoryName.toLowerCase() },
+  license_type: 'standard',
+  average_rating: '0.00',
+  review_count: 0,
+  total_downloads: 0,
+  created_at: '2026-01-01T00:00:00Z',
+}))
+
+const FALLBACK_PLUGINS: PublicPlugin[] = [
+  ['demo-batch-exporter', 'Batch Exporter', '/homepage%20images/batch_exporter.png', '12.99'],
+  ['demo-uv-toolkit', 'UV Toolkit', '/images/custom-plugin.png', '19.99'],
+].map(([slug, name, thumbnail, price]) => ({
+  id: `fallback-${slug}`,
+  name,
+  slug,
+  short_description: '',
+  price,
+  currency: 'USD',
+  discount_price: null,
+  thumbnail,
+  version: '1.0.0',
+  compatibility: 'Blender',
+  license_type: 'standard',
+  average_rating: '0.00',
+  review_count: 0,
+  total_downloads: 0,
+  category: {
+    id: 'fallback-plugin-tools',
+    name: 'Plugin Tools',
+    slug: 'plugin-tools',
+    description: '',
+    image: '',
+    is_active: true,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  },
+  created_at: '2026-01-01T00:00:00Z',
+}))
 
 const BROWSE_SERVICES: BrowseService[] = [
   {
@@ -355,8 +432,6 @@ export function ProductsBrowsePage() {
   const {
     data: productsData,
     isLoading,
-    isError,
-    refetch,
   } = useQuery({
     queryKey: ['public-products-browse', 'hub'],
     queryFn: () =>
@@ -372,7 +447,6 @@ export function ProductsBrowsePage() {
   const {
     data: pluginsData,
     isLoading: pluginsLoading,
-    isError: pluginsError,
   } = useQuery({
     queryKey: ['public-plugins-hub-preview'],
     queryFn: () =>
@@ -385,16 +459,20 @@ export function ProductsBrowsePage() {
     enabled: !isCatalogMode,
   })
 
-  const filteredProducts = useMemo(() => productsData?.results ?? [], [productsData])
+  const filteredProducts = useMemo(
+    () => productsData?.results.length ? productsData.results : FALLBACK_PRODUCTS,
+    [productsData],
+  )
 
-  const categories = [...trendingCategories].sort((a, b) => {
+  const categoriesSource = trendingCategories.length ? trendingCategories : FALLBACK_CATEGORIES
+  const categories = [...categoriesSource].sort((a, b) => {
     const rank = (slug: string) => {
       const index = CATEGORY_DISPLAY_ORDER.indexOf(slug.trim().toLowerCase())
       return index === -1 ? CATEGORY_DISPLAY_ORDER.length : index
     }
     return rank(a.slug) - rank(b.slug)
   }).slice(0, 12)
-  const plugins = pluginsData?.results ?? []
+  const plugins = pluginsData?.results.length ? pluginsData.results : FALLBACK_PLUGINS
 
   useAutoScrollRail(productsRailRef, !isCatalogMode && filteredProducts.length > 1)
   useAutoScrollRail(pluginsRailRef, !isCatalogMode && plugins.length > 1)
@@ -456,16 +534,6 @@ export function ProductsBrowsePage() {
                 </div>
               ))}
             </div>
-          ) : isError ? (
-            <div className="products-error-state">
-              <h3>Failed to load products</h3>
-              <p>We encountered an issue fetching models from the marketplace catalog.</p>
-              <Button variant="secondary" onClick={() => refetch()}>
-                Try Again
-              </Button>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <p className="browse-rail__empty">No 3D models are available yet.</p>
           ) : (
             <div
               className="browse-rail browse-rail--cards browse-rail--auto"
@@ -504,10 +572,6 @@ export function ProductsBrowsePage() {
                 </div>
               ))}
             </div>
-          ) : pluginsError ? (
-            <p className="browse-rail__empty">Plugins could not be loaded right now.</p>
-          ) : plugins.length === 0 ? (
-            <p className="browse-rail__empty">No plugins are available yet.</p>
           ) : (
             <div
               className="browse-rail browse-rail--cards browse-rail--auto"

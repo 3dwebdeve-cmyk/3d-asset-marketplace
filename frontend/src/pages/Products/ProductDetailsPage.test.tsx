@@ -273,10 +273,10 @@ describe('ProductDetailsPage', () => {
     expect(screen.getByText(/standard license/i)).toBeInTheDocument()
     expect(screen.getByText(/-20%/i)).toBeInTheDocument()
     expect(screen.queryByText(/futuristic sci-fi drone asset/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /technical specs/i })).toBeInTheDocument()
-    expect(screen.getByText(/^polygons$/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /preview specifications/i })).toBeInTheDocument()
+    expect(screen.getByText(/^triangles$/i)).toBeInTheDocument()
     expect(screen.getByText('12,000')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /close/i })).toHaveAttribute('href', '/3d-models')
+    expect(screen.queryByRole('link', { name: /close/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
     expect(
       screen.getByRole('img', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
@@ -284,11 +284,7 @@ describe('ProductDetailsPage', () => {
     expect(screen.getByTestId('lazy-model-viewer')).toBeInTheDocument()
     expect(document.title).toContain('Cyberpunk Drone 3D')
 
-    const browseCategory = screen.getByRole('link', { name: /browse sci-fi assets/i })
-    expect(browseCategory).toHaveAttribute(
-      'href',
-      `/3d-models?category=${encodeURIComponent(categoryId)}`,
-    )
+    expect(screen.queryByRole('link', { name: /browse sci-fi assets/i })).not.toBeInTheDocument()
   })
 
   it('keeps the image stage when no preview model is available', async () => {

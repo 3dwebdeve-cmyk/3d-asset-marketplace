@@ -196,7 +196,7 @@ export function AboutPage() {
   return (
     <main className="about-page">
       <section className="about-hero site-hero-banner" aria-labelledby="about-title">
-        <SiteHeroImage src={ABOUT_HERO_IMAGE_SRC} width={4216} height={992} />
+        <SiteHeroImage src={ABOUT_HERO_IMAGE_SRC} width={2804} height={561} />
         <div className="about-hero__content">
           <div className="about-hero__copy">
             <h1 id="about-title">Premium 3D assets and custom design, under one roof</h1>

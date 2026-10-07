@@ -23,14 +23,9 @@ export function CustomProjectsLandingPage() {
         className="custom-projects-hero site-hero-banner"
         aria-labelledby="custom-projects-title"
       >
-        <SiteHeroImage src={CUSTOM_PROJECTS_HERO_IMAGE_SRC} width={4216} height={992} />
+        <SiteHeroImage src={CUSTOM_PROJECTS_HERO_IMAGE_SRC} width={2804} height={561} />
         <div className="custom-projects-hero__content">
           <h1 id="custom-projects-title">Custom 3D projects, from concept to delivery</h1>
-          <p className="custom-projects-hero__lead">
-            Need something that&apos;s not in the catalog? Send us an enquiry with your brief,
-            budget, and timeline. Our studio manages the conversation by email — no in-app
-            project portal required.
-          </p>
           <div className="marketing-actions custom-projects-hero__actions">
             <Link className="home-page__cta" to={CONTACT_ENQUIRY_PATH}>
               Send a project enquiry <span aria-hidden="true">→</span>

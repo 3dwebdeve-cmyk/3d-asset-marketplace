@@ -164,6 +164,12 @@ export function ReviewsSection({
 
   const formPanel = (
     <div className="product-detail-reviews__form-panel">
+      {isHub ? (
+        <span className="product-detail-reviews__composer-avatar" aria-hidden="true">
+          {authorInitials(currentUser?.full_name ?? 'Guest')}
+        </span>
+      ) : null}
+      <div className="product-detail-reviews__composer-content">
       {!isSignedIn ? (
         <div className="product-detail-reviews__form product-detail-reviews__form--guest">
           <div className="form-field">
@@ -311,6 +317,7 @@ export function ReviewsSection({
           </Button>
         </form>
       )}
+      </div>
     </div>
   )
 

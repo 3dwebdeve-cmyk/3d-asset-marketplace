@@ -1,8 +1,9 @@
 export const SITE_HERO_IMAGE_SRC = '/images/site-hero-banner.webp?v=9'
-export const PLUGINS_HERO_IMAGE_SRC = '/images/plugins-hero.webp?v=5'
-export const CUSTOM_PROJECTS_HERO_IMAGE_SRC = '/images/custom-projects-hero.webp?v=3'
+export const PLUGINS_HERO_IMAGE_SRC = '/images/Floating%20Plugin%20Interface%20Tiles.png'
+export const MODELS_HERO_IMAGE_SRC = '/images/new%20size/3d-model.png'
+export const CUSTOM_PROJECTS_HERO_IMAGE_SRC = '/images/new%20size/custom-page2.png'
 export const CONTACT_HERO_IMAGE_SRC = '/images/contact-hero.webp?v=2'
-export const ABOUT_HERO_IMAGE_SRC = '/images/about/about-hero.webp?v=7'
+export const ABOUT_HERO_IMAGE_SRC = '/images/new%20size/contact-page.png'
 
 type SiteHeroImageProps = {
   src?: string
