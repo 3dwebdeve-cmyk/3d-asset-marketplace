@@ -741,6 +741,10 @@
   cursor: pointer;
 }
 
+.auth-link--button.auth-form__forgot {
+  font-size: 0.75rem;
+}
+
 .auth-modal {
   position: fixed;
   inset: 0;

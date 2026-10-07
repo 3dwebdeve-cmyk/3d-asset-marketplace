@@ -67,8 +67,8 @@
   --site-gutter: clamp(1rem, 2.5vw, 2.5cm);
   --site-max-width: none;
 
-  /* ~15px on 360px phones → ~19px on large desktops */
-  font-size: clamp(15px, 0.28vw + 14.1px, 19px);
+  /* Compact global type scale shared by every page and rem-based component. */
+  font-size: clamp(13.5px, 0.24vw + 12.75px, 16px);
   line-height: 145%;
   font-family: var(--sans);
   letter-spacing: 0.18px;
@@ -79,6 +79,11 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Keep the original type scale on the public Home page. */
+:root:has(.products-browse-page--hub) {
+  font-size: clamp(15px, 0.28vw + 14.1px, 19px);
 }
 
 *,

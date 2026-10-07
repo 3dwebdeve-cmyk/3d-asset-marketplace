@@ -37,16 +37,19 @@ const characterCategoryId = '4ac87021-da4e-4470-9ab9-b52772444655'
 const productId = 'a2e77f31-f244-4607-b7d6-b58e3ff6de11'
 
 const additionalBannerCategories = [
-  { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/banner%20image/10.jpg' },
-  { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/banner%20image/01.jpg' },
-  { id: 'b7b73085-a662-4daa-ac90-d07b89976b3c', name: 'Assets / Props', slug: 'assets-props', banner: '/banner%20image/03.jpg' },
-  { id: '4ecdc1ea-68b4-4e08-93de-d8e2d34ec1ad', name: 'Interactive / WebAr', slug: 'interactive-webar', banner: '/banner%20image/11.jpg' },
-  { id: 'e673b81b-2bc8-4f83-8dfc-081b9812a525', name: 'Architectural 3D Models', slug: 'architectural-3d-models', banner: '/banner%20image/02.jpg' },
-  { id: 'bc9bac17-4585-4c7c-95f1-34791f081d54', name: 'Interior 3D Models', slug: 'interior-3d-models', banner: '/banner%20image/12.jpg' },
-  { id: 'e1404a6f-57d0-4828-982a-c4b7c781492a', name: 'Cloth Items', slug: 'cloth-items', banner: '/banner%20image/05.jpg' },
-  { id: 'd3de2c3d-3672-4655-a653-39b68c705ace', name: 'Lights', slug: 'lights', banner: '/banner%20image/14.jpg' },
-  { id: '851a9576-3864-4231-a1e6-305deb54ecd7', name: 'Plants / Vegetation', slug: 'plants-vegetation', banner: '/banner%20image/15.jpg' },
-  { id: 'fc78161b-0d3e-477b-ad33-4d859dcfd358', name: 'LifeStyle / Visualisation', slug: 'lifestyle-visualisation', banner: '/banner%20image/13.jpg' },
+  { id: '317196c0-823a-4d92-975a-2671432b1af9', name: 'Toys', slug: 'toys', banner: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.png' },
+  { id: '7b53be05-f444-467c-90e4-be34b41008c3', name: 'Electronics', slug: 'electronics', banner: '/images/new%20banner%20image%20size/Electronics.png' },
+  { id: 'd0ac9c7c-4226-43bd-b9d5-a89e320a7f7f', name: 'Household', slug: 'household', banner: '/images/new%20banner%20image%20size/Household.png' },
+  { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/images/new%20banner%20image%20size/Industrial.png' },
+  { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/images/new%20banner%20image%20size/3D%20Printing.png' },
+  { id: 'b7b73085-a662-4daa-ac90-d07b89976b3c', name: 'Assets / Props', slug: 'assets-props', banner: '/images/new%20banner%20image%20size/Assets%20%20Props.png' },
+  { id: '4ecdc1ea-68b4-4e08-93de-d8e2d34ec1ad', name: 'Interactive / WebAr', slug: 'interactive-webar', banner: '/images/new%20banner%20image%20size/AR%20Armchair%20Studio%20Showcase.png?v=2' },
+  { id: 'e673b81b-2bc8-4f83-8dfc-081b9812a525', name: 'Architectural 3D Models', slug: 'architectural-3d-models', banner: '/images/new%20banner%20image%20size/Architectural%203D%20Models.png' },
+  { id: 'bc9bac17-4585-4c7c-95f1-34791f081d54', name: 'Interior 3D Models', slug: 'interior-3d-models', banner: '/images/new%20banner%20image%20size/Cinematic%20Floating%20Pavilion%20Interior.png' },
+  { id: 'e1404a6f-57d0-4828-982a-c4b7c781492a', name: 'Cloth Items', slug: 'cloth-items', banner: '/images/new%20banner%20image%20size/Cloth%20Items.png' },
+  { id: 'd3de2c3d-3672-4655-a653-39b68c705ace', name: 'Lights', slug: 'lights', banner: '/images/new%20banner%20image%20size/Moody%20Modern%20Lighting%20Vignette.png' },
+  { id: '851a9576-3864-4231-a1e6-305deb54ecd7', name: 'Plants / Vegetation', slug: 'plants-vegetation', banner: '/images/new%20banner%20image%20size/Moody%20Panoramic%20Indoor%20Plant%20Collection.png' },
+  { id: 'fc78161b-0d3e-477b-ad33-4d859dcfd358', name: 'LifeStyle / Visualisation', slug: 'lifestyle-visualisation', banner: '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.png' },
 ]
 
 const samplePublicProducts = {
@@ -195,7 +198,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/banner%20image/08.jpg',
+        '/images/new%20banner%20image%20size/Furniture.png',
       )
     })
 
@@ -212,7 +215,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/banner%20image/16.jpg',
+        '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.png',
       )
     })
 
@@ -227,7 +230,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/banner%20image/07.jpg',
+        '/images/new%20banner%20image%20size/Food%20&%20Drink.png',
       )
     })
   })
@@ -240,7 +243,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/banner%20image/04.jpg',
+        '/images/new%20banner%20image%20size/Character.png',
       )
     })
 
