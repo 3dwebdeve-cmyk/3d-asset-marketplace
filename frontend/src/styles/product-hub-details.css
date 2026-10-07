@@ -391,10 +391,6 @@
   font-size: clamp(2rem, 3vw, 2.8rem);
 }
 
-.product-hub-detail__close {
-  display: none;
-}
-
 .product-hub-detail .product-detail-stage,
 .product-hub-detail .product-detail-stage__main,
 .product-hub-detail .product-detail-stage__image,
