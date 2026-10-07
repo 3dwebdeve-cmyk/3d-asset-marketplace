@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { apiClient, refreshSessionAccessToken } from './client'
 import type {
   AdminUser,
   AdminUserCreatePayload,
@@ -50,8 +50,8 @@ export async function adminLoginUser(payload: LoginPayload): Promise<LoginRespon
 }
 
 export async function refreshAccessToken(): Promise<RefreshResponse> {
-  const response = await apiClient.post<RefreshResponse>('/api/v1/auth/token/refresh/', {})
-  return response.data
+  const access = await refreshSessionAccessToken()
+  return { access }
 }
 
 export async function getCurrentUser(): Promise<AuthUser> {

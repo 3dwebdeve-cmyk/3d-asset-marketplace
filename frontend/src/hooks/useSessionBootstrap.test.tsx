@@ -54,8 +54,24 @@ describe('useSessionBootstrap', () => {
     })
 
     await waitFor(() => expect(result.current).toBe(true))
-    expect(mockedRefreshAccessToken).toHaveBeenCalled()
+    expect(mockedRefreshAccessToken).toHaveBeenCalledTimes(1)
     expect(mockedGetCurrentUser).not.toHaveBeenCalled()
+  })
+
+  it('retries once when a parallel rotation already consumed the refresh cookie', async () => {
+    mockedRefreshAccessToken
+      .mockRejectedValueOnce({ response: { data: { code: 'token_not_valid' } } })
+      .mockResolvedValueOnce({ access: 'rotated-access' })
+    mockedGetCurrentUser.mockResolvedValue(testUser)
+
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current).toBe(true))
+    expect(mockedRefreshAccessToken).toHaveBeenCalledTimes(2)
+    expect(useAuthStore.getState().accessToken).toBe('rotated-access')
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
   })
 
   it('restores access from the refresh cookie then loads /me/', async () => {

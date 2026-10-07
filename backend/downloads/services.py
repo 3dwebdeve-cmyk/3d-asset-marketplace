@@ -10,7 +10,11 @@ from django.db import transaction
 from django.db.models import F, QuerySet
 from django.http import FileResponse
 
-from config.media import PrivateFileNotFound, resolve_private_download
+from config.media import (
+    PrivateFileNotFound,
+    resolve_preview_download,
+    resolve_private_download,
+)
 from downloads.models import DownloadHistory
 from orders.entitlements import user_owns_catalog_item
 from orders.models import Order, OrderItem
@@ -21,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 PRODUCT_TYPE_PRODUCT = DownloadHistory.ProductType.PRODUCT
 PRODUCT_TYPE_PLUGIN = DownloadHistory.ProductType.PLUGIN
+PREVIEW_DOWNLOAD_FORMATS = ("glb", "gltf")
 
 
 @dataclass(frozen=True)
@@ -60,6 +65,30 @@ class DownloadService:
         raise DownloadError("Invalid product type.")
 
     @classmethod
+    def downloadable_product_files(
+        cls, product_ids: list[UUID]
+    ) -> dict[UUID, list[ProductFile]]:
+        """Packages per product; GLB/glTF previews only when a product has no package."""
+        files: dict[UUID, list[ProductFile]] = {}
+        if not product_ids:
+            return files
+        for file_row in ProductFile.objects.filter(
+            product_id__in=product_ids,
+            is_preview=False,
+        ).order_by("-created_at"):
+            files.setdefault(file_row.product_id, []).append(file_row)
+
+        missing = [product_id for product_id in product_ids if product_id not in files]
+        if missing:
+            for file_row in ProductFile.objects.filter(
+                product_id__in=missing,
+                is_preview=True,
+                file_format__in=PREVIEW_DOWNLOAD_FORMATS,
+            ).order_by("-created_at"):
+                files.setdefault(file_row.product_id, []).append(file_row)
+        return files
+
+    @classmethod
     def list_owned_catalog_keys(cls, user: User) -> list[tuple[str, UUID]]:
         rows = OrderItem.objects.filter(
             order__user=user,
@@ -93,13 +122,7 @@ class DownloadService:
             for plugin in Plugin.objects.filter(pk__in=plugin_ids).only("id", "name", "slug")
         }
 
-        product_files: dict[UUID, list[ProductFile]] = {}
-        if product_ids:
-            for file_row in ProductFile.objects.filter(
-                product_id__in=product_ids,
-                is_preview=False,
-            ).order_by("-created_at"):
-                product_files.setdefault(file_row.product_id, []).append(file_row)
+        product_files = cls.downloadable_product_files(product_ids)
 
         plugin_files: dict[UUID, list[PluginFile]] = {}
         if plugin_ids:
@@ -172,10 +195,11 @@ class DownloadService:
 
     @classmethod
     def get_product_file(cls, product_id: UUID, file_id: UUID) -> ProductFile:
-        try:
-            return ProductFile.objects.get(pk=file_id, product_id=product_id, is_preview=False)
-        except ProductFile.DoesNotExist as exc:
-            raise DownloadError("File not found.") from exc
+        allowed = cls.downloadable_product_files([product_id]).get(product_id, [])
+        for file_row in allowed:
+            if file_row.pk == file_id:
+                return file_row
+        raise DownloadError("File not found.")
 
     @classmethod
     def get_plugin_file(cls, plugin_id: UUID, file_id: UUID) -> PluginFile:
@@ -188,9 +212,9 @@ class DownloadService:
     def stream_product_file(
         cls, user: User, product_id: UUID, file_id: UUID
     ) -> FileResponse | dict[str, Any]:
-        file_row = cls.get_product_file(product_id, file_id)
         if not user_owns_catalog_item(user, PRODUCT_TYPE_PRODUCT, product_id):
             raise DownloadError("File not found.")
+        file_row = cls.get_product_file(product_id, file_id)
         return cls._deliver_owned_file(
             user=user,
             product_type=PRODUCT_TYPE_PRODUCT,
@@ -198,6 +222,7 @@ class DownloadService:
             file_id=file_row.id,
             file_name=file_row.file_name,
             storage_path=file_row.storage_path,
+            is_preview=file_row.is_preview,
         )
 
     @classmethod
@@ -239,10 +264,8 @@ class DownloadService:
         plugin_ids = [product_id for ptype, product_id in keys if ptype == PRODUCT_TYPE_PLUGIN]
 
         if product_ids:
-            for row in ProductFile.objects.filter(
-                product_id__in=product_ids,
-                is_preview=False,
-            ).order_by("-created_at"):
+            product_rows = cls.downloadable_product_files(product_ids)
+            for row in (row for rows in product_rows.values() for row in rows):
                 key = (PRODUCT_TYPE_PRODUCT, row.product_id)
                 if key in result:
                     result[key].append(
@@ -371,9 +394,11 @@ class DownloadService:
         file_id: UUID,
         file_name: str,
         storage_path: str,
+        is_preview: bool = False,
     ) -> FileResponse | dict[str, Any]:
+        resolver = resolve_preview_download if is_preview else resolve_private_download
         try:
-            result = resolve_private_download(storage_path, file_name=file_name)
+            result = resolver(storage_path, file_name=file_name)
         except PrivateFileNotFound as exc:
             raise DownloadError("File not found.") from exc
 

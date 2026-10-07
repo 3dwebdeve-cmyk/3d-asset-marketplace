@@ -33,7 +33,7 @@ test.describe('marketplace checkout commerce', () => {
     })
     await expect(page.getByText(/ready to download/i)).toBeVisible()
 
-    await page.getByRole('link', { name: 'My downloads' }).click()
+    await page.getByRole('link', { name: 'Go to my library' }).click()
     await expect(page).toHaveURL(/\/dashboard\/downloads/)
     await expect(page.getByRole('heading', { name: 'My Downloads' })).toBeVisible()
     await expect(page.getByText('E2E Checkout Chair')).toBeVisible()

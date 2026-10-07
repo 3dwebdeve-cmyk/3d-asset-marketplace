@@ -337,6 +337,7 @@
 
 .checkout-success-page__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   width: 100%;
 }
@@ -401,6 +402,127 @@
 .checkout-success-page__btn:focus-visible {
   outline: 2px solid var(--cs-primary-blue);
   outline-offset: 3px;
+}
+
+.checkout-success-page__btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.checkout-success-page__downloads {
+  margin: -8px 0 20px;
+  text-align: left;
+}
+
+.checkout-success-page__downloads-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin: 0 0 10px;
+}
+
+.checkout-success-page__download-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkout-success-page__download-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.checkout-success-page__download-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.checkout-success-page__download-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkout-success-page__download-meta,
+.checkout-success-page__muted {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.checkout-success-page__download-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.checkout-success-page__download-btn {
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--cs-mint-inner);
+  background: var(--cs-mint-inner);
+  color: #ffffff;
+  cursor: pointer;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.checkout-success-page__download-btn:hover:not(:disabled) {
+  background: #00a877;
+  border-color: #00a877;
+  transform: translateY(-1px);
+}
+
+.checkout-success-page__download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.checkout-success-page__download-btn:focus-visible {
+  outline: 2px solid var(--cs-primary-blue);
+  outline-offset: 2px;
+}
+
+.checkout-success-page__alert {
+  margin: 0 0 16px;
+  text-align: left;
+}
+
+.checkout-success-page__text-link {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--cs-primary-blue);
+  text-decoration: none;
+}
+
+.checkout-success-page__text-link:hover {
+  text-decoration: underline;
 }
 
 .checkout-success-page__pending-spot {

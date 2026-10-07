@@ -10,6 +10,7 @@ from uuid import UUID
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from config.locking import session_advisory_lock
 from config.currency import validate_checkout_amount
@@ -122,6 +123,11 @@ class CheckoutService:
         if not simulate and not settings.STRIPE_SECRET_KEY.startswith(f"sk_{payment_mode}_"):
             raise CheckoutError("Payment configuration mode does not match the Stripe key.")
 
+        # A paid Stripe session can still be pending locally when the webhook has
+        # not arrived. Record it before snapshotting the cart so those items are
+        # not charged again.
+        cls._fulfill_paid_pending_checkouts(user, simulate=simulate)
+
         # Commit the order snapshot and key BEFORE calling Stripe. A timeout or
         # crash after remote creation can then retry the exact same operation.
         with transaction.atomic():
@@ -222,6 +228,41 @@ class CheckoutService:
         return {"checkout_url": session.url, "order_id": str(order.id)}
 
     @classmethod
+    def _fulfill_paid_checkout(cls, payment: Payment, remote) -> bool:
+        """Record a Stripe-paid session with the same handler the webhook uses."""
+        from payments.webhook_service import WebhookService
+
+        try:
+            with transaction.atomic():
+                WebhookService._handle_checkout_completed(remote)
+        except (RuntimeError, ValueError):
+            return False
+        payment.refresh_from_db()
+        return payment.status == Payment.Status.SUCCEEDED
+
+    @classmethod
+    def _fulfill_paid_pending_checkouts(cls, user, *, simulate: bool) -> None:
+        pending = Payment.objects.select_related("order").filter(
+            order__user=user,
+            status=Payment.Status.PENDING,
+            order__order_status=Order.OrderStatus.PENDING,
+        )
+        for payment in pending:
+            session_id = payment.stripe_checkout_session_id or ""
+            if not session_id or (
+                simulate and session_id.startswith(E2E_CHECKOUT_SESSION_PREFIX)
+            ):
+                continue
+            try:
+                remote = stripe.checkout.Session.retrieve(session_id)
+            except stripe.error.StripeError:
+                continue
+            remote_status = str(session_value(remote, "status") or "")
+            remote_payment_status = str(session_value(remote, "payment_status") or "")
+            if remote_status == "complete" and remote_payment_status == "paid":
+                cls._fulfill_paid_checkout(payment, remote)
+
+    @classmethod
     def _supersede_other_checkouts(cls, user, *, current_order_id, simulate: bool) -> None:
         """Expire earlier open sessions before a changed cart gets another one."""
         payment_mode = getattr(settings, "STRIPE_PAYMENT_MODE", "test")
@@ -259,6 +300,10 @@ class CheckoutService:
                         cls._expire_local_pending_checkout(payment)
                         continue
                     raise CheckoutError('An earlier checkout needs verification before retrying.') from exc
+            if remote_status == "complete" and remote_payment_status == "paid":
+                if cls._fulfill_paid_checkout(payment, remote):
+                    continue
+                raise CheckoutError('An earlier checkout needs verification before retrying.')
             if (
                 payment_mode == "test"
                 and remote_status == "complete"
@@ -279,11 +324,16 @@ class CheckoutService:
 
         # An unresolved attempt may have created a session remotely even though
         # its local Payment row is absent. Require recovery before changing carts.
-        if CheckoutAttempt.objects.filter(
+        unresolved = CheckoutAttempt.objects.filter(
             order__user=user,
             order__order_status=Order.OrderStatus.PENDING,
             status__in=[CheckoutAttempt.Status.PREPARED, CheckoutAttempt.Status.REVIEW],
-        ).exclude(order_id=current_order_id).exists():
+        ).exclude(order_id=current_order_id)
+        # No session was stored, so Stripe was never charged for these attempts.
+        unresolved.filter(
+            Q(stripe_checkout_session_id__isnull=True) | Q(stripe_checkout_session_id="")
+        ).update(status=CheckoutAttempt.Status.EXPIRED)
+        if unresolved.exists():
             raise CheckoutError('An earlier checkout needs reconciliation before retrying.')
 
     @classmethod
