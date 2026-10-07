@@ -132,6 +132,100 @@ class CheckoutRecoveryTests(PaymentsTestMixin, APITestCase):
         item.refresh_from_db()
         self.assertEqual(item.quantity, 2)
 
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
+    def test_missing_sandbox_session_is_expired_before_new_checkout(self, retrieve, create):
+        old_order = OrderService.create_from_cart(self.user)
+        old_attempt = CheckoutAttempt.objects.create(
+            order=old_order,
+            status=CheckoutAttempt.Status.READY,
+            stripe_checkout_session_id="cs_missing_sandbox",
+            checkout_url="https://checkout.stripe.com/pay/cs_missing_sandbox",
+        )
+        old_payment = Payment.objects.create(
+            order=old_order,
+            stripe_checkout_session_id="cs_missing_sandbox",
+            checkout_url="https://checkout.stripe.com/pay/cs_missing_sandbox",
+            amount=old_order.total_amount,
+            currency=old_order.currency,
+        )
+        self._add_to_cart("plugin", self.plugin.pk)
+        retrieve.side_effect = stripe.error.InvalidRequestError(
+            "No such checkout session",
+            "id",
+            code="resource_missing",
+        )
+        create.return_value = _fake_session("cs_after_missing_sandbox")
+
+        result = CheckoutService.create_checkout_session(self.user)
+
+        self.assertEqual(result["checkout_url"], _fake_session("cs_after_missing_sandbox").url)
+        old_payment.refresh_from_db()
+        old_attempt.refresh_from_db()
+        self.assertEqual(old_payment.status, Payment.Status.EXPIRED)
+        self.assertEqual(old_attempt.status, CheckoutAttempt.Status.EXPIRED)
+
+    @override_settings(
+        STRIPE_PAYMENT_MODE="live",
+        STRIPE_SECRET_KEY="sk_live_phase2_dummy",
+    )
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
+    def test_missing_live_session_remains_fail_closed(self, retrieve):
+        old_order = OrderService.create_from_cart(self.user)
+        CheckoutAttempt.objects.create(
+            order=old_order,
+            status=CheckoutAttempt.Status.READY,
+            stripe_checkout_session_id="cs_missing_live",
+        )
+        old_payment = Payment.objects.create(
+            order=old_order,
+            stripe_checkout_session_id="cs_missing_live",
+            amount=old_order.total_amount,
+            currency=old_order.currency,
+        )
+        self._add_to_cart("plugin", self.plugin.pk)
+        retrieve.side_effect = stripe.error.InvalidRequestError(
+            "No such checkout session",
+            "id",
+            code="resource_missing",
+        )
+
+        with self.assertRaisesRegex(CheckoutError, "needs verification"):
+            CheckoutService.create_checkout_session(self.user)
+
+        old_payment.refresh_from_db()
+        self.assertEqual(old_payment.status, Payment.Status.PENDING)
+
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
+    def test_completed_unpaid_sandbox_session_is_expired(self, retrieve, create):
+        old_order = OrderService.create_from_cart(self.user)
+        old_attempt = CheckoutAttempt.objects.create(
+            order=old_order,
+            status=CheckoutAttempt.Status.READY,
+            stripe_checkout_session_id="cs_unpaid_sandbox",
+        )
+        old_payment = Payment.objects.create(
+            order=old_order,
+            stripe_checkout_session_id="cs_unpaid_sandbox",
+            amount=old_order.total_amount,
+            currency=old_order.currency,
+        )
+        self._add_to_cart("plugin", self.plugin.pk)
+        retrieve.return_value = {
+            "id": "cs_unpaid_sandbox",
+            "status": "complete",
+            "payment_status": "unpaid",
+        }
+        create.return_value = _fake_session("cs_after_unpaid_sandbox")
+
+        CheckoutService.create_checkout_session(self.user)
+
+        old_payment.refresh_from_db()
+        old_attempt.refresh_from_db()
+        self.assertEqual(old_payment.status, Payment.Status.EXPIRED)
+        self.assertEqual(old_attempt.status, CheckoutAttempt.Status.EXPIRED)
+
     def test_legacy_pending_payment_is_backfilled_for_reconciliation(self):
         order = OrderService.create_from_cart(self.user)
         payment = Payment.objects.create(
