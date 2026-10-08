@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
+from django.core.files.base import ContentFile, File
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 # Avatars stay small; product assets can use larger limits later.
 AVATAR_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+AVATAR_MAX_PIXELS = 4_000_000
 
 AVATAR_ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 AVATAR_ALLOWED_MIME_TYPES = frozenset({"image/jpeg", "image/png", "image/webp"})
@@ -25,7 +28,7 @@ _PIL_FORMAT_TO_MIME = {
 
 @dataclass(frozen=True)
 class ValidatedAvatarUpload:
-    file: UploadedFile
+    file: File
     extension: str
     mime_type: str
 
@@ -77,6 +80,10 @@ def validate_avatar_upload(uploaded: UploadedFile) -> ValidatedAvatarUpload:
     try:
         uploaded.seek(0)
         with Image.open(uploaded) as image:
+            if image.width * image.height > AVATAR_MAX_PIXELS:
+                raise ValidationError(
+                    {"avatar": "Avatar dimensions exceed the 4 megapixel limit."}
+                )
             image.verify()
             detected_format = (image.format or "").upper()
     except UnidentifiedImageError as exc:
@@ -110,8 +117,25 @@ def validate_avatar_upload(uploaded: UploadedFile) -> ValidatedAvatarUpload:
             {"avatar": "File extension does not match image content."}
         )
 
+    uploaded.seek(0)
+    with Image.open(uploaded) as opened:
+        image = ImageOps.exif_transpose(opened)
+        if image.mode not in {"RGB", "RGBA"}:
+            image = image.convert("RGBA" if "transparency" in image.info else "RGB")
+        output = BytesIO()
+        image.save(
+            output,
+            format="WEBP",
+            quality=82,
+            method=6,
+            exact=image.mode == "RGBA",
+        )
+    uploaded.seek(0)
+
     return ValidatedAvatarUpload(
-        file=uploaded,
-        extension=extension,
-        mime_type=detected_mime,
+        file=ContentFile(
+            output.getvalue(), name=f"{Path(uploaded.name).stem}.webp"
+        ),
+        extension=".webp",
+        mime_type="image/webp",
     )

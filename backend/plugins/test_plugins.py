@@ -123,6 +123,7 @@ class PluginPublicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "mesh-toolkit")
+        self.assertEqual(response.data["results"][0]["formats"], ["zip"])
 
     def test_public_list_supports_search_category_and_ordering(self) -> None:
         other = PluginCategory.objects.create(name="Maya", slug="maya")
@@ -157,7 +158,7 @@ class PluginPublicAPITests(APITestCase):
                 status=Plugin.Status.PUBLISHED,
             )
 
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             response = self.client.get(reverse("plugins:plugin-list"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -561,6 +562,7 @@ class PluginMediaAPITests(PluginTestMixin, APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("/media/plugins/images/", response.data["image_url"])
+        self.assertTrue(response.data["image_url"].endswith(".webp"))
         self.plugin.refresh_from_db()
         self.assertEqual(self.plugin.thumbnail, response.data["image_url"])
 

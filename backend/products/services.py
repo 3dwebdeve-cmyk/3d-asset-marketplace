@@ -129,6 +129,13 @@ class ProductService:
         # Defer heavy detail/admin-only columns to shrink list payload SQL.
         queryset = (
             Product.objects.select_related("category")
+            .prefetch_related(
+                Prefetch(
+                    "files",
+                    queryset=ProductFile.objects.only("product_id", "file_format"),
+                    to_attr="filter_files",
+                )
+            )
             .filter(status=Product.Status.PUBLISHED)
             .defer(
                 "description",

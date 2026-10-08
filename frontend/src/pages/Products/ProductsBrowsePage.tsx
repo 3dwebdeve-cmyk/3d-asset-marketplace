@@ -57,9 +57,9 @@ const FALLBACK_CATEGORIES: CategoryPublic[] = [
 }))
 
 const FALLBACK_PRODUCTS: PublicProduct[] = [
-  ['demo-oak-chair', 'Oak Lounge Chair', '/homepage%20images/furniture.png', 'Furniture', '29.99'],
-  ['demo-desk-lamp', 'Modern Desk Lamp', '/homepage%20images/interior.png', 'Interiors', '19.99'],
-  ['demo-plant-pot', 'Decorative Plant Pot', '/homepage%20images/products.png', 'Products', '9.99'],
+  ['demo-oak-chair', 'Oak Lounge Chair', '/homepage%20images/furniture.webp', 'Furniture', '29.99'],
+  ['demo-desk-lamp', 'Modern Desk Lamp', '/homepage%20images/interior.webp', 'Interiors', '19.99'],
+  ['demo-plant-pot', 'Decorative Plant Pot', '/homepage%20images/products.webp', 'Products', '9.99'],
 ].map(([slug, name, thumbnail, categoryName, price]) => ({
   id: `fallback-${slug}`,
   name,
@@ -79,8 +79,8 @@ const FALLBACK_PRODUCTS: PublicProduct[] = [
 }))
 
 const FALLBACK_PLUGINS: PublicPlugin[] = [
-  ['demo-batch-exporter', 'Batch Exporter', '/homepage%20images/batch_exporter.png', '12.99'],
-  ['demo-uv-toolkit', 'UV Toolkit', '/images/custom-plugin.png', '19.99'],
+  ['demo-batch-exporter', 'Batch Exporter', '/homepage%20images/batch_exporter.webp', '12.99'],
+  ['demo-uv-toolkit', 'UV Toolkit', '/images/custom-plugin.webp', '19.99'],
 ].map(([slug, name, thumbnail, price]) => ({
   id: `fallback-${slug}`,
   name,
@@ -115,21 +115,21 @@ const BROWSE_SERVICES: BrowseService[] = [
     description: 'Explore high-quality production-ready 3D models in all categories.',
     path: '/3d-models',
     buttonText: 'Shop 3D Models',
-    iconSrc: '/images/home/icon-3d-models.png',
+    iconSrc: '/images/home/icon-3d-models.webp',
   },
   {
     title: 'Plugins & Tools',
     description: 'Power-up your workflow with professional Blender and Unreal plugins.',
     path: '/plugins',
     buttonText: 'Explore Plugins',
-    iconSrc: '/images/home/icon-plugins.png',
+    iconSrc: '/images/home/icon-plugins.webp',
   },
   {
     title: 'Inquiry Portal',
     description: 'Have a specific custom asset requirement? Our team is here to help.',
     path: '/custom-projects',
     buttonText: 'Submit an Inquiry',
-    iconSrc: '/images/home/icon-inquiry.png',
+    iconSrc: '/images/home/icon-inquiry.webp',
   },
 ]
 
@@ -232,7 +232,7 @@ const OFFER_SERVICES = [
     title: 'Custom 3D Model',
     cta: 'Get Custom Model',
     icon: 'cube',
-    image: '/images/custom-3Dmodel.png',
+    image: '/images/custom-3Dmodel.webp',
     summary: 'High-quality, custom 3D models built precisely for your project needs.',
     points: [
       'Product & game-ready models',
@@ -245,7 +245,7 @@ const OFFER_SERVICES = [
     title: 'Custom Plugin',
     cta: 'Get Custom Plugin',
     icon: 'plugin',
-    image: '/images/custom-plugin.png',
+    image: '/images/custom-plugin.webp',
     summary: 'Powerful Blender add-ons and tools to supercharge your workflow.',
     points: [
       'Custom Blender add-ons',
@@ -258,7 +258,7 @@ const OFFER_SERVICES = [
     title: 'Custom Texturing',
     cta: 'Get Custom Texture',
     icon: 'pencil',
-    image: '/images/custom-texture.png',
+    image: '/images/custom-texture.webp',
     summary: 'Realistic and stylized textures that bring your 3D models to life.',
     points: [
       'PBR & stylized texturing',
@@ -271,7 +271,7 @@ const OFFER_SERVICES = [
     title: 'Custom Rendering',
     cta: 'Get Custom Render',
     icon: 'camera',
-    image: '/images/custom-render.png',
+    image: '/images/custom-render.webp',
     summary: 'High-quality renders with perfect lighting, composition and detail.',
     points: [
       'Photorealistic renders',
@@ -351,18 +351,18 @@ function CategoryTile({
   const [imgError, setImgError] = useState(false)
   const IconComponent = getCategoryIcon(category.slug)
   const localCategoryImages: Record<string, string> = {
-    furniture: '/homepage%20images/furniture.png',
-    products: '/homepage%20images/products.png',
-    toys: '/homepage%20images/toys.png',
-    electronics: '/homepage%20images/electronics.png',
-    'food-drink': '/homepage%20images/food.png',
-    character: '/homepage%20images/character.png',
-    industrial: '/homepage%20images/industrial.png',
-    '3d-printing': '/homepage%20images/printing.png',
-    'assets-props': '/homepage%20images/props.png',
-    'interactive-webar': '/homepage%20images/webar.png',
-    'architectural-3d-models': '/homepage%20images/architecture.png',
-    'interior-3d-models': '/homepage%20images/interior.png',
+    furniture: '/homepage%20images/furniture.webp',
+    products: '/homepage%20images/products.webp',
+    toys: '/homepage%20images/toys.webp',
+    electronics: '/homepage%20images/electronics.webp',
+    'food-drink': '/homepage%20images/food.webp',
+    character: '/homepage%20images/character.webp',
+    industrial: '/homepage%20images/industrial.webp',
+    '3d-printing': '/homepage%20images/printing.webp',
+    'assets-props': '/homepage%20images/props.webp',
+    'interactive-webar': '/homepage%20images/webar.webp',
+    'architectural-3d-models': '/homepage%20images/architecture.webp',
+    'interior-3d-models': '/homepage%20images/interior.webp',
   }
   const imageSrc = localCategoryImages[category.slug.toLowerCase()] ?? category.image
 

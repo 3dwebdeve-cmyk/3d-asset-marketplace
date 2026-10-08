@@ -432,10 +432,13 @@ REST_FRAMEWORK = {
         "auth_email_verification_confirm": "10/hour",
         "auth_token_refresh": "20/min",
         "catalog_search": "30/min",
+        "csp_report": "30/min",
         "avatar_upload": "10/hour",
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
         "admin_plugin_write": "60/min",
+        # Uploads can trigger storage writes, malware scanning and image parsing.
+        "admin_upload": "12/min",
         "admin_order_write": "60/min",
         "wishlist_write": "30/min",
         "cart_write": "30/min",
@@ -445,6 +448,8 @@ REST_FRAMEWORK = {
         "contact_form": "5/hour",
         "category_click": "60/min",
         "payment_checkout": "10/min",
+        # Limits a user's Stripe API activity over a full day, not only bursts.
+        "payment_checkout_daily": "30/day",
         "admin_coupon_write": "60/min",
     },
 }
