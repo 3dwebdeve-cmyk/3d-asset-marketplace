@@ -35,12 +35,6 @@ class Review(models.Model):
             models.Index(fields=["product_type", "product_id", "is_hidden"]),
             models.Index(fields=["user", "created_at"]),
         ]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "product_type", "product_id"],
-                name="unique_user_product_review",
-            ),
-        ]
 
     def __str__(self) -> str:
         return f"{self.user_id}:{self.product_type}:{self.product_id}:{self.rating}"

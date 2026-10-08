@@ -24,6 +24,7 @@ ALLOWED_ADMIN_ORDERING = ALLOWED_PUBLIC_ORDERING | {
     "updated_at",
     "-updated_at",
 }
+MAX_COMMENTS_PER_USER_PRODUCT = 5
 
 
 class ReviewError(Exception):
@@ -154,18 +155,45 @@ class ReviewService:
             )
 
         with transaction.atomic():
-            review, created = Review.objects.update_or_create(
+            if normalized_type == Review.ProductType.PRODUCT:
+                Product.objects.select_for_update().get(pk=product_id)
+            else:
+                Plugin.objects.select_for_update().get(pk=product_id)
+
+            comment_count = Review.objects.filter(
                 user=user,
                 product_type=normalized_type,
                 product_id=product_id,
-                defaults={
-                    "rating": rating,
-                    "review_text": text,
-                },
+            ).count()
+            if comment_count >= MAX_COMMENTS_PER_USER_PRODUCT:
+                raise ReviewError(
+                    "You can post a maximum of 5 comments on this product.",
+                    field="review_text",
+                    code="comment_limit_reached",
+                )
+
+            if rating is not None and Review.objects.filter(
+                user=user,
+                product_type=normalized_type,
+                product_id=product_id,
+                rating__isnull=False,
+            ).exists():
+                raise ReviewError(
+                    "You have already rated this product.",
+                    field="rating",
+                    code="rating_already_submitted",
+                )
+
+            review = Review.objects.create(
+                user=user,
+                product_type=normalized_type,
+                product_id=product_id,
+                rating=rating,
+                review_text=text,
             )
             cls._recompute_aggregates(normalized_type, product_id)
             review.refresh_from_db()
-            return review, created
+            return review, True
 
     @classmethod
     def set_hidden(cls, review: Review, hidden: bool) -> Review:

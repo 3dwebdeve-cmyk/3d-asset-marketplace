@@ -140,6 +140,15 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
               </>
             }
           />
+
+          <section className="product-hub-detail__description" aria-labelledby="product-description-heading">
+            <h2 id="product-description-heading" className="product-detail-section-title">
+              Description
+            </h2>
+            <div className="product-hub-detail__description-copy">
+              {product.description || product.short_description || 'No description is available for this asset.'}
+            </div>
+          </section>
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Product purchase details">
@@ -192,15 +201,6 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
       </div>
 
       <div className="product-hub-detail__lower-grid">
-        <section className="product-hub-detail__description" aria-labelledby="product-description-heading">
-          <h2 id="product-description-heading" className="product-detail-section-title">
-            Description
-          </h2>
-          <div className="product-hub-detail__description-copy">
-            {product.description || product.short_description || 'No description is available for this asset.'}
-          </div>
-        </section>
-
         <ReviewsSection
           productType="product"
           productId={product.id}
