@@ -213,6 +213,13 @@ class PluginService:
         # the media-prefetching base queryset.
         queryset = (
             Plugin.objects.select_related("category")
+            .prefetch_related(
+                Prefetch(
+                    "files",
+                    queryset=PluginFile.objects.only("plugin_id", "file_format"),
+                    to_attr="filter_files",
+                )
+            )
             .filter(
                 status=Plugin.Status.PUBLISHED,
                 category__is_active=True,

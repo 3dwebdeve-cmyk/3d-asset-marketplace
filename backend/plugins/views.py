@@ -10,7 +10,11 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminPluginWriteRateThrottle, CatalogSearchRateThrottle
+from accounts.throttles import (
+    AdminPluginWriteRateThrottle,
+    AdminUploadRateThrottle,
+    CatalogSearchRateThrottle,
+)
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
 from plugins.models import Plugin
@@ -387,7 +391,7 @@ class AdminPluginDetailView(APIView):
 
 class AdminPluginImageUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminPluginWriteRateThrottle]
+    throttle_classes = [AdminPluginWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, plugin_id: UUID) -> Response:
@@ -431,7 +435,7 @@ class AdminPluginImageDetailView(APIView):
 
 class AdminPluginFileUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminPluginWriteRateThrottle]
+    throttle_classes = [AdminPluginWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, plugin_id: UUID) -> Response:

@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
@@ -15,25 +15,25 @@ import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
-const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.png'
+const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/images/new%20banner%20image%20size/Furniture.png',
-  toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.png',
-  electronics: '/images/new%20banner%20image%20size/Electronics.png',
-  'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.png',
-  character: '/images/new%20banner%20image%20size/Character.png',
-  industrial: '/images/new%20banner%20image%20size/Industrial.png',
-  '3d-printing': '/images/new%20banner%20image%20size/3D%20Printing.png',
-  'assets-props': '/images/new%20banner%20image%20size/Assets%20%20Props.png',
-  'interactive-webar': '/images/new%20banner%20image%20size/AR%20Armchair%20Studio%20Showcase.png?v=2',
-  'architectural-3d-models': '/images/new%20banner%20image%20size/Architectural%203D%20Models.png',
-  'interior-3d-models': '/images/new%20banner%20image%20size/Cinematic%20Floating%20Pavilion%20Interior.png',
-  'cloth-items': '/images/new%20banner%20image%20size/Cloth%20Items.png',
-  household: '/images/new%20banner%20image%20size/Household.png',
-  'lifestyle-visualisation': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.png',
-  'lifestyle-visualization': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.png',
-  lights: '/images/new%20banner%20image%20size/Moody%20Modern%20Lighting%20Vignette.png',
-  'plants-vegetation': '/images/new%20banner%20image%20size/Moody%20Panoramic%20Indoor%20Plant%20Collection.png',
+  furniture: '/images/new%20banner%20image%20size/Furniture.webp',
+  toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
+  electronics: '/images/new%20banner%20image%20size/Electronics.webp',
+  'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
+  character: '/images/new%20banner%20image%20size/Character.webp',
+  industrial: '/images/new%20banner%20image%20size/Industrial.webp',
+  '3d-printing': '/images/new%20banner%20image%20size/3D%20Printing.webp',
+  'assets-props': '/images/new%20banner%20image%20size/Assets%20%20Props.webp',
+  'interactive-webar': '/images/new%20banner%20image%20size/AR%20Armchair%20Studio%20Showcase.webp?v=2',
+  'architectural-3d-models': '/images/new%20banner%20image%20size/Architectural%203D%20Models.webp',
+  'interior-3d-models': '/images/new%20banner%20image%20size/Cinematic%20Floating%20Pavilion%20Interior.webp',
+  'cloth-items': '/images/new%20banner%20image%20size/Cloth%20Items.webp',
+  household: '/images/new%20banner%20image%20size/Household.webp',
+  'lifestyle-visualisation': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.webp',
+  'lifestyle-visualization': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.webp',
+  lights: '/images/new%20banner%20image%20size/Moody%20Modern%20Lighting%20Vignette.webp',
+  'plants-vegetation': '/images/new%20banner%20image%20size/Moody%20Panoramic%20Indoor%20Plant%20Collection.webp',
   products: PRODUCTS_BANNER_IMAGE_SRC,
 }
 
@@ -70,7 +70,6 @@ function readTraitFromUrl(searchParams: URLSearchParams, key: TraitKey): boolean
 }
 
 export function ModelsBrowsePage() {
-  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
@@ -230,7 +229,7 @@ export function ModelsBrowsePage() {
         animated: traits.animated || undefined,
         pbr_ready: traits.pbr_ready || undefined,
         game_ready: traits.game_ready || undefined,
-      }, queryClient),
+      }),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   })

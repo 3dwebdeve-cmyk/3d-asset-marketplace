@@ -10,7 +10,11 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminProductWriteRateThrottle, CatalogSearchRateThrottle
+from accounts.throttles import (
+    AdminProductWriteRateThrottle,
+    AdminUploadRateThrottle,
+    CatalogSearchRateThrottle,
+)
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
 from products.catalog_import import CatalogImportService
@@ -295,7 +299,7 @@ class AdminProductDetailView(APIView):
 
 class AdminProductImageUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminProductWriteRateThrottle]
+    throttle_classes = [AdminProductWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, product_id: UUID) -> Response:
@@ -355,7 +359,7 @@ class AdminProductImageDetailView(APIView):
 
 class AdminProductFileUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminProductWriteRateThrottle]
+    throttle_classes = [AdminProductWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, product_id: UUID) -> Response:

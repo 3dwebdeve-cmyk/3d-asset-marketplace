@@ -91,6 +91,13 @@ class PluginFileAdminSerializer(serializers.ModelSerializer):
 
 class PluginListPublicSerializer(serializers.ModelSerializer):
     category = PluginCategorySerializer(read_only=True)
+    formats = serializers.SerializerMethodField()
+
+    def get_formats(self, obj: Plugin) -> list[str]:
+        files = getattr(obj, "filter_files", None)
+        if files is None:
+            files = getattr(obj, "_prefetched_objects_cache", {}).get("files", ())
+        return sorted({row.file_format.lower().lstrip(".") for row in files})
 
     class Meta:
         model = Plugin
@@ -105,6 +112,7 @@ class PluginListPublicSerializer(serializers.ModelSerializer):
             "thumbnail",
             "version",
             "compatibility",
+            "formats",
             "license_type",
             "average_rating",
             "review_count",

@@ -33,6 +33,7 @@ export function PluginCard({ plugin }: PluginCardProps) {
               className="product-card__image"
               onError={() => setImgError(true)}
               loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="product-card__image-placeholder" aria-hidden="true">

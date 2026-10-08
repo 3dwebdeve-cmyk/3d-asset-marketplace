@@ -15,6 +15,7 @@ export interface PublicPlugin {
   thumbnail: string
   version: string
   compatibility: string
+  formats?: string[]
   license_type: PluginLicenseType
   average_rating: string
   review_count: number
