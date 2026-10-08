@@ -149,6 +149,17 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
               {product.description || product.short_description || 'No description is available for this asset.'}
             </div>
           </section>
+
+          <div className="product-hub-detail__media-reviews">
+            <ReviewsSection
+              productType="product"
+              productId={product.id}
+              catalogSlug={product.slug}
+              averageRating={product.average_rating}
+              reviewCount={product.review_count}
+              layout="hub"
+            />
+          </div>
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Product purchase details">
@@ -197,20 +208,9 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             </div>
 
           </div>
-        </aside>
-      </div>
 
-      <div className="product-hub-detail__lower-grid">
-        <ReviewsSection
-          productType="product"
-          productId={product.id}
-          catalogSlug={product.slug}
-          averageRating={product.average_rating}
-          reviewCount={product.review_count}
-          layout="hub"
-        />
-
-        <section className="product-detail-related" aria-labelledby="product-related-heading">
+          <div className="product-hub-detail__lower-grid">
+            <section className="product-detail-related" aria-labelledby="product-related-heading">
           <div className="product-detail-related__header">
             <h2 id="product-related-heading" className="product-detail-section-title">
               Similar products
@@ -262,7 +262,9 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
               ))}
             </div>
           )}
-        </section>
+            </section>
+          </div>
+        </aside>
       </div>
     </>
   )

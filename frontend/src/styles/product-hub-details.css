@@ -112,7 +112,7 @@
 
 .product-hub-detail__layout {
   align-items: start;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 @media (min-width: 960px) {
@@ -121,7 +121,7 @@
   .product-hub-detail .product-hub-detail__layout.product-detail-layout,
   .product-hub-detail .product-detail-layout.product-hub-detail__layout {
     grid-template-columns: minmax(0, 1.7fr) minmax(340px, 0.95fr);
-    gap: 1.5rem;
+    gap: 2rem;
   }
 }
 
@@ -130,6 +130,16 @@
   flex-direction: column;
   gap: 1.25rem;
   min-width: 0;
+}
+
+.product-hub-detail__aside > .product-hub-detail__lower-grid {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.product-hub-detail__aside > .product-hub-detail__lower-grid .product-detail-related {
+  width: 100%;
 }
 
 .product-hub-detail .product-detail-breadcrumb__list a {
@@ -174,6 +184,46 @@
 .product-hub-detail .product-detail-stage__viewer .model-viewer {
   height: 530px;
   min-height: 530px;
+}
+
+.product-hub-detail .product-detail-stage__fullscreen {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0.35rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.88);
+  color: #111;
+  cursor: pointer;
+}
+
+.product-hub-detail .product-detail-stage__fullscreen svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.product-hub-detail .product-detail-stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+}
+
+.product-hub-detail .product-detail-stage:fullscreen .product-detail-stage__viewer,
+.product-hub-detail .product-detail-stage:fullscreen .model-viewer {
+  height: 100%;
 }
 
 .product-hub-detail .product-detail-stage__video-wrap {
@@ -380,7 +430,7 @@
 
 /* Full product-page composition from the approved reference. */
 .product-hub-detail.product-detail-page {
-  padding: 2rem clamp(3rem, 10vw, 12rem) 3.5rem;
+  padding: 2rem clamp(3rem, 12vw, 14rem) 3.5rem;
 }
 
 .product-hub-detail__header {
@@ -432,6 +482,23 @@
   font-size: 0.95rem;
   line-height: 1.65;
   white-space: pre-line;
+}
+
+.product-hub-detail .product-hub-detail__media-reviews .product-detail-reviews--hub {
+  width: 100%;
+  margin: 0;
+}
+
+.product-hub-detail .product-hub-detail__media-reviews .product-detail-reviews__header,
+.product-hub-detail .product-hub-detail__media-reviews .product-detail-reviews__form-panel,
+.product-hub-detail .product-hub-detail__media-reviews .product-detail-reviews__list-panel {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.product-hub-detail .product-hub-detail__media-reviews .product-detail-reviews__item {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .product-hub-detail__lower-grid .product-detail-related {
@@ -625,6 +692,138 @@
 
   .product-hub-detail__lower-grid .product-detail-related .product-card--marketplace {
     width: 100%;
+  }
+}
+
+/* Threaded comment layout: compact metadata, connector lines, and nested replies. */
+.product-hub-detail .product-detail-reviews__item {
+  position: relative;
+  padding: 1rem 2.25rem 1rem 0;
+  border-bottom: 1px solid var(--hub-border);
+}
+
+.product-hub-detail .product-detail-reviews__item-header {
+  align-items: flex-start;
+}
+
+.product-hub-detail .product-detail-reviews__avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+}
+
+.product-hub-detail .product-detail-reviews__item-top {
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
+.product-hub-detail .product-detail-reviews__item-top time,
+.product-hub-detail .product-detail-reviews__reply-meta time {
+  font-size: 0.72rem;
+  color: var(--hub-muted);
+}
+
+.product-hub-detail .product-detail-reviews__item-body {
+  margin: 0.25rem 0 0 3rem;
+  max-width: none;
+  font-size: 0.82rem;
+}
+
+.product-hub-detail .product-detail-reviews__actions {
+  margin: 0.45rem 0 0 3rem;
+}
+
+.product-hub-detail .product-detail-reviews__more {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.2rem;
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.product-hub-detail .product-detail-reviews__more:hover,
+.product-hub-detail .product-detail-reviews__more:focus-visible {
+  background: color-mix(in srgb, var(--text-main) 7%, transparent);
+  outline: none;
+}
+
+.product-hub-detail .product-detail-reviews__replies {
+  gap: 0;
+  margin: 0.75rem 0 0 1.15rem;
+  padding-left: 1.65rem;
+  border-left: 1px solid var(--hub-border);
+}
+
+.product-hub-detail .product-detail-reviews__replies li {
+  position: relative;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.65rem 2.25rem 0.75rem 0;
+}
+
+.product-hub-detail .product-detail-reviews__replies li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -1.7rem;
+  width: 1.2rem;
+  height: 1.4rem;
+  border-bottom: 1px solid var(--hub-border);
+  border-left: 1px solid var(--hub-border);
+  border-bottom-left-radius: 0.9rem;
+}
+
+.product-hub-detail .product-detail-reviews__replies .product-detail-reviews__reply--nested {
+  margin-left: 2.75rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-avatar {
+  width: 2rem;
+  height: 2rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-meta {
+  gap: 0.4rem;
+}
+
+.product-hub-detail .product-detail-reviews__replies p {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-actions {
+  margin-top: 0.35rem;
+}
+
+.product-hub-detail .product-detail-reviews__more--reply {
+  top: 0.45rem;
+  right: 0;
+}
+
+@media (max-width: 640px) {
+  .product-hub-detail .product-detail-reviews__item-body,
+  .product-hub-detail .product-detail-reviews__actions {
+    margin-left: 2.65rem;
+  }
+
+  .product-hub-detail .product-detail-reviews__replies {
+    margin-left: 0.5rem;
+    padding-left: 1.1rem;
+  }
+
+  .product-hub-detail .product-detail-reviews__replies .product-detail-reviews__reply--nested {
+    margin-left: 1.25rem;
   }
 }
 
@@ -888,6 +1087,159 @@
     height: min(42vh, 280px);
     min-height: 200px;
   }
+}
+
+.product-hub-detail .product-detail-reviews__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0.45rem 0 0 2.55rem;
+}
+
+.product-hub-detail .product-detail-reviews__action,
+.product-hub-detail .product-detail-reviews__reply-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--hub-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.product-hub-detail .product-detail-reviews__action svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Hide the legacy reply-dislike path; the following two paths draw the clean outline icon. */
+.product-hub-detail .product-detail-reviews__reply-actions [aria-label="Dislike reply"] svg path:first-child {
+  display: none;
+}
+
+.product-hub-detail .product-detail-reviews__action--active,
+.product-hub-detail .product-detail-reviews__action--active svg {
+  color: var(--hub-blue);
+}
+
+.product-hub-detail .product-detail-reviews__reply-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.55rem 0 0 2.55rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-form input {
+  min-width: 0;
+  padding: 0.55rem 0.2rem;
+  border: 0;
+  border-bottom: 1px solid var(--hub-border);
+  outline: 0;
+  font: inherit;
+}
+
+.product-hub-detail .product-detail-reviews__reply-form button {
+  padding: 0.45rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--hub-blue-soft);
+  color: var(--hub-blue);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.product-hub-detail .product-detail-reviews__replies {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0 2.55rem;
+  padding: 0 0 0 1rem;
+  border-left: 1px solid var(--hub-border);
+  list-style: none;
+}
+
+.product-hub-detail .product-detail-reviews__replies li {
+  display: grid;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  gap: 0.6rem;
+}
+
+.product-hub-detail .product-detail-reviews__replies .product-detail-reviews__reply--nested {
+  margin-left: 2.4rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-avatar {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--hub-blue-soft);
+  color: var(--hub-blue);
+  font-size: 0.62rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-meta time {
+  color: var(--hub-muted);
+}
+
+.product-hub-detail .product-detail-reviews__replies p {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 0.35rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-form--nested {
+  margin: 0.4rem 0 0;
+}
+
+/* Fullscreen must override every fixed desktop/mobile preview height. */
+.product-hub-detail .product-detail-stage:fullscreen {
+  position: relative;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  overflow: hidden;
+}
+
+.product-hub-detail .product-detail-stage:fullscreen .product-detail-stage__viewer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+.product-hub-detail .product-detail-stage:fullscreen .model-viewer,
+.product-hub-detail .product-detail-stage:fullscreen .model-viewer__canvas {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
 }
 
 .product-hub-detail .product-detail-stage__counter {
@@ -1887,12 +2239,12 @@
 .product-hub-detail__lower-grid .product-detail-related__header {
   width: 68%;
   margin-inline: auto;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .product-hub-detail__lower-grid .product-detail-related__header .product-detail-section-title {
   width: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .product-hub-detail__lower-grid .product-detail-related .products-grid {
@@ -1942,4 +2294,59 @@
   .product-hub-detail__lower-grid .product-detail-related__header {
     width: 100%;
   }
+}
+
+/* Final thread overrides (kept last so legacy responsive rules cannot flatten the layout). */
+.product-hub-detail .product-detail-reviews__item {
+  position: relative;
+  padding: 1rem 2.25rem 1rem 0;
+}
+
+.product-hub-detail .product-detail-reviews__item-top {
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
+.product-hub-detail .product-detail-reviews__item-body,
+.product-hub-detail .product-detail-reviews__actions {
+  margin-left: 3rem;
+}
+
+.product-hub-detail .product-detail-reviews__replies {
+  gap: 0;
+  margin: 0.75rem 0 0 1.15rem;
+  padding-left: 1.65rem;
+  border-left: 1px solid var(--hub-border);
+}
+
+.product-hub-detail .product-detail-reviews__replies li {
+  position: relative;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.65rem 2.25rem 0.75rem 0;
+}
+
+.product-hub-detail .product-detail-reviews__replies li::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -1.7rem;
+  width: 1.2rem;
+  height: 1.4rem;
+  border-bottom: 1px solid var(--hub-border);
+  border-left: 1px solid var(--hub-border);
+  border-bottom-left-radius: 0.9rem;
+}
+
+.product-hub-detail .product-detail-reviews__replies .product-detail-reviews__reply--nested {
+  margin-left: 2.75rem;
+}
+
+.product-hub-detail .product-detail-reviews__reply-actions {
+  margin-top: 0.35rem;
+}
+
+.product-hub-detail .product-detail-reviews__more--reply {
+  top: 0.45rem;
+  right: 0;
 }

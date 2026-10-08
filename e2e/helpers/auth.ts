@@ -63,7 +63,7 @@ export async function loginAsBuyer(page: Page): Promise<void> {
 
   // Modal login returns users to the page where they opened it (`/home`).
   await expect(dialog).toBeHidden()
-  await expect(page.getByRole('button', { name: /^Hi, E2E$/i })).toBeVisible()
+  await expect(page.getByTestId('customer-account-trigger')).toBeVisible()
 }
 
 export async function loginAsAdmin(page: Page): Promise<void> {

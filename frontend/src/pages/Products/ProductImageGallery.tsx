@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
@@ -65,6 +65,7 @@ export function ProductImageGallery({
   showPreviewModeThumbs = false,
   stageOverlays,
 }: ProductImageGalleryProps) {
+  const stageRef = useRef<HTMLDivElement>(null)
   const galleryId = useId()
   const hasSafePreviewModel = isSafePreviewModelUrl(previewModelUrl)
   const hasSafePreviewVideo = isSafePreviewVideoUrl(previewVideoUrl)
@@ -262,7 +263,7 @@ export function ProductImageGallery({
 
   return (
     <div className="product-detail-gallery">
-      <div className="product-detail-stage">
+      <div className="product-detail-stage" ref={stageRef}>
         {showModelStage ? (
           <div className="product-detail-stage__viewer">
             <LazyModelViewer
@@ -318,6 +319,19 @@ export function ProductImageGallery({
 
         {showStageChrome && stageOverlays ? (
           <div className="product-detail-stage__overlays">{stageOverlays}</div>
+        ) : null}
+        {showModelStage ? (
+          <button
+            type="button"
+            className="product-detail-stage__fullscreen"
+            aria-label="View 3D model in fullscreen"
+            title="Fullscreen"
+            onClick={() => void stageRef.current?.requestFullscreen()}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5" />
+            </svg>
+          </button>
         ) : null}
       </div>
 
