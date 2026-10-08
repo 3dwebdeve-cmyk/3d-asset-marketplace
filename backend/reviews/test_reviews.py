@@ -136,6 +136,8 @@ class ReviewAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_authenticated_user_can_comment_without_purchase(self) -> None:
+        self.customer.avatar = "https://cdn.example.com/reviewer-avatar.jpg"
+        self.customer.save(update_fields=["avatar"])
         self.authenticate()
 
         response = self.client.post(
@@ -151,6 +153,10 @@ class ReviewAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIsNone(response.data["rating"])
         self.assertEqual(response.data["review_text"], "Nice chair")
+        self.assertEqual(
+            response.data["author"]["avatar"],
+            "https://cdn.example.com/reviewer-avatar.jpg",
+        )
         self.assertTrue(
             Review.objects.filter(
                 user=self.customer,
@@ -187,7 +193,7 @@ class ReviewAPITests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(Review.objects.filter(user=self.customer).exists())
 
-    def test_edit_does_not_unhide_moderated_comment(self) -> None:
+    def test_new_comment_does_not_unhide_moderated_comment(self) -> None:
         review = Review.objects.create(user=self.customer, product_type="product",
             product_id=self.product.pk, rating=None, review_text="Hidden", is_hidden=True)
         self.authenticate()
@@ -195,9 +201,17 @@ class ReviewAPITests(APITestCase):
             "product_type": "product", "product_id": str(self.product.pk),
             "review_text": "Edited",
         }, format="json")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         review.refresh_from_db()
         self.assertTrue(review.is_hidden)
+        self.assertEqual(
+            Review.objects.filter(
+                user=self.customer,
+                product_type="product",
+                product_id=self.product.pk,
+            ).count(),
+            2,
+        )
 
     def test_create_review_after_paid_order_updates_aggregates(self) -> None:
         self.create_paid_order(self.customer)
@@ -221,7 +235,48 @@ class ReviewAPITests(APITestCase):
         self.assertEqual(self.product.review_count, 1)
         self.assertEqual(self.product.average_rating, Decimal("5.00"))
 
-    def test_duplicate_review_updates_existing(self) -> None:
+    def test_additional_comment_creates_a_new_newest_review(self) -> None:
+        self.create_paid_order(self.customer)
+        self.authenticate()
+
+        first = self.client.post(
+            self.list_url,
+            {
+                "product_type": "product",
+                "product_id": str(self.product.pk),
+                "rating": 4,
+                "review_text": "Good",
+            },
+            format="json",
+        )
+        second = self.client.post(
+            self.list_url,
+            {
+                "product_type": "product",
+                "product_id": str(self.product.pk),
+                "review_text": "Even better",
+            },
+            format="json",
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Review.objects.filter(user=self.customer).count(), 2)
+
+        listing = self.client.get(
+            self.list_url,
+            {
+                "product_type": "product",
+                "product_id": str(self.product.pk),
+            },
+        )
+        self.assertEqual(listing.data["results"][0]["review_text"], "Even better")
+        self.assertEqual(listing.data["results"][1]["review_text"], "Good")
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.average_rating, Decimal("4.00"))
+        self.assertEqual(self.product.review_count, 1)
+
+    def test_user_cannot_submit_multiple_ratings_for_one_product(self) -> None:
         self.create_paid_order(self.customer)
         self.authenticate()
 
@@ -241,17 +296,50 @@ class ReviewAPITests(APITestCase):
                 "product_type": "product",
                 "product_id": str(self.product.pk),
                 "rating": 5,
-                "review_text": "Even better",
+                "review_text": "Another comment",
             },
             format="json",
         )
 
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already rated", str(second.data))
         self.assertEqual(Review.objects.filter(user=self.customer).count(), 1)
-        self.product.refresh_from_db()
-        self.assertEqual(self.product.average_rating, Decimal("5.00"))
-        self.assertEqual(self.product.review_count, 1)
+
+    def test_user_can_post_at_most_five_comments_per_product(self) -> None:
+        Review.objects.bulk_create(
+            [
+                Review(
+                    user=self.customer,
+                    product_type=Review.ProductType.PRODUCT,
+                    product_id=self.product.pk,
+                    review_text=f"Comment {index}",
+                )
+                for index in range(5)
+            ]
+        )
+        self.authenticate()
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "product_type": "product",
+                "product_id": str(self.product.pk),
+                "review_text": "Comment 6",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("maximum of 5 comments", str(response.data))
+        self.assertEqual(
+            Review.objects.filter(
+                user=self.customer,
+                product_type=Review.ProductType.PRODUCT,
+                product_id=self.product.pk,
+            ).count(),
+            5,
+        )
 
     def test_public_list_excludes_hidden_reviews(self) -> None:
         self.create_paid_order(self.customer)

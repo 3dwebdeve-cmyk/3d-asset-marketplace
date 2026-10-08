@@ -6,6 +6,7 @@ from reviews.models import Review
 class ReviewAuthorSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     full_name = serializers.CharField()
+    avatar = serializers.URLField(allow_blank=True)
 
 
 class ReviewCreateSerializer(serializers.Serializer):
