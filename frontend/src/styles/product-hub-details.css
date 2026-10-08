@@ -141,22 +141,22 @@
   border-radius: var(--hub-radius);
   background: var(--pure-black);
   box-shadow: none;
-  min-height: 620px;
+  min-height: 530px;
 }
 
 .product-hub-detail .product-detail-stage__main {
-  min-height: 580px;
+  min-height: 530px;
 }
 
 .product-hub-detail .product-detail-stage__image {
   background: var(--pure-black);
-  height: min(74vh, 680px);
-  min-height: 560px;
+  height: 530px;
+  min-height: 530px;
 }
 
 .product-hub-detail .product-detail-stage__empty {
   color: var(--border);
-  min-height: 580px;
+  min-height: 530px;
 }
 
 .product-hub-detail .product-detail-stage__empty-title {
@@ -168,12 +168,12 @@
 }
 
 .product-hub-detail .product-detail-stage__viewer {
-  min-height: 580px;
+  min-height: 530px;
 }
 
 .product-hub-detail .product-detail-stage__viewer .model-viewer {
-  height: min(74vh, 680px);
-  min-height: 560px;
+  height: 530px;
+  min-height: 530px;
 }
 
 .product-hub-detail .product-detail-stage__video-wrap {
@@ -181,13 +181,13 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 580px;
+  min-height: 530px;
   background: var(--pure-black);
 }
 
 .product-hub-detail .product-detail-stage__video {
   width: 100%;
-  max-height: min(74vh, 680px);
+  max-height: 530px;
   display: block;
   background: #000;
 }
@@ -380,7 +380,7 @@
 
 /* Full product-page composition from the approved reference. */
 .product-hub-detail.product-detail-page {
-  padding: 2rem clamp(3rem, 6.5vw, 9rem) 3.5rem;
+  padding: 2rem clamp(3rem, 10vw, 12rem) 3.5rem;
 }
 
 .product-hub-detail__header {
@@ -417,7 +417,7 @@
 }
 
 .product-hub-detail__description {
-  padding-top: 0.35rem;
+  padding-top: 1.5rem;
 }
 
 .product-hub-detail__description .product-detail-section-title,
@@ -796,6 +796,33 @@
   min-width: 0;
 }
 
+.product-hub-detail .product-detail-reviews__composer-trigger {
+  display: block;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.35rem 0 0.55rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #666;
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: text;
+}
+
+.product-hub-detail .product-detail-reviews__composer-trigger:focus-visible {
+  outline: none;
+}
+
+.product-hub-detail .product-detail-reviews__compact-form {
+  width: 100%;
+}
+
+.product-hub-detail .product-detail-reviews__item-stars {
+  display: none;
+}
+
 .product-hub-detail .product-detail-reviews__name-field {
   display: none;
 }
@@ -819,20 +846,6 @@
 
 .product-hub-detail .product-detail-reviews__item {
   position: relative;
-}
-
-.product-hub-detail .product-detail-reviews__item::before {
-  content: '';
-  position: absolute;
-  left: 1.12rem;
-  top: 2.95rem;
-  bottom: -0.1rem;
-  width: 1px;
-  background: color-mix(in srgb, var(--hub-border) 70%, transparent);
-}
-
-.product-hub-detail .product-detail-reviews__item:last-child::before {
-  display: none;
 }
 
 @media (max-width: 640px) {
@@ -1627,6 +1640,12 @@
   color: var(--hub-blue);
   font-size: 0.62rem;
   font-weight: 800;
+  object-fit: cover;
+}
+
+.product-hub-detail .product-detail-reviews__composer-avatar {
+  background: #7e57c2;
+  color: #fff;
 }
 
 .product-hub-detail .product-detail-reviews__composer-content {
@@ -1692,20 +1711,6 @@
   border-bottom: 0;
 }
 
-.product-hub-detail .product-detail-reviews__item::before {
-  content: '';
-  position: absolute;
-  left: 1.12rem;
-  top: 2.95rem;
-  bottom: -0.1rem;
-  width: 1px;
-  background: color-mix(in srgb, var(--hub-border) 70%, transparent);
-}
-
-.product-hub-detail .product-detail-reviews__item:last-child::before {
-  display: none;
-}
-
 .product-hub-detail .product-detail-reviews__item-header {
   gap: 0.6rem;
   margin-bottom: 0.35rem;
@@ -1767,14 +1772,9 @@
   margin-top: 2rem;
 }
 
-.product-hub-detail__lower-grid .product-hub-detail__description {
-  grid-column: 1;
-  grid-row: 1;
-}
-
 .product-hub-detail__lower-grid .product-detail-reviews--hub {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
 }
 
 .product-hub-detail__lower-grid .product-detail-related {
@@ -1782,7 +1782,6 @@
   grid-row: 1 / span 2;
 }
 
-.product-hub-detail__lower-grid .product-hub-detail__description,
 .product-hub-detail__lower-grid .product-detail-reviews--hub,
 .product-hub-detail__lower-grid .product-detail-related {
   width: 100%;
@@ -1843,7 +1842,6 @@
     grid-row: auto;
   }
 
-  .product-hub-detail__lower-grid .product-hub-detail__description,
   .product-hub-detail__lower-grid .product-detail-reviews--hub {
     grid-column: auto;
     grid-row: auto;

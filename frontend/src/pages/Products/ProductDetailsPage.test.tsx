@@ -428,13 +428,7 @@ describe('ProductDetailsPage', () => {
     expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/sign in to leave a review/i)).not.toBeInTheDocument()
 
-    const commentBox = screen.getByRole('textbox', { name: /comment/i })
-    const sendButton = screen.getByRole('button', { name: /^send$/i })
-    expect(sendButton).toBeDisabled()
-
-    await user.type(commentBox, 'Is this compatible with Blender?')
-    expect(sendButton).toBeEnabled()
-    await user.click(sendButton)
+    await user.click(screen.getByRole('button', { name: /add a comment/i }))
 
     expect(useAuthUiStore.getState().isOpen).toBe(true)
     expect(useAuthUiStore.getState().mode).toBe('login')
@@ -526,11 +520,10 @@ describe('ProductDetailsPage', () => {
     renderProductDetails()
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /post comment/i })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /comment/i })).toBeInTheDocument()
     })
 
-    await user.type(screen.getByRole('textbox', { name: /comment/i }), 'Works well in Blender.')
-    await user.click(screen.getByRole('button', { name: /post comment/i }))
+    await user.type(screen.getByRole('textbox', { name: /comment/i }), 'Works well in Blender.{Enter}')
 
     await waitFor(() => {
       expect(reviewsApi.createReview).toHaveBeenCalledWith({
@@ -544,11 +537,9 @@ describe('ProductDetailsPage', () => {
     const commentBox = screen.getByRole('textbox', { name: /comment/i })
     await waitFor(() => {
       expect(commentBox).toHaveValue('')
-      expect(screen.getByRole('button', { name: /update review/i })).toBeDisabled()
     })
 
-    await user.type(commentBox, 'Updated comment.')
-    await user.click(screen.getByRole('button', { name: /update review/i }))
+    await user.type(commentBox, 'Updated comment.{Enter}')
     await waitFor(() => {
       expect(reviewsApi.createReview).toHaveBeenLastCalledWith({
         product_type: 'product',
@@ -557,14 +548,11 @@ describe('ProductDetailsPage', () => {
         review_text: 'Updated comment.',
       })
       expect(commentBox).toHaveValue('')
-      expect(screen.getByRole('button', { name: /update review/i })).toBeDisabled()
     })
 
     vi.mocked(reviewsApi.createReview).mockRejectedValueOnce(new Error('Save failed'))
-    await user.type(commentBox, 'Keep this draft.')
-    await user.click(screen.getByRole('button', { name: /update review/i }))
+    await user.type(commentBox, 'Keep this draft.{Enter}')
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /update review/i })).toBeEnabled()
       expect(commentBox).toHaveValue('Keep this draft.')
     })
   })

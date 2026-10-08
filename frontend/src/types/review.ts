@@ -3,6 +3,7 @@ export type ReviewProductType = 'product' | 'plugin'
 export interface ReviewAuthor {
   id: string
   full_name: string
+  avatar?: string
 }
 
 export interface Review {

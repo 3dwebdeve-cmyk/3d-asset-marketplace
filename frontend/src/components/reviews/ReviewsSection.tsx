@@ -124,11 +124,11 @@ export function ReviewsSection({
     const formKey = JSON.stringify([productType, productId, currentUser?.id])
     if (isEligibilityLoading || hydratedFormKey.current === formKey) return
     hydratedFormKey.current = formKey
-    reset(myReview ? {
+    reset(!isHub && myReview ? {
         rating: myReview.rating ?? 0,
         review_text: myReview.review_text,
       } : { rating: 0, review_text: '' })
-  }, [myReview, productType, productId, currentUser?.id, isEligibilityLoading, reset])
+  }, [myReview, productType, productId, currentUser?.id, isEligibilityLoading, isHub, reset])
 
   const onSubmit = handleSubmit((values) => {
     const parsed = reviewSchema.safeParse(values)
@@ -155,7 +155,11 @@ export function ReviewsSection({
         rating: canRate ? parsed.data.rating || null : null,
         review_text: parsed.data.review_text?.trim() ?? '',
       },
-      { onSuccess: () => reset({ rating: 0, review_text: '' }) },
+      {
+        onSuccess: () => {
+          reset({ rating: 0, review_text: '' })
+        },
+      },
     )
   })
 
@@ -165,12 +169,53 @@ export function ReviewsSection({
   const formPanel = (
     <div className="product-detail-reviews__form-panel">
       {isHub ? (
-        <span className="product-detail-reviews__composer-avatar" aria-hidden="true">
-          {authorInitials(currentUser?.full_name ?? 'Guest')}
-        </span>
+        currentUser?.avatar ? (
+          <img
+            className="product-detail-reviews__composer-avatar"
+            src={currentUser.avatar}
+            alt=""
+          />
+        ) : (
+          <span className="product-detail-reviews__composer-avatar" aria-hidden="true">
+            {authorInitials(currentUser?.full_name ?? 'Guest')}
+          </span>
+        )
       ) : null}
       <div className="product-detail-reviews__composer-content">
-      {!isSignedIn ? (
+      {isHub ? (
+        !isSignedIn ? (
+          <AuthEntryButton
+            mode="login"
+            returnTo={location.pathname}
+            className="product-detail-reviews__composer-trigger"
+          >
+            Add a comment...
+          </AuthEntryButton>
+        ) : isEligibilityLoading ? (
+          <Spinner label="Checking review eligibility..." />
+        ) : (
+          <form className="product-detail-reviews__compact-form" onSubmit={onSubmit} noValidate>
+            <label className="visually-hidden" htmlFor="review-text">
+              Comment
+            </label>
+            <input
+              id="review-text"
+              className="product-detail-reviews__composer-trigger"
+              type="text"
+              maxLength={2000}
+              placeholder="Add a comment..."
+              aria-invalid={Boolean(errors.review_text)}
+              disabled={isSubmitting}
+              {...register('review_text')}
+            />
+            {errors.review_text?.message ? (
+              <p id="review-text-error" className="form-field__error" role="alert">
+                {errors.review_text.message}
+              </p>
+            ) : null}
+          </form>
+        )
+      ) : !isSignedIn ? (
         <div className="product-detail-reviews__form product-detail-reviews__form--guest">
           <div className="form-field">
             <label className="visually-hidden" htmlFor="guest-review-text">
@@ -343,9 +388,17 @@ export function ReviewsSection({
             <li key={review.id} className="product-detail-reviews__item">
               <div className="product-detail-reviews__item-header">
                 {isHub ? (
-                  <span className="product-detail-reviews__avatar" aria-hidden="true">
-                    {authorInitials(review.author.full_name)}
-                  </span>
+                  review.author.avatar ? (
+                    <img
+                      className="product-detail-reviews__avatar"
+                      src={review.author.avatar}
+                      alt=""
+                    />
+                  ) : (
+                    <span className="product-detail-reviews__avatar" aria-hidden="true">
+                      {authorInitials(review.author.full_name)}
+                    </span>
+                  )
                 ) : null}
                 <div className="product-detail-reviews__item-meta">
                   <div className="product-detail-reviews__item-top">
