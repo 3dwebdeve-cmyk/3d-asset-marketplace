@@ -11,7 +11,10 @@ from rest_framework.views import APIView
 from uuid import UUID
 
 from accounts.permissions import IsAdministrator, IsEmailVerified
-from accounts.throttles import PaymentCheckoutRateThrottle
+from accounts.throttles import (
+    PaymentCheckoutDailyRateThrottle,
+    PaymentCheckoutRateThrottle,
+)
 from config.api_helpers import domain_error_body, domain_error_response, parse_choice, parse_uuid
 from config.idempotency import (
     build_cache_key,
@@ -46,7 +49,7 @@ def _accepted_legal_from_request(request: Request):
 
 class CreateCheckoutSessionView(APIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
-    throttle_classes = [PaymentCheckoutRateThrottle]
+    throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
 
     def post(self, request: Request) -> Response:
         try:
@@ -151,7 +154,7 @@ class ConfirmCheckoutSessionView(APIView):
     """Owner-only Stripe session sync used by /checkout/success when webhooks lag."""
 
     permission_classes = [IsAuthenticated, IsEmailVerified]
-    throttle_classes = [PaymentCheckoutRateThrottle]
+    throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
 
     def post(self, request: Request) -> Response:
         raw_order_id = request.data.get("order_id")

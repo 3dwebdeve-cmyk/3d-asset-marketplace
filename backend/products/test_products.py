@@ -79,12 +79,22 @@ class ProductPublicAPITests(APITestCase):
             kwargs={"slug": "oak-chair"},
         )
 
+    def test_catalog_response_supports_conditional_etag_requests(self) -> None:
+        first = self.client.get(self.list_url)
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertTrue(first.get("ETag"))
+
+        second = self.client.get(self.list_url, HTTP_IF_NONE_MATCH=first["ETag"])
+        self.assertEqual(second.status_code, status.HTTP_304_NOT_MODIFIED)
+        self.assertEqual(second.get("ETag"), first.get("ETag"))
+
     def test_list_returns_only_published_products(self) -> None:
         response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
+        self.assertEqual(response.data["results"][0]["formats"], ["zip"])
         self.assertIn("public", (response.get("Cache-Control") or "").lower())
 
     def test_list_excludes_pending_review_and_rejected(self) -> None:
@@ -561,6 +571,7 @@ class ProductMediaUploadAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("/media/products/images/", response.data["image_url"])
+        self.assertTrue(response.data["image_url"].endswith(".webp"))
         self.product.refresh_from_db()
         self.assertIn("/media/products/images/", self.product.thumbnail)
         self.assertEqual(ProductImage.objects.filter(product=self.product).count(), 1)
@@ -580,6 +591,25 @@ class ProductMediaUploadAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_upload_rejects_excessive_image_dimensions(self) -> None:
+        self._authenticate_as_admin()
+        # A highly-compressible solid image stays below the byte limit but must
+        # still be rejected before it can consume excessive browser/server RAM.
+        image = SimpleUploadedFile(
+            "oversized.png",
+            make_image_bytes(size=(5_000, 5_000)),
+            content_type="image/png",
+        )
+
+        response = self.client.post(
+            self.images_url,
+            {"image": image},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("20 megapixel", str(response.data))
 
     def test_upload_preview_file_sets_preview_model(self) -> None:
         self._authenticate_as_admin()

@@ -70,6 +70,7 @@ class AvatarUploadAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["avatar"])
         self.assertIn("/media/avatars/", response.data["avatar"])
+        self.assertTrue(response.data["avatar"].endswith(".webp"))
         self.user.refresh_from_db()
         self.assertTrue(self.user.avatar.startswith("http://"))
         self.assertIn("/media/avatars/", self.user.avatar)

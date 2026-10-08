@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+
+from django.http import HttpResponseNotModified
 from rest_framework.response import Response
 
 # 30s browser / 60s shared (Nginx/CDN). Admin publishes stay visible within a minute.
@@ -23,6 +27,27 @@ def apply_public_catalog_cache(response: Response) -> Response:
     return response
 
 
+def apply_public_catalog_etag(request, response: Response):
+    """Make catalog refetches cheap when the representation has not changed."""
+    if getattr(response, "status_code", None) != 200:
+        return response
+    try:
+        payload = json.dumps(
+            response.data, sort_keys=True, separators=(",", ":"), default=str
+        ).encode("utf-8")
+    except (TypeError, ValueError):
+        return response
+    etag = f'"{hashlib.sha256(payload).hexdigest()}"'
+    if request.headers.get("If-None-Match") == etag:
+        not_modified = HttpResponseNotModified()
+        not_modified["ETag"] = etag
+        not_modified["Cache-Control"] = PUBLIC_CATALOG_CACHE_CONTROL
+        not_modified["Vary"] = "Accept"
+        return not_modified
+    response["ETag"] = etag
+    return response
+
+
 class PublicCatalogCacheMixin:
     """Apply catalog Cache-Control on successful GET. Admin views must not use this."""
 
@@ -30,4 +55,5 @@ class PublicCatalogCacheMixin:
         response = super().finalize_response(request, response, *args, **kwargs)
         if getattr(request, "method", "") == "GET":
             apply_public_catalog_cache(response)
+            response = apply_public_catalog_etag(request, response)
         return response

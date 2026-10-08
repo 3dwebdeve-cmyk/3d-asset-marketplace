@@ -92,6 +92,12 @@ class AdminProductWriteRateThrottle(UserRateThrottle):
     scope = "admin_product_write"
 
 
+class AdminUploadRateThrottle(UserRateThrottle):
+    """Bound costly image/package uploads separately from small admin writes."""
+
+    scope = "admin_upload"
+
+
 class AdminPluginWriteRateThrottle(UserRateThrottle):
     scope = "admin_plugin_write"
 
@@ -132,5 +138,17 @@ class CatalogSearchRateThrottle(IPRateThrottle):
     scope = "catalog_search"
 
 
+class CspReportRateThrottle(IPRateThrottle):
+    """Keep anonymous CSP reports from becoming a log-amplification vector."""
+
+    scope = "csp_report"
+
+
 class PaymentCheckoutRateThrottle(UserRateThrottle):
     scope = "payment_checkout"
+
+
+class PaymentCheckoutDailyRateThrottle(UserRateThrottle):
+    """Daily circuit breaker for calls that create/sync Stripe sessions."""
+
+    scope = "payment_checkout_daily"

@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getPublicPlugin, listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
+import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
 import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
@@ -52,18 +52,7 @@ async function loadPluginCatalog(params: {
     page += 1
   }
 
-  const formatsById: Record<string, string[]> = {}
-  for (let start = 0; start < plugins.length; start += 6) {
-    const batch = plugins.slice(start, start + 6)
-    const details = await Promise.allSettled(batch.map((plugin) => getPublicPlugin(plugin.slug)))
-    details.forEach((result, index) => {
-      formatsById[batch[index].id] = result.status === 'fulfilled'
-        ? result.value.files.map((file) => file.file_format.toLowerCase().replace(/^\./, ''))
-        : []
-    })
-  }
-
-  return { plugins, formatsById }
+  return { plugins }
 }
 
 export function PluginsBrowsePage() {
@@ -181,21 +170,20 @@ export function PluginsBrowsePage() {
   })
 
   const availablePlugins = useMemo(() => pluginsData?.plugins ?? [], [pluginsData?.plugins])
-  const formatsById = pluginsData?.formatsById
   const filteredPlugins = useMemo(
     () =>
       availablePlugins.filter((plugin) => {
         const price = Number(plugin.discount_price ?? plugin.price)
         const matchesSelectedFormats =
           selectedFormats.length === 0 ||
-          selectedFormats.some((formatId) => matchesFormat(formatsById?.[plugin.id] ?? [], formatId))
+          selectedFormats.some((formatId) => matchesFormat(plugin.formats ?? [], formatId))
         const matchesSelectedLicenses =
           selectedLicenses.length === 0 || selectedLicenses.includes(plugin.license_type)
         const matchesPrice =
           price >= minPrice && (maxPrice >= 200 || price <= maxPrice)
         return matchesSelectedFormats && matchesSelectedLicenses && matchesPrice
       }),
-    [availablePlugins, formatsById, maxPrice, minPrice, selectedFormats, selectedLicenses],
+    [availablePlugins, maxPrice, minPrice, selectedFormats, selectedLicenses],
   )
   const totalCount = filteredPlugins.length
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
@@ -205,10 +193,10 @@ export function PluginsBrowsePage() {
       Object.fromEntries(
         FORMAT_FILTERS.map((format) => [
           format.id,
-          availablePlugins.filter((plugin) => matchesFormat(formatsById?.[plugin.id] ?? [], format.id)).length,
+          availablePlugins.filter((plugin) => matchesFormat(plugin.formats ?? [], format.id)).length,
         ]),
       ),
-    [availablePlugins, formatsById],
+    [availablePlugins],
   )
   const licenseCounts = useMemo(
     () =>

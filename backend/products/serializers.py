@@ -65,6 +65,11 @@ class ProductFileAdminSerializer(serializers.ModelSerializer):
 
 class ProductListPublicSerializer(serializers.ModelSerializer):
     category = ProductCategorySerializer(read_only=True)
+    formats = serializers.SerializerMethodField()
+
+    def get_formats(self, obj: Product) -> list[str]:
+        files = getattr(obj, "filter_files", ())
+        return sorted({row.file_format.lower().lstrip(".") for row in files})
 
     class Meta:
         model = Product
@@ -78,6 +83,7 @@ class ProductListPublicSerializer(serializers.ModelSerializer):
             "discount_price",
             "thumbnail",
             "software_used",
+            "formats",
             "category",
             "license_type",
             "average_rating",

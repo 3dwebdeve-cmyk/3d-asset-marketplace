@@ -37,6 +37,7 @@ const samplePublicPlugins = {
       thumbnail: '',
       version: '2.1',
       compatibility: 'Blender 4.x',
+      formats: ['blend'],
       license_type: 'standard' as const,
       average_rating: '4.90',
       review_count: 0,
@@ -232,6 +233,7 @@ describe('PluginsBrowsePage', () => {
       price: '120.00',
       discount_price: null,
       license_type: 'extended' as const,
+      formats: ['unitypackage'],
     }
     vi.mocked(pluginsApi.listPublicPlugins).mockResolvedValue({
       count: 2,

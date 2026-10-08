@@ -174,6 +174,7 @@ export interface PublicProduct {
   discount_price: string | null
   thumbnail: string
   software_used: string
+  formats?: string[]
   category: CategoryParent
   license_type: ProductLicenseType
   average_rating: string

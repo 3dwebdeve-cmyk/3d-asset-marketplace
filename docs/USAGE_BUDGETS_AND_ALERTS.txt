@@ -1,0 +1,35 @@
+EXTERNAL USAGE BUDGETS AND ALERTS
+=================================
+
+Rate limits protect the application from bursts. They do not replace provider-side
+spending controls. Before public launch, configure provider budgets and alerts in
+the account that owns each service.
+
+REQUIRED GUARDRAILS
+-------------------
+
+- Stripe: alert at 50%, 80%, and 100% of the monthly processing-fee forecast,
+  and on a failed-payment spike. Investigate unusual checkout volume.
+- Brevo/email: alert at 50%, 80%, and 100% of daily sending quota. Check abuse,
+  bounces, and reset/verification traffic.
+- Cloudflare R2: alert at 50%, 80%, and 100% of monthly storage and egress
+  budget. Review download volume, signed URLs, and large files.
+- Sentry: alert at 50%, 80%, and 100% of monthly event quota. Fix noisy errors
+  or lower tracing sampling.
+
+APPLICATION CONTROLS
+--------------------
+
+- Checkout creation and confirmation: 10 requests/minute and 30/day per verified user.
+- Admin uploads: 12 uploads/minute per administrator, alongside normal admin writes.
+- Product images above 20 megapixels and avatars above 4 megapixels are rejected
+  before storage.
+
+RELEASE CHECKLIST
+-----------------
+
+1. Assign a named owner and notification channel for every provider alert.
+2. Configure provider hard caps where available; an alert is not a cap.
+3. Run `python manage.py check_security_smoke` and `python manage.py check_waf_readiness`
+   after deployment.
+4. Review Sentry webhook-failure and repeated-429 alerts for the first 24 hours.
