@@ -892,7 +892,7 @@ button.navbar__link {
 }
 
 @media (max-width: 1200px) {
-  .navbar__inner {
+  .navbar:not(.navbar--marketplace-home) .navbar__inner {
     flex-wrap: nowrap;
     gap: 0.75rem;
   }
@@ -1043,7 +1043,7 @@ button.navbar__link {
   .navbar__drawer-auth-buttons {
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: 1.4rem;
     width: 100%;
   }
 
@@ -1395,6 +1395,107 @@ button.navbar__link {
   width: auto;
   height: clamp(23.25px, calc(0.44vw + 21.7px), 29.45px);
   max-width: clamp(142.5px, calc(2.66vw + 133px), 180.5px);
+}
+
+/* Compact marketplace header from the approved desktop reference. */
+@media (min-width: 1201px) {
+  .navbar:not(.navbar--marketplace-home) .navbar__inner {
+    justify-content: flex-start;
+    max-width: none;
+    min-height: 1.5cm;
+    padding: 0.35rem var(--site-gutter);
+    gap: 0.65rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__start {
+    order: 1;
+    gap: 1.4rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__brand-logo {
+    height: clamp(23.25px, calc(0.44vw + 21.7px), 29.45px);
+    max-width: clamp(142.5px, calc(2.66vw + 133px), 180.5px);
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__explore-trigger {
+    height: 2rem;
+    padding: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__actions--desktop {
+    display: contents;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__primary-links {
+    order: 2;
+    flex: 0 0 auto;
+    gap: 1.4rem;
+    margin-left: 0.4rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__link {
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search {
+    order: 3;
+    flex: 1 1 22rem;
+    max-width: 28rem;
+    height: 2rem;
+    margin-left: auto;
+    border-color: #e4e5ec;
+    border-radius: 0.55rem;
+    background: #f6f6fa;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-cat {
+    display: none;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-input {
+    border-left: 0;
+    border-radius: 0.55rem 0 0 0.55rem;
+    background: transparent;
+    font-size: 0.72rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-submit {
+    background: transparent;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__account-actions {
+    order: 4;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__cart-button {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__account-trigger {
+    width: auto;
+    height: 2.4rem;
+    min-height: 2.4rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__account-avatar {
+    width: 26px;
+    height: 26px;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__cart-button svg {
+    width: 26px;
+    height: 26px;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__account-name {
+    display: none;
+  }
 }
 
 @media (max-width: 540px) {

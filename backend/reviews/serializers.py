@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from reviews.models import Review
+from reviews.models import Review, ReviewReaction, ReviewReply, ReviewReplyReaction
 
 
 class ReviewAuthorSerializer(serializers.Serializer):
@@ -35,8 +35,48 @@ class ReviewCreateSerializer(serializers.Serializer):
         return attrs
 
 
+class ReviewReplySerializer(serializers.ModelSerializer):
+    author = ReviewAuthorSerializer(source="user", read_only=True)
+    like_count = serializers.SerializerMethodField()
+    dislike_count = serializers.SerializerMethodField()
+    viewer_reaction = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ReviewReply
+        fields = (
+            "id", "parent_id", "text", "author", "like_count", "dislike_count",
+            "viewer_reaction", "created_at",
+        )
+        read_only_fields = fields
+
+    def get_like_count(self, obj: ReviewReply) -> int:
+        return obj.reactions.filter(value=ReviewReplyReaction.Value.LIKE).count()
+
+    def get_dislike_count(self, obj: ReviewReply) -> int:
+        return obj.reactions.filter(value=ReviewReplyReaction.Value.DISLIKE).count()
+
+    def get_viewer_reaction(self, obj: ReviewReply) -> str | None:
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return None
+        return obj.reactions.filter(user=request.user).values_list("value", flat=True).first()
+
+
+class ReviewReplyCreateSerializer(serializers.Serializer):
+    text = serializers.CharField(max_length=2000, trim_whitespace=True)
+    parent_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class ReviewReactionSerializer(serializers.Serializer):
+    value = serializers.ChoiceField(choices=ReviewReaction.Value.choices)
+
+
 class ReviewPublicSerializer(serializers.ModelSerializer):
     author = ReviewAuthorSerializer(source="user", read_only=True)
+    replies = ReviewReplySerializer(many=True, read_only=True)
+    like_count = serializers.SerializerMethodField()
+    dislike_count = serializers.SerializerMethodField()
+    viewer_reaction = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
@@ -47,10 +87,26 @@ class ReviewPublicSerializer(serializers.ModelSerializer):
             "rating",
             "review_text",
             "author",
+            "replies",
+            "like_count",
+            "dislike_count",
+            "viewer_reaction",
             "created_at",
             "updated_at",
         )
         read_only_fields = fields
+
+    def get_like_count(self, obj: Review) -> int:
+        return obj.reactions.filter(value=ReviewReaction.Value.LIKE).count()
+
+    def get_dislike_count(self, obj: Review) -> int:
+        return obj.reactions.filter(value=ReviewReaction.Value.DISLIKE).count()
+
+    def get_viewer_reaction(self, obj: Review) -> str | None:
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return None
+        return obj.reactions.filter(user=request.user).values_list("value", flat=True).first()
 
 
 class ReviewAdminSerializer(serializers.ModelSerializer):

@@ -86,7 +86,8 @@ function renderNavbar(initialPath = '/') {
 }
 
 async function openAccountMenu(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /hi,/i }))
+  const firstName = testUser.full_name.trim().split(/\s+/)[0]
+  await user.click(screen.getByRole('button', { name: firstName }))
   return screen.getByRole('menu')
 }
 
@@ -158,7 +159,7 @@ describe('Navbar', () => {
     expect(screen.queryByRole('link', { name: /^messages$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^account$/i })).not.toBeInTheDocument()
 
-    await user.hover(screen.getByRole('button', { name: /^explore/i }))
+    await user.hover(screen.getByRole('button', { name: /^explore$/i }))
     expect(await screen.findByRole('menu', { name: /explore categories/i })).toBeInTheDocument()
     await user.click(
       await screen.findByRole('menuitem', { name: /furniture/i }),
@@ -187,7 +188,7 @@ describe('Navbar', () => {
     })
 
     renderNavbar('/home')
-    await user.hover(screen.getByRole('button', { name: /^explore/i }))
+    await user.hover(screen.getByRole('button', { name: /^explore$/i }))
     const menu = await screen.findByRole('menu', { name: /explore categories/i })
 
     expect(within(menu).queryByRole('menuitem', { name: /demo assets/i })).not.toBeInTheDocument()
@@ -205,14 +206,14 @@ describe('Navbar', () => {
       '/custom-projects',
     )
     expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
-    expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute('href', '/3d-models')
+    expect(screen.getByRole('link', { name: /^3d models$/i })).toHaveAttribute('href', '/3d-models')
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
   })
 
   it.each([
-    ['/3d-models', /^3d model$/i],
+    ['/3d-models', /^3d models$/i],
     ['/plugins', /^plugins$/i],
     ['/custom-projects', /^custom projects$/i],
     ['/about', /^about$/i],
@@ -244,7 +245,7 @@ describe('Navbar', () => {
     renderNavbar()
 
     const firstName = testUser.full_name.trim().split(/\s+/)[0]
-    expect(screen.getByText(`Hi, ${firstName}`)).toBeInTheDocument()
+    expect(screen.getByText(firstName)).toBeInTheDocument()
     expect(document.querySelector('.navbar__account-avatar')).toHaveAttribute(
       'src',
       'https://cdn.example.com/avatar.jpg',
@@ -397,7 +398,7 @@ describe('Navbar', () => {
     renderNavbar('/3d-models')
 
     // Open the category dropdown in search bar
-    const categorySelectBtn = screen.getByRole('button', { name: /all categories/i })
+    const categorySelectBtn = screen.getByRole('button', { name: /^all categories$/i })
     await user.click(categorySelectBtn)
 
     // Click the Architectural 3D Models category
@@ -407,12 +408,43 @@ describe('Navbar', () => {
     expect(screen.getByTestId('location')).toHaveTextContent(`/3d-models?category=${categoryId}`)
 
     // Open dropdown again and click "All Categories"
-    const archSelectBtn = screen.getByRole('button', { name: /architectural 3d models/i })
-    await user.click(archSelectBtn)
+    await user.click(screen.getByRole('button', { name: /^all categories$/i }))
 
     const allCatItem = await screen.findByRole('menuitem', { name: /^all categories$/i })
     await user.click(allCatItem)
 
     expect(screen.getByTestId('location')).toHaveTextContent('/3d-models')
+  })
+
+  it('uses the 3D model category menu on the Plugins page', async () => {
+    const user = userEvent.setup()
+    const categoryId = 'furniture-cat-123'
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: categoryId,
+          name: 'Furniture',
+          slug: 'furniture',
+          description: '',
+          image: '',
+          parent: null,
+          created_at: '2026-09-08T00:00:00Z',
+        },
+      ],
+    })
+
+    renderNavbar('/plugins')
+
+    await user.click(screen.getByRole('button', { name: /^all categories$/i }))
+    const furnitureItem = await screen.findByRole('menuitem', { name: /furniture/i })
+    await user.click(furnitureItem)
+
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      `/3d-models?category=${categoryId}`,
+    )
+    expect(pluginsApi.listPublicPluginCategories).not.toHaveBeenCalled()
   })
 })

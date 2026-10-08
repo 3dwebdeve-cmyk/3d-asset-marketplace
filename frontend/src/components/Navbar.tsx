@@ -6,7 +6,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { logoutUser } from '../api/authApi'
 import { getCart } from '../api/cartApi'
 import { listPublicCategories } from '../api/categoriesApi'
-import { listPublicPluginCategories } from '../api/pluginsApi'
 import { AuthEntryButton } from './auth/AuthEntryButton'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -37,7 +36,6 @@ export function Navbar() {
   // `/` redirects to the marketplace home hub. Keep the branded nav on both
   // so the header does not flash the inner-page style before the redirect.
   const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
-  const isHomeHub = currentPath === '/home'
   const isCompactNav = useMediaQuery('(max-width: 1200px)')
   const searchParams = new URLSearchParams(location.search)
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
@@ -192,19 +190,11 @@ export function Navbar() {
     queryKey: ['public-categories-list', { page_size: 100 }],
     queryFn: () => listPublicCategories({ page_size: 100 }),
     staleTime: 1000 * 60 * 5,
-    enabled: !isPluginsRoute,
   })
 
-  const pluginCategoriesQuery = useQuery({
-    queryKey: ['public-plugin-categories-list', { page_size: 100, is_active: true }],
-    queryFn: () => listPublicPluginCategories({ page_size: 100, is_active: true }),
-    staleTime: 1000 * 60 * 5,
-    enabled: isPluginsRoute,
-  })
-
-  const categories = isPluginsRoute
-    ? (pluginCategoriesQuery.data?.results ?? [])
-    : (productCategoriesQuery.data?.results ?? [])
+  // The navbar is universal: its category menu always represents the 3D model
+  // catalog, even while the customer is browsing another section such as Plugins.
+  const categories = productCategoriesQuery.data?.results ?? []
 
   // Keep Explore/search menus compact: top-level categories only, excluding
   // the internal demo category from customer-facing navigation.
@@ -225,12 +215,8 @@ export function Navbar() {
         'parent' in category && category.parent != null && category.parent.id === categoryIdToCheck,
     )
   const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
-  const searchCategoriesLoading = isPluginsRoute
-    ? pluginCategoriesQuery.isLoading
-    : productCategoriesQuery.isLoading
-  const searchCategoriesError = isPluginsRoute
-    ? pluginCategoriesQuery.isError
-    : productCategoriesQuery.isError
+  const searchCategoriesLoading = productCategoriesQuery.isLoading
+  const searchCategoriesError = productCategoriesQuery.isError
 
   const cartCountQuery = useQuery({
     queryKey: ['cart'],
@@ -253,13 +239,11 @@ export function Navbar() {
     setSearchCatOpen(false)
     setExploreOpen(false)
 
-    const targetPath = isPluginsRoute ? '/plugins' : '/3d-models'
+    const targetPath = '/3d-models'
     const nextParams = new URLSearchParams()
     if (newCatId) {
       nextParams.set('category', newCatId)
-      if (!isPluginsRoute) {
-        trackCategoryClick(newCatId)
-      }
+      trackCategoryClick(newCatId)
     }
     const query = searchInput.trim().slice(0, 100)
     if (query) {
@@ -345,7 +329,7 @@ export function Navbar() {
             />
           </Link>
 
-          {isMarketplaceHome && !isCompactNav ? (
+          {!isCompactNav ? (
             <div
               className="navbar__explore navbar__explore--desktop"
               ref={exploreRef}
@@ -365,14 +349,14 @@ export function Navbar() {
                   setExploreOpen(true)
                 }}
               >
-                Explore
+                {isMarketplaceHome ? 'Explore' : 'All Categories'}
                 <span className="navbar__explore-trigger-chevron" aria-hidden="true" />
               </button>
               {exploreOpen ? (
                 <div
                   className="navbar__explore-menu"
                   role="menu"
-                  aria-label="Explore categories"
+                  aria-label={isMarketplaceHome ? 'Explore categories' : 'All categories'}
                   onMouseEnter={handleExploreMouseEnter}
                   onMouseLeave={handleExploreMouseLeave}
                 >
@@ -422,7 +406,7 @@ export function Navbar() {
 
         {!isMarketplaceHome ? (
           <form className="navbar__search" onSubmit={handleSearchSubmit} role="search">
-            <div
+            {isCompactNav ? <div
               className="navbar__search-cat"
               ref={searchCatRef}
               onMouseEnter={handleSearchCatMouseEnter}
@@ -491,11 +475,11 @@ export function Navbar() {
                   ) : null}
                 </div>
               ) : null}
-            </div>
+            </div> : null}
             <input
               type="search"
               className="navbar__search-input"
-              placeholder={isPluginsRoute ? 'Search plugins...' : 'Search 3D models...'}
+              placeholder="Search 3D models, plugins, creators..."
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               aria-label={isPluginsRoute ? 'Search plugins' : 'Search 3D models'}
@@ -544,11 +528,7 @@ export function Navbar() {
         ) : (
           <div className="navbar__actions navbar__actions--desktop">
             <div className="navbar__primary-links">
-              <Link
-                className="navbar__link"
-                to="/home"
-                aria-current={isHomeHub ? 'page' : undefined}
-              >
+              <Link className="navbar__link" to="/home">
                 Home
               </Link>
               <Link
@@ -556,7 +536,7 @@ export function Navbar() {
                 to="/3d-models"
                 aria-current={isModelsRoute ? 'page' : undefined}
               >
-                3D Model
+                {isMarketplaceHome ? '3D Model' : '3D Models'}
               </Link>
               <Link
                 className={`navbar__link${isPluginsRoute ? ' navbar__link--active' : ''}`}
@@ -600,7 +580,7 @@ export function Navbar() {
                     <button
                       type="button"
                       className="navbar__account-trigger"
-                      aria-label={`Hi, ${firstName}`}
+                      aria-label={firstName}
                       aria-expanded={accountOpen}
                       aria-haspopup="menu"
                       onClick={() => setAccountOpen((open) => !open)}
@@ -616,7 +596,7 @@ export function Navbar() {
                       ) : (
                         <span className="navbar__account-avatar" aria-hidden="true" />
                       )}
-                      <span>Hi, {firstName}</span>
+                      <span className="navbar__account-name">{firstName}</span>
                       <span className="navbar__account-caret" aria-hidden="true">
                         ▾
                       </span>
@@ -770,7 +750,7 @@ export function Navbar() {
                   ) : (
                     <span className="navbar__account-avatar" />
                   )}
-                  <span className="navbar__drawer-user-name">Hi, {firstName}</span>
+                  <span className="navbar__drawer-user-name">{firstName}</span>
                 </div>
                 <div className="navbar__drawer-auth-buttons">
                   {isAdministrator(user?.role) ? (
@@ -923,7 +903,7 @@ export function Navbar() {
                       </button>
                     )
                   })}
-                  {(isPluginsRoute ? pluginCategoriesQuery.isLoading : productCategoriesQuery.isLoading) ? (
+                  {productCategoriesQuery.isLoading ? (
                     <p className="navbar__drawer-status">Loading categories…</p>
                   ) : null}
                 </div>

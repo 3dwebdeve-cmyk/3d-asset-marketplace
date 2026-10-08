@@ -13,8 +13,31 @@ export interface Review {
   rating: number | null
   review_text: string
   author: ReviewAuthor
+  replies?: ReviewReply[]
+  like_count?: number
+  dislike_count?: number
+  viewer_reaction?: ReviewReactionValue | null
   created_at: string
   updated_at: string
+}
+
+export type ReviewReactionValue = 'like' | 'dislike'
+
+export interface ReviewReply {
+  id: string
+  parent_id: string | null
+  text: string
+  author: ReviewAuthor
+  like_count?: number
+  dislike_count?: number
+  viewer_reaction?: ReviewReactionValue | null
+  created_at: string
+}
+
+export interface ReviewReactionResult {
+  like_count: number
+  dislike_count: number
+  viewer_reaction: ReviewReactionValue | null
 }
 
 export interface ReviewEligibility {
