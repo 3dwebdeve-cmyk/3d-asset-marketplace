@@ -12,7 +12,7 @@ from orders.models import Order, OrderItem
 from orders.services import OrderCreateData, OrderItemCreateData, OrderService
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
-from reviews.models import Review
+from reviews.models import Review, ReviewReaction, ReviewReply, ReviewReplyReaction
 
 
 class ReviewAPITests(APITestCase):
@@ -560,3 +560,80 @@ class ReviewAPITests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_authenticated_user_can_reply_to_comment(self) -> None:
+        review = Review.objects.create(
+            user=self.other_customer,
+            product_type=Review.ProductType.PRODUCT,
+            product_id=self.product.pk,
+            review_text="Original comment",
+        )
+        self.authenticate()
+        response = self.client.post(
+            reverse("reviews:review-reply-create", kwargs={"review_id": review.pk}),
+            {"text": "Helpful reply"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(ReviewReply.objects.filter(review=review, user=self.customer).exists())
+
+    def test_authenticated_user_can_reply_to_an_existing_reply(self) -> None:
+        review = Review.objects.create(
+            user=self.other_customer,
+            product_type=Review.ProductType.PRODUCT,
+            product_id=self.product.pk,
+            review_text="Original comment",
+        )
+        parent = ReviewReply.objects.create(
+            review=review,
+            user=self.other_customer,
+            text="First reply",
+        )
+        self.authenticate()
+        response = self.client.post(
+            reverse("reviews:review-reply-create", kwargs={"review_id": review.pk}),
+            {"text": "Nested response", "parent_id": str(parent.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(str(response.data["parent_id"]), str(parent.pk))
+
+    def test_reply_reaction_toggles_and_switches(self) -> None:
+        review = Review.objects.create(
+            user=self.other_customer,
+            product_type=Review.ProductType.PRODUCT,
+            product_id=self.product.pk,
+            review_text="Original comment",
+        )
+        reply = ReviewReply.objects.create(review=review, user=self.other_customer, text="A reply")
+        self.authenticate()
+        url = reverse("reviews:review-reply-reaction", kwargs={"reply_id": reply.pk})
+
+        liked = self.client.post(url, {"value": "like"}, format="json")
+        self.assertEqual(liked.status_code, status.HTTP_200_OK)
+        self.assertEqual(liked.data["like_count"], 1)
+        disliked = self.client.post(url, {"value": "dislike"}, format="json")
+        self.assertEqual(disliked.data["like_count"], 0)
+        self.assertEqual(disliked.data["dislike_count"], 1)
+        toggled_off = self.client.post(url, {"value": "dislike"}, format="json")
+        self.assertIsNone(toggled_off.data["viewer_reaction"])
+        self.assertFalse(ReviewReplyReaction.objects.filter(reply=reply, user=self.customer).exists())
+
+    def test_reaction_toggles_and_switches(self) -> None:
+        review = Review.objects.create(
+            user=self.other_customer,
+            product_type=Review.ProductType.PRODUCT,
+            product_id=self.product.pk,
+            review_text="Original comment",
+        )
+        self.authenticate()
+        url = reverse("reviews:review-reaction", kwargs={"review_id": review.pk})
+        liked = self.client.post(url, {"value": "like"}, format="json")
+        self.assertEqual(liked.status_code, status.HTTP_200_OK)
+        self.assertEqual(liked.data["like_count"], 1)
+        disliked = self.client.post(url, {"value": "dislike"}, format="json")
+        self.assertEqual(disliked.data["like_count"], 0)
+        self.assertEqual(disliked.data["dislike_count"], 1)
+        toggled_off = self.client.post(url, {"value": "dislike"}, format="json")
+        self.assertIsNone(toggled_off.data["viewer_reaction"])
+        self.assertFalse(ReviewReaction.objects.filter(review=review, user=self.customer).exists())

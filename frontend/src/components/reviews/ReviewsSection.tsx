@@ -14,6 +14,7 @@ import { useReviews, type ReviewOrdering } from '../../hooks/useReviews'
 import { useAuthStore } from '../../store/authStore'
 import type { ReviewProductType } from '../../types/review'
 import { formatDate } from '../../lib/format'
+import { createReviewReply, toggleReviewReaction, toggleReviewReplyReaction } from '../../api/reviewsApi'
 
 const reviewSchema = z.object({
   rating: z.number().int().min(0).max(5),
@@ -77,7 +78,48 @@ export function ReviewsSection({
   const currentUser = useAuthStore((state) => state.user)
   const [page, setPage] = useState(1)
   const [ordering, setOrdering] = useState<ReviewOrdering>('-created_at')
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [replyParentId, setReplyParentId] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [commentActionPending, setCommentActionPending] = useState(false)
   const isHub = layout === 'hub'
+
+  const reactToComment = async (reviewId: string, value: 'like' | 'dislike') => {
+    if (!isSignedIn || commentActionPending) return
+    setCommentActionPending(true)
+    try {
+      await toggleReviewReaction(reviewId, value)
+      await refetch()
+    } finally {
+      setCommentActionPending(false)
+    }
+  }
+
+  const reactToReply = async (replyId: string, value: 'like' | 'dislike') => {
+    if (!isSignedIn || commentActionPending) return
+    setCommentActionPending(true)
+    try {
+      await toggleReviewReplyReaction(replyId, value)
+      await refetch()
+    } finally {
+      setCommentActionPending(false)
+    }
+  }
+
+  const postReply = async (reviewId: string, parentId: string | null = null) => {
+    const text = replyText.trim()
+    if (!text || commentActionPending) return
+    setCommentActionPending(true)
+    try {
+      await createReviewReply(reviewId, text, parentId)
+      setReplyText('')
+      setReplyingTo(null)
+      setReplyParentId(null)
+      await refetch()
+    } finally {
+      setCommentActionPending(false)
+    }
+  }
 
   const {
     isSignedIn,
@@ -386,6 +428,13 @@ export function ReviewsSection({
         <ul className="product-detail-reviews__list">
           {reviews.map((review) => (
             <li key={review.id} className="product-detail-reviews__item">
+              <button
+                type="button"
+                className="product-detail-reviews__more"
+                aria-label="More comment options"
+              >
+                <span aria-hidden="true">⋮</span>
+              </button>
               <div className="product-detail-reviews__item-header">
                 {isHub ? (
                   review.author.avatar ? (
@@ -424,6 +473,173 @@ export function ReviewsSection({
               </div>
               {review.review_text.trim() ? (
                 <p className="product-detail-reviews__item-body">{review.review_text}</p>
+              ) : null}
+              <div className="product-detail-reviews__actions" aria-label="Comment actions">
+                {isSignedIn ? (
+                  <>
+                    <button
+                      type="button"
+                      className={`product-detail-reviews__action${review.viewer_reaction === 'like' ? ' product-detail-reviews__action--active' : ''}`}
+                      onClick={() => void reactToComment(review.id, 'like')}
+                      disabled={commentActionPending}
+                      aria-label="Like comment"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M7 10v12" />
+                        <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+                      </svg>
+                      {(review.like_count ?? 0) > 0 ? review.like_count : null}
+                    </button>
+                    <button
+                      type="button"
+                      className={`product-detail-reviews__action${review.viewer_reaction === 'dislike' ? ' product-detail-reviews__action--active' : ''}`}
+                      onClick={() => void reactToComment(review.id, 'dislike')}
+                      disabled={commentActionPending}
+                      aria-label="Dislike comment"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M17 14V2" />
+                        <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+                      </svg>
+                      {(review.dislike_count ?? 0) > 0 ? review.dislike_count : null}
+                    </button>
+                    <button
+                      type="button"
+                      className="product-detail-reviews__reply-button"
+                      onClick={() => {
+                        setReplyingTo((current) => current === review.id ? null : review.id)
+                        setReplyParentId(null)
+                        setReplyText('')
+                      }}
+                    >
+                      Reply
+                    </button>
+                  </>
+                ) : (
+                  <AuthEntryButton mode="login" className="product-detail-reviews__reply-button">
+                    Log in to reply
+                  </AuthEntryButton>
+                )}
+              </div>
+              {replyingTo === review.id ? (
+                <form
+                  className="product-detail-reviews__reply-form"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void postReply(review.id, replyParentId)
+                  }}
+                >
+                  <input
+                    value={replyText}
+                    onChange={(event) => setReplyText(event.target.value)}
+                    maxLength={2000}
+                    placeholder="Add a reply..."
+                    aria-label="Reply"
+                    autoFocus
+                  />
+                  <button type="button" onClick={() => { setReplyingTo(null); setReplyParentId(null) }}>Cancel</button>
+                  <button type="submit" disabled={!replyText.trim() || commentActionPending}>Reply</button>
+                </form>
+              ) : null}
+              {(review.replies ?? []).length > 0 ? (
+                <ul className="product-detail-reviews__replies">
+                  {(review.replies ?? []).map((reply) => (
+                    <li
+                      key={reply.id}
+                      className={reply.parent_id ? 'product-detail-reviews__reply--nested' : undefined}
+                    >
+                      <button
+                        type="button"
+                        className="product-detail-reviews__more product-detail-reviews__more--reply"
+                        aria-label="More reply options"
+                      >
+                        <span aria-hidden="true">⋮</span>
+                      </button>
+                      {reply.author.avatar ? (
+                        <img className="product-detail-reviews__reply-avatar" src={reply.author.avatar} alt="" />
+                      ) : (
+                        <span className="product-detail-reviews__reply-avatar" aria-hidden="true">
+                          {authorInitials(reply.author.full_name)}
+                        </span>
+                      )}
+                      <div>
+                        <div className="product-detail-reviews__reply-meta">
+                          <strong>{reply.author.full_name}</strong>
+                          <time dateTime={reply.created_at}>{formatRelative(reply.created_at)}</time>
+                        </div>
+                        <p>{reply.text}</p>
+                        <div className="product-detail-reviews__reply-actions" aria-label="Reply actions">
+                          {isSignedIn ? (
+                            <>
+                              <button
+                                type="button"
+                                className={`product-detail-reviews__action${reply.viewer_reaction === 'like' ? ' product-detail-reviews__action--active' : ''}`}
+                                onClick={() => void reactToReply(reply.id, 'like')}
+                                disabled={commentActionPending}
+                                aria-label="Like reply"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M7 10v12" />
+                                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+                                </svg>
+                                {(reply.like_count ?? 0) > 0 ? reply.like_count : null}
+                              </button>
+                              <button
+                                type="button"
+                                className={`product-detail-reviews__action${reply.viewer_reaction === 'dislike' ? ' product-detail-reviews__action--active' : ''}`}
+                                onClick={() => void reactToReply(reply.id, 'dislike')}
+                                disabled={commentActionPending}
+                                aria-label="Dislike reply"
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="M7.5 13.5 11 20.2c.4.8 1.5.9 2.1.2.4-.5.6-1.2.4-1.8l-.8-3h5.5c1.3 0 2.3 1.2 2 2.5l-1.5-7a2 2 0 0 0-2-1.6H7.5v9Z" />
+                                  <path d="M17 14V2" />
+                                  <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+                                </svg>
+                                {(reply.dislike_count ?? 0) > 0 ? reply.dislike_count : null}
+                              </button>
+                              <button
+                                type="button"
+                                className="product-detail-reviews__reply-button"
+                                onClick={() => {
+                                  setReplyingTo((current) => current === reply.id ? null : reply.id)
+                                  setReplyParentId(reply.id)
+                                  setReplyText('')
+                                }}
+                              >
+                                Reply
+                              </button>
+                            </>
+                          ) : (
+                            <AuthEntryButton mode="login" className="product-detail-reviews__reply-button">
+                              Log in to reply
+                            </AuthEntryButton>
+                          )}
+                        </div>
+                        {replyingTo === reply.id ? (
+                          <form
+                            className="product-detail-reviews__reply-form product-detail-reviews__reply-form--nested"
+                            onSubmit={(event) => {
+                              event.preventDefault()
+                              void postReply(review.id, reply.id)
+                            }}
+                          >
+                            <input
+                              value={replyText}
+                              onChange={(event) => setReplyText(event.target.value)}
+                              maxLength={2000}
+                              placeholder={`Reply to ${reply.author.full_name}...`}
+                              aria-label={`Reply to ${reply.author.full_name}`}
+                              autoFocus
+                            />
+                            <button type="button" onClick={() => { setReplyingTo(null); setReplyParentId(null) }}>Cancel</button>
+                            <button type="submit" disabled={!replyText.trim() || commentActionPending}>Reply</button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               ) : null}
             </li>
           ))}
