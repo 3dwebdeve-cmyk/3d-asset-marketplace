@@ -246,6 +246,7 @@ describe('Navbar', () => {
 
     const firstName = testUser.full_name.trim().split(/\s+/)[0]
     expect(screen.getByText(firstName)).toBeInTheDocument()
+    expect(screen.getByTestId('customer-account-trigger')).toHaveAccessibleName(firstName)
     expect(document.querySelector('.navbar__account-avatar')).toHaveAttribute(
       'src',
       'https://cdn.example.com/avatar.jpg',

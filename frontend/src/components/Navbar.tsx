@@ -580,6 +580,7 @@ export function Navbar() {
                     <button
                       type="button"
                       className="navbar__account-trigger"
+                      data-testid="customer-account-trigger"
                       aria-label={firstName}
                       aria-expanded={accountOpen}
                       aria-haspopup="menu"
