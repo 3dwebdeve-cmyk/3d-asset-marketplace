@@ -180,7 +180,3 @@ export function CartLineItem({
     </article>
   )
 }
-
-export function formatCartPrice(amount: string, currency: string): string {
-  return formatMoney(amount, currency)
-}

@@ -194,11 +194,11 @@ describe('Navbar', () => {
     expect(within(menu).queryByRole('menuitem', { name: /demo assets/i })).not.toBeInTheDocument()
   })
 
-  it('shows Sign in and Register when logged out', () => {
+  it('shows Login and Sign Up when logged out', () => {
     renderNavbar('/about')
 
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^about$/i })).toHaveAttribute('href', '/about')
     expect(screen.getByRole('link', { name: /^contact$/i })).toHaveAttribute('href', '/contact')
     expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
@@ -263,8 +263,8 @@ describe('Navbar', () => {
     expect(within(menu).queryByRole('menuitem', { name: /my orders/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /my downloads/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /^wishlist/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^register$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /login/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /sign up/i })).not.toBeInTheDocument()
   })
 
   it('shows a cart count badge when the customer has items in cart', async () => {

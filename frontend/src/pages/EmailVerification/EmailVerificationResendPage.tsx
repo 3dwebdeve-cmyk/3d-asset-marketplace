@@ -13,7 +13,7 @@ export function EmailVerificationResendPage() {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="verify-resend-title">
         <header className="auth-card__header">
-          <p className="auth-card__eyebrow">3D Asset Marketplace</p>
+          <p className="auth-card__eyebrow">AssetHive3D</p>
           <h1 id="verify-resend-title">Resend verification email</h1>
           <p className="auth-card__subtitle">
             Enter your email and we will send a new link to verify your account.

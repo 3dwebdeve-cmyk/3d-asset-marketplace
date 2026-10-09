@@ -14,7 +14,7 @@ export function EmailVerificationPage() {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="verify-email-title">
         <header className="auth-card__header">
-          <p className="auth-card__eyebrow">3D Asset Marketplace</p>
+          <p className="auth-card__eyebrow">AssetHive3D</p>
           <h1 id="verify-email-title">Verify your email</h1>
           <p className="auth-card__subtitle">
             We are confirming your email address so you can sign in securely.

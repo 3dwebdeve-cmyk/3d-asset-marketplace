@@ -7,7 +7,7 @@ interface UseDocumentSeoOptions {
   robots?: string
 }
 
-const DEFAULT_TITLE = '3D Asset Marketplace'
+const DEFAULT_TITLE = 'AssetHive3D'
 const META_DESCRIPTION_SELECTOR = 'meta[name="description"]'
 const META_ROBOTS_SELECTOR = 'meta[name="robots"]'
 

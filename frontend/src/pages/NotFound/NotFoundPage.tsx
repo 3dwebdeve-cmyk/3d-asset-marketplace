@@ -22,7 +22,7 @@ export function NotFoundPage() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        navigate('/home')
+        navigate('/')
       }
     }
 
@@ -109,7 +109,7 @@ export function NotFoundPage() {
           You can search for the page you want here
           <br />
           or return to the{' '}
-          <Link to="/home" className="not-found-page__home-link">
+          <Link to="/" className="not-found-page__home-link">
             homepage
           </Link>
           .
