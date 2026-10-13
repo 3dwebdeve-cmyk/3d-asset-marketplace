@@ -18,6 +18,8 @@ export interface ModelViewerProps {
   className?: string
 }
 
+const VIEWER_BACKGROUND_COLOR = '#f3f4f6'
+
 function SceneLights({
   environmentId,
   environmentFile,
@@ -167,9 +169,9 @@ function PreviewModel({
       {showGround && ground ? (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
           <planeGeometry args={[ground.width, ground.depth]} />
-          {/* Basic white — stays pure white (not lit gray) and matches the solid backdrop. */}
+          {/* Match the ground plane to the light-grey studio backdrop. */}
           <meshBasicMaterial
-            color="#ffffff"
+            color={VIEWER_BACKGROUND_COLOR}
             transparent={Boolean(groundAlphaMap)}
             alphaMap={groundAlphaMap ?? undefined}
             depthWrite={false}
@@ -332,9 +334,9 @@ function ModelViewerCanvas({
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        {/* Fallback / studio solid backdrop — pure white so the floor never reads gray. */}
+        {/* Fallback / studio solid light-grey backdrop. */}
         {!selectedEnvironment.background || !environmentFile ? (
-          <color attach="background" args={['#ffffff']} />
+          <color attach="background" args={[VIEWER_BACKGROUND_COLOR]} />
         ) : null}
         <SceneLights
           environmentId={selectedEnvironment.id}
@@ -413,7 +415,7 @@ function StableModelViewerCanvas({
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        <color attach="background" args={['#ffffff']} />
+        <color attach="background" args={[VIEWER_BACKGROUND_COLOR]} />
         <ambientLight intensity={0.45} />
         <hemisphereLight args={['#ffffff', '#c4cad3', 0.5]} />
         <directionalLight position={[5, 8, 4]} intensity={1.1} />

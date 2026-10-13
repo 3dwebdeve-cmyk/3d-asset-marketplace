@@ -23,7 +23,6 @@ describe('MarketplaceHero', () => {
     expect(screen.getByRole('button', { name: /3D character/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Game Environment/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Low Poly/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Sci-Fi Vehicles/i })).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: /Newest/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Top Selling/i })).toBeInTheDocument()
@@ -79,9 +78,15 @@ describe('MarketplaceHero', () => {
       </MemoryRouter>,
     )
 
-    const input = screen.getByRole('searchbox', { name: /Search 3D models/i })
+    const input = screen.getByRole('searchbox', { name: /Search marketplace/i })
     await user.type(input, 'spaceship{enter}')
 
-    expect(screen.getByTestId('location-probe').textContent).toContain('/3d-models?search=spaceship')
+    expect(screen.getByTestId('location-probe').textContent).toContain('/plugins?search=spaceship')
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Search category/i }), 'models')
+    await user.clear(input)
+    await user.type(input, 'robot{enter}')
+
+    expect(screen.getByTestId('location-probe').textContent).toContain('/3d-models?search=robot')
   })
 })

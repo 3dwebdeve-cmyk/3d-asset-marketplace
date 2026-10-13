@@ -219,7 +219,8 @@
   gap: 1.1rem;
 }
 
-.browse-rail-section--models .browse-rail-section__title {
+.browse-rail-section--models .browse-rail-section__title,
+.browse-rail-section--plugins .browse-rail-section__title {
   position: relative;
   padding-left: 0.65rem;
   font-size: 1.05rem;
@@ -227,7 +228,8 @@
   color: var(--text-main);
 }
 
-.browse-rail-section--models .browse-rail-section__title::before {
+.browse-rail-section--models .browse-rail-section__title::before,
+.browse-rail-section--plugins .browse-rail-section__title::before {
   content: '';
   position: absolute;
   top: 0.12rem;

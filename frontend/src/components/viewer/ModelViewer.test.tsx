@@ -100,7 +100,7 @@ describe('ModelViewer', () => {
   })
 
   it('mounts a canvas region for a safe preview model URL', () => {
-    render(
+    const { container } = render(
       <ModelViewer
         modelUrl="https://cdn.example.com/preview.glb"
         ariaLabel="Interactive 3D preview of Demo Asset"
@@ -112,6 +112,7 @@ describe('ModelViewer', () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-dpr', '1.25')
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'always')
+    expect(container.querySelector('color')).toHaveAttribute('args', '#f3f4f6')
   })
 
   it('renders environment controls and defaults to Studio HDRI', async () => {
@@ -131,7 +132,7 @@ describe('ModelViewer', () => {
         'data-files',
         '/hdri/studio_small_08_1k.hdr',
       )
-      // Studio uses HDRI for lighting only (solid white backdrop), so blurriness is 0.
+      // Studio uses HDRI for lighting only (solid light-grey backdrop), so blurriness is 0.
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
         'data-background-blurriness',
         '0',
