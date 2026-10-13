@@ -1,11 +1,12 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Object3D } from 'three'
+import { Object3D, Scene, Texture } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const viewerMocks = vi.hoisted(() => {
   return {
     scene: null as import('three').Object3D | null,
+    renderScene: null as import('three').Scene | null,
     clearGltfCache: vi.fn(),
     visible: true,
     webglAvailable: true,
@@ -27,7 +28,10 @@ vi.mock('@react-three/fiber', () => ({
       {children}
     </div>
   ),
-  useThree: () => ({ scene: new Object3D() }),
+  useThree: (selector?: (state: { scene: import('three').Scene }) => unknown) => {
+    const state = { scene: viewerMocks.renderScene ?? new Scene() }
+    return selector ? selector(state) : state
+  },
 }))
 
 vi.mock('@react-three/drei', () => ({
@@ -88,6 +92,7 @@ describe('ModelViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     viewerMocks.scene = new Object3D()
+    viewerMocks.renderScene = new Scene()
     viewerMocks.visible = true
     viewerMocks.webglAvailable = true
     viewerMocks.pixelRatio = 1.25
@@ -100,7 +105,7 @@ describe('ModelViewer', () => {
   })
 
   it('mounts a canvas region for a safe preview model URL', () => {
-    const { container } = render(
+    render(
       <ModelViewer
         modelUrl="https://cdn.example.com/preview.glb"
         ariaLabel="Interactive 3D preview of Demo Asset"
@@ -112,7 +117,11 @@ describe('ModelViewer', () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-dpr', '1.25')
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'always')
-    expect(container.querySelector('color')).toHaveAttribute('args', '#f3f4f6')
+    expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
+    expect(viewerMocks.renderScene!.background).toHaveProperty('getHexString')
+    expect((viewerMocks.renderScene!.background as import('three').Color).getHexString()).toBe(
+      'f3f4f6',
+    )
   })
 
   it('renders environment controls and defaults to Studio HDRI', async () => {
@@ -186,6 +195,27 @@ describe('ModelViewer', () => {
     })
     expect(container.querySelectorAll('directionallight')).toHaveLength(3)
     expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
+  })
+
+  it('replaces a retained Natural HDRI background when returning to Studio', async () => {
+    const user = userEvent.setup()
+    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />)
+    await screen.findByTestId('viewer-environment')
+
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true')
+    })
+
+    viewerMocks.renderScene!.background = new Texture()
+    await user.click(screen.getByRole('radio', { name: 'Studio' }))
+
+    await waitFor(() => {
+      expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
+      expect(
+        (viewerMocks.renderScene!.background as import('three').Color).getHexString(),
+      ).toBe('f3f4f6')
+    })
   })
 
   it('clears the previous HDRI while the selected environment is pending', async () => {

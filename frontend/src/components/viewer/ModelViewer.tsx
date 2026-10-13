@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useMemo, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
@@ -19,6 +19,25 @@ export interface ModelViewerProps {
 }
 
 const VIEWER_BACKGROUND_COLOR = '#f3f4f6'
+
+function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
+  const scene = useThree((state) => state.scene)
+  const studioBackground = useMemo(() => new THREE.Color(VIEWER_BACKGROUND_COLOR), [])
+
+  useLayoutEffect(() => {
+    if (showEnvironment) {
+      return
+    }
+
+    // Drei restores the previous background when an Environment unmounts. During
+    // Natural -> Studio transitions that cleanup can otherwise restore the forest
+    // HDRI behind the Studio ground plane, leaving a visible strip at the horizon.
+    scene.background = studioBackground
+    scene.backgroundBlurriness = 0
+  }, [scene, showEnvironment, studioBackground])
+
+  return null
+}
 
 function SceneLights({
   environmentId,
@@ -334,10 +353,6 @@ function ModelViewerCanvas({
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        {/* Fallback / studio solid light-grey backdrop. */}
-        {!selectedEnvironment.background || !environmentFile ? (
-          <color attach="background" args={[VIEWER_BACKGROUND_COLOR]} />
-        ) : null}
         <SceneLights
           environmentId={selectedEnvironment.id}
           environmentFile={environmentFile}
@@ -345,6 +360,9 @@ function ModelViewerCanvas({
           lightMultiplier={selectedEnvironment.lightMultiplier}
           showBackground={selectedEnvironment.background}
           backgroundBlur={selectedEnvironment.backgroundBlur}
+        />
+        <SceneBackground
+          showEnvironment={selectedEnvironment.background && Boolean(environmentFile)}
         />
         <Suspense fallback={null}>
           <PreviewModel
