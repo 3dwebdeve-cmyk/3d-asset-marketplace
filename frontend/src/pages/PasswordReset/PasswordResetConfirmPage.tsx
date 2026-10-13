@@ -17,7 +17,7 @@ export function PasswordResetConfirmPage() {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="reset-confirm-title">
         <header className="auth-card__header">
-          <p className="auth-card__eyebrow">3D Asset Marketplace</p>
+          <p className="auth-card__eyebrow">AssetHive3D</p>
           <h1 id="reset-confirm-title">Choose a new password</h1>
           <p className="auth-card__subtitle">
             Enter and confirm your new password to finish resetting your account.

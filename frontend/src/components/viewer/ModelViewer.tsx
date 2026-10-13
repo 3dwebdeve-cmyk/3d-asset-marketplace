@@ -1,10 +1,11 @@
-import { Suspense, useEffect, useMemo, useState } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
+import { fitPreviewScene } from './fitPreviewScene'
 import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, type HdriEnvironmentId } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
@@ -15,6 +16,27 @@ export interface ModelViewerProps {
   modelUrl: string
   ariaLabel: string
   className?: string
+}
+
+const VIEWER_BACKGROUND_COLOR = '#f3f4f6'
+
+function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
+  const scene = useThree((state) => state.scene)
+  const studioBackground = useMemo(() => new THREE.Color(VIEWER_BACKGROUND_COLOR), [])
+
+  useLayoutEffect(() => {
+    if (showEnvironment) {
+      return
+    }
+
+    // Drei restores the previous background when an Environment unmounts. During
+    // Natural -> Studio transitions that cleanup can otherwise restore the forest
+    // HDRI behind the Studio ground plane, leaving a visible strip at the horizon.
+    scene.background = studioBackground
+    scene.backgroundBlurriness = 0
+  }, [scene, showEnvironment, studioBackground])
+
+  return null
 }
 
 function SceneLights({
@@ -70,29 +92,6 @@ function SceneLights({
       ) : null}
     </>
   )
-}
-
-/** Center + uniform-scale a GLB so it fills the fixed studio camera framing. */
-export function fitPreviewScene(source: THREE.Object3D, targetSize = 1.8): THREE.Group {
-  const root = new THREE.Group()
-  const clone = source.clone(true)
-  root.add(clone)
-
-  const box = new THREE.Box3().setFromObject(clone)
-  if (box.isEmpty()) {
-    return root
-  }
-
-  const size = box.getSize(new THREE.Vector3())
-  const center = box.getCenter(new THREE.Vector3())
-  const maxDim = Math.max(size.x, size.y, size.z, 1e-8)
-
-  clone.position.x -= center.x
-  clone.position.y -= center.y
-  clone.position.z -= center.z
-  root.scale.setScalar(targetSize / maxDim)
-
-  return root
 }
 
 function PreviewModel({
@@ -189,9 +188,9 @@ function PreviewModel({
       {showGround && ground ? (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
           <planeGeometry args={[ground.width, ground.depth]} />
-          {/* Basic white — stays pure white (not lit gray) and matches the solid backdrop. */}
+          {/* Match the ground plane to the light-grey studio backdrop. */}
           <meshBasicMaterial
-            color="#ffffff"
+            color={VIEWER_BACKGROUND_COLOR}
             transparent={Boolean(groundAlphaMap)}
             alphaMap={groundAlphaMap ?? undefined}
             depthWrite={false}
@@ -205,7 +204,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-spread`}
             position={[0, ground.y + 0.001, 0]}
-            opacity={0.32}
+            opacity={0.22}
             scale={ground.shadowScaleSpread}
             blur={3.2}
             far={4.0}
@@ -217,7 +216,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-mid`}
             position={[0, ground.y + 0.002, 0]}
-            opacity={0.36}
+            opacity={0.25}
             scale={ground.shadowScaleMid}
             blur={2.4}
             far={2.8}
@@ -229,7 +228,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-core`}
             position={[0, ground.y + 0.003, 0]}
-            opacity={0.42}
+            opacity={0.29}
             scale={ground.shadowScaleCore}
             blur={1.6}
             far={1.8}
@@ -354,10 +353,6 @@ function ModelViewerCanvas({
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        {/* Fallback / studio solid backdrop — pure white so the floor never reads gray. */}
-        {!selectedEnvironment.background || !environmentFile ? (
-          <color attach="background" args={['#ffffff']} />
-        ) : null}
         <SceneLights
           environmentId={selectedEnvironment.id}
           environmentFile={environmentFile}
@@ -365,6 +360,9 @@ function ModelViewerCanvas({
           lightMultiplier={selectedEnvironment.lightMultiplier}
           showBackground={selectedEnvironment.background}
           backgroundBlur={selectedEnvironment.backgroundBlur}
+        />
+        <SceneBackground
+          showEnvironment={selectedEnvironment.background && Boolean(environmentFile)}
         />
         <Suspense fallback={null}>
           <PreviewModel
@@ -435,7 +433,7 @@ function StableModelViewerCanvas({
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        <color attach="background" args={['#ffffff']} />
+        <color attach="background" args={[VIEWER_BACKGROUND_COLOR]} />
         <ambientLight intensity={0.45} />
         <hemisphereLight args={['#ffffff', '#c4cad3', 0.5]} />
         <directionalLight position={[5, 8, 4]} intensity={1.1} />

@@ -554,7 +554,7 @@ export function ProductsBrowsePage() {
           )}
         </section>
 
-        <section className="browse-rail-section" aria-labelledby="explore-plugins-heading">
+        <section className="browse-rail-section browse-rail-section--plugins" aria-labelledby="explore-plugins-heading">
           <div className="browse-rail-section__header">
             <h2 id="explore-plugins-heading" className="browse-rail-section__title">
               Explore Plugins
@@ -604,7 +604,8 @@ export function ProductsBrowsePage() {
           <div className="hub-offer__grid">
             {OFFER_SERVICES.map((offer) => (
               <article key={offer.title} className="hub-offer__card">
-                <div className="hub-offer__media">
+                {/* tabIndex lets a tap or keyboard focus reveal the details via :focus-within. */}
+                <div className="hub-offer__media" tabIndex={0}>
                   {offer.image ? (
                     <img
                       className={

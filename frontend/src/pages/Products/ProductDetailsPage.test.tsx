@@ -359,7 +359,7 @@ describe('ProductDetailsPage', () => {
       expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/')
   })
 
   it('shows error state with retry for non-404 failures', async () => {

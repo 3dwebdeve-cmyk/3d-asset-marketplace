@@ -251,8 +251,9 @@ describe('ProductsBrowsePage', () => {
     const user = userEvent.setup()
     renderProductsBrowsePage()
 
-    await user.type(screen.getByRole('searchbox', { name: /search 3d models/i }), 'drone')
-    await user.click(screen.getByRole('button', { name: /search marketplace/i }))
+    await user.selectOptions(screen.getByRole('combobox', { name: /search category/i }), 'models')
+    await user.type(screen.getByRole('searchbox', { name: /search marketplace/i }), 'drone')
+    await user.click(screen.getByRole('button', { name: /^search$/i }))
 
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?search=drone')

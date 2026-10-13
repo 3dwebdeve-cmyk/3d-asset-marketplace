@@ -129,9 +129,6 @@ export function ProductSpecs({ product }: ProductSpecsProps) {
           </div>
         ))}
       </dl>
-      <p className="product-detail-specs__note">
-        These values describe the interactive demo preview.
-      </p>
     </section>
   )
 }

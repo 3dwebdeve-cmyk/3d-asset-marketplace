@@ -17,7 +17,6 @@ import {
   testUser,
 } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
-import { useToastStore } from '../../store/toastStore'
 import type { PublicPluginDetail } from '../../types/plugin'
 import { PluginDetailsPage } from './PluginDetailsPage'
 import { Toaster } from '../../components/ui/Toaster'
@@ -234,10 +233,28 @@ describe('PluginDetailsPage', () => {
     })
 
     expect(pluginsApi.getPublicPlugin).toHaveBeenCalledWith('uv-unwrap-pro')
-    expect(screen.getByText(/one-click uv unwrapping for 3d artists/i)).toBeInTheDocument()
+    expect(screen.getByText(sampleDetail.description)).toBeInTheDocument()
     expect(screen.getByText('Version')).toBeInTheDocument()
     expect(screen.getAllByText('2.1.0').length).toBeGreaterThan(0)
     expect(document.title).toContain('UV Unwrap Pro')
+  })
+
+  it('uses the same description and comments layout as a 3D model detail page', async () => {
+    renderPluginDetails()
+
+    const commentsHeading = await screen.findByRole('heading', {
+      name: /reviews & comments/i,
+    })
+    const commentsSection = commentsHeading.closest('section')
+    const mediaReviews = commentsSection?.parentElement
+
+    expect(screen.getByRole('heading', { name: /^description$/i })).toBeInTheDocument()
+    expect(screen.getByText(sampleDetail.description)).toBeInTheDocument()
+    expect(mediaReviews).toHaveClass('product-hub-detail__media-reviews')
+    expect(mediaReviews?.parentElement).toHaveClass('product-detail-layout__media')
+
+    const similarPlugins = screen.getByRole('heading', { name: /similar plugins/i })
+    expect(similarPlugins.closest('.product-hub-detail__lower-grid')).toBeInTheDocument()
   })
 
   it('renders discount price and sale badge', async () => {
@@ -327,7 +344,7 @@ describe('PluginDetailsPage', () => {
       expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/')
   })
 
   it('shows error state with retry for non-404 failures', async () => {
@@ -363,7 +380,7 @@ describe('PluginDetailsPage', () => {
       screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in to buy/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
   })
 
   it('shows working add-to-cart and wishlist controls for authenticated users', async () => {
@@ -480,13 +497,7 @@ describe('PluginDetailsPage', () => {
     })
   })
 
-  it('copies the share link and excludes package storage paths from the document', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    })
-
+  it('hides the share control and short summary and excludes package storage paths', async () => {
     renderPluginDetails()
 
     await waitFor(() => {
@@ -495,14 +506,8 @@ describe('PluginDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    await userEvent.click(screen.getByRole('button', { name: /share link for/i }))
-
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalled()
-    })
-    expect(writeText.mock.calls[0]?.[0]).toContain('/plugins/uv-unwrap-pro')
-    expect(useToastStore.getState().toasts).toHaveLength(0)
-
+    expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(sampleDetail.short_description)).not.toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/storage_path/i)
     expect(document.body.innerHTML).not.toContain('uv_unwrap_pro.zip')
   })

@@ -33,8 +33,8 @@ export function Navbar() {
   const isPluginsRoute = currentPath.startsWith('/plugins')
   const isModelsRoute = currentPath.startsWith('/3d-models')
   const isProductRoute = currentPath === '/products' || currentPath.startsWith('/products/')
-  // `/` redirects to the marketplace home hub. Keep the branded nav on both
-  // so the header does not flash the inner-page style before the redirect.
+  // `/` is the canonical marketplace home. Keep the branded nav on `/home`
+  // too so the header does not flash before that legacy route redirects.
   const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
   const isCompactNav = useMediaQuery('(max-width: 1200px)')
   const searchParams = new URLSearchParams(location.search)
@@ -111,7 +111,7 @@ export function Navbar() {
     setMobileNavOpen(false)
     setCategoryId(categoryFromUrl)
     setSearchInput(searchFromUrl)
-  }, [location.pathname, location.search])
+  }, [location.pathname, location.search, categoryFromUrl, searchFromUrl])
 
   useEffect(() => {
     if (!isCompactNav) {
@@ -228,9 +228,9 @@ export function Navbar() {
   const logoutMutation = useMutation({
     mutationFn: () => logoutUser(),
     onSettled: () => {
-      clearSession({ redirectTo: '/home' })
+      clearSession({ redirectTo: '/' })
       toast.success('Signed out')
-      navigate('/home', { replace: true })
+      navigate('/', { replace: true })
     },
   })
 
@@ -321,7 +321,7 @@ export function Navbar() {
     >
       <nav className="navbar__inner" aria-label="Main">
         <div className="navbar__start">
-          <Link className="navbar__brand" to="/home" onClick={closeMobileNav} aria-label="AssetHive 3D">
+          <Link className="navbar__brand" to="/" onClick={closeMobileNav} aria-label="AssetHive 3D">
             <img
               src="/images/AssetHive%203D.svg"
               alt="AssetHive 3D"
@@ -528,7 +528,11 @@ export function Navbar() {
         ) : (
           <div className="navbar__actions navbar__actions--desktop">
             <div className="navbar__primary-links">
-              <Link className="navbar__link" to="/home">
+              <Link
+                className={`navbar__link${isMarketplaceHome ? ' navbar__link--active' : ''}`}
+                to="/"
+                aria-current={isMarketplaceHome ? 'page' : undefined}
+              >
                 Home
               </Link>
               <Link
@@ -685,7 +689,7 @@ export function Navbar() {
                       className="navbar__link"
                       data-testid="customer-login-trigger"
                     >
-                      {isMarketplaceHome ? 'Log in' : 'Sign in'}
+                      Login
                     </AuthEntryButton>
                     <span className="navbar__guest-auth-divider" aria-hidden="true" />
                     <AuthEntryButton
@@ -693,7 +697,7 @@ export function Navbar() {
                       returnTo={location.pathname}
                       className="navbar__link navbar__link--primary"
                     >
-                      {isMarketplaceHome ? 'Sign up' : 'Register'}
+                      Sign Up
                     </AuthEntryButton>
                   </div>
                 </>
@@ -724,7 +728,7 @@ export function Navbar() {
           {/* Top Header & Auth Section (matches Image 2) */}
           <div className="navbar__drawer-top">
             <div className="navbar__drawer-top-header">
-              <Link to="/home" onClick={closeMobileNav} className="navbar__drawer-brand-link">
+              <Link to="/" onClick={closeMobileNav} className="navbar__drawer-brand-link">
                 <img
                   src="/images/AssetHive%203D.svg"
                   alt="AssetHive 3D"
@@ -827,7 +831,7 @@ export function Navbar() {
               </button>
               {drawerMenuOpen ? (
                 <nav className="navbar__drawer-subnav" aria-label="Menu links">
-                  <Link className="navbar__drawer-sublink" to="/home" onClick={closeMobileNav}>
+                  <Link className="navbar__drawer-sublink" to="/" onClick={closeMobileNav}>
                     Home
                   </Link>
                   <Link className="navbar__drawer-sublink" to="/3d-models" onClick={closeMobileNav}>

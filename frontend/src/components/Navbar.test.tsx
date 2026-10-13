@@ -145,7 +145,7 @@ describe('Navbar', () => {
     expect(document.querySelector('.navbar')).toHaveClass('navbar--marketplace-home')
     expect(screen.queryByRole('search')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /for business/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute(
       'href',
       '/3d-models',
@@ -194,18 +194,18 @@ describe('Navbar', () => {
     expect(within(menu).queryByRole('menuitem', { name: /demo assets/i })).not.toBeInTheDocument()
   })
 
-  it('shows Sign in and Register when logged out', () => {
+  it('shows Login and Sign Up when logged out', () => {
     renderNavbar('/about')
 
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^about$/i })).toHaveAttribute('href', '/about')
     expect(screen.getByRole('link', { name: /^contact$/i })).toHaveAttribute('href', '/contact')
     expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
       'href',
       '/custom-projects',
     )
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /^3d models$/i })).toHaveAttribute('href', '/3d-models')
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
@@ -227,11 +227,12 @@ describe('Navbar', () => {
     expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(1)
   })
 
-  it('keeps the Home navbar link black on the Home page', () => {
-    renderNavbar('/home')
+  it('marks the Home navbar link active on the Home page', () => {
+    renderNavbar('/')
 
-    expect(screen.getByRole('link', { name: /^home$/i })).not.toHaveClass('navbar__link--active')
-    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(0)
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveClass('navbar__link--active')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('aria-current', 'page')
+    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(1)
   })
 
   it('shows user menu with Dashboard, Profile, and Sign out when logged in', async () => {
@@ -263,8 +264,8 @@ describe('Navbar', () => {
     expect(within(menu).queryByRole('menuitem', { name: /my orders/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /my downloads/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /^wishlist/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^register$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /login/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /sign up/i })).not.toBeInTheDocument()
   })
 
   it('shows a cart count badge when the customer has items in cart', async () => {
@@ -322,9 +323,9 @@ describe('Navbar', () => {
     await user.click(within(menu).getByRole('menuitem', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent(/^\/home$/)
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
     })
-    expect(screen.getByText('Marketplace home')).toBeInTheDocument()
+    expect(screen.getByText('Home page')).toBeInTheDocument()
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
     expect(authApi.logoutUser).toHaveBeenCalledWith()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)

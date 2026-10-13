@@ -14,6 +14,7 @@ export function PluginCtaGroup({ pluginId, pluginName, pluginSlug }: PluginCtaGr
       productName={pluginName}
       productSlug={pluginSlug}
       variant="buybox"
+      showShare={false}
     />
   )
 }
