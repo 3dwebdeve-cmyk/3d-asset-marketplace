@@ -83,9 +83,9 @@ export function DashboardLayout() {
   const logoutMutation = useMutation({
     mutationFn: () => logoutUser(),
     onSettled: () => {
-      clearSession({ redirectTo: '/home' })
+      clearSession({ redirectTo: '/' })
       toast.success('Signed out')
-      navigate('/home', { replace: true })
+      navigate('/', { replace: true })
     },
   })
 

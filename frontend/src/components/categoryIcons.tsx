@@ -6,18 +6,16 @@ export type CategoryIconComponent = (props: IconProps) => ReactElement
 function icon(
   paths: ReactElement | ReactElement[],
 ): CategoryIconComponent {
-  return function CategoryIcon({ className }: IconProps) {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        className={className}
-        aria-hidden="true"
-      >
-        {paths}
-      </svg>
-    )
-  }
+  return ({ className }: IconProps) => (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
+      {paths}
+    </svg>
+  )
 }
 
 const stroke = {

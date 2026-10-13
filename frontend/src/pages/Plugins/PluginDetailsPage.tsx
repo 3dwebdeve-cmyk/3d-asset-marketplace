@@ -134,6 +134,26 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
               />
             }
           />
+
+          <section className="product-hub-detail__description" aria-labelledby="plugin-description-heading">
+            <h2 id="plugin-description-heading" className="product-detail-section-title">
+              Description
+            </h2>
+            <div className="product-hub-detail__description-copy">
+              {plugin.description || plugin.short_description || 'No description is available for this plugin.'}
+            </div>
+          </section>
+
+          <div className="product-hub-detail__media-reviews">
+            <ReviewsSection
+              productType="plugin"
+              productId={plugin.id}
+              catalogSlug={plugin.slug}
+              averageRating={plugin.average_rating}
+              reviewCount={plugin.review_count}
+              layout="hub"
+            />
+          </div>
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Plugin purchase details">
@@ -181,10 +201,6 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
               />
             </div>
 
-            {plugin.short_description.trim() ? (
-              <p className="product-detail-purchase__summary">{plugin.short_description}</p>
-            ) : null}
-
             {plugin.documentation_url.trim() ? (
               <a
                 href={plugin.documentation_url}
@@ -196,71 +212,64 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
               </a>
             ) : null}
           </div>
+
+          <div className="product-hub-detail__lower-grid">
+            <section className="product-detail-related" aria-labelledby="plugin-related-heading">
+              <div className="product-detail-related__header">
+                <h2 id="plugin-related-heading" className="product-detail-section-title">
+                  Similar plugins
+                </h2>
+                <Link to={browseCategoryHref} className="product-detail-related__browse">
+                  Browse {plugin.category.name}
+                </Link>
+              </div>
+
+              {relatedQuery.isLoading ? (
+                <div
+                  className="products-grid products-grid--skeleton"
+                  aria-label="Loading similar plugins"
+                >
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="product-card-skeleton">
+                      <div className="product-card-skeleton__media" />
+                      <div className="product-card-skeleton__body">
+                        <div className="product-card-skeleton__line product-card-skeleton__line--short" />
+                        <div className="product-card-skeleton__line" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : relatedQuery.isError ? (
+                <ErrorState
+                  title="Could not load similar plugins"
+                  description="Try refreshing this section."
+                  action={
+                    <Button variant="secondary" onClick={() => relatedQuery.refetch()}>
+                      Try again
+                    </Button>
+                  }
+                />
+              ) : relatedPlugins.length === 0 ? (
+                <EmptyState
+                  title="No similar plugins yet"
+                  description={`There are no other published plugins in ${plugin.category.name} right now.`}
+                  action={
+                    <Link to="/plugins" className="ui-button ui-button--secondary">
+                      Browse all plugins
+                    </Link>
+                  }
+                />
+              ) : (
+                <div className="products-grid">
+                  {relatedPlugins.map((item) => (
+                    <PluginCard key={item.id} plugin={item} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </aside>
       </div>
-
-      <ReviewsSection
-        productType="plugin"
-        productId={plugin.id}
-        catalogSlug={plugin.slug}
-        averageRating={plugin.average_rating}
-        reviewCount={plugin.review_count}
-        layout="hub"
-      />
-
-      <section className="product-detail-related" aria-labelledby="plugin-related-heading">
-        <div className="product-detail-related__header">
-          <h2 id="plugin-related-heading" className="product-detail-section-title">
-            Similar plugins
-          </h2>
-          <Link to={browseCategoryHref} className="product-detail-related__browse">
-            Browse {plugin.category.name}
-          </Link>
-        </div>
-
-        {relatedQuery.isLoading ? (
-          <div
-            className="products-grid products-grid--skeleton"
-            aria-label="Loading similar plugins"
-          >
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="product-card-skeleton">
-                <div className="product-card-skeleton__media" />
-                <div className="product-card-skeleton__body">
-                  <div className="product-card-skeleton__line product-card-skeleton__line--short" />
-                  <div className="product-card-skeleton__line" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : relatedQuery.isError ? (
-          <ErrorState
-            title="Could not load similar plugins"
-            description="Try refreshing this section."
-            action={
-              <Button variant="secondary" onClick={() => relatedQuery.refetch()}>
-                Try again
-              </Button>
-            }
-          />
-        ) : relatedPlugins.length === 0 ? (
-          <EmptyState
-            title="No similar plugins yet"
-            description={`There are no other published plugins in ${plugin.category.name} right now.`}
-            action={
-              <Link to="/plugins" className="ui-button ui-button--secondary">
-                Browse all plugins
-              </Link>
-            }
-          />
-        ) : (
-          <div className="products-grid">
-            {relatedPlugins.map((item) => (
-              <PluginCard key={item.id} plugin={item} />
-            ))}
-          </div>
-        )}
-      </section>
     </>
   )
 }

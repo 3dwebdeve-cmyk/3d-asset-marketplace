@@ -12,12 +12,13 @@ interface SortPill {
   ordering: string
 }
 
+type SearchCategory = 'plugins' | 'models'
+
 const TRENDING_TAGS: readonly TrendingTag[] = [
   { label: '3D Models', search: '' },
   { label: '3D character', search: '3D character' },
   { label: 'Game Environment', search: 'Game Environment' },
   { label: 'Low Poly', search: 'Low Poly' },
-  { label: 'Sci-Fi Vehicles', search: 'Sci-Fi Vehicles' },
 ]
 
 const SORT_PILLS: readonly SortPill[] = [
@@ -59,9 +60,26 @@ function SearchIcon({ size = 18, strokeWidth = 2 }: { size?: number; strokeWidth
   )
 }
 
+function ArrowRightIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+    >
+      <path d="M5 12h14M14 7l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function MarketplaceHero() {
   const navigate = useNavigate()
   const [searchInput, setSearchInput] = useState('')
+  const [searchCategory, setSearchCategory] = useState<SearchCategory>('plugins')
   const [activeSort, setActiveSort] = useState<string>('-review_count')
   const [activeTag, setActiveTag] = useState<string | null>(null)
 
@@ -76,7 +94,9 @@ export function MarketplaceHero() {
 
   const onSearchSubmit = (event: FormEvent) => {
     event.preventDefault()
-    navigateToModels(searchInput)
+    const query = searchInput.trim().slice(0, 100)
+    const path = searchCategory === 'plugins' ? '/plugins' : '/3d-models'
+    navigate(query ? `${path}?search=${encodeURIComponent(query)}` : path)
   }
 
   const handleTagClick = (tag: TrendingTag) => {
@@ -105,20 +125,33 @@ export function MarketplaceHero() {
             onSubmit={onSearchSubmit}
             role="search"
           >
-            <input
-              type="search"
-              className="home-marketplace-search__input"
-              aria-label="Search 3D models"
-              placeholder="Search over 2 million models"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-            />
+            <div className="home-marketplace-search__category">
+              <select
+                aria-label="Search category"
+                value={searchCategory}
+                onChange={(event) => setSearchCategory(event.target.value as SearchCategory)}
+              >
+                <option value="plugins">Plugins</option>
+                <option value="models">3D Models</option>
+              </select>
+            </div>
+            <label className="home-marketplace-search__field">
+              <SearchIcon size={17} strokeWidth={1.7} />
+              <input
+                type="search"
+                className="home-marketplace-search__input"
+                aria-label="Search marketplace"
+                placeholder="Search models, materials, plugins…"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+              />
+            </label>
             <button
               type="submit"
               className="home-marketplace-search__submit"
-              aria-label="Search marketplace"
             >
-              <SearchIcon size={18} strokeWidth={2.15} />
+              <span>Search</span>
+              <ArrowRightIcon />
             </button>
           </form>
 

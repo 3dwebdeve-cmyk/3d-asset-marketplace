@@ -302,16 +302,16 @@ function AppRoutes() {
       <div className={`app-shell${isDashboardChrome ? ' app-shell--dashboard' : ''}`}>
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
-            <Route path="/" element={<Navigate to="/home" replace />} />
-            <Route path="/home" element={<ProductsBrowsePage />} />
-            <Route path="/Home" element={<Navigate to="/home" replace />} />
+            <Route path="/" element={<ProductsBrowsePage />} />
+            <Route path="/home" element={<Navigate to="/" replace />} />
+            <Route path="/Home" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
-            <Route path="/products" element={<Navigate to="/home" replace />} />
-            <Route path="/Products" element={<Navigate to="/home" replace />} />
+            <Route path="/products" element={<Navigate to="/" replace />} />
+            <Route path="/Products" element={<Navigate to="/" replace />} />
             <Route path="/products/:slug" element={<ProductDetailsPage />} />
             <Route path="/Products/:slug" element={<ProductDetailsPage />} />
             <Route path="/3d-models" element={<ModelsBrowsePage />} />

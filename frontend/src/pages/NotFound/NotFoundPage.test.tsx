@@ -20,7 +20,7 @@ function renderNotFound(initialEntry = '/missing-page') {
       <MemoryRouter initialEntries={[initialEntry]}>
         <ChromeProbe />
         <Routes>
-          <Route path="/home" element={<p>Marketplace home</p>} />
+          <Route path="/" element={<p>Marketplace home</p>} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </MemoryRouter>
@@ -34,7 +34,7 @@ describe('NotFoundPage', () => {
 
     expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     expect(screen.getByText(/you can search for the page you want here/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/')
     expect(document.title).toBe('404 - Page Not Found')
     expect(screen.queryByRole('navigation', { name: /main/i })).not.toBeInTheDocument()
   })

@@ -7,7 +7,7 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="site-footer__inner">
         <div className="site-footer__brand-col">
-          <Link className="site-footer__brand" to="/home">
+          <Link className="site-footer__brand" to="/">
             <img src="/images/AssetHive%203D.svg?v=2" alt="AssetHive 3D" />
           </Link>
           <p className="site-footer__blurb">
@@ -19,7 +19,7 @@ export function SiteFooter() {
         <nav className="site-footer__columns" aria-label="Footer">
           <div className="site-footer__col">
             <h2 className="site-footer__heading">Marketplace</h2>
-            <Link className="site-footer__link" to="/home">
+            <Link className="site-footer__link" to="/">
               Home
             </Link>
             <Link className="site-footer__link" to="/3d-models">

@@ -5,7 +5,8 @@ import { useCheckout } from '../../hooks/useCheckout'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
-import { CartLineItem, formatCartPrice } from '../../components/cart/CartLineItem'
+import { CartLineItem } from '../../components/cart/CartLineItem'
+import { formatMoney } from '../../lib/format'
 
 export function CartPage() {
   const {
@@ -34,7 +35,7 @@ export function CartPage() {
 
         {showTopActions ? (
           <div className="dashboard-card__actions">
-            <Link className="home-page__cta home-page__cta--secondary" to="/home">
+            <Link className="home-page__cta home-page__cta--secondary" to="/">
               Browse models
             </Link>
             <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
@@ -74,7 +75,7 @@ export function CartPage() {
               Your cart is empty. Add products or plugins to get started.
             </p>
             <div className="dashboard-card__actions">
-              <Link className="home-page__cta" to="/home">
+              <Link className="home-page__cta" to="/">
                 Browse models
               </Link>
               <Link className="home-page__cta home-page__cta--secondary" to="/plugins">
@@ -102,13 +103,13 @@ export function CartPage() {
               <div className="cart-summary cart-summary--page">
                 <span>Subtotal</span>
                 <strong>
-                  {formatCartPrice(cart?.subtotal ?? '0.00', cart?.currency ?? 'USD')}
+                  {formatMoney(cart?.subtotal ?? '0.00', cart?.currency ?? 'USD')}
                 </strong>
               </div>
               <div className="cart-summary cart-summary--page cart-summary--total">
                 <span>Total</span>
                 <strong>
-                  {formatCartPrice(cart?.total ?? '0.00', cart?.currency ?? 'USD')}
+                  {formatMoney(cart?.total ?? '0.00', cart?.currency ?? 'USD')}
                 </strong>
               </div>
               <p className="cart-summary__note">
