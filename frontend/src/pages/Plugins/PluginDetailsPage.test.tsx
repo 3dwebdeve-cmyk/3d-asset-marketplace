@@ -233,7 +233,7 @@ describe('PluginDetailsPage', () => {
     })
 
     expect(pluginsApi.getPublicPlugin).toHaveBeenCalledWith('uv-unwrap-pro')
-    expect(screen.getByText(/one-click uv unwrapping for 3d artists/i)).toBeInTheDocument()
+    expect(screen.getByText(sampleDetail.description)).toBeInTheDocument()
     expect(screen.getByText('Version')).toBeInTheDocument()
     expect(screen.getAllByText('2.1.0').length).toBeGreaterThan(0)
     expect(document.title).toContain('UV Unwrap Pro')
@@ -344,7 +344,7 @@ describe('PluginDetailsPage', () => {
       expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/')
   })
 
   it('shows error state with retry for non-404 failures', async () => {

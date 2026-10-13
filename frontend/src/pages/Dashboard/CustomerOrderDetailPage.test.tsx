@@ -211,7 +211,7 @@ describe('CustomerOrderDetailPage', () => {
     renderCustomerOrderDetailPage()
 
     expect(await screen.findByRole('heading', { name: /page not found/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/')
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument()
   })
 

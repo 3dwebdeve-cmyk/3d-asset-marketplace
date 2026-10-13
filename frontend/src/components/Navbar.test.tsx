@@ -145,7 +145,7 @@ describe('Navbar', () => {
     expect(document.querySelector('.navbar')).toHaveClass('navbar--marketplace-home')
     expect(screen.queryByRole('search')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /for business/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute(
       'href',
       '/3d-models',
@@ -205,7 +205,7 @@ describe('Navbar', () => {
       'href',
       '/custom-projects',
     )
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /^3d models$/i })).toHaveAttribute('href', '/3d-models')
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
@@ -227,11 +227,12 @@ describe('Navbar', () => {
     expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(1)
   })
 
-  it('keeps the Home navbar link black on the Home page', () => {
-    renderNavbar('/home')
+  it('marks the Home navbar link active on the Home page', () => {
+    renderNavbar('/')
 
-    expect(screen.getByRole('link', { name: /^home$/i })).not.toHaveClass('navbar__link--active')
-    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(0)
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveClass('navbar__link--active')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('aria-current', 'page')
+    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(1)
   })
 
   it('shows user menu with Dashboard, Profile, and Sign out when logged in', async () => {
@@ -322,9 +323,9 @@ describe('Navbar', () => {
     await user.click(within(menu).getByRole('menuitem', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent(/^\/home$/)
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
     })
-    expect(screen.getByText('Marketplace home')).toBeInTheDocument()
+    expect(screen.getByText('Home page')).toBeInTheDocument()
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
     expect(authApi.logoutUser).toHaveBeenCalledWith()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)

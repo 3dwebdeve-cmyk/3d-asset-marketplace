@@ -33,8 +33,8 @@ export function Navbar() {
   const isPluginsRoute = currentPath.startsWith('/plugins')
   const isModelsRoute = currentPath.startsWith('/3d-models')
   const isProductRoute = currentPath === '/products' || currentPath.startsWith('/products/')
-  // `/` redirects to the marketplace home hub. Keep the branded nav on both
-  // so the header does not flash the inner-page style before the redirect.
+  // `/` is the canonical marketplace home. Keep the branded nav on `/home`
+  // too so the header does not flash before that legacy route redirects.
   const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
   const isCompactNav = useMediaQuery('(max-width: 1200px)')
   const searchParams = new URLSearchParams(location.search)
@@ -228,9 +228,9 @@ export function Navbar() {
   const logoutMutation = useMutation({
     mutationFn: () => logoutUser(),
     onSettled: () => {
-      clearSession({ redirectTo: '/home' })
+      clearSession({ redirectTo: '/' })
       toast.success('Signed out')
-      navigate('/home', { replace: true })
+      navigate('/', { replace: true })
     },
   })
 
@@ -831,7 +831,7 @@ export function Navbar() {
               </button>
               {drawerMenuOpen ? (
                 <nav className="navbar__drawer-subnav" aria-label="Menu links">
-                  <Link className="navbar__drawer-sublink" to="/home" onClick={closeMobileNav}>
+                  <Link className="navbar__drawer-sublink" to="/" onClick={closeMobileNav}>
                     Home
                   </Link>
                   <Link className="navbar__drawer-sublink" to="/3d-models" onClick={closeMobileNav}>
