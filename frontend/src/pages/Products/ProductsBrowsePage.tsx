@@ -604,7 +604,8 @@ export function ProductsBrowsePage() {
           <div className="hub-offer__grid">
             {OFFER_SERVICES.map((offer) => (
               <article key={offer.title} className="hub-offer__card">
-                <div className="hub-offer__media">
+                {/* tabIndex lets a tap or keyboard focus reveal the details via :focus-within. */}
+                <div className="hub-offer__media" tabIndex={0}>
                   {offer.image ? (
                     <img
                       className={

@@ -204,7 +204,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-spread`}
             position={[0, ground.y + 0.001, 0]}
-            opacity={0.32}
+            opacity={0.22}
             scale={ground.shadowScaleSpread}
             blur={3.2}
             far={4.0}
@@ -216,7 +216,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-mid`}
             position={[0, ground.y + 0.002, 0]}
-            opacity={0.36}
+            opacity={0.25}
             scale={ground.shadowScaleMid}
             blur={2.4}
             far={2.8}
@@ -228,7 +228,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-core`}
             position={[0, ground.y + 0.003, 0]}
-            opacity={0.42}
+            opacity={0.29}
             scale={ground.shadowScaleCore}
             blur={1.6}
             far={1.8}

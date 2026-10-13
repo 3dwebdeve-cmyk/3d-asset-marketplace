@@ -253,6 +253,10 @@
   background: #ffffff;
 }
 
+.hub-offer .browse-rail-section__title {
+  font-size: 0.95rem;
+}
+
 .hub-offer__card {
   display: flex;
   flex-direction: column;
@@ -267,8 +271,8 @@
 
 .hub-offer__media {
   position: relative;
-  aspect-ratio: 16 / 9;
-  min-height: 9.5rem;
+  aspect-ratio: 2 / 1;
+  min-height: 11rem;
   overflow: hidden;
   border-radius: 0.65rem;
   background: #ffffff;
@@ -294,24 +298,25 @@
   flex-direction: column;
   justify-content: center;
   box-sizing: border-box;
-  padding: 0.85rem 1.25rem;
+  padding: 0.6rem 0.9rem;
   border-radius: inherit;
   background: #ffffff;
   color: var(--text-main);
+  overflow-y: auto;
   transform: translateX(100%);
   transition: transform 0.45s ease;
 }
 
 .hub-offer__details p {
-  margin: 0 0 0.5rem;
-  font-size: clamp(0.7rem, 0.78vw, 0.8rem);
+  margin: 0 0 0.35rem;
+  font-size: clamp(0.72rem, 0.72vw, 0.8rem);
   font-weight: 600;
   line-height: 1.35;
 }
 
 .hub-offer__details ul {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.3rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -320,8 +325,8 @@
 .hub-offer__details li {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  font-size: clamp(0.64rem, 0.72vw, 0.74rem);
+  gap: 0.5rem;
+  font-size: clamp(0.65rem, 0.65vw, 0.72rem);
   font-weight: 500;
   line-height: 1.25;
 }
@@ -333,8 +338,8 @@
 }
 
 .hub-offer__check svg {
-  width: 0.78rem;
-  height: 0.78rem;
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
 .hub-offer__check circle {
@@ -370,7 +375,7 @@
 
 .hub-offer__label h3 {
   margin: 0;
-  font-size: clamp(0.92rem, 1.05vw, 1.05rem);
+  font-size: clamp(0.82rem, 0.9vw, 0.92rem);
   font-weight: 700;
   line-height: 1.25;
   color: var(--text-main);
@@ -404,7 +409,7 @@
   margin-top: auto;
   border-radius: 0.55rem;
   padding: 0.42rem 0.75rem;
-  font-size: clamp(0.72rem, 0.8vw, 0.8rem);
+  font-size: clamp(0.68rem, 0.72vw, 0.75rem);
   font-weight: 600;
 }
 
@@ -422,10 +427,6 @@
 
   .hub-offer__grid {
     grid-template-columns: 1fr;
-  }
-
-  .hub-offer__media {
-    min-height: 11rem;
   }
 }
 
