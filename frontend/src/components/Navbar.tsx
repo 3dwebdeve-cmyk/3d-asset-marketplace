@@ -36,6 +36,7 @@ export function Navbar() {
   // `/` is the canonical marketplace home. Keep the branded nav on `/home`
   // too so the header does not flash before that legacy route redirects.
   const isMarketplaceHome = currentPath === '/' || currentPath === '/home'
+  const isMarketplaceHeader = isMarketplaceHome || currentPath === '/categories'
   const isCompactNav = useMediaQuery('(max-width: 1200px)')
   const searchParams = new URLSearchParams(location.search)
   const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
@@ -316,7 +317,7 @@ export function Navbar() {
 
   return (
     <header
-      className={`navbar${isMarketplaceHome ? ' navbar--marketplace-home' : ''}${isModelsRoute ? ' navbar--models' : ''}${isProductRoute ? ' navbar--products' : ''}${isPluginsRoute ? ' navbar--plugins' : ''}${mobileNavOpen ? ' navbar--mobile-open' : ''
+      className={`navbar${isMarketplaceHeader ? ' navbar--marketplace-home' : ''}${isModelsRoute ? ' navbar--models' : ''}${isProductRoute ? ' navbar--products' : ''}${isPluginsRoute ? ' navbar--plugins' : ''}${mobileNavOpen ? ' navbar--mobile-open' : ''
         }`}
     >
       <nav className="navbar__inner" aria-label="Main">
@@ -349,14 +350,14 @@ export function Navbar() {
                   setExploreOpen(true)
                 }}
               >
-                {isMarketplaceHome ? 'Explore' : 'All Categories'}
+                {isMarketplaceHeader ? 'Explore' : 'All Categories'}
                 <span className="navbar__explore-trigger-chevron" aria-hidden="true" />
               </button>
               {exploreOpen ? (
                 <div
                   className="navbar__explore-menu"
                   role="menu"
-                  aria-label={isMarketplaceHome ? 'Explore categories' : 'All categories'}
+                  aria-label={isMarketplaceHeader ? 'Explore categories' : 'All categories'}
                   onMouseEnter={handleExploreMouseEnter}
                   onMouseLeave={handleExploreMouseLeave}
                 >
@@ -404,7 +405,7 @@ export function Navbar() {
           ) : null}
         </div>
 
-        {!isMarketplaceHome ? (
+        {!isMarketplaceHeader ? (
           <form className="navbar__search" onSubmit={handleSearchSubmit} role="search">
             {isCompactNav ? <div
               className="navbar__search-cat"

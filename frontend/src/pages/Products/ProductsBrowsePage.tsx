@@ -1,12 +1,13 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { RefObject } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listTrendingCategories } from '../../api/categoriesApi'
 import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
-import { getCategoryIcon } from '../../components/categoryIcons'
+import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
+import { useAllCategories } from '../../hooks/useAllCategories'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
@@ -345,62 +346,6 @@ function ServiceModule({ service }: { service: BrowseService }) {
   )
 }
 
-function CategoryTile({
-  category,
-  onSelect,
-}: {
-  category: CategoryPublic
-  onSelect: () => void
-}) {
-  const [imgError, setImgError] = useState(false)
-  const IconComponent = getCategoryIcon(category.slug)
-  const localCategoryImages: Record<string, string> = {
-    furniture: '/homepage%20images/furniture.webp',
-    products: '/homepage%20images/products.webp',
-    toys: '/homepage%20images/toys.webp',
-    electronics: '/homepage%20images/electronics.webp',
-    'food-drink': '/homepage%20images/food.webp',
-    character: '/homepage%20images/character.webp',
-    industrial: '/homepage%20images/industrial.webp',
-    '3d-printing': '/homepage%20images/printing.webp',
-    'assets-props': '/homepage%20images/props.webp',
-    'interactive-webar': '/homepage%20images/webar.webp',
-    'architectural-3d-models': '/homepage%20images/architecture.webp',
-    'interior-3d-models': '/homepage%20images/interior.webp',
-  }
-  const imageSrc = localCategoryImages[category.slug.toLowerCase()] ?? category.image
-
-  return (
-    <button
-      type="button"
-      className={`browse-category-card browse-category-card--${category.slug.toLowerCase()}`}
-      onClick={onSelect}
-      aria-label={`Browse ${category.name} 3D models`}
-    >
-      <div className="browse-category-card__media">
-        {imageSrc && !imgError ? (
-          <img
-            src={imageSrc}
-            alt=""
-            className="browse-category-card__image"
-            onError={() => setImgError(true)}
-            loading="lazy"
-          />
-        ) : (
-          <div className="browse-category-card__placeholder" aria-hidden="true" />
-        )}
-        <div className="browse-category-card__overlay" aria-hidden="true" />
-      </div>
-      <div className="browse-category-card__content">
-        <div className="browse-category-card__icon-badge" aria-hidden="true">
-          <IconComponent className="browse-category-card__icon" />
-        </div>
-        <span className="browse-category-card__name">{category.name}</span>
-      </div>
-    </button>
-  )
-}
-
 export function ProductsBrowsePage() {
   const navigate = useNavigate()
   const clearPostLogoutRedirect = useAuthStore((state) => state.clearPostLogoutRedirect)
@@ -409,6 +354,7 @@ export function ProductsBrowsePage() {
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const viewAll = searchParams.get('view') === 'all'
   const isCatalogMode = Boolean(searchFromUrl || categoryFromUrl || viewAll)
+  const { data: allCategories } = useAllCategories(!isCatalogMode)
 
   useEffect(() => {
     clearPostLogoutRedirect()
@@ -507,6 +453,10 @@ export function ProductsBrowsePage() {
             <h2 id="trending-categories-heading" className="browse-rail-section__title">
               Trending Categories
             </h2>
+            <Link className="browse-rail-section__view-all" to="/categories">
+              View all {allCategories ? `${allCategories.length} ` : ''}
+              {allCategories?.length === 1 ? 'category' : 'categories'} →
+            </Link>
           </div>
           <div className="browse-category-grid">
             {categories.length === 0 ? (
