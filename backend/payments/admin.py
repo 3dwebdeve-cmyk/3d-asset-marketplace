@@ -20,16 +20,18 @@ class PaymentAdmin(admin.ModelAdmin):
         "stripe_checkout_session_id",
         "stripe_payment_intent_id",
     )
-    raw_id_fields = ("order", "coupon")
+    raw_id_fields = ("order",)
     readonly_fields = (
         "id",
         "order",
-        "coupon",
         "gateway",
         "stripe_checkout_session_id",
         "stripe_payment_intent_id",
         "amount",
         "currency",
+        # Payment status and refunded totals come only from Stripe events.
+        "status",
+        "refunded_amount",
         "created_at",
         "updated_at",
     )

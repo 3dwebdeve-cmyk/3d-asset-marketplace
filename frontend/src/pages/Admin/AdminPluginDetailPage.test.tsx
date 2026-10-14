@@ -160,6 +160,7 @@ describe('AdminPluginDetailPage', () => {
   })
 
   it('archives a plugin and redirects to admin', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     vi.mocked(pluginsApi.archiveAdminPlugin).mockResolvedValue({
       ...plugin,

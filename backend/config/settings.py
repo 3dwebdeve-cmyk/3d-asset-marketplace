@@ -357,6 +357,7 @@ CACHES = {
 }
 
 LOGIN_LOCKOUT_MAX_FAILURES = config("LOGIN_LOCKOUT_MAX_FAILURES", default=10, cast=int)
+LOGIN_LOCKOUT_ACCOUNT_MAX_FAILURES = config("LOGIN_LOCKOUT_ACCOUNT_MAX_FAILURES", default=50, cast=int)
 LOGIN_LOCKOUT_WINDOW_SECONDS = config(
     "LOGIN_LOCKOUT_WINDOW_SECONDS", default=15 * 60, cast=int
 )
@@ -450,7 +451,6 @@ REST_FRAMEWORK = {
         "payment_checkout": "10/min",
         # Limits a user's Stripe API activity over a full day, not only bursts.
         "payment_checkout_daily": "30/day",
-        "admin_coupon_write": "60/min",
     },
 }
 

@@ -200,11 +200,16 @@ class PublishRegressionTests(TestCase):
         self.assertEqual(self.product.currency, 'USD')
 
     @patch('products.services.private_object_exists', return_value=True)
-    def test_manual_publish_with_existing_package_and_preview_succeeds(self, exists):
+    def test_publish_with_existing_package_and_preview_goes_through_review(self, exists):
         ProductFile.objects.create(product=self.product, file_name='model.zip', file_format='zip',
                                    storage_path='products/files/model.zip', file_size=10)
-        published = ProductService.update_product(self.product, ProductUpdateData(
-            status='published', preview_model='https://example.com/preview.glb'))
+        # A direct publish is refused; the product must be submitted and approved.
+        with self.assertRaises(ProductError):
+            ProductService.update_product(self.product, ProductUpdateData(
+                status='published', preview_model='https://example.com/preview.glb'))
+        submitted = ProductService.update_product(self.product, ProductUpdateData(
+            status='pending_review', sku='PUB-REVIEW-001', preview_model='https://example.com/preview.glb'))
+        published = ProductService.approve_product(submitted, reviewer=None)
         self.assertEqual(published.status, 'published')
 
     @patch('products.services.private_object_exists', return_value=False)

@@ -138,7 +138,7 @@ describe('PluginsBrowsePage', () => {
       expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()
     })
 
-    await user.selectOptions(screen.getByLabelText(/category/i), categoryId)
+    await user.selectOptions(screen.getByLabelText(/category/i, { selector: 'select' }), categoryId)
 
     await waitFor(() => {
       expect(pluginsApi.listPublicPlugins).toHaveBeenCalledWith(
@@ -157,7 +157,7 @@ describe('PluginsBrowsePage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/^category$/i)).toHaveValue(categoryId)
+      expect(screen.getByLabelText(/^category$/i, { selector: 'select' })).toHaveValue(categoryId)
     })
   })
 

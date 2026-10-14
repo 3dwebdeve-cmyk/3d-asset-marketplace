@@ -80,16 +80,19 @@ fi
 
 echo "backup_postgres: writing ${DUMP_PATH}"
 
+# Write to a temporary name and rename only after pg_dump succeeds, so a failed
+# dump never leaves a partial file under the name the freshness check trusts.
+PARTIAL_PATH="${DUMP_PATH}.partial"
+trap 'rm -f "$PARTIAL_PATH"' EXIT
+
 if [[ "$via_compose" == "1" ]]; then
-  docker compose -f "$COMPOSE_FILE" exec -T postgres \
-    pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc \
-    > "$DUMP_PATH"
+  docker compose -f "$COMPOSE_FILE" exec -T postgres \n    pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc \n    > "$PARTIAL_PATH"
 else
   export PGPASSWORD="${DB_PASSWORD:-}"
-  pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -Fc \
-    > "$DUMP_PATH"
+  pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -Fc \n    > "$PARTIAL_PATH"
 fi
 
+mv -f "$PARTIAL_PATH" "$DUMP_PATH"
 SIZE="$(wc -c < "$DUMP_PATH" | tr -d ' ')"
 echo "backup_postgres: ok bytes=${SIZE} file=${DUMP_PATH}"
 

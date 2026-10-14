@@ -67,7 +67,9 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
   })
 
   useEffect(() => {
-    if (!profile) {
+    // Avatar uploads also refresh the profile query. Do not discard text the
+    // user has typed but not saved yet.
+    if (!profile || isDirty) {
       return
     }
 
@@ -79,7 +81,7 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
       city: profile.city ?? '',
       country: profile.country ?? '',
     })
-  }, [profile, reset])
+  }, [profile, reset, isDirty])
 
   const mutation = useMutation({
     mutationFn: updateProfile,

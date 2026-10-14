@@ -13,6 +13,7 @@ test.describe('unverified customer login gate', () => {
     await expect(
       page.getByRole('button', { name: /resend verification email/i }),
     ).toBeVisible()
-    await expect(page.getByRole('button', { name: /^Hi,/i })).toHaveCount(0)
+    // The signed-in account menu (asserted by loginAsBuyer) must not appear.
+    await expect(page.getByTestId('customer-account-trigger')).toHaveCount(0)
   })
 })

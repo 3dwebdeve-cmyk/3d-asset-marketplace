@@ -22,13 +22,6 @@ class Payment(models.Model):
         on_delete=models.PROTECT,
         related_name="payment",
     )
-    coupon = models.ForeignKey(
-        "coupons.Coupon",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
     gateway = models.CharField(max_length=32, default="stripe")
     stripe_checkout_session_id = models.CharField(
         max_length=255,

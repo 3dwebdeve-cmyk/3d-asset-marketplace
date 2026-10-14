@@ -375,6 +375,8 @@ class DownloadService:
                 file_name=file_name,
                 order=order,
             )
+            # total_downloads counts links issued. Downloads from R2 go straight to the
+            # browser, so completed transfers are not visible here.
             if product_type == PRODUCT_TYPE_PRODUCT:
                 Product.objects.filter(pk=product_id).update(
                     total_downloads=F("total_downloads") + 1

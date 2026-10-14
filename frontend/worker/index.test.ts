@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import worker, { type WorkerEnv } from './index'
+import worker, { SECURITY_HEADERS, type WorkerEnv } from './index'
 
 const BACKEND_ORIGIN = 'https://threed-asset-marketplace.onrender.com'
 
@@ -26,6 +28,31 @@ describe('Cloudflare API proxy', () => {
 
     expect(await response.text()).toBe('spa')
     expect(env.ASSETS.fetch).toHaveBeenCalledWith(request)
+  })
+
+  it('adds the security headers to static responses', async () => {
+    const response = await worker.fetch(
+      new Request('https://marketplace.example/'),
+      createEnv(new Response('spa', { headers: { 'Content-Type': 'text/html' } })),
+    )
+
+    expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'self'")
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY')
+    expect(response.headers.get('Content-Type')).toBe('text/html')
+  })
+
+  it('keeps the security headers in sync with nginx.conf', () => {
+    // Vitest runs from the frontend directory, where nginx.conf lives.
+    const nginx = readFileSync('nginx.conf', 'utf-8')
+    const nginxHeaders = Object.fromEntries(
+      [...nginx.matchAll(/^ {4}add_header ([A-Za-z-]+) "(.*)" always;$/gm)].map((match) => [
+        match[1],
+        match[2],
+      ]),
+    )
+
+    expect(SECURITY_HEADERS).toEqual(nginxHeaders)
   })
 
   it('forwards API paths and query strings to the configured backend', async () => {

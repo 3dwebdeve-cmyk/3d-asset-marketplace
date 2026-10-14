@@ -7,6 +7,29 @@ export interface WorkerEnv {
   BACKEND_ORIGIN?: string
 }
 
+// Same security headers nginx sends for the SPA (frontend/nginx.conf). The Worker
+// serves static assets directly, so without these the Cloudflare deploy has no CSP.
+export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'same-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Content-Security-Policy':
+    "default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https://accounts.google.com https://*.googleapis.com https://*.sentry.io https://*.ingest.sentry.io https://*.r2.dev https://*.cloudflarestorage.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/v1/security/csp-report/",
+}
+
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers)
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(name, value)
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
 const isApiPath = (pathname: string): boolean =>
   pathname === '/api' || pathname.startsWith('/api/')
 
@@ -45,7 +68,7 @@ function errorResponse(status: number, detail: string): Response {
 export async function handleRequest(request: Request, env: WorkerEnv): Promise<Response> {
   const incomingUrl = new URL(request.url)
   if (!isApiPath(incomingUrl.pathname)) {
-    return env.ASSETS.fetch(request)
+    return withSecurityHeaders(await env.ASSETS.fetch(request))
   }
 
   let origin: URL

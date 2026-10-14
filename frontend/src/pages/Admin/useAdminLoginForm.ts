@@ -42,8 +42,12 @@ export function useAdminLoginForm(): UseAdminLoginFormResult {
         password: values.password,
         remember_me: values.remember_me,
       }),
-    onSuccess: (data: LoginResponse) => {
-      setSession({ access: data.access, user: data.user }, { remember: true })
+    onSuccess: (data: LoginResponse, variables: LoginFormValues) => {
+      // Respect the administrator's choice; a shared computer should not keep the session.
+      setSession(
+        { access: data.access, user: data.user },
+        { remember: variables.remember_me },
+      )
       queryClient.setQueryData(['auth', 'me', data.access], data.user)
       queryClient.setQueryData(['auth', 'admin', 'me', data.access], data.user)
     },

@@ -42,7 +42,7 @@ beforeEach(() => {
 
 describe('RegisterPage', () => {
   it('submits phone and country with the rest of the register payload', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     vi.mocked(authApi.registerUser).mockResolvedValue({
       id: 'user-1',
       full_name: 'Ada Lovelace',

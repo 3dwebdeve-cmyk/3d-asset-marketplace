@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
 import { MODELS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { activateOnKey } from '../../lib/keyboard'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { ProductCard } from '../Products/ProductCard'
 import '../../styles/plugins-browse.css'
@@ -328,13 +329,14 @@ export function ModelsBrowsePage() {
 
           <div className="plugins-filters__panel">
           <div className="plugins-filters__group" ref={categoryDropdownRef}>
-            <label className="plugins-filters__label" htmlFor="model-category">
+            <label className="plugins-filters__label" id="model-category-label">
               Category
             </label>
             <div className="custom-select-dropdown">
               <button
                 type="button"
                 id="model-category-trigger"
+                aria-labelledby="model-category-label model-category-trigger"
                 className={`custom-select-trigger${categoryDropdownOpen ? ' custom-select-trigger--open' : ''}`}
                 aria-expanded={categoryDropdownOpen}
                 aria-haspopup="listbox"
@@ -361,6 +363,8 @@ export function ModelsBrowsePage() {
                 <ul className="custom-select-menu" role="listbox" aria-label="Select Category">
                   <li
                     role="option"
+                    tabIndex={0}
+                    onKeyDown={activateOnKey}
                     aria-selected={selectedCategoryId === ''}
                     className={`custom-select-option${selectedCategoryId === '' ? ' custom-select-option--active' : ''}`}
                     onClick={() => {
@@ -378,6 +382,8 @@ export function ModelsBrowsePage() {
                     <li
                       key={category.id}
                       role="option"
+                      tabIndex={0}
+                      onKeyDown={activateOnKey}
                       aria-selected={selectedCategoryId === category.id}
                       className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
                       onClick={() => {

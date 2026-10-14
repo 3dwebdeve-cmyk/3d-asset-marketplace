@@ -209,7 +209,7 @@ export function AdminCategoryDetailPage() {
                 type="button"
                 variant="secondary"
                 isLoading={deactivateMutation.isPending}
-                onClick={() => deactivateMutation.mutate()}
+                onClick={() => window.confirm('Deactivate this category? Its products will no longer be listed.') && deactivateMutation.mutate()}
               >
                 Deactivate
               </Button>

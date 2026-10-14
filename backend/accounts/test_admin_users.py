@@ -122,6 +122,23 @@ class AdminUserCRUDAPITests(APITestCase):
         self.customer_user.refresh_from_db()
         self.assertFalse(self.customer_user.is_active)
 
+    def test_demoting_an_admin_removes_superuser_rights(self) -> None:
+        self.second_admin.is_superuser = True
+        self.second_admin.save(update_fields=["is_superuser", "updated_at"])
+        self._authenticate_as(self.admin_user.email)
+
+        response = self.client.patch(
+            self._detail_url(self.second_admin.id),
+            {"role": "Customer"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.second_admin.refresh_from_db()
+        self.assertEqual(self.second_admin.role.role_name, "Customer")
+        self.assertFalse(self.second_admin.is_staff)
+        self.assertFalse(self.second_admin.is_superuser)
+
     def test_admin_can_mark_email_verified(self) -> None:
         self.customer_user.email_verified = False
         self.customer_user.save(update_fields=["email_verified", "updated_at"])

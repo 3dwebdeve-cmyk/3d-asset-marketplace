@@ -353,9 +353,18 @@ class ProductQAWorkflowAPITests(APITestCase):
         self._write_package(package_path)
         ProductFile.objects.create(product=draft, file_name='manual-publish.zip', file_format='zip',
                                    file_size=10, storage_path=package_path)
-        patch = self.client.patch(detail_url, {
+        # Direct publish is refused even with a package: review must approve it.
+        direct = self.client.patch(detail_url, {
             'status': 'published', 'preview_model': 'https://example.com/manual.glb',
         }, format='json')
+        self.assertEqual(direct.status_code, status.HTTP_400_BAD_REQUEST)
+        submit = self.client.patch(detail_url, {
+            'status': 'pending_review', 'sku': 'MANUAL-PROP-001',
+            'preview_model': 'https://example.com/manual.glb',
+        }, format='json')
+        self.assertEqual(submit.status_code, status.HTTP_200_OK)
+        approve_url = reverse('products_admin:admin-product-approve', kwargs={'product_id': draft.pk})
+        patch = self.client.post(approve_url, {}, format='json')
         self.assertEqual(patch.status_code, status.HTTP_200_OK)
         # Admin serializer exposes QA metadata; public serializers must not.
         self.assertIn('reject_reason', patch.data)

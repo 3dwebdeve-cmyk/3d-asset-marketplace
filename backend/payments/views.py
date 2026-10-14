@@ -157,6 +157,8 @@ class ConfirmCheckoutSessionView(APIView):
     throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
 
     def post(self, request: Request) -> Response:
+        if not isinstance(request.data, dict):
+            raise ValidationError({"order_id": ["This field is required."]})
         raw_order_id = request.data.get("order_id")
         if not raw_order_id:
             raise ValidationError({"order_id": ["This field is required."]})

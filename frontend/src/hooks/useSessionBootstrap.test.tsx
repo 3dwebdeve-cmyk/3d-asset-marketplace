@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { AxiosError, type AxiosResponse } from 'axios'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -144,7 +145,11 @@ describe('useSessionBootstrap', () => {
       user: testUser,
       isAuthenticated: true,
     })
-    mockedGetCurrentUser.mockRejectedValue(new Error('Unauthorized'))
+    mockedGetCurrentUser.mockRejectedValue(
+      new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 401,
+      } as AxiosResponse),
+    )
 
     const { result } = renderHook(() => useSessionBootstrap(), {
       wrapper: createWrapper(),
@@ -158,6 +163,30 @@ describe('useSessionBootstrap', () => {
     expect(mockedToastError).toHaveBeenCalledWith(
       'Your session has expired. Please sign in again.',
       { id: 'session-expired' },
+    )
+  })
+
+  it('keeps the session when the check fails for a network or server reason', async () => {
+    useAuthStore.setState({
+      accessToken: 'valid-token',
+      user: testUser,
+      isAuthenticated: true,
+    })
+    mockedGetCurrentUser.mockRejectedValue(
+      new AxiosError('Network Error', 'ERR_NETWORK'),
+    )
+
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current).toBe(true))
+
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+    expect(useAuthStore.getState().user).toEqual(testUser)
+    expect(mockedToastError).not.toHaveBeenCalledWith(
+      'Your session has expired. Please sign in again.',
+      expect.anything(),
     )
   })
 })
