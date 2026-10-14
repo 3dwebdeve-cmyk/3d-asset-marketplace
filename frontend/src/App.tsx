@@ -38,6 +38,12 @@ const ProductsBrowsePage = lazy(() =>
   })),
 )
 
+const AllCategoriesPage = lazy(() =>
+  import('./pages/Categories/AllCategoriesPage').then((module) => ({
+    default: module.AllCategoriesPage,
+  })),
+)
+
 const PluginsBrowsePage = lazy(() =>
   import('./pages/Plugins/PluginsBrowsePage').then((module) => ({
     default: module.PluginsBrowsePage,
@@ -303,6 +309,7 @@ function AppRoutes() {
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
             <Route path="/" element={<ProductsBrowsePage />} />
+            <Route path="/categories" element={<AllCategoriesPage />} />
             <Route path="/home" element={<Navigate to="/" replace />} />
             <Route path="/Home" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<AboutPage />} />

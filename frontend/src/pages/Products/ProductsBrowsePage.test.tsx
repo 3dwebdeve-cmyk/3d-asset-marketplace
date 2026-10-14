@@ -157,6 +157,7 @@ function renderProductsBrowsePage(initialPath = '/home') {
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
           <Route path="/home" element={<ProductsBrowsePage />} />
+          <Route path="/categories" element={<div>All categories page</div>} />
           <Route path="/3d-models" element={<ModelsCatalogRoute />} />
           <Route path="/plugins" element={<div>Plugins page</div>} />
           <Route path="/custom-projects" element={<div>Custom projects page</div>} />
@@ -362,6 +363,26 @@ describe('ProductsBrowsePage', () => {
       )
     })
     expect(categoriesApi.recordCategoryClick).toHaveBeenCalledWith(categoryId)
+  })
+
+  it('opens the category directory with the full category count', async () => {
+    const user = userEvent.setup()
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      ...samplePublicCategories,
+      count: 17,
+      results: Array.from({ length: 17 }, (_, index) => ({
+        ...samplePublicCategories.results[0],
+        id: `category-${index}`,
+        name: `Category ${index}`,
+        slug: `category-${index}`,
+      })),
+    })
+    renderProductsBrowsePage()
+
+    const link = await screen.findByRole('link', { name: /view all 17 categories/i })
+    expect(link).toHaveAttribute('href', '/categories')
+    await user.click(link)
+    expect(screen.getByText('All categories page')).toBeInTheDocument()
   })
 
   it('redirects old catalog query URLs to /3d-models', async () => {
