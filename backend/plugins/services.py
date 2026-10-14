@@ -147,7 +147,7 @@ class PluginCategoryService:
                 exclude_id=category.pk,
             )
             update_fields.extend(["name", "slug"])
-        elif data.slug is not None:
+        if data.slug is not None:
             slug = data.slug.strip().lower()
             if not slug:
                 raise PluginError("Slug cannot be empty.", field="slug")
@@ -347,7 +347,7 @@ class PluginService:
             plugin.name = cls._normalize_name(data.name)
             plugin.slug = Plugin.build_slug(plugin.name, exclude_id=plugin.pk)
             update_fields.extend(["name", "slug"])
-        elif data.slug is not None:
+        if data.slug is not None:
             slug = data.slug.strip().lower()
             if not slug:
                 raise PluginError("Slug cannot be empty.", field="slug")

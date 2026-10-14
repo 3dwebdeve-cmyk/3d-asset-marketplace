@@ -45,13 +45,13 @@ test.describe('marketplace checkout commerce', () => {
         response.ok(),
       { timeout: 60_000 },
     )
-    const downloadPromise = page.waitForEvent('download', { timeout: 60_000 }).catch(() => null)
-    await page.getByRole('button', { name: /^Download$/ }).first().click()
+    // The file must actually download; a missing download event fails the test.
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByRole('button', { name: /^Download$/ }).first().click(),
+    ])
     await downloadResponse
-    const download = await downloadPromise
-    if (download) {
-      expect(download.suggestedFilename()).toMatch(/e2e-checkout-chair/i)
-    }
+    expect(download.suggestedFilename()).toMatch(/e2e-checkout-chair/i)
 
     await page.getByRole('tab', { name: 'Download history' }).click()
     await expect(page.getByText('e2e-checkout-chair.zip')).toBeVisible({ timeout: 15_000 })

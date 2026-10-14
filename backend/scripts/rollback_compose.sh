@@ -16,6 +16,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
+# A docker-compose.override.yml holds local development values. Plain `docker compose`
+# loads it automatically, so refuse unless COMPOSE_FILE names the files explicitly.
+if [[ -f docker-compose.override.yml && -z "${COMPOSE_FILE:-}" ]]; then
+  echo "docker-compose.override.yml is present: set COMPOSE_FILE (e.g. docker-compose.yml:docker-compose.prod.yml) or remove it." >&2
+  exit 1
+fi
+
 if [[ -n "${PREVIOUS_WEB_IMAGE:-}" ]]; then
   export WEB_IMAGE="$PREVIOUS_WEB_IMAGE"
 fi

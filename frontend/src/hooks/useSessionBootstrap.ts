@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { getCurrentUser, refreshAccessToken } from '../api/authApi'
+import { isHttpUnauthorized } from '../lib/apiError'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 
@@ -76,7 +77,7 @@ export function useSessionBootstrap(): boolean {
   const hasToken = Boolean(accessToken)
   const meEnabled = cookieProbeDone && hasToken
 
-  const { data, isSuccess, isError, isFetching } = useQuery({
+  const { data, isSuccess, isError, error, isFetching } = useQuery({
     queryKey: ['auth', 'me', accessToken],
     queryFn: getCurrentUser,
     enabled: meEnabled,
@@ -96,12 +97,16 @@ export function useSessionBootstrap(): boolean {
       return
     }
 
-    clearSession()
-    toast.error('Your session has expired. Please sign in again.', {
-      id: 'session-expired',
-    })
+    // Only an authentication rejection ends the session. A network or server error
+    // keeps the session so a temporary outage does not sign the user out.
+    if (isHttpUnauthorized(error)) {
+      clearSession()
+      toast.error('Your session has expired. Please sign in again.', {
+        id: 'session-expired',
+      })
+    }
     setIsReady(true)
-  }, [isError, hasToken, isFetching, clearSession])
+  }, [isError, error, hasToken, isFetching, clearSession])
 
   useEffect(() => {
     if (cookieProbeDone && !hasToken) {

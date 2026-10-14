@@ -153,7 +153,9 @@ class WishlistService:
                 "name": product.category.name,
                 "slug": product.category.slug,
             },
-            "is_available": product.status == Product.Status.PUBLISHED,
+            "is_available": (
+                product.status == Product.Status.PUBLISHED and product.category.is_active
+            ),
         }
 
     @classmethod

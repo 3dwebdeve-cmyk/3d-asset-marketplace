@@ -187,7 +187,9 @@ def resolve_private_download(
         response = open_stored_file(storage_path)
     except Http404 as exc:
         raise PrivateFileNotFound() from exc
-    response["Content-Disposition"] = f'attachment; filename="{file_name}"'
+    response["Content-Disposition"] = (
+        f'attachment; filename="{content_disposition_filename(file_name)}"'
+    )
     return response
 
 

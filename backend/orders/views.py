@@ -1,6 +1,7 @@
 from io import BytesIO
 from uuid import UUID
 
+from django.db import transaction
 from django.http import FileResponse
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -138,17 +139,19 @@ class AdminOrderDetailView(APIView):
         serializer = AdminOrderStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            order = OrderService.get(order_id)
-            if "order_status" in serializer.validated_data:
-                order = OrderService.update_order_status(
-                    order,
-                    serializer.validated_data["order_status"],
-                )
-            if "payment_status" in serializer.validated_data:
-                order = OrderService.update_payment_status(
-                    order,
-                    serializer.validated_data["payment_status"],
-                )
+            # One transaction: a failing second change must not leave the first applied.
+            with transaction.atomic():
+                order = OrderService.get(order_id)
+                if "order_status" in serializer.validated_data:
+                    order = OrderService.update_order_status(
+                        order,
+                        serializer.validated_data["order_status"],
+                    )
+                if "payment_status" in serializer.validated_data:
+                    order = OrderService.update_payment_status(
+                        order,
+                        serializer.validated_data["payment_status"],
+                    )
         except OrderError as exc:
             return _error_response(exc)
 

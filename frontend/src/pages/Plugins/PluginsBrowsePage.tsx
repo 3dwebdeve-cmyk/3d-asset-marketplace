@@ -8,6 +8,7 @@ import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHero
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { PluginLicenseType, PluginOrdering, PublicPlugin } from '../../types/plugin'
 import { PluginCard } from './PluginCard'
+import { activateOnKey } from '../../lib/keyboard'
 import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
 
@@ -272,13 +273,14 @@ export function PluginsBrowsePage() {
 
           <div className="plugins-filters__panel">
           <div className="plugins-filters__group" ref={categoryDropdownRef}>
-            <label className="plugins-filters__label" htmlFor="plugin-category">
+            <label className="plugins-filters__label" id="plugin-category-label">
               Category
             </label>
             <div className="custom-select-dropdown">
               <button
                 type="button"
                 id="plugin-category-trigger"
+                aria-labelledby="plugin-category-label plugin-category-trigger"
                 className={`custom-select-trigger${categoryDropdownOpen ? ' custom-select-trigger--open' : ''}`}
                 aria-expanded={categoryDropdownOpen}
                 aria-haspopup="listbox"
@@ -305,6 +307,8 @@ export function PluginsBrowsePage() {
                 <ul className="custom-select-menu" role="listbox" aria-label="Select Category">
                   <li
                     role="option"
+                    tabIndex={0}
+                    onKeyDown={activateOnKey}
                     aria-selected={selectedCategoryId === ''}
                     className={`custom-select-option${selectedCategoryId === '' ? ' custom-select-option--active' : ''}`}
                     onClick={() => {
@@ -322,6 +326,8 @@ export function PluginsBrowsePage() {
                     <li
                       key={category.id}
                       role="option"
+                      tabIndex={0}
+                      onKeyDown={activateOnKey}
                       aria-selected={selectedCategoryId === category.id}
                       className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
                       onClick={() => {

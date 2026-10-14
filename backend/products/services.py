@@ -136,7 +136,7 @@ class ProductService:
                     to_attr="filter_files",
                 )
             )
-            .filter(status=Product.Status.PUBLISHED)
+            .filter(status=Product.Status.PUBLISHED, category__is_active=True)
             .defer(
                 "description",
                 "preview_model",
@@ -227,6 +227,7 @@ class ProductService:
             return cls._base_queryset().get(
                 slug=slug.strip(),
                 status=Product.Status.PUBLISHED,
+                category__is_active=True,
             )
         except Product.DoesNotExist as exc:
             raise ProductError("Product not found.") from exc
@@ -353,7 +354,8 @@ class ProductService:
             product.slug = Product.build_slug(name, exclude_id=product.pk)
             update_fields.extend(["name", "slug"])
 
-        if data.slug is not None and data.name is None:
+        # An explicit slug is honoured even when a name is sent with it.
+        if data.slug is not None:
             slug = data.slug.strip().lower()
             if not slug:
                 raise ProductError("Slug cannot be empty.", field="slug")
@@ -437,13 +439,11 @@ class ProductService:
         if data.status is not None:
             new_status = cls._normalize_status(data.status)
             cls._validate_status_transition(product.status, new_status)
-            # Imported batch rows must use the dedicated approve endpoint to publish.
-            if (
-                new_status == Product.Status.PUBLISHED
-                and product.import_batch_id.strip()
-            ):
+            # Publishing goes through the review queue so the reviewer is recorded.
+            # Direct edits cannot publish, whatever the product's origin.
+            if new_status == Product.Status.PUBLISHED and product.status != Product.Status.PUBLISHED:
                 raise ProductError(
-                    "Imported products must be published via the approve endpoint.",
+                    "Publish through the review queue so the reviewer is recorded.",
                     field="status",
                 )
             product.status = new_status

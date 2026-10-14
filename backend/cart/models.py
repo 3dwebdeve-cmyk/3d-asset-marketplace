@@ -14,13 +14,6 @@ class Cart(models.Model):
         on_delete=models.PROTECT,
         related_name="cart",
     )
-    coupon = models.ForeignKey(
-        "coupons.Coupon",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -149,6 +149,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
         return f"{total:.2f}"
 
 
+
 class CustomerOrderListSerializer(serializers.ModelSerializer):
     item_count = serializers.IntegerField(read_only=True)
 
@@ -232,5 +233,21 @@ class AdminOrderStatusUpdateSerializer(serializers.Serializer):
         if not attrs.get("order_status") and not attrs.get("payment_status"):
             raise serializers.ValidationError(
                 "Provide order_status and/or payment_status."
+            )
+        # Paid and refunded states move money or unlock downloads, so only a
+        # verified Stripe event may set them. Admins may still cancel pending orders.
+        if attrs.get("order_status") in {
+            Order.OrderStatus.PAID,
+            Order.OrderStatus.REFUNDED,
+        }:
+            raise serializers.ValidationError(
+                {"order_status": ["Paid and refunded states are set by verified Stripe events only."]}
+            )
+        if attrs.get("payment_status") in {
+            Order.PaymentStatus.PAID,
+            Order.PaymentStatus.REFUNDED,
+        }:
+            raise serializers.ValidationError(
+                {"payment_status": ["Paid and refunded states are set by verified Stripe events only."]}
             )
         return attrs

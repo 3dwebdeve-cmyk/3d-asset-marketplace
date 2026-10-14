@@ -149,7 +149,7 @@ class Command(BaseCommand):
                 product=product,
                 file_name=f"{item['slug']}.zip",
                 defaults={
-                    "file_format": "ZIP",
+                    "file_format": "zip",
                     "file_size": len(package_bytes),
                     "storage_path": package_path,
                     "version": "1.0",

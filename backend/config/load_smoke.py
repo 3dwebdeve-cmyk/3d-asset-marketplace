@@ -286,7 +286,7 @@ def _check_search(
         )
         detail_parts.append(f"hit={hit}")
         if not hit and int(response.data.get("count") or 0) == 0:
-            # Meili miss with ORM fallback still OK if catalog filters differently;
+            # A search miss is still OK if the catalog filters differently;
             # require at least a 200 paginated shape — hit is preferred.
             detail_parts.append("no_hit_advisory")
         if query_count > SEARCH_QUERY_BUDGET:
@@ -626,7 +626,7 @@ def _run_load_smoke_inner(*, iterations: int) -> LoadSmokeResult:
                 warnings.append(
                     f"{check.name}: latency {check.latency_ms}ms exceeds "
                     f"{LATENCY_ADVISORY_MS:.0f}ms advisory "
-                    "(investigate CDN / Meili / N+1)."
+                    "(investigate CDN / search / N+1)."
                 )
 
         if not _r2_enabled():

@@ -392,13 +392,19 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
 
         for index, (label, overrides) in enumerate(scenarios.items(), start=1):
             with self.subTest(label):
+                event_id = f"evt_test_mismatch_{index}"
                 event = _FakeEvent(
-                    f"evt_test_mismatch_{index}",
+                    event_id,
                     "checkout.session.completed",
                     self._paid_checkout_session(**overrides),
                 )
+                # A paid session we cannot fulfill must not be acknowledged, so
+                # Stripe retries it and the failure is reported.
                 response = self._post_webhook(event)
-                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+                self.assertFalse(
+                    StripeWebhookEvent.objects.filter(stripe_event_id=event_id).exists()
+                )
                 self.order.refresh_from_db()
                 self.payment.refresh_from_db()
                 self.assertEqual(self.order.order_status, Order.OrderStatus.PENDING)
@@ -407,6 +413,21 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
 
         self.assertTrue(CartItem.objects.filter(pk=self.cart_item.pk).exists())
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_unpaid_checkout_mismatch_is_acknowledged_quietly(self) -> None:
+        # Async payment methods send completed sessions that are not yet paid.
+        event = _FakeEvent(
+            "evt_test_unpaid_mismatch",
+            "checkout.session.completed",
+            self._paid_checkout_session(
+                payment_status="unpaid",
+                client_reference_id="00000000-0000-0000-0000-000000000098",
+            ),
+        )
+        response = self._post_webhook(event)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
 
     def test_duplicate_webhook_delivery_is_a_noop(self) -> None:
         event = _FakeEvent(

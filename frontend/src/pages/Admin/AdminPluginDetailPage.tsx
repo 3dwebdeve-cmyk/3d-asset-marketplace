@@ -235,7 +235,7 @@ export function AdminPluginDetailPage() {
               </FormField>
               <div className="dashboard-card__actions">
                 <Button type="submit" isLoading={saveMutation.isPending}>Save changes</Button>
-                <Button type="button" variant="secondary" isLoading={archiveMutation.isPending} onClick={() => archiveMutation.mutate()}>Archive</Button>
+                <Button type="button" variant="secondary" isLoading={archiveMutation.isPending} onClick={() => window.confirm('Archive this plugin? It will be hidden from the storefront.') && archiveMutation.mutate()}>Archive</Button>
               </div>
             </form>
             <PluginMediaSection key={pluginId} pluginId={pluginId} plugin={plugin} />

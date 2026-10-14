@@ -160,7 +160,7 @@ export function AdminPluginCategoryDetailPage() {
               </FormField>
               <div className="dashboard-card__actions">
                 <Button type="submit" isLoading={saveMutation.isPending}>Save changes</Button>
-                <Button type="button" variant="secondary" isLoading={deactivateMutation.isPending} onClick={() => deactivateMutation.mutate()}>Deactivate</Button>
+                <Button type="button" variant="secondary" isLoading={deactivateMutation.isPending} onClick={() => window.confirm('Deactivate this plugin category? Its plugins will no longer be listed.') && deactivateMutation.mutate()}>Deactivate</Button>
               </div>
             </form>
           ) : categoryQuery.isFetching ? (

@@ -522,7 +522,7 @@ class ReviewAPITests(APITestCase):
         response = self.client.get(self.admin_list_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_order_patch_marks_paid(self) -> None:
+    def test_admin_order_patch_cannot_mark_paid(self) -> None:
         order = OrderService.create(
             OrderCreateData(
                 user_id=self.customer.pk,
@@ -544,9 +544,11 @@ class ReviewAPITests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["order_status"], "paid")
-        self.assertEqual(response.data["payment_status"], "paid")
+        # Paid states come only from verified Stripe events.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        order.refresh_from_db()
+        self.assertEqual(order.order_status, "pending")
+        self.assertEqual(order.payment_status, "pending")
 
     def test_missing_list_filters_return_400(self) -> None:
         response = self.client.get(self.list_url)

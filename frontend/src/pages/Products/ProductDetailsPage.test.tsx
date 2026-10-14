@@ -485,7 +485,7 @@ describe('ProductDetailsPage', () => {
   })
 
   it('clears posted and updated comments after saving, but preserves failed submissions', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     useAuthStore.setState({
       accessToken: 'access-token',
       user: testUser,

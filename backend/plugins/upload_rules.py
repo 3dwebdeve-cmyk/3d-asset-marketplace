@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+import zlib
 from zipfile import BadZipFile, ZipFile
 
 from django.core.exceptions import ValidationError
@@ -139,10 +140,21 @@ def _validate_zip_metadata(uploaded: UploadedFile) -> None:
                     raise ValidationError(
                         {"file": "Plugin package contains an unsafe file path."}
                     )
-                total_uncompressed += entry.file_size
-                if total_uncompressed > PLUGIN_ARCHIVE_MAX_UNCOMPRESSED_BYTES:
+                # Declared sizes can be forged, so reject early on them but count the
+                # bytes that actually decompress below.
+                if entry.file_size > PLUGIN_ARCHIVE_MAX_UNCOMPRESSED_BYTES:
                     raise ValidationError(
                         {"file": "Plugin package expands beyond the allowed size."}
                     )
-    except BadZipFile as exc:
+                with archive.open(entry) as member:
+                    while True:
+                        chunk = member.read(64 * 1024)
+                        if not chunk:
+                            break
+                        total_uncompressed += len(chunk)
+                        if total_uncompressed > PLUGIN_ARCHIVE_MAX_UNCOMPRESSED_BYTES:
+                            raise ValidationError(
+                                {"file": "Plugin package expands beyond the allowed size."}
+                            )
+    except (BadZipFile, zlib.error, RuntimeError) as exc:
         raise ValidationError({"file": "Plugin package is not a valid ZIP archive."}) from exc

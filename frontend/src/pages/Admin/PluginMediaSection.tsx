@@ -186,7 +186,7 @@ export function PluginMediaSection({ pluginId, plugin }: PluginMediaSectionProps
                   <p className="admin-media-item__title">{image.is_primary ? 'Primary image' : 'Gallery image'}</p>
                   <div className="admin-media-item__actions">
                     <a className="auth-link" href={image.image_url} target="_blank" rel="noreferrer">Open</a>
-                    <Button type="button" variant="secondary" isLoading={imageDelete.isPending} onClick={() => imageDelete.mutate(image.id)}>Remove</Button>
+                    <Button type="button" variant="secondary" isLoading={imageDelete.isPending} onClick={() => window.confirm('Remove this image?') && imageDelete.mutate(image.id)}>Remove</Button>
                   </div>
                 </div>
               </li>
@@ -239,7 +239,7 @@ export function PluginMediaSection({ pluginId, plugin }: PluginMediaSectionProps
                   <p className="admin-media-item__title">{file.file_name}</p>
                   <p className="admin-media-item__meta">Version {file.version} · {formatFileSize(file.file_size)}{file.is_primary ? ' · Primary' : ''}</p>
                   <div className="admin-media-item__actions">
-                    <Button type="button" variant="secondary" isLoading={packageDelete.isPending} onClick={() => packageDelete.mutate(file.id)}>Remove</Button>
+                    <Button type="button" variant="secondary" isLoading={packageDelete.isPending} onClick={() => window.confirm('Remove this package file? Buyers will no longer be able to download it.') && packageDelete.mutate(file.id)}>Remove</Button>
                   </div>
                 </div>
               </li>

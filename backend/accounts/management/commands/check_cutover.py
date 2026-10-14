@@ -10,7 +10,7 @@ from config.cutover_gate import CutoverGateError, CutoverProfile, run_cutover_ga
 class Command(BaseCommand):
     help = (
         "Run Phase K1 cutover gate: deploy, email, Stripe, R2, Sentry, auth, "
-        "ops, Meili, healthz for profile local|staging|production. "
+        "ops, search, healthz for profile local|staging|production. "
         "Reuses existing report collectors — does not print secrets. "
         "See docs/CUTOVER_STAGING_CHECKLIST.md."
     )

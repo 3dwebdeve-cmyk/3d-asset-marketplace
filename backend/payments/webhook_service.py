@@ -99,6 +99,12 @@ class WebhookService:
                 payment.pk,
                 validation_error,
             )
+            # A paid session we cannot fulfill must not be acknowledged: raising
+            # rolls back the event row, so Stripe retries and the failure alerts.
+            if str(session_value(session, "payment_status") or "").lower() == "paid":
+                raise RuntimeError(
+                    f"Paid checkout failed fulfillment validation: {validation_error}"
+                )
             return
 
         # Superseded / cancelled checkouts must not fulfill (stale Stripe session).
@@ -366,13 +372,23 @@ class WebhookService:
         intent_id = stripe_id(session_value(dispute, "payment_intent"))
         if not intent_id:
             raise ValueError("Dispute does not contain a payment intent.")
-        payment = Payment.objects.select_for_update().get(stripe_payment_intent_id=intent_id)
+        payment = Payment.objects.filter(stripe_payment_intent_id=intent_id).first()
+        if payment is None:
+            raise RuntimeError("Dispute references an unknown payment intent; retry delivery.")
         if payment.status == Payment.Status.REFUNDED:
             return
         if payment.status not in {Payment.Status.SUCCEEDED, Payment.Status.DISPUTED}:
             raise RuntimeError("Disputed payment has not settled yet; retry delivery.")
-        # Retrieve authoritative state: delayed 'created' must not undo 'won'.
+        # Retrieve authoritative state before taking the row lock, so the Stripe
+        # network call does not hold a database lock. A delayed 'created' must
+        # not undo 'won'.
         current = stripe.Dispute.retrieve(stripe_id(dispute))
         state = str(session_value(current, "status") or "")
+
+        payment = Payment.objects.select_for_update().get(pk=payment.pk)
+        if payment.status == Payment.Status.REFUNDED:
+            return
+        if payment.status not in {Payment.Status.SUCCEEDED, Payment.Status.DISPUTED}:
+            raise RuntimeError("Disputed payment has not settled yet; retry delivery.")
         payment.status = Payment.Status.SUCCEEDED if state == "won" else Payment.Status.DISPUTED
         payment.save(update_fields=["status", "updated_at"])

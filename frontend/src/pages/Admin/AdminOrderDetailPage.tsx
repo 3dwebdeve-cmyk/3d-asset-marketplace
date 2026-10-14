@@ -14,6 +14,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import {
+  ADMIN_MANUAL_STATUS_TARGETS,
   ALLOWED_ORDER_STATUS_TRANSITIONS,
   ALLOWED_PAYMENT_STATUS_TRANSITIONS,
   ORDER_PAYMENT_STATUS_LABELS,
@@ -108,10 +109,12 @@ export function AdminOrderDetailPage() {
   }
 
   const order = orderQuery.data
-  const orderTransitions = ALLOWED_ORDER_STATUS_TRANSITIONS[order.order_status]
-  const paymentTransitions = ALLOWED_PAYMENT_STATUS_TRANSITIONS[order.payment_status]
-  const canMarkPaid =
-    order.order_status === 'pending' && order.payment_status === 'pending'
+  const orderTransitions = ALLOWED_ORDER_STATUS_TRANSITIONS[order.order_status].filter(
+    (next) => ADMIN_MANUAL_STATUS_TARGETS.has(next),
+  )
+  const paymentTransitions = ALLOWED_PAYMENT_STATUS_TRANSITIONS[order.payment_status].filter(
+    (next) => ADMIN_MANUAL_STATUS_TARGETS.has(next),
+  )
   const canDownloadInvoice =
     order.order_status === 'paid' && order.payment_status === 'paid'
   const isUpdating = statusMutation.isPending
@@ -133,19 +136,6 @@ export function AdminOrderDetailPage() {
               onClick={() => void onDownloadInvoice()}
             >
               {isDownloadingInvoice ? 'Downloading…' : 'Download invoice'}
-            </Button>
-          ) : null}
-          {canMarkPaid ? (
-            <Button
-              onClick={() =>
-                statusMutation.mutate({
-                  order_status: 'paid',
-                  payment_status: 'paid',
-                })
-              }
-              disabled={isUpdating}
-            >
-              {isUpdating ? 'Updating…' : 'Mark as paid'}
             </Button>
           ) : null}
         </div>

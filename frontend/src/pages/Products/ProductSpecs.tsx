@@ -91,18 +91,17 @@ function SpecIcon({ name }: { name: string }) {
 }
 
 export function ProductSpecs({ product }: ProductSpecsProps) {
-  const isDemoPreview = product.slug.startsWith('demo-')
   const rows: Array<{ label: string; value: string }> = [
     { label: 'Category', value: product.category.name },
-    { label: 'Triangles', value: formatCount(product.polygon_count ?? (isDemoPreview ? 100928 : null)) },
-    { label: 'Vertices', value: formatCount(product.vertex_count ?? (isDemoPreview ? 70252 : null)) },
+    { label: 'Triangles', value: formatCount(product.polygon_count ?? null) },
+    { label: 'Vertices', value: formatCount(product.vertex_count ?? null) },
     { label: 'Viewer', value: product.preview_model ? 'Browser 3D' : 'Image preview' },
     { label: 'Rigged', value: yesNo(product.rigged) },
     { label: 'Animated', value: yesNo(product.animated) },
-    { label: 'PBR materials', value: isDemoPreview ? 'Yes (demo)' : yesNo(product.pbr_ready) },
+    { label: 'PBR materials', value: yesNo(product.pbr_ready) },
     { label: 'Game ready', value: yesNo(product.game_ready) },
-    { label: 'Type', value: product.preview_model ? 'Interactive demo' : '3D asset' },
-    { label: 'Geometry', value: isDemoPreview ? 'Illustrative' : 'Mesh' },
+    { label: 'Type', value: product.preview_model ? 'Interactive preview' : '3D asset' },
+    { label: 'Geometry', value: 'Mesh' },
   ]
 
   return (

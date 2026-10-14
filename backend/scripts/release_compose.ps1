@@ -7,6 +7,11 @@ function Invoke-Checked {
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $Root
+# A docker-compose.override.yml holds local development values. Plain `docker compose`
+# loads it automatically, so refuse unless COMPOSE_FILE names the files explicitly.
+if ((Test-Path "docker-compose.override.yml") -and -not $env:COMPOSE_FILE) {
+  throw "docker-compose.override.yml is present: set COMPOSE_FILE (e.g. docker-compose.yml;docker-compose.prod.yml) or remove it."
+}
 if (-not $env:WEB_IMAGE -or -not $env:FRONTEND_IMAGE) { throw "Set immutable WEB_IMAGE and FRONTEND_IMAGE before release." }
 if ($env:WEB_IMAGE.EndsWith(":latest") -or $env:FRONTEND_IMAGE.EndsWith(":latest")) { throw "Refusing mutable :latest image tags." }
 

@@ -89,8 +89,10 @@ class DashboardStatsService:
     def _current_month_sales(cls) -> dict[str, Any]:
         today = timezone.localdate()
         month_start = today.replace(day=1)
+        # Revenue is reported in DEFAULT_CURRENCY only; there are no FX rates here.
         paid_orders = Order.objects.filter(
             payment_status=Order.PaymentStatus.PAID,
+            currency=cls.DEFAULT_CURRENCY,
             created_at__date__gte=month_start,
             created_at__date__lte=today,
         )
@@ -244,13 +246,19 @@ class AnalyticsService:
             start=start,
             end=end,
         )
-        paid_orders = orders.filter(payment_status=Order.PaymentStatus.PAID)
+        # Revenue is reported in DEFAULT_CURRENCY only. Counts cover every currency,
+        # and the summary reports how many orders were left out of the money totals.
+        usd_orders = orders.filter(currency=cls.DEFAULT_CURRENCY)
+        paid_orders = usd_orders.filter(payment_status=Order.PaymentStatus.PAID)
 
         status_counts = orders.aggregate(
             order_count=Count("id"),
             paid_order_count=Count(
                 "id",
-                filter=Q(payment_status=Order.PaymentStatus.PAID),
+                filter=Q(
+                    payment_status=Order.PaymentStatus.PAID,
+                    currency=cls.DEFAULT_CURRENCY,
+                ),
             ),
             refunded_order_count=Count(
                 "id",
@@ -267,7 +275,10 @@ class AnalyticsService:
             revenue=Coalesce(
                 Sum(
                     "total_amount",
-                    filter=Q(payment_status=Order.PaymentStatus.PAID),
+                    filter=Q(
+                        payment_status=Order.PaymentStatus.PAID,
+                        currency=cls.DEFAULT_CURRENCY,
+                    ),
                 ),
                 Value(Decimal("0.00")),
                 output_field=DecimalField(max_digits=12, decimal_places=2),
@@ -329,6 +340,9 @@ class AnalyticsService:
             "currency": cls.DEFAULT_CURRENCY,
             "summary": {
                 "order_count": status_counts["order_count"],
+                "excluded_currency_order_count": orders.exclude(
+                    currency=cls.DEFAULT_CURRENCY
+                ).count(),
                 "paid_order_count": paid_count,
                 "pending_order_count": status_counts["pending_order_count"],
                 "refunded_order_count": status_counts["refunded_order_count"],
@@ -359,6 +373,7 @@ class AnalyticsService:
         queryset = OrderItem.objects.filter(
             product_type=product_type,
             order__payment_status=Order.PaymentStatus.PAID,
+            order__currency=cls.DEFAULT_CURRENCY,
             order__created_at__date__gte=start,
             order__created_at__date__lte=end,
         )
@@ -400,6 +415,7 @@ class AnalyticsService:
         """
         payments = Payment.objects.filter(
             status=Payment.Status.SUCCEEDED,
+            currency=cls.DEFAULT_CURRENCY,
             created_at__date__gte=start,
             created_at__date__lte=end,
         )

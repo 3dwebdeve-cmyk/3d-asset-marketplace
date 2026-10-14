@@ -62,12 +62,17 @@ def process_one(*, worker_id=None):
     except Exception:
         # Do not log task arguments (they can contain password-reset tokens).
         logger.error("background_job_failed job_id=%s attempt=%s", job.pk, job.attempts)
-        BackgroundJob.objects.filter(pk=job.pk, lease_id=lease).update(
-            status="failed" if job.attempts >= 5 else "queued",
-            available_at=timezone.now() + timedelta(seconds=min(3600, 60 * 2**job.attempts)),
-            lease_until=None,
-            started_at=None,
-        )
+        final = job.attempts >= 5
+        updates = {
+            "status": "failed" if final else "queued",
+            "available_at": timezone.now() + timedelta(seconds=min(3600, 60 * 2**job.attempts)),
+            "lease_until": None,
+            "started_at": None,
+        }
+        if final:
+            # Retries are exhausted: drop the payload so tokens do not sit in the table.
+            updates.update(args=[], kwargs={})
+        BackgroundJob.objects.filter(pk=job.pk, lease_id=lease).update(**updates)
     else:
         # Remove sensitive payloads immediately after successful delivery.
         BackgroundJob.objects.filter(pk=job.pk, lease_id=lease).delete()

@@ -556,8 +556,9 @@ class CatalogImportService:
 
     @classmethod
     def _sync_gallery(cls, product: Product, gallery_urls: list[str]) -> None:
-        ProductImage.objects.filter(product=product).delete()
-        if not gallery_urls:
+        # A re-import must not delete gallery images an administrator uploaded.
+        # The import only fills an empty gallery.
+        if not gallery_urls or ProductImage.objects.filter(product=product).exists():
             return
         ProductImage.objects.bulk_create(
             [
@@ -574,9 +575,10 @@ class CatalogImportService:
     @classmethod
     def _sync_package(cls, product: Product, media_pointers: dict[str, Any]) -> None:
         package_key = media_pointers.get("package_key")
-        ProductFile.objects.filter(product=product, is_preview=False).delete()
+        # Without a new package in the batch, keep the package already on the product.
         if not package_key:
             return
+        ProductFile.objects.filter(product=product, is_preview=False).delete()
         ProductFile.objects.create(
             product=product,
             file_name=media_pointers["package_file_name"][:255],

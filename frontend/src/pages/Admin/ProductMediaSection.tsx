@@ -265,7 +265,7 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
                       type="button"
                       variant="secondary"
                       isLoading={imageDeleteMutation.isPending}
-                      onClick={() => imageDeleteMutation.mutate(image.id)}
+                      onClick={() => window.confirm('Remove this image?') && imageDeleteMutation.mutate(image.id)}
                     >
                       Remove
                     </Button>
@@ -364,7 +364,7 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
                       type="button"
                       variant="secondary"
                       isLoading={fileDeleteMutation.isPending}
-                      onClick={() => fileDeleteMutation.mutate(file.id)}
+                      onClick={() => window.confirm('Remove this package file? Buyers will no longer be able to download it.') && fileDeleteMutation.mutate(file.id)}
                     >
                       Remove
                     </Button>

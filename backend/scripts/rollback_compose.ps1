@@ -11,6 +11,11 @@ function Invoke-Checked {
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $Root
+# A docker-compose.override.yml holds local development values. Plain `docker compose`
+# loads it automatically, so refuse unless COMPOSE_FILE names the files explicitly.
+if ((Test-Path "docker-compose.override.yml") -and -not $env:COMPOSE_FILE) {
+  throw "docker-compose.override.yml is present: set COMPOSE_FILE (e.g. docker-compose.yml;docker-compose.prod.yml) or remove it."
+}
 if ($env:PREVIOUS_WEB_IMAGE) { $env:WEB_IMAGE = $env:PREVIOUS_WEB_IMAGE }
 if ($env:PREVIOUS_FRONTEND_IMAGE) { $env:FRONTEND_IMAGE = $env:PREVIOUS_FRONTEND_IMAGE }
 if (-not $env:WEB_IMAGE -or -not $env:FRONTEND_IMAGE) { throw "Set previous WEB_IMAGE and FRONTEND_IMAGE." }
