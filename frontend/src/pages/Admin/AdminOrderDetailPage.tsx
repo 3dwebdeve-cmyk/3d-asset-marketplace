@@ -200,6 +200,7 @@ export function AdminOrderDetailPage() {
                   <th>Qty</th>
                   <th>Unit price</th>
                   <th>Line total</th>
+                  <th>License</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,6 +213,7 @@ export function AdminOrderDetailPage() {
                     <td>{item.quantity}</td>
                     <td>{formatMoneyPlain(item.purchase_price, order.currency)}</td>
                     <td>{formatMoneyPlain(item.line_total, order.currency)}</td>
+                    <td>{item.license_code ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

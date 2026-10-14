@@ -57,6 +57,7 @@ class UploadBackupToR2Tests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(suffix=".dump", delete=False) as handle:
             handle.write(b"pgdump")
             dump_path = handle.name
+        self.addCleanup(Path(dump_path).unlink, missing_ok=True)
 
         fake_client = MagicMock()
         fake_boto3 = MagicMock()

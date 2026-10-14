@@ -68,11 +68,11 @@ def build_public_media_url(object_key: str) -> str:
 
 def signed_url_expiry_seconds() -> int:
     """Clamp R2_SIGNED_URL_EXPIRY to 60–3600 seconds."""
-    raw = getattr(settings, "R2_SIGNED_URL_EXPIRY", 300)
+    raw = getattr(settings, "R2_SIGNED_URL_EXPIRY", 60)
     try:
         value = int(raw)
     except (TypeError, ValueError):
-        value = 300
+        value = 60
     return max(60, min(value, 3600))
 
 

@@ -45,6 +45,7 @@ const sampleOrder = {
       quantity: 2,
       purchase_price: '29.99',
       line_total: '59.98',
+      license_code: null,
       created_at: '2026-07-28T00:00:00Z',
       updated_at: '2026-07-28T00:00:00Z',
     },

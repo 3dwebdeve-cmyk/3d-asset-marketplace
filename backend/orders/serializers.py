@@ -51,6 +51,7 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
             "quantity",
             "purchase_price",
             "line_total",
+            "license_code",
             "created_at",
             "updated_at",
         )

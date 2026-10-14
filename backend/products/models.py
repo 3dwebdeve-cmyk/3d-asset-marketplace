@@ -74,6 +74,9 @@ class Product(models.Model):
     )
     thumbnail = models.URLField(blank=True)
     preview_model = models.URLField(blank=True)
+    # Triangles in the public preview, measured when it was stored. The preview must
+    # be a reduced model (see PREVIEW_MAX_POLYGON_SHARE in products.services).
+    preview_triangle_count = models.PositiveIntegerField(null=True, blank=True)
     preview_video = models.URLField(blank=True)
     polygon_count = models.PositiveIntegerField(null=True, blank=True)
     vertex_count = models.PositiveIntegerField(null=True, blank=True)

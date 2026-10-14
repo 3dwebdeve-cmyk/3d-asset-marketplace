@@ -246,3 +246,15 @@ def capture_webhook_failure(
             sentry_sdk.capture_exception(exc)
         else:
             sentry_sdk.capture_message(message, level=level)
+
+
+def capture_download_spike(*, user_id: str, links_last_hour: int) -> None:
+    """Alert when one account requests unusually many download links (scraping signal)."""
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("area", "downloads")
+        scope.set_tag("downloads.alert", "hourly_spike")
+        # Pseudonymous account ID only; the email stays out of Sentry.
+        scope.set_extra("user_id", user_id)
+        scope.set_extra("links_last_hour", links_last_hour)
+        scope.fingerprint = ["downloads-hourly-spike", user_id]
+        sentry_sdk.capture_message("Download link spike for one account", level="warning")

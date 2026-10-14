@@ -177,8 +177,11 @@ class AuthenticationService:
         """Authenticate credentials and require a non-administrator (customer) account."""
         user = cls.authenticate_user(data)
         if cls.is_administrator(user):
+            # Same answer as a wrong password: the public login must not confirm an
+            # admin password from outside the admin IP allowlist.
             raise AuthenticationError(
-                "Administrators must use the admin sign-in page."
+                "Invalid email or password.",
+                code="invalid_credentials",
             )
         if not user.email_verified:
             raise AuthenticationError(

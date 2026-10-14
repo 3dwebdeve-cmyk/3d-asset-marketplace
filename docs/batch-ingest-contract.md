@@ -25,13 +25,18 @@ Booleans accept `TRUE`, `1`, `YES` and `Y`. Gallery paths are separated by `|` o
 ## Storage layout
 
 - Public objects: `models/<Model_ID>/` (thumbnail, gallery images, `preview.glb`).
-- The package `models/<Model_ID>/package.zip` is **private** and served only through
-  signed download links.
+- The package must be exactly `models/<Model_ID>/package.zip`. It is **private** and served
+  only through signed download links. Any other `package_key` is rejected
+  (`invalid_object_key`), because storage treats every other name in the folder as public.
+- The import moves `preview.glb` to an unguessable name and deletes the original. The
+  preview must be a reduced model; see `PREVIEW_PIPELINE.md`.
 
 ## Import gate
 
 A row is skipped, with a reason, when any of these apply:
 `folder_mismatch`, `exports_incomplete`, `invalid_price`, `missing_thumbnail`.
+Preview checks can also skip a row: `invalid_preview_format`, `missing_preview_object`,
+`invalid_preview`, `preview_too_large`, `preview_not_reduced`, `preview_unreadable`.
 Passing rows are created or updated as `pending_review`. Publishing always goes through
 the review queue (approve action); imports never publish directly.
 

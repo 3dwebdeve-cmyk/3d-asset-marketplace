@@ -60,6 +60,8 @@ export interface AdminOrderItem {
   quantity: number
   purchase_price: string
   line_total: string
+  /** Set once the buyer has downloaded a license certificate for this line. */
+  license_code: string | null
   created_at: string
   updated_at: string
 }
@@ -133,6 +135,7 @@ export interface CustomerOrderItem {
   quantity: number
   purchase_price: string
   line_total: string
+  license_code: string | null
   can_download: boolean
   files: OrderItemDownloadFile[]
   created_at: string

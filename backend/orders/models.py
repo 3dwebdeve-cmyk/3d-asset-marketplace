@@ -85,6 +85,13 @@ class OrderItem(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    # License certificate, issued on first request (orders.license). The code is
+    # random and stored, so verification survives SECRET_KEY rotation.
+    license_code = models.CharField(
+        max_length=24, unique=True, null=True, blank=True, editable=False
+    )
+    license_type = models.CharField(max_length=32, blank=True, default="", editable=False)
+    license_issued_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

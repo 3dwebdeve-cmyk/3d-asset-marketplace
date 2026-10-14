@@ -73,10 +73,12 @@ export function CustomerOrderDetailPage() {
   const {
     downloadFile,
     downloadInvoice,
+    downloadLicense,
     fileError: downloadError,
     invoiceError,
     downloadingFileId,
     downloadingInvoiceId,
+    downloadingLicenseId,
   } = useOrderDownloads()
 
   const orderQuery = useQuery({
@@ -267,6 +269,23 @@ export function CustomerOrderDetailPage() {
                       onDownload={downloadFile}
                       downloadingFileId={downloadingFileId}
                     />
+                    {item.can_download ? (
+                      <button
+                        type="button"
+                        className="invoice-card__download-btn"
+                        disabled={downloadingLicenseId === item.id}
+                        title="License certificate (PDF) for this item"
+                        onClick={() =>
+                          void downloadLicense(
+                            order.id,
+                            item.id,
+                            `license-${order.invoice_number}-${item.slug ?? item.id}.pdf`,
+                          )
+                        }
+                      >
+                        {downloadingLicenseId === item.id ? 'Downloading…' : 'License'}
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}

@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import F, QuerySet
 from django.http import FileResponse
+from django.utils import timezone
 
-from config.media import (
-    PrivateFileNotFound,
-    resolve_preview_download,
-    resolve_private_download,
-)
+from config.media import PrivateFileNotFound, resolve_private_download
+from config.sentry import capture_download_spike
 from downloads.models import DownloadHistory
 from orders.entitlements import user_owns_catalog_item
 from orders.models import Order, OrderItem
@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 PRODUCT_TYPE_PRODUCT = DownloadHistory.ProductType.PRODUCT
 PRODUCT_TYPE_PLUGIN = DownloadHistory.ProductType.PLUGIN
-PREVIEW_DOWNLOAD_FORMATS = ("glb", "gltf")
 
 
 @dataclass(frozen=True)
@@ -68,7 +67,11 @@ class DownloadService:
     def downloadable_product_files(
         cls, product_ids: list[UUID]
     ) -> dict[UUID, list[ProductFile]]:
-        """Packages per product; GLB/glTF previews only when a product has no package."""
+        """Private package files per product.
+
+        Public previews are never sold: anyone can already fetch them, so a product
+        without a package has nothing to download (``audit_published_packages``).
+        """
         files: dict[UUID, list[ProductFile]] = {}
         if not product_ids:
             return files
@@ -77,15 +80,6 @@ class DownloadService:
             is_preview=False,
         ).order_by("-created_at"):
             files.setdefault(file_row.product_id, []).append(file_row)
-
-        missing = [product_id for product_id in product_ids if product_id not in files]
-        if missing:
-            for file_row in ProductFile.objects.filter(
-                product_id__in=missing,
-                is_preview=True,
-                file_format__in=PREVIEW_DOWNLOAD_FORMATS,
-            ).order_by("-created_at"):
-                files.setdefault(file_row.product_id, []).append(file_row)
         return files
 
     @classmethod
@@ -222,7 +216,6 @@ class DownloadService:
             file_id=file_row.id,
             file_name=file_row.file_name,
             storage_path=file_row.storage_path,
-            is_preview=file_row.is_preview,
         )
 
     @classmethod
@@ -385,6 +378,23 @@ class DownloadService:
                 Plugin.objects.filter(pk=product_id).update(
                     total_downloads=F("total_downloads") + 1
                 )
+        cls._alert_on_download_spike(user)
+
+    @classmethod
+    def _alert_on_download_spike(cls, user: User) -> None:
+        threshold = int(getattr(settings, "DOWNLOAD_ALERT_LINKS_PER_HOUR", 50) or 0)
+        if threshold <= 0:
+            return
+        links_last_hour = DownloadHistory.objects.filter(
+            user=user,
+            downloaded_at__gte=timezone.now() - timedelta(hours=1),
+        ).count()
+        # Fires once as the account crosses the threshold, not on every later link.
+        if links_last_hour == threshold:
+            logger.warning(
+                "download_spike user_id=%s links_last_hour=%s", user.pk, links_last_hour
+            )
+            capture_download_spike(user_id=str(user.pk), links_last_hour=links_last_hour)
 
     @classmethod
     def _deliver_owned_file(
@@ -396,11 +406,9 @@ class DownloadService:
         file_id: UUID,
         file_name: str,
         storage_path: str,
-        is_preview: bool = False,
     ) -> FileResponse | dict[str, Any]:
-        resolver = resolve_preview_download if is_preview else resolve_private_download
         try:
-            result = resolver(storage_path, file_name=file_name)
+            result = resolve_private_download(storage_path, file_name=file_name)
         except PrivateFileNotFound as exc:
             raise DownloadError("File not found.") from exc
 

@@ -201,7 +201,10 @@ R2_PRIVATE_BUCKET = config("R2_PRIVATE_BUCKET", default="").strip()
 if R2_PUBLIC_BUCKET and R2_PUBLIC_BUCKET == R2_PRIVATE_BUCKET:
     raise ImproperlyConfigured("R2 public and private buckets must be different.")
 R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
-R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=300, cast=int)
+R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=60, cast=int)
+# Sentry warning when one account requests this many download links within an hour.
+# Alert only: buyers are never blocked.
+DOWNLOAD_ALERT_LINKS_PER_HOUR = config("DOWNLOAD_ALERT_LINKS_PER_HOUR", default=50, cast=int)
 if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
     R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
@@ -446,6 +449,7 @@ REST_FRAMEWORK = {
         "review_write": "20/min",
         "admin_review_write": "60/min",
         "download": "30/min",
+        "license_verify": "30/min",
         "contact_form": "5/hour",
         "category_click": "60/min",
         "payment_checkout": "10/min",

@@ -20,6 +20,7 @@ vi.mock('../../api/ordersApi', async () => {
     ...actual,
     getCustomerOrder: vi.fn(),
     downloadCustomerOrderInvoice: vi.fn(),
+    downloadOrderItemLicense: vi.fn(),
   }
 })
 
@@ -54,6 +55,7 @@ const pendingOrder: CustomerOrder = {
       quantity: 1,
       purchase_price: '39.99',
       line_total: '39.99',
+      license_code: null,
       can_download: false,
       files: [],
       created_at: '2026-07-29T00:00:00Z',
@@ -196,6 +198,29 @@ describe('CustomerOrderDetailPage', () => {
       paidOrder.id,
       paidOrder.invoice_number,
     )
+  })
+
+  it('downloads the license certificate for a paid item', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue(paidOrder)
+    vi.mocked(ordersApi.downloadOrderItemLicense).mockResolvedValue(undefined)
+    renderCustomerOrderDetailPage()
+
+    await screen.findByRole('heading', { name: paidOrder.invoice_number })
+    await user.click(screen.getByRole('button', { name: 'License' }))
+    const item = paidOrder.items[0]
+    expect(ordersApi.downloadOrderItemLicense).toHaveBeenCalledWith(
+      paidOrder.id,
+      item.id,
+      `license-${paidOrder.invoice_number}-${item.slug ?? item.id}.pdf`,
+    )
+  })
+
+  it('offers no license certificate before the order is paid', async () => {
+    renderCustomerOrderDetailPage()
+
+    await screen.findByRole('heading', { name: pendingOrder.invoice_number })
+    expect(screen.queryByRole('button', { name: 'License' })).not.toBeInTheDocument()
   })
 
   it('shows the 404 page when the order does not exist', async () => {

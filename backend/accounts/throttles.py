@@ -138,6 +138,12 @@ class CatalogSearchRateThrottle(IPRateThrottle):
     scope = "catalog_search"
 
 
+class LicenseVerifyRateThrottle(IPRateThrottle):
+    """Public license lookups; limits brute-force guessing of license codes."""
+
+    scope = "license_verify"
+
+
 class CspReportRateThrottle(IPRateThrottle):
     """Keep anonymous CSP reports from becoming a log-amplification vector."""
 

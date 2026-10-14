@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import tempfile
 from decimal import Decimal
 
 from django.core.cache import cache
+from django.core.files.storage import default_storage
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -12,6 +15,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile, ProductImage
+from products.testing import put_pipeline_previews
 
 _HAPPY_CHECKSUM = "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
 
@@ -61,6 +65,7 @@ def _happy_item(**overrides: object) -> dict:
     return item
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class CatalogImportAPITests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -106,6 +111,7 @@ class CatalogImportAPITests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
 
     def _post_batch(self, items: list[dict], *, batch_id: str = "2026-09-03-run-01"):
+        put_pipeline_previews(items)
         return self.client.post(
             self.import_url,
             {
@@ -153,7 +159,10 @@ class CatalogImportAPITests(APITestCase):
         self.assertTrue(product.has_preview)
         self.assertTrue(product.has_package)
         self.assertIn("models/MDL-000142/thumbnail.jpg", product.thumbnail)
-        self.assertIn("models/MDL-000142/preview.glb", product.preview_model)
+        # The predictable pipeline name is replaced by an unguessable one.
+        self.assertRegex(product.preview_model, r"models/MDL-000142/preview-[0-9a-f]{32}\.glb$")
+        self.assertFalse(default_storage.exists("models/MDL-000142/preview.glb"))
+        self.assertEqual(product.preview_triangle_count, 100)
         self.assertNotIn("package.zip", product.thumbnail)
         self.assertNotIn("package.zip", product.preview_model)
 
@@ -366,6 +375,28 @@ class CatalogImportAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["skipped"], 1)
         self.assertEqual(response.data["results"][0]["reason"], "invalid_object_key")
+
+    def test_package_key_must_be_package_zip(self) -> None:
+        # Any other name under models/<sku>/ is classed as public media.
+        self._authenticate_as_admin()
+        for key in ("models/MDL-000142/source.rar", "models/MDL-000142/gallery/package.zip"):
+            with self.subTest(key=key):
+                response = self._post_batch(
+                    [
+                        _happy_item(
+                            media={
+                                "thumbnail_key": "models/MDL-000142/thumbnail.jpg",
+                                "preview_key": "models/MDL-000142/preview.glb",
+                                "package_key": key,
+                                "package_file_size": 100,
+                            }
+                        )
+                    ]
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["skipped"], 1)
+                self.assertEqual(response.data["results"][0]["reason"], "invalid_object_key")
+        self.assertFalse(Product.objects.filter(sku="MDL-000142").exists())
 
     def test_rejected_product_reimport_sets_pending_review(self) -> None:
         self._authenticate_as_admin()
