@@ -56,6 +56,10 @@ const FALLBACK_CATEGORIES: CategoryPublic[] = [
   created_at: '2026-01-01T00:00:00Z',
 }))
 
+// Demo catalog is for local development only. Production shows the real empty
+// state instead of invented products when the API returns nothing or fails.
+const SHOW_DEMO_FALLBACK = import.meta.env.DEV
+
 const FALLBACK_PRODUCTS: PublicProduct[] = [
   ['demo-oak-chair', 'Oak Lounge Chair', '/homepage%20images/furniture.webp', 'Furniture', '29.99'],
   ['demo-desk-lamp', 'Modern Desk Lamp', '/homepage%20images/interior.webp', 'Interiors', '19.99'],
@@ -460,11 +464,15 @@ export function ProductsBrowsePage() {
   })
 
   const filteredProducts = useMemo(
-    () => productsData?.results.length ? productsData.results : FALLBACK_PRODUCTS,
+    () => productsData?.results.length
+      ? productsData.results
+      : SHOW_DEMO_FALLBACK ? FALLBACK_PRODUCTS : [],
     [productsData],
   )
 
-  const categoriesSource = trendingCategories.length ? trendingCategories : FALLBACK_CATEGORIES
+  const categoriesSource = trendingCategories.length
+    ? trendingCategories
+    : SHOW_DEMO_FALLBACK ? FALLBACK_CATEGORIES : []
   const categories = [...categoriesSource].sort((a, b) => {
     const rank = (slug: string) => {
       const index = CATEGORY_DISPLAY_ORDER.indexOf(slug.trim().toLowerCase())
@@ -472,7 +480,9 @@ export function ProductsBrowsePage() {
     }
     return rank(a.slug) - rank(b.slug)
   }).slice(0, 12)
-  const plugins = pluginsData?.results.length ? pluginsData.results : FALLBACK_PLUGINS
+  const plugins = pluginsData?.results.length
+    ? pluginsData.results
+    : SHOW_DEMO_FALLBACK ? FALLBACK_PLUGINS : []
 
   useAutoScrollRail(productsRailRef, !isCatalogMode && filteredProducts.length > 1)
   useAutoScrollRail(pluginsRailRef, !isCatalogMode && plugins.length > 1)
@@ -545,7 +555,7 @@ export function ProductsBrowsePage() {
                   key={key}
                   className="browse-rail__item"
                   data-cycle={cycle}
-                  aria-hidden={cycle > 0 ? true : undefined}
+                  inert={cycle > 0 ? true : undefined}
                 >
                   <ProductCard product={product} />
                 </div>
@@ -583,7 +593,7 @@ export function ProductsBrowsePage() {
                   key={key}
                   className="browse-rail__item"
                   data-cycle={cycle}
-                  aria-hidden={cycle > 0 ? true : undefined}
+                  inert={cycle > 0 ? true : undefined}
                 >
                   <PluginCard plugin={plugin} />
                 </div>

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from io import BytesIO
+from xml.sax.saxutils import escape as xml_escape
 
 from django.core.exceptions import ObjectDoesNotExist
 from reportlab.lib import colors
@@ -66,8 +67,9 @@ def build_invoice_pdf(order: Order) -> bytes:
         )
     story.append(Spacer(1, 0.2 * inch))
     story.append(Paragraph("<b>Bill to</b>", styles["Heading3"]))
-    story.append(Paragraph(customer_name, styles["Normal"]))
-    story.append(Paragraph(customer_email, styles["Normal"]))
+    # Paragraph parses markup, so user-controlled names must be escaped first.
+    story.append(Paragraph(xml_escape(customer_name), styles["Normal"]))
+    story.append(Paragraph(xml_escape(customer_email), styles["Normal"]))
     story.append(Spacer(1, 0.25 * inch))
 
     currency = (order.currency or "USD").upper()
@@ -98,16 +100,6 @@ def build_invoice_pdf(order: Order) -> bytes:
     if discount < Decimal("0.00"):
         discount = Decimal("0.00")
 
-    coupon_code = ""
-    try:
-        payment = order.payment
-    except ObjectDoesNotExist:
-        payment = None
-    if payment is not None and payment.coupon_id is not None:
-        coupon = payment.coupon
-        if coupon is not None:
-            coupon_code = (coupon.code or "").strip()
-
     table = Table(rows, colWidths=[3.4 * inch, 0.7 * inch, 1.3 * inch, 1.3 * inch])
     table.setStyle(
         TableStyle(
@@ -133,10 +125,7 @@ def build_invoice_pdf(order: Order) -> bytes:
         ["Items total", f"{currency} {items_total:.2f}"],
     ]
     if discount > Decimal("0.00"):
-        label = "Discount"
-        if coupon_code:
-            label = f"Discount ({coupon_code})"
-        totals.append([label, f"-{currency} {discount:.2f}"])
+        totals.append(["Discount", f"-{currency} {discount:.2f}"])
     totals.append(["Total", f"{currency} {Decimal(order.total_amount):.2f}"])
 
     totals_table = Table(totals, colWidths=[4.7 * inch, 2.0 * inch])

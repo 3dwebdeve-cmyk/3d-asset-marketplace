@@ -88,10 +88,18 @@ class AuthenticationAPITests(APITestCase):
             },
         }
 
+        mail.outbox.clear()
         response = self.client.post(self.register_url, payload, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("email", response.data)
+        # Same status and shape as a new registration, so the endpoint does not
+        # reveal which emails already have accounts.
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertNotEqual(response.data["id"], str(self.user.pk))
+        self.assertEqual(User.objects.filter(email=self.user.email).count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertNotIn("/verify-email/", mail.outbox[0].body)
 
     def test_register_rejects_password_mismatch(self) -> None:
         payload = {

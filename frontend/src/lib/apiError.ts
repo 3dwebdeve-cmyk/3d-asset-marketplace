@@ -6,6 +6,15 @@ export function isHttpNotFound(error: unknown): boolean {
   return isAxiosError(error) && error.response?.status === 404
 }
 
+/** True only for an authentication rejection. Network and server errors are not auth failures. */
+export function isHttpUnauthorized(error: unknown): boolean {
+  if (!isAxiosError(error)) {
+    return false
+  }
+  const status = error.response?.status
+  return status === 401 || status === 403
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (!isAxiosError<ApiErrorResponse>(error)) {
     return fallback

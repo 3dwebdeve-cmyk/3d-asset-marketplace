@@ -115,7 +115,11 @@ class Plugin(models.Model):
         ],
     )
     review_count = models.PositiveIntegerField(default=0)
-    total_downloads = models.PositiveIntegerField(default=0)
+    total_downloads = models.PositiveIntegerField(
+        default=0,
+        verbose_name="download links issued",
+        help_text="Counts signed download links issued, not completed transfers.",
+    )
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

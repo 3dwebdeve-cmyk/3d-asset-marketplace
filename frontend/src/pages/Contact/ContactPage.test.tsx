@@ -85,7 +85,7 @@ describe('ContactPage', () => {
   })
 
   it('shows success state after a successful submission', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     vi.mocked(contactApi.submitContactForm).mockResolvedValue({
       detail: "Message sent — we'll reply by email.",
     })

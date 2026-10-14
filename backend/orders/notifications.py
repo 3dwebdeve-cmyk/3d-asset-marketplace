@@ -88,13 +88,15 @@ def deliver_payment_receipt(order: Order) -> None:
         from_email=settings.DEFAULT_FROM_EMAIL,
         to=[recipient],
     )
-    pdf_bytes = build_invoice_pdf(order)
-    message.attach(
-        invoice_pdf_filename(order),
-        pdf_bytes,
-        "application/pdf",
-    )
     try:
+        # Build inside the try: a PDF failure must mark this attempt failed,
+        # not leave its log row queued.
+        pdf_bytes = build_invoice_pdf(order)
+        message.attach(
+            invoice_pdf_filename(order),
+            pdf_bytes,
+            "application/pdf",
+        )
         message.send(fail_silently=False)
     except Exception as exc:
         MailLogService.mark_failed(log_id, str(exc))

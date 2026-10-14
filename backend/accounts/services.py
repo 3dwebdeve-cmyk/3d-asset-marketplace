@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import logging
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -75,15 +76,25 @@ class RegistrationService:
 
         email = data.email.strip().lower()
 
-        if User.objects.filter(email=email).exists():
-            raise RegistrationError("An account with this email already exists.")
-
         versions = LegalAcceptanceService.validate_offered(
             data.accepted_legal if data.accepted_legal is not None else {},
             require_all=True,
         )
 
         role = cls._get_customer_role()
+
+        if User.objects.filter(email=email).exists():
+            # Same response shape as a new account, so the endpoint cannot be used to
+            # discover which emails are registered. The owner gets a notice instead.
+            cls._notify_existing_account(email)
+            return User(
+                id=uuid4(),
+                full_name=data.full_name,
+                email=email,
+                phone=data.phone,
+                country=data.country,
+                role=role,
+            )
 
         user = User.objects.create_user(
             email=email,
@@ -105,6 +116,22 @@ class RegistrationService:
         EmailVerificationService.send_verification(user)
 
         return user
+
+    @staticmethod
+    def _notify_existing_account(email: str) -> None:
+        try:
+            send_text_mail(
+                subject="Account registration attempt",
+                body=(
+                    "Someone tried to create a 3D Asset Marketplace account with this "
+                    "email address.\n\n"
+                    "If this was you, sign in or reset your password instead. "
+                    "If it was not you, you can ignore this message.\n"
+                ),
+                recipients=[email],
+            )
+        except Exception:
+            dev_mail_logger.exception("registration_notice_failed")
 
     @classmethod
     def _get_customer_role(cls) -> Role:

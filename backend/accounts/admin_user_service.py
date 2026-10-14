@@ -130,7 +130,7 @@ class AdminUserService:
 
         if data.role_name is not None:
             cls._apply_role_change(actor=actor, target=target, role_name=data.role_name)
-            update_fields.extend(["role", "is_staff"])
+            update_fields.extend(["role", "is_staff", "is_superuser"])
 
         if data.is_active is not None:
             cls._apply_active_change(
@@ -190,6 +190,8 @@ class AdminUserService:
 
         target.role = role
         target.is_staff = will_be_admin
+        # Superuser rights only belong to administrators; a demoted user loses them.
+        target.is_superuser = target.is_superuser and will_be_admin
 
     @classmethod
     def _apply_active_change(

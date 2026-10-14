@@ -9,10 +9,15 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminCategoryWriteRateThrottle, CategoryClickRateThrottle
+from accounts.throttles import (
+    AdminCategoryWriteRateThrottle,
+    CatalogSearchRateThrottle,
+    CategoryClickRateThrottle,
+)
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
 from categories.pagination import CategoryPagination
+from search.services import normalize_query
 from categories.serializers import (
     CategoryAdminSerializer,
     CategoryClickSerializer,
@@ -62,9 +67,16 @@ class CategoryListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = CategoryPagination
 
+    def get_throttles(self) -> list:
+        throttles = super().get_throttles()
+        # Searching costs a query, so it gets the same limit as plugin and product search.
+        if normalize_query(self.request.query_params.get("search")):
+            throttles.append(CatalogSearchRateThrottle())
+        return throttles
+
     def get(self, request: Request) -> Response:
         parent_id = _parse_parent_filter(request.query_params.get("parent_id"))
-        search = request.query_params.get("search") or None
+        search = normalize_query(request.query_params.get("search")) or None
 
         queryset = CategoryService.list_public(
             parent_id=parent_id,

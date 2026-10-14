@@ -520,7 +520,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         renamed_titles = {item["title"] for item in renamed.data["items"]}
         self.assertEqual(renamed_titles, {"Hero Sword", "UV Toolkit"})
 
-    def test_admin_can_patch_allowed_status_transitions(self) -> None:
+    def test_admin_can_cancel_pending_order(self) -> None:
         self._authenticate_admin()
         detail_url = reverse(
             "orders_admin:admin-order-detail",
@@ -528,23 +528,54 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         )
         response = self.client.patch(
             detail_url,
-            {
-                "order_status": Order.OrderStatus.PAID,
-                "payment_status": Order.PaymentStatus.PAID,
-            },
+            {"order_status": Order.OrderStatus.CANCELLED},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["order_status"], Order.OrderStatus.PAID)
-        self.assertEqual(response.data["payment_status"], Order.PaymentStatus.PAID)
+        self.assertEqual(response.data["order_status"], Order.OrderStatus.CANCELLED)
 
-        refund = self.client.patch(
-            detail_url,
+    def test_admin_cannot_mark_order_paid_or_refunded_manually(self) -> None:
+        self._authenticate_admin()
+        detail_url = reverse(
+            "orders_admin:admin-order-detail",
+            kwargs={"order_id": self.order.id},
+        )
+        for body in (
+            {"order_status": Order.OrderStatus.PAID},
+            {"payment_status": Order.PaymentStatus.PAID},
             {"order_status": Order.OrderStatus.REFUNDED},
+            {"payment_status": Order.PaymentStatus.REFUNDED},
+        ):
+            with self.subTest(body=body):
+                response = self.client.patch(detail_url, body, format="json")
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PENDING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+
+    def test_admin_patch_is_all_or_nothing(self) -> None:
+        self._authenticate_admin()
+        detail_url = reverse(
+            "orders_admin:admin-order-detail",
+            kwargs={"order_id": self.order.id},
+        )
+        # A paid payment cannot move to cancelled, so the payment change fails.
+        # The otherwise valid order cancellation must roll back with it.
+        Order.objects.filter(pk=self.order.pk).update(
+            payment_status=Order.PaymentStatus.PAID,
+        )
+        response = self.client.patch(
+            detail_url,
+            {
+                "order_status": Order.OrderStatus.CANCELLED,
+                "payment_status": Order.PaymentStatus.CANCELLED,
+            },
             format="json",
         )
-        self.assertEqual(refund.status_code, status.HTTP_200_OK)
-        self.assertEqual(refund.data["order_status"], Order.OrderStatus.REFUNDED)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PENDING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
 
     def test_admin_patch_rejects_illegal_status_transition(self) -> None:
         self._authenticate_admin()

@@ -5,7 +5,6 @@ Cart pricing policy (v1):
 - Prices are NOT snapshotted in the cart; checkout snapshots purchase_price
   on OrderItem via OrderService.create() / OrderService.create_from_cart().
 - Unavailable catalog lines remain in the cart but are excluded from subtotal.
-- Promo coupons are retired; Cart.coupon FK remains for soft-remove / legacy rows.
 """
 from __future__ import annotations
 
@@ -159,9 +158,6 @@ class CartService:
     def clear_cart(cls, user: User) -> None:
         cart = cls.lock_cart(user)
         cart.items.all().delete()
-        if cart.coupon_id is not None:
-            cart.coupon = None
-            cart.save(update_fields=["coupon", "updated_at"])
 
     @classmethod
     @transaction.atomic
@@ -182,9 +178,6 @@ class CartService:
         if before is not None:
             rows = rows.filter(updated_at__lte=before)
         rows.delete()
-        if not cart.items.exists() and cart.coupon_id is not None:
-            cart.coupon = None
-            cart.save(update_fields=["coupon", "updated_at"])
 
     @classmethod
     def _ensure_currency_consistency(cls, cart: Cart, currency: str) -> None:
@@ -312,7 +305,9 @@ class CartService:
                 "name": product.category.name,
                 "slug": product.category.slug,
             },
-            "is_available": product.status == Product.Status.PUBLISHED,
+            "is_available": (
+                product.status == Product.Status.PUBLISHED and product.category.is_active
+            ),
         }
 
     @classmethod

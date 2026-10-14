@@ -194,7 +194,7 @@ export function AdminUserDetailPage() {
                 type="button"
                 variant="secondary"
                 isLoading={deactivateMutation.isPending}
-                onClick={() => deactivateMutation.mutate()}
+                onClick={() => window.confirm('Deactivate this account? The user will be signed out and cannot sign in.') && deactivateMutation.mutate()}
               >
                 Deactivate
               </Button>

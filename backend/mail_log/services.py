@@ -8,12 +8,20 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from typing import Sequence
 from uuid import UUID
 
 from django.utils import timezone
 
 from mail_log.models import OutboundEmailLog
+
+_EMAIL_IN_TEXT = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def redact_addresses(text: str) -> str:
+    """Remove email addresses from provider error text before it is stored."""
+    return _EMAIL_IN_TEXT.sub("[redacted-email]", text or "")
 
 logger = logging.getLogger("mail_log")
 
@@ -111,7 +119,7 @@ class MailLogService:
         try:
             OutboundEmailLog.objects.filter(pk=log_id).update(
                 status=OutboundEmailLog.Status.FAILED,
-                error=(error or "")[:2000],
+                error=redact_addresses(error or "")[:2000],
                 updated_at=timezone.now(),
             )
         except Exception:

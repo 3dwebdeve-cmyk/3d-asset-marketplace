@@ -12,7 +12,10 @@ export default defineConfig({
   expect: {
     timeout: 30_000,
   },
-  reporter: process.env.CI ? [['github'], ['list']] : 'list',
+  // The HTML report is what CI uploads as an artifact when the run fails.
+  reporter: process.env.CI
+    ? [['github'], ['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
+    : 'list',
   use: {
     baseURL,
     trace: 'on-first-retry',

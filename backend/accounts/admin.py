@@ -87,7 +87,9 @@ class UserAdmin(DjangoUserAdmin):
         ("Permissions", {"fields": ("role", "email_verified", "is_active", "is_staff", "is_superuser")}),
         ("Important dates", {"fields": ("last_login", "created_at", "updated_at")}),
     )
-    readonly_fields = ("created_at", "updated_at", "last_login")
+    # Staff and superuser flags follow the role. Editing them here could
+    # contradict the role and leave a demoted user with admin rights.
+    readonly_fields = ("created_at", "updated_at", "last_login", "is_staff", "is_superuser")
 
     add_fieldsets = (
         (

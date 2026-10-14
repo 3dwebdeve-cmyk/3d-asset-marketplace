@@ -149,7 +149,7 @@ class MyReviewView(APIView):
             return _error_response(exc)
         if review is None:
             return Response({"detail": "No review found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
-        return Response(ReviewPublicSerializer(review).data)
+        return Response(ReviewPublicSerializer(review, context={"request": request}).data)
 
 
 class ReviewReplyCreateView(APIView):
@@ -275,7 +275,11 @@ class ReviewEligibilityView(APIView):
                 "can_review": True,
                 "can_rate": user_owns_catalog_item(request.user, normalized, product_id),
                 "has_reviewed": existing is not None,
-                "review": ReviewPublicSerializer(existing).data if existing else None,
+                "review": (
+                    ReviewPublicSerializer(existing, context={"request": request}).data
+                    if existing
+                    else None
+                ),
             }
         )
 

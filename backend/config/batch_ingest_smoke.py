@@ -8,6 +8,7 @@ applies happy-path import → QA approve.
 from __future__ import annotations
 
 import csv
+import os
 import re
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -17,7 +18,8 @@ from zipfile import ZipFile
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
+
+from config.storages import get_private_storage
 
 from accounts.models import User
 from categories.models import Category
@@ -129,7 +131,14 @@ class BatchIngestSmokeError(Exception):
 
 
 def fixtures_root() -> Path:
-    """Repo ``docs/fixtures/batch-ingest`` (BASE_DIR is ``backend/``)."""
+    """Fixture folder: ``BATCH_INGEST_FIXTURES_DIR`` or the repo's ``docs/fixtures/batch-ingest``.
+
+    The backend Docker image does not contain ``docs/``, so containers must mount the
+    fixtures and point ``BATCH_INGEST_FIXTURES_DIR`` at them.
+    """
+    override = os.environ.get("BATCH_INGEST_FIXTURES_DIR", "").strip()
+    if override:
+        return Path(override).resolve()
     return Path(settings.BASE_DIR).resolve().parent / "docs" / "fixtures" / "batch-ingest"
 
 
@@ -415,9 +424,12 @@ def _write_package_bytes(storage_path: str) -> None:
     buffer = BytesIO()
     with ZipFile(buffer, "w") as archive:
         archive.writestr("model.glb", b"glTF-binary-batch-ingest-smoke")
-    if default_storage.exists(storage_path):
-        default_storage.delete(storage_path)
-    default_storage.save(storage_path, ContentFile(buffer.getvalue()))
+    # Packages are private objects. Never delete or overwrite an existing one: on a
+    # shared environment that key could hold a real package for this SKU.
+    storage = get_private_storage()
+    if storage.exists(storage_path):
+        return
+    storage.save(storage_path, ContentFile(buffer.getvalue()))
 
 
 def _pick_reviewer() -> User:

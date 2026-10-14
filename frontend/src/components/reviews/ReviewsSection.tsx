@@ -14,6 +14,8 @@ import { useReviews, type ReviewOrdering } from '../../hooks/useReviews'
 import { useAuthStore } from '../../store/authStore'
 import type { ReviewProductType } from '../../types/review'
 import { formatDate } from '../../lib/format'
+import { getApiErrorMessage } from '../../lib/apiError'
+import { toast } from '../../lib/toast'
 import { createReviewReply, toggleReviewReaction, toggleReviewReplyReaction } from '../../api/reviewsApi'
 
 const reviewSchema = z.object({
@@ -90,6 +92,8 @@ export function ReviewsSection({
     try {
       await toggleReviewReaction(reviewId, value)
       await refetch()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Could not update your reaction. Please try again.'))
     } finally {
       setCommentActionPending(false)
     }
@@ -101,6 +105,8 @@ export function ReviewsSection({
     try {
       await toggleReviewReplyReaction(replyId, value)
       await refetch()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Could not update your reaction. Please try again.'))
     } finally {
       setCommentActionPending(false)
     }
@@ -116,6 +122,8 @@ export function ReviewsSection({
       setReplyingTo(null)
       setReplyParentId(null)
       await refetch()
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Could not post your reply. Please try again.'))
     } finally {
       setCommentActionPending(false)
     }
@@ -313,7 +321,7 @@ export function ReviewsSection({
           )}
 
           <FormField
-            label={isHub ? 'Rating' : 'Rating'}
+            label="Rating"
             id="review-rating"
             error={errors.rating?.message}
           >
@@ -428,13 +436,6 @@ export function ReviewsSection({
         <ul className="product-detail-reviews__list">
           {reviews.map((review) => (
             <li key={review.id} className="product-detail-reviews__item">
-              <button
-                type="button"
-                className="product-detail-reviews__more"
-                aria-label="More comment options"
-              >
-                <span aria-hidden="true">⋮</span>
-              </button>
               <div className="product-detail-reviews__item-header">
                 {isHub ? (
                   review.author.avatar ? (
@@ -548,13 +549,6 @@ export function ReviewsSection({
                       key={reply.id}
                       className={reply.parent_id ? 'product-detail-reviews__reply--nested' : undefined}
                     >
-                      <button
-                        type="button"
-                        className="product-detail-reviews__more product-detail-reviews__more--reply"
-                        aria-label="More reply options"
-                      >
-                        <span aria-hidden="true">⋮</span>
-                      </button>
                       {reply.author.avatar ? (
                         <img className="product-detail-reviews__reply-avatar" src={reply.author.avatar} alt="" />
                       ) : (

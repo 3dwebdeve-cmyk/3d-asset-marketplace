@@ -46,7 +46,9 @@ services:
         required: false
     environment:
       DEBUG: "False"
-      DEPLOYMENT_PROFILE: development
+      # Secure by default. Local development sets these in docker-compose.override.yml
+      # (copy docker-compose.override.example.yml).
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-production}
       SKIP_STARTUP_CUTOVER: "True"
       SKIP_STARTUP_MIGRATE: "True"
       DB_HOST: postgres
@@ -71,7 +73,9 @@ services:
         required: false
     environment:
       DEBUG: "False"
-      DEPLOYMENT_PROFILE: development
+      # Secure by default. Local development sets these in docker-compose.override.yml
+      # (copy docker-compose.override.example.yml).
+      DEPLOYMENT_PROFILE: ${DEPLOYMENT_PROFILE:-production}
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: ${DB_NAME:-marketplace}
@@ -81,26 +85,25 @@ services:
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,web,frontend}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8080}
-      # Local Compose uses localhost SPA URLs with DEBUG=False; production must leave this False.
-      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
+      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-False}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
       # SPA console is /console/. Leave True locally; staging/prod: False or IP allowlist.
-      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-True}
+      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-False}
       DJANGO_ADMIN_ALLOWED_IPS: ${DJANGO_ADMIN_ALLOWED_IPS:-}
       # Company/VPN CIDRs for /api/v1/auth/admin/ + /api/v1/admin/ (empty = open locally).
       ADMIN_CONSOLE_ALLOWED_IPS: ${ADMIN_CONSOLE_ALLOWED_IPS:-}
       # Terminate TLS at a reverse proxy / Cloudflare in real prod.
       # See docs/PRODUCTION_CHECKLIST.md for full prod env + rollback policy.
-      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-True}
       # Required when DEBUG=False on a public host (https://… SPA/API origins).
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
       # Set 31536000 after HTTPS works end-to-end; keep 0 only while staging TLS.
-      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-31536000}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
-      # Local Compose defaults to console mail; production must set SMTP + ALLOW_CONSOLE_EMAIL=False.
-      ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-True}
-      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      # SMTP by default; settings switch to the Brevo API when BREVO_API_KEY is set.
+      ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-False}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@3dassetmarketplace.local}
       EMAIL_HOST: ${EMAIL_HOST:-}
       EMAIL_PORT: ${EMAIL_PORT:-587}

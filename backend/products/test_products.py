@@ -308,11 +308,22 @@ class ProductAdminAPITests(APITestCase):
         ProductFile.objects.create(product=self.product, file_name='admin-update.zip', file_format='zip',
                                    file_size=7, storage_path=package_path)
 
-        response = self.client.patch(
+        # Publishing is only through the review queue, so a direct PATCH is refused.
+        direct = self.client.patch(
             self.detail_url,
             {"status": "published", "price": "150.00", "preview_model": "https://example.com/model.glb"},
             format="json",
         )
+        self.assertEqual(direct.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.client.patch(
+            self.detail_url,
+            {"status": "pending_review", "sku": "ADMIN-UPDATE-001", "price": "150.00",
+             "preview_model": "https://example.com/model.glb"},
+            format="json",
+        )
+        approve_url = reverse("products_admin:admin-product-approve", kwargs={"product_id": self.product.pk})
+        response = self.client.post(approve_url, {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.product.refresh_from_db()

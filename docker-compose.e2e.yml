@@ -28,11 +28,24 @@ services:
       ALLOW_LOCALHOST_FRONTEND: "True"
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       SENTRY_DSN: ""
+      # The E2E stack is plain HTTP with console mail, unlike the secure base defaults.
+      SECURE_SSL_REDIRECT: "False"
+      SECURE_HSTS_SECONDS: "0"
+      ALLOW_CONSOLE_EMAIL: "True"
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      DJANGO_ADMIN_ENABLED: "True"
 
   # worker extends the base web service, so it does not inherit web's overrides above.
   worker:
     environment:
       DEPLOYMENT_PROFILE: test
+      ALLOW_LOCALHOST_FRONTEND: "True"
+      # The E2E stack is plain HTTP with console mail, unlike the secure base defaults.
+      SECURE_SSL_REDIRECT: "False"
+      SECURE_HSTS_SECONDS: "0"
+      ALLOW_CONSOLE_EMAIL: "True"
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      DJANGO_ADMIN_ENABLED: "True"
 
   frontend:
     environment: {}

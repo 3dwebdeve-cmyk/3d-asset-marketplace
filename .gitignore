@@ -52,8 +52,12 @@ CODE_REVIEWER.md
 ARCHITECT_REVIEWER.md
 IMPLEMENTATION_ROADMAP.md
 
-# All Markdown docs stay local (not pushed to remote)
+# Markdown stays local by default (agent standards, MANUAL_STEPS.md, notes).
 *.md
+# Project documentation is versioned: runbooks under docs/ and the root status files.
+!docs/**/*.md
+!/README.md
+!/PROJECT_STATUS.md
 
 # Explicit env files (belt-and-suspenders; .env already covers these)
 backend/.env
@@ -64,3 +68,6 @@ backend/.env.local
 
 
 backend/.meili_docker.env
+
+# Local Compose overrides (copy docker-compose.override.example.yml). Never on servers.
+docker-compose.override.yml

@@ -6,29 +6,26 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.core import mail
-from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase, override_settings
 
+from config.settings_guard_testing import import_settings
+
 
 class ConsoleEmailGuardTests(SimpleTestCase):
+    """Imports the real settings module, so a change to the guard is caught."""
+
+    console = "django.core.mail.backends.console.EmailBackend"
+
     def test_settings_refuse_console_when_debug_false_without_allow(self) -> None:
-        """Mirror settings.py Phase A3 guard (same contract as test_health)."""
-        debug = False
-        running_tests = False
-        email_backend = "django.core.mail.backends.console.EmailBackend"
-        allow_console_email = False
-        with self.assertRaises(ImproperlyConfigured):
-            if (
-                not debug
-                and not running_tests
-                and "console" in email_backend.lower()
-                and not allow_console_email
-            ):
-                raise ImproperlyConfigured(
-                    "EMAIL_BACKEND must not use the console backend when DEBUG=False."
-                )
+        result = import_settings(EMAIL_BACKEND=self.console, ALLOW_CONSOLE_EMAIL="False")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must not use the console backend", result.stderr)
+
+    def test_settings_allow_console_when_explicitly_permitted(self) -> None:
+        result = import_settings(EMAIL_BACKEND=self.console, ALLOW_CONSOLE_EMAIL="True")
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 @override_settings(
