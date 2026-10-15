@@ -177,8 +177,11 @@ class AuthenticationService:
         """Authenticate credentials and require a non-administrator (customer) account."""
         user = cls.authenticate_user(data)
         if cls.is_administrator(user):
+            # Same answer as a wrong password: the public login must not confirm an
+            # admin password from outside the admin IP allowlist.
             raise AuthenticationError(
-                "Administrators must use the admin sign-in page."
+                "Invalid email or password.",
+                code="invalid_credentials",
             )
         if not user.email_verified:
             raise AuthenticationError(
@@ -194,12 +197,18 @@ class AuthenticationService:
         role = getattr(user, "role", None)
         return role is not None and role.role_name == cls.ADMINISTRATOR_ROLE
 
-    @staticmethod
-    def build_tokens(user: User) -> dict[str, str]:
-        refresh = VersionedRefreshToken.for_user(user)
+    @classmethod
+    def build_tokens(
+        cls, user: User, *, auth_time: int | None = None, mfa: bool = False
+    ) -> dict[str, str]:
+        """Issue a session. ``auth_time`` carries the original sign-in through refreshes."""
+        refresh = VersionedRefreshToken.for_user(user, auth_time=auth_time, mfa=mfa)
+        is_admin = cls.is_administrator(user)
+        if is_admin:
+            refresh.cap_to_admin_session()
         return {
             "refresh": str(refresh),
-            "access": access_token_with_version(refresh),
+            "access": access_token_with_version(refresh, admin=is_admin),
         }
 
     @staticmethod

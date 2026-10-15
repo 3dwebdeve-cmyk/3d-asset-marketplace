@@ -246,3 +246,26 @@ def capture_webhook_failure(
             sentry_sdk.capture_exception(exc)
         else:
             sentry_sdk.capture_message(message, level=level)
+
+
+def capture_download_spike(*, user_id: str, links_last_hour: int) -> None:
+    """Alert when one account requests unusually many download links (scraping signal)."""
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("area", "downloads")
+        scope.set_tag("downloads.alert", "hourly_spike")
+        # Pseudonymous account ID only; the email stays out of Sentry.
+        scope.set_extra("user_id", user_id)
+        scope.set_extra("links_last_hour", links_last_hour)
+        scope.fingerprint = ["downloads-hourly-spike", user_id]
+        sentry_sdk.capture_message("Download link spike for one account", level="warning")
+
+
+def capture_payment_mismatch(*, mismatches: int, days: int) -> None:
+    """Alert when the daily Stripe comparison finds records that disagree."""
+    with sentry_sdk.new_scope() as scope:
+        scope.set_tag("area", "payments_reconciliation")
+        # Counts only; order and payment IDs stay in the maintenance log.
+        scope.set_extra("mismatches", mismatches)
+        scope.set_extra("days", days)
+        scope.fingerprint = ["payments-stripe-reconciliation"]
+        sentry_sdk.capture_message("Stripe and local payment records disagree", level="error")

@@ -73,6 +73,8 @@ class ValidatedProductFileUpload:
     extension: str
     mime_type: str
     file_format: str
+    # Triangles in a GLB/glTF preview; None for other formats.
+    triangle_count: int | None = None
 
 
 def _normalize_extension(filename: str) -> str:
@@ -234,10 +236,11 @@ def validate_product_file_upload(uploaded: UploadedFile) -> ValidatedProductFile
     file_format = _EXTENSION_TO_FORMAT[extension]
     from config.upload_security import inspect_product_content
 
-    inspect_product_content(uploaded, extension)
+    triangle_count = inspect_product_content(uploaded, extension)
     return ValidatedProductFileUpload(
         file=uploaded,
         extension=extension,
         mime_type=declared_mime,
         file_format=file_format,
+        triangle_count=triangle_count,
     )

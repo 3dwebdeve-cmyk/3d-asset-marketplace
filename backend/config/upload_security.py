@@ -36,9 +36,31 @@ def scan_upload(uploaded):
         uploaded.seek(0)
 
 
+def gltf_triangle_count(document):
+    """Triangles drawn by every mesh primitive (instanced meshes counted once)."""
+    accessors = document.get("accessors") or []
+    total = 0
+    for mesh in document.get("meshes") or []:
+        for primitive in mesh.get("primitives") or []:
+            accessor_index = primitive.get("indices")
+            if accessor_index is None:
+                accessor_index = (primitive.get("attributes") or {}).get("POSITION")
+            if accessor_index is None:
+                continue
+            count = int(accessors[accessor_index]["count"])
+            mode = primitive.get("mode", 4)
+            if mode == 4:  # TRIANGLES
+                total += count // 3
+            elif mode in (5, 6):  # TRIANGLE_STRIP, TRIANGLE_FAN
+                total += max(count - 2, 0)
+    return total
+
+
 def inspect_product_content(uploaded, extension):
+    """Validate content against its extension. Returns the triangle count for glTF."""
     from plugins.upload_rules import _validate_zip_metadata, validate_plugin_file_upload
 
+    triangles = None
     try:
         uploaded.seek(0)
         header = uploaded.read(32)
@@ -75,6 +97,7 @@ def inspect_product_content(uploaded, extension):
                 path = PurePosixPath(uri.replace("\\", "/"))
                 if uri and not uri.startswith("data:") and (":" in uri or path.is_absolute() or ".." in path.parts or uri.startswith("//")):
                     raise ValueError()
+            triangles = gltf_triangle_count(document)
         elif extension == ".blend":
             if not header.startswith(b"BLENDER"):
                 raise ValueError()
@@ -86,7 +109,8 @@ def inspect_product_content(uploaded, extension):
             if not any(line.strip().startswith("v ") for line in text.splitlines()):
                 raise ValueError()
         scan_upload(uploaded)
-    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError, struct.error, RecursionError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError, UnicodeError, struct.error, RecursionError) as exc:
         raise ValidationError({"file": "File content is invalid or does not match its format."}) from exc
     finally:
         uploaded.seek(0)
+    return triangles

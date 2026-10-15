@@ -64,6 +64,7 @@ const paidOrder: CustomerOrder = {
       quantity: 1,
       purchase_price: '39.99',
       line_total: '39.99',
+      license_code: null,
       can_download: true,
       files: [
         {

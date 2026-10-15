@@ -4,8 +4,37 @@
 #
 # Requires a real .env with secrets. Do not use local console-email / open-admin defaults.
 
+# Container hardening: an attacker who gets code execution cannot change the image,
+# gain privileges, or keep files anywhere except tmpfs and the media volume.
+x-hardened-app: &hardened_app
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    # Request bodies over FILE_UPLOAD_MAX_MEMORY_SIZE (5 MB) are buffered here.
+    - /tmp:size=512m,mode=1777
+
 services:
+  migrate:
+    <<: *hardened_app
+
+  postgres:
+    # The image entrypoint needs root capabilities to drop to the postgres user.
+    security_opt: ["no-new-privileges:true"]
+
+  frontend:
+    read_only: true
+    cap_drop: [ALL]
+    # nginx starts as root to bind port 80, then switches to the nginx user.
+    cap_add: [CHOWN, NET_BIND_SERVICE, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+
   web:
+    <<: *hardened_app
     environment: &production_environment
       DEPLOYMENT_PROFILE: production
       DEBUG: "False"
@@ -25,6 +54,7 @@ services:
       PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?Set PUBLIC_API_BASE_URL}
 
   worker:
+    <<: *hardened_app
     environment:
       <<: *production_environment
       SKIP_STARTUP_MIGRATE: "True"

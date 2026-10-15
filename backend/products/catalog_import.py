@@ -4,22 +4,29 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from botocore.exceptions import BotoCoreError, ClientError
+from django.core.exceptions import SuspiciousFileOperation, ValidationError
+from django.core.files.base import ContentFile
 from django.db import transaction
 
 from categories.models import Category
 from config.media import media_relative_path
-from config.storages import build_public_media_url
+from config.storages import build_public_media_url, get_public_storage
+from config.upload_security import inspect_product_content
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 from products.services import (
     ProductCreateData,
     ProductError,
     ProductService,
     ProductUpdateData,
+    preview_reduction_error,
 )
+from products.upload_rules import PRODUCT_PREVIEW_MAX_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +34,7 @@ _GLB_CHECKSUM_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 _QA_READY = frozenset({"Ready for QA", "Approved"})
 _EXPORT_SUCCESS = "Success"
 _PACKAGEABLE_EXPORTS = ("fbx", "obj", "max")
+_STORAGE_ERRORS = (OSError, ValueError, SuspiciousFileOperation, BotoCoreError, ClientError)
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
@@ -203,6 +211,11 @@ class CatalogImportService:
                 )
 
         try:
+            media_pointers = cls._secure_preview(sku, item, media_pointers, existing)
+        except ProductError as exc:
+            return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.message)
+
+        try:
             with transaction.atomic():
                 if existing is None:
                     product = cls._create_product(
@@ -225,15 +238,20 @@ class CatalogImportService:
                         media_pointers=media_pointers,
                     )
                     action = "updated"
+                if product.preview_triangle_count != media_pointers["preview_triangle_count"]:
+                    product.preview_triangle_count = media_pointers["preview_triangle_count"]
+                    product.save(update_fields=["preview_triangle_count", "updated_at"])
                 cls._sync_gallery(product, media_pointers["gallery_urls"])
                 cls._sync_package(product, media_pointers)
         except ProductError as exc:
+            cls._delete_preview_object(media_pointers["new_preview_key"])
             return CatalogImportRowResult(
                 model_id=sku,
                 action="failed",
                 reason=exc.field or "product_error",
             )
         except Exception:
+            cls._delete_preview_object(media_pointers["new_preview_key"])
             logger.exception(
                 "catalog_import_row_failed model_id=%s batch_id=%s",
                 sku,
@@ -244,6 +262,8 @@ class CatalogImportService:
                 action="failed",
                 reason="internal_error",
             )
+
+        cls._delete_preview_object(media_pointers["replaced_preview_key"])
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -406,6 +426,9 @@ class CatalogImportService:
         package_key: str | None = None
         if package_key_raw:
             package_key = cls._normalize_object_key(package_key_raw, sku=sku)
+            # Storage treats every other name under models/<sku>/ as public.
+            if package_key != f"models/{sku}/package.zip":
+                raise ProductError("invalid_object_key", field="package_key")
 
         gallery_urls: list[str] = []
         for raw in media.get("gallery_keys") or []:
@@ -416,6 +439,7 @@ class CatalogImportService:
 
         return {
             "thumbnail_url": build_public_media_url(thumbnail_key),
+            "preview_key": preview_key,
             "preview_url": build_public_media_url(preview_key),
             "package_key": package_key,
             "package_file_name": str(media.get("package_file_name") or "package.zip").strip()
@@ -428,6 +452,98 @@ class CatalogImportService:
             "has_preview": True,
             "has_package": package_key is not None,
         }
+
+    @classmethod
+    def _secure_preview(
+        cls,
+        sku: str,
+        item: dict[str, Any],
+        media_pointers: dict[str, Any],
+        existing: Product | None,
+    ) -> dict[str, Any]:
+        """Measure the pipeline's preview and move it to an unguessable public key.
+
+        The pipeline uploads ``models/<sku>/preview.glb``, a name anyone can guess for
+        any SKU, including unreleased drafts. A rejected source is removed too, so it
+        does not stay public under the predictable name.
+        """
+        source_key = media_pointers["preview_key"]
+        pointers = {**media_pointers, "new_preview_key": None, "replaced_preview_key": None}
+        if not source_key.lower().endswith(".glb"):
+            raise ProductError("invalid_preview_format", field="preview_key")
+
+        storage = get_public_storage()
+        try:
+            source_exists = storage.exists(source_key)
+        except _STORAGE_ERRORS:
+            logger.exception("catalog_import_preview_unreadable model_id=%s", sku)
+            raise ProductError("preview_unreadable", field="preview_key") from None
+
+        if not source_exists:
+            # A re-import may skip the upload and keep the preview already secured.
+            if (
+                existing is not None
+                and existing.preview_model
+                and existing.preview_triangle_count is not None
+            ):
+                pointers["preview_url"] = existing.preview_model
+                pointers["preview_triangle_count"] = existing.preview_triangle_count
+                return pointers
+            raise ProductError("missing_preview_object", field="preview_key")
+
+        try:
+            too_large = storage.size(source_key) > PRODUCT_PREVIEW_MAX_BYTES
+            data = b""
+            if not too_large:
+                with storage.open(source_key, "rb") as handle:
+                    data = handle.read()
+        except _STORAGE_ERRORS:
+            logger.exception("catalog_import_preview_unreadable model_id=%s", sku)
+            raise ProductError("preview_unreadable", field="preview_key") from None
+        if too_large:
+            cls._delete_preview_object(source_key)
+            raise ProductError("preview_too_large", field="preview_key")
+
+        try:
+            triangles = inspect_product_content(ContentFile(data, name="preview.glb"), ".glb")
+        except ValidationError:
+            cls._delete_preview_object(source_key)
+            raise ProductError("invalid_preview", field="preview_key") from None
+
+        polygon_count = item.get("polygon_count")
+        if preview_reduction_error(triangles, int(polygon_count) if polygon_count else None):
+            cls._delete_preview_object(source_key)
+            raise ProductError("preview_not_reduced", field="preview_key")
+
+        try:
+            new_key = storage.save(
+                f"models/{sku}/preview-{uuid.uuid4().hex}.glb", ContentFile(data)
+            )
+        except _STORAGE_ERRORS:
+            logger.exception("catalog_import_preview_store_failed model_id=%s", sku)
+            raise ProductError("preview_unreadable", field="preview_key") from None
+        cls._delete_preview_object(source_key)
+
+        pointers.update(
+            preview_key=new_key,
+            preview_url=build_public_media_url(new_key),
+            preview_triangle_count=triangles,
+            new_preview_key=new_key,
+        )
+        if existing is not None and existing.preview_model:
+            previous = media_relative_path(existing.preview_model)
+            if previous and previous != new_key and previous.startswith(f"models/{sku}/preview-"):
+                pointers["replaced_preview_key"] = previous
+        return pointers
+
+    @staticmethod
+    def _delete_preview_object(key: str | None) -> None:
+        if not key:
+            return
+        try:
+            get_public_storage().delete(key)
+        except _STORAGE_ERRORS:
+            logger.exception("catalog_import_preview_delete_failed key=%s", key)
 
     @classmethod
     def _create_product(

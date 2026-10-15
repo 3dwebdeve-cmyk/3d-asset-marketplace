@@ -12,6 +12,7 @@
 #
 # Usage (from repo root):
 #   ./backend/scripts/restore_postgres_drill.sh ./backups/marketplace-YYYYMMDDTHHMMSSZ.dump
+#   BACKUP_AGE_IDENTITY=~/offline-key.txt ./backend/scripts/restore_postgres_drill.sh ./backups/….dump.age
 #   RESTORE_DRILL_MODE=local ./backend/scripts/restore_postgres_drill.sh ./backups/….dump
 #
 # Optional (docker mode):
@@ -63,6 +64,32 @@ load_dotenv() {
 load_dotenv "$ROOT_DIR/.env"
 load_dotenv "$ROOT_DIR/backend/.env"
 
+# Encrypted dumps (.age) are decrypted into a private temp directory for the drill only.
+DECRYPTED_DIR=""
+remove_decrypted() {
+  if [[ -n "$DECRYPTED_DIR" ]]; then
+    rm -rf "$DECRYPTED_DIR"
+  fi
+}
+trap remove_decrypted EXIT
+
+if [[ "$DUMP_PATH" == *.age ]]; then
+  IDENTITY="${BACKUP_AGE_IDENTITY:-}"
+  if [[ -z "$IDENTITY" || ! -f "$IDENTITY" ]]; then
+    echo "restore_postgres_drill: set BACKUP_AGE_IDENTITY to the offline age key file" >&2
+    exit 1
+  fi
+  if ! command -v age >/dev/null 2>&1; then
+    echo "restore_postgres_drill: 'age' is not installed (apt install age)" >&2
+    exit 1
+  fi
+  DECRYPTED_DIR="$(mktemp -d)"
+  chmod 700 "$DECRYPTED_DIR"
+  age -d -i "$IDENTITY" -o "$DECRYPTED_DIR/restore.dump" "$DUMP_PATH"
+  DUMP_PATH="$DECRYPTED_DIR/restore.dump"
+  echo "restore_postgres_drill: decrypted to a private temp file (removed on exit)"
+fi
+
 docker_usable() {
   command -v docker >/dev/null 2>&1 || return 1
   docker info >/dev/null 2>&1
@@ -106,6 +133,7 @@ run_docker_drill() {
   cleanup_docker() {
     docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
     docker volume rm -f "$VOLUME" >/dev/null 2>&1 || true
+    remove_decrypted
   }
   trap cleanup_docker EXIT
 
@@ -183,6 +211,7 @@ run_local_drill() {
   export PGPASSWORD="${DB_PASSWORD:-}"
 
   cleanup_local() {
+    remove_decrypted
     local drill_db="${RESTORE_DRILL_LOCAL_DB:-}"
     local conn_host="${RESTORE_DRILL_CONN_HOST:-localhost}"
     local conn_port="${RESTORE_DRILL_CONN_PORT:-5432}"

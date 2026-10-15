@@ -36,7 +36,7 @@ _LOCAL_HOST_NAMES = frozenset(
         "localhost",
         "127.0.0.1",
         "::1",
-        "0.0.0.0",
+        "0.0.0.0",  # nosec B104 - a host this check rejects, not a bind address
         "web",
         "frontend",
     }

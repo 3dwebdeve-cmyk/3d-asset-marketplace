@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from decimal import Decimal
 from io import BytesIO
 from zipfile import ZipFile
@@ -9,6 +10,7 @@ from zipfile import ZipFile
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -17,8 +19,10 @@ from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
+from products.testing import make_glb_bytes, put_pipeline_previews
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class ProductQAWorkflowAPITests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -80,6 +84,7 @@ class ProductQAWorkflowAPITests(APITestCase):
         default_storage.save(storage_path, ContentFile(buffer.getvalue()))
 
     def _import_happy_product(self, *, with_package_object: bool = True) -> Product:
+        put_pipeline_previews([_happy_item()])
         response = self.client.post(
             self.import_url,
             {
@@ -190,6 +195,9 @@ class ProductQAWorkflowAPITests(APITestCase):
 
     def test_approve_blocked_when_package_object_missing(self) -> None:
         self._authenticate_as_admin()
+        default_storage.save(
+            "models/MDL-MISS-01/preview.glb", ContentFile(make_glb_bytes(100))
+        )
         response = self.client.post(
             self.import_url,
             {

@@ -34,6 +34,11 @@ services:
       ALLOW_CONSOLE_EMAIL: "True"
       EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
       DJANGO_ADMIN_ENABLED: "True"
+      # Browser E2E signs the seeded admin in with a password. Allowed only on the
+      # test/development profiles; backend tests cover the two-factor flow.
+      ADMIN_MFA_REQUIRED: "False"
+      # CI must not depend on haveibeenpwned.com.
+      PASSWORD_BREACH_CHECK: "False"
 
   # worker extends the base web service, so it does not inherit web's overrides above.
   worker:

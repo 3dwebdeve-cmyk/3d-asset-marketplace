@@ -5,6 +5,7 @@ from django.urls import include, path
 from config.health import HealthzView
 from config.openapi import GatedSpectacularAPIView, GatedSpectacularSwaggerView
 from config.security_reports import CspReportView
+from orders.views import LicenseVerifyView
 
 urlpatterns = [
     path("healthz/", HealthzView.as_view(), name="healthz"),
@@ -26,6 +27,7 @@ urlpatterns = [
     path("admin/plugins/", include("plugins.admin_urls")),
     path("admin/plugin-categories/", include("plugins.admin_category_urls")),
     path("orders/", include("orders.urls")),
+    path("licenses/<str:code>/", LicenseVerifyView.as_view(), name="license-verify"),
     path("admin/orders/", include("orders.admin_urls")),
     path("admin/payments/", include("payments.admin_urls")),
     path("admin/dashboard/", include("analytics.admin_urls")),

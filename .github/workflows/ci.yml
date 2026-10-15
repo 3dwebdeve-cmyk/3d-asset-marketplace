@@ -55,6 +55,23 @@ jobs:
         run: |
           pip install pip-audit
           pip-audit -r requirements.txt
+      - name: Static security scan (bandit)
+        # Fails on medium or high findings, and also when any file could not be
+        # scanned: bandit exits 0 after skipping files it fails to parse.
+        run: |
+          pip install bandit==1.9.4
+          bandit -r . -x ./.venv,./media,./staticfiles --severity-level medium -q -f json -o /tmp/bandit.json || true
+          python - <<'EOF'
+          import json, sys
+          report = json.load(open("/tmp/bandit.json"))
+          for error in report["errors"]:
+              print(f"bandit could not scan {error['filename']}: {error['reason']}")
+          for issue in report["results"]:
+              print(f"{issue['filename']}:{issue['line_number']} {issue['test_id']} "
+                    f"{issue['issue_severity']} {issue['issue_text']}")
+          print(f"bandit scanned {report['metrics']['_totals']['loc']} lines")
+          sys.exit(1 if report["errors"] or report["results"] else 0)
+          EOF
       - name: Write test env
         run: |
           printf '%s\n' \

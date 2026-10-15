@@ -20,6 +20,24 @@ from products.upload_rules import (
     validate_product_image_upload,
 )
 
+# A public preview may draw at most this share of the model's polygon count, so the
+# file anyone can fetch from the product page is a reduced model, not the product.
+PREVIEW_MAX_POLYGON_SHARE = 0.5
+
+
+def preview_reduction_error(triangles: int | None, polygon_count: int | None) -> str | None:
+    """Why a preview is too detailed to be public, or None. Unknown counts pass."""
+    if not triangles or not polygon_count:
+        return None
+    limit = int(polygon_count * PREVIEW_MAX_POLYGON_SHARE)
+    if triangles <= limit:
+        return None
+    return (
+        f"Preview has {triangles} triangles; the limit is {limit} "
+        f"(half of the model's {polygon_count} polygons). Upload a reduced preview."
+    )
+
+
 class ProductError(Exception):
     def __init__(
         self,
@@ -537,6 +555,16 @@ class ProductService:
 
         if not (product.preview_model or "").strip():
             errors["preview_model"] = ["Preview model is required before publish."]
+        elif product.polygon_count and product.preview_triangle_count is None:
+            errors["preview_model"] = [
+                "Preview has not been measured. Upload the reduced preview again."
+            ]
+        else:
+            reduction_error = preview_reduction_error(
+                product.preview_triangle_count, product.polygon_count
+            )
+            if reduction_error:
+                errors["preview_model"] = [reduction_error]
 
         if errors:
             raise ProductError(
@@ -708,6 +736,12 @@ class ProductService:
         use_public_preview = validated.file_format in {"glb", "gltf"}
         effective_is_preview = True if use_public_preview else is_preview
         if use_public_preview:
+            reduction_error = preview_reduction_error(
+                validated.triangle_count, product.polygon_count
+            )
+            if reduction_error:
+                raise ProductError(reduction_error, field="file")
+        if use_public_preview:
             storage_path = ProductMediaStorageService.save_preview(
                 str(product.pk),
                 validated.file,
@@ -733,7 +767,8 @@ class ProductService:
 
         if use_public_preview:
             product.preview_model = storage_path
-            product.save(update_fields=["preview_model", "updated_at"])
+            product.preview_triangle_count = validated.triangle_count
+            product.save(update_fields=["preview_model", "preview_triangle_count", "updated_at"])
 
         return product_file
 
@@ -769,7 +804,9 @@ class ProductService:
                 .first()
             )
             product.preview_model = replacement.storage_path if replacement else ""
-            product.save(update_fields=["preview_model", "updated_at"])
+            # The replacement was not measured when stored; the approve gate cannot check it.
+            product.preview_triangle_count = None
+            product.save(update_fields=["preview_model", "preview_triangle_count", "updated_at"])
 
     @staticmethod
     def _resolve_ordering(ordering: str | None) -> str:

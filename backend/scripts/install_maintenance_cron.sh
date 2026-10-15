@@ -7,7 +7,7 @@ SCHEDULE="${MAINTENANCE_CRON_SCHEDULE:-35 2 * * *}"
 LOG_FILE="${MAINTENANCE_CRON_LOG:-$ROOT/maintenance.log}"
 MARKER="# marketplace-phase3-maintenance"
 COMPOSE_FILES="${COMPOSE_FILE:-docker-compose.yml}"
-LINE="$SCHEDULE (cd '$ROOT' && export COMPOSE_FILE='$COMPOSE_FILES' && docker compose exec -T web python manage.py prune_expired_records --execute && docker compose exec -T worker python manage.py manage_background_jobs prune --older-than-days 30 --execute && docker compose exec -T worker python manage.py check_background_jobs && docker compose exec -T web python manage.py check_payment_reconciliation && docker compose exec -T web python manage.py check_package_scanner --check-signatures && docker compose exec -T web python manage.py check_capacity && ./backend/scripts/check_backup_freshness.sh) >> '$LOG_FILE' 2>&1 || echo 'marketplace maintenance failed; inspect log' $MARKER"
+LINE="$SCHEDULE (cd '$ROOT' && export COMPOSE_FILE='$COMPOSE_FILES' && docker compose exec -T web python manage.py prune_expired_records --execute && docker compose exec -T worker python manage.py manage_background_jobs prune --older-than-days 30 --execute && docker compose exec -T worker python manage.py check_background_jobs && docker compose exec -T web python manage.py check_payment_reconciliation && docker compose exec -T web python manage.py reconcile_stripe_payments && docker compose exec -T web python manage.py check_package_scanner --check-signatures && docker compose exec -T web python manage.py check_capacity && ./backend/scripts/check_backup_freshness.sh) >> '$LOG_FILE' 2>&1 || echo 'marketplace maintenance failed; inspect log' $MARKER"
 
 if [[ "${INSTALL_MAINTENANCE_CRON_DRY_RUN:-0}" == "1" ]]; then
   echo "$LINE"
