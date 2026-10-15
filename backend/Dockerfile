@@ -1,7 +1,7 @@
 # Production API image: Python 3.12 → Gunicorn (DEBUG=False baked in).
 # Secrets and host-specific settings come from the process environment only.
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
