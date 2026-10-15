@@ -5,18 +5,25 @@ from django.db import transaction
 from django.http import FileResponse
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminOrderWriteRateThrottle
+from accounts.throttles import AdminOrderWriteRateThrottle, LicenseVerifyRateThrottle
 from config.api_helpers import domain_error_response, parse_choice, parse_uuid
 from downloads.services import DownloadService
 from orders.entitlements import order_allows_download
 from orders.invoice import build_invoice_pdf, invoice_pdf_filename
+from orders.license import (
+    LicenseError,
+    build_license_pdf,
+    issue_license,
+    license_pdf_filename,
+    verify_license,
+)
 from orders.models import Order
 from orders.pagination import OrderPagination
 from orders.serializers import (
@@ -245,3 +252,43 @@ class AdminOrderInvoiceView(APIView):
         except OrderError as exc:
             raise NotFound(detail=exc.message) from exc
         return _invoice_file_response(order)
+
+
+class CustomerOrderItemLicenseView(APIView):
+    """License certificate PDF for one line of the buyer's own paid order."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, order_id: UUID, item_id: UUID) -> FileResponse:
+        try:
+            order = OrderService.get_for_user(order_id, request.user)
+        except OrderError as exc:
+            raise NotFound(detail=exc.message) from exc
+        item = order.items.filter(pk=item_id).first()
+        if item is None:
+            raise NotFound(detail="Order item not found.")
+        item.order = order
+        try:
+            item = issue_license(item)
+        except LicenseError as exc:
+            raise PermissionDenied(detail=str(exc)) from exc
+        return FileResponse(
+            BytesIO(build_license_pdf(order, item)),
+            as_attachment=True,
+            filename=license_pdf_filename(item),
+            content_type="application/pdf",
+        )
+
+
+class LicenseVerifyView(APIView):
+    """Public check of a license code. Returns no buyer data."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [LicenseVerifyRateThrottle]
+
+    def get(self, request: Request, code: str) -> Response:
+        result = verify_license(code)
+        if result is None:
+            raise NotFound(detail="License not found.")
+        return Response(result)

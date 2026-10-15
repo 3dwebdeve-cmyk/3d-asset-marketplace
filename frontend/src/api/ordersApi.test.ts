@@ -5,6 +5,7 @@ import {
   createAdminOrder,
   downloadAdminOrderInvoice,
   downloadCustomerOrderInvoice,
+  downloadOrderItemLicense,
   getAdminOrder,
   getCustomerOrder,
   listAdminOrders,
@@ -45,6 +46,7 @@ const sampleOrder: AdminOrder = {
       quantity: 2,
       purchase_price: '29.99',
       line_total: '59.98',
+      license_code: null,
       created_at: '2026-07-28T00:00:00Z',
       updated_at: '2026-07-28T00:00:00Z',
     },
@@ -230,5 +232,24 @@ describe('ordersApi', () => {
     })
     expect(click).toHaveBeenCalled()
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:admin-invoice')
+  })
+
+  it('downloads an order item license certificate as a blob', async () => {
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:license'), revokeObjectURL })
+    const anchor = { click: vi.fn(), href: '', download: '' }
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor as unknown as HTMLAnchorElement)
+    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['%PDF']) })
+    const itemId = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
+
+    await downloadOrderItemLicense(orderId, itemId, 'license-INV-1-chair.pdf')
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      `/api/v1/orders/${orderId}/items/${itemId}/license/`,
+      { responseType: 'blob' },
+    )
+    expect(anchor.download).toBe('license-INV-1-chair.pdf')
+    expect(anchor.click).toHaveBeenCalled()
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:license')
   })
 })

@@ -63,6 +63,24 @@ class PaymentModeGateTests(SimpleTestCase):
         s3.copy_object.assert_called_once()
         s3.head_object.assert_called_once()
 
+    def test_object_backup_refuses_the_app_key(self):
+        path = Path(__file__).resolve().parents[1] / "scripts" / "object_backup_drill.py"
+        spec = importlib.util.spec_from_file_location("object_backup_drill_keys", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for env in (
+            {"R2_ACCESS_KEY_ID": "app-key", "R2_BACKUP_ACCESS_KEY_ID": "app-key",
+             "R2_BACKUP_SECRET_ACCESS_KEY": "s"},
+            {"R2_ACCESS_KEY_ID": "app-key"},
+        ):
+            with self.subTest(env=sorted(env)), patch.dict(os.environ, env, clear=True):
+                with self.assertRaises(SystemExit):
+                    module.backup_credentials()
+        with patch.dict(os.environ, {"R2_ACCESS_KEY_ID": "app-key",
+                                     "R2_BACKUP_ACCESS_KEY_ID": "backup-key",
+                                     "R2_BACKUP_SECRET_ACCESS_KEY": "s"}, clear=True):
+            self.assertEqual(module.backup_credentials(), ("backup-key", "s"))
+
 
 class RetentionTests(TestCase):
     def test_cleanup_dry_run_then_deletes_only_expired_rows(self):

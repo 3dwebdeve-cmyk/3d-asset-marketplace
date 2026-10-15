@@ -154,8 +154,11 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
             payload["attachment"] = attachments
 
         data = json.dumps(payload).encode("utf-8")
+        api_url = getattr(settings, "BREVO_API_URL", BREVO_SMTP_EMAIL_URL)
+        if not str(api_url).startswith("https://"):
+            raise BrevoAPIError("BREVO_API_URL must be an https:// URL.")
         request = Request(
-            getattr(settings, "BREVO_API_URL", BREVO_SMTP_EMAIL_URL),
+            api_url,
             data=data,
             method="POST",
             headers={
@@ -166,7 +169,7 @@ class BrevoAPIEmailBackend(BaseEmailBackend):
         )
         try:
             timeout = int(getattr(settings, "BREVO_API_TIMEOUT_SECONDS", 15))
-            with urlopen(request, timeout=timeout) as response:
+            with urlopen(request, timeout=timeout) as response:  # nosec B310 - https checked above
                 status = getattr(response, "status", 200)
                 raw = response.read()
         except HTTPError as exc:

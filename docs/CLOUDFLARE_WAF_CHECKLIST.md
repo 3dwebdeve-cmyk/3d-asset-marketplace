@@ -9,6 +9,8 @@ The app keeps its own rate limits as a second layer; Cloudflare is the first.
 3. Add rate-limiting rules for `/api/v1/auth/` (login, register, password reset) and
    `/api/v1/payments/checkout/`.
 4. Lock the origin so it is reachable only from Cloudflare (see `PRODUCTION_CHECKLIST.md`).
+5. Tunnel, Access for the admin console, and TLS/HSTS: `CLOUDFLARE_ACCESS_AND_TUNNEL.md`.
+   Stripe fraud rules: `STRIPE_RADAR.md`.
 
 ## App-side check
 

@@ -17,7 +17,6 @@ from config.storages import (
     call_with_storage_retries,
     content_disposition_filename,
     generate_private_presigned_url,
-    generate_public_presigned_url,
     get_private_storage,
     get_public_storage,
     signed_url_expiry_seconds,
@@ -37,7 +36,6 @@ PUBLIC_MEDIA_PREFIXES = (
     "plugins/images/",
     "avatars/",
 )
-PRODUCT_PREVIEW_PREFIX = "products/previews/"
 # Feature 16 public objects live under models/{Model_ID}/; package.zip stays private.
 BATCH_PUBLIC_PREFIX = "models/"
 BATCH_PRIVATE_FILENAMES = frozenset({"package.zip"})
@@ -176,55 +174,6 @@ def resolve_private_download(
             )
         except (BotoCoreError, ClientError, OSError, ValueError, RuntimeError):
             logger.exception("r2_presign_failed key=%s", relative)
-            raise PrivateFileNotFound() from None
-        return {
-            "download_url": download_url,
-            "expires_in": signed_url_expiry_seconds(),
-            "file_name": file_name,
-        }
-
-    try:
-        response = open_stored_file(storage_path)
-    except Http404 as exc:
-        raise PrivateFileNotFound() from exc
-    response["Content-Disposition"] = (
-        f'attachment; filename="{content_disposition_filename(file_name)}"'
-    )
-    return response
-
-
-def public_r2_object_exists(relative: str) -> bool:
-    if not getattr(settings, "R2_ENABLED", False):
-        return False
-    try:
-        return bool(
-            call_with_storage_retries(lambda: get_public_storage().exists(relative))
-        )
-    except (OSError, SuspiciousFileOperation, ValueError, BotoCoreError, ClientError):
-        return False
-
-
-def resolve_preview_download(
-    storage_path: str,
-    *,
-    file_name: str,
-) -> FileResponse | dict[str, Any]:
-    """Owner download of a product GLB/glTF preview; restricted to the preview prefix."""
-    relative = media_relative_path(storage_path)
-    if relative is None or not relative.startswith(PRODUCT_PREVIEW_PREFIX):
-        raise PrivateFileNotFound()
-
-    use_signed = public_r2_object_exists(relative)
-    if not use_signed and not local_object_exists(relative):
-        raise PrivateFileNotFound()
-
-    if use_signed:
-        try:
-            download_url = call_with_storage_retries(
-                lambda: generate_public_presigned_url(relative, file_name=file_name)
-            )
-        except (BotoCoreError, ClientError, OSError, ValueError, RuntimeError):
-            logger.exception("r2_preview_presign_failed key=%s", relative)
             raise PrivateFileNotFound() from None
         return {
             "download_url": download_url,

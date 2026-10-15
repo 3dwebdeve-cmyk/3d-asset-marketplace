@@ -164,6 +164,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        'NAME': 'accounts.password_validation.BreachedPasswordValidator',
+    },
 ]
 
 
@@ -201,12 +204,39 @@ R2_PRIVATE_BUCKET = config("R2_PRIVATE_BUCKET", default="").strip()
 if R2_PUBLIC_BUCKET and R2_PUBLIC_BUCKET == R2_PRIVATE_BUCKET:
     raise ImproperlyConfigured("R2 public and private buckets must be different.")
 R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
-R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=300, cast=int)
+R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=60, cast=int)
+# The backup token belongs only on the backup host (.env.backup). In the app, code
+# execution would expose every backup, so staging and production refuse to start.
+if DEPLOYMENT_PROFILE in {"staging", "production"} and config(
+    "R2_BACKUP_SECRET_ACCESS_KEY", default=""
+).strip():
+    raise ImproperlyConfigured(
+        "R2_BACKUP_SECRET_ACCESS_KEY must not be in the app environment; "
+        "keep it in .env.backup on the backup host."
+    )
+# Sentry warning when one account requests this many download links within an hour.
+# Alert only: buyers are never blocked.
+DOWNLOAD_ALERT_LINKS_PER_HOUR = config("DOWNLOAD_ALERT_LINKS_PER_HOUR", default=50, cast=int)
 if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
     R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 _running_tests = "test" in sys.argv or "pytest" in " ".join(sys.argv).lower()
 BACKGROUND_JOBS_TEST_EAGER = _running_tests
+
+# Administrator two-factor sign-in (TOTP authenticator app + recovery codes). The test
+# runner defaults it off so unrelated tests can sign admins in with a password; the MFA
+# tests turn it on. Staging and production refuse to run without it.
+ADMIN_MFA_REQUIRED = config("ADMIN_MFA_REQUIRED", cast=bool, default=not _running_tests)
+if DEPLOYMENT_PROFILE in {"staging", "production"} and not ADMIN_MFA_REQUIRED:
+    raise ImproperlyConfigured("ADMIN_MFA_REQUIRED cannot be turned off on staging or production.")
+# TOTP secrets are derived from this key and never stored. A dedicated key lets
+# SECRET_KEY rotate without resetting every administrator's authenticator.
+MFA_SECRET_KEY = config("MFA_SECRET_KEY", default="").strip() or SECRET_KEY
+# Hard limit on an administrator session from the 2FA sign-in, refreshes included.
+ADMIN_SESSION_MAX_HOURS = config("ADMIN_SESSION_MAX_HOURS", default=8, cast=int)
+# Reject passwords found in known breaches (Have I Been Pwned range API; only the first
+# five characters of the password's SHA-1 leave the server). Fails open if unreachable.
+PASSWORD_BREACH_CHECK = config("PASSWORD_BREACH_CHECK", cast=bool, default=not _running_tests)
 BACKGROUND_JOBS_EXPECTED_WORKERS = config("BACKGROUND_JOBS_EXPECTED_WORKERS", default=1, cast=int)
 BACKGROUND_JOBS_MAX_READY_AGE_SECONDS = config("BACKGROUND_JOBS_MAX_READY_AGE_SECONDS", default=300, cast=int)
 BACKGROUND_JOBS_MAX_RUN_SECONDS = config("BACKGROUND_JOBS_MAX_RUN_SECONDS", default=1800, cast=int)
@@ -309,9 +339,11 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 AUTH_USER_MODEL = "accounts.User"
 TEST_RUNNER = "config.test_runner.MarketplaceTestRunner"
 
-# Django contrib admin at /admin/ (SPA console is /console/). Default on so local
-# Compose keeps working. Staging/prod: set DJANGO_ADMIN_ENABLED=False or an IP allowlist.
-DJANGO_ADMIN_ENABLED = config("DJANGO_ADMIN_ENABLED", cast=bool, default=True)
+# Django contrib admin at /admin/ (SPA console is /console/). On by default so local
+# Compose keeps working; off by default and refused in production. Staging needs an IP allowlist.
+DJANGO_ADMIN_ENABLED = config(
+    "DJANGO_ADMIN_ENABLED", cast=bool, default=DEPLOYMENT_PROFILE != "production"
+)
 DJANGO_ADMIN_ALLOWED_IPS = config(
     "DJANGO_ADMIN_ALLOWED_IPS",
     default="",
@@ -324,6 +356,11 @@ ADMIN_CONSOLE_ALLOWED_IPS = config(
     default="",
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
+# The Django admin has a password-only login, outside the /console 2FA sign-in.
+if DEPLOYMENT_PROFILE == "production" and DJANGO_ADMIN_ENABLED:
+    raise ImproperlyConfigured(
+        "DJANGO_ADMIN_ENABLED must be False in production; manage the site from /console."
+    )
 if DEPLOYMENT_PROFILE in {"staging", "production"}:
     import ipaddress
 
@@ -446,6 +483,7 @@ REST_FRAMEWORK = {
         "review_write": "20/min",
         "admin_review_write": "60/min",
         "download": "30/min",
+        "license_verify": "30/min",
         "contact_form": "5/hour",
         "category_click": "60/min",
         "payment_checkout": "10/min",

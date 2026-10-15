@@ -121,9 +121,12 @@ class OrderService:
             queryset = queryset.filter(user_id=customer_id)
         if search and search.strip():
             query = search.strip()[:100]
+            # A license code from a leaked certificate leads straight to its order.
             queryset = queryset.filter(
-                Q(invoice_number__icontains=query) | Q(user__email__icontains=query)
-            )
+                Q(invoice_number__icontains=query)
+                | Q(user__email__icontains=query)
+                | Q(items__license_code=query.upper())
+            ).distinct()
         if ordering not in ALLOWED_ORDERING:
             ordering = "-created_at"
         return queryset.order_by(ordering)

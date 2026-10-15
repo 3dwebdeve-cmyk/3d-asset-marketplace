@@ -101,6 +101,18 @@ export async function downloadCustomerOrderInvoice(
   triggerBlobDownload(data, `invoice-${invoiceNumber}.pdf`)
 }
 
+export async function downloadOrderItemLicense(
+  orderId: string,
+  itemId: string,
+  fileName: string,
+): Promise<void> {
+  const { data } = await apiClient.get<Blob>(
+    `/api/v1/orders/${orderId}/items/${itemId}/license/`,
+    { responseType: 'blob' },
+  )
+  triggerBlobDownload(data, fileName)
+}
+
 export async function downloadAdminOrderInvoice(
   orderId: string,
   invoiceNumber: string,

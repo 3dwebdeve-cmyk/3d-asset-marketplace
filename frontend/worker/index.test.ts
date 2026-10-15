@@ -39,6 +39,7 @@ describe('Cloudflare API proxy', () => {
     expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'self'")
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(response.headers.get('X-Frame-Options')).toBe('DENY')
+    expect(response.headers.get('Strict-Transport-Security')).toContain('max-age=31536000')
     expect(response.headers.get('Content-Type')).toBe('text/html')
   })
 
@@ -53,6 +54,17 @@ describe('Cloudflare API proxy', () => {
     )
 
     expect(SECURITY_HEADERS).toEqual(nginxHeaders)
+  })
+
+  it('only lets the page connect to named storage hosts', () => {
+    // Anyone can create an r2.dev bucket, so a wildcard would be an exfiltration channel.
+    const connectSrc = SECURITY_HEADERS['Content-Security-Policy']
+      .split(';')
+      .find((directive) => directive.trim().startsWith('connect-src'))
+
+    expect(connectSrc).toBeDefined()
+    expect(connectSrc).not.toContain('*.r2.dev')
+    expect(connectSrc).not.toContain('*.cloudflarestorage.com')
   })
 
   it('forwards API paths and query strings to the configured backend', async () => {

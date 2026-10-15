@@ -14,6 +14,8 @@ Cloudflare WAF / Bot Fight entirely. Lock the origin down:
   `FRONTEND_PORT` (default 8080) **only** from https://www.cloudflare.com/ips/
   (IPv4 and IPv6). Deny everything else.
 - Or use Cloudflare Tunnel (no inbound ports) or Authenticated Origin Pulls (mTLS).
+  Tunnel and admin-console Access steps: `CLOUDFLARE_ACCESS_AND_TUNNEL.md` (a tunnel
+  also needs nginx to trust cloudflared's address for the real visitor IP).
 - Never publish ports for `web` (Gunicorn) or `postgres` in `docker-compose.yml`.
   Django reads the client IP from the `X-Real-IP` header Nginx sets; a directly
   reachable Gunicorn would let clients forge it.
@@ -27,6 +29,9 @@ Cloudflare WAF / Bot Fight entirely. Lock the origin down:
   development values (see `LOCAL_DEVELOPMENT.md`). The release and rollback
   scripts refuse to run when one is present and `COMPOSE_FILE` is unset.
 - The base file alone is secure by default, so a forgotten overlay fails closed.
+- Backup secrets (`BACKUP_AGE_RECIPIENT`, `R2_BACKUP_*`) go in `.env.backup`, never `.env`:
+  Compose loads `.env` into the app containers. The app refuses to start if the backup
+  key reaches it (see `BACKUP_RESTORE_DRILL.md`).
 
 ## Admin allowlists
 

@@ -74,3 +74,16 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
 
   return fallback
 }
+
+/** Machine-readable `code` from an API error body, e.g. `mfa_expired`. */
+export function getApiErrorCode(error: unknown): string | undefined {
+  if (!isAxiosError(error)) {
+    return undefined
+  }
+  const data = error.response?.data as unknown
+  if (data && typeof data === 'object' && 'code' in data) {
+    const code = (data as { code: unknown }).code
+    return typeof code === 'string' ? code : undefined
+  }
+  return undefined
+}

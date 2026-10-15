@@ -9,6 +9,7 @@ import { ADMIN_BASE } from '../../config/adminPaths'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
+import { AdminMfaStep } from './AdminMfaStep'
 import { useAdminLoginForm } from './useAdminLoginForm'
 
 export function AdminLoginPage() {
@@ -23,6 +24,9 @@ export function AdminLoginPage() {
     serverError,
     isSuccess,
     onSubmit,
+    mfaPending,
+    completeSignIn,
+    restartSignIn,
   } = useAdminLoginForm()
 
   useDocumentSeo({
@@ -43,6 +47,18 @@ export function AdminLoginPage() {
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  if (mfaPending) {
+    return (
+      <main className="auth-page">
+        <AdminMfaStep
+          pending={mfaPending}
+          onComplete={completeSignIn}
+          onRestart={restartSignIn}
+        />
+      </main>
+    )
   }
 
   return (

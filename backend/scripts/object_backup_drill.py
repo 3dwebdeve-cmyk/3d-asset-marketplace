@@ -1,4 +1,8 @@
-"""Copy private R2 objects into a distinct backup or disposable restore bucket."""
+"""Copy private R2 objects into a distinct backup or disposable restore bucket.
+
+Runs with the backup token (R2_BACKUP_*), which can read the private bucket and write
+the backup bucket. The app's token has no access to backups.
+"""
 
 import argparse
 import os
@@ -9,12 +13,23 @@ from datetime import datetime, timezone
 import boto3
 
 
+def backup_credentials():
+    access_key = os.environ.get("R2_BACKUP_ACCESS_KEY_ID", "").strip()
+    secret_key = os.environ.get("R2_BACKUP_SECRET_ACCESS_KEY", "").strip()
+    if not access_key or not secret_key:
+        raise SystemExit("R2_BACKUP_ACCESS_KEY_ID and R2_BACKUP_SECRET_ACCESS_KEY are required.")
+    if access_key == os.environ.get("R2_ACCESS_KEY_ID", "").strip():
+        raise SystemExit("Refusing to use the app's R2 key for backups; create a separate backup token.")
+    return access_key, secret_key
+
+
 def client():
+    access_key, secret_key = backup_credentials()
     return boto3.client(
         "s3",
         endpoint_url=os.environ["R2_ENDPOINT_URL"],
-        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
         region_name="auto",
     )
 
@@ -34,8 +49,8 @@ def main():
     source = os.environ["R2_PRIVATE_BUCKET"]
     backup = os.environ["R2_BACKUP_BUCKET"]
     restore = os.environ.get("R2_RESTORE_DRILL_BUCKET", "")
-    if not backup or backup == source:
-        raise SystemExit("R2_BACKUP_BUCKET must be separate from the private source bucket.")
+    if not backup or backup in {source, os.environ.get("R2_PUBLIC_BUCKET", "")}:
+        raise SystemExit("R2_BACKUP_BUCKET must be separate from the app buckets.")
     if args.action == "restore" and (not restore or restore in {source, backup} or not args.prefix):
         raise SystemExit("Restore requires a distinct R2_RESTORE_DRILL_BUCKET and --prefix.")
     s3 = client()

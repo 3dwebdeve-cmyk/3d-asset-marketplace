@@ -8,8 +8,10 @@ applies happy-path import → QA approve.
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
+import struct
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -19,7 +21,7 @@ from zipfile import ZipFile
 from django.conf import settings
 from django.core.files.base import ContentFile
 
-from config.storages import get_private_storage
+from config.storages import get_private_storage, get_public_storage
 
 from accounts.models import User
 from categories.models import Category
@@ -432,6 +434,17 @@ def _write_package_bytes(storage_path: str) -> None:
     storage.save(storage_path, ContentFile(buffer.getvalue()))
 
 
+def _write_preview_bytes(storage_path: str) -> None:
+    """Stand-in for the pipeline's preview upload; the import moves it to a random key."""
+    document = json.dumps({"asset": {"version": "2.0"}}).encode()
+    document += b" " * (-len(document) % 4)
+    glb = struct.pack("<4sIIII", b"glTF", 2, 20 + len(document), len(document), 0x4E4F534A)
+    storage = get_public_storage()
+    if storage.exists(storage_path):
+        return
+    storage.save(storage_path, ContentFile(glb + document))
+
+
 def _pick_reviewer() -> User:
     admin = (
         User.objects.filter(role__role_name="Administrator", is_active=True)
@@ -453,6 +466,10 @@ def _apply_happy_path() -> tuple[str, list[str]]:
     items = load_scenario_items("happy")
     if not items:
         raise BatchIngestSmokeError("Happy fixture produced zero rows.")
+    for item in items:
+        preview_key = str(item["media"].get("preview_key") or "")
+        if preview_key:
+            _write_preview_bytes(preview_key)
 
     batch = CatalogImportService.import_batch(
         import_batch_id="i3-batch-ingest-smoke",

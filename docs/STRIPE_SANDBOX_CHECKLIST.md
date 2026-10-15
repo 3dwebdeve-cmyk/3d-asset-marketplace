@@ -47,3 +47,4 @@ docker compose exec web python manage.py check_stripe_config --require-test-mode
 - Reconcile one order against Stripe (test keys only):
   `docker compose exec web python manage.py reconcile_checkout <order_id>`, then add `--execute` to apply.
 - Local consistency check (no Stripe calls): `docker compose exec web python manage.py check_payment_reconciliation`.
+- Stripe comparison (read-only, runs daily in the maintenance cron): `docker compose exec web python manage.py reconcile_stripe_payments`. It checks the last 7 days of paid, refunded and disputed payments against Stripe, plus any refund, dispute or paid checkout Stripe recorded in that window. Each mismatch is printed with its payment and order ID, a Sentry error is sent (tag `area: payments_reconciliation`) and the run fails. Nothing is changed automatically: fix each line with `reconcile_checkout` or in the admin, then re-run. `--days 365` does a full sweep.

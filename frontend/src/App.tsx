@@ -152,6 +152,12 @@ const AdminDashboardPage = lazy(() =>
   })),
 )
 
+const AdminSecurityPage = lazy(() =>
+  import('./pages/Admin/AdminSecurityPage').then((module) => ({
+    default: module.AdminSecurityPage,
+  })),
+)
+
 const AdminCategoriesPage = lazy(() =>
   import('./pages/Admin/AdminCategoriesPage').then((module) => ({
     default: module.AdminCategoriesPage,
@@ -400,6 +406,7 @@ function AppRoutes() {
               <Route path={`${ADMIN_BASE}/analytics`} element={<AdminAnalyticsPage />} />
               <Route path={`${ADMIN_BASE}/users`} element={<AdminUsersPage />} />
               <Route path={`${ADMIN_BASE}/users/:userId`} element={<AdminUserDetailPage />} />
+              <Route path={`${ADMIN_BASE}/security`} element={<AdminSecurityPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

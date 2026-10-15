@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from io import BytesIO
 from unittest.mock import patch
 from zipfile import ZipFile
@@ -24,9 +25,14 @@ from payments.payment_common import to_cents
 from payments.test_payments import _FakeEvent, _fake_session
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
+from products.testing import put_pipeline_previews
 
 
-@override_settings(STRIPE_SECRET_KEY="sk_test_dummy", STRIPE_WEBHOOK_SECRET="whsec_test")
+@override_settings(
+    STRIPE_SECRET_KEY="sk_test_dummy",
+    STRIPE_WEBHOOK_SECRET="whsec_test",
+    MEDIA_ROOT=tempfile.mkdtemp(),
+)
 class CatalogImportCommerceE2ETests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -95,6 +101,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
 
     def test_import_qa_pay_download_happy_path(self) -> None:
         self._authenticate_admin()
+        put_pipeline_previews([_happy_item()])
         imported = self.client.post(
             self.import_url,
             {
