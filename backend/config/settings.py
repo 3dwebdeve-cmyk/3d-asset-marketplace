@@ -96,6 +96,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Before everything that reads the visitor IP (admin lock, throttles, login lockout).
+    'config.edge.TrustedEdgeMiddleware',
     'config.admin_lock.DjangoAdminLockMiddleware',
     'django.middleware.csp.ContentSecurityPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -349,6 +351,17 @@ DJANGO_ADMIN_ALLOWED_IPS = config(
     default="",
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
+# Cloudflare Worker -> Render (no nginx): the Worker signs each API request with this secret and
+# passes the real visitor IP; config/edge.py trusts that IP only when the secret matches. Set the
+# same value as a Worker secret named EDGE_SHARED_SECRET. EDGE_REQUIRE=True also refuses API
+# calls that skipped the Worker (turn it on after the Worker sends the secret).
+EDGE_SHARED_SECRET = config("EDGE_SHARED_SECRET", default="").strip()
+EDGE_REQUIRE = config("EDGE_REQUIRE", cast=bool, default=False)
+if EDGE_SHARED_SECRET and len(EDGE_SHARED_SECRET) < 32:
+    raise ImproperlyConfigured("EDGE_SHARED_SECRET must be at least 32 characters.")
+if EDGE_REQUIRE and not EDGE_SHARED_SECRET:
+    raise ImproperlyConfigured("EDGE_REQUIRE needs EDGE_SHARED_SECRET.")
+
 # SPA /console/ API lock: when set, only these IPs/CIDRs may hit
 # /api/v1/auth/admin/* and /api/v1/admin/*. Empty = open (local). Use office/VPN egress.
 ADMIN_CONSOLE_ALLOWED_IPS = config(
@@ -356,6 +369,15 @@ ADMIN_CONSOLE_ALLOWED_IPS = config(
     default="",
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
+# For teams whose office IP keeps changing: switch the IP lock off on purpose. Administrators
+# still need their password AND an authenticator code (ADMIN_MFA_REQUIRED cannot be turned off
+# on staging or production). Any ADMIN_CONSOLE_ALLOWED_IPS value is then ignored. Prefer
+# Cloudflare Access (docs/CLOUDFLARE_ACCESS_AND_TUNNEL.md) as soon as a domain is available.
+ADMIN_CONSOLE_IP_LOCK_OFF = config("ADMIN_CONSOLE_IP_LOCK_OFF", cast=bool, default=False)
+if ADMIN_CONSOLE_IP_LOCK_OFF:
+    if not ADMIN_MFA_REQUIRED:
+        raise ImproperlyConfigured("ADMIN_CONSOLE_IP_LOCK_OFF needs ADMIN_MFA_REQUIRED=True.")
+    ADMIN_CONSOLE_ALLOWED_IPS = []
 # The Django admin has a password-only login, outside the /console 2FA sign-in.
 if DEPLOYMENT_PROFILE == "production" and DJANGO_ADMIN_ENABLED:
     raise ImproperlyConfigured(
@@ -365,7 +387,7 @@ if DEPLOYMENT_PROFILE in {"staging", "production"}:
     import ipaddress
 
     for label, values, required in (
-        ("ADMIN_CONSOLE_ALLOWED_IPS", ADMIN_CONSOLE_ALLOWED_IPS, True),
+        ("ADMIN_CONSOLE_ALLOWED_IPS", ADMIN_CONSOLE_ALLOWED_IPS, not ADMIN_CONSOLE_IP_LOCK_OFF),
         ("DJANGO_ADMIN_ALLOWED_IPS", DJANGO_ADMIN_ALLOWED_IPS, DJANGO_ADMIN_ENABLED),
     ):
         if required and not values:
@@ -452,8 +474,8 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
     ],
-    # Gunicorn is only reachable through Nginx, which sets X-Forwarded-For to
-    # the single Cloudflare-verified client IP.
+    # Behind Nginx or the Cloudflare Worker (config/edge.py), X-Forwarded-For ends with
+    # the single verified client IP.
     "NUM_PROXIES": 1,
     "DEFAULT_THROTTLE_RATES": {
         "anon": "120/min",

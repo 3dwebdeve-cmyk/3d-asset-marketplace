@@ -16,7 +16,7 @@
 # Health:  http://localhost:8080/api/v1/healthz/ (legacy /api/healthz/ still works)
 #
 # Background email is persisted in PostgreSQL and delivered by the worker.
-# Catalog search uses Postgres (no Meilisearch).
+# Catalog search uses Postgres.
 # SPA admin control panel: http://localhost:8080/console/login  (Django admin remains /admin/)
 # Cutover gate: docker compose exec web python manage.py check_cutover --profile staging
 

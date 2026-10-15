@@ -48,11 +48,12 @@ def parse_allowed_networks(raw) -> tuple[ipaddress._BaseNetwork, ...]:
 
 
 def request_client_ip(request) -> str:
-    """Single trusted client IP: Nginx-set X-Real-IP, else the TCP peer.
+    """Single trusted client IP: X-Real-IP, else the TCP peer.
 
-    Gunicorn is only reachable through Nginx, which overwrites X-Real-IP with the
-    Cloudflare-verified visitor IP and strips CF-Connecting-IP. Never read
-    CF-Connecting-IP or X-Forwarded-For here: clients can set those directly.
+    Nginx overwrites X-Real-IP with the Cloudflare-verified visitor IP, or, on Render,
+    ``config.edge.TrustedEdgeMiddleware`` sets it only after checking the Worker's secret
+    (and removes a forged one otherwise). Never read CF-Connecting-IP or X-Forwarded-For
+    here: clients can set those directly.
     """
     meta = getattr(request, "META", {}) or {}
     real_ip = str(meta.get("HTTP_X_REAL_IP") or "").strip()
@@ -81,7 +82,8 @@ class DjangoAdminLockMiddleware:
     - ``DJANGO_ADMIN_*`` applies only to ``/admin/``.
     - ``ADMIN_CONSOLE_ALLOWED_IPS`` applies to SPA console APIs
       (``/api/v1/auth/admin/`` and ``/api/v1/admin/``).
-    Empty allowlists keep current open behaviour (local Compose).
+    Empty allowlists keep current open behaviour (local Compose, or
+    ``ADMIN_CONSOLE_IP_LOCK_OFF`` on a deployment whose office IP keeps changing).
     """
 
     def __init__(self, get_response):
