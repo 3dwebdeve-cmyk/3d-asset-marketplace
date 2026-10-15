@@ -10,7 +10,7 @@ stripe==15.4.0
 reportlab==4.4.10
 django-storages==1.14.6
 boto3==1.40.21
-gunicorn==23.0.0
+gunicorn==26.2.0
 whitenoise==6.9.0
 celery==5.5.3
 sentry-sdk[django]==2.38.0
