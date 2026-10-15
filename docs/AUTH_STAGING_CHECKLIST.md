@@ -39,6 +39,11 @@ Staging and production refuse to start with `ADMIN_MFA_REQUIRED=False`.
   with `DJANGO_ADMIN_ENABLED=True`. Use `/console`.
 - Setup and sign-in are only reachable from `ADMIN_CONSOLE_ALLOWED_IPS`, which limits who
   could reach the setup screen with a stolen password before the real administrator.
+- If the office IP keeps changing, set `ADMIN_CONSOLE_IP_LOCK_OFF=true` instead. The IP list is
+  then ignored and the password plus authenticator code are the protection. Set up **every**
+  administrator's authenticator immediately after deploying: until an account has one, a
+  stolen password could be used to enroll someone else's phone. Put Cloudflare Access in
+  front of `/console` as soon as a domain exists.
 
 ## Passwords
 
