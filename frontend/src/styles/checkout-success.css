@@ -5,7 +5,7 @@
   --cs-primary-blue-hover: #1255c2;
   --cs-primary-blue-active: #0e449d;
   --cs-text-dark: #1b2533;
-  --cs-bg-page: #f4f7fc;
+  --cs-bg-page: var(--bg-page);
   --cs-card-bg: #ffffff;
   --cs-mint-outer: #cbf5e7;
   --cs-mint-inner: #00c48c;
@@ -22,7 +22,7 @@
   text-align: left;
   color: var(--cs-text-dark);
   background-color: var(--cs-bg-page);
-  background-image: radial-gradient(circle at 50% 30%, #ffffff 0%, #f4f7fc 80%);
+  background-image: none;
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;

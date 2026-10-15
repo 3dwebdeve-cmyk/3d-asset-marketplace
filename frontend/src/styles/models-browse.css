@@ -1,3 +1,7 @@
+.models-browse {
+  background: var(--bg-page);
+}
+
 .models-browse .plugins-browse-main {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 404px));

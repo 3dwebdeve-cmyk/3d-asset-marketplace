@@ -1,10 +1,10 @@
 :root {
   /*
-   * Brand palette — white / blue / black only.
-   * Do not introduce beige, cream, teal, purple, gold, or gray fills.
+   * Brand palette — light grey pages, white surfaces, blue actions and black text.
    */
   --bg-primary: #ffffff;
-  /* Pure White — page background */
+  /* White — component surfaces */
+  --bg-page: #f5f5f5;
   --bg-card: #ffffff;
   /* Pure White — cards/containers */
   --text-main: #000000;
@@ -13,7 +13,7 @@
   /* Brand blue — buttons, links, actions */
 
   /* Existing app tokens mapped to the palette */
-  --bg-main: #ffffff;
+  --bg-main: var(--bg-page);
   --bg-section: #ffffff;
   --bg-surface: #ffffff;
   --primary-accent: var(--action-color);
@@ -121,7 +121,7 @@ textarea {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .site-hero-banner {
@@ -315,7 +315,7 @@ button.home-page__cta--secondary {
   place-items: start center;
   padding: clamp(2rem, 4vw, 3rem) var(--site-gutter);
   text-align: left;
-  background: #ffffff;
+  background: var(--bg-page);
   box-sizing: border-box;
 }
 
@@ -912,7 +912,7 @@ body {
   width: 100%;
   min-width: 0;
   overflow-x: hidden;
-  background: #ffffff;
+  background: var(--bg-page);
   color: var(--text-body);
 }
 

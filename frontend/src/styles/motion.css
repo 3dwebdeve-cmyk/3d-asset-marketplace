@@ -1,0 +1,62 @@
+/* Calm motion: native scrolling, small reveals and no spring overshoot. */
+:root {
+  --motion-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+
+  .app-shell :is(
+    .home-marketplace-hero__content, .plugins-browse-hero__container,
+    .custom-projects-hero__content, .about-hero__copy, .enquiry-hero__content
+  ) {
+    animation: content-arrive 700ms var(--motion-ease);
+  }
+
+  .app-shell .browse-rail-section { animation: none; }
+
+  :where(button, .home-page__cta, .browse-service-card__btn, .checkout-success-page__btn) {
+    transition: scale 200ms ease-out, background-color 200ms ease,
+      border-color 200ms ease, box-shadow 200ms ease;
+  }
+
+  :where(button, .home-page__cta, .browse-service-card__btn, .checkout-success-page__btn):active:not(:disabled) {
+    scale: 0.99;
+  }
+
+  .auth-modal__panel { animation: content-arrive 320ms var(--motion-ease); }
+  .cart-drawer__panel { animation: drawer-arrive 400ms var(--motion-ease); }
+  :is(.auth-modal__backdrop, .cart-drawer__backdrop) { animation: backdrop-arrive 250ms ease-out; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .app-shell .browse-category-card:hover { transform: translateY(-2px); }
+    .app-shell .browse-category-card:hover .browse-category-card__image { transform: scale(1.025); }
+    .app-shell .browse-category-card:hover .browse-category-card__icon-badge { transform: none; }
+  }
+}
+
+@keyframes content-arrive {
+  from { opacity: 0.8; translate: 0 6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes backdrop-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes drawer-arrive {
+  from { opacity: 0.8; translate: 24px 0; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

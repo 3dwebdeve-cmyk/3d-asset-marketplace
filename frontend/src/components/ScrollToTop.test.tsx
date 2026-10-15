@@ -40,7 +40,7 @@ describe('ScrollToTop', () => {
     })
 
     renderRoutes()
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' })
 
     const contact = screen.getByRole('link', { name: /contact/i })
     contact.focus()
@@ -48,7 +48,7 @@ describe('ScrollToTop', () => {
 
     expect(screen.getByRole('heading', { name: /contact/i })).toBeInTheDocument()
     expect(document.activeElement).toBe(document.body)
-    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: 'auto' })
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: 'instant' })
     expect(window.history.scrollRestoration).toBe('manual')
   })
 })

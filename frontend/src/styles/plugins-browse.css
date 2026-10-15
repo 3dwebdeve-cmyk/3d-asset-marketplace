@@ -4,7 +4,7 @@
 .models-browse {
   width: 100%;
   text-align: left;
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .plugins-browse-hero {
@@ -13,7 +13,15 @@
 
 .plugins-browse > .plugins-browse-hero.site-hero-banner {
   --site-hero-aspect: 5 / 1;
+  width: calc(100% - var(--site-gutter) - var(--site-gutter));
   max-height: 18rem;
+  margin: clamp(1rem, 2vw, 1.5rem) auto 0;
+  border-radius: clamp(0.875rem, 1.5vw, 1.5rem);
+  overflow: hidden;
+}
+
+.plugins-browse > .plugins-browse-hero .plugins-browse-hero__container {
+  padding-inline: clamp(1.25rem, 3vw, 2.75rem);
 }
 
 .plugins-browse > .plugins-browse-hero .site-hero-banner__image {

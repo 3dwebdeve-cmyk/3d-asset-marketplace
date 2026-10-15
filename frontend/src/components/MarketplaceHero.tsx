@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -78,10 +78,39 @@ function ArrowRightIcon({ size = 16 }: { size?: number }) {
 
 export function MarketplaceHero() {
   const navigate = useNavigate()
+  const stageRef = useRef<HTMLDivElement>(null)
   const [searchInput, setSearchInput] = useState('')
-  const [searchCategory, setSearchCategory] = useState<SearchCategory>('plugins')
+  const [searchCategory, setSearchCategory] = useState<SearchCategory>('models')
   const [activeSort, setActiveSort] = useState<string>('-review_count')
   const [activeTag, setActiveTag] = useState<string | null>(null)
+
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    let frame: number | null = null
+    const update = () => {
+      frame = null
+      const rect = stage.getBoundingClientRect()
+      const distance = Math.max(1, rect.top + window.scrollY + rect.height)
+      const progress = Math.max(0, Math.min(1, window.scrollY / distance))
+      stage.style.setProperty('--hero-scroll-scale', preference?.matches ? '1' : String(1 + progress * 0.06))
+    }
+    const schedule = () => {
+      if (frame === null) frame = requestAnimationFrame(update)
+    }
+    update()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    preference?.addEventListener('change', schedule)
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      preference?.removeEventListener('change', schedule)
+      stage.style.removeProperty('--hero-scroll-scale')
+    }
+  }, [])
 
   const navigateToModels = (search: string, ordering = '') => {
     const params = new URLSearchParams()
@@ -112,7 +141,7 @@ export function MarketplaceHero() {
 
   return (
     <section className="home-marketplace-hero" aria-label="Marketplace search">
-      <div className="home-marketplace-hero__stage">
+      <div className="home-marketplace-hero__stage" ref={stageRef}>
         <div className="home-marketplace-hero__shade" aria-hidden="true" />
 
         <div className="home-marketplace-hero__content">

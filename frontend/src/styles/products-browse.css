@@ -20,14 +20,14 @@
   min-height: calc(100vh - 4rem);
   box-sizing: border-box;
   text-align: left;
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .products-browse-page--hub {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  background: #ffffff;
+  background: var(--bg-page);
   padding-top: 0;
   padding-bottom: 3rem;
   isolation: isolate;
@@ -250,7 +250,7 @@
   gap: 1.15rem;
   margin-inline: calc(var(--site-gutter) * -1);
   padding: 1.35rem var(--site-gutter) 1.75rem;
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .hub-offer .browse-rail-section__title {
@@ -511,6 +511,26 @@
 
 .browse-category-grid .browse-rail__empty {
   grid-column: 1 / -1;
+}
+
+@media (min-width: 1280px) {
+  .products-browse-page--hub > :not(.home-marketplace-hero) {
+    width: 90%;
+    margin-inline: auto;
+  }
+
+  .browse-rail-section--categories .browse-category-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    width: 100%;
+    margin-inline: auto;
+  }
+
+  .browse-rail-section--categories .browse-category-card {
+    width: 100%;
+    justify-self: center;
+    align-self: start;
+  }
 }
 
 .browse-category-card {

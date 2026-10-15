@@ -1,0 +1,6 @@
+The Blender, Maya, Cinema 4D, Unreal Engine and Unity icons are from Simple Icons
+v13.21.0, released under CC0-1.0.
+Source: https://github.com/simple-icons/simple-icons/tree/13.21.0
+License: https://creativecommons.org/publicdomain/zero/1.0/
+Brand names and logos remain trademarks of their respective owners.
+The 3ds Max numeral badge is rendered with local CSS.

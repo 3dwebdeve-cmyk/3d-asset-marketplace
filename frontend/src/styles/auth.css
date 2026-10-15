@@ -5,7 +5,7 @@
   place-items: center;
   padding: clamp(1.5rem, 4vw, 3rem) var(--site-gutter);
   text-align: left;
-  background: #ffffff;
+  background: var(--bg-page);
   box-sizing: border-box;
 }
 
@@ -238,8 +238,8 @@
 }
 
 .auth-page--market {
-  background-color: var(--accent-soft);
-  background-image: radial-gradient(var(--accent-border) 1.1px, transparent 1.1px);
+  background-color: var(--bg-page);
+  background-image: none;
   background-size: 18px 18px;
 }
 

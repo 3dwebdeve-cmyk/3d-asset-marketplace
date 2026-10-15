@@ -1,0 +1,46 @@
+.software-filter__icon {
+  display: inline-block;
+  flex: 0 0 1rem;
+  width: 1rem;
+  height: 1rem;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+}
+
+.software-filter__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 1rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #38c9d1, #137689);
+  color: white;
+  font: 700 0.8rem/1 Arial, sans-serif;
+  box-shadow: inset 2px 0 0 #ffffff50;
+}
+
+.software-filters label.software-filter__row {
+  gap: 0.55rem;
+  min-height: 1.5rem;
+  color: #6b7a94;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.software-filters .software-filter__row input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 0.82rem;
+  height: 0.82rem;
+  border-radius: 2px;
+}
+
+.software-filters input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--action-color);
+  outline-offset: 3px;
+}

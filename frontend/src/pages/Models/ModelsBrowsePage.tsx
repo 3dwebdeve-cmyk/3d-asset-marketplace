@@ -5,6 +5,7 @@ import { listPublicCategories } from '../../api/categoriesApi'
 import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
+import { SOFTWARE_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
 import { MODELS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { activateOnKey } from '../../lib/keyboard'
@@ -38,12 +39,7 @@ const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
   products: PRODUCTS_BANNER_IMAGE_SRC,
 }
 
-const FORMAT_OPTIONS = [
-  { value: 'blend', label: 'Blender (.blend)' },
-  { value: 'fbx,obj', label: 'FBX/OBJ' },
-  { value: 'uasset', label: 'Unreal Asset' },
-  { value: 'unitypackage', label: 'Unity Package' },
-]
+const FORMAT_OPTIONS = SOFTWARE_FILTERS
 const LICENSE_OPTIONS = [
   { value: 'standard', label: 'Standard License' },
   { value: 'extended', label: 'Extended License' },
@@ -432,11 +428,12 @@ export function ModelsBrowsePage() {
             </div>
           </div>
 
-          <fieldset className="model-filters__group">
-            <legend>Format</legend>
-            {FORMAT_OPTIONS.map(({ value, label }) => (
-              <label className="model-filters__option" key={value}>
+          <fieldset className="model-filters__group software-filters">
+            <legend>Software</legend>
+            {FORMAT_OPTIONS.map(({ value, label, icon, color }) => (
+              <label className="model-filters__option software-filter__row" key={value}>
                 <input type="checkbox" checked={value.split(',').every((item) => formats.includes(item))} onChange={() => toggleFilter('formats', formats, value)} />
+                <SoftwareIcon icon={icon} color={color} />
                 <span>{label}</span><span className="model-filters__count">{isLoading ? '\u2014' : facets.formats[value]}</span>
               </label>
             ))}
