@@ -264,7 +264,8 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         for item in (getattr(settings_obj, "ADMIN_CONSOLE_ALLOWED_IPS", None) or [])
         if str(item).strip()
     ]
-    if not debug and not console_ips:
+    ip_lock_off = bool(getattr(settings_obj, "ADMIN_CONSOLE_IP_LOCK_OFF", False))
+    if not debug and not console_ips and not ip_lock_off:
         warnings.append(
             "ADMIN_CONSOLE_ALLOWED_IPS is empty while DEBUG=False - "
             "set company office and/or VPN CIDRs so /console login and "

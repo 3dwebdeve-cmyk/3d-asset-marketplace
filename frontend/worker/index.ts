@@ -5,6 +5,8 @@ interface AssetsBinding {
 export interface WorkerEnv {
   ASSETS: AssetsBinding
   BACKEND_ORIGIN?: string
+  // Shared with the backend (EDGE_SHARED_SECRET). Set it as a Worker secret, not a plain variable.
+  EDGE_SHARED_SECRET?: string
 }
 
 // Same security headers nginx sends for the SPA (frontend/nginx.conf). The Worker
@@ -82,6 +84,18 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
   const upstreamUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, origin)
   const headers = new Headers(request.headers)
   headers.delete('host')
+  // Drop anything a visitor could use to pose as someone else; the backend must only see
+  // the IP and signature set below.
+  for (const name of ['x-real-ip', 'x-forwarded-for', 'x-edge-secret', 'x-edge-client-ip']) {
+    headers.delete(name)
+  }
+  if (env.EDGE_SHARED_SECRET) {
+    headers.set('X-Edge-Secret', env.EDGE_SHARED_SECRET)
+    const visitorIp = request.headers.get('CF-Connecting-IP')
+    if (visitorIp) {
+      headers.set('X-Edge-Client-IP', visitorIp)
+    }
+  }
   headers.set('X-Forwarded-Host', incomingUrl.host)
   headers.set('X-Forwarded-Proto', 'https')
 
