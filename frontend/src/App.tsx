@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ScrollToTop } from './components/ScrollToTop'
+import { SiteMotion } from './components/SiteMotion'
 import { Navbar } from './components/Navbar'
 import { SiteBenefitsBanner } from './components/SiteBenefitsBanner'
 import { SiteFooter } from './components/SiteFooter'
@@ -31,6 +32,7 @@ import './styles/cart.css'
 import './styles/checkout-success.css'
 import './styles/responsive.css'
 import './styles/marketing.css'
+import './styles/motion.css'
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
@@ -308,6 +310,7 @@ function AppRoutes() {
   return (
     <>
       <ScrollToTop />
+      <SiteMotion />
       {!hideNavbar ? <Navbar /> : null}
       {!isNotFound ? <CartDrawer /> : null}
       {!isNotFound ? <AuthModal /> : null}

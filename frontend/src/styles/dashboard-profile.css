@@ -1,7 +1,7 @@
 /* Edit Profile — styles cloned from dashboard.html mockup (profile-edit view) */
 
 .dashboard-layout__content .profile-edit-body {
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .dashboard-layout__content .profile-edit-body .page-title {
@@ -34,7 +34,7 @@
   box-sizing: border-box;
   min-height: 100%;
   padding: 28px 36px 40px;
-  background: #ffffff;
+  background: var(--bg-page);
   color: var(--text-main);
   font-family: 'Plus Jakarta Sans', 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 16px;

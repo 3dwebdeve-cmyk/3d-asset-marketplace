@@ -9,7 +9,7 @@
   box-sizing: border-box;
   text-align: left;
   color: var(--text-main);
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .product-detail-layout {

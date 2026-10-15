@@ -3,7 +3,7 @@
   width: 100%;
   padding: 0 0 3rem;
   text-align: left;
-  background: #ffffff;
+  background: var(--bg-page);
   box-sizing: border-box;
 }
 
@@ -139,12 +139,14 @@
   margin-top: 0.65rem;
 }
 
-.custom-projects-hero {
+.custom-projects-hero.site-hero-banner {
   --site-hero-aspect: 5 / 1;
   position: relative;
   display: grid;
   grid-template: 1fr / 1fr;
-  width: 100%;
+  width: calc(100% - var(--site-gutter) - var(--site-gutter));
+  margin: clamp(1rem, 2vw, 1.5rem) auto 0;
+  border-radius: clamp(0.875rem, 1.5vw, 1.5rem);
   /* Match the compact About banner frame. */
   min-height: 0;
   max-height: 18rem;
@@ -175,7 +177,7 @@
   align-self: center;
   width: 100%;
   max-width: none;
-  padding: clamp(0.85rem, 1.5vw, 1.25rem) var(--site-gutter);
+  padding: clamp(0.85rem, 1.5vw, 1.25rem) clamp(1.25rem, 3vw, 2.75rem);
   box-sizing: border-box;
   text-align: left;
 }
@@ -607,7 +609,7 @@
 
 .enquiry-page {
   padding: 0;
-  background: #ffffff;
+  background: var(--bg-page);
   width: 100%;
 }
 
@@ -626,7 +628,11 @@
 
 .enquiry-page > .enquiry-hero.site-hero-banner {
   --site-hero-aspect: 5 / 1;
+  width: calc(100% - var(--site-gutter) - var(--site-gutter));
   max-height: 18rem;
+  margin: clamp(1rem, 2vw, 1.5rem) auto 0;
+  border-radius: clamp(0.875rem, 1.5vw, 1.5rem);
+  overflow: hidden;
 }
 
 .enquiry-page > .enquiry-hero .site-hero-banner__image {
@@ -653,7 +659,7 @@
   align-self: center;
   width: 100%;
   max-width: none;
-  padding: clamp(1.75rem, 3vw, 2.75rem) var(--site-gutter);
+  padding: clamp(1.75rem, 3vw, 2.75rem) clamp(1.25rem, 3vw, 2.75rem);
   box-sizing: border-box;
 }
 

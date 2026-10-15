@@ -4,7 +4,7 @@
   --dash-list-ink: var(--text-main);
   --dash-list-muted: var(--text-secondary);
   --dash-list-line: var(--border);
-  --dash-list-bg: #ffffff;
+  --dash-list-bg: var(--bg-page);
   --dash-list-card: #ffffff;
   --dash-list-link: var(--action-color);
   --dash-list-font: 'Inter', 'Segoe UI', system-ui, sans-serif;

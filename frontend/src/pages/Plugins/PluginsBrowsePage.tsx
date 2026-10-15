@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
+import { SOFTWARE_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
 import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { PluginLicenseType, PluginOrdering, PublicPlugin } from '../../types/plugin'
@@ -14,12 +15,7 @@ import '../../styles/products-browse.css'
 
 const PAGE_SIZE = 12
 
-const FORMAT_FILTERS = [
-  { id: 'blender', label: 'Blender (.blend)', extensions: ['blend'] },
-  { id: 'fbx-obj', label: 'FBX/OBJ', extensions: ['fbx', 'obj'] },
-  { id: 'unreal', label: 'Unreal Asset', extensions: ['uasset', 'uproject'] },
-  { id: 'unity', label: 'Unity Package', extensions: ['unitypackage'] },
-] as const
+const FORMAT_FILTERS = SOFTWARE_FILTERS
 
 const LICENSE_FILTERS: ReadonlyArray<{ id: PluginLicenseType; label: string }> = [
   { id: 'standard', label: 'Standard License' },
@@ -28,7 +24,7 @@ const LICENSE_FILTERS: ReadonlyArray<{ id: PluginLicenseType; label: string }> =
 
 function matchesFormat(formats: readonly string[], formatId: string): boolean {
   const filter = FORMAT_FILTERS.find((item) => item.id === formatId)
-  return Boolean(filter?.extensions.some((extension) => formats.includes(extension)))
+  return Boolean(filter?.value.split(',').some((extension) => formats.includes(extension)))
 }
 
 async function loadPluginCatalog(params: {
@@ -374,15 +370,16 @@ export function PluginsBrowsePage() {
             </div>
           </div>
 
-          <fieldset className="plugins-filters__group plugins-filters__fieldset">
-            <legend className="plugins-filters__label">Format</legend>
+          <fieldset className="plugins-filters__group plugins-filters__fieldset software-filters">
+            <legend className="plugins-filters__label">Software</legend>
             {FORMAT_FILTERS.map((format) => (
-              <label className="plugins-filters__option" key={format.id}>
+              <label className="plugins-filters__option software-filter__row" key={format.id}>
                 <input
                   type="checkbox"
                   checked={selectedFormats.includes(format.id)}
                   onChange={() => toggleFormat(format.id)}
                 />
+                <SoftwareIcon icon={format.icon} color={format.color} />
                 <span className="plugins-filters__option-name">{format.label}</span>
                 <span className="plugins-filters__option-count">{formatCounts[format.id]}</span>
               </label>

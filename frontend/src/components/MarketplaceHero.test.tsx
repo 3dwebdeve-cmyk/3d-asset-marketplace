@@ -1,9 +1,14 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MarketplaceHero } from './MarketplaceHero'
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 function LocationProbe() {
   const location = useLocation()
@@ -11,6 +16,38 @@ function LocationProbe() {
 }
 
 describe('MarketplaceHero', () => {
+  it('zooms the image with scroll, reverses at the top, and respects reduced motion', () => {
+    const preference = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }
+    vi.stubGlobal('matchMedia', () => preference)
+    vi.stubGlobal('scrollY', 0)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => (
+      { top: 100 - window.scrollY, height: 500 } as DOMRect
+    ))
+    let frame: FrameRequestCallback = () => {}
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frame = callback
+      return 1
+    })
+    const { container, unmount } = render(<MemoryRouter><MarketplaceHero /></MemoryRouter>)
+    const stage = container.querySelector<HTMLElement>('.home-marketplace-hero__stage')!
+    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    vi.stubGlobal('scrollY', 300)
+    fireEvent.scroll(window)
+    frame(16)
+    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1.03')
+    vi.stubGlobal('scrollY', 0)
+    fireEvent.scroll(window)
+    frame(32)
+    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    preference.matches = true
+    vi.stubGlobal('scrollY', 300)
+    fireEvent.scroll(window)
+    frame(48)
+    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    unmount()
+    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('')
+  })
+
   it('renders all trending tags and sort pills', () => {
     render(
       <MemoryRouter>
@@ -81,12 +118,13 @@ describe('MarketplaceHero', () => {
     const input = screen.getByRole('searchbox', { name: /Search marketplace/i })
     await user.type(input, 'spaceship{enter}')
 
-    expect(screen.getByTestId('location-probe').textContent).toContain('/plugins?search=spaceship')
+    expect(screen.getByRole('combobox', { name: /Search category/i })).toHaveValue('models')
+    expect(screen.getByTestId('location-probe').textContent).toContain('/3d-models?search=spaceship')
 
-    await user.selectOptions(screen.getByRole('combobox', { name: /Search category/i }), 'models')
+    await user.selectOptions(screen.getByRole('combobox', { name: /Search category/i }), 'plugins')
     await user.clear(input)
     await user.type(input, 'robot{enter}')
 
-    expect(screen.getByTestId('location-probe').textContent).toContain('/3d-models?search=robot')
+    expect(screen.getByTestId('location-probe').textContent).toContain('/plugins?search=robot')
   })
 })

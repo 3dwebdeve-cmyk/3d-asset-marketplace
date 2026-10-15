@@ -287,7 +287,7 @@ describe('ModelsBrowsePage', () => {
 
     expect(screen.getByText('Oak Chair')).toBeInTheDocument()
     await user.click(screen.getByRole('checkbox', { name: /blender/i }))
-    await user.click(screen.getByRole('checkbox', { name: /unity package/i }))
+    await user.click(screen.getByRole('checkbox', { name: /unity/i }))
     expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument()
     expect(productsApi.getPublicProduct).not.toHaveBeenCalled()
   })
