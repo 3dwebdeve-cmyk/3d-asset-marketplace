@@ -6,7 +6,7 @@
   --hub-border: var(--border);
   --hub-muted: var(--text-secondary);
   --hub-text: var(--text-main);
-  --hub-bg: #ffffff;
+  --hub-bg: var(--bg-page);
   --hub-card: #ffffff;
   --hub-radius: 12px;
   --hub-gold: #d99a00;

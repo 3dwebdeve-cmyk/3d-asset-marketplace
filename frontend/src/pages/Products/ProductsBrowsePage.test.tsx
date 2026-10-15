@@ -187,6 +187,33 @@ beforeEach(() => {
 })
 
 describe('ProductsBrowsePage', () => {
+  it('starts the model carousel after loading finishes when demo cards were already available', async () => {
+    // Development fallback cards make scrolling eligible before the real rail mounts.
+    // An empty API response keeps those same cards, so eligibility must track loading too.
+    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
+      ...samplePublicProducts, count: 0, results: [],
+    })
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1)
+    const { container, unmount } = renderProductsBrowsePage()
+
+    expect(screen.getByLabelText('Loading products')).toBeInTheDocument()
+    expect(requestFrame).not.toHaveBeenCalled()
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Loading products')).not.toBeInTheDocument()
+      expect(requestFrame).toHaveBeenCalled()
+    })
+    const rail = container.querySelector<HTMLElement>('.browse-rail-section--models .browse-rail--auto')!
+    expect(rail).toBeInTheDocument()
+    Object.defineProperties(rail, {
+      scrollWidth: { configurable: true, value: 1000 },
+      clientWidth: { configurable: true, value: 300 },
+    })
+    requestFrame.mock.calls[0][0](performance.now() + 100)
+    expect(rail.scrollLeft).toBeGreaterThan(0)
+    unmount()
+  })
+
   it('renders browse hub hero, modules, and product preview', async () => {
     renderProductsBrowsePage()
 

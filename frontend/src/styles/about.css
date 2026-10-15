@@ -1,7 +1,7 @@
 .about-page {
   flex: 1;
   width: 100%;
-  background: #ffffff;
+  background: var(--bg-page);
   color: var(--text-main);
   text-align: left;
 }
@@ -60,6 +60,10 @@
 /* Compact About banner */
 .about-hero.site-hero-banner {
   --site-hero-aspect: 5 / 1;
+  width: calc(100% - var(--site-gutter) - var(--site-gutter));
+  margin: clamp(1rem, 2vw, 1.5rem) auto 0;
+  border-radius: clamp(0.875rem, 1.5vw, 1.5rem);
+  overflow: hidden;
   max-height: 18rem;
   background-color: var(--border);
   color: var(--text-main);
@@ -82,7 +86,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: clamp(1.25rem, 2.25vw, 2rem) var(--site-gutter);
+  padding: clamp(1.25rem, 2.25vw, 2rem) clamp(1.25rem, 3vw, 2.75rem);
   box-sizing: border-box;
   text-align: left;
 }
@@ -204,7 +208,7 @@
 /* Who we are */
 .about-who {
   padding: clamp(3.5rem, 7vw, 5rem) 0;
-  background: #fff;
+  background: var(--bg-page);
 }
 
 .about-who__grid {
@@ -383,7 +387,7 @@
 /* Offer */
 .about-offer {
   padding: clamp(3.5rem, 7vw, 5rem) 0;
-  background: var(--bg-primary);
+  background: var(--bg-page);
 }
 
 .about-offer__header {

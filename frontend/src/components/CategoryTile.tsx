@@ -3,23 +3,23 @@ import { getCategoryIcon } from './categoryIcons'
 import type { CategoryPublic } from '../types/category'
 
 const LOCAL_CATEGORY_IMAGES: Record<string, string> = {
-  furniture: '/homepage%20images/furniture.webp',
-  products: '/homepage%20images/products.webp',
-  toys: '/homepage%20images/toys.webp',
-  electronics: '/homepage%20images/electronics.webp',
-  'food-drink': '/homepage%20images/food.webp',
-  character: '/homepage%20images/character.webp',
-  industrial: '/homepage%20images/industrial.webp',
+  furniture: '/catego%20image/Luxurious%20Chaise%20Lounge%20Overlooking%20City%20Lights.png',
+  products: '/catego%20image/Premium%20Olive%20Gear%20Still%20Life.png',
+  toys: '/catego%20image/Colorful%20Toy%20Tabletop%20with%20Teddy%20Bear.png?v=2',
+  electronics: '/catego%20image/Premium%20Tech%20Gear%20Flat%20Lay.png',
+  'food-drink': '/catego%20image/Cinematic%20Red%20Tray%20Burger%20Feast.png',
+  character: '/catego%20image/Spiked%20Ogre%20Warrior%20with%20Stone%20Mace.png',
+  industrial: '/catego%20image/Industrial%20Yellow%20Engine%20Assembly.png',
   household: '/homepage%20images/aaa/household.png',
   'plants-vegetation': '/homepage%20images/aaa/plants.png',
   lights: '/homepage%20images/aaa/lights.png',
-  '3d-printing': '/homepage%20images/printing.webp',
-  'assets-props': '/homepage%20images/props.webp',
+  '3d-printing': '/catego%20image/Vibrant%203D%20Printing%20Workshop%20Bench.png',
+  'assets-props': '/catego%20image/Sunlit%20Antique%20Trunk%20in%20a%20Cozy%20Study.png',
   'lifestyle-visualisation': '/homepage%20images/aaa/lifestyle.png',
-  'cloth-items': '/homepage%20images/aaa/cloth.png',
-  'interactive-webar': '/homepage%20images/webar.webp',
-  'architectural-3d-models': '/homepage%20images/architecture.webp',
-  'interior-3d-models': '/homepage%20images/interior.webp',
+  'cloth-items': '/catego%20image/Autumn%20Heritage%20Menswear%20Flat%20Lay.png',
+  'interactive-webar': '/catego%20image/Augmented%20Reality%20Living%20Room%20Design.png',
+  'architectural-3d-models': '/catego%20image/Illuminated%20Architectural%20House%20Model.png',
+  'interior-3d-models': '/catego%20image/Golden%20Moon%20Clock%20Living%20Room.png',
 }
 
 export function CategoryTile({

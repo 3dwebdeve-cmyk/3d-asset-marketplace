@@ -62,10 +62,10 @@ const FALLBACK_CATEGORIES: CategoryPublic[] = [
 const SHOW_DEMO_FALLBACK = import.meta.env.DEV
 
 const FALLBACK_PRODUCTS: PublicProduct[] = [
-  ['demo-oak-chair', 'Oak Lounge Chair', '/homepage%20images/furniture.webp', 'Furniture', '29.99'],
-  ['demo-desk-lamp', 'Modern Desk Lamp', '/homepage%20images/interior.webp', 'Interiors', '19.99'],
-  ['demo-plant-pot', 'Decorative Plant Pot', '/homepage%20images/products.webp', 'Products', '9.99'],
-].map(([slug, name, thumbnail, categoryName, price]) => ({
+  ['demo-oak-chair', 'Oak Lounge Chair', 'Furniture', '29.99'],
+  ['demo-desk-lamp', 'Modern Desk Lamp', 'Interiors', '19.99'],
+  ['demo-plant-pot', 'Decorative Plant Pot', 'Products', '9.99'],
+].map(([slug, name, categoryName, price]) => ({
   id: `fallback-${slug}`,
   name,
   slug,
@@ -73,7 +73,7 @@ const FALLBACK_PRODUCTS: PublicProduct[] = [
   price,
   currency: 'USD',
   discount_price: null,
-  thumbnail,
+  thumbnail: '',
   software_used: 'Blender',
   category: { id: `fallback-${slug}-category`, name: categoryName, slug: categoryName.toLowerCase() },
   license_type: 'standard',
@@ -145,7 +145,7 @@ function useAutoScrollRail(
   useEffect(() => {
     const rail = railRef.current
     if (!rail || !enabled) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
 
     let paused = false
     let frame = 0
@@ -430,8 +430,8 @@ export function ProductsBrowsePage() {
     ? pluginsData.results
     : SHOW_DEMO_FALLBACK ? FALLBACK_PLUGINS : []
 
-  useAutoScrollRail(productsRailRef, !isCatalogMode && filteredProducts.length > 1)
-  useAutoScrollRail(pluginsRailRef, !isCatalogMode && plugins.length > 1)
+  useAutoScrollRail(productsRailRef, !isCatalogMode && !isLoading && filteredProducts.length > 1)
+  useAutoScrollRail(pluginsRailRef, !isCatalogMode && !pluginsLoading && plugins.length > 1)
 
   if (!isCatalogMode) {
     return (

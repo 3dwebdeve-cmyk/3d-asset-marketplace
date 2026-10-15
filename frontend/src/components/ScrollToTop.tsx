@@ -18,7 +18,7 @@ export function ScrollToTop() {
       active.blur()
     }
 
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
     const scrollingElement = document.scrollingElement
     if (scrollingElement) {
       scrollingElement.scrollTop = 0

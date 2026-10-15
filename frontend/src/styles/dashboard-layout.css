@@ -15,7 +15,7 @@
   min-height: calc(100svh - 1.5cm);
   width: 100%;
   text-align: left;
-  background: #ffffff;
+  background: var(--bg-page);
   color: var(--dash-ink);
   font-family: var(--dash-font);
   font-size: var(--dash-base);
@@ -181,7 +181,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .dashboard-header {
@@ -216,7 +216,7 @@
 .dashboard-layout__content {
   flex: 1;
   min-width: 0;
-  background: #ffffff;
+  background: var(--bg-page);
   font-size: var(--dash-base);
 }
 
@@ -226,7 +226,7 @@
   padding: 1.25rem 1.35rem 1.75rem;
   place-items: unset;
   min-height: 100%;
-  background: #ffffff;
+  background: var(--bg-page);
   font-family: var(--dash-font);
   font-size: var(--dash-base);
   color: var(--dash-ink);
