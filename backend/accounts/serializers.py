@@ -102,6 +102,32 @@ class LoginSerializer(serializers.Serializer):
         return value.strip().lower()
 
 
+class AdminMfaStartSerializer(serializers.Serializer):
+    mfa_token = serializers.CharField(write_only=True, max_length=1024, trim_whitespace=True)
+
+
+class AdminMfaConfirmSerializer(AdminMfaStartSerializer):
+    code = serializers.CharField(write_only=True, max_length=16)
+    remember_me = serializers.BooleanField(required=False, default=True)
+
+
+class AdminMfaVerifySerializer(AdminMfaStartSerializer):
+    code = serializers.CharField(write_only=True, max_length=16, required=False, allow_blank=True, default="")
+    recovery_code = serializers.CharField(
+        write_only=True, max_length=32, required=False, allow_blank=True, default=""
+    )
+    remember_me = serializers.BooleanField(required=False, default=True)
+
+    def validate(self, attrs: dict) -> dict:
+        if bool(attrs.get("code")) == bool(attrs.get("recovery_code")):
+            raise serializers.ValidationError("Enter either an authenticator code or a recovery code.")
+        return attrs
+
+
+class AdminRecoveryCodesSerializer(serializers.Serializer):
+    code = serializers.CharField(write_only=True, max_length=16)
+
+
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
     remember_me = serializers.BooleanField(required=False, default=True)

@@ -39,6 +39,7 @@ describe('Cloudflare API proxy', () => {
     expect(response.headers.get('Content-Security-Policy')).toContain("default-src 'self'")
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
     expect(response.headers.get('X-Frame-Options')).toBe('DENY')
+    expect(response.headers.get('Strict-Transport-Security')).toContain('max-age=31536000')
     expect(response.headers.get('Content-Type')).toBe('text/html')
   })
 

@@ -65,6 +65,8 @@ frontend/.env
 .env.local
 frontend/.env.local
 backend/.env.local
+# Backup host secrets (backup token, age recipient); never loaded by Compose.
+.env.backup
 
 
 backend/.meili_docker.env
