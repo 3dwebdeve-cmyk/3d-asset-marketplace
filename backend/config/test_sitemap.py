@@ -14,8 +14,14 @@ NS = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 URL = "/api/v1/sitemap.xml"
 
 
+def _parse(content: bytes):
+    # The XML here is the sitemap our own view just produced, never input from outside, so the
+    # standard parser is safe. One place carries the scanner exception instead of every call.
+    return ET.fromstring(content)  # nosec B314
+
+
 def _locs(response) -> list[str]:
-    root = ET.fromstring(response.content)
+    root = _parse(response.content)
     return [node.text for node in root.findall("sm:url/sm:loc", NS)]
 
 
@@ -54,7 +60,7 @@ class SitemapTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("application/xml", response["Content-Type"])
         self.assertIn("max-age=3600", response["Cache-Control"])
-        self.assertEqual(ET.fromstring(response.content).tag, "{http://www.sitemaps.org/schemas/sitemap/0.9}urlset")
+        self.assertEqual(_parse(response.content).tag, "{http://www.sitemaps.org/schemas/sitemap/0.9}urlset")
 
     def test_lists_the_fixed_public_pages_but_never_private_ones(self):
         locs = _locs(self.client.get(URL))
@@ -82,7 +88,7 @@ class SitemapTests(TestCase):
         self.assertNotIn("https://assethive3d.com/3d-models/demo-assets", locs)  # placeholder
 
     def test_shows_when_a_page_last_changed(self):
-        root = ET.fromstring(self.client.get(URL).content)
+        root = _parse(self.client.get(URL).content)
         stamps = {
             node.find("sm:loc", NS).text: node.find("sm:lastmod", NS)
             for node in root.findall("sm:url", NS)
