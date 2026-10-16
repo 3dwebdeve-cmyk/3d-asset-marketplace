@@ -16,9 +16,10 @@ type SearchCategory = 'plugins' | 'models'
 
 const TRENDING_TAGS: readonly TrendingTag[] = [
   { label: '3D Models', search: '' },
-  { label: '3D character', search: '3D character' },
-  { label: 'Game Environment', search: 'Game Environment' },
-  { label: 'Low Poly', search: 'Low Poly' },
+  { label: 'Furniture', search: 'Furniture' },
+  { label: 'Interior', search: 'Interior' },
+  { label: 'Lighting', search: 'Lighting' },
+  { label: 'Plants', search: 'Plants' },
 ]
 
 const SORT_PILLS: readonly SortPill[] = [
@@ -146,7 +147,7 @@ export function MarketplaceHero() {
 
         <div className="home-marketplace-hero__content">
           <h1 className="home-marketplace-hero__title">
-            World&apos;s largest 3D model marketplace
+            Furniture &amp; interior 3D models for visualization and design
           </h1>
 
           <form
@@ -170,7 +171,7 @@ export function MarketplaceHero() {
                 type="search"
                 className="home-marketplace-search__input"
                 aria-label="Search marketplace"
-                placeholder="Search models, materials, plugins…"
+                placeholder="Search furniture, interiors, lighting, plugins…"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
               />

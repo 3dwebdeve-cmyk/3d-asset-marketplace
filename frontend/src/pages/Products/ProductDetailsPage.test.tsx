@@ -287,6 +287,111 @@ describe('ProductDetailsPage', () => {
     expect(screen.queryByRole('link', { name: /browse sci-fi assets/i })).not.toBeInTheDocument()
   })
 
+  describe('search engine tags', () => {
+    function structuredData(): Array<Record<string, any>> {
+      return [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((node) =>
+        [JSON.parse(node.textContent ?? '[]')].flat(),
+      )
+    }
+
+    it('gives the page a keyword title, a factual description and its own canonical address', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => {
+        expect(document.title).toMatch(/^Cyberpunk Drone 3D.*3D Model \| AssetHive3D$/)
+      })
+      // A hand-written short description is used exactly as written.
+      expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+        'content',
+        'Futuristic sci-fi drone asset',
+      )
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        expect.stringMatching(/\/products\/cyberpunk-drone-3d$/),
+      )
+      expect(document.querySelector('meta[property="og:type"]')).toHaveAttribute('content', 'product')
+      expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute(
+        'content',
+        'https://cdn.example.com/thumb.jpg',
+      )
+    })
+
+    it('builds the description only from real facts when no short description was written', async () => {
+      vi.mocked(productsApi.getPublicProduct).mockResolvedValue({ ...sampleDetail, short_description: '' })
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+          'content',
+          'Cyberpunk Drone 3D: Sci-Fi Assets 3D model, 12,000 polygons. Preview in 3D, secure checkout and instant download. Standard license.',
+        )
+      })
+    })
+
+    it('publishes the real price, currency and rating as structured data, nothing invented', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => expect(structuredData().some((item) => item['@type'] === 'Product')).toBe(true))
+      const product = structuredData().find((item) => item['@type'] === 'Product')!
+      expect(product.name).toBe('Cyberpunk Drone 3D')
+      expect(product.offers).toMatchObject({
+        '@type': 'Offer',
+        priceCurrency: 'USD',
+        price: '39.99',
+        availability: 'https://schema.org/InStock',
+      })
+      expect(product.aggregateRating).toMatchObject({ ratingValue: 4.8, reviewCount: 12 })
+      expect(product.image).toEqual(expect.arrayContaining(['https://cdn.example.com/thumb.jpg']))
+    })
+
+    it('adds a breadcrumb trail through the category and links the category in the page', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => expect(structuredData().some((item) => item['@type'] === 'BreadcrumbList')).toBe(true))
+      const crumbs = structuredData().find((item) => item['@type'] === 'BreadcrumbList')!
+      expect(crumbs.itemListElement.map((entry: { name: string }) => entry.name)).toEqual([
+        'Home',
+        '3D Models',
+        'Sci-Fi Assets',
+        'Cyberpunk Drone 3D',
+      ])
+      expect(screen.getByRole('link', { name: 'Sci-Fi Assets' })).toHaveAttribute('href', '/3d-models/sci-fi-assets')
+    })
+
+    it('keeps placeholder demo products out of search results, and indexes real ones', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+      expect(document.querySelector('meta[name="robots"]')).toBeNull()
+    })
+
+    it('does not index a demo product', async () => {
+      vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
+        ...sampleDetail,
+        category: { id: 'demo', name: 'Demo Assets', slug: 'demo-assets' },
+      })
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex')
+      })
+    })
+
+    it('removes its tags again when the visitor leaves the page', async () => {
+      const { unmount } = renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+      await waitFor(() => expect(document.querySelector('link[rel="canonical"]')).not.toBeNull())
+
+      unmount()
+
+      expect(document.querySelector('link[rel="canonical"]')).toBeNull()
+      expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(0)
+    })
+  })
+
   it('keeps the image stage when no preview model is available', async () => {
     vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
       ...sampleDetail,
@@ -397,10 +502,10 @@ describe('ProductDetailsPage', () => {
     )
 
     const dialog = await screen.findByRole('dialog', { name: /image viewer/i })
-    expect(within(dialog).getByAltText(/cyberpunk drone 3d image 1/i)).toBeInTheDocument()
+    expect(within(dialog).getByAltText(/cyberpunk drone 3d 3d model, image 1/i)).toBeInTheDocument()
 
     await user.keyboard('{ArrowRight}')
-    expect(within(dialog).getByAltText(/cyberpunk drone 3d image 2/i)).toBeInTheDocument()
+    expect(within(dialog).getByAltText(/cyberpunk drone 3d 3d model, image 2/i)).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
     await waitFor(() => {

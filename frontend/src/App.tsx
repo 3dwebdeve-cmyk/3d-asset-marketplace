@@ -331,6 +331,7 @@ function AppRoutes() {
             <Route path="/products/:slug" element={<ProductDetailsPage />} />
             <Route path="/Products/:slug" element={<ProductDetailsPage />} />
             <Route path="/3d-models" element={<ModelsBrowsePage />} />
+            <Route path="/3d-models/:categorySlug" element={<ModelsBrowsePage />} />
             <Route path="/3D-models" element={<Navigate to="/3d-models" replace />} />
             <Route path="/plugins" element={<PluginsBrowsePage />} />
             <Route path="/Plugins" element={<Navigate to="/plugins" replace />} />

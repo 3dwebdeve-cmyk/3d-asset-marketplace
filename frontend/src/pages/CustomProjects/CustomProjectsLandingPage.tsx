@@ -12,9 +12,10 @@ const CONTACT_ENQUIRY_PATH =
 
 export function CustomProjectsLandingPage() {
   useDocumentSeo({
-    title: 'Custom Projects | 3D Asset Marketplace',
+    title: 'Custom 3D Modeling Services | AssetHive3D',
     description:
-      'Request custom 3D design work by email enquiry — share your brief and our team will follow up from the company inbox.',
+      'Request a custom 3D model, texture, render or plugin. Share your brief by email enquiry and our team will follow up.',
+    canonicalPath: '/custom-projects',
   })
 
   return (

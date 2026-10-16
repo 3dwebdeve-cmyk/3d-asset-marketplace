@@ -119,7 +119,9 @@ describe('PluginsBrowsePage', () => {
   it('renders hero title and plugin list', async () => {
     renderPluginsBrowsePage()
 
-    expect(screen.getByRole('heading', { name: /^plugins$/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Blender & Unreal Plugins and Tools' }),
+    ).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()

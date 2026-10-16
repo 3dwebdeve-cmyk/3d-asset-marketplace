@@ -36,6 +36,28 @@ function withSecurityHeaders(response: Response): Response {
 const isApiPath = (pathname: string): boolean =>
   pathname === '/api' || pathname.startsWith('/api/')
 
+// The sitemap is built from the database by the backend; search engines ask for it at the site root.
+const SITEMAP_PATH = '/sitemap.xml'
+const UPSTREAM_SITEMAP_PATH = '/api/v1/sitemap.xml'
+
+/**
+ * robots.txt comes from the static file, plus a Sitemap line that uses whatever address the
+ * visitor used. That keeps it correct on the current address and on the real domain later.
+ */
+async function robotsTxt(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return errorResponse(405, 'Method not allowed.')
+  }
+  const asset = await env.ASSETS.fetch(request)
+  const rules = asset.ok ? (await asset.text()).trimEnd() : 'User-agent: *\nAllow: /'
+  return new Response(`${rules}\n\nSitemap: ${url.origin}${SITEMAP_PATH}\n`, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  })
+}
+
 function backendOrigin(value: string | undefined): URL {
   if (!value) {
     throw new Error('BACKEND_ORIGIN is not configured')
@@ -70,7 +92,10 @@ function errorResponse(status: number, detail: string): Response {
 
 export async function handleRequest(request: Request, env: WorkerEnv): Promise<Response> {
   const incomingUrl = new URL(request.url)
-  if (!isApiPath(incomingUrl.pathname)) {
+  if (incomingUrl.pathname === '/robots.txt') {
+    return robotsTxt(request, env, incomingUrl)
+  }
+  if (!isApiPath(incomingUrl.pathname) && incomingUrl.pathname !== SITEMAP_PATH) {
     return withSecurityHeaders(await env.ASSETS.fetch(request))
   }
 
@@ -81,7 +106,8 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
     return errorResponse(503, 'API proxy is not configured.')
   }
 
-  const upstreamUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, origin)
+  const upstreamPath = incomingUrl.pathname === SITEMAP_PATH ? UPSTREAM_SITEMAP_PATH : incomingUrl.pathname
+  const upstreamUrl = new URL(`${upstreamPath}${incomingUrl.search}`, origin)
   const headers = new Headers(request.headers)
   headers.delete('host')
   // Drop anything a visitor could use to pose as someone else; the backend must only see

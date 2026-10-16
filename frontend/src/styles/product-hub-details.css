@@ -48,6 +48,15 @@
   min-width: 0;
 }
 
+.product-hub-detail__eyebrow a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.product-hub-detail__eyebrow a:hover {
+  text-decoration: underline;
+}
+
 .product-hub-detail__eyebrow {
   margin: 0 0 0.35rem;
   color: var(--hub-muted);

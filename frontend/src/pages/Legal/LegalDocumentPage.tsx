@@ -11,18 +11,18 @@ const COPY: Record<
   { title: string; description: string; heading: string; version: string; otherLabel: string; otherPath: string }
 > = {
   terms: {
-    title: 'Terms of Service | 3D Asset Marketplace',
+    title: 'Terms of Service | AssetHive3D',
     description:
-      'Terms of Service for buying 3D models, plugins, and custom project work on the 3D Asset Marketplace.',
+      'Terms of Service for buying 3D models, plugins, and custom project work on AssetHive3D.',
     heading: 'Terms of Service',
     version: LEGAL_DOCUMENT_VERSIONS.terms,
     otherLabel: 'Privacy Policy',
     otherPath: PRIVACY_PATH,
   },
   privacy: {
-    title: 'Privacy Policy | 3D Asset Marketplace',
+    title: 'Privacy Policy | AssetHive3D',
     description:
-      'How the 3D Asset Marketplace collects, uses, and protects account and order information.',
+      'How AssetHive3D collects, uses, and protects account and order information.',
     heading: 'Privacy Policy',
     version: LEGAL_DOCUMENT_VERSIONS.privacy,
     otherLabel: 'Terms of Service',
