@@ -30,6 +30,12 @@ Booleans accept `TRUE`, `1`, `YES` and `Y`. Gallery paths are separated by `|` o
   (`invalid_object_key`), because storage treats every other name in the folder as public.
 - The import moves `preview.glb` to an unguessable name and deletes the original. The
   preview must be a reduced model; see `PREVIEW_PIPELINE.md`.
+- Thumbnail and gallery images are served as WebP. Upload `.webp` to have them used as-is;
+  a `.jpg` or `.png` (25 MB, 20 megapixels at most) is converted to
+  `<name>-<12 hex>.webp` next to the original, and the product points to the WebP copy.
+  The name changes when the image changes, so browsers never show a stale copy; a
+  re-import with a new thumbnail deletes the previous WebP copy. An image that is not in
+  storage at import time keeps its original key.
 
 ## Import gate
 
@@ -37,6 +43,8 @@ A row is skipped, with a reason, when any of these apply:
 `folder_mismatch`, `exports_incomplete`, `invalid_price`, `missing_thumbnail`.
 Preview checks can also skip a row: `invalid_preview_format`, `missing_preview_object`,
 `invalid_preview`, `preview_too_large`, `preview_not_reduced`, `preview_unreadable`.
+Image checks can skip a row: `invalid_thumbnail`, `invalid_gallery_image` (not a JPEG/PNG/WebP
+image, over 25 MB or over 20 megapixels) and `image_unreadable` (storage error).
 Passing rows are created or updated as `pending_review`. Publishing always goes through
 the review queue (approve action); imports never publish directly.
 
