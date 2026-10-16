@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import tempfile
 from decimal import Decimal
+from io import BytesIO
 
 from django.core.cache import cache
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.test import override_settings
 from django.urls import reverse
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -429,3 +432,92 @@ class CatalogImportAPITests(APITestCase):
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
         for file_row in detail.data.get("files", []):
             self.assertNotIn("storage_path", file_row)
+
+
+def _image_bytes(fmt: str, color: tuple[int, int, int]) -> bytes:
+    output = BytesIO()
+    Image.new("RGB", (32, 24), color=color).save(output, format=fmt)
+    return output.getvalue()
+
+
+def _webp_item(sku: str = "MDL-000900") -> dict:
+    return _happy_item(
+        model_id=sku,
+        r2_key_prefix=f"models/{sku}/",
+        media={
+            "thumbnail_key": f"models/{sku}/thumbnail.jpg",
+            "preview_key": f"models/{sku}/preview.glb",
+            "package_key": f"models/{sku}/package.zip",
+            "package_file_size": 1048576,
+            "gallery_keys": [f"models/{sku}/gallery/01.png"],
+        },
+    )
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CatalogImportWebpTests(APITestCase):
+    """Pipeline thumbnails and gallery images are served as WebP."""
+
+    _authenticate_as_admin = CatalogImportAPITests._authenticate_as_admin
+    _post_batch = CatalogImportAPITests._post_batch
+
+    def setUp(self) -> None:
+        CatalogImportAPITests.setUp(self)
+        self._authenticate_as_admin()
+        self.addCleanup(self._remove_folder, "models/MDL-000900")
+
+    @staticmethod
+    def _remove_folder(prefix: str) -> None:
+        directories, files = default_storage.listdir(prefix) if default_storage.exists(prefix) else ([], [])
+        for name in files:
+            default_storage.delete(f"{prefix}/{name}")
+        for name in directories:
+            CatalogImportWebpTests._remove_folder(f"{prefix}/{name}")
+
+    @staticmethod
+    def _put(key: str, data: bytes) -> None:
+        if default_storage.exists(key):
+            default_storage.delete(key)
+        default_storage.save(key, ContentFile(data))
+
+    @staticmethod
+    def _key(url: str) -> str:
+        return url.split("/media/", 1)[-1]
+
+    def test_pipeline_images_are_served_as_webp(self) -> None:
+        self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (200, 40, 40)))
+        self._put("models/MDL-000900/gallery/01.png", _image_bytes("PNG", (40, 200, 40)))
+
+        response = self._post_batch([_webp_item()])
+
+        self.assertEqual(response.data["created"], 1, response.data)
+        product = Product.objects.get(sku="MDL-000900")
+        self.assertRegex(product.thumbnail, r"models/MDL-000900/thumbnail-[0-9a-f]{12}\.webp$")
+        gallery = ProductImage.objects.get(product=product)
+        self.assertRegex(gallery.image_url, r"models/MDL-000900/gallery/01-[0-9a-f]{12}\.webp$")
+        for url in (product.thumbnail, gallery.image_url):
+            with default_storage.open(self._key(url), "rb") as handle:
+                self.assertEqual(Image.open(handle).format, "WEBP")
+
+    def test_changed_thumbnail_replaces_the_previous_webp(self) -> None:
+        self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (200, 40, 40)))
+        self._post_batch([_webp_item()])
+        first = Product.objects.get(sku="MDL-000900").thumbnail
+
+        self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (40, 40, 200)))
+        response = self._post_batch([_webp_item()], batch_id="2026-09-03-run-02")
+
+        self.assertEqual(response.data["updated"], 1, response.data)
+        second = Product.objects.get(sku="MDL-000900").thumbnail
+        self.assertNotEqual(first, second)
+        self.assertTrue(default_storage.exists(self._key(second)))
+        self.assertFalse(default_storage.exists(self._key(first)))
+
+    def test_unreadable_thumbnail_skips_the_row(self) -> None:
+        self._put("models/MDL-000900/thumbnail.jpg", b"not an image")
+
+        response = self._post_batch([_webp_item()])
+
+        self.assertEqual(response.data["skipped"], 1)
+        self.assertEqual(response.data["results"][0]["reason"], "invalid_thumbnail")
+        self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())

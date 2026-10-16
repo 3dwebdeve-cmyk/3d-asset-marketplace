@@ -343,7 +343,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/banner%20image/08.jpg?v=1',
+        '/banner%20image/08.webp',
       )
     })
 

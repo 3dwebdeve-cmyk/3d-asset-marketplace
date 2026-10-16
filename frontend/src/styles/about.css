@@ -273,7 +273,7 @@
   overflow: hidden;
   padding: clamp(2.75rem, 5.5vw, 4.25rem) 0;
   background-color: var(--pure-black);
-  background-image: url('/images/about/about-mission.jpg?v=1');
+  background-image: url('/images/about/about-mission.webp');
   background-repeat: no-repeat;
   background-position: right center;
   background-size: cover;
