@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import posixpath
 import re
 import uuid
 from dataclasses import dataclass
@@ -26,7 +28,7 @@ from products.services import (
     ProductUpdateData,
     preview_reduction_error,
 )
-from products.upload_rules import PRODUCT_PREVIEW_MAX_BYTES
+from products.upload_rules import PRODUCT_PREVIEW_MAX_BYTES, convert_image_bytes_to_webp
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,10 @@ _QA_READY = frozenset({"Ready for QA", "Approved"})
 _EXPORT_SUCCESS = "Success"
 _PACKAGEABLE_EXPORTS = ("fbx", "obj", "max")
 _STORAGE_ERRORS = (OSError, ValueError, SuspiciousFileOperation, BotoCoreError, ClientError)
+# Pipeline renders can be larger than the admin form's 5 MB upload limit.
+_IMPORT_IMAGE_MAX_BYTES = 25 * 1024 * 1024
+# WebP copies made by the import: "<original name>-<12 hex>.webp".
+_WEBP_COPY_RE = re.compile(r"-[0-9a-f]{12}\.webp$")
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
@@ -211,6 +217,11 @@ class CatalogImportService:
                 )
 
         try:
+            media_pointers = cls._convert_images_to_webp(sku, media_pointers, existing)
+        except ProductError as exc:
+            return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.message)
+
+        try:
             media_pointers = cls._secure_preview(sku, item, media_pointers, existing)
         except ProductError as exc:
             return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.message)
@@ -264,6 +275,7 @@ class CatalogImportService:
             )
 
         cls._delete_preview_object(media_pointers["replaced_preview_key"])
+        cls._delete_replaced_thumbnail(product, media_pointers["replaced_thumbnail_key"])
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -430,15 +442,18 @@ class CatalogImportService:
             if package_key != f"models/{sku}/package.zip":
                 raise ProductError("invalid_object_key", field="package_key")
 
-        gallery_urls: list[str] = []
+        gallery_keys: list[str] = []
         for raw in media.get("gallery_keys") or []:
             key = cls._normalize_object_key(str(raw or ""), sku=sku)
             if key.endswith("package.zip"):
                 raise ProductError("invalid_object_key", field="object_key")
-            gallery_urls.append(build_public_media_url(key))
+            gallery_keys.append(key)
+        gallery_urls = [build_public_media_url(key) for key in gallery_keys]
 
         return {
+            "thumbnail_key": thumbnail_key,
             "thumbnail_url": build_public_media_url(thumbnail_key),
+            "replaced_thumbnail_key": None,
             "preview_key": preview_key,
             "preview_url": build_public_media_url(preview_key),
             "package_key": package_key,
@@ -447,6 +462,7 @@ class CatalogImportService:
             "package_file_format": str(media.get("package_file_format") or "zip").strip().lower()
             or "zip",
             "package_file_size": int(media.get("package_file_size") or 0),
+            "gallery_keys": gallery_keys,
             "gallery_urls": gallery_urls,
             "has_thumbnail": True,
             "has_preview": True,
@@ -535,6 +551,89 @@ class CatalogImportService:
             if previous and previous != new_key and previous.startswith(f"models/{sku}/preview-"):
                 pointers["replaced_preview_key"] = previous
         return pointers
+
+    @classmethod
+    def _convert_images_to_webp(
+        cls,
+        sku: str,
+        media_pointers: dict[str, Any],
+        existing: Product | None,
+    ) -> dict[str, Any]:
+        """Serve the pipeline's thumbnail and gallery images as WebP.
+
+        Each image gets a WebP copy next to the original, named after its content, so a
+        changed image gets a new URL and the CDN never serves a stale one. An image that
+        is not in storage keeps its original key, as before.
+        """
+        thumbnail_key = cls._webp_copy(media_pointers["thumbnail_key"], reason="invalid_thumbnail")
+        pointers = {
+            **media_pointers,
+            "thumbnail_key": thumbnail_key,
+            "thumbnail_url": build_public_media_url(thumbnail_key),
+        }
+
+        # The import only fills an empty gallery, so don't convert images it won't use.
+        if existing is None or not ProductImage.objects.filter(product=existing).exists():
+            gallery_keys = [
+                cls._webp_copy(key, reason="invalid_gallery_image")
+                for key in media_pointers["gallery_keys"]
+            ]
+            pointers["gallery_keys"] = gallery_keys
+            pointers["gallery_urls"] = [build_public_media_url(key) for key in gallery_keys]
+
+        if existing is not None and existing.thumbnail:
+            previous = media_relative_path(existing.thumbnail)
+            if (
+                previous
+                and previous != thumbnail_key
+                and previous.startswith(f"models/{sku}/")
+                and _WEBP_COPY_RE.search(previous)
+            ):
+                pointers["replaced_thumbnail_key"] = previous
+        return pointers
+
+    @staticmethod
+    def _webp_copy(key: str, *, reason: str) -> str:
+        if key.lower().endswith(".webp"):
+            return key
+        storage = get_public_storage()
+        try:
+            if not storage.exists(key):
+                return key
+            if storage.size(key) > _IMPORT_IMAGE_MAX_BYTES:
+                raise ProductError(reason, field="media")
+            with storage.open(key, "rb") as handle:
+                data = handle.read()
+        except _STORAGE_ERRORS:
+            logger.exception("catalog_import_image_unreadable key=%s", key)
+            raise ProductError("image_unreadable", field="media") from None
+
+        try:
+            webp = convert_image_bytes_to_webp(data)
+        except ValidationError:
+            raise ProductError(reason, field="media") from None
+
+        target = f"{posixpath.splitext(key)[0]}-{hashlib.sha256(webp).hexdigest()[:12]}.webp"
+        try:
+            if not storage.exists(target):
+                target = storage.save(target, ContentFile(webp))
+        except _STORAGE_ERRORS:
+            logger.exception("catalog_import_image_store_failed key=%s", target)
+            raise ProductError("image_unreadable", field="media") from None
+        return target
+
+    @staticmethod
+    def _delete_replaced_thumbnail(product: Product, key: str | None) -> None:
+        """Remove the WebP thumbnail an earlier import made, once nothing points at it."""
+        if not key:
+            return
+        url = build_public_media_url(key)
+        if product.thumbnail == url or ProductImage.objects.filter(image_url=url).exists():
+            return
+        try:
+            get_public_storage().delete(key)
+        except _STORAGE_ERRORS:
+            logger.exception("catalog_import_thumbnail_delete_failed key=%s", key)
 
     @staticmethod
     def _delete_preview_object(key: str | None) -> None:
