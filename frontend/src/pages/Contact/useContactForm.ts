@@ -65,6 +65,13 @@ export function useContactForm(): UseContactFormResult {
     if (emailFromQuery) {
       setValue('email', emailFromQuery, { shouldDirty: true })
     }
+    const servicesFromQuery = searchParams.get('services')?.trim().slice(0, 1000)
+    if (servicesFromQuery) {
+      setValue('subject', 'Custom project enquiry', { shouldDirty: true })
+      setValue('message', `Selected services: ${servicesFromQuery}\n\nProject details:\n`, {
+        shouldDirty: true,
+      })
+    }
     const enquiryFromQuery = searchParams.get('enquiryType')?.trim()
     if (
       enquiryFromQuery &&
