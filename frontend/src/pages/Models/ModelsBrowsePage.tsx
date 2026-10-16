@@ -19,7 +19,7 @@ const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/images/new%20banner%20image%20size/Furniture.webp',
+  furniture: '/homepage%20images/banner_furniture_v24.jpg',
   toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
   electronics: '/images/new%20banner%20image%20size/Electronics.webp',
   'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
@@ -268,6 +268,7 @@ export function ModelsBrowsePage() {
     : selectedCategory?.name ?? '3D Model'
   const usesProductsBanner =
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
+  const usesFurnitureBanner = selectedCategory?.slug === 'furniture'
   const usesCharacterBanner = selectedCategory?.slug === 'character'
   const usesPlantsBanner = selectedCategory?.slug === 'plants-vegetation'
   const usesToysBanner = selectedCategory?.slug === 'toys'
@@ -282,7 +283,7 @@ export function ModelsBrowsePage() {
   return (
     <main className="plugins-browse models-browse">
       <section
-        className={`plugins-browse-hero site-hero-banner${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
+        className={`plugins-browse-hero site-hero-banner${usesFurnitureBanner ? ' plugins-browse-hero--furniture' : ''}${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
       >
         <SiteHeroImage
           src={heroImageSrc}
