@@ -1,6 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { buildBreadcrumbJsonLd, buildPageTitle } from '../../lib/seo'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
@@ -219,7 +221,18 @@ export function PluginsBrowsePage() {
     return categoriesData?.results.find((cat) => cat.id === selectedCategoryId)?.name ?? null
   }, [categoriesData?.results, selectedCategoryId])
 
-  const heroTitle = selectedCategoryName ?? 'Plugins'
+  const heroTitle = selectedCategoryName ?? 'Blender & Unreal Plugins and Tools'
+  useDocumentSeo({
+    title: buildPageTitle('Blender & Unreal Plugins and Tools'),
+    description:
+      'Browse plugins and tools for Blender and Unreal to speed up your 3D workflow. Secure checkout and instant download after purchase.',
+    canonicalPath: '/plugins',
+    robots: searchFromUrl ? 'noindex, follow' : undefined,
+    jsonLd: buildBreadcrumbJsonLd([
+      { name: 'Home', path: '/' },
+      { name: 'Plugins', path: '/plugins' },
+    ]),
+  })
 
   return (
     <main className="plugins-browse">
@@ -230,8 +243,8 @@ export function PluginsBrowsePage() {
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
           <p className="plugins-browse-hero__subtitle">
-            Professional plugins for Blender, Maya, Cinema 4D, and more. Supercharge your 3D
-            workflow with tools built by industry experts.
+            Plugins and tools for Blender, Unreal and more. Speed up your 3D workflow, check
+            compatibility and license on each listing, and download right after checkout.
           </p>
         </div>
       </section>

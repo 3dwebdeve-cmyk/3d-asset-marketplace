@@ -41,7 +41,7 @@ function buildGalleryImages(
     .map((image, index) => ({
       id: image.id,
       src: image.image_url,
-      alt: `${productName} image ${index + 1}`,
+      alt: `${productName} 3D model, image ${index + 1}`,
     }))
 
   if (fromApi.length > 0) {
@@ -49,7 +49,7 @@ function buildGalleryImages(
   }
 
   if (thumbnail.trim()) {
-    return [{ id: 'thumbnail', src: thumbnail, alt: productName }]
+    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model` }]
   }
 
   return []

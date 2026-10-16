@@ -8,6 +8,8 @@ import { listPublicProducts } from '../../api/productsApi'
 import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { useAllCategories } from '../../hooks/useAllCategories'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { HOME_DESCRIPTION, HOME_TITLE, buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
@@ -117,21 +119,21 @@ const FALLBACK_PLUGINS: PublicPlugin[] = [
 const BROWSE_SERVICES: BrowseService[] = [
   {
     title: '3D Models',
-    description: 'Explore high-quality production-ready 3D models in all categories.',
+    description: 'Browse production-ready 3D models of furniture, interiors, lighting, plants and more.',
     path: '/3d-models',
     buttonText: 'Shop 3D Models',
     iconSrc: '/images/home/icon-3d-models.webp',
   },
   {
     title: 'Plugins & Tools',
-    description: 'Power-up your workflow with professional Blender and Unreal plugins.',
+    description: 'Speed up your 3D workflow with Blender and Unreal plugins and tools.',
     path: '/plugins',
     buttonText: 'Explore Plugins',
     iconSrc: '/images/home/icon-plugins.webp',
   },
   {
     title: 'Inquiry Portal',
-    description: 'Have a specific custom asset requirement? Our team is here to help.',
+    description: 'Need a custom 3D model, texture or render? Send your brief and our team will reply.',
     path: '/custom-projects',
     buttonText: 'Submit an Inquiry',
     iconSrc: '/images/home/icon-inquiry.webp',
@@ -238,10 +240,10 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Model',
     icon: 'cube',
     image: '/images/custom-3Dmodel.webp',
-    summary: 'High-quality, custom 3D models built precisely for your project needs.',
+    summary: 'Custom 3D models for furniture, products and interiors, built precisely for your project.',
     points: [
-      'Product & game-ready models',
-      'Characters, props & environments',
+      'Furniture, product & game-ready models',
+      'Interiors, props & environments',
       'Clean & optimized topology',
       'Fully customized designs',
     ],
@@ -433,10 +435,33 @@ export function ProductsBrowsePage() {
   useAutoScrollRail(productsRailRef, !isCatalogMode && !isLoading && filteredProducts.length > 1)
   useAutoScrollRail(pluginsRailRef, !isCatalogMode && !pluginsLoading && plugins.length > 1)
 
+  useDocumentSeo({
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    canonicalPath: '/',
+    jsonLd: [buildOrganizationJsonLd(), buildWebSiteJsonLd()],
+  })
+
   if (!isCatalogMode) {
     return (
       <main className="products-browse-page products-browse-page--hub">
         <MarketplaceHero />
+
+        <section className="browse-intro" aria-labelledby="browse-intro-heading">
+          <h2 id="browse-intro-heading" className="browse-intro__title">
+            Production-ready 3D models for furniture and interior visualization
+          </h2>
+          <p className="browse-intro__text">
+            AssetHive3D is a marketplace for 3D models and Blender and Unreal plugins. Browse{' '}
+            <Link to="/3d-models/furniture">furniture 3D models</Link>,{' '}
+            <Link to="/3d-models/interior-3d-models">interior 3D models</Link>,{' '}
+            <Link to="/3d-models/household">household objects</Link>,{' '}
+            <Link to="/3d-models/lights">lighting</Link> and{' '}
+            <Link to="/3d-models/plants-vegetation">plants</Link>, preview each one in 3D, and download your files
+            straight after checkout with a license for every order. Need something specific? Our team also takes
+            custom 3D model, texture and render requests.
+          </p>
+        </section>
 
         <section className="browse-service-cards" aria-label="Marketplace modules">
           {BROWSE_SERVICES.map((service) => (
@@ -466,10 +491,7 @@ export function ProductsBrowsePage() {
                 <CategoryTile
                   key={category.id}
                   category={category}
-                  onSelect={() => {
-                    trackCategoryClick(category.id)
-                    navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
-                  }}
+                  onSelect={() => trackCategoryClick(category.id)}
                 />
               ))
             )}
