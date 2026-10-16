@@ -447,22 +447,6 @@ export function ProductsBrowsePage() {
       <main className="products-browse-page products-browse-page--hub">
         <MarketplaceHero />
 
-        <section className="browse-intro" aria-labelledby="browse-intro-heading">
-          <h2 id="browse-intro-heading" className="browse-intro__title">
-            Production-ready 3D models for furniture and interior visualization
-          </h2>
-          <p className="browse-intro__text">
-            AssetHive3D is a marketplace for 3D models and Blender and Unreal plugins. Browse{' '}
-            <Link to="/3d-models/furniture">furniture 3D models</Link>,{' '}
-            <Link to="/3d-models/interior-3d-models">interior 3D models</Link>,{' '}
-            <Link to="/3d-models/household">household objects</Link>,{' '}
-            <Link to="/3d-models/lights">lighting</Link> and{' '}
-            <Link to="/3d-models/plants-vegetation">plants</Link>, preview each one in 3D, and download your files
-            straight after checkout with a license for every order. Need something specific? Our team also takes
-            custom 3D model, texture and render requests.
-          </p>
-        </section>
-
         <section className="browse-service-cards" aria-label="Marketplace modules">
           {BROWSE_SERVICES.map((service) => (
             <ServiceModule key={service.path} service={service} />
