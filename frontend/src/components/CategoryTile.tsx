@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getCategoryIcon } from './categoryIcons'
+import { categoryPath } from '../lib/categorySeo'
 import type { CategoryPublic } from '../types/category'
 
 const LOCAL_CATEGORY_IMAGES: Record<string, string> = {
@@ -22,12 +24,17 @@ const LOCAL_CATEGORY_IMAGES: Record<string, string> = {
   'interior-3d-models': '/catego%20image/Golden%20Moon%20Clock%20Living%20Room.png',
 }
 
+/**
+ * A real link to the category's own address (for example /3d-models/furniture), so search
+ * engines can follow it, and visitors can open it in a new tab or share it.
+ */
 export function CategoryTile({
   category,
   onSelect,
 }: {
   category: CategoryPublic
-  onSelect: () => void
+  /** Optional hook for analytics; navigation itself is the link. */
+  onSelect?: () => void
 }) {
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const slug = category.slug.trim().toLowerCase()
@@ -35,8 +42,8 @@ export function CategoryTile({
   const imageSrc = LOCAL_CATEGORY_IMAGES[slug] ?? category.image
 
   return (
-    <button
-      type="button"
+    <Link
+      to={categoryPath(slug)}
       className={`browse-category-card browse-category-card--${slug}`}
       onClick={onSelect}
       aria-label={`Browse ${category.name} 3D models`}
@@ -62,6 +69,6 @@ export function CategoryTile({
         </div>
         <span className="browse-category-card__name">{category.name}</span>
       </div>
-    </button>
+    </Link>
   )
 }

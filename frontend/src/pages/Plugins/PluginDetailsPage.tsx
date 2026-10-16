@@ -13,6 +13,7 @@ import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
 import { discountPercent } from '../../lib/pricing'
+import { buildBreadcrumbJsonLd, buildPageTitle } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { PluginLicenseType, PublicPluginDetail } from '../../types/plugin'
 import { ProductImageGallery } from '../Products/ProductImageGallery'
@@ -38,7 +39,7 @@ function licenseLabel(license: PluginLicenseType): string {
 }
 
 function buildPluginPageTitle(pluginName: string): string {
-  return `${pluginName} | 3D Asset Marketplace`
+  return buildPageTitle(`${pluginName} Plugin`)
 }
 
 function buildPluginMetaDescription(pluginName: string, shortDescription: string): string {
@@ -46,7 +47,7 @@ function buildPluginMetaDescription(pluginName: string, shortDescription: string
   if (trimmed) {
     return trimmed.slice(0, 160)
   }
-  return `View details for ${pluginName} on 3D Asset Marketplace.`
+  return `${pluginName}: plugin for your 3D workflow. Secure checkout and instant download after purchase.`
 }
 
 function useScrollPluginPageToTop(resetKey: string): void {
@@ -290,10 +291,10 @@ export function PluginDetailsPage() {
 
   useDocumentSeo({
     title: isNotFound
-      ? 'Plugin not found | 3D Asset Marketplace'
+      ? 'Plugin not found | AssetHive3D'
       : pluginQuery.data
         ? buildPluginPageTitle(pluginQuery.data.name)
-        : 'Plugin details | 3D Asset Marketplace',
+        : 'Plugin details | AssetHive3D',
     description: isNotFound
       ? 'The requested plugin could not be found.'
       : pluginQuery.data
@@ -302,6 +303,16 @@ export function PluginDetailsPage() {
           pluginQuery.data.short_description,
         )
         : 'Loading plugin details from the marketplace catalog.',
+    canonicalPath: pluginQuery.data ? `/plugins/${pluginQuery.data.slug}` : undefined,
+    robots: isNotFound ? 'noindex' : undefined,
+    image: pluginQuery.data?.thumbnail || undefined,
+    jsonLd: pluginQuery.data
+      ? buildBreadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Plugins', path: '/plugins' },
+        { name: pluginQuery.data.name, path: `/plugins/${pluginQuery.data.slug}` },
+      ])
+      : undefined,
   })
 
   if (isNotFound) {

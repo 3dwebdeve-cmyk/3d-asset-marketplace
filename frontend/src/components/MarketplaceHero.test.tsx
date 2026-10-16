@@ -55,11 +55,15 @@ describe('MarketplaceHero', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('heading', { name: /World's largest 3D model marketplace/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /3D Models/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /3D character/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Game Environment/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Low Poly/i })).toBeInTheDocument()
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading).toHaveTextContent(/furniture & interior 3D models for visualization and design/i)
+    // The headline must stay a claim the shop can prove.
+    expect(heading).not.toHaveTextContent(/largest|best|#1/i)
+    expect(screen.getByRole('button', { name: /^3D Models$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Furniture/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Interior/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Lighting/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Plants/i })).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: /Newest/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Top Selling/i })).toBeInTheDocument()
@@ -75,15 +79,15 @@ describe('MarketplaceHero', () => {
       </MemoryRouter>,
     )
 
-    const charButton = screen.getByRole('button', { name: /3D character/i })
-    await user.click(charButton)
-    expect(charButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=3D+character')
+    const furnitureButton = screen.getByRole('button', { name: /Furniture/i })
+    await user.click(furnitureButton)
+    expect(furnitureButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=Furniture')
 
-    const lowPolyButton = screen.getByRole('button', { name: /Low Poly/i })
-    await user.click(lowPolyButton)
-    expect(lowPolyButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=Low+Poly')
+    const lightingButton = screen.getByRole('button', { name: /Lighting/i })
+    await user.click(lightingButton)
+    expect(lightingButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=Lighting')
   })
 
   it('navigates when clicking sort pills and updates active state', async () => {

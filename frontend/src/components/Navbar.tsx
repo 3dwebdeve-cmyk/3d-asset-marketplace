@@ -322,10 +322,10 @@ export function Navbar() {
     >
       <nav className="navbar__inner" aria-label="Main">
         <div className="navbar__start">
-          <Link className="navbar__brand" to="/" onClick={closeMobileNav} aria-label="AssetHive 3D">
+          <Link className="navbar__brand" to="/" onClick={closeMobileNav} aria-label="AssetHive3D">
             <img
               src="/images/AssetHive%203D.svg"
-              alt="AssetHive 3D"
+              alt="AssetHive3D"
               className="navbar__brand-logo"
             />
           </Link>
@@ -732,7 +732,7 @@ export function Navbar() {
               <Link to="/" onClick={closeMobileNav} className="navbar__drawer-brand-link">
                 <img
                   src="/images/AssetHive%203D.svg"
-                  alt="AssetHive 3D"
+                  alt="AssetHive3D"
                   className="navbar__drawer-brand-logo"
                 />
               </Link>

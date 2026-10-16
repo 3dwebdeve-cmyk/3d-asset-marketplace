@@ -30,7 +30,7 @@ export function AdminLoginPage() {
   } = useAdminLoginForm()
 
   useDocumentSeo({
-    title: 'Admin sign in | 3D Asset Marketplace',
+    title: 'Admin sign in | AssetHive3D',
     description: 'Administrator sign-in for the marketplace control panel.',
     robots: 'noindex, nofollow',
   })

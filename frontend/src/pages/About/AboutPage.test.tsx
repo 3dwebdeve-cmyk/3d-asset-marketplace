@@ -14,10 +14,12 @@ describe('AboutPage', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: /premium 3d assets and custom design, under one roof/i,
+        name: /3d models, plugins and custom 3d design in one place/i,
       }),
     ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /one place for everything 3d/i })).toBeInTheDocument()
+    // The page may only state things the shop can prove: no asset, creator or country counts.
+    expect(screen.queryByText(/50K|10K|180\+|countries/i)).not.toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: /empowering creators with quality and trust/i }),
     ).toBeInTheDocument()
