@@ -14,6 +14,11 @@ interface SortPill {
 
 type SearchCategory = 'plugins' | 'models'
 
+/** How far the banner zooms in by the time it has scrolled out of view. */
+const HERO_MAX_ZOOM = 0.06
+/** Time constant of the zoom easing; larger feels softer and lags the scroll more. */
+const HERO_ZOOM_SMOOTHING_MS = 90
+
 const TRENDING_TAGS: readonly TrendingTag[] = [
   { label: '3D Models', search: '' },
   { label: 'Furniture', search: 'Furniture' },
@@ -80,36 +85,70 @@ function ArrowRightIcon({ size = 16 }: { size?: number }) {
 export function MarketplaceHero() {
   const navigate = useNavigate()
   const stageRef = useRef<HTMLDivElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
   const [searchInput, setSearchInput] = useState('')
   const [searchCategory, setSearchCategory] = useState<SearchCategory>('models')
   const [activeSort, setActiveSort] = useState<string>('-review_count')
   const [activeTag, setActiveTag] = useState<string | null>(null)
 
+  // Scroll zoom: the image eases toward the scroll position instead of jumping to it,
+  // and only its own layer is transformed, so the rest of the hero is not restyled.
   useEffect(() => {
     const stage = stageRef.current
-    if (!stage) return
+    const backdrop = backdropRef.current
+    if (!stage || !backdrop) return
     const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    let distance = 1
+    let target = 1
+    let current = 1
     let frame: number | null = null
-    const update = () => {
-      frame = null
+    let lastTime = 0
+    const apply = () => {
+      const scale = current.toFixed(4)
+      backdrop.style.transform = `scale3d(${scale}, ${scale}, 1)`
+    }
+    const measure = () => {
       const rect = stage.getBoundingClientRect()
-      const distance = Math.max(1, rect.top + window.scrollY + rect.height)
+      distance = Math.max(1, rect.top + window.scrollY + rect.height)
+    }
+    const readTarget = () => {
       const progress = Math.max(0, Math.min(1, window.scrollY / distance))
-      stage.style.setProperty('--hero-scroll-scale', preference?.matches ? '1' : String(1 + progress * 0.06))
+      target = preference?.matches ? 1 : 1 + progress * HERO_MAX_ZOOM
+    }
+    const step = (time: number) => {
+      frame = null
+      const elapsed = lastTime ? Math.min(64, time - lastTime) : 16
+      lastTime = time
+      current += (target - current) * (1 - Math.exp(-elapsed / HERO_ZOOM_SMOOTHING_MS))
+      if (preference?.matches || Math.abs(target - current) < 0.0002) {
+        current = target
+        lastTime = 0
+      } else {
+        frame = requestAnimationFrame(step)
+      }
+      apply()
     }
     const schedule = () => {
-      if (frame === null) frame = requestAnimationFrame(update)
+      readTarget()
+      if (frame === null) frame = requestAnimationFrame(step)
     }
-    update()
+    const onResize = () => {
+      measure()
+      schedule()
+    }
+    measure()
+    readTarget()
+    current = target
+    apply()
     window.addEventListener('scroll', schedule, { passive: true })
-    window.addEventListener('resize', schedule)
+    window.addEventListener('resize', onResize)
     preference?.addEventListener('change', schedule)
     return () => {
       if (frame !== null) cancelAnimationFrame(frame)
       window.removeEventListener('scroll', schedule)
-      window.removeEventListener('resize', schedule)
+      window.removeEventListener('resize', onResize)
       preference?.removeEventListener('change', schedule)
-      stage.style.removeProperty('--hero-scroll-scale')
+      backdrop.style.removeProperty('transform')
     }
   }, [])
 
@@ -143,6 +182,7 @@ export function MarketplaceHero() {
   return (
     <section className="home-marketplace-hero" aria-label="Marketplace search">
       <div className="home-marketplace-hero__stage" ref={stageRef}>
+        <div className="home-marketplace-hero__backdrop" ref={backdropRef} aria-hidden="true" />
         <div className="home-marketplace-hero__shade" aria-hidden="true" />
 
         <div className="home-marketplace-hero__content">

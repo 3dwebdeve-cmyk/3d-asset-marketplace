@@ -23,29 +23,49 @@ describe('MarketplaceHero', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => (
       { top: 100 - window.scrollY, height: 500 } as DOMRect
     ))
-    let frame: FrameRequestCallback = () => {}
+    let pending: FrameRequestCallback | null = null
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      frame = callback
+      pending = callback
       return 1
     })
+    let now = 0
+    const runFrame = () => {
+      const callback = pending
+      pending = null
+      now += 16
+      callback?.(now)
+    }
+    const settle = () => {
+      for (let i = 0; i < 200 && pending; i += 1) runFrame()
+    }
     const { container, unmount } = render(<MemoryRouter><MarketplaceHero /></MemoryRouter>)
-    const stage = container.querySelector<HTMLElement>('.home-marketplace-hero__stage')!
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    const backdrop = container.querySelector<HTMLElement>('.home-marketplace-hero__backdrop')!
+    const scale = () => Number(/scale3d\(([\d.]+)/.exec(backdrop.style.transform)?.[1])
+    expect(scale()).toBe(1)
+
     vi.stubGlobal('scrollY', 300)
     fireEvent.scroll(window)
-    frame(16)
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1.03')
+    runFrame()
+    // Eases toward the target instead of jumping to it.
+    expect(scale()).toBeGreaterThan(1)
+    expect(scale()).toBeLessThan(1.03)
+    settle()
+    expect(scale()).toBe(1.03)
+
     vi.stubGlobal('scrollY', 0)
     fireEvent.scroll(window)
-    frame(32)
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    settle()
+    expect(scale()).toBe(1)
+
     preference.matches = true
     vi.stubGlobal('scrollY', 300)
     fireEvent.scroll(window)
-    frame(48)
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    runFrame()
+    expect(scale()).toBe(1)
+    expect(pending).toBeNull()
+
     unmount()
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('')
+    expect(backdrop.style.transform).toBe('')
   })
 
   it('renders all trending tags and sort pills', () => {

@@ -49,17 +49,17 @@
   justify-content: center;
 }
 
-.home-marketplace-hero__stage::before {
-  content: '';
+/* Scroll zoom layer. MarketplaceHero eases its transform every frame, so no CSS
+   transition here: one would restart on each frame and make the zoom lag and stutter. */
+.home-marketplace-hero__backdrop {
   position: absolute;
   inset: 0;
   z-index: 0;
   background: inherit;
-  transform: scale(var(--hero-scroll-scale, 1));
-  transition: transform 240ms ease-out;
   transform-origin: center;
   pointer-events: none;
   will-change: transform;
+  backface-visibility: hidden;
 }
 
 .home-marketplace-hero__media {
@@ -493,8 +493,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-marketplace-hero__stage::before {
-    transform: none;
+  .home-marketplace-hero__backdrop {
+    transform: none !important;
     will-change: auto;
   }
 
