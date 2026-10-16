@@ -23,7 +23,7 @@ const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/homepage%20images/banner_furniture_v24.jpg',
+  furniture: '/banner%20image/08.jpg?v=1',
   toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
   electronics: '/images/new%20banner%20image%20size/Electronics.webp',
   'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',

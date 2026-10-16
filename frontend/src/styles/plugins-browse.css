@@ -39,16 +39,11 @@
   }
 }
 
-.plugins-browse > .plugins-browse-hero--furniture {
-  background: #1c2329;
-}
-
 .plugins-browse > .plugins-browse-hero--furniture .site-hero-banner__image {
-  width: auto;
-  object-fit: contain;
-  object-position: right center;
-  justify-self: end;
-  mask-image: linear-gradient(to right, transparent, #000 25%);
+  width: 100%;
+  object-fit: cover;
+  object-position: center 58%;
+  mask-image: none;
 }
 
 .plugins-browse-hero--products .site-hero-banner__image {

@@ -13,9 +13,9 @@ const SERVICES = [
   { title: 'Product Images', description: 'Clean, high-quality product photos.', image: '/custome project image/chair_264x200.png', imagePosition: 'top center' },
   { title: '3D Modeling', description: 'Accurate, production-ready models.', image: '/custome project image/character_modeling_264x200.png' },
   { title: 'Packaging Design', description: 'Custom 3D packaging and box design.', image: '/custome project image/packaging_design_264x200.png' },
-  { title: '3D Product Animation', description: 'Engaging animations and explainers.', image: '/images/custom-render.webp', visual: 'animation' },
+  { title: '3D Product Animation', description: 'Engaging animations and explainers.', image: '/custome project image/Rolling Cubes.gif', visual: 'animation' },
   { title: 'Furniture Visualization', description: 'Realistic furniture and room setups.', image: '/custome project image/yellow_chair_resized_264x200.png' },
-  { title: 'Marketplace Ready Package', description: 'Optimised assets for Amazon and more.', visual: 'marketplace' },
+  { title: 'Marketplace Ready Package', description: 'Optimised assets for Amazon and more.', image: '/custome project image/amazon_264x200.png', imagePosition: 'center center', imageFit: 'contain', imageBackground: '#000' },
   { title: 'Other / Custom Service', description: 'Have a different requirement? Tell us.', visual: 'other' },
 ]
 
@@ -30,7 +30,7 @@ const ENQUIRY_FORMS: Partial<Record<string, EnquiryForm>> = {
 }
 
 function ServiceVisual({ service }: { service: (typeof SERVICES)[number] }) {
-  if (service.image) return <><img src={service.image} alt="" loading="lazy" style={{ objectPosition: 'imagePosition' in service ? service.imagePosition : undefined }} />{service.visual === 'animation' && <span className="project-services__play">▶</span>}</>
+  if (service.image) return <img src={service.image} alt="" loading="lazy" style={{ objectPosition: 'imagePosition' in service ? service.imagePosition : undefined, objectFit: 'imageFit' in service ? 'contain' : undefined }} />
   if (service.visual === 'marketplace') return <span className="project-services__marketplace" aria-hidden="true">a<svg viewBox="0 0 70 25"><path d="M8 7Q35 28 61 5M50 5l13-2-2 12" /></svg></span>
   if (service.visual === 'other') return <span className="project-services__dots" aria-hidden="true">•••</span>
   if (service.visual === 'package') return <svg className="project-services__package" viewBox="0 0 100 90" aria-hidden="true"><path fill="#3977ae" d="m15 23 39-12 32 14-39 13z" /><path fill="#235780" d="m15 23 32 15v39L15 61z" /><path fill="#173f64" d="m47 38 39-13v38L47 77z" /><path d="m34 17 33 14v14" fill="none" stroke="#84b6df" strokeWidth="3" /><text x="25" y="54" fill="#d9eafa" fontSize="20">B</text></svg>
@@ -68,7 +68,7 @@ export function CustomProjectServices({ onFormOpenChange }: { onFormOpenChange?:
         {SERVICES.map((service) => (
           <label key={service.title} className={`project-services__card${selected.includes(service.title) ? ' project-services__card--selected' : ''}`}>
             <input type="checkbox" checked={selected.includes(service.title)} onChange={() => { setSelected((current) => current.includes(service.title) ? current.filter((title) => title !== service.title) : [...current, service.title]); const form = ENQUIRY_FORMS[service.title]; if (form && !selected.includes(service.title)) setOpenForm(form) }} />
-            <span className="project-services__visual"><ServiceVisual service={service} /></span>
+            <span className="project-services__visual" style={{ background: 'imageBackground' in service ? service.imageBackground : undefined }}><ServiceVisual service={service} /></span>
             <span className="project-services__title">{service.title}</span>
             <span className="project-services__description">{service.description}</span>
             <span className="project-services__footer">
