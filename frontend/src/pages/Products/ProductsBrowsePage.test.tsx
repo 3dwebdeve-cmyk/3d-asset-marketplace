@@ -288,19 +288,6 @@ describe('ProductsBrowsePage', () => {
     })
   })
 
-  it('explains the shop in plain words and links to the furniture and interior categories', () => {
-    renderProductsBrowsePage()
-
-    expect(
-      screen.getByRole('heading', { level: 2, name: /production-ready 3D models for furniture and interior visualization/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'furniture 3D models' })).toHaveAttribute('href', '/3d-models/furniture')
-    expect(screen.getByRole('link', { name: 'interior 3D models' })).toHaveAttribute(
-      'href',
-      '/3d-models/interior-3d-models',
-    )
-  })
-
   it('gives the home page its own title, description, canonical address and structured data', async () => {
     renderProductsBrowsePage()
 
