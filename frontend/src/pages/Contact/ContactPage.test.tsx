@@ -35,6 +35,13 @@ beforeEach(() => {
 })
 
 describe('ContactPage', () => {
+  it('prefills the selected custom project services', () => {
+    renderContactPage('/contact?enquiryType=Custom+3D+Modeling&services=3D+Modeling%2C+Packaging+Design')
+    expect(screen.getByLabelText(/^subject/i)).toHaveValue('Custom project enquiry')
+    expect(screen.getByLabelText(/your message/i)).toHaveValue('Selected services: 3D Modeling, Packaging Design\n\nProject details:\n')
+    expect(screen.getByLabelText(/enquiry type/i)).toHaveValue('Custom 3D Modeling')
+  })
+
   it('renders the enquiry layout and form', () => {
     renderContactPage()
 
