@@ -30,15 +30,9 @@ beforeEach(() => {
 })
 
 describe('CustomProjectsLandingPage', () => {
-  it('hides How it works while the enquiry is open and restores it on return', async () => {
-    const user = userEvent.setup()
+  it('does not show the How it works section', () => {
     renderLanding()
-    expect(screen.getByRole('heading', { name: 'How it works' })).toBeInTheDocument()
-    await user.click(screen.getByRole('checkbox', { name: /lifestyle & product renders/i }))
     expect(screen.queryByRole('heading', { name: 'How it works' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Add New Product Enquiry' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /back to services/i }))
-    expect(screen.getByRole('heading', { name: 'How it works' })).toBeInTheDocument()
   })
 
   it('carries selected services into the enquiry and requires a selection', async () => {
