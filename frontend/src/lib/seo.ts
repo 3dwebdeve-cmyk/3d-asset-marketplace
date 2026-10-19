@@ -113,6 +113,7 @@ export function buildOrganizationJsonLd(origin = getSiteUrl()): Record<string, u
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: SITE_NAME,
+    alternateName: 'AssetHive 3D',
     url: origin,
     logo: absoluteUrl(LOGO_PATH, origin),
   }
@@ -123,6 +124,7 @@ export function buildWebSiteJsonLd(origin = getSiteUrl()): Record<string, unknow
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: SITE_NAME,
+    alternateName: 'AssetHive 3D',
     url: origin,
   }
 }

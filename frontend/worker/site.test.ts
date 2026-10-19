@@ -168,6 +168,20 @@ describe('server-rendered page head', () => {
     expect(await response.text()).toContain('href="https://www.shop.example/about"')
   })
 
+  it.each(['https://www.assethive3d.com', 'https://3d-asset-marketplace.super-frog-4be8.workers.dev'])(
+    'keeps SEO metadata on the primary domain when visited at %s', async (origin) => {
+      const response = await worker.fetch(new Request(`${origin}/`), {
+        ...createEnv(), SITE_URL: 'https://assethive3d.com',
+      })
+      const html = await response.text()
+      expect(html).toContain('rel="canonical" href="https://assethive3d.com/"')
+      expect(html).toContain('property="og:url" content="https://assethive3d.com/"')
+      expect(html).toContain('property="og:image" content="https://assethive3d.com/og-default.jpg"')
+      expect(html).toContain('"url":"https://assethive3d.com"')
+      expect(html).not.toContain(origin)
+    },
+  )
+
   it('leaves asset requests untouched', async () => {
     const env = createEnv(
       new Response('console.log(1)', { headers: { 'Content-Type': 'application/javascript' } }),

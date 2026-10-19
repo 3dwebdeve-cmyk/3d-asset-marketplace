@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { DEFAULT_OG_IMAGE_PATH, DEFAULT_SOCIAL_IMAGE_ALT, SITE_NAME } from '../lib/seo'
+import { DEFAULT_OG_IMAGE_PATH, DEFAULT_SOCIAL_IMAGE_ALT, SITE_NAME, getSiteUrl } from '../lib/seo'
 
 export interface UseDocumentSeoOptions {
   /** Page title. Omit to keep the title a parent route already set. */
@@ -38,8 +38,7 @@ const STRUCTURED_DATA_ID = 'seo-structured-data'
 
 /** Site origin used for canonical and social URLs. Set VITE_SITE_URL in production. */
 function getSiteOrigin(): string {
-  const configured = import.meta.env.VITE_SITE_URL?.trim()
-  return (configured || window.location.origin).replace(/\/+$/, '')
+  return getSiteUrl()
 }
 
 function absoluteUrl(pathOrUrl: string): string {
