@@ -8,7 +8,7 @@ stealing. The paid package stays private and is only reachable through signed li
 
 | Rule | Where |
 |---|---|
-| Preview triangles ≤ 50% of the product's `polygon_count` (when the count is known) | Admin upload, catalog import, and again at approval |
+| Preview triangles ≤ 50% of the product's `polygon_count`. When the count is unknown the check is skipped, and an import reports `warning: preview_unchecked` | Admin upload, catalog import, and again at approval |
 | Preview file ≤ 25 MB | Admin upload and catalog import |
 | Import previews must be `.glb` (self-contained; a `.gltf` with external buffers breaks when moved) | Catalog import |
 | A product with a known `polygon_count` cannot be approved with an unmeasured preview | Approval |

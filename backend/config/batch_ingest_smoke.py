@@ -20,6 +20,7 @@ from zipfile import ZipFile
 
 from django.conf import settings
 from django.core.files.base import ContentFile
+from PIL import Image
 
 from config.storages import get_private_storage, get_public_storage
 
@@ -445,6 +446,20 @@ def _write_preview_bytes(storage_path: str) -> None:
     storage.save(storage_path, ContentFile(glb + document))
 
 
+_IMAGE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
+
+
+def _write_image_bytes(storage_path: str) -> None:
+    """Stand-in for the pipeline's thumbnail/gallery upload; the import serves it as WebP."""
+    image_format = _IMAGE_FORMATS.get(Path(storage_path).suffix.lower())
+    storage = get_public_storage()
+    if image_format is None or storage.exists(storage_path):
+        return
+    buffer = BytesIO()
+    Image.new("RGB", (8, 8), color=(120, 90, 60)).save(buffer, format=image_format)
+    storage.save(storage_path, ContentFile(buffer.getvalue()))
+
+
 def _pick_reviewer() -> User:
     admin = (
         User.objects.filter(role__role_name="Administrator", is_active=True)
@@ -470,6 +485,9 @@ def _apply_happy_path() -> tuple[str, list[str]]:
         preview_key = str(item["media"].get("preview_key") or "")
         if preview_key:
             _write_preview_bytes(preview_key)
+        for image_key in (item["media"].get("thumbnail_key"), *item["media"].get("gallery_keys", [])):
+            if image_key:
+                _write_image_bytes(str(image_key))
 
     batch = CatalogImportService.import_batch(
         import_batch_id="i3-batch-ingest-smoke",

@@ -57,6 +57,8 @@ class CatalogImportRowResult:
     reason: str = ""
     product_id: str | None = None
     status: str | None = None
+    # The row was imported, but something deserves a look (for example "preview_unchecked").
+    warning: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -65,6 +67,8 @@ class CatalogImportRowResult:
         }
         if self.reason:
             payload["reason"] = self.reason
+        if self.warning:
+            payload["warning"] = self.warning
         if self.product_id is not None:
             payload["product_id"] = self.product_id
         if self.status is not None:
@@ -282,6 +286,7 @@ class CatalogImportService:
             action=action,
             product_id=str(product.pk),
             status=product.status,
+            warning="preview_unchecked" if media_pointers["preview_unchecked"] else "",
         )
 
     @classmethod
@@ -484,7 +489,12 @@ class CatalogImportService:
         does not stay public under the predictable name.
         """
         source_key = media_pointers["preview_key"]
-        pointers = {**media_pointers, "new_preview_key": None, "replaced_preview_key": None}
+        pointers = {
+            **media_pointers,
+            "new_preview_key": None,
+            "replaced_preview_key": None,
+            "preview_unchecked": False,
+        }
         if not source_key.lower().endswith(".glb"):
             raise ProductError("invalid_preview_format", field="preview_key")
 
@@ -530,6 +540,16 @@ class CatalogImportService:
         if preview_reduction_error(triangles, int(polygon_count) if polygon_count else None):
             cls._delete_preview_object(source_key)
             raise ProductError("preview_not_reduced", field="preview_key")
+        if not triangles or not polygon_count:
+            # The reduction rule needs both numbers. Without them the preview is accepted
+            # as it is, so a full-detail model could become public: say so.
+            pointers["preview_unchecked"] = True
+            logger.warning(
+                "catalog_import_preview_unchecked model_id=%s triangles=%s polygon_count=%s",
+                sku,
+                triangles,
+                polygon_count,
+            )
 
         try:
             new_key = storage.save(
@@ -563,9 +583,20 @@ class CatalogImportService:
 
         Each image gets a WebP copy next to the original, named after its content, so a
         changed image gets a new URL and the CDN never serves a stale one. An image that
-        is not in storage keeps its original key, as before.
+        is not in storage skips the row, so a product never goes in with a broken image.
+        A re-import may leave the thumbnail out and keep the one the product already has.
         """
-        thumbnail_key = cls._webp_copy(media_pointers["thumbnail_key"], reason="invalid_thumbnail")
+        try:
+            thumbnail_key = cls._webp_copy(
+                media_pointers["thumbnail_key"],
+                reason="invalid_thumbnail",
+                missing="missing_thumbnail_object",
+            )
+        except ProductError as exc:
+            kept = media_relative_path(existing.thumbnail) if existing is not None else None
+            if exc.message != "missing_thumbnail_object" or not kept:
+                raise
+            thumbnail_key = kept
         pointers = {
             **media_pointers,
             "thumbnail_key": thumbnail_key,
@@ -575,7 +606,9 @@ class CatalogImportService:
         # The import only fills an empty gallery, so don't convert images it won't use.
         if existing is None or not ProductImage.objects.filter(product=existing).exists():
             gallery_keys = [
-                cls._webp_copy(key, reason="invalid_gallery_image")
+                cls._webp_copy(
+                    key, reason="invalid_gallery_image", missing="missing_gallery_object"
+                )
                 for key in media_pointers["gallery_keys"]
             ]
             pointers["gallery_keys"] = gallery_keys
@@ -593,12 +626,12 @@ class CatalogImportService:
         return pointers
 
     @staticmethod
-    def _webp_copy(key: str, *, reason: str) -> str:
-        if key.lower().endswith(".webp"):
-            return key
+    def _webp_copy(key: str, *, reason: str, missing: str) -> str:
         storage = get_public_storage()
         try:
             if not storage.exists(key):
+                raise ProductError(missing, field="media")
+            if key.lower().endswith(".webp"):
                 return key
             if storage.size(key) > _IMPORT_IMAGE_MAX_BYTES:
                 raise ProductError(reason, field="media")
