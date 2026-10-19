@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -29,6 +30,12 @@ type StatusFilter = '' | OrderStatus
 type PaymentFilter = '' | OrderPaymentStatus
 
 export function MyOrdersPage() {
+  useDocumentSeo({
+    title: 'My orders | AssetHive 3D',
+    description: 'View your AssetHive 3D order history.',
+    robots: 'noindex, nofollow',
+  })
+
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
