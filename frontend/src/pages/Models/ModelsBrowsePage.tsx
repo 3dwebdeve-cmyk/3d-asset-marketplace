@@ -8,7 +8,10 @@ import { Pagination } from '../../components/ui/Pagination'
 import { SOFTWARE_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
 import { MODELS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { activateOnKey } from '../../lib/keyboard'
+import { buildCollectionStructuredData, SITE_NAME } from '../../lib/seo'
+import { MODELS_SEO } from '../../lib/seoPages'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { ProductCard } from '../Products/ProductCard'
 import '../../styles/plugins-browse.css'
@@ -268,6 +271,17 @@ export function ModelsBrowsePage() {
     : selectedCategory?.slug === 'furniture'
       ? 'Furniture 3D Models'
       : selectedCategory?.name ?? '3D Model'
+
+  const modelsDescription = selectedCategory
+    ? `Browse ${heroTitle} on ${SITE_NAME}. Filter by software, format, license and price to find the right 3D model.`
+    : MODELS_SEO.description
+  useDocumentSeo({
+    title: selectedCategory ? `${heroTitle} | ${SITE_NAME}` : MODELS_SEO.title,
+    description: modelsDescription,
+    keywords: MODELS_SEO.keywords,
+    structuredData: buildCollectionStructuredData(heroTitle, modelsDescription),
+  })
+
   const usesProductsBanner =
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
   const usesFurnitureBanner = selectedCategory?.slug === 'furniture'

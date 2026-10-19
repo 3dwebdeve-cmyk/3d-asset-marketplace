@@ -1,0 +1,166 @@
+import { describe, expect, it } from 'vitest'
+
+import type { PublicProductDetail } from '../src/types/product'
+import {
+  appendSitemapLine,
+  buildSitemapXml,
+  escapeHtml,
+  getNotFoundPageSeo,
+  getProductPageSeo,
+  getStaticPageSeo,
+  isLikelyAssetPath,
+  normalizePath,
+  renderSeoHead,
+} from './seo'
+
+const SHELL = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AssetHive 3D | Premium 3D Models, Plugins &amp; Custom 3D Projects</title>
+  <meta name="description" content="Default description" />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:title" content="Default title" />
+  <link rel="canonical" href="https://old.example/" />
+  <script type="application/ld+json">{"@type":"WebSite"}</script>
+</head>
+<body><div id="root"></div></body>
+</html>`
+
+const product = {
+  id: 'prod-1',
+  name: 'Desk "Lamp" <Pro>',
+  slug: 'desk-lamp',
+  short_description: 'A desk lamp.',
+  description: '',
+  price: '20.00',
+  currency: 'USD',
+  discount_price: null,
+  thumbnail: '/media/desk-lamp.jpg',
+  average_rating: '4.0',
+  review_count: 3,
+  category: { id: 'cat-1', name: 'Furniture', slug: 'furniture' },
+} as unknown as PublicProductDetail
+
+describe('renderSeoHead', () => {
+  it('replaces the shell tags with the page tags', () => {
+    const html = renderSeoHead(SHELL, getStaticPageSeo('/about')!, {
+      origin: 'https://shop.example',
+      path: '/about',
+    })
+
+    expect(html.match(/<title>/g)).toHaveLength(1)
+    expect(html.match(/name="description"/g)).toHaveLength(1)
+    expect(html.match(/property="og:title"/g)).toHaveLength(1)
+    expect(html.match(/rel="canonical"/g)).toHaveLength(1)
+    expect(html).toContain('<title>About the Studio | AssetHive 3D</title>')
+    expect(html).toContain('href="https://shop.example/about"')
+    expect(html).not.toContain('Default description')
+    expect(html).not.toContain('old.example')
+  })
+
+  it('keeps unrelated head tags such as the charset and the site-wide schema', () => {
+    const html = renderSeoHead(SHELL, getStaticPageSeo('/')!, {
+      origin: 'https://shop.example',
+      path: '/',
+    })
+
+    expect(html).toContain('<meta charset="UTF-8" />')
+    expect(html).toContain('{"@type":"WebSite"}')
+    expect(html).toContain('<div id="root"></div>')
+  })
+
+  it('escapes product names inside attributes and the title', () => {
+    const seo = getProductPageSeo(product, 'https://shop.example')
+    const html = renderSeoHead(SHELL, seo, {
+      origin: 'https://shop.example',
+      path: '/products/desk-lamp',
+    })
+
+    expect(html).toContain('Desk &quot;Lamp&quot; &lt;Pro&gt; | 3D Model | AssetHive 3D')
+    expect(html).not.toContain('<Pro>')
+  })
+
+  it('adds product structured data with the canonical url and no raw "<"', () => {
+    const seo = getProductPageSeo(
+      { ...product, name: 'Lamp </script><script>alert(1)</script>' },
+      'https://shop.example',
+    )
+    const html = renderSeoHead(SHELL, seo, {
+      origin: 'https://shop.example',
+      path: '/products/desk-lamp',
+    })
+
+    const match = html.match(
+      /<script type="application\/ld\+json" id="seo-structured-data" data-seo-ssr>([\s\S]*?)<\/script>/,
+    )
+    expect(match).not.toBeNull()
+    const data = JSON.parse(match![1])
+    expect(data['@type']).toBe('Product')
+    expect(data.url).toBe('https://shop.example/products/desk-lamp')
+    expect(data.name).toBe('Lamp </script><script>alert(1)</script>')
+    expect(html).not.toContain('</script><script>alert')
+  })
+
+  it('uses an absolute image URL for product thumbnails', () => {
+    const seo = getProductPageSeo(product, 'https://shop.example')
+
+    expect(seo.image).toBe('https://shop.example/media/desk-lamp.jpg')
+  })
+
+  it('returns the shell unchanged when it has no closing head tag', () => {
+    expect(
+      renderSeoHead('not a document', getStaticPageSeo('/')!, {
+        origin: 'https://shop.example',
+        path: '/',
+      }),
+    ).toBe('not a document')
+  })
+
+  it('marks not-found pages with status 404', () => {
+    expect(getNotFoundPageSeo('Product')).toMatchObject({
+      status: 404,
+      title: 'Product not found | AssetHive 3D',
+    })
+  })
+})
+
+describe('path helpers', () => {
+  it('normalizes trailing slashes but keeps the root', () => {
+    expect(normalizePath('/plugins/uv-tools/')).toBe('/plugins/uv-tools')
+    expect(normalizePath('/')).toBe('/')
+    expect(normalizePath('///')).toBe('/')
+  })
+
+  it('treats paths with a file extension as assets', () => {
+    expect(isLikelyAssetPath('/assets/index-abc.js')).toBe(true)
+    expect(isLikelyAssetPath('/products/desk-lamp')).toBe(false)
+  })
+
+  it('has no head content for unknown static paths', () => {
+    expect(getStaticPageSeo('/cart')).toBeUndefined()
+    expect(getStaticPageSeo('constructor')).toBeUndefined()
+  })
+})
+
+describe('sitemap and robots', () => {
+  it('lists each path once with absolute, escaped locations', () => {
+    const xml = buildSitemapXml('https://shop.example', ['/', '/about', '/about', '/products/a&b'])
+
+    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true)
+    expect(xml.match(/<loc>https:\/\/shop\.example\/about<\/loc>/g)).toHaveLength(1)
+    expect(xml).toContain('<loc>https://shop.example/products/a&amp;b</loc>')
+    expect(xml).toContain('<loc>https://shop.example/</loc>')
+  })
+
+  it('adds a Sitemap line to robots.txt once', () => {
+    const robots = appendSitemapLine('User-agent: *\nAllow: /\n', 'https://shop.example')
+
+    expect(robots).toContain('Sitemap: https://shop.example/sitemap.xml')
+    expect(appendSitemapLine(robots, 'https://shop.example').match(/Sitemap:/g)).toHaveLength(1)
+  })
+
+  it('escapes HTML-significant characters', () => {
+    expect(escapeHtml(`a & b <c> "d" 'e'`)).toBe('a &amp; b &lt;c&gt; &quot;d&quot; &#39;e&#39;')
+  })
+})

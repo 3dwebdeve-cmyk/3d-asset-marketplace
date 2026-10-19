@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
@@ -6,6 +7,12 @@ import { Input } from '../../components/ui/Input'
 import { useEmailVerificationResendForm } from './useEmailVerificationResendForm'
 
 export function EmailVerificationResendPage() {
+  useDocumentSeo({
+    title: 'Resend verification email | AssetHive 3D',
+    description: 'Request a new email verification link for your AssetHive 3D account.',
+    robots: 'noindex, nofollow',
+  })
+
   const { register, handleSubmit, errors, isSubmitting, serverError, successMessage, onSubmit } =
     useEmailVerificationResendForm()
 

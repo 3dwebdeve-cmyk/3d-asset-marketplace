@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -208,6 +209,12 @@ function WishlistItemCard({
 }
 
 export function WishlistPage() {
+  useDocumentSeo({
+    title: 'Wishlist | AssetHive 3D',
+    description: 'Saved 3D models and plugins on your AssetHive 3D wishlist.',
+    robots: 'noindex, nofollow',
+  })
+
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [filter, setFilter] = useState<WishlistFilter>('all')

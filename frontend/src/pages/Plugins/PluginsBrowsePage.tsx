@@ -7,9 +7,12 @@ import { Pagination } from '../../components/ui/Pagination'
 import { SOFTWARE_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
 import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import type { PluginLicenseType, PluginOrdering, PublicPlugin } from '../../types/plugin'
 import { PluginCard } from './PluginCard'
 import { activateOnKey } from '../../lib/keyboard'
+import { buildCollectionStructuredData, SITE_NAME } from '../../lib/seo'
+import { PLUGINS_SEO } from '../../lib/seoPages'
 import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
 
@@ -220,6 +223,16 @@ export function PluginsBrowsePage() {
   }, [categoriesData?.results, selectedCategoryId])
 
   const heroTitle = selectedCategoryName ?? 'Plugins'
+
+  const pluginsDescription = selectedCategoryName
+    ? `Browse ${selectedCategoryName} plugins on ${SITE_NAME}. Filter by software, format and license.`
+    : PLUGINS_SEO.description
+  useDocumentSeo({
+    title: selectedCategoryName ? `${selectedCategoryName} Plugins | ${SITE_NAME}` : PLUGINS_SEO.title,
+    description: pluginsDescription,
+    keywords: PLUGINS_SEO.keywords,
+    structuredData: buildCollectionStructuredData(heroTitle, pluginsDescription),
+  })
 
   return (
     <main className="plugins-browse">

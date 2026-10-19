@@ -6,6 +6,7 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { useAllCategories } from '../../hooks/useAllCategories'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { CATEGORIES_SEO } from '../../lib/seoPages'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import '../../styles/products-browse.css'
 import '../../styles/all-categories.css'
@@ -26,8 +27,8 @@ export function AllCategoriesPage() {
   const navigate = useNavigate()
   const categoriesQuery = useAllCategories()
   useDocumentSeo({
-    title: 'All Categories | AssetHive3D',
-    description: 'Browse the full AssetHive3D collection by category.',
+    title: CATEGORIES_SEO.title,
+    description: CATEGORIES_SEO.description,
   })
 
   const categories = useMemo(() => {

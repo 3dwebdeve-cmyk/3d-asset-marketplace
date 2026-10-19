@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
@@ -6,6 +7,12 @@ import { Input } from '../../components/ui/Input'
 import { usePasswordResetRequestForm } from './usePasswordResetRequestForm'
 
 export function PasswordResetRequestPage() {
+  useDocumentSeo({
+    title: 'Forgot password | AssetHive 3D',
+    description: 'Request a password reset link for your AssetHive 3D account.',
+    robots: 'noindex, nofollow',
+  })
+
   const { register, handleSubmit, errors, isSubmitting, serverError, successMessage, onSubmit } =
     usePasswordResetRequestForm()
 

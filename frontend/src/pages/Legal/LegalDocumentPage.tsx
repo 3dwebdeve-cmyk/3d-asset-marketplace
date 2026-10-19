@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { PRIVACY_SEO, TERMS_SEO } from '../../lib/seoPages'
 import '../../styles/marketing.css'
 import { LEGAL_DOCUMENT_VERSIONS, PRIVACY_PATH, TERMS_PATH } from '../../lib/legalDocuments'
 
@@ -11,18 +12,16 @@ const COPY: Record<
   { title: string; description: string; heading: string; version: string; otherLabel: string; otherPath: string }
 > = {
   terms: {
-    title: 'Terms of Service | 3D Asset Marketplace',
-    description:
-      'Terms of Service for buying 3D models, plugins, and custom project work on the 3D Asset Marketplace.',
+    title: TERMS_SEO.title,
+    description: TERMS_SEO.description,
     heading: 'Terms of Service',
     version: LEGAL_DOCUMENT_VERSIONS.terms,
     otherLabel: 'Privacy Policy',
     otherPath: PRIVACY_PATH,
   },
   privacy: {
-    title: 'Privacy Policy | 3D Asset Marketplace',
-    description:
-      'How the 3D Asset Marketplace collects, uses, and protects account and order information.',
+    title: PRIVACY_SEO.title,
+    description: PRIVACY_SEO.description,
     heading: 'Privacy Policy',
     version: LEGAL_DOCUMENT_VERSIONS.privacy,
     otherLabel: 'Terms of Service',

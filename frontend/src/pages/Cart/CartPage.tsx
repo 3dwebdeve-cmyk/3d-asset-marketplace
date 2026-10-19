@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { Link } from 'react-router-dom'
 
 import { useCart } from '../../hooks/useCart'
@@ -9,6 +10,12 @@ import { CartLineItem } from '../../components/cart/CartLineItem'
 import { formatMoney } from '../../lib/format'
 
 export function CartPage() {
+  useDocumentSeo({
+    title: 'Your cart | AssetHive 3D',
+    description: 'Review the 3D models and plugins in your cart before checkout.',
+    robots: 'noindex, nofollow',
+  })
+
   const {
     cart,
     isLoading,

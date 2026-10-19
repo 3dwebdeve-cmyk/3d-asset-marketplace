@@ -8,6 +8,9 @@ import { listPublicProducts } from '../../api/productsApi'
 import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { useAllCategories } from '../../hooks/useAllCategories'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { buildCollectionStructuredData, SITE_NAME } from '../../lib/seo'
+import { HOME_SEO } from '../../lib/seoPages'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
@@ -347,6 +350,13 @@ function ServiceModule({ service }: { service: BrowseService }) {
 }
 
 export function ProductsBrowsePage() {
+  useDocumentSeo({
+    title: HOME_SEO.title,
+    description: HOME_SEO.description,
+    keywords: HOME_SEO.keywords,
+    structuredData: buildCollectionStructuredData(SITE_NAME, HOME_SEO.description),
+  })
+
   const navigate = useNavigate()
   const clearPostLogoutRedirect = useAuthStore((state) => state.clearPostLogoutRedirect)
   const [searchParams] = useSearchParams()

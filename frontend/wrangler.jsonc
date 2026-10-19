@@ -8,6 +8,27 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api", "/api/*"]
-  }
+    "run_worker_first": [
+      "/api",
+      "/api/*",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/",
+      "/3d-models",
+      "/plugins",
+      "/categories",
+      "/about",
+      "/contact",
+      "/custom-projects",
+      "/terms",
+      "/privacy",
+      "/products/*",
+      "/Products/*",
+      "/plugins/*",
+      "/Plugins/*"
+    ]
+  },
+  // Set SITE_URL (for example "https://your-domain.example") under vars in the Cloudflare
+  // dashboard or here, so canonical URLs and the sitemap use your domain.
+  // "vars": { "SITE_URL": "https://your-domain.example" }
 }

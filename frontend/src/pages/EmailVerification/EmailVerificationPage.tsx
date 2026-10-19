@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { Link, useParams } from 'react-router-dom'
 
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
@@ -6,6 +7,12 @@ import { Spinner } from '../../components/ui/Spinner'
 import { useEmailVerification } from './useEmailVerification'
 
 export function EmailVerificationPage() {
+  useDocumentSeo({
+    title: 'Verify your email | AssetHive 3D',
+    description: 'Confirm the email address on your AssetHive 3D account.',
+    robots: 'noindex, nofollow',
+  })
+
   const { uid = '', token = '' } = useParams<{ uid: string; token: string }>()
   const hasLink = Boolean(uid && token)
   const { isVerifying, serverError, successMessage } = useEmailVerification(uid, token)

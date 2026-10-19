@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 
 import { ABOUT_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { ABOUT_SEO } from '../../lib/seoPages'
 import '../../styles/about.css'
 import '../../styles/marketing.css'
 
@@ -188,9 +189,8 @@ function Icon({ name }: { name: string }) {
 
 export function AboutPage() {
   useDocumentSeo({
-    title: 'About the Studio | 3D Asset Marketplace',
-    description:
-      'Learn about our studio, marketplace of premium 3D assets and plugins, and custom design services.',
+    title: ABOUT_SEO.title,
+    description: ABOUT_SEO.description,
   })
 
   return (

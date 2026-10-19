@@ -6,6 +6,7 @@ import {
 } from '../../components/SiteHeroImage'
 import { CustomProjectServices } from './CustomProjectServices'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { CUSTOM_PROJECTS_SEO } from '../../lib/seoPages'
 import '../../styles/marketing.css'
 
 const CONTACT_ENQUIRY_PATH =
@@ -13,9 +14,8 @@ const CONTACT_ENQUIRY_PATH =
 
 export function CustomProjectsLandingPage() {
   useDocumentSeo({
-    title: 'Custom Projects | 3D Asset Marketplace',
-    description:
-      'Request custom 3D design work by email enquiry — share your brief and our team will follow up from the company inbox.',
+    title: CUSTOM_PROJECTS_SEO.title,
+    description: CUSTOM_PROJECTS_SEO.description,
   })
 
   return (

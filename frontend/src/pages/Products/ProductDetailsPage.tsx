@@ -17,6 +17,7 @@ import {
 } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
+import { buildProductStructuredData, SITE_NAME } from '../../lib/seo'
 import { discountPercent } from '../../lib/pricing'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { ProductLicenseType, PublicProductDetail } from '../../types/product'
@@ -284,20 +285,25 @@ export function ProductDetailsPage() {
 
   const isNotFound = !trimmedSlug || isHttpNotFound(productQuery.error)
 
+  const product = productQuery.data
   useDocumentSeo({
     title: isNotFound
-      ? 'Product not found | 3D Asset Marketplace'
-      : productQuery.data
-        ? buildProductPageTitle(productQuery.data.name)
-        : 'Product details | 3D Asset Marketplace',
+      ? `Product not found | ${SITE_NAME}`
+      : product
+        ? buildProductPageTitle(product.name)
+        : `Product details | ${SITE_NAME}`,
     description: isNotFound
       ? 'The requested product could not be found.'
-      : productQuery.data
-        ? buildProductMetaDescription(
-          productQuery.data.name,
-          productQuery.data.short_description,
-        )
+      : product
+        ? buildProductMetaDescription(product.name, product.short_description)
         : 'Loading product details from the marketplace catalog.',
+    robots: isNotFound ? 'noindex, nofollow' : undefined,
+    keywords: product
+      ? [product.name, product.category.name, '3D model', 'download 3D model']
+      : undefined,
+    image: product?.thumbnail || undefined,
+    ogType: product ? 'product' : 'website',
+    structuredData: product ? buildProductStructuredData(product) : undefined,
   })
 
   if (isNotFound) {

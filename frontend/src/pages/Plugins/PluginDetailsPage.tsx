@@ -12,6 +12,12 @@ import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
+import {
+  buildPluginMetaDescription,
+  buildPluginPageTitle,
+  buildPluginStructuredData,
+  SITE_NAME,
+} from '../../lib/seo'
 import { discountPercent } from '../../lib/pricing'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { PluginLicenseType, PublicPluginDetail } from '../../types/plugin'
@@ -37,17 +43,6 @@ function licenseLabel(license: PluginLicenseType): string {
   }
 }
 
-function buildPluginPageTitle(pluginName: string): string {
-  return `${pluginName} | 3D Asset Marketplace`
-}
-
-function buildPluginMetaDescription(pluginName: string, shortDescription: string): string {
-  const trimmed = shortDescription.trim()
-  if (trimmed) {
-    return trimmed.slice(0, 160)
-  }
-  return `View details for ${pluginName} on 3D Asset Marketplace.`
-}
 
 function useScrollPluginPageToTop(resetKey: string): void {
   useLayoutEffect(() => {
@@ -288,20 +283,25 @@ export function PluginDetailsPage() {
 
   const isNotFound = !trimmedSlug || isHttpNotFound(pluginQuery.error)
 
+  const plugin = pluginQuery.data
   useDocumentSeo({
     title: isNotFound
-      ? 'Plugin not found | 3D Asset Marketplace'
-      : pluginQuery.data
-        ? buildPluginPageTitle(pluginQuery.data.name)
-        : 'Plugin details | 3D Asset Marketplace',
+      ? `Plugin not found | ${SITE_NAME}`
+      : plugin
+        ? buildPluginPageTitle(plugin.name)
+        : `Plugin details | ${SITE_NAME}`,
     description: isNotFound
       ? 'The requested plugin could not be found.'
-      : pluginQuery.data
-        ? buildPluginMetaDescription(
-          pluginQuery.data.name,
-          pluginQuery.data.short_description,
-        )
+      : plugin
+        ? buildPluginMetaDescription(plugin.name, plugin.short_description)
         : 'Loading plugin details from the marketplace catalog.',
+    robots: isNotFound ? 'noindex, nofollow' : undefined,
+    keywords: plugin
+      ? [plugin.name, plugin.category.name, '3D plugin', 'download plugin']
+      : undefined,
+    image: plugin?.thumbnail || undefined,
+    ogType: plugin ? 'product' : 'website',
+    structuredData: plugin ? buildPluginStructuredData(plugin) : undefined,
   })
 
   if (isNotFound) {
