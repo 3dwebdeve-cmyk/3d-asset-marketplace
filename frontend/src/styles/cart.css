@@ -252,29 +252,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.cart-coupon {
-  margin-bottom: 1rem;
-}
-
-.cart-coupon--compact {
-  margin-bottom: 0.75rem;
-}
-
-.cart-coupon__row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-}
-
-.cart-coupon__row .ui-input {
-  flex: 1;
-}
-
-.cart-coupon__applied {
-  margin: 0 0 0.5rem;
-  font-size: 0.875rem;
-}
-
 .cart-summary__note {
   margin: 0 0 1rem;
   font-size: 0.875rem;
@@ -428,12 +405,6 @@
   padding: 1rem 1.35rem 1.35rem;
   border-top: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent);
   background: #fff;
-}
-
-.cart-drawer__discount-note {
-  margin: 0.15rem 0 0;
-  font-size: 0.78rem;
-  color: color-mix(in srgb, var(--text-main) 48%, transparent);
 }
 
 .cart-drawer__view-all {
