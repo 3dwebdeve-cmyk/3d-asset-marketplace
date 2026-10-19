@@ -5,6 +5,7 @@ export const SITE_NAME = 'AssetHive3D'
 export const SITE_TAGLINE = 'Furniture & Interior 3D Models'
 export const DEFAULT_OG_IMAGE_PATH = '/og-default.jpg'
 export const DEFAULT_SOCIAL_IMAGE = DEFAULT_OG_IMAGE_PATH
+export const DEFAULT_SOCIAL_IMAGE_ALT = 'Sofa, armchair and coffee table in a modern interior, with the AssetHive3D name'
 export const LOGO_PATH = '/images/AssetHive%203D.svg'
 
 export const HOME_TITLE = `${SITE_TAGLINE} | ${SITE_NAME}`
@@ -26,10 +27,10 @@ export function getSiteUrl(): string {
   return base.replace(/\/+$/, '')
 }
 
-export function absoluteUrl(pathOrUrl: string): string {
+export function absoluteUrl(pathOrUrl: string, origin = getSiteUrl()): string {
   const value = pathOrUrl.trim()
   if (/^https?:\/\//i.test(value)) return value
-  return `${getSiteUrl()}${value.startsWith('/') ? value : `/${value}`}`
+  return `${origin}${value.startsWith('/') ? value : `/${value}`}`
 }
 
 /** Collapse whitespace and cut at a word boundary so a snippet never ends mid-word. */
@@ -107,22 +108,22 @@ export function buildBreadcrumbJsonLd(items: readonly BreadcrumbItem[]): Record<
   }
 }
 
-export function buildOrganizationJsonLd(): Record<string, unknown> {
+export function buildOrganizationJsonLd(origin = getSiteUrl()): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: SITE_NAME,
-    url: getSiteUrl(),
-    logo: absoluteUrl(LOGO_PATH),
+    url: origin,
+    logo: absoluteUrl(LOGO_PATH, origin),
   }
 }
 
-export function buildWebSiteJsonLd(): Record<string, unknown> {
+export function buildWebSiteJsonLd(origin = getSiteUrl()): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: SITE_NAME,
-    url: getSiteUrl(),
+    url: origin,
   }
 }
 
@@ -147,11 +148,11 @@ export function buildItemListJsonLd(
  * schema.org Product with an Offer, so a result can show the price. Only real values go in:
  * ratings appear only when there are reviews, and nothing is added that the page does not show.
  */
-export function buildProductJsonLd(product: PublicProductDetail, path: string): Record<string, unknown> {
-  const url = absoluteUrl(path)
-  const images = [product.thumbnail, ...product.images.map((image) => image.image_url)]
+export function buildProductJsonLd(product: PublicProductDetail, path: string, origin = getSiteUrl()): Record<string, unknown> {
+  const url = absoluteUrl(path, origin)
+  const images = [product.thumbnail, ...(product.images ?? []).map((image) => image.image_url)]
     .filter(Boolean)
-    .map(absoluteUrl)
+    .map((image) => absoluteUrl(image, origin))
   const price = Number(product.discount_price ?? product.price)
   const rating = Number(product.average_rating)
   const data: Record<string, unknown> = {
@@ -252,29 +253,31 @@ export function buildPluginStructuredData(plugin: PluginSeoInput) {
   }
 }
 
-export function buildProductPageTitle(productName: string): string {
-  return `${productName} | 3D Model | ${SITE_NAME}`
+export function buildPluginJsonLd(
+  plugin: PluginSeoInput & { slug: string },
+  origin = getSiteUrl(),
+): Record<string, unknown> {
+  const url = absoluteUrl(`/plugins/${plugin.slug}`, origin)
+  return {
+    '@context': 'https://schema.org',
+    ...buildPluginStructuredData(plugin),
+    url,
+    image: plugin.thumbnail ? absoluteUrl(plugin.thumbnail, origin) : undefined,
+    offers: { ...buildOffer(plugin), url },
+  }
 }
 
-export function buildProductMetaDescription(
-  productName: string,
-  shortDescription: string,
-): string {
-  const trimmed = shortDescription.trim()
-  if (trimmed) {
-    return trimmed.slice(0, 160)
-  }
-  return `View details and download the ${productName} 3D model on ${SITE_NAME}.`
-}
+export const buildProductPageTitle = buildProductTitle
+export const buildProductMetaDescription = buildProductDescription
 
 export function buildPluginPageTitle(pluginName: string): string {
-  return `${pluginName} | 3D Plugin | ${SITE_NAME}`
+  return buildPageTitle(`${pluginName} Plugin`)
 }
 
 export function buildPluginMetaDescription(pluginName: string, shortDescription: string): string {
   const trimmed = shortDescription.trim()
   if (trimmed) {
-    return trimmed.slice(0, 160)
+    return truncateText(plainText(trimmed), 160)
   }
   return `View details for ${pluginName} on ${SITE_NAME}.`
 }

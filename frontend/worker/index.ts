@@ -12,6 +12,7 @@ import {
 } from './seo'
 import type { PublicPluginDetail } from '../src/types/plugin'
 import type { PublicProductDetail } from '../src/types/product'
+import { buildCategoryTitle, categoryPath, getCategorySeo } from '../src/lib/categorySeo'
 
 interface AssetsBinding {
   fetch(request: Request): Promise<Response>
@@ -74,7 +75,7 @@ async function robotsTxt(request: Request, env: WorkerEnv, url: URL): Promise<Re
   }
   const asset = await env.ASSETS.fetch(request)
   const rules = asset.ok ? (await asset.text()).trimEnd() : 'User-agent: *\nAllow: /'
-  return new Response(`${rules}\n\nSitemap: ${url.origin}${SITEMAP_PATH}\n`, {
+  return new Response(appendSitemapLine(rules, resolveSiteOrigin(env, url)), {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'public, max-age=3600',
@@ -210,9 +211,53 @@ async function resolvePageSeo(
   env: WorkerEnv,
   siteOrigin: string,
 ): Promise<PageSeo | undefined> {
-  const staticSeo = getStaticPageSeo(path)
+  const staticSeo = getStaticPageSeo(path, siteOrigin)
   if (staticSeo) {
     return staticSeo
+  }
+
+  const categoryMatch = /^\/3d-models\/([a-z0-9_-]+)$/i.exec(path)
+  if (categoryMatch) {
+    const backend = optionalBackendOrigin(env.BACKEND_ORIGIN)
+    if (!backend) return undefined
+    const slug = categoryMatch[1].toLowerCase()
+    // Follow pagination using our own origin, never an upstream-supplied URL.
+    for (let page = 1; page <= 20; page += 1) {
+      const url = new URL('/api/v1/categories/', backend)
+      url.searchParams.set('page_size', '100')
+      url.searchParams.set('page', String(page))
+      const result = await fetchCatalogJson(url)
+      if (result.kind !== 'ok' || typeof result.body !== 'object' || !result.body) return undefined
+      const body = result.body as { results?: { id: string; slug: string; name: string }[]; next?: unknown }
+      if (!Array.isArray(body.results)) return undefined
+      const category = body.results.find((item) => item.slug === slug)
+      if (category) {
+        const copy = getCategorySeo(slug, category.name)
+        const productsUrl = new URL('/api/v1/products/', backend)
+        productsUrl.searchParams.set('category_id', category.id)
+        productsUrl.searchParams.set('page_size', '1')
+        const products = await fetchCatalogJson(productsUrl)
+        const listing = products.kind === 'ok' ? products.body as { results?: unknown[] } : null
+        const empty = Array.isArray(listing?.results) && listing.results.length === 0
+        return {
+          title: buildCategoryTitle(copy), description: copy.description, ogType: 'website', status: 200,
+          canonicalPath: categoryPath(slug),
+          robots: !copy.indexable || empty ? 'noindex, follow' : undefined,
+          structuredData: {
+            '@type': 'BreadcrumbList',
+            itemListElement: [
+              { '@type': 'ListItem', position: 1, name: 'Home', item: `${siteOrigin}/` },
+              { '@type': 'ListItem', position: 2, name: '3D Models', item: `${siteOrigin}/3d-models` },
+              { '@type': 'ListItem', position: 3, name: copy.h1, item: `${siteOrigin}${categoryPath(slug)}` },
+            ],
+          },
+        }
+      }
+      if (!body.next) {
+        return { title: 'Category not found | AssetHive3D', description: 'The requested category could not be found.', ogType: 'website', status: 404, robots: 'noindex, nofollow' }
+      }
+    }
+    return undefined
   }
 
   const match = DETAIL_ROUTE.exec(path)
@@ -234,18 +279,6 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
 
   const assetResponse = await env.ASSETS.fetch(request)
 
-  if (request.method === 'GET' && url.pathname === '/robots.txt' && assetResponse.ok) {
-    const robots = appendSitemapLine(await assetResponse.text(), siteOrigin)
-    return withSecurityHeaders(
-      new Response(robots, {
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600',
-        },
-      }),
-    )
-  }
-
   if (
     request.method !== 'GET' ||
     !assetResponse.ok ||
@@ -260,12 +293,15 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
   if (!seo) {
     return withSecurityHeaders(assetResponse)
   }
+  if ((path === '/3d-models' || path.startsWith('/3d-models/') || path === '/plugins') && url.searchParams.get('search')?.trim()) {
+    seo.robots = 'noindex, follow'
+  }
 
   const headers = new Headers(assetResponse.headers)
   headers.delete('Content-Length')
   headers.delete('ETag')
-  if (seo.status === 404) {
-    headers.set('X-Robots-Tag', 'noindex, nofollow')
+  if (seo.robots) {
+    headers.set('X-Robots-Tag', seo.robots)
   }
 
   const html = renderSeoHead(await assetResponse.text(), seo, { origin: siteOrigin, path })

@@ -58,6 +58,21 @@ afterEach(() => {
 })
 
 describe('server-rendered page head', () => {
+  it('serves custom project keywords, social tags, services and breadcrumbs before JavaScript runs', async () => {
+    const upstream = vi.fn()
+    vi.stubGlobal('fetch', upstream)
+    const response = await worker.fetch(new Request('https://shop.example/custom-projects?utm_source=test'), createEnv())
+    const html = await response.text()
+    expect(html).toContain('<title>Custom 3D Modeling, Rendering &amp; Animation | AssetHive3D</title>')
+    expect(html).toContain('property="og:image" content="https://shop.example/images/CUSTOM%20PROJECTS.webp"')
+    expect(html).toContain('name="keywords" content="custom 3D modeling, 3D rendering services')
+    expect(html).toContain('href="https://shop.example/custom-projects"')
+    expect(html).toContain('"@type":"Service"')
+    expect(html).toContain('"@type":"BreadcrumbList"')
+    expect(html).toContain('"@type":"OfferCatalog"')
+    expect(html).not.toContain('og:image:width')
+    expect(upstream).not.toHaveBeenCalled()
+  })
   it('renders product tags and structured data into the shell', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(product)))
 
@@ -68,7 +83,7 @@ describe('server-rendered page head', () => {
     const html = await response.text()
 
     expect(response.status).toBe(200)
-    expect(html).toContain('<title>Desk Lamp | 3D Model | AssetHive3D</title>')
+    expect(html).toContain('<title>Desk Lamp – Furniture 3D Model | AssetHive3D</title>')
     expect(html).toContain('property="og:type" content="product"')
     expect(html).toContain('href="https://shop.example/products/desk-lamp"')
     expect(html).toContain('id="seo-structured-data"')
@@ -94,7 +109,7 @@ describe('server-rendered page head', () => {
     )
     const html = await response.text()
 
-    expect(html).toContain('<title>UV Tools | 3D Plugin | AssetHive3D</title>')
+    expect(html).toContain('<title>UV Tools Plugin | AssetHive3D</title>')
     expect(html).toContain('"@type":"SoftwareApplication"')
   })
 
@@ -141,7 +156,7 @@ describe('server-rendered page head', () => {
     const response = await worker.fetch(new Request('https://shop.example/'), createEnv())
     const html = await response.text()
 
-    expect(html).toContain('<title>AssetHive3D | Premium 3D Models, Plugins &amp; Custom 3D Projects</title>')
+    expect(html).toContain('<title>Furniture &amp; Interior 3D Models | AssetHive3D</title>')
     expect(upstream).not.toHaveBeenCalled()
   })
 

@@ -1,12 +1,14 @@
-﻿import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { ProjectEnquirySuccess } from './ProjectEnquirySuccess'
+import { createEnquiryReference, saveEnquiryConfirmation, type ProjectEnquiryConfirmation } from '../../lib/projectEnquiryConfirmation'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { submitContactForm } from '../../api/contactApi'
 import { getApiErrorMessage } from '../../lib/apiError'
 import './lifestyle-enquiry.css'
+import { LifestyleEnquiryReview } from './LifestyleEnquiryReview'
 
 const DRAFT_KEY = 'lifestyle-product-enquiry-draft'
-const EMPTY = { project: '', category: '', products: '1', images: '4', platform: '', brief: '', environment: '', orientation: '', style: '', background: '', resolution: '', color: '', avoid: '', text: 'No', name: '', email: '' }
-type Brief = typeof EMPTY
+const EMPTY = { project: '', category: '', products: '1', images: '4', platform: '', brief: '', environment: '', orientation: '', style: '', background: '', resolution: '', color: '', avoid: '', text: 'No', name: '', email: '', company: '', phone: '' }
+export type Brief = typeof EMPTY
 function readDraft(): Brief {
   try {
     const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null')
@@ -32,7 +34,9 @@ export function LifestyleEnquiryForm({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState('')
   const [review, setReview] = useState(false)
   const [pending, setPending] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const [confirmation, setConfirmation] = useState<ProjectEnquiryConfirmation | null>(null)
+  const [reference] = useState(createEnquiryReference)
+  const success = confirmation !== null
   const heading = useRef<HTMLHeadingElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   useEffect(() => { heading.current?.focus(); heading.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }) }, [review, success])
@@ -51,18 +55,19 @@ export function LifestyleEnquiryForm({ onBack }: { onBack: () => void }) {
     `Environment: ${data.environment || 'Not specified'}`, `Orientation: ${data.orientation || 'Not specified'}`,
     `Style: ${data.style || 'Not specified'}`, `Background preferences: ${data.background}`,
     `Dimensions / resolution: ${data.resolution}`, `Background color: ${data.color}`, `Avoid: ${data.avoid}`,
-    `Text required: ${data.text}`, `Reference files to request by email: ${files.map(file => file.name).join(', ') || 'None'}`,
+    `Text required: ${data.text}`, `Company / brand: ${data.company || 'Not specified'}`, `Phone / WhatsApp: ${data.phone || 'Not specified'}`, `Reference files to request by email: ${files.map(file => file.name).join(', ') || 'None'}`,
   ].join('\n')
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setNotice('')
     if (!data.brief.trim()) { setError('Please describe your lifestyle scene.'); return }
     if (!review) { setReview(true); return }
     if (data.name.trim().length < 2) { setError('Enter your full name (at least two characters).'); return }
+    const submittedMessage = `Reference: ${reference}\n${message}`
     setPending(true)
     try {
-      await submitContactForm({ name: data.name.trim(), email: data.email.trim(), subject: `Lifestyle renders: ${data.project.trim() || data.category}`.slice(0, 200), message })
+      await submitContactForm({ name: data.name.trim(), email: data.email.trim(), subject: `Lifestyle renders: ${data.project.trim() || data.category}`.slice(0, 200), message: submittedMessage })
       try { localStorage.removeItem(DRAFT_KEY) } catch { /* Submission still succeeded. */ }
-      setSuccess(true)
+      setConfirmation(saveEnquiryConfirmation({ reference, service: 'Lifestyle & Product Renders', project: data.project, name: data.name.trim(), email: data.email.trim(), message: submittedMessage }))
     } catch (err) { setError(getApiErrorMessage(err, 'Could not send your enquiry. Please try again.')) }
     finally { setPending(false) }
   }
@@ -71,12 +76,13 @@ export function LifestyleEnquiryForm({ onBack }: { onBack: () => void }) {
     catch { setError('Your browser could not save this draft. Keep this page open to preserve your details.') }
   }
   const field = (key: keyof Brief, placeholder = '', type = 'text', required = false) => <input type={type} value={data[key]} onChange={event => set(key, event.target.value)} placeholder={placeholder} required={required} maxLength={key === 'name' ? 120 : key === 'email' ? 254 : 160} {...(type === 'number' ? { min: 1, max: 10000, step: 1 } : {})} />
-  return <section className="lifestyle-form" aria-label="Lifestyle and product render enquiry">
+  if (confirmation) return <ProjectEnquirySuccess confirmation={confirmation} />
+  return <section className={`lifestyle-form${review && !success ? ' lifestyle-form--review' : ''}`} aria-label="Lifestyle and product render enquiry">
     <button type="button" className="lifestyle-form__back" onClick={onBack} disabled={pending}>← Back to services</button>
     <form onSubmit={submit}>
-      <header><span className="lifestyle-form__icon" aria-hidden="true">◇</span><div><h2 ref={heading} tabIndex={-1}>{success ? 'Enquiry received' : review ? 'Review & Submit' : 'Add New Product Enquiry'}</h2><p>{success ? 'Our team will follow up by email.' : 'Configure project, files, and visual requirements'}</p></div><span className="lifestyle-form__badge">✧ Creative Brief</span></header>
+      <header><span className="lifestyle-form__icon" aria-hidden="true">◇</span><div><h2 ref={heading} tabIndex={-1}>{success ? 'Enquiry received' : review ? 'Review & Edit Project Enquiry' : 'Add New Product Enquiry'}</h2><p>{success ? 'Our team will follow up by email.' : review ? 'Review your brief before sending. You can edit any detail below.' : 'Configure project, files, and visual requirements'}</p></div><span className="lifestyle-form__badge">{review ? 'Ready for review' : 'Creative Brief'}</span>{review && !success && <button className="enquiry-review__print" type="button" onClick={() => window.print()}>Print summary</button>}</header>
       {success ? <div className="lifestyle-form__success" role="status"><p>Your Lifestyle &amp; Product Renders enquiry has been received for delivery.</p><button type="button" onClick={onBack}>Back to services</button></div> : <>
-      {review ? <section className="lifestyle-form__section"><h3>Review your project</h3><pre className="lifestyle-form__review">{message}</pre><div className="lifestyle-form__grid"><label>Your name *{field('name', 'Your full name', 'text', true)}</label><label>Email address *{field('email', 'you@example.com', 'email', true)}</label></div><label className="lifestyle-form__privacy"><input type="checkbox" required /> I agree to the <Link to="/privacy" target="_blank">Privacy Policy</Link>.</label></section> : <>
+      {review ? <LifestyleEnquiryReview data={data} onChange={set} files={files} onAddFiles={addFiles} onRemoveFile={index => setFiles(current => current.filter((_, i) => i !== index))} /> : <>
       <section className="lifestyle-form__section"><h3>02 — PROJECT DETAILS</h3><div className="lifestyle-form__grid">
         <label>Project Name <span>(optional)</span>{field('project', 'e.g. Summer Skincare Campaign')}</label>
         <label>Product Category <b>*</b><select required value={data.category} onChange={e => set('category', e.target.value)}><option value="">Search product Category</option>{['Furniture', 'Home & Living', 'Beauty & Skincare', 'Fashion & Accessories', 'Electronics', 'Food & Beverage', 'Other'].map(category => <option key={category}>{category}</option>)}</select></label>
@@ -96,7 +102,7 @@ export function LifestyleEnquiryForm({ onBack }: { onBack: () => void }) {
       <section className="lifestyle-form__section"><h3>05 — REQUIREMENTS</h3><div className="lifestyle-form__grid lifestyle-form__grid--three"><label>Background preferences{field('background', 'e.g. Marble kitchen counter, morning sunlight')}</label><label>Required dimensions / resolution{field('resolution', 'e.g. 4000×4000px, 300 DPI, 4K')}</label><div><label htmlFor="lifestyle-background-color">Background color</label><div className="lifestyle-form__color-field"><input id="lifestyle-background-color" type="text" value={data.color} onChange={event => set('color', event.target.value)} placeholder="e.g. #FFFFFF (Pure White)" maxLength={160} /><input className="lifestyle-form__color-picker" type="color" aria-label="Choose background color" value={/^#[0-9a-f]{6}$/i.test(data.color) ? data.color : /^#[0-9a-f]{3}$/i.test(data.color) ? '#' + data.color.slice(1).split('').map(char => char + char).join('') : '#ffffff'} onChange={event => set('color', event.target.value.toUpperCase())} /></div></div></div><div className="lifestyle-form__grid"><label>Specific things to avoid{field('avoid', 'e.g. No plastic props, avoid dark shadows, no glare')}</label><Choices title="Text required in image?" options={['No', 'Yes']} value={data.text} onChange={v => set('text', v)} /></div></section>
       </>}
       {error && <p className="lifestyle-form__error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-      <footer><button type="button" disabled={pending} onClick={() => { setData({ ...EMPTY }); setFiles([]); setReview(false); setError(''); setNotice(''); try { localStorage.removeItem(DRAFT_KEY) } catch { /* Storage may be unavailable. */ } }}>Reset Data</button><div>{review && <button type="button" disabled={pending} onClick={() => setReview(false)}>Edit brief</button>}<button type="button" disabled={pending} onClick={saveDraft}>Save as a draft</button><button className="lifestyle-form__submit" disabled={pending} type="submit">{pending ? 'Submitting…' : review ? 'Submit Enquiry →' : 'Review Enquiry →'}</button></div></footer>
+      <footer><button type="button" disabled={pending} onClick={() => { setData({ ...EMPTY }); setFiles([]); setReview(false); setError(''); setNotice(''); try { localStorage.removeItem(DRAFT_KEY) } catch { /* Storage may be unavailable. */ } }}>Reset Data</button><div>{review && <button type="button" disabled={pending} onClick={() => setReview(false)}>Edit brief</button>}<button type="button" disabled={pending} onClick={saveDraft}>Save as a draft</button><button className="lifestyle-form__submit" disabled={pending} type="submit">{pending ? 'Submitting…' : review ? 'Confirm & Send Project Enquiry →' : 'Review Enquiry →'}</button></div></footer>
       </>}
     </form>
   </section>

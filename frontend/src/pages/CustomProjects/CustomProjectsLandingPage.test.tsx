@@ -30,6 +30,23 @@ beforeEach(() => {
 })
 
 describe('CustomProjectsLandingPage', () => {
+  it('sets custom project search tags, a service preview image, and structured data for the visible services', () => {
+    renderLanding()
+    expect(document.title).toBe('Custom 3D Modeling, Rendering & Animation | AssetHive3D')
+    expect(document.querySelector('meta[name="description"]')).toHaveAttribute('content', expect.stringContaining('packaging design and furniture visualization'))
+    expect(document.querySelector('meta[name="keywords"]')).toHaveAttribute('content', expect.stringContaining('3D product animation'))
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', `${window.location.origin}/custom-projects`)
+    expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute('content', `${window.location.origin}/images/CUSTOM%20PROJECTS.webp`)
+    expect(document.querySelector('meta[name="twitter:image:alt"]')).toHaveAttribute('content', 'Custom 3D project services from AssetHive3D')
+    const data = JSON.parse(document.getElementById('seo-structured-data')!.textContent!)
+    const service = data['@graph'].find((node: { '@type': string }) => node['@type'] === 'Service')
+    expect(service.hasOfferCatalog.itemListElement).toHaveLength(8)
+    for (const offer of service.hasOfferCatalog.itemListElement) {
+      expect(screen.getByRole('checkbox', { name: new RegExp(offer.itemOffered.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')) })).toBeInTheDocument()
+      expect(offer).not.toHaveProperty('price')
+    }
+    expect(data['@graph'].some((node: { '@type': string }) => node['@type'] === 'BreadcrumbList')).toBe(true)
+  })
   it('does not show the How it works section', () => {
     renderLanding()
     expect(screen.queryByRole('heading', { name: 'How it works' })).not.toBeInTheDocument()
