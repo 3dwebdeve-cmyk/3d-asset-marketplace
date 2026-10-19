@@ -33,5 +33,9 @@ export default defineConfig(({ mode }) => ({
     setupFiles: ['./vitest.setup.ts'],
     css: true,
     restoreMocks: true,
+    // The form-wizard tests render large pages and type into many fields. Alone they take
+    // about 3 s each, and a loaded full run or a slow CI machine pushes them past the 5 s
+    // default, which fails them without any bug. A real hang still fails, only later.
+    testTimeout: 20_000,
   },
 }))
