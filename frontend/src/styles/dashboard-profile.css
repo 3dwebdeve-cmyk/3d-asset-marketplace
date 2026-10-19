@@ -288,22 +288,6 @@
   font-weight: 500;
 }
 
-.profile-edit-body .btn-edit-username {
-  border: 1px solid var(--primary);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--primary);
-  padding: 8px 14px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  cursor: default;
-  pointer-events: none;
-}
-
 .profile-edit-body .form-bottom-actions {
   display: flex;
   align-items: center;

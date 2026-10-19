@@ -239,8 +239,7 @@
 
 .dashboard-layout__content .dashboard-card,
 .dashboard-layout__content .dashboard-card--wide,
-.dashboard-layout__content .auth-card,
-.dashboard-layout__content .auth-card--wide {
+.dashboard-layout__content .auth-card {
   width: 100%;
   max-width: none;
   box-sizing: border-box;
@@ -267,8 +266,6 @@
   margin: 0 0 0.35rem;
 }
 
-.dashboard-layout__content .home-page__lede,
-.dashboard-layout__content .auth-lede,
 .dashboard-layout__content p {
   font-size: 0.8125rem;
   line-height: 1.45;
@@ -289,16 +286,13 @@
   border-radius: 999px;
 }
 
-.dashboard-layout__content .dashboard-card__details,
-.dashboard-layout__content .form-field label,
-.dashboard-layout__content .ui-field__label {
+.dashboard-layout__content .form-field label {
   font-size: 0.8125rem;
 }
 
 .dashboard-layout__content .form-field input,
 .dashboard-layout__content .form-field select,
 .dashboard-layout__content .form-field textarea,
-.dashboard-layout__content .ui-field__input,
 .dashboard-layout__content .ui-button {
   font-size: 0.8125rem;
 }
