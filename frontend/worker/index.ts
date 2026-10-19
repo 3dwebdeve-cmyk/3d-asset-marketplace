@@ -7,6 +7,7 @@ import {
   isLikelyAssetPath,
   normalizePath,
   renderSeoHead,
+  escapeHtml,
   SLUG_PATTERN,
   type PageSeo,
 } from './seo'
@@ -354,7 +355,23 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
   }
 
   try {
-    return await fetch(new Request(upstreamUrl, init))
+    const response = await fetch(new Request(upstreamUrl, init))
+    // The backend may still have the previous frontend origin during a domain move.
+    // Keep its catalog selection and paths, but publish the same origin as our canonicals.
+    if (incomingUrl.pathname === SITEMAP_PATH && request.method === 'GET' && response.ok &&
+      (response.headers.get('Content-Type') ?? '').toLowerCase().includes('xml')) {
+      const siteOrigin = escapeHtml(resolveSiteOrigin(env, incomingUrl))
+      const xml = (await response.text()).replace(
+        /<loc>https?:\/\/[^/<\s]+([^<]*)<\/loc>/g,
+        (_match, path: string) => `<loc>${siteOrigin}${path || '/'}</loc>`,
+      )
+      const sitemapHeaders = new Headers(response.headers)
+      for (const header of ['Content-Length', 'Content-Encoding', 'ETag', 'Last-Modified']) {
+        sitemapHeaders.delete(header)
+      }
+      return withSecurityHeaders(new Response(xml, { status: response.status, headers: sitemapHeaders }))
+    }
+    return response
   } catch {
     return errorResponse(502, 'The API service is temporarily unavailable.')
   }

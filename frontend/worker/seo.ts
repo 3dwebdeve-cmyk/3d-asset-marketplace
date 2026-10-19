@@ -193,6 +193,7 @@ export function renderSeoHead(
     metaTag('property', 'og:title', seo.title),
     metaTag('property', 'og:description', seo.description),
     metaTag('property', 'og:url', canonical),
+    metaTag('property', 'og:locale', 'en_US'),
     metaTag('property', 'og:image', image),
     metaTag('property', 'og:image:alt', seo.image ? seo.imageAlt ?? seo.title : DEFAULT_SOCIAL_IMAGE_ALT),
     ...(!seo.image ? [metaTag('property', 'og:image:width', '1200'), metaTag('property', 'og:image:height', '630')] : []),
