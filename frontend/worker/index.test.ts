@@ -238,6 +238,32 @@ describe('Cloudflare API proxy', () => {
       await worker.fetch(new Request('https://shop.example/products/sitemap.xml'), env)
       expect(env.ASSETS.fetch).toHaveBeenCalledTimes(2)
     })
+
+    it('publishes canonical sitemap locations while preserving catalog paths and XML escaping', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+        '<urlset><url><loc>https://old.workers.dev/</loc></url><url><loc>https://old.workers.dev/products/chair?a=1&amp;b=2</loc><lastmod>2026-10-01</lastmod></url></urlset>',
+        { headers: { 'Content-Type': 'application/xml', ETag: 'old-body', 'Content-Length': '999' } },
+      )))
+      const response = await worker.fetch(new Request('https://www.assethive3d.com/sitemap.xml'), {
+        ...createEnv(), SITE_URL: 'https://assethive3d.com',
+      })
+      const xml = await response.text()
+      expect(xml).toContain('<loc>https://assethive3d.com/</loc>')
+      expect(xml).toContain('<loc>https://assethive3d.com/products/chair?a=1&amp;b=2</loc>')
+      expect(xml).toContain('<lastmod>2026-10-01</lastmod>')
+      expect(xml).not.toContain('old.workers.dev')
+      expect(response.headers.get('ETag')).toBeNull()
+      expect(response.headers.get('Content-Length')).toBeNull()
+    })
+
+    it('preserves backend sitemap errors instead of advertising a partial sitemap', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Unavailable', { status: 503 })))
+      const response = await worker.fetch(new Request('https://assethive3d.com/sitemap.xml'), {
+        ...createEnv(), SITE_URL: 'https://assethive3d.com',
+      })
+      expect(response.status).toBe(503)
+      expect(await response.text()).toBe('Unavailable')
+    })
   })
 
   it('fails closed when the backend origin is missing or unsafe', async () => {

@@ -1,6 +1,5 @@
 # Public crawl rules. Keep private app surfaces out of search indexes.
 User-agent: *
-Allow: /
 Disallow: /console
 Disallow: /console/
 Disallow: /dashboard
@@ -13,3 +12,20 @@ Disallow: /login
 Disallow: /register
 Disallow: /admin
 Disallow: /admin/
+Allow: /
+
+# ChatGPT search discovery. Training-crawler settings remain governed by the wildcard group.
+User-agent: OAI-SearchBot
+Disallow: /console
+Disallow: /console/
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /cart
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /profile
+Disallow: /login
+Disallow: /register
+Disallow: /admin
+Disallow: /admin/
+Allow: /

@@ -149,6 +149,19 @@ function metaTag(attribute: 'name' | 'property', key: string, content: string): 
   return `<meta ${attribute}="${key}" content="${escapeHtml(content)}" />`
 }
 
+/** A useful first response for every visitor, including clients without JavaScript.
+ * React replaces this summary when the application loads; no bot-specific content is served.
+ */
+function renderPageSummary(html: string, seo: PageSeo): string {
+  const links = [
+    ['/', 'AssetHive3D home'], ['/3d-models', '3D models'], ['/categories', 'Model categories'],
+    ['/plugins', 'Plugins and tools'], ['/custom-projects', 'Custom 3D projects'],
+    ['/about', 'About AssetHive3D'], ['/contact', 'Contact and enquiries'],
+  ]
+  const content = `<main aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(seo.title)}</h1><p>${escapeHtml(seo.description)}</p><nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  return html.replace(/(<div\s+id=["']root["']\s*>)\s*(<\/div>)/i, (_match, open: string, close: string) => `${open}${content}${close}`)
+}
+
 /**
  * Replaces the SEO head tags in the app shell with ones for this page. Returns the
  * shell unchanged when it has no </head>, so an unexpected response is never corrupted.
@@ -180,6 +193,7 @@ export function renderSeoHead(
     metaTag('property', 'og:title', seo.title),
     metaTag('property', 'og:description', seo.description),
     metaTag('property', 'og:url', canonical),
+    metaTag('property', 'og:locale', 'en_US'),
     metaTag('property', 'og:image', image),
     metaTag('property', 'og:image:alt', seo.image ? seo.imageAlt ?? seo.title : DEFAULT_SOCIAL_IMAGE_ALT),
     ...(!seo.image ? [metaTag('property', 'og:image:width', '1200'), metaTag('property', 'og:image:height', '630')] : []),
@@ -203,7 +217,7 @@ export function renderSeoHead(
   }
 
   const indented = tags.map((tag) => `    ${tag}`).join('\n')
-  return `${shell.slice(0, headEnd)}${indented}\n  ${shell.slice(headEnd)}`
+  return renderPageSummary(`${shell.slice(0, headEnd)}${indented}\n  ${shell.slice(headEnd)}`, seo)
 }
 
 /** Adds the absolute sitemap location to robots.txt, which must use a full URL. */

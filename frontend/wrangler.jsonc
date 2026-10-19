@@ -29,7 +29,7 @@
       "/Plugins/*"
     ]
   },
-  // Set SITE_URL (for example "https://your-domain.example") under vars in the Cloudflare
-  // dashboard or here, so canonical URLs and the sitemap use your domain.
-  // "vars": { "SITE_URL": "https://your-domain.example" }
+  "vars": {
+    "SITE_URL": "https://assethive3d.com"
+  }
 }
