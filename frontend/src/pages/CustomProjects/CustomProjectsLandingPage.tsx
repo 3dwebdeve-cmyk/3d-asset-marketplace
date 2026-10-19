@@ -1,3 +1,5 @@
+import { CUSTOM_PROJECTS_SEO } from '../../lib/seoPages'
+import { buildCustomProjectsJsonLd } from '../../lib/customProjectSeo'
 import { Link } from 'react-router-dom'
 
 import {
@@ -13,10 +15,9 @@ const CONTACT_ENQUIRY_PATH =
 
 export function CustomProjectsLandingPage() {
   useDocumentSeo({
-    title: 'Custom 3D Modeling Services | AssetHive3D',
-    description:
-      'Request a custom 3D model, texture, render or plugin. Share your brief by email enquiry and our team will follow up.',
+    ...CUSTOM_PROJECTS_SEO,
     canonicalPath: '/custom-projects',
+    structuredData: buildCustomProjectsJsonLd(),
   })
 
   return (
@@ -41,27 +42,6 @@ export function CustomProjectsLandingPage() {
 
       <div className="marketing-page__inner">
         <CustomProjectServices />
-
-        <section
-          className="marketing-section custom-projects-portal"
-          aria-labelledby="why-email"
-        >
-          <div className="custom-projects-portal__inner">
-            <div className="custom-projects-portal__content">
-              <h2 id="why-email">Managed by email</h2>
-              <p>
-                Enquiries go straight to our company inbox. Managers handle quotations, files,
-                and delivery offline — start with a free contact form submission and we will
-                follow up from there.
-              </p>
-              <div className="marketing-actions" style={{ marginTop: '1.25rem' }}>
-                <Link className="home-page__cta" to={CONTACT_ENQUIRY_PATH}>
-                  Send a project enquiry <span aria-hidden="true">→</span>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
     </main>
   )

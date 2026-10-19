@@ -8,6 +8,28 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api", "/api/*", "/robots.txt", "/sitemap.xml"]
+    "run_worker_first": [
+      "/api",
+      "/api/*",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/",
+      "/3d-models",
+      "/3d-models/*",
+      "/plugins",
+      "/categories",
+      "/about",
+      "/contact",
+      "/custom-projects",
+      "/terms",
+      "/privacy",
+      "/products/*",
+      "/Products/*",
+      "/plugins/*",
+      "/Plugins/*"
+    ]
+  },
+  "vars": {
+    "SITE_URL": "https://assethive3d.com"
   }
 }

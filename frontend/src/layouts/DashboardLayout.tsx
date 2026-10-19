@@ -69,9 +69,8 @@ export function DashboardLayout() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const { isNotFound } = useNotFoundChrome()
 
+  // Account pages stay out of search. Each page sets its own title.
   useDocumentSeo({
-    title: 'Dashboard | 3D HUB',
-    description: 'Manage your orders, downloads, and account.',
     robots: 'noindex, nofollow',
   })
 

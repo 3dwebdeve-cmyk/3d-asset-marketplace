@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useParams } from 'react-router-dom'
 
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
@@ -8,6 +9,12 @@ import { Input } from '../../components/ui/Input'
 import { usePasswordResetConfirmForm } from './usePasswordResetConfirmForm'
 
 export function PasswordResetConfirmPage() {
+  useDocumentSeo({
+    title: 'Choose a new password | AssetHive 3D',
+    description: 'Set a new password for your AssetHive 3D account.',
+    robots: 'noindex, nofollow',
+  })
+
   const { uid = '', token = '' } = useParams<{ uid: string; token: string }>()
   const hasLink = Boolean(uid && token)
   const { register, handleSubmit, errors, isSubmitting, serverError, successMessage, onSubmit } =

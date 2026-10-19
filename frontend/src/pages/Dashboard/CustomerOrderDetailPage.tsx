@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 
@@ -66,6 +67,12 @@ function DownloadIcon() {
 }
 
 export function CustomerOrderDetailPage() {
+  useDocumentSeo({
+    title: 'Order details | AssetHive 3D',
+    description: 'View the details and downloads for your AssetHive 3D order.',
+    robots: 'noindex, nofollow',
+  })
+
   const { orderId = '' } = useParams()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)

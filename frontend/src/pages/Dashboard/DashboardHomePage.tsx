@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQueries } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
@@ -102,6 +103,12 @@ const QUICK_ACTIONS = [
 ]
 
 export function DashboardHomePage() {
+  useDocumentSeo({
+    title: 'Dashboard | AssetHive 3D',
+    description: 'Manage your AssetHive 3D orders, downloads and account.',
+    robots: 'noindex, nofollow',
+  })
+
   const user = useAuthStore((state) => state.user)
   const firstName = user?.full_name?.trim().split(/\s+/)[0] || 'User'
 

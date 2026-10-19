@@ -308,6 +308,7 @@ export function ProductDetailsPage() {
     canonicalPath: seoPath,
     type: 'product',
     image: seoProduct?.thumbnail || seoProduct?.images[0]?.image_url || undefined,
+    imageAlt: seoProduct?.name,
     // Placeholder (demo) products and missing products stay out of search results.
     robots: isNotFound || (seoProduct && NOINDEX_CATEGORY_SLUGS.has(seoProduct.category.slug)) ? 'noindex' : undefined,
     jsonLd: seoProduct && seoPath

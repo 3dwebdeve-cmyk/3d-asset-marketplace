@@ -13,7 +13,7 @@ import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
 import { discountPercent } from '../../lib/pricing'
-import { buildBreadcrumbJsonLd, buildPageTitle } from '../../lib/seo'
+import { buildBreadcrumbJsonLd, buildPluginPageTitle, buildPluginMetaDescription, buildPluginJsonLd } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { PluginLicenseType, PublicPluginDetail } from '../../types/plugin'
 import { ProductImageGallery } from '../Products/ProductImageGallery'
@@ -36,18 +36,6 @@ function licenseLabel(license: PluginLicenseType): string {
     default:
       return 'Standard'
   }
-}
-
-function buildPluginPageTitle(pluginName: string): string {
-  return buildPageTitle(`${pluginName} Plugin`)
-}
-
-function buildPluginMetaDescription(pluginName: string, shortDescription: string): string {
-  const trimmed = shortDescription.trim()
-  if (trimmed) {
-    return trimmed.slice(0, 160)
-  }
-  return `${pluginName}: plugin for your 3D workflow. Secure checkout and instant download after purchase.`
 }
 
 function useScrollPluginPageToTop(resetKey: string): void {
@@ -304,14 +292,16 @@ export function PluginDetailsPage() {
         )
         : 'Loading plugin details from the marketplace catalog.',
     canonicalPath: pluginQuery.data ? `/plugins/${pluginQuery.data.slug}` : undefined,
+    type: 'product',
+    imageAlt: pluginQuery.data?.name,
     robots: isNotFound ? 'noindex' : undefined,
     image: pluginQuery.data?.thumbnail || undefined,
     jsonLd: pluginQuery.data
-      ? buildBreadcrumbJsonLd([
+      ? [buildPluginJsonLd(pluginQuery.data), buildBreadcrumbJsonLd([
         { name: 'Home', path: '/' },
         { name: 'Plugins', path: '/plugins' },
         { name: pluginQuery.data.name, path: `/plugins/${pluginQuery.data.slug}` },
-      ])
+      ])]
       : undefined,
   })
 
