@@ -88,7 +88,6 @@
 .project-services__marketplace { position: relative; color: #080c10; font: bold 60px Georgia, serif; line-height: 1; padding-bottom: 14px; }
 .project-services__marketplace svg { position: absolute; bottom: 0; left: -8px; width: 56px; fill: none; stroke: #f49a13; stroke-width: 4; stroke-linecap: round; }
 .project-services__dots { display: grid; place-items: center; width: 60px; height: 38px; color: #4285ed; background: #f4f7fc; border: 1px solid #eaf0f8; border-radius: 7px; font-size: 24px; letter-spacing: 3px; }
-.project-services__play { position: absolute; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #ffffffe6; color: #1d2939; font-size: 12px; }
 .project-services__title { color: #101827; font-size: 1rem; font-weight: 600; line-height: 1.4; letter-spacing: -0.025em; }
 .project-services__card--selected .project-services__title { color: var(--service-blue); }
 .project-services__description { margin-top: 0.3rem; color: #75869f; font-size: 0.8rem; line-height: 1.65; }

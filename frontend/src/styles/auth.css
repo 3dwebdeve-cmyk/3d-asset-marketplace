@@ -19,91 +19,6 @@
   box-sizing: border-box;
 }
 
-.auth-card--wide {
-  width: min(100%, 640px);
-}
-
-.profile-meta {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0 0 1.25rem;
-  padding: 0.875rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: var(--text-body);
-}
-
-.avatar-uploader {
-  margin: 0 0 1.5rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--pure-white);
-}
-
-.avatar-uploader__title {
-  margin: 0 0 0.35rem;
-  font-size: 1.125rem;
-  color: var(--text-heading);
-}
-
-.avatar-uploader__hint {
-  margin: 0 0 1rem;
-  font-size: 0.9rem;
-  color: var(--text-body);
-}
-
-.avatar-uploader__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.avatar-uploader__preview {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-soft);
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-}
-
-.avatar-uploader__image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-uploader__placeholder {
-  font-size: 0.8rem;
-  color: var(--text-heading);
-  text-align: center;
-  padding: 0.5rem;
-}
-
-.avatar-uploader__controls {
-  flex: 1;
-  min-width: min(100%, 240px);
-}
-
-.avatar-uploader__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-}
-
-.avatar-uploader__actions .ui-button {
-  width: auto;
-  margin-top: 0;
-  padding: 0.65rem 1rem;
-}
-
 .auth-card__header {
   margin-bottom: 1.5rem;
 }
@@ -235,12 +150,6 @@
 
 .auth-card__footer {
   margin-top: 1.25rem;
-}
-
-.auth-page--market {
-  background-color: var(--bg-page);
-  background-image: none;
-  background-size: 18px 18px;
 }
 
 .auth-card--market {
@@ -504,14 +413,6 @@
   text-align: left;
 }
 
-.auth-form__options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: -0.25rem;
-}
-
 .auth-form__forgot {
   font-family: var(--auth-font, inherit);
   font-size: 0.7rem;
@@ -705,12 +606,6 @@
   height: 1.05rem;
 }
 
-.auth-card__footer--center {
-  text-align: center;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
 .auth-link {
   color: var(--auth-accent, var(--action-color));
   font-family: var(--auth-font, inherit);
@@ -721,12 +616,6 @@
 .auth-link:hover {
   text-decoration: underline;
   color: var(--action-color);
-}
-
-.auth-link--underline {
-  text-decoration: underline;
-  text-underline-offset: 0.18em;
-  color: var(--auth-accent, var(--action-color));
 }
 
 .auth-card--market .auth-link:hover {
@@ -784,8 +673,7 @@
     align-items: stretch;
   }
 
-  .auth-card,
-  .auth-card--wide {
+  .auth-card {
     width: 100%;
     padding: 1.25rem 1rem;
     border-radius: 12px;
@@ -804,10 +692,6 @@
   .auth-modal__panel {
     width: 100%;
     max-height: min(94vh, 940px);
-  }
-
-  .avatar-uploader__row {
-    flex-direction: column;
   }
 }
 

@@ -11,7 +11,6 @@ import { useAuthStore } from '../store/authStore'
 import '../styles/dashboard-layout.css'
 import '../styles/dashboard-list.css'
 import '../styles/dashboard-home.css'
-import '../styles/dashboard-project-form.css'
 import '../styles/dashboard-profile.css'
 
 function NavIcon({ name }: { name: DashboardNavIcon }) {
