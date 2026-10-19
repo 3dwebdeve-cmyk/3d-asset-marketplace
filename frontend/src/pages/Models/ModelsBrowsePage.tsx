@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { listPublicCategories } from '../../api/categoriesApi'
 import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
@@ -8,11 +8,12 @@ import { Pagination } from '../../components/ui/Pagination'
 import { SOFTWARE_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
 import { MODELS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { activateOnKey } from '../../lib/keyboard'
-import { buildCollectionStructuredData, SITE_NAME } from '../../lib/seo'
-import { MODELS_SEO } from '../../lib/seoPages'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
+import { ALL_MODELS_SEO, buildCategoryTitle, categoryPath, getCategorySeo } from '../../lib/categorySeo'
+import { buildBreadcrumbJsonLd, buildItemListJsonLd, buildPageTitle } from '../../lib/seo'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 import { ProductCard } from '../Products/ProductCard'
 import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
@@ -22,7 +23,7 @@ const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/banner%20image/08.jpg?v=1',
+  furniture: '/banner%20image/08.webp',
   toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
   electronics: '/images/new%20banner%20image%20size/Electronics.webp',
   'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
@@ -71,7 +72,32 @@ function readTraitFromUrl(searchParams: URLSearchParams, key: TraitKey): boolean
 
 export function ModelsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
+  const navigate = useNavigate()
+  const { categorySlug } = useParams()
+  const slugFromPath = categorySlug?.trim().toLowerCase() ?? ''
+  // Old links used ?category=<id>. They keep working and are redirected to the readable address.
+  const legacyCategory = searchParams.get('category')?.trim() ?? ''
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['public-categories-list', { page_size: 100 }],
+    queryFn: () => listPublicCategories({ page_size: 100 }),
+    staleTime: 1000 * 60 * 5,
+  })
+  const urlCategory = useMemo(() => {
+    const list = categoriesData?.results
+    if (!list) return null
+    if (slugFromPath) return list.find((cat) => cat.slug.toLowerCase() === slugFromPath) ?? null
+    if (legacyCategory) {
+      const wanted = legacyCategory.toLowerCase()
+      return list.find((cat) => cat.id === legacyCategory || cat.slug.toLowerCase() === wanted) ?? null
+    }
+    return null
+  }, [categoriesData?.results, slugFromPath, legacyCategory])
+  // An id the list does not know is passed through unchanged, exactly as before.
+  const categoryFromUrl = urlCategory?.id ?? (slugFromPath ? '' : legacyCategory)
+  // Wait for the category list before loading products, so a category page never flashes all models.
+  const categoryPending = Boolean(slugFromPath || legacyCategory) && !categoriesData
+  const categoryNotFound = Boolean(slugFromPath) && Boolean(categoriesData) && !urlCategory
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const sortFromUrl = readSortFromUrl(searchParams.get('ordering')?.trim() ?? '')
 
@@ -121,6 +147,14 @@ export function ModelsBrowsePage() {
       trackCategoryClick(categoryFromUrl)
     }
   }, [categoryFromUrl])
+
+  useEffect(() => {
+    if (slugFromPath || !legacyCategory || !urlCategory) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('category')
+    const query = next.toString()
+    navigate(`${categoryPath(urlCategory.slug)}${query ? `?${query}` : ''}`, { replace: true })
+  }, [slugFromPath, legacyCategory, urlCategory, searchParams, navigate])
 
   useEffect(() => {
     setSearchInput(searchFromUrl)
@@ -174,6 +208,16 @@ export function ModelsBrowsePage() {
     setSearchParams(nextParams, { replace: true })
   }
 
+  /** Move to a category's own address (or back to all models), keeping the other filters. */
+  const goToCategory = (category: { id: string; slug: string } | null) => {
+    setSelectedCategoryId(category?.id ?? '')
+    setCurrentPage(1)
+    const next = new URLSearchParams(searchParams)
+    next.delete('category')
+    const query = next.toString()
+    navigate(`${category ? categoryPath(category.slug) : '/3d-models'}${query ? `?${query}` : ''}`, { replace: true })
+  }
+
   const handleResetFilters = () => {
     setSearchInput('')
     setSelectedCategoryId('')
@@ -195,14 +239,10 @@ export function ModelsBrowsePage() {
     nextParams.delete('game_ready')
     nextParams.delete('ordering')
     for (const key of ['formats', 'licenses', 'min_price', 'max_price']) nextParams.delete(key)
-    setSearchParams(nextParams, { replace: true })
+    const query = nextParams.toString()
+    navigate(`/3d-models${query ? `?${query}` : ''}`, { replace: true })
   }
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ['public-categories-list', { page_size: 100 }],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
-  })
 
   const {
     data: productsData,
@@ -232,6 +272,8 @@ export function ModelsBrowsePage() {
       }),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
+    // Not until the page's category matches the address, so no request ever asks for every model first.
+    enabled: !categoryPending && !categoryNotFound && (!(slugFromPath || legacyCategory) || selectedCategoryId === categoryFromUrl),
   })
 
   const priceMatches = (product: NonNullable<typeof productsData>[number]) => {
@@ -266,22 +308,34 @@ export function ModelsBrowsePage() {
     return categoriesData?.results.find((cat) => cat.id === selectedCategoryId) ?? null
   }, [categoriesData?.results, selectedCategoryId])
 
-  const heroTitle = selectedCategory?.slug === '3d-printing'
-    ? '3D Printing'
-    : selectedCategory?.slug === 'furniture'
-      ? 'Furniture 3D Models'
-      : selectedCategory?.name ?? '3D Model'
-
-  const modelsDescription = selectedCategory
-    ? `Browse ${heroTitle} on ${SITE_NAME}. Filter by software, format, license and price to find the right 3D model.`
-    : MODELS_SEO.description
+  const categorySeo = selectedCategory ? getCategorySeo(selectedCategory.slug, selectedCategory.name) : null
+  const emptyCategory = Boolean(selectedCategory) && productsData !== undefined && productsData.length === 0
+  const seoCopy = categorySeo ?? ALL_MODELS_SEO
+  const pagePath = selectedCategory ? categoryPath(selectedCategory.slug) : '/3d-models'
+  const crumbs = [
+    { name: 'Home', path: '/' },
+    { name: '3D Models', path: '/3d-models' },
+    ...(selectedCategory ? [{ name: seoCopy.h1, path: pagePath }] : []),
+  ]
+  const listedProducts = products.map((product) => ({ name: product.name, path: `/products/${product.slug}` }))
   useDocumentSeo({
-    title: selectedCategory ? `${heroTitle} | ${SITE_NAME}` : MODELS_SEO.title,
-    description: modelsDescription,
-    keywords: MODELS_SEO.keywords,
-    structuredData: buildCollectionStructuredData(heroTitle, modelsDescription),
+    title: categorySeo ? buildCategoryTitle(categorySeo) : buildPageTitle(ALL_MODELS_SEO.title),
+    description: seoCopy.description,
+    // Filtered and searched views all point back to the clean address of the page.
+    canonicalPath: pagePath,
+    // Searches, placeholder categories and categories with nothing in them are not worth indexing.
+    robots: searchFromUrl || (categorySeo && !categorySeo.indexable) || emptyCategory ? 'noindex, follow' : undefined,
+    jsonLd: [
+      buildBreadcrumbJsonLd(crumbs),
+      ...(listedProducts.length > 0 ? [buildItemListJsonLd(seoCopy.h1, listedProducts)] : []),
+    ],
   })
 
+  if (categoryNotFound) {
+    return <NotFoundPage />
+  }
+
+  const heroTitle = seoCopy.h1
   const usesProductsBanner =
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
   const usesFurnitureBanner = selectedCategory?.slug === 'furniture'
@@ -310,20 +364,7 @@ export function ModelsBrowsePage() {
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
-          {usesFurnitureBanner ? (
-            <p className="plugins-browse-hero__subtitle">
-              Ready-to-use furniture 3D models for interior renders, architectural visualization, product viewers and real-time scenes.{' '}
-              Preview each model in 3D before you buy, check the polygon count, formats and license on its page, and download your files right after checkout.
-            </p>
-          ) : (
-            <p className="plugins-browse-hero__subtitle">
-              Premium 3D models for games, film, and architecture.{' '}
-              <br />
-              Production-ready assets for product design and visualization.{' '}
-              <br />
-              Optimized for <strong>Blender, Maya, 3ds Max, and Cinema 4D.</strong>
-            </p>
-          )}
+          <p className="plugins-browse-hero__subtitle">{seoCopy.intro}</p>
         </div>
       </section>
 
@@ -388,12 +429,8 @@ export function ModelsBrowsePage() {
                     aria-selected={selectedCategoryId === ''}
                     className={`custom-select-option${selectedCategoryId === '' ? ' custom-select-option--active' : ''}`}
                     onClick={() => {
-                      setSelectedCategoryId('')
-                      setCurrentPage(1)
                       setCategoryDropdownOpen(false)
-                      const nextParams = new URLSearchParams(searchParams)
-                      nextParams.delete('category')
-                      setSearchParams(nextParams, { replace: true })
+                      goToCategory(null)
                     }}
                   >
                     All categories
@@ -407,13 +444,9 @@ export function ModelsBrowsePage() {
                       aria-selected={selectedCategoryId === category.id}
                       className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
                       onClick={() => {
-                        setSelectedCategoryId(category.id)
-                        setCurrentPage(1)
                         setCategoryDropdownOpen(false)
                         trackCategoryClick(category.id)
-                        const nextParams = new URLSearchParams(searchParams)
-                        nextParams.set('category', category.id)
-                        setSearchParams(nextParams, { replace: true })
+                        goToCategory(category)
                       }}
                     >
                       {category.name}
@@ -428,15 +461,8 @@ export function ModelsBrowsePage() {
                 value={selectedCategoryId}
                 onChange={(event) => {
                   const value = event.target.value
-                  setSelectedCategoryId(value)
-                  setCurrentPage(1)
                   if (value) trackCategoryClick(value)
-
-                  const nextParams = new URLSearchParams(searchParams)
-                  if (value) nextParams.set('category', value)
-                  else nextParams.delete('category')
-
-                  setSearchParams(nextParams, { replace: true })
+                  goToCategory(categoriesData?.results.find((cat) => cat.id === value) ?? null)
                 }}
                 className="custom-select-native"
                 tabIndex={-1}

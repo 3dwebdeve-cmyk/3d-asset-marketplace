@@ -27,20 +27,20 @@ describe('useDocumentSeo', () => {
   it('sets title, description, keywords and social tags', () => {
     renderHook(() =>
       useDocumentSeo({
-        title: 'Blue Chair | AssetHive 3D',
+        title: 'Blue Chair | AssetHive3D',
         description: 'A blue chair model.',
         keywords: ['chair', '3D model'],
         ogType: 'product',
       }),
     )
 
-    expect(document.title).toBe('Blue Chair | AssetHive 3D')
+    expect(document.title).toBe('Blue Chair | AssetHive3D')
     expect(metaContent('meta[name="description"]')).toBe('A blue chair model.')
     expect(metaContent('meta[name="keywords"]')).toBe('chair, 3D model')
-    expect(metaContent('meta[property="og:title"]')).toBe('Blue Chair | AssetHive 3D')
+    expect(metaContent('meta[property="og:title"]')).toBe('Blue Chair | AssetHive3D')
     expect(metaContent('meta[property="og:description"]')).toBe('A blue chair model.')
     expect(metaContent('meta[property="og:type"]')).toBe('product')
-    expect(metaContent('meta[property="og:site_name"]')).toBe('AssetHive 3D')
+    expect(metaContent('meta[property="og:site_name"]')).toBe('AssetHive3D')
     expect(metaContent('meta[name="twitter:card"]')).toBe('summary_large_image')
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(
       `${window.location.origin}/`,
@@ -51,7 +51,7 @@ describe('useDocumentSeo', () => {
     renderHook(() => useDocumentSeo({ title: 'Home', description: 'Home page' }))
 
     expect(metaContent('meta[property="og:image"]')).toBe(
-      `${window.location.origin}/banner%20image/01.jpg`,
+      `${window.location.origin}/og-default.jpg`,
     )
 
     renderHook(() =>

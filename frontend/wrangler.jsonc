@@ -15,6 +15,7 @@
       "/sitemap.xml",
       "/",
       "/3d-models",
+      "/3d-models/*",
       "/plugins",
       "/categories",
       "/about",

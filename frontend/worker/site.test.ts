@@ -6,7 +6,7 @@ const BACKEND_ORIGIN = 'https://api.example.test'
 const SHELL = `<!doctype html>
 <html lang="en">
 <head>
-  <title>AssetHive 3D</title>
+  <title>AssetHive3D</title>
   <meta name="description" content="Default" />
 </head>
 <body><div id="root"></div></body>
@@ -68,7 +68,7 @@ describe('server-rendered page head', () => {
     const html = await response.text()
 
     expect(response.status).toBe(200)
-    expect(html).toContain('<title>Desk Lamp | 3D Model | AssetHive 3D</title>')
+    expect(html).toContain('<title>Desk Lamp | 3D Model | AssetHive3D</title>')
     expect(html).toContain('property="og:type" content="product"')
     expect(html).toContain('href="https://shop.example/products/desk-lamp"')
     expect(html).toContain('id="seo-structured-data"')
@@ -94,7 +94,7 @@ describe('server-rendered page head', () => {
     )
     const html = await response.text()
 
-    expect(html).toContain('<title>UV Tools | 3D Plugin | AssetHive 3D</title>')
+    expect(html).toContain('<title>UV Tools | 3D Plugin | AssetHive3D</title>')
     expect(html).toContain('"@type":"SoftwareApplication"')
   })
 
@@ -108,7 +108,7 @@ describe('server-rendered page head', () => {
 
     expect(response.status).toBe(404)
     expect(response.headers.get('X-Robots-Tag')).toBe('noindex, nofollow')
-    expect(await response.text()).toContain('<title>Product not found | AssetHive 3D</title>')
+    expect(await response.text()).toContain('<title>Product not found | AssetHive3D</title>')
   })
 
   it('serves the plain shell when the backend cannot be reached', async () => {
@@ -141,7 +141,7 @@ describe('server-rendered page head', () => {
     const response = await worker.fetch(new Request('https://shop.example/'), createEnv())
     const html = await response.text()
 
-    expect(html).toContain('<title>AssetHive 3D | Premium 3D Models, Plugins &amp; Custom 3D Projects</title>')
+    expect(html).toContain('<title>AssetHive3D | Premium 3D Models, Plugins &amp; Custom 3D Projects</title>')
     expect(upstream).not.toHaveBeenCalled()
   })
 
@@ -164,67 +164,7 @@ describe('server-rendered page head', () => {
   })
 })
 
-describe('sitemap.xml', () => {
-  it('lists static pages plus every published product and plugin', async () => {
-    const upstream = vi.fn(async (input: URL | RequestInfo) => {
-      const url = input instanceof URL ? input : new URL(String(input))
-      if (url.pathname === '/api/v1/products/') {
-        return Response.json({ next: null, results: [{ slug: 'desk-lamp' }] })
-      }
-      if (url.pathname === '/api/v1/plugins/') {
-        return Response.json({ next: null, results: [{ slug: 'uv-tools' }] })
-      }
-      return new Response('', { status: 404 })
-    })
-    vi.stubGlobal('fetch', upstream)
-
-    const response = await worker.fetch(
-      new Request('https://shop.example/sitemap.xml'),
-      createEnv(),
-    )
-    const xml = await response.text()
-
-    expect(response.headers.get('Content-Type')).toContain('application/xml')
-    expect(xml).toContain('<loc>https://shop.example/about</loc>')
-    expect(xml).toContain('<loc>https://shop.example/products/desk-lamp</loc>')
-    expect(xml).toContain('<loc>https://shop.example/plugins/uv-tools</loc>')
-  })
-
-  it('follows pagination until the last page', async () => {
-    const upstream = vi.fn(async (input: URL | RequestInfo) => {
-      const url = input instanceof URL ? input : new URL(String(input))
-      if (url.pathname !== '/api/v1/products/') {
-        return Response.json({ next: null, results: [] })
-      }
-      const page = url.searchParams.get('page')
-      return page === '1'
-        ? Response.json({ next: 'page-2', results: [{ slug: 'first' }] })
-        : Response.json({ next: null, results: [{ slug: 'second' }] })
-    })
-    vi.stubGlobal('fetch', upstream)
-
-    const xml = await (
-      await worker.fetch(new Request('https://shop.example/sitemap.xml'), createEnv())
-    ).text()
-
-    expect(xml).toContain('/products/first</loc>')
-    expect(xml).toContain('/products/second</loc>')
-  })
-
-  it('still returns the static pages when the catalog is unavailable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')))
-
-    const response = await worker.fetch(
-      new Request('https://shop.example/sitemap.xml'),
-      createEnv(),
-    )
-    const xml = await response.text()
-
-    expect(response.status).toBe(200)
-    expect(xml).toContain('<loc>https://shop.example/plugins</loc>')
-    expect(xml).not.toContain('/products/')
-  })
-})
+// Backend sitemap proxy behavior is covered in index.test.ts.
 
 describe('robots.txt', () => {
   it('appends the absolute sitemap location to the static rules', async () => {

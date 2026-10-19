@@ -17,8 +17,9 @@ import {
 } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
-import { buildProductStructuredData, SITE_NAME } from '../../lib/seo'
 import { discountPercent } from '../../lib/pricing'
+import { NOINDEX_CATEGORY_SLUGS, categoryPath } from '../../lib/categorySeo'
+import { buildBreadcrumbJsonLd, buildProductJsonLd } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { ProductLicenseType, PublicProductDetail } from '../../types/product'
 import { ProductCard } from './ProductCard'
@@ -74,7 +75,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
     hasDiscount && product.discount_price
       ? discountPercent(product.price, product.discount_price)
       : null
-  const browseCategoryHref = `/3d-models?category=${encodeURIComponent(product.category.id)}`
+  const browseCategoryHref = categoryPath(product.category.slug)
 
   const relatedQuery = useQuery({
     queryKey: ['public-products-related', product.category.id, product.id],
@@ -94,7 +95,9 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
     <>
       <header className="product-hub-detail__header">
         <div className="product-hub-detail__header-text">
-          <p className="product-hub-detail__eyebrow">{product.category.name}</p>
+          <p className="product-hub-detail__eyebrow">
+            <Link to={browseCategoryHref}>{product.category.name}</Link>
+          </p>
           <h1 className="product-hub-detail__title">
             {product.name}
             <span className="product-hub-detail__verified-badge" title="Verified Asset" aria-label="Verified">
@@ -285,25 +288,39 @@ export function ProductDetailsPage() {
 
   const isNotFound = !trimmedSlug || isHttpNotFound(productQuery.error)
 
-  const product = productQuery.data
+  const seoProduct = productQuery.data
+  const seoPath = seoProduct ? `/products/${seoProduct.slug}` : undefined
   useDocumentSeo({
     title: isNotFound
-      ? `Product not found | ${SITE_NAME}`
-      : product
-        ? buildProductPageTitle(product.name)
-        : `Product details | ${SITE_NAME}`,
+      ? 'Product not found | AssetHive3D'
+      : seoProduct
+        ? buildProductPageTitle(seoProduct.name, seoProduct.category.name)
+        : 'Product details | AssetHive3D',
     description: isNotFound
       ? 'The requested product could not be found.'
-      : product
-        ? buildProductMetaDescription(product.name, product.short_description)
+      : seoProduct
+        ? buildProductMetaDescription(seoProduct.name, seoProduct.short_description, {
+          categoryName: seoProduct.category.name,
+          polygonCount: seoProduct.polygon_count,
+          licenseType: seoProduct.license_type,
+        })
         : 'Loading product details from the marketplace catalog.',
-    robots: isNotFound ? 'noindex, nofollow' : undefined,
-    keywords: product
-      ? [product.name, product.category.name, '3D model', 'download 3D model']
+    canonicalPath: seoPath,
+    type: 'product',
+    image: seoProduct?.thumbnail || seoProduct?.images[0]?.image_url || undefined,
+    // Placeholder (demo) products and missing products stay out of search results.
+    robots: isNotFound || (seoProduct && NOINDEX_CATEGORY_SLUGS.has(seoProduct.category.slug)) ? 'noindex' : undefined,
+    jsonLd: seoProduct && seoPath
+      ? [
+        buildProductJsonLd(seoProduct, seoPath),
+        buildBreadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: '3D Models', path: '/3d-models' },
+          { name: seoProduct.category.name, path: categoryPath(seoProduct.category.slug) },
+          { name: seoProduct.name, path: seoPath },
+        ]),
+      ]
       : undefined,
-    image: product?.thumbnail || undefined,
-    ogType: product ? 'product' : 'website',
-    structuredData: product ? buildProductStructuredData(product) : undefined,
   })
 
   if (isNotFound) {

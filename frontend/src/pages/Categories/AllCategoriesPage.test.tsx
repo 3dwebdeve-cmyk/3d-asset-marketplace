@@ -24,6 +24,13 @@ const categoryNames = [
   ['architectural-3d-models', 'Architectural 3D Models'],
   ['interior-3d-models', 'Interior 3D Models'],
 ]
+// Furniture and interior come first on the page; the rest follow.
+const displayOrder = [
+  'furniture', 'interior-3d-models', 'household', 'lights', 'plants-vegetation',
+  'lifestyle-visualisation', 'products', 'architectural-3d-models', 'interactive-webar',
+  'electronics', 'food-drink', 'toys', 'character', 'assets-props', 'cloth-items',
+  'industrial', '3d-printing',
+]
 const categories: CategoryPublic[] = categoryNames.map(([slug, name], index) => ({
   id: `category-${index}`, name, slug, description: '', image: '', parent: null,
   created_at: '2026-01-01T00:00:00Z',
@@ -41,6 +48,7 @@ function renderPage() {
         <Routes>
           <Route path="/categories" element={<AllCategoriesPage />} />
           <Route path="/3d-models" element={<ModelRoute />} />
+          <Route path="/3d-models/:categorySlug" element={<ModelRoute />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -68,9 +76,9 @@ describe('AllCategoriesPage', () => {
       })
     renderPage()
 
-    await screen.findByRole('button', { name: /browse interior 3d models/i })
-    expect(screen.getAllByRole('button').map((card) => card.textContent)).toEqual(
-      categoryNames.map(([, name]) => name),
+    await screen.findByRole('link', { name: /browse interior 3d models/i })
+    expect(screen.getAllByRole('link').map((card) => card.textContent)).toEqual(
+      displayOrder.map((slug) => categoryNames.find(([candidate]) => candidate === slug)![1]),
     )
     expect(categoriesApi.listPublicCategories).toHaveBeenNthCalledWith(2, {
       page: 2, page_size: 100,
@@ -78,12 +86,25 @@ describe('AllCategoriesPage', () => {
     expect(screen.queryByText('Demo Assets')).not.toBeInTheDocument()
   })
 
-  it('opens the models catalog with the selected category ID', async () => {
+  it('links every category to its own readable address, which search engines can follow', async () => {
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('button', { name: /browse household/i }))
-    expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?category=category-7')
+    const household = await screen.findByRole('link', { name: /browse household/i })
+    expect(household).toHaveAttribute('href', '/3d-models/household')
+    expect(screen.getByRole('link', { name: /browse interior 3d models/i })).toHaveAttribute(
+      'href',
+      '/3d-models/interior-3d-models',
+    )
+    await user.click(household)
+    expect(screen.getByTestId('location')).toHaveTextContent('/3d-models/household')
     expect(categoriesApi.recordCategoryClick).toHaveBeenCalledWith('category-7')
+  })
+
+  it('has one descriptive heading and an introduction', async () => {
+    renderPage()
+    await screen.findByRole('link', { name: /browse household/i })
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('3D Model Categories')
+    expect(screen.getByText(/start with furniture and interior 3D models/i)).toBeInTheDocument()
   })
 
   it('allows retry after the category API fails', async () => {
@@ -92,6 +113,6 @@ describe('AllCategoriesPage', () => {
     renderPage()
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load categories')
     await user.click(screen.getByRole('button', { name: /try again/i }))
-    await waitFor(() => expect(screen.getAllByRole('button')).toHaveLength(17))
+    await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(17))
   })
 })

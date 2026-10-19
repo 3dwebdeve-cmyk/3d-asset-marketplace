@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { PRIVACY_SEO, TERMS_SEO } from '../../lib/seoPages'
 import '../../styles/marketing.css'
 import { LEGAL_DOCUMENT_VERSIONS, PRIVACY_PATH, TERMS_PATH } from '../../lib/legalDocuments'
 
@@ -12,16 +11,18 @@ const COPY: Record<
   { title: string; description: string; heading: string; version: string; otherLabel: string; otherPath: string }
 > = {
   terms: {
-    title: TERMS_SEO.title,
-    description: TERMS_SEO.description,
+    title: 'Terms of Service | AssetHive3D',
+    description:
+      'Terms of Service for buying 3D models, plugins, and custom project work on AssetHive3D.',
     heading: 'Terms of Service',
     version: LEGAL_DOCUMENT_VERSIONS.terms,
     otherLabel: 'Privacy Policy',
     otherPath: PRIVACY_PATH,
   },
   privacy: {
-    title: PRIVACY_SEO.title,
-    description: PRIVACY_SEO.description,
+    title: 'Privacy Policy | AssetHive3D',
+    description:
+      'How AssetHive3D collects, uses, and protects account and order information.',
     heading: 'Privacy Policy',
     version: LEGAL_DOCUMENT_VERSIONS.privacy,
     otherLabel: 'Terms of Service',

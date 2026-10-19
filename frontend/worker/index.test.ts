@@ -56,6 +56,24 @@ describe('Cloudflare API proxy', () => {
     expect(SECURITY_HEADERS).toEqual(nginxHeaders)
   })
 
+  it('serves the same headers to static pages through the _headers file', () => {
+    // wrangler.jsonc runs the Worker only for /api, so pages get their headers from this file.
+    const lines = readFileSync('public/_headers', 'utf-8').split(/\r?\n/)
+    const start = lines.indexOf('/*')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const fileHeaders = Object.fromEntries(
+      lines
+        .slice(start + 1)
+        .filter((line) => /^\s+[A-Za-z-]+: /.test(line))
+        .map((line) => {
+          const [name, ...value] = line.trim().split(': ')
+          return [name, value.join(': ')]
+        }),
+    )
+
+    expect(fileHeaders).toEqual(SECURITY_HEADERS)
+  })
+
   it('only lets the page connect to named storage hosts', () => {
     // Anyone can create an r2.dev bucket, so a wildcard would be an exfiltration channel.
     const connectSrc = SECURITY_HEADERS['Content-Security-Policy']
@@ -108,6 +126,118 @@ describe('Cloudflare API proxy', () => {
     expect(upstreamRequest.headers.get('X-Forwarded-Host')).toBe('marketplace.example')
     expect(upstreamRequest.headers.get('X-Forwarded-Proto')).toBe('https')
     expect(await upstreamRequest.json()).toEqual({ cart: 'cart-id' })
+  })
+
+  it('signs API requests and passes the real visitor IP', async () => {
+    const upstreamFetch = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+    vi.stubGlobal('fetch', upstreamFetch)
+    const env = { ...createEnv(), EDGE_SHARED_SECRET: 'edge-secret' }
+
+    await worker.fetch(
+      new Request('https://marketplace.example/api/v1/products/', {
+        headers: { 'CF-Connecting-IP': '198.51.100.7' },
+      }),
+      env,
+    )
+
+    const upstream = upstreamFetch.mock.calls[0]?.[0] as Request
+    expect(upstream.headers.get('X-Edge-Secret')).toBe('edge-secret')
+    expect(upstream.headers.get('X-Edge-Client-IP')).toBe('198.51.100.7')
+  })
+
+  it('discards IP and secret headers a visitor sends', async () => {
+    const upstreamFetch = vi.fn().mockResolvedValue(Response.json({ ok: true }))
+    vi.stubGlobal('fetch', upstreamFetch)
+    const forged = {
+      'X-Real-IP': '198.51.100.7',
+      'X-Forwarded-For': '198.51.100.7',
+      'X-Edge-Secret': 'guess',
+      'X-Edge-Client-IP': '198.51.100.7',
+      'CF-Connecting-IP': '203.0.113.50',
+    }
+
+    await worker.fetch(
+      new Request('https://marketplace.example/api/v1/admin/products/', { headers: forged }),
+      { ...createEnv(), EDGE_SHARED_SECRET: 'edge-secret' },
+    )
+    const signed = upstreamFetch.mock.calls[0]?.[0] as Request
+    expect(signed.headers.get('X-Real-IP')).toBeNull()
+    expect(signed.headers.get('X-Forwarded-For')).toBeNull()
+    expect(signed.headers.get('X-Edge-Secret')).toBe('edge-secret')
+    expect(signed.headers.get('X-Edge-Client-IP')).toBe('203.0.113.50')
+
+    // Without a configured secret nothing forged gets through either.
+    await worker.fetch(
+      new Request('https://marketplace.example/api/v1/admin/products/', { headers: forged }),
+      createEnv(),
+    )
+    const unsigned = upstreamFetch.mock.calls[1]?.[0] as Request
+    expect(unsigned.headers.get('X-Real-IP')).toBeNull()
+    expect(unsigned.headers.get('X-Edge-Secret')).toBeNull()
+    expect(unsigned.headers.get('X-Edge-Client-IP')).toBeNull()
+  })
+
+  describe('search engine files', () => {
+    it('serves robots.txt with a Sitemap line that uses the address the visitor used', async () => {
+      const env = createEnv(new Response('User-agent: *\nAllow: /\nDisallow: /cart\n'))
+
+      const response = await worker.fetch(new Request('https://shop.example/robots.txt'), env)
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toContain('text/plain')
+      const body = await response.text()
+      expect(body).toContain('Disallow: /cart')
+      expect(body.trimEnd().endsWith('Sitemap: https://shop.example/sitemap.xml')).toBe(true)
+      // A different address gets its own Sitemap line.
+      const other = await worker.fetch(
+        new Request('https://assethive3d.com/robots.txt'),
+        createEnv(new Response('User-agent: *\nAllow: /\n')),
+      )
+      expect(await other.text()).toContain('Sitemap: https://assethive3d.com/sitemap.xml')
+    })
+
+    it('still serves a safe robots.txt when the static file is missing', async () => {
+      const response = await worker.fetch(
+        new Request('https://shop.example/robots.txt'),
+        createEnv(new Response('nope', { status: 404 })),
+      )
+      const body = await response.text()
+      expect(body).toContain('User-agent: *')
+      expect(body).toContain('Sitemap: https://shop.example/sitemap.xml')
+    })
+
+    it('only answers GET and HEAD for robots.txt', async () => {
+      const response = await worker.fetch(
+        new Request('https://shop.example/robots.txt', { method: 'POST' }),
+        createEnv(),
+      )
+      expect(response.status).toBe(405)
+    })
+
+    it('fetches the sitemap from the backend, signed like any other API request', async () => {
+      const upstreamFetch = vi.fn().mockResolvedValue(
+        new Response('<urlset/>', { headers: { 'Content-Type': 'application/xml' } }),
+      )
+      vi.stubGlobal('fetch', upstreamFetch)
+
+      const response = await worker.fetch(
+        new Request('https://shop.example/sitemap.xml', { headers: { 'CF-Connecting-IP': '198.51.100.7' } }),
+        { ...createEnv(), EDGE_SHARED_SECRET: 'edge-secret' },
+      )
+
+      const upstream = upstreamFetch.mock.calls[0]?.[0] as Request
+      expect(upstream.url).toBe(`${BACKEND_ORIGIN}/api/v1/sitemap.xml`)
+      expect(upstream.headers.get('X-Edge-Secret')).toBe('edge-secret')
+      expect(response.headers.get('Content-Type')).toBe('application/xml')
+      expect(await response.text()).toBe('<urlset/>')
+    })
+
+    it('does not treat other paths that merely contain the word sitemap as the sitemap', async () => {
+      const env = createEnv(new Response('spa'))
+      await worker.fetch(new Request('https://shop.example/sitemap.xml.bak'), env)
+      await worker.fetch(new Request('https://shop.example/products/sitemap.xml'), env)
+      expect(env.ASSETS.fetch).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('fails closed when the backend origin is missing or unsafe', async () => {

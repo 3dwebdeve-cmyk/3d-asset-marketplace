@@ -7,7 +7,7 @@ export function CheckoutCancelPage() {
   const orderId = searchParams.get('order_id')
 
   useDocumentSeo({
-    title: 'Checkout cancelled | AssetHive 3D',
+    title: 'Checkout cancelled | AssetHive3D',
     description: 'Private checkout cancellation page. This page is not indexed by search engines.',
     robots: 'noindex, nofollow',
   })

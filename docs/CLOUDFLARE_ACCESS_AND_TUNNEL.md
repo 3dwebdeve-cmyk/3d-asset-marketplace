@@ -4,6 +4,37 @@ Three edge controls that only the Cloudflare dashboard can set. They sit in fron
 the app's own controls (admin IP allowlist, admin 2FA, rate limits); none of them
 replaces those. `marketplace.example.com` stands for your public hostname.
 
+## 0. Cloudflare Worker + Render (the current deployment)
+
+There is no nginx and no tunnel here: the frontend is a Cloudflare Worker with static files,
+and the Worker forwards `/api` to the backend on Render. Two things keep that safe.
+
+**Pages get their security headers from `frontend/public/_headers`.** `wrangler.jsonc` runs the
+Worker only for `/api`, so pages never reach the Worker code. Check after each deploy:
+`curl -sI https://<site>/ | grep -iE "content-security|strict-transport"`.
+
+**The backend only trusts the visitor IP when the Worker proves it sent the request.**
+Without this, a visitor could forge `X-Real-IP` to pass the admin allowlist, anyone could call
+the public `*.onrender.com` address and skip Cloudflare, and every visitor would look like one
+Cloudflare address to the rate limits.
+
+1. Make a secret: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+2. Cloudflare → Workers & Pages → the Worker → Settings → Variables and Secrets → add a
+   **Secret** named `EDGE_SHARED_SECRET`. Deploy the Worker.
+3. Render → the web service → Environment → add `EDGE_SHARED_SECRET` with the same value.
+4. Admin access: either set `ADMIN_CONSOLE_ALLOWED_IPS` in Render to your real public IP(s)
+   (comma separated), or, if your IP keeps changing, set `ADMIN_CONSOLE_IP_LOCK_OFF=true`
+   (password + authenticator code remain required; set up every administrator's
+   authenticator right away). Sign in to `/console` and confirm it works.
+5. Last, Render → add `EDGE_REQUIRE=true`. Calls to the Render address that skip the Worker
+   are now refused, except the Stripe webhook and `/api/v1/healthz/`.
+   Check: `curl -s https://<service>.onrender.com/api/v1/products/` returns 403 while the
+   same path on the Worker address works.
+
+If you lock yourself out of the console, remove `EDGE_REQUIRE` or fix the allowlist in Render
+and redeploy. A home IP that changes often is a poor allowlist: prefer Cloudflare Access
+(section 2) and widen the allowlist once it is on.
+
 ## 1. Cloudflare Tunnel (origin with no open inbound ports)
 
 With a tunnel, the server makes an outbound connection to Cloudflare and accepts no

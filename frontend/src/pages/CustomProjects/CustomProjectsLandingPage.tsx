@@ -6,7 +6,6 @@ import {
 } from '../../components/SiteHeroImage'
 import { CustomProjectServices } from './CustomProjectServices'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { CUSTOM_PROJECTS_SEO } from '../../lib/seoPages'
 import '../../styles/marketing.css'
 
 const CONTACT_ENQUIRY_PATH =
@@ -14,8 +13,10 @@ const CONTACT_ENQUIRY_PATH =
 
 export function CustomProjectsLandingPage() {
   useDocumentSeo({
-    title: CUSTOM_PROJECTS_SEO.title,
-    description: CUSTOM_PROJECTS_SEO.description,
+    title: 'Custom 3D Modeling Services | AssetHive3D',
+    description:
+      'Request a custom 3D model, texture, render or plugin. Share your brief by email enquiry and our team will follow up.',
+    canonicalPath: '/custom-projects',
   })
 
   return (

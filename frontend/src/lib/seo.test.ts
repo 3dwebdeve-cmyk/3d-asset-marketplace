@@ -1,92 +1,182 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { PublicProductDetail } from '../types/product'
 import {
-  buildCollectionStructuredData,
-  buildPluginStructuredData,
-  buildProductStructuredData,
-  SITE_NAME,
+  HOME_DESCRIPTION,
+  HOME_TITLE,
+  absoluteUrl,
+  buildBreadcrumbJsonLd,
+  buildItemListJsonLd,
+  buildOrganizationJsonLd,
+  buildPageTitle,
+  buildProductDescription,
+  buildProductJsonLd,
+  buildProductTitle,
+  getSiteUrl,
+  plainText,
+  truncateText,
 } from './seo'
 
-const baseProduct = {
-  id: 'prod-1',
-  name: 'Office Chair',
-  short_description: 'A swivel office chair.',
-  thumbnail: 'https://cdn.example.com/chair.jpg',
-  price: '20.00',
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+const product: PublicProductDetail = {
+  id: 'p1',
+  name: 'Oak Dining Chair',
+  slug: 'oak-dining-chair',
+  description: '<p>Solid oak <strong>dining</strong> chair.</p>',
+  short_description: '',
+  price: '29.99',
   currency: 'USD',
-  discount_price: null,
-  average_rating: '4.5',
-  review_count: 12,
-  category: { name: 'Furniture' },
+  discount_price: '19.99',
+  thumbnail: '/thumb.jpg',
+  preview_model: '',
+  preview_video: '',
+  polygon_count: 12000,
+  vertex_count: 8000,
+  software_used: 'Blender',
+  animated: false,
+  rigged: false,
+  pbr_ready: true,
+  game_ready: true,
+  license_type: 'standard',
+  average_rating: '4.50',
+  review_count: 8,
+  total_downloads: 0,
+  category: { id: 'c1', name: 'Furniture', slug: 'furniture' },
+  images: [
+    { id: 'i1', image_url: '/thumb.jpg', display_order: 0, is_primary: true, created_at: '' },
+    { id: 'i2', image_url: 'https://cdn.example.com/b.jpg', display_order: 1, is_primary: false, created_at: '' },
+  ],
+  files: [],
+  created_at: '',
+  updated_at: '',
 }
 
-describe('buildProductStructuredData', () => {
-  it('describes the product with its offer and rating', () => {
-    expect(buildProductStructuredData(baseProduct)).toEqual({
-      '@type': 'Product',
-      name: 'Office Chair',
-      description: 'A swivel office chair.',
-      image: 'https://cdn.example.com/chair.jpg',
-      sku: 'prod-1',
-      category: 'Furniture',
-      brand: { '@type': 'Brand', name: SITE_NAME },
-      offers: {
-        '@type': 'Offer',
-        price: '20.00',
-        priceCurrency: 'USD',
-        availability: 'https://schema.org/InStock',
-      },
-      aggregateRating: { '@type': 'AggregateRating', ratingValue: 4.5, reviewCount: 12 },
-    })
+describe('site address', () => {
+  it('uses VITE_SITE_URL when it is set, without a trailing slash', () => {
+    vi.stubEnv('VITE_SITE_URL', 'https://assethive3d.com/')
+    expect(getSiteUrl()).toBe('https://assethive3d.com')
+    expect(absoluteUrl('/3d-models/furniture')).toBe('https://assethive3d.com/3d-models/furniture')
+    expect(absoluteUrl('3d-models')).toBe('https://assethive3d.com/3d-models')
   })
 
-  it('uses the discounted price when one is set', () => {
-    const data = buildProductStructuredData({ ...baseProduct, discount_price: '15.00' })
-
-    expect(data.offers.price).toBe('15.00')
+  it('falls back to the address the page is served from', () => {
+    vi.stubEnv('VITE_SITE_URL', '')
+    expect(getSiteUrl()).toBe(window.location.origin)
   })
 
-  it('omits the rating when the product has no reviews', () => {
-    const data = buildProductStructuredData({ ...baseProduct, review_count: 0 })
-
-    expect(data.aggregateRating).toBeUndefined()
-  })
-
-  it('falls back to the product name when there is no short description', () => {
-    const data = buildProductStructuredData({ ...baseProduct, short_description: '' })
-
-    expect(data.description).toBe('Office Chair')
+  it('leaves a full address untouched', () => {
+    expect(absoluteUrl('https://cdn.example.com/a.jpg')).toBe('https://cdn.example.com/a.jpg')
   })
 })
 
-describe('buildPluginStructuredData', () => {
-  it('describes the plugin as a design software application', () => {
-    const data = buildPluginStructuredData({
-      name: 'UV Unwrap Pro',
-      short_description: 'Fast UV unwrapping.',
-      thumbnail: '',
-      version: '2.1',
-      price: '0.00',
-      currency: 'USD',
-      discount_price: null,
-      average_rating: '0',
-      review_count: 0,
-    })
+describe('text helpers', () => {
+  it('cuts at a word boundary and marks the cut', () => {
+    const cut = truncateText('Furniture models for interior design and visualization scenes', 30)
+    expect(cut.endsWith('…')).toBe(true)
+    expect(cut.length).toBeLessThanOrEqual(30)
+    expect(cut).not.toMatch(/\s…$/)
+    expect('Furniture models for interior design and visualization scenes').toContain(cut.slice(0, -1))
+  })
 
-    expect(data['@type']).toBe('SoftwareApplication')
-    expect(data.applicationCategory).toBe('DesignApplication')
-    expect(data.softwareVersion).toBe('2.1')
-    expect(data.image).toBeUndefined()
-    expect(data.aggregateRating).toBeUndefined()
+  it('leaves short text alone and collapses spacing', () => {
+    expect(truncateText('  a   short   line ', 50)).toBe('a short line')
+  })
+
+  it('strips markup from descriptions', () => {
+    expect(plainText('<p>Solid <b>oak</b> chair</p>')).toBe('Solid oak chair')
   })
 })
 
-describe('buildCollectionStructuredData', () => {
-  it('returns a CollectionPage with the given name and description', () => {
-    expect(buildCollectionStructuredData('3D Models', 'Browse models.')).toEqual({
-      '@type': 'CollectionPage',
-      name: '3D Models',
-      description: 'Browse models.',
+describe('titles', () => {
+  it('keeps the home title and description inside what search results show', () => {
+    expect(HOME_TITLE).toBe('Furniture & Interior 3D Models | AssetHive3D')
+    expect(HOME_TITLE.length).toBeLessThanOrEqual(60)
+    expect(HOME_DESCRIPTION.length).toBeLessThanOrEqual(160)
+  })
+
+  it('adds the brand and never runs far past a result-friendly length', () => {
+    expect(buildPageTitle('About the Studio')).toBe('About the Studio | AssetHive3D')
+    expect(buildPageTitle('x'.repeat(200)).length).toBeLessThanOrEqual(66)
+    expect(buildPageTitle('x'.repeat(200)).endsWith('| AssetHive3D')).toBe(true)
+  })
+
+  it('puts the category in a product title only when it still fits', () => {
+    expect(buildProductTitle('Oak Chair', 'Furniture')).toBe('Oak Chair – Furniture 3D Model | AssetHive3D')
+    const long = buildProductTitle('A very long product name that keeps going and going', 'Furniture')
+    expect(long.length).toBeLessThanOrEqual(66)
+    expect(long.endsWith('3D Model | AssetHive3D')).toBe(true)
+    expect(buildProductTitle('Oak Chair')).toBe('Oak Chair 3D Model | AssetHive3D')
+  })
+})
+
+describe('product description', () => {
+  it('uses a hand-written short description exactly, trimmed to a snippet', () => {
+    expect(buildProductDescription('Oak Chair', '  A solid oak chair.  ')).toBe('A solid oak chair.')
+    expect(buildProductDescription('Oak Chair', 'word '.repeat(80)).length).toBeLessThanOrEqual(160)
+  })
+
+  it('builds one only from facts it was given', () => {
+    expect(
+      buildProductDescription('Oak Chair', '', { categoryName: 'Furniture', polygonCount: 12000, licenseType: 'standard' }),
+    ).toBe(
+      'Oak Chair: Furniture 3D model, 12,000 polygons. Preview in 3D, secure checkout and instant download. Standard license.',
+    )
+    // No polygon count, category or license: those parts are left out, not guessed.
+    expect(buildProductDescription('Oak Chair', '')).toBe(
+      'Oak Chair: 3D model. Preview in 3D, secure checkout and instant download.',
+    )
+  })
+})
+
+describe('structured data', () => {
+  it('describes a product with its real sale price, currency, images and rating', () => {
+    vi.stubEnv('VITE_SITE_URL', 'https://assethive3d.com')
+    const data = buildProductJsonLd(product, '/products/oak-dining-chair') as Record<string, any>
+
+    expect(data['@type']).toBe('Product')
+    expect(data.url).toBe('https://assethive3d.com/products/oak-dining-chair')
+    expect(data.offers).toEqual({
+      '@type': 'Offer',
+      url: 'https://assethive3d.com/products/oak-dining-chair',
+      priceCurrency: 'USD',
+      price: '19.99',
+      availability: 'https://schema.org/InStock',
+    })
+    expect(data.aggregateRating).toEqual({ '@type': 'AggregateRating', ratingValue: 4.5, reviewCount: 8 })
+    // Images are full addresses, and the repeated thumbnail appears once.
+    expect(data.image).toEqual(['https://assethive3d.com/thumb.jpg', 'https://cdn.example.com/b.jpg'])
+    // The description is plain text taken from the page's own copy.
+    expect(data.description).toBe('Solid oak dining chair.')
+  })
+
+  it('leaves out the rating when nobody has reviewed the product', () => {
+    const data = buildProductJsonLd({ ...product, review_count: 0, average_rating: '0.00' }, '/products/x')
+    expect(data).not.toHaveProperty('aggregateRating')
+  })
+
+  it('numbers breadcrumbs from one and uses full addresses', () => {
+    vi.stubEnv('VITE_SITE_URL', 'https://assethive3d.com')
+    const data = buildBreadcrumbJsonLd([
+      { name: 'Home', path: '/' },
+      { name: '3D Models', path: '/3d-models' },
+    ]) as Record<string, any>
+    expect(data.itemListElement).toEqual([
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://assethive3d.com/' },
+      { '@type': 'ListItem', position: 2, name: '3D Models', item: 'https://assethive3d.com/3d-models' },
+    ])
+  })
+
+  it('lists items and names the organisation with its logo', () => {
+    vi.stubEnv('VITE_SITE_URL', 'https://assethive3d.com')
+    const list = buildItemListJsonLd('Furniture 3D Models', [{ name: 'Oak Chair', path: '/products/oak-chair' }]) as Record<string, any>
+    expect(list.itemListElement[0]).toMatchObject({ position: 1, url: 'https://assethive3d.com/products/oak-chair' })
+    expect(buildOrganizationJsonLd()).toMatchObject({
+      '@type': 'Organization',
+      name: 'AssetHive3D',
+      logo: 'https://assethive3d.com/images/AssetHive%203D.svg',
     })
   })
 })

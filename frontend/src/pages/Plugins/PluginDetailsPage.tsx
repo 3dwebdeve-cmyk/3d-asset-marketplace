@@ -12,13 +12,8 @@ import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
-import {
-  buildPluginMetaDescription,
-  buildPluginPageTitle,
-  buildPluginStructuredData,
-  SITE_NAME,
-} from '../../lib/seo'
 import { discountPercent } from '../../lib/pricing'
+import { buildBreadcrumbJsonLd, buildPageTitle } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { PluginLicenseType, PublicPluginDetail } from '../../types/plugin'
 import { ProductImageGallery } from '../Products/ProductImageGallery'
@@ -43,6 +38,17 @@ function licenseLabel(license: PluginLicenseType): string {
   }
 }
 
+function buildPluginPageTitle(pluginName: string): string {
+  return buildPageTitle(`${pluginName} Plugin`)
+}
+
+function buildPluginMetaDescription(pluginName: string, shortDescription: string): string {
+  const trimmed = shortDescription.trim()
+  if (trimmed) {
+    return trimmed.slice(0, 160)
+  }
+  return `${pluginName}: plugin for your 3D workflow. Secure checkout and instant download after purchase.`
+}
 
 function useScrollPluginPageToTop(resetKey: string): void {
   useLayoutEffect(() => {
@@ -283,25 +289,30 @@ export function PluginDetailsPage() {
 
   const isNotFound = !trimmedSlug || isHttpNotFound(pluginQuery.error)
 
-  const plugin = pluginQuery.data
   useDocumentSeo({
     title: isNotFound
-      ? `Plugin not found | ${SITE_NAME}`
-      : plugin
-        ? buildPluginPageTitle(plugin.name)
-        : `Plugin details | ${SITE_NAME}`,
+      ? 'Plugin not found | AssetHive3D'
+      : pluginQuery.data
+        ? buildPluginPageTitle(pluginQuery.data.name)
+        : 'Plugin details | AssetHive3D',
     description: isNotFound
       ? 'The requested plugin could not be found.'
-      : plugin
-        ? buildPluginMetaDescription(plugin.name, plugin.short_description)
+      : pluginQuery.data
+        ? buildPluginMetaDescription(
+          pluginQuery.data.name,
+          pluginQuery.data.short_description,
+        )
         : 'Loading plugin details from the marketplace catalog.',
-    robots: isNotFound ? 'noindex, nofollow' : undefined,
-    keywords: plugin
-      ? [plugin.name, plugin.category.name, '3D plugin', 'download plugin']
+    canonicalPath: pluginQuery.data ? `/plugins/${pluginQuery.data.slug}` : undefined,
+    robots: isNotFound ? 'noindex' : undefined,
+    image: pluginQuery.data?.thumbnail || undefined,
+    jsonLd: pluginQuery.data
+      ? buildBreadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Plugins', path: '/plugins' },
+        { name: pluginQuery.data.name, path: `/plugins/${pluginQuery.data.slug}` },
+      ])
       : undefined,
-    image: plugin?.thumbnail || undefined,
-    ogType: plugin ? 'product' : 'website',
-    structuredData: plugin ? buildPluginStructuredData(plugin) : undefined,
   })
 
   if (isNotFound) {

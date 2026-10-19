@@ -1,6 +1,5 @@
 import {
   appendSitemapLine,
-  buildSitemapXml,
   getNotFoundPageSeo,
   getPluginPageSeo,
   getProductPageSeo,
@@ -11,7 +10,6 @@ import {
   SLUG_PATTERN,
   type PageSeo,
 } from './seo'
-import { STATIC_PAGE_SEO } from '../src/lib/seoPages'
 import type { PublicPluginDetail } from '../src/types/plugin'
 import type { PublicProductDetail } from '../src/types/product'
 
@@ -24,6 +22,8 @@ export interface WorkerEnv {
   BACKEND_ORIGIN?: string
   /** Public origin for canonical URLs and the sitemap, e.g. https://example.com. Defaults to the request origin. */
   SITE_URL?: string
+  // Shared with the backend (EDGE_SHARED_SECRET). Set it as a Worker secret, not a plain variable.
+  EDGE_SHARED_SECRET?: string
 }
 
 type CatalogKind = 'products' | 'plugins'
@@ -32,8 +32,6 @@ type CatalogKind = 'products' | 'plugins'
 const DETAIL_ROUTE = /^\/(products|plugins)\/([^/]+)$/i
 const DETAIL_TIMEOUT_MS = 4000
 const CATALOG_CACHE_TTL_SECONDS = 300
-// 50 pages of 100 covers 5,000 items per catalog, well above the current size.
-const MAX_SITEMAP_PAGES = 50
 
 // Same security headers nginx sends for the SPA (frontend/nginx.conf). The Worker
 // serves static assets directly, so without these the Cloudflare deploy has no CSP.
@@ -61,6 +59,28 @@ function withSecurityHeaders(response: Response): Response {
 
 const isApiPath = (pathname: string): boolean =>
   pathname === '/api' || pathname.startsWith('/api/')
+
+// The sitemap is built from the database by the backend; search engines ask for it at the site root.
+const SITEMAP_PATH = '/sitemap.xml'
+const UPSTREAM_SITEMAP_PATH = '/api/v1/sitemap.xml'
+
+/**
+ * robots.txt comes from the static file, plus a Sitemap line that uses whatever address the
+ * visitor used. That keeps it correct on the current address and on the real domain later.
+ */
+async function robotsTxt(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return errorResponse(405, 'Method not allowed.')
+  }
+  const asset = await env.ASSETS.fetch(request)
+  const rules = asset.ok ? (await asset.text()).trimEnd() : 'User-agent: *\nAllow: /'
+  return new Response(`${rules}\n\nSitemap: ${url.origin}${SITEMAP_PATH}\n`, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  })
+}
 
 function backendOrigin(value: string | undefined): URL {
   if (!value) {
@@ -204,56 +224,6 @@ async function resolvePageSeo(
   return resolveDetailSeo(kind, match[2], env, siteOrigin)
 }
 
-async function listCatalogSlugs(kind: CatalogKind, env: WorkerEnv): Promise<string[]> {
-  const backend = optionalBackendOrigin(env.BACKEND_ORIGIN)
-  if (!backend) {
-    return []
-  }
-
-  const slugs: string[] = []
-  for (let page = 1; page <= MAX_SITEMAP_PAGES; page += 1) {
-    const url = new URL(`/api/v1/${kind}/`, backend)
-    url.searchParams.set('page', String(page))
-    url.searchParams.set('page_size', '100')
-
-    const result = await fetchCatalogJson(url)
-    if (result.kind !== 'ok') {
-      break
-    }
-
-    const body = (result.body ?? {}) as { results?: unknown; next?: unknown }
-    const results = Array.isArray(body.results) ? body.results : []
-    for (const item of results as { slug?: unknown }[]) {
-      if (typeof item.slug === 'string' && SLUG_PATTERN.test(item.slug)) {
-        slugs.push(item.slug)
-      }
-    }
-
-    if (!body.next) {
-      break
-    }
-  }
-  return slugs
-}
-
-async function buildSitemapResponse(siteOrigin: string, env: WorkerEnv): Promise<Response> {
-  const [products, plugins] = await Promise.all([
-    listCatalogSlugs('products', env),
-    listCatalogSlugs('plugins', env),
-  ])
-  const paths = [
-    ...Object.keys(STATIC_PAGE_SEO),
-    ...products.map((slug) => `/products/${slug}`),
-    ...plugins.map((slug) => `/plugins/${slug}`),
-  ]
-
-  return new Response(buildSitemapXml(siteOrigin, paths), {
-    headers: {
-      'Content-Type': 'application/xml; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
-    },
-  })
-}
 
 function isHtmlResponse(response: Response): boolean {
   return (response.headers.get('Content-Type') ?? '').toLowerCase().includes('text/html')
@@ -261,10 +231,6 @@ function isHtmlResponse(response: Response): boolean {
 
 async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
   const siteOrigin = resolveSiteOrigin(env, url)
-
-  if (request.method === 'GET' && url.pathname === '/sitemap.xml') {
-    return withSecurityHeaders(await buildSitemapResponse(siteOrigin, env))
-  }
 
   const assetResponse = await env.ASSETS.fetch(request)
 
@@ -308,7 +274,10 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
 
 export async function handleRequest(request: Request, env: WorkerEnv): Promise<Response> {
   const incomingUrl = new URL(request.url)
-  if (!isApiPath(incomingUrl.pathname)) {
+  if (incomingUrl.pathname === '/robots.txt') {
+    return withSecurityHeaders(await robotsTxt(request, env, incomingUrl))
+  }
+  if (!isApiPath(incomingUrl.pathname) && incomingUrl.pathname !== SITEMAP_PATH) {
     return handleSitePath(request, env, incomingUrl)
   }
 
@@ -319,9 +288,22 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
     return errorResponse(503, 'API proxy is not configured.')
   }
 
-  const upstreamUrl = new URL(`${incomingUrl.pathname}${incomingUrl.search}`, origin)
+  const upstreamPath = incomingUrl.pathname === SITEMAP_PATH ? UPSTREAM_SITEMAP_PATH : incomingUrl.pathname
+  const upstreamUrl = new URL(`${upstreamPath}${incomingUrl.search}`, origin)
   const headers = new Headers(request.headers)
   headers.delete('host')
+  // Drop anything a visitor could use to pose as someone else; the backend must only see
+  // the IP and signature set below.
+  for (const name of ['x-real-ip', 'x-forwarded-for', 'x-edge-secret', 'x-edge-client-ip']) {
+    headers.delete(name)
+  }
+  if (env.EDGE_SHARED_SECRET) {
+    headers.set('X-Edge-Secret', env.EDGE_SHARED_SECRET)
+    const visitorIp = request.headers.get('CF-Connecting-IP')
+    if (visitorIp) {
+      headers.set('X-Edge-Client-IP', visitorIp)
+    }
+  }
   headers.set('X-Forwarded-Host', incomingUrl.host)
   headers.set('X-Forwarded-Proto', 'https')
 

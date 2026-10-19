@@ -149,7 +149,7 @@ export function CheckoutSuccessPage() {
   } = useOrderDownloads()
 
   useDocumentSeo({
-    title: 'Checkout confirmation | AssetHive 3D',
+    title: 'Checkout confirmation | AssetHive3D',
     description: 'Private checkout confirmation. This page is not indexed by search engines.',
     robots: 'noindex, nofollow',
   })

@@ -10,7 +10,6 @@ import {
   SiteHeroImage,
 } from '../../components/SiteHeroImage'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { CONTACT_SEO } from '../../lib/seoPages'
 import '../../styles/marketing.css'
 import { ENQUIRY_TYPES } from './contactSchema'
 import { PhoneCountrySelect } from './PhoneCountrySelect'
@@ -136,8 +135,10 @@ export function ContactPage() {
   const selectedPhoneCountryIso = watch('phoneCountryCode')
 
   useDocumentSeo({
-    title: CONTACT_SEO.title,
-    description: CONTACT_SEO.description,
+    title: 'Contact & Enquiries | AssetHive3D',
+    canonicalPath: '/contact',
+    description:
+      'Enquire about 3D models, plugins, custom work, bulk licensing, or technical support. We usually respond within 24 hours.',
   })
 
   return (

@@ -1,9 +1,12 @@
 import { useEffect } from 'react'
 
-import { DEFAULT_SOCIAL_IMAGE, SITE_NAME } from '../lib/seo'
+import { DEFAULT_OG_IMAGE_PATH, SITE_NAME } from '../lib/seo'
 
 export interface UseDocumentSeoOptions {
   /** Page title. Omit to keep the title a parent route already set. */
+  canonicalPath?: string
+  type?: 'website' | 'product'
+  jsonLd?: object | readonly object[] | null
   title?: string
   /** Meta description. Omit to leave the current description alone. */
   description?: string
@@ -88,6 +91,7 @@ function setStructuredData(json: string | null, cleanups: Cleanup[]): void {
   document.getElementById(STRUCTURED_DATA_ID)?.remove()
   const script = document.createElement('script')
   script.id = STRUCTURED_DATA_ID
+  script.setAttribute('data-seo-jsonld', '')
   script.type = 'application/ld+json'
   // Escape "<" so the JSON cannot close the script element early.
   script.textContent = json.replace(/</g, '\\u003c')
@@ -101,15 +105,18 @@ export function useDocumentSeo({
   robots,
   keywords,
   image,
-  ogType = 'website',
+  canonicalPath,
+  type,
+  jsonLd,
+  ogType = type ?? 'website',
   structuredData,
 }: UseDocumentSeoOptions): void {
   const keywordsContent = keywords?.length ? keywords.join(', ') : undefined
-  const canonicalUrl = absoluteUrl(window.location.pathname.replace(/\/+$/, '') || '/')
-  const imageUrl = absoluteUrl(image ?? DEFAULT_SOCIAL_IMAGE)
+  const canonicalUrl = absoluteUrl(canonicalPath ?? (window.location.pathname.replace(/\/+$/, '') || '/'))
+  const imageUrl = absoluteUrl(image ?? DEFAULT_OG_IMAGE_PATH)
   const structuredDataJson = structuredData
     ? JSON.stringify({ '@context': 'https://schema.org', url: canonicalUrl, ...structuredData })
-    : null
+    : jsonLd ? JSON.stringify(jsonLd) : null
 
   useEffect(() => {
     const cleanups: Cleanup[] = []
@@ -179,4 +186,4 @@ export function useDocumentSeo({
   ])
 }
 
-export { buildProductMetaDescription, buildProductPageTitle } from '../lib/seo'
+export { buildProductDescription as buildProductMetaDescription, buildProductTitle as buildProductPageTitle } from '../lib/seo'

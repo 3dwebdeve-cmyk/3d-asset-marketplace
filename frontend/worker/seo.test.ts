@@ -17,7 +17,7 @@ const SHELL = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AssetHive 3D | Premium 3D Models, Plugins &amp; Custom 3D Projects</title>
+  <title>AssetHive3D | Premium 3D Models, Plugins &amp; Custom 3D Projects</title>
   <meta name="description" content="Default description" />
   <meta name="robots" content="index, follow" />
   <meta property="og:title" content="Default title" />
@@ -53,7 +53,7 @@ describe('renderSeoHead', () => {
     expect(html.match(/name="description"/g)).toHaveLength(1)
     expect(html.match(/property="og:title"/g)).toHaveLength(1)
     expect(html.match(/rel="canonical"/g)).toHaveLength(1)
-    expect(html).toContain('<title>About the Studio | AssetHive 3D</title>')
+    expect(html).toContain('<title>About the Studio | AssetHive3D</title>')
     expect(html).toContain('href="https://shop.example/about"')
     expect(html).not.toContain('Default description')
     expect(html).not.toContain('old.example')
@@ -77,7 +77,7 @@ describe('renderSeoHead', () => {
       path: '/products/desk-lamp',
     })
 
-    expect(html).toContain('Desk &quot;Lamp&quot; &lt;Pro&gt; | 3D Model | AssetHive 3D')
+    expect(html).toContain('Desk &quot;Lamp&quot; &lt;Pro&gt; | 3D Model | AssetHive3D')
     expect(html).not.toContain('<Pro>')
   })
 
@@ -120,7 +120,7 @@ describe('renderSeoHead', () => {
   it('marks not-found pages with status 404', () => {
     expect(getNotFoundPageSeo('Product')).toMatchObject({
       status: 404,
-      title: 'Product not found | AssetHive 3D',
+      title: 'Product not found | AssetHive3D',
     })
   })
 })

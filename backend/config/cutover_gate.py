@@ -368,7 +368,7 @@ def _check_search(profile: CutoverProfile) -> CutoverCheck:
     return CutoverCheck(
         name="search_postgres",
         ok=True,
-        detail="backend=postgres_icontains (Meilisearch removed)",
+        detail="backend=postgres_icontains",
     )
 
 
