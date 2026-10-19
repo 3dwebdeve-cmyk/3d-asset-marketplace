@@ -62,10 +62,6 @@
   backface-visibility: hidden;
 }
 
-.home-marketplace-hero__media {
-  display: none;
-}
-
 .home-marketplace-hero__shade {
   position: absolute;
   inset: 0;

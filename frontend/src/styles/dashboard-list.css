@@ -191,20 +191,6 @@
   text-decoration: underline;
 }
 
-.dash-list-page__footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem;
-  margin-top: 0.75rem;
-  padding-top: 0.15rem;
-}
-
-.dash-list-page__footer-meta {
-  font-size: 0.75rem;
-  color: var(--dash-list-muted);
-}
-
 @media (max-width: 900px) {
   .dash-list-page {
     padding: 1rem;
