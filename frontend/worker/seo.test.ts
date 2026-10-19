@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import type { PublicProductDetail } from '../src/types/product'
 import {
   appendSitemapLine,
-  buildSitemapXml,
   escapeHtml,
   getNotFoundPageSeo,
   getProductPageSeo,
@@ -17,7 +16,7 @@ const SHELL = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AssetHive3D | Premium 3D Models, Plugins &amp; Custom 3D Projects</title>
+  <title>Furniture &amp; Interior 3D Models | AssetHive3D</title>
   <meta name="description" content="Default description" />
   <meta name="robots" content="index, follow" />
   <meta property="og:title" content="Default title" />
@@ -43,6 +42,14 @@ const product = {
 } as unknown as PublicProductDetail
 
 describe('renderSeoHead', () => {
+  it('removes stale default image attributes for a product thumbnail', () => {
+    const html = renderSeoHead(SHELL.replace('</head>', '<meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:alt" content="Default furniture" /></head>'), getProductPageSeo(product, 'https://shop.example'), { origin: 'https://shop.example', path: '/products/desk-lamp' })
+    expect(html).not.toContain('og:image:width')
+    expect(html).not.toContain('og:image:height')
+    expect(html).not.toContain('Default furniture')
+    expect(html.match(/property="og:image:alt"/g)).toHaveLength(1)
+    expect(html).toContain('property="og:image:alt" content="Desk &quot;Lamp&quot; &lt;Pro&gt;"')
+  })
   it('replaces the shell tags with the page tags', () => {
     const html = renderSeoHead(SHELL, getStaticPageSeo('/about')!, {
       origin: 'https://shop.example',
@@ -77,7 +84,7 @@ describe('renderSeoHead', () => {
       path: '/products/desk-lamp',
     })
 
-    expect(html).toContain('Desk &quot;Lamp&quot; &lt;Pro&gt; | 3D Model | AssetHive3D')
+    expect(html).toContain('Desk &quot;Lamp&quot; &lt;Pro&gt; – Furniture 3D Model | AssetHive3D')
     expect(html).not.toContain('<Pro>')
   })
 
@@ -144,15 +151,6 @@ describe('path helpers', () => {
 })
 
 describe('sitemap and robots', () => {
-  it('lists each path once with absolute, escaped locations', () => {
-    const xml = buildSitemapXml('https://shop.example', ['/', '/about', '/about', '/products/a&b'])
-
-    expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true)
-    expect(xml.match(/<loc>https:\/\/shop\.example\/about<\/loc>/g)).toHaveLength(1)
-    expect(xml).toContain('<loc>https://shop.example/products/a&amp;b</loc>')
-    expect(xml).toContain('<loc>https://shop.example/</loc>')
-  })
-
   it('adds a Sitemap line to robots.txt once', () => {
     const robots = appendSitemapLine('User-agent: *\nAllow: /\n', 'https://shop.example')
 

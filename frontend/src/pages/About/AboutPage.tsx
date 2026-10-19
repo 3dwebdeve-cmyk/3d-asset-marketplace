@@ -1,3 +1,4 @@
+import { ABOUT_SEO } from '../../lib/seoPages'
 import { Link } from 'react-router-dom'
 
 import { ABOUT_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
@@ -190,9 +191,8 @@ function Icon({ name }: { name: string }) {
 
 export function AboutPage() {
   useDocumentSeo({
-    title: 'About the Studio | AssetHive3D',
-    description:
-      'About AssetHive3D: a marketplace for furniture and interior 3D models and Blender and Unreal plugins, plus custom 3D modeling, texturing and rendering.',
+    title: ABOUT_SEO.title,
+    description: ABOUT_SEO.description,
     canonicalPath: '/about',
   })
 

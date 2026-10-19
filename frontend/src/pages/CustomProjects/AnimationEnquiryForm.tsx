@@ -1,12 +1,14 @@
+import { ProjectEnquirySuccess } from './ProjectEnquirySuccess'
+import { createEnquiryReference, saveEnquiryConfirmation, type ProjectEnquiryConfirmation } from '../../lib/projectEnquiryConfirmation'
+import { ProjectEnquiryReview } from './ProjectEnquiryReview'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { submitContactForm } from '../../api/contactApi'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { ColorField, Choices, MultiChoices } from './LifestyleEnquiryForm'
 import './lifestyle-enquiry.css'
 
 const DRAFT_KEY = 'animation-enquiry-draft'
-const EMPTY = { project: '', category: '', products: '1', durationRange: '', platforms: '', brief: '', motion: '', style: '', voiceOver: '', music: '', textCallouts: '', logoAnimation: '', exactDuration: '', resolution: '', aspect: '', fps: '', loop: '', transparent: '', color: '', formats: '', name: '', email: '' }
+const EMPTY = { project: '', category: '', products: '1', durationRange: '', platforms: '', brief: '', motion: '', style: '', voiceOver: '', music: '', textCallouts: '', logoAnimation: '', exactDuration: '', resolution: '', aspect: '', fps: '', loop: '', transparent: '', color: '', formats: '', name: '', email: '', company: '', phone: '' }
 type Brief = typeof EMPTY
 function readDraft(): Brief {
   try {
@@ -21,7 +23,9 @@ export function AnimationEnquiryForm({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState('')
   const [review, setReview] = useState(false)
   const [pending, setPending] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const [confirmation, setConfirmation] = useState<ProjectEnquiryConfirmation | null>(null)
+  const [reference] = useState(createEnquiryReference)
+  const success = confirmation !== null
   const heading = useRef<HTMLHeadingElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   useEffect(() => { heading.current?.focus(); heading.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' }) }, [review, success])
@@ -45,6 +49,7 @@ export function AnimationEnquiryForm({ onBack }: { onBack: () => void }) {
     `Aspect ratio: ${orNotSpecified(data.aspect)}`, `Frame rate: ${orNotSpecified(data.fps)}`,
     `Loop required: ${orNotSpecified(data.loop)}`, `Transparent background: ${orNotSpecified(data.transparent)}`,
     `Background color: ${orNotSpecified(data.color)}`, `Output formats: ${orNotSpecified(data.formats)}`,
+    `Company / brand: ${data.company || 'Not specified'}`, `Phone / WhatsApp: ${data.phone || 'Not specified'}`,
     `Reference files to request by email: ${files.map(file => file.name).join(', ') || 'None'}`,
   ].join('\n')
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -52,11 +57,12 @@ export function AnimationEnquiryForm({ onBack }: { onBack: () => void }) {
     if (!data.brief.trim()) { setError('Please describe the animation you want.'); return }
     if (!review) { setReview(true); return }
     if (data.name.trim().length < 2) { setError('Enter your full name (at least two characters).'); return }
+    const submittedMessage = `Reference: ${reference}\n${message}`
     setPending(true)
     try {
-      await submitContactForm({ name: data.name.trim(), email: data.email.trim(), subject: `3D product animation: ${data.project.trim() || data.category}`.slice(0, 200), message })
+      await submitContactForm({ name: data.name.trim(), email: data.email.trim(), subject: `3D product animation: ${data.project.trim() || data.category}`.slice(0, 200), message: submittedMessage })
       try { localStorage.removeItem(DRAFT_KEY) } catch { /* Submission still succeeded. */ }
-      setSuccess(true)
+      setConfirmation(saveEnquiryConfirmation({ reference, service: '3D Product Animation', project: data.project, name: data.name.trim(), email: data.email.trim(), message: submittedMessage }))
     } catch (err) { setError(getApiErrorMessage(err, 'Could not send your enquiry. Please try again.')) }
     finally { setPending(false) }
   }
@@ -66,12 +72,7 @@ export function AnimationEnquiryForm({ onBack }: { onBack: () => void }) {
   }
   const field = (key: keyof Brief, placeholder = '', type = 'text', required = false) => <input type={type} value={data[key]} onChange={event => set(key, event.target.value)} placeholder={placeholder} required={required} maxLength={key === 'name' ? 120 : key === 'email' ? 254 : 160} {...(type === 'number' ? { min: 1, max: 10000, step: 1 } : {})} />
   const yesNo = ['Yes', 'No']
-  return <section className="lifestyle-form" aria-label="3D product animation enquiry">
-    <button type="button" className="lifestyle-form__back" onClick={onBack} disabled={pending}>← Back to services</button>
-    <form onSubmit={submit}>
-      <header><span className="lifestyle-form__icon" aria-hidden="true">◇</span><div><h2 ref={heading} tabIndex={-1}>{success ? 'Enquiry received' : review ? 'Review & Submit' : 'Add New Product Enquiry'}</h2><p>{success ? 'Our team will follow up by email.' : 'High-fidelity 3D product motion, camera choreography, feature reveals, explainer sequences, and commercial-grade animations.'}</p></div><span className="lifestyle-form__badge">✧ 3D Product Animation</span></header>
-      {success ? <div className="lifestyle-form__success" role="status"><p>Your 3D Product Animation enquiry has been received for delivery.</p><button type="button" onClick={onBack}>Back to services</button></div> : <>
-      {review ? <section className="lifestyle-form__section"><h3>Review your project</h3><pre className="lifestyle-form__review">{message}</pre><div className="lifestyle-form__grid"><label>Your name *{field('name', 'Your full name', 'text', true)}</label><label>Email address *{field('email', 'you@example.com', 'email', true)}</label></div><label className="lifestyle-form__privacy"><input type="checkbox" required /> I agree to the <Link to="/privacy" target="_blank">Privacy Policy</Link>.</label></section> : <>
+  const briefFields = <>
       <section className="lifestyle-form__section"><h3>02 — PROJECT DETAILS</h3><div className="lifestyle-form__grid">
         <label>Project Name <span>(optional)</span>{field('project', 'e.g. Wireless Noise-Cancelling Headphones 3D Reveal')}</label>
         <label>Product Category <b>*</b><select required value={data.category} onChange={e => set('category', e.target.value)}><option value="">Search product category</option>{['Furniture', 'Home & Living', 'Beauty & Skincare', 'Fashion & Accessories', 'Electronics', 'Food & Beverage', 'Other'].map(category => <option key={category}>{category}</option>)}</select></label>
@@ -112,9 +113,16 @@ export function AnimationEnquiryForm({ onBack }: { onBack: () => void }) {
         </div>
         <MultiChoices title="Output format" hint="(select all deliverables needed)" options={['MP4 (H.264 / universal)', 'MOV (ProRes / alpha)', 'WebM (web transparent)', 'GIF (animated preview)']} value={data.formats} onChange={v => set('formats', v)} />
       </section>
-      </>}
+  </>
+  if (confirmation) return <ProjectEnquirySuccess confirmation={confirmation} />
+  return <section className={`lifestyle-form${review && !success ? ' lifestyle-form--review' : ''}`} aria-label="3D product animation enquiry">
+    <button type="button" className="lifestyle-form__back" onClick={onBack} disabled={pending}>← Back to services</button>
+    <form onSubmit={submit}>
+      <header><span className="lifestyle-form__icon" aria-hidden="true">◇</span><div><h2 ref={heading} tabIndex={-1}>{success ? 'Enquiry received' : review ? 'Review & Edit Project Enquiry' : 'Add New Product Enquiry'}</h2><p>{success ? 'Our team will follow up by email.' : review ? 'Review your brief before sending. You can edit any detail below.' : 'High-fidelity 3D product motion, camera choreography, feature reveals, explainer sequences, and commercial-grade animations.'}</p></div><span className="lifestyle-form__badge">{review ? 'Ready for review' : '3D Product Animation'}</span>{review && !success && <button className="enquiry-review__print" type="button" onClick={() => window.print()}>Print summary</button>}</header>
+      {success ? <div className="lifestyle-form__success" role="status"><p>Your 3D Product Animation enquiry has been received for delivery.</p><button type="button" onClick={onBack}>Back to services</button></div> : <>
+      {review ? <ProjectEnquiryReview service="3D Product Animation" data={data} files={files} deliverables={data.exactDuration || data.durationRange || 'Duration not specified'} onChange={set}>{briefFields}</ProjectEnquiryReview> : briefFields}
       {error && <p className="lifestyle-form__error" role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-      <footer><button type="button" disabled={pending} onClick={() => { setData({ ...EMPTY }); setFiles([]); setReview(false); setError(''); setNotice(''); try { localStorage.removeItem(DRAFT_KEY) } catch { /* Storage may be unavailable. */ } }}>Reset Data</button><div>{review && <button type="button" disabled={pending} onClick={() => setReview(false)}>Edit brief</button>}<button type="button" disabled={pending} onClick={saveDraft}>Save as a draft</button><button className="lifestyle-form__submit" disabled={pending} type="submit">{pending ? 'Submitting…' : review ? 'Submit Enquiry →' : 'Review Enquiry →'}</button></div></footer>
+      <footer><button type="button" disabled={pending} onClick={() => { setData({ ...EMPTY }); setFiles([]); setReview(false); setError(''); setNotice(''); try { localStorage.removeItem(DRAFT_KEY) } catch { /* Storage may be unavailable. */ } }}>Reset Data</button><div>{review && <button type="button" disabled={pending} onClick={() => setReview(false)}>Edit brief</button>}<button type="button" disabled={pending} onClick={saveDraft}>Save as a draft</button><button className="lifestyle-form__submit" disabled={pending} type="submit">{pending ? 'Submitting…' : review ? 'Confirm & Send Project Enquiry →' : 'Review Enquiry →'}</button></div></footer>
       </>}
     </form>
   </section>

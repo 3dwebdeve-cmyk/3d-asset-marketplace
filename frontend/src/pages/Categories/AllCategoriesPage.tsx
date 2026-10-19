@@ -1,3 +1,4 @@
+import { CATEGORIES_SEO } from '../../lib/seoPages'
 import { useMemo } from 'react'
 import { CategoryTile } from '../../components/CategoryTile'
 import { Button } from '../../components/ui/Button'
@@ -5,7 +6,7 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { useAllCategories } from '../../hooks/useAllCategories'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { buildBreadcrumbJsonLd, buildItemListJsonLd, buildPageTitle } from '../../lib/seo'
+import { buildBreadcrumbJsonLd, buildItemListJsonLd } from '../../lib/seo'
 import { categoryPath, NOINDEX_CATEGORY_SLUGS } from '../../lib/categorySeo'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import '../../styles/products-browse.css'
@@ -37,10 +38,8 @@ export function AllCategoriesPage() {
     .filter((category) => !NOINDEX_CATEGORY_SLUGS.has(category.slug))
     .map((category) => ({ name: `${category.name} 3D models`, path: categoryPath(category.slug) }))
   useDocumentSeo({
-    title: buildPageTitle('3D Model Categories: Furniture, Interior & More'),
-    description:
-      'Browse 3D model categories: furniture, interior, household, lighting, plants, products and more. ' +
-      'Preview in 3D, secure checkout and instant download after purchase.',
+    title: CATEGORIES_SEO.title,
+    description: CATEGORIES_SEO.description,
     canonicalPath: '/categories',
     jsonLd: [
       buildBreadcrumbJsonLd([

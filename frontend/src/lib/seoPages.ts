@@ -1,4 +1,5 @@
-import { SITE_NAME } from './seo'
+import { HOME_TITLE, HOME_DESCRIPTION, SITE_NAME, buildPageTitle } from './seo'
+import { ALL_MODELS_SEO } from './categorySeo'
 
 /**
  * Copy for public pages that are indexed by search engines. Pages import these
@@ -9,12 +10,13 @@ export interface StaticPageSeo {
   title: string
   description: string
   keywords?: string[]
+  image?: string
+  imageAlt?: string
 }
 
 export const HOME_SEO: StaticPageSeo = {
-  title: `${SITE_NAME} | Premium 3D Models, Plugins & Custom 3D Projects`,
-  description:
-    'Buy and download 3D models for Blender, Maya and more. Browse game-ready, animated and PBR 3D assets, software plugins and custom 3D production services.',
+  title: HOME_TITLE,
+  description: HOME_DESCRIPTION,
   keywords: [
     '3D models',
     '3D assets',
@@ -27,38 +29,45 @@ export const HOME_SEO: StaticPageSeo = {
 }
 
 export const MODELS_SEO: StaticPageSeo = {
-  title: `3D Models | ${SITE_NAME}`,
-  description: `Browse and download 3D models for games, animation, architecture, furniture and 3D printing. Filter by software, format and license on ${SITE_NAME}.`,
+  title: buildPageTitle(ALL_MODELS_SEO.title),
+  description: ALL_MODELS_SEO.description,
   keywords: ['3D models', 'download 3D models', 'game 3D models', 'Blender models', 'Maya models'],
 }
 
 export const PLUGINS_SEO: StaticPageSeo = {
-  title: `3D Plugins | ${SITE_NAME}`,
-  description: `Professional plugins for Blender, Maya, Cinema 4D and more. Filter by software, format and license on ${SITE_NAME}.`,
+  title: buildPageTitle('Blender & Unreal Plugins and Tools'),
+  description: 'Browse plugins and tools for Blender and Unreal to speed up your 3D workflow. Secure checkout and instant download after purchase.',
   keywords: ['3D plugins', 'Blender plugins', 'Maya plugins', 'Cinema 4D plugins', '3D software add-ons'],
 }
 
 export const CATEGORIES_SEO: StaticPageSeo = {
-  title: `All Categories | ${SITE_NAME}`,
-  description: `Browse the full ${SITE_NAME} collection by category.`,
+  title: buildPageTitle('3D Model Categories: Furniture, Interior & More'),
+  description: 'Browse 3D model categories: furniture, interior, household, lighting, plants, products and more. Preview in 3D, secure checkout and instant download after purchase.',
 }
 
 export const ABOUT_SEO: StaticPageSeo = {
   title: `About the Studio | ${SITE_NAME}`,
   description:
-    'Learn about our studio, marketplace of premium 3D assets and plugins, and custom design services.',
+    'About AssetHive3D: a marketplace for furniture and interior 3D models and Blender and Unreal plugins, plus custom 3D modeling, texturing and rendering.',
 }
 
 export const CONTACT_SEO: StaticPageSeo = {
-  title: `Enquiry | ${SITE_NAME}`,
+  title: `Contact & Enquiries | ${SITE_NAME}`,
   description:
     'Enquire about 3D models, plugins, custom work, bulk licensing, or technical support. We usually respond within 24 hours.',
 }
 
 export const CUSTOM_PROJECTS_SEO: StaticPageSeo = {
-  title: `Custom Projects | ${SITE_NAME}`,
+  title: `Custom 3D Modeling, Rendering & Animation | ${SITE_NAME}`,
   description:
-    'Request custom 3D design work by email enquiry — share your brief and our team will follow up from the company inbox.',
+    'Request custom 3D modeling, product renders, animation, packaging design and furniture visualization. Select your services and send a project enquiry.',
+  keywords: [
+    'custom 3D modeling', '3D rendering services', 'product visualization',
+    '3D product animation', 'furniture visualization', '3D packaging design',
+    'lifestyle renders', 'marketplace product images',
+  ],
+  image: '/images/CUSTOM%20PROJECTS.webp',
+  imageAlt: 'Custom 3D project services from AssetHive3D',
 }
 
 export const TERMS_SEO: StaticPageSeo = {
