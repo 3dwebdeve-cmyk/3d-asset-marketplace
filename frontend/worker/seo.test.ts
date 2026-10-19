@@ -42,6 +42,25 @@ const product = {
 } as unknown as PublicProductDetail
 
 describe('renderSeoHead', () => {
+  it('includes readable content and crawlable links without requiring JavaScript', () => {
+    const html = renderSeoHead(SHELL, getStaticPageSeo('/about')!, { origin: 'https://shop.example', path: '/about' })
+    const body = html.slice(html.indexOf('<body>'))
+    expect(body).toContain('<h1 id="page-summary-title">About the Studio | AssetHive3D</h1>')
+    expect(body).toContain('About AssetHive3D: a marketplace')
+    expect(body).toContain('<a href="/3d-models">3D models</a>')
+    expect(body).toContain('<a href="/custom-projects">Custom 3D projects</a>')
+  })
+
+  it('escapes page content and preserves any existing app markup in the root', () => {
+    const seo = { ...getStaticPageSeo('/about')!, title: '<script>alert(1)</script>', description: 'A & B' }
+    const html = renderSeoHead(SHELL, seo, { origin: 'https://shop.example', path: '/about' })
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;</h1>')
+    expect(html).toContain('<p>A &amp; B</p>')
+    const populated = SHELL.replace('<div id="root"></div>', '<div id="root"><main>Existing content</main></div>')
+    const result = renderSeoHead(populated, seo, { origin: 'https://shop.example', path: '/about' })
+    expect(result).toContain('<div id="root"><main>Existing content</main></div>')
+    expect(result).not.toContain('id="page-summary-title"')
+  })
   it('removes stale default image attributes for a product thumbnail', () => {
     const html = renderSeoHead(SHELL.replace('</head>', '<meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:alt" content="Default furniture" /></head>'), getProductPageSeo(product, 'https://shop.example'), { origin: 'https://shop.example', path: '/products/desk-lamp' })
     expect(html).not.toContain('og:image:width')
@@ -74,7 +93,7 @@ describe('renderSeoHead', () => {
 
     expect(html).toContain('<meta charset="UTF-8" />')
     expect(html).toContain('{"@type":"WebSite"}')
-    expect(html).toContain('<div id="root"></div>')
+    expect(html).toContain('<div id="root"><main')
   })
 
   it('escapes product names inside attributes and the title', () => {
