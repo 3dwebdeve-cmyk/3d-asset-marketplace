@@ -265,7 +265,9 @@ export function ModelsBrowsePage() {
 
   const heroTitle = selectedCategory?.slug === '3d-printing'
     ? '3D Printing'
-    : selectedCategory?.name ?? '3D Model'
+    : selectedCategory?.slug === 'furniture'
+      ? 'Furniture 3D Models'
+      : selectedCategory?.name ?? '3D Model'
   const usesProductsBanner =
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
   const usesFurnitureBanner = selectedCategory?.slug === 'furniture'
@@ -294,13 +296,20 @@ export function ModelsBrowsePage() {
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
-          <p className="plugins-browse-hero__subtitle">
-            Premium 3D models for games, film, and architecture.
-            <br />
-            Production-ready assets for product design and visualization.
-            <br />
-            Optimized for <strong>Blender, Maya, 3ds Max, and Cinema 4D.</strong>
-          </p>
+          {usesFurnitureBanner ? (
+            <p className="plugins-browse-hero__subtitle">
+              Ready-to-use furniture 3D models for interior renders, architectural visualization, product viewers and real-time scenes.{' '}
+              Preview each model in 3D before you buy, check the polygon count, formats and license on its page, and download your files right after checkout.
+            </p>
+          ) : (
+            <p className="plugins-browse-hero__subtitle">
+              Premium 3D models for games, film, and architecture.{' '}
+              <br />
+              Production-ready assets for product design and visualization.{' '}
+              <br />
+              Optimized for <strong>Blender, Maya, 3ds Max, and Cinema 4D.</strong>
+            </p>
+          )}
         </div>
       </section>
 

@@ -196,12 +196,8 @@ describe('ModelsBrowsePage', () => {
       )
     })
 
-    await waitFor(() => {
-      expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
-        'src',
-        '/banner%20image/08.jpg?v=1',
-      )
-    })
+    await screen.findByRole('heading', { name: 'Furniture 3D Models' })
+    expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute('src', '/banner%20image/08.jpg?v=1')
 
     await waitFor(() => {
       expect(screen.getByLabelText(/^category$/i, { selector: 'select' })).toHaveValue(categoryId)
