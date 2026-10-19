@@ -24,6 +24,17 @@ afterEach(() => {
 })
 
 describe('useDocumentSeo', () => {
+  it('clears default furniture image dimensions and alt text for a custom product image, then restores them', () => {
+    document.head.insertAdjacentHTML('beforeend', '<meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" /><meta property="og:image:alt" content="Default furniture" />')
+    const { unmount } = renderHook(() => useDocumentSeo({ title: 'Desk Lamp', image: '/lamp.jpg', imageAlt: 'A brass desk lamp' }))
+    expect(metaContent('meta[property="og:image:width"]')).toBeNull()
+    expect(metaContent('meta[property="og:image:height"]')).toBeNull()
+    expect(metaContent('meta[property="og:image:alt"]')).toBe('A brass desk lamp')
+    expect(metaContent('meta[name="twitter:image:alt"]')).toBe('A brass desk lamp')
+    unmount()
+    expect(metaContent('meta[property="og:image:width"]')).toBe('1200')
+    expect(metaContent('meta[property="og:image:alt"]')).toBe('Default furniture')
+  })
   it('sets title, description, keywords and social tags', () => {
     renderHook(() =>
       useDocumentSeo({

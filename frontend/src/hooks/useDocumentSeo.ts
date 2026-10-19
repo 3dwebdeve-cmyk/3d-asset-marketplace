@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { DEFAULT_OG_IMAGE_PATH, SITE_NAME } from '../lib/seo'
+import { DEFAULT_OG_IMAGE_PATH, DEFAULT_SOCIAL_IMAGE_ALT, SITE_NAME } from '../lib/seo'
 
 export interface UseDocumentSeoOptions {
   /** Page title. Omit to keep the title a parent route already set. */
@@ -16,6 +16,7 @@ export interface UseDocumentSeoOptions {
   keywords?: string[]
   /** Social preview image, root-relative or absolute. Defaults to the site banner. */
   image?: string
+  imageAlt?: string
   /** Open Graph type. Use "product" for individual listings. */
   ogType?: 'website' | 'product'
   /** schema.org structured data. `@context` and the canonical `url` are added automatically. */
@@ -82,6 +83,14 @@ function metaTarget(attr: 'name' | 'property', key: string): HeadTagTarget {
   }
 }
 
+function removeMeta(selector: string, cleanups: Cleanup[]): void {
+  const element = document.head.querySelector(selector)
+  if (!element) return
+  const next = element.nextSibling
+  element.remove()
+  cleanups.push(() => document.head.insertBefore(element, next?.parentNode === document.head ? next : null))
+}
+
 function setStructuredData(json: string | null, cleanups: Cleanup[]): void {
   if (!json) {
     return
@@ -105,6 +114,7 @@ export function useDocumentSeo({
   robots,
   keywords,
   image,
+  imageAlt,
   canonicalPath,
   type,
   jsonLd,
@@ -114,6 +124,7 @@ export function useDocumentSeo({
   const keywordsContent = keywords?.length ? keywords.join(', ') : undefined
   const canonicalUrl = absoluteUrl(canonicalPath ?? (window.location.pathname.replace(/\/+$/, '') || '/'))
   const imageUrl = absoluteUrl(image ?? DEFAULT_OG_IMAGE_PATH)
+  const defaultImage = imageUrl === absoluteUrl(DEFAULT_OG_IMAGE_PATH)
   const structuredDataJson = structuredData
     ? JSON.stringify({ '@context': 'https://schema.org', url: canonicalUrl, ...structuredData })
     : jsonLd ? JSON.stringify(jsonLd) : null
@@ -145,6 +156,13 @@ export function useDocumentSeo({
     upsertHeadTag(metaTarget('property', 'og:title'), pageTitle, cleanups)
     upsertHeadTag(metaTarget('property', 'og:url'), canonicalUrl, cleanups)
     upsertHeadTag(metaTarget('property', 'og:image'), imageUrl, cleanups)
+    const alt = defaultImage ? DEFAULT_SOCIAL_IMAGE_ALT : imageAlt ?? pageTitle
+    upsertHeadTag(metaTarget('property', 'og:image:alt'), alt, cleanups)
+    upsertHeadTag(metaTarget('name', 'twitter:image:alt'), alt, cleanups)
+    for (const [key, value] of [['og:image:width', '1200'], ['og:image:height', '630']]) {
+      if (defaultImage) upsertHeadTag(metaTarget('property', key), value, cleanups)
+      else removeMeta(`meta[property="${key}"]`, cleanups)
+    }
     if (description !== undefined) {
       upsertHeadTag(metaTarget('property', 'og:description'), description, cleanups)
     }
@@ -180,6 +198,8 @@ export function useDocumentSeo({
     robots,
     keywordsContent,
     imageUrl,
+    imageAlt,
+    defaultImage,
     ogType,
     canonicalUrl,
     structuredDataJson,

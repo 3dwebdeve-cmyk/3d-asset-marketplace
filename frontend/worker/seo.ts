@@ -1,16 +1,21 @@
 import {
   buildPluginMetaDescription,
   buildPluginPageTitle,
-  buildPluginStructuredData,
+  buildPluginJsonLd,
   buildProductMetaDescription,
   buildProductPageTitle,
-  buildProductStructuredData,
+  buildProductJsonLd,
+  buildOrganizationJsonLd,
+  buildWebSiteJsonLd,
   DEFAULT_SOCIAL_IMAGE,
+  DEFAULT_SOCIAL_IMAGE_ALT,
   SITE_NAME,
 } from '../src/lib/seo'
 import { STATIC_PAGE_SEO } from '../src/lib/seoPages'
 import type { PublicPluginDetail } from '../src/types/plugin'
 import type { PublicProductDetail } from '../src/types/product'
+import { NOINDEX_CATEGORY_SLUGS } from '../src/lib/categorySeo'
+import { buildCustomProjectsJsonLd } from '../src/lib/customProjectSeo'
 
 /** Head content for one HTML response. Mirrors what useDocumentSeo sets in the browser. */
 export interface PageSeo {
@@ -20,6 +25,9 @@ export interface PageSeo {
   ogType: 'website' | 'product'
   /** Absolute social image URL. Defaults to the site banner. */
   image?: string
+  imageAlt?: string
+  canonicalPath?: string
+  robots?: string
   structuredData?: Record<string, unknown>
   status: number
 }
@@ -38,7 +46,7 @@ const HTML_ESCAPES: Readonly<Record<string, string>> = {
 // Tags the browser-side hook also manages. They are removed from the shell and rendered again.
 const HEAD_TAGS_TO_REPLACE: readonly RegExp[] = [
   /<title>[\s\S]*?<\/title>\s*/gi,
-  /<meta\s+(?:name|property)="(?:description|keywords|og:[a-z_]+|twitter:[a-z_]+)"[^>]*>\s*/gi,
+  /<meta\s+(?:name|property)="(?:description|keywords|robots|og:[a-z_:]+|twitter:[a-z_:]+)"[^>]*>\s*/gi,
   /<link\s+rel="canonical"[^>]*>\s*/gi,
   /<script\s+type="application\/ld\+json"\s+id="seo-structured-data"[\s\S]*?<\/script>\s*/gi,
 ]
@@ -59,7 +67,7 @@ export function isLikelyAssetPath(pathname: string): boolean {
   return lastSegment.includes('.')
 }
 
-export function getStaticPageSeo(path: string): PageSeo | undefined {
+export function getStaticPageSeo(path: string, origin = ''): PageSeo | undefined {
   if (!Object.hasOwn(STATIC_PAGE_SEO, path)) {
     return undefined
   }
@@ -69,8 +77,13 @@ export function getStaticPageSeo(path: string): PageSeo | undefined {
     title: page.title,
     description: page.description,
     keywords: page.keywords,
+    image: page.image && origin ? new URL(page.image, `${origin}/`).toString() : page.image,
+    imageAlt: page.imageAlt,
     ogType: 'website',
     status: 200,
+    structuredData: path === '/' ? {
+      '@graph': [buildOrganizationJsonLd(origin), buildWebSiteJsonLd(origin)],
+    } : path === '/custom-projects' ? buildCustomProjectsJsonLd(origin) : undefined,
   }
 }
 
@@ -87,14 +100,21 @@ function absoluteUrl(value: string, siteOrigin: string): string | undefined {
 }
 
 export function getProductPageSeo(product: PublicProductDetail, siteOrigin: string): PageSeo {
-  const image = absoluteUrl(product.thumbnail, siteOrigin)
+  const image = absoluteUrl(product.thumbnail || product.images?.[0]?.image_url || '', siteOrigin)
   return {
-    title: buildProductPageTitle(product.name),
-    description: buildProductMetaDescription(product.name, product.short_description),
+    title: buildProductPageTitle(product.name, product.category.name),
+    description: buildProductMetaDescription(product.name, product.short_description, {
+      categoryName: product.category.name,
+      polygonCount: product.polygon_count,
+      licenseType: product.license_type,
+    }),
     keywords: [product.name, product.category.name, '3D model', 'download 3D model'],
     ogType: 'product',
     image,
-    structuredData: buildProductStructuredData({ ...product, thumbnail: image ?? '' }),
+    imageAlt: product.name,
+    canonicalPath: product.slug ? `/products/${product.slug}` : undefined,
+    robots: NOINDEX_CATEGORY_SLUGS.has(product.category.slug) ? 'noindex, follow' : undefined,
+    structuredData: buildProductJsonLd(product, `/products/${product.slug}`, siteOrigin),
     status: 200,
   }
 }
@@ -107,7 +127,9 @@ export function getPluginPageSeo(plugin: PublicPluginDetail, siteOrigin: string)
     keywords: [plugin.name, plugin.category.name, '3D plugin', 'download plugin'],
     ogType: 'product',
     image,
-    structuredData: buildPluginStructuredData({ ...plugin, thumbnail: image ?? '' }),
+    imageAlt: plugin.name,
+    canonicalPath: plugin.slug ? `/plugins/${plugin.slug}` : undefined,
+    structuredData: buildPluginJsonLd({ ...plugin, thumbnail: image ?? '' }, siteOrigin),
     status: 200,
   }
 }
@@ -119,6 +141,7 @@ export function getNotFoundPageSeo(kind: 'Product' | 'Plugin'): PageSeo {
     description: `The requested ${kind.toLowerCase()} could not be found.`,
     ogType: 'website',
     status: 404,
+    robots: 'noindex, nofollow',
   }
 }
 
@@ -145,11 +168,12 @@ export function renderSeoHead(
     return html
   }
 
-  const canonical = new URL(page.path, `${page.origin}/`).toString()
-  const image = seo.image ?? new URL(DEFAULT_SOCIAL_IMAGE, `${page.origin}/`).toString()
+  const canonical = new URL(seo.canonicalPath ?? page.path, `${page.origin}/`).toString()
+  const image = new URL(seo.image ?? DEFAULT_SOCIAL_IMAGE, `${page.origin}/`).toString()
   const tags = [
     `<title>${escapeHtml(seo.title)}</title>`,
     metaTag('name', 'description', seo.description),
+    ...(seo.robots ? [metaTag('name', 'robots', seo.robots)] : []),
     ...(seo.keywords?.length ? [metaTag('name', 'keywords', seo.keywords.join(', '))] : []),
     metaTag('property', 'og:site_name', SITE_NAME),
     metaTag('property', 'og:type', seo.ogType),
@@ -157,10 +181,13 @@ export function renderSeoHead(
     metaTag('property', 'og:description', seo.description),
     metaTag('property', 'og:url', canonical),
     metaTag('property', 'og:image', image),
+    metaTag('property', 'og:image:alt', seo.image ? seo.imageAlt ?? seo.title : DEFAULT_SOCIAL_IMAGE_ALT),
+    ...(!seo.image ? [metaTag('property', 'og:image:width', '1200'), metaTag('property', 'og:image:height', '630')] : []),
     metaTag('name', 'twitter:card', 'summary_large_image'),
     metaTag('name', 'twitter:title', seo.title),
     metaTag('name', 'twitter:description', seo.description),
     metaTag('name', 'twitter:image', image),
+    metaTag('name', 'twitter:image:alt', seo.image ? seo.imageAlt ?? seo.title : DEFAULT_SOCIAL_IMAGE_ALT),
     `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
   ]
 
@@ -177,20 +204,6 @@ export function renderSeoHead(
 
   const indented = tags.map((tag) => `    ${tag}`).join('\n')
   return `${shell.slice(0, headEnd)}${indented}\n  ${shell.slice(headEnd)}`
-}
-
-/** Sitemap for the indexable paths. `paths` are root-relative and already unique. */
-export function buildSitemapXml(origin: string, paths: readonly string[]): string {
-  const entries = [...new Set(paths)].map(
-    (path) => `  <url><loc>${escapeHtml(new URL(path, `${origin}/`).toString())}</loc></url>`,
-  )
-  return [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...entries,
-    '</urlset>',
-    '',
-  ].join('\n')
 }
 
 /** Adds the absolute sitemap location to robots.txt, which must use a full URL. */

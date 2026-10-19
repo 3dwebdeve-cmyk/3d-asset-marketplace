@@ -1,8 +1,9 @@
+import { PLUGINS_SEO } from '../../lib/seoPages'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { buildBreadcrumbJsonLd, buildPageTitle } from '../../lib/seo'
+import { buildBreadcrumbJsonLd } from '../../lib/seo'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
@@ -223,9 +224,8 @@ export function PluginsBrowsePage() {
 
   const heroTitle = selectedCategoryName ?? 'Blender & Unreal Plugins and Tools'
   useDocumentSeo({
-    title: buildPageTitle('Blender & Unreal Plugins and Tools'),
-    description:
-      'Browse plugins and tools for Blender and Unreal to speed up your 3D workflow. Secure checkout and instant download after purchase.',
+    title: PLUGINS_SEO.title,
+    description: PLUGINS_SEO.description,
     canonicalPath: '/plugins',
     robots: searchFromUrl ? 'noindex, follow' : undefined,
     jsonLd: buildBreadcrumbJsonLd([
