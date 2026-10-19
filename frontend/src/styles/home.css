@@ -39,7 +39,7 @@
   min-height: clamp(14rem, 42vw, 22rem);
   overflow: hidden;
   background-color: var(--pure-black);
-  background-image: url('/images/website-banner-1919x510.png?v=20261013-1');
+  background-image: url('/images/website-banner-1919x510.webp');
   background-attachment: scroll;
   background-position: center center;
   background-size: cover;
