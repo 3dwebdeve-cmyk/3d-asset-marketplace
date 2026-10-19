@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -47,6 +48,12 @@ function formatProductType(productType: string): string {
 }
 
 export function MyDownloadsPage() {
+  useDocumentSeo({
+    title: 'My downloads | AssetHive 3D',
+    description: 'Download the 3D models and plugins you have purchased.',
+    robots: 'noindex, nofollow',
+  })
+
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)

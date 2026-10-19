@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -35,6 +36,12 @@ function DefaultAvatarSvg() {
 }
 
 export function ProfilePage() {
+  useDocumentSeo({
+    title: 'Your profile | AssetHive 3D',
+    description: 'Update your AssetHive 3D account details and password.',
+    robots: 'noindex, nofollow',
+  })
+
   const profileQuery = useQuery({
     queryKey: ['auth', 'profile'],
     queryFn: getProfile,
