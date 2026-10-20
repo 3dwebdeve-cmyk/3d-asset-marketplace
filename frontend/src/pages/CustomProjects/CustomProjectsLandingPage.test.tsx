@@ -52,19 +52,20 @@ describe('CustomProjectsLandingPage', () => {
     expect(screen.queryByRole('heading', { name: 'How it works' })).not.toBeInTheDocument()
   })
 
-  it('carries selected services into the enquiry and requires a selection', async () => {
+  it('requires a selection and opens the custom service form from its card and Next Step', async () => {
     const user = userEvent.setup()
     renderLanding()
 
     expect(screen.getAllByRole('checkbox')).toHaveLength(8)
     expect(screen.getAllByRole('checkbox').every((checkbox) => !(checkbox as HTMLInputElement).checked)).toBe(true)
     expect(screen.getByRole('button', { name: /next step/i })).toBeDisabled()
-    await user.click(screen.getByRole('checkbox', { name: /marketplace ready/i }))
     await user.click(screen.getByRole('checkbox', { name: /other \/ custom/i }))
-    const nextUrl = new URL(screen.getByRole('link', { name: /next step/i }).getAttribute('href')!, 'https://example.com')
-    expect(nextUrl.pathname).toBe('/contact')
-    expect(nextUrl.searchParams.get('services')).toBe('Marketplace Ready Package, Other / Custom Service')
-    expect(nextUrl.searchParams.get('enquiryType')).toBe('Custom 3D Modeling')
+    expect(screen.getByRole('region', { name: /other \/ custom service enquiry/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/service type/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /back to services/i }))
+    expect(screen.getByRole('checkbox', { name: /other \/ custom/i })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: /next step/i }))
+    expect(screen.getByRole('region', { name: /other \/ custom service enquiry/i })).toBeInTheDocument()
   })
 
   it('opens the 3D Modeling enquiry form when that service is selected', async () => {
@@ -81,6 +82,26 @@ describe('CustomProjectsLandingPage', () => {
 
     await user.click(screen.getByRole('checkbox', { name: /3d product animation/i }))
     expect(screen.getByRole('region', { name: '3D product animation enquiry' })).toBeInTheDocument()
+  })
+
+  it('opens the Furniture Visualization enquiry form when that service is selected', async () => {
+    const user = userEvent.setup()
+    renderLanding()
+    await user.click(screen.getByRole('checkbox', { name: /furniture visualization/i }))
+    expect(screen.getByRole('region', { name: /furniture visualization enquiry/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/furniture dimensions/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /review enquiry/i })).toBeInTheDocument()
+  })
+
+  it('opens the Marketplace Ready Package form from its card and Next Step', async () => {
+    const user = userEvent.setup()
+    renderLanding()
+    await user.click(screen.getByRole('checkbox', { name: /marketplace ready/i }))
+    expect(screen.getByRole('region', { name: /marketplace ready package enquiry/i })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /amazon marketplace/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /back to services/i }))
+    await user.click(screen.getByRole('button', { name: /next step/i }))
+    expect(screen.getByRole('region', { name: /marketplace ready package enquiry/i })).toBeInTheDocument()
   })
 
   it('links guests and customers to the contact enquiry form', () => {
