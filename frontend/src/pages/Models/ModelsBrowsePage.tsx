@@ -24,8 +24,8 @@ const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
   furniture: '/banner%20image/08.webp',
-  toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
-  electronics: '/images/new%20banner%20image%20size/Electronics.webp',
+  toys: '/neww%20banner%20image/toy-sunlit-backdrop.png',
+  electronics: '/neww%20banner%20image/retro-tech-controller-popout-refined.png',
   'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
   character: '/images/new%20banner%20image%20size/Character.webp',
   industrial: '/images/new%20banner%20image%20size/Industrial.webp',
@@ -339,6 +339,7 @@ export function ModelsBrowsePage() {
   const usesProductsBanner =
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
   const usesFurnitureBanner = selectedCategory?.slug === 'furniture'
+  const usesElectronicsBanner = selectedCategory?.slug === 'electronics'
   const usesCharacterBanner = selectedCategory?.slug === 'character'
   const usesPlantsBanner = selectedCategory?.slug === 'plants-vegetation'
   const usesToysBanner = selectedCategory?.slug === 'toys'
@@ -353,14 +354,25 @@ export function ModelsBrowsePage() {
   return (
     <main className="plugins-browse models-browse">
       <section
-        className={`plugins-browse-hero site-hero-banner${usesFurnitureBanner ? ' plugins-browse-hero--furniture' : ''}${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
+        className={`plugins-browse-hero site-hero-banner${usesFurnitureBanner ? ' plugins-browse-hero--furniture' : ''}${usesElectronicsBanner ? ' plugins-browse-hero--electronics' : ''}${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
       >
         <SiteHeroImage
           src={heroImageSrc}
-          width={selectedCategory ? undefined : 2804}
-          height={selectedCategory ? undefined : 561}
+          width={usesElectronicsBanner ? 1673 : selectedCategory ? undefined : 2804}
+          height={usesElectronicsBanner ? 940 : selectedCategory ? undefined : 561}
         />
         <div className="site-hero-banner__overlay" />
+        {usesToysBanner && (
+          <span className="toys-banner__popout" aria-hidden="true">
+            <img
+              src="/neww%20banner%20image/toy-vehicles-trio.png"
+              alt=""
+              width={2079}
+              height={756}
+              decoding="async"
+            />
+          </span>
+        )}
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 

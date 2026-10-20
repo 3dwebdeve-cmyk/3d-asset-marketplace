@@ -57,7 +57,10 @@
   .lifestyle-form--review footer > div { width: 100%; }
   .lifestyle-form--review button.lifestyle-form__submit { width: 100%; margin-top: 0.5rem; }
 }
+.furniture-enquiry__print-details, .marketplace-enquiry__print-details, .custom-service-enquiry__print-details { display: none; }
 @media print {
+  .furniture-enquiry.lifestyle-form--review .enquiry-review, .marketplace-enquiry.lifestyle-form--review .enquiry-review, .custom-service-enquiry.lifestyle-form--review .enquiry-review { display: none; }
+  .furniture-enquiry__print-details, .marketplace-enquiry__print-details, .custom-service-enquiry__print-details { display: block; white-space: pre-wrap; overflow-wrap: anywhere; font: 11pt/1.5 sans-serif; color: #000; }
   body:has(.lifestyle-form--review) * { visibility: hidden; }
   .lifestyle-form--review, .lifestyle-form--review * { visibility: visible; }
   .lifestyle-form--review { position: absolute; left: 0; top: 0; width: 100%; }

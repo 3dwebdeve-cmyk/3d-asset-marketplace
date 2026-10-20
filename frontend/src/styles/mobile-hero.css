@@ -1,0 +1,72 @@
+/* Shared compact banners for catalog and information pages on phones. */
+@media (max-width: 720px) {
+  :root body .site-hero-banner:is(.plugins-browse-hero, .about-hero, .enquiry-hero, .custom-projects-hero) {
+    grid-template: auto / minmax(0, 1fr);
+    aspect-ratio: auto;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  :root body .site-hero-banner > .site-hero-banner__image {
+    grid-area: 1 / 1;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    object-fit: contain;
+    object-position: center;
+  }
+
+  :root body .site-hero-banner > .site-hero-banner__overlay {
+    display: none;
+  }
+
+  :root body .site-hero-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(11, 17, 23, 0.82), rgba(11, 17, 23, 0.5) 42%, transparent 68%);
+  }
+
+  :root body .site-hero-banner > :is(.plugins-browse-hero__container, .about-hero__content, .enquiry-hero__content, .custom-projects-hero__content) {
+    grid-area: 1 / 1;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    width: 55%;
+    max-width: 55%;
+    margin: 0;
+    padding: clamp(0.5rem, 2.5vw, 1rem);
+    box-sizing: border-box;
+    text-align: left;
+  }
+
+  :root body .site-hero-banner .about-hero__copy {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+  }
+
+  :root body .site-hero-banner h1 {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    font-size: clamp(0.75rem, 3.2vw, 1.25rem);
+    line-height: 1.2;
+    color: #e4be8a;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  }
+
+  :root body .site-hero-banner h1 span {
+    color: inherit;
+  }
+
+  :root body .site-hero-banner :is(.plugins-browse-hero__subtitle, .about-hero__lead, .about-hero__stats, .about-eyebrow, .enquiry-hero__lead, .custom-projects-hero__actions) {
+    display: none;
+  }
+}

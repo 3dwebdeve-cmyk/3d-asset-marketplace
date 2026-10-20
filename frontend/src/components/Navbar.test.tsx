@@ -120,6 +120,51 @@ beforeEach(() => {
 })
 
 describe('Navbar', () => {
+  it.each([false, true])('filters the category picker and supports keyboard selection (compact: %s)', async (compact) => {
+    const user = userEvent.setup()
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: compact && query.includes('max-width: 1200px'),
+      media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }))
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 2, next: null, previous: null,
+      results: ['Furniture', 'Electronics'].map((name) => ({
+        id: name.toLowerCase(), name, slug: name.toLowerCase(),
+        description: '', image: '', parent: null, created_at: '2026-09-08T00:00:00Z',
+      })),
+    })
+    try {
+      renderNavbar('/3d-models')
+      await user.click(screen.getByRole('button', { name: /^all categories$/i }))
+      await screen.findByRole('menuitem', { name: 'Furniture' })
+      const search = screen.getByRole('searchbox', { name: 'Search categories' })
+      await user.type(search, 'eLeC')
+      expect(screen.queryByRole('menuitem', { name: 'Furniture' })).not.toBeInTheDocument()
+      expect(screen.getByRole('menuitem', { name: 'Electronics' })).toBeInTheDocument()
+      await user.keyboard('{Enter}')
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/3d-models$/)
+      await user.keyboard('{ArrowDown}')
+      expect(screen.getByRole('menuitem', { name: 'Electronics' })).toHaveFocus()
+      await user.keyboard('{Enter}')
+      expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?category=electronics')
+
+      const trigger = screen.getByRole('button', { name: compact ? /^electronics$/i : /^all categories$/i })
+      await user.click(trigger)
+      const reopenedSearch = screen.getByRole('searchbox', { name: 'Search categories' })
+      expect(reopenedSearch).toHaveValue('')
+      await user.type(reopenedSearch, 'no matching category')
+      expect(screen.getByRole('status')).toHaveTextContent('No categories found')
+      await user.click(screen.getByRole('button', { name: 'Close categories' }))
+      expect(screen.queryByRole('searchbox', { name: 'Search categories' })).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+    } finally {
+      window.matchMedia = originalMatchMedia
+    }
+  })
+
   it('uses the white marketplace header and existing categories on home', async () => {
     const user = userEvent.setup()
     const categoryId = '44bba207-8a0c-490d-abdf-5a383ed2111b'

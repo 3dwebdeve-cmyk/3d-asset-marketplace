@@ -7,6 +7,7 @@ import { logoutUser } from '../api/authApi'
 import { getCart } from '../api/cartApi'
 import { listPublicCategories } from '../api/categoriesApi'
 import { AuthEntryButton } from './auth/AuthEntryButton'
+import { CategoryMenu } from './CategoryMenu'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { isAdministrator } from '../lib/roles'
@@ -66,7 +67,7 @@ export function Navbar() {
 
   const handleExploreMouseLeave = () => {
     exploreTimerRef.current = setTimeout(() => {
-      setExploreOpen(false)
+      if (!exploreRef.current?.contains(document.activeElement)) setExploreOpen(false)
       exploreTimerRef.current = null
     }, 180)
   }
@@ -81,7 +82,7 @@ export function Navbar() {
 
   const handleSearchCatMouseLeave = () => {
     searchCatTimerRef.current = setTimeout(() => {
-      setSearchCatOpen(false)
+      if (!searchCatRef.current?.contains(document.activeElement)) setSearchCatOpen(false)
       searchCatTimerRef.current = null
     }, 180)
   }
@@ -210,14 +211,7 @@ export function Navbar() {
   })
   const AllCategoriesIcon = getAllCategoriesIcon()
   const selectedSearchCategory = exploreCategories.find((cat) => cat.id === categoryId)
-  const categoryHasChildren = (categoryIdToCheck: string) =>
-    categories.some(
-      (category) =>
-        'parent' in category && category.parent != null && category.parent.id === categoryIdToCheck,
-    )
   const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
-  const searchCategoriesLoading = productCategoriesQuery.isLoading
-  const searchCategoriesError = productCategoriesQuery.isError
 
   const cartCountQuery = useQuery({
     queryKey: ['cart'],
@@ -354,52 +348,18 @@ export function Navbar() {
                 <span className="navbar__explore-trigger-chevron" aria-hidden="true" />
               </button>
               {exploreOpen ? (
-                <div
-                  className="navbar__explore-menu"
-                  role="menu"
-                  aria-label={isMarketplaceHeader ? 'Explore categories' : 'All categories'}
-                  onMouseEnter={handleExploreMouseEnter}
-                  onMouseLeave={handleExploreMouseLeave}
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
-                    onClick={() => handleSelectCategory('')}
-                  >
-                    <AllCategoriesIcon className="navbar__explore-icon navbar__explore-icon--all" />
-                    <span className="navbar__explore-label">All Categories</span>
-                    <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                  </button>
-                  {exploreCategories.map((category) => {
-                    const Icon = getCategoryIcon(category.slug)
-                    return (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''}`}
-                        key={category.id}
-                        onClick={() => handleSelectCategory(category.id)}
-                      >
-                        {category.image ? (
-                          <img className="navbar__explore-image" src={category.image} alt="" />
-                        ) : (
-                          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
-                        )}
-                        <span className="navbar__explore-label">{category.name}</span>
-                        {categoryHasChildren(category.id) ? (
-                          <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                        ) : null}
-                      </button>
-                    )
-                  })}
-                  {productCategoriesQuery.isLoading ? (
-                    <p className="navbar__explore-status">Loading categories…</p>
-                  ) : null}
-                  {productCategoriesQuery.isError ? (
-                    <p className="navbar__explore-status">Categories could not be loaded.</p>
-                  ) : null}
-                </div>
+                <CategoryMenu
+                  categories={exploreCategories}
+                  selectedId={categoryId}
+                  label={isMarketplaceHeader ? 'Explore categories' : 'All categories'}
+                  loading={productCategoriesQuery.isLoading}
+                  error={productCategoriesQuery.isError}
+                  onSelect={handleSelectCategory}
+                  onClose={() => {
+                    setExploreOpen(false)
+                    exploreRef.current?.querySelector<HTMLButtonElement>('.navbar__explore-trigger')?.focus()
+                  }}
+                />
               ) : null}
             </div>
           ) : null}
@@ -426,55 +386,19 @@ export function Navbar() {
                 <span className="navbar__search-cat-trigger-chevron" aria-hidden="true" />
               </button>
               {searchCatOpen ? (
-                <div
-                  className="navbar__explore-menu navbar__search-cat-menu"
-                  role="menu"
-                  aria-label="Search categories"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
-                    onClick={() => handleSelectCategory('')}
-                  >
-                    <AllCategoriesIcon className="navbar__explore-icon navbar__explore-icon--all" />
-                    <span className="navbar__explore-label">All Categories</span>
-                    <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                  </button>
-                  {exploreCategories.map((category) => {
-                    const Icon = getCategoryIcon(category.slug)
-                    return (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''
-                          }`}
-                        key={category.id}
-                        onClick={() => handleSelectCategory(category.id)}
-                      >
-                        {'image' in category && category.image ? (
-                          <img
-                            className="navbar__explore-image"
-                            src={category.image}
-                            alt=""
-                          />
-                        ) : (
-                          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
-                        )}
-                        <span className="navbar__explore-label">{category.name}</span>
-                        {categoryHasChildren(category.id) ? (
-                          <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                        ) : null}
-                      </button>
-                    )
-                  })}
-                  {searchCategoriesLoading ? (
-                    <p className="navbar__explore-status">Loading categories…</p>
-                  ) : null}
-                  {searchCategoriesError ? (
-                    <p className="navbar__explore-status">Categories could not be loaded.</p>
-                  ) : null}
-                </div>
+                <CategoryMenu
+                  className="navbar__search-cat-menu"
+                  categories={exploreCategories}
+                  selectedId={categoryId}
+                  label="Search categories"
+                  loading={productCategoriesQuery.isLoading}
+                  error={productCategoriesQuery.isError}
+                  onSelect={handleSelectCategory}
+                  onClose={() => {
+                    setSearchCatOpen(false)
+                    searchCatRef.current?.querySelector<HTMLButtonElement>('.navbar__search-cat-trigger')?.focus()
+                  }}
+                />
               ) : null}
             </div> : null}
             <input

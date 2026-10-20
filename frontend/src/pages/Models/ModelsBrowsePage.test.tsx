@@ -37,8 +37,8 @@ const characterCategoryId = '4ac87021-da4e-4470-9ab9-b52772444655'
 const productId = 'a2e77f31-f244-4607-b7d6-b58e3ff6de11'
 
 const additionalBannerCategories = [
-  { id: '317196c0-823a-4d92-975a-2671432b1af9', name: 'Toys', slug: 'toys', banner: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp' },
-  { id: '7b53be05-f444-467c-90e4-be34b41008c3', name: 'Electronics', slug: 'electronics', banner: '/images/new%20banner%20image%20size/Electronics.webp' },
+  { id: '317196c0-823a-4d92-975a-2671432b1af9', name: 'Toys', slug: 'toys', banner: '/neww%20banner%20image/toy-sunlit-backdrop.png' },
+  { id: '7b53be05-f444-467c-90e4-be34b41008c3', name: 'Electronics', slug: 'electronics', banner: '/neww%20banner%20image/retro-tech-controller-popout-refined.png' },
   { id: 'd0ac9c7c-4226-43bd-b9d5-a89e320a7f7f', name: 'Household', slug: 'household', banner: '/images/new%20banner%20image%20size/Household.webp' },
   { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/images/new%20banner%20image%20size/Industrial.webp' },
   { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/images/new%20banner%20image%20size/3D%20Printing.webp' },
@@ -399,7 +399,7 @@ describe('ModelsBrowsePage', () => {
 
   it.each(additionalBannerCategories)(
     'uses the assigned banner for the $name category',
-    async ({ id, banner }) => {
+    async ({ id, banner, slug }) => {
       const { container } = renderModelsBrowsePage(`/3d-models?category=${id}`)
 
       await waitFor(() => {
@@ -408,6 +408,13 @@ describe('ModelsBrowsePage', () => {
           banner,
         )
       })
+      const popout = container.querySelector('.toys-banner__popout')
+      if (slug === 'toys') {
+        expect(popout).toHaveAttribute('aria-hidden', 'true')
+        expect(popout?.querySelector('img')).toHaveAttribute('src', '/neww%20banner%20image/toy-vehicles-trio.png')
+      } else {
+        expect(popout).not.toBeInTheDocument()
+      }
     },
   )
 
