@@ -1,3 +1,5 @@
+import '../styles/mobile-hero.css'
+
 export const SITE_HERO_IMAGE_SRC = '/images/site-hero-banner.webp?v=9'
 export const PLUGINS_HERO_IMAGE_SRC = '/images/Floating%20Plugin%20Interface%20Tiles.webp'
 export const MODELS_HERO_IMAGE_SRC = '/images/new%20size/3d-model.webp'

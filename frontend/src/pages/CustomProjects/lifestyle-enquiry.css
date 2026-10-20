@@ -45,6 +45,11 @@
 .lifestyle-form__grid--full { grid-column: 1 / -1; }
 .lifestyle-form__subhead { font-size: 0.95rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: #17243a; }
 .lifestyle-form__tip {margin: 0.75rem 0; padding: 0.6rem 0.8rem; border-radius: 8px; background: #fff8e6; color: #7a5a00; font-size: 0.9rem; line-height: 1.5; }
+.marketplace-enquiry__outputs { margin-bottom: 1.25rem; }
+.marketplace-enquiry__outputs .lifestyle-form__choices > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.6rem; }
+.marketplace-enquiry__outputs .lifestyle-form__choices label > span { display: flex; align-items: center; height: 100%; min-height: 3.5rem; box-sizing: border-box; border-radius: 8px; padding: 0.75rem; }
+@media (max-width: 900px) { .marketplace-enquiry__outputs .lifestyle-form__choices > div { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .marketplace-enquiry__outputs .lifestyle-form__choices > div { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .lifestyle-form__success { padding-block: 2rem; }
 .lifestyle-form__color-field { position: relative; }
 .lifestyle-form__color-field input[type=text] { padding-right: 3rem; }

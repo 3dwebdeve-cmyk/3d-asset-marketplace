@@ -8,10 +8,13 @@ import { ProductImagesEnquiryForm } from './ProductImagesEnquiryForm'
 import { ModelingEnquiryForm } from './ModelingEnquiryForm'
 import { PackagingEnquiryForm } from './PackagingEnquiryForm'
 import { AnimationEnquiryForm } from './AnimationEnquiryForm'
+import { FurnitureEnquiryForm } from './FurnitureEnquiryForm'
+import { MarketplaceEnquiryForm } from './MarketplaceEnquiryForm'
+import { CustomServiceEnquiryForm } from './CustomServiceEnquiryForm'
 
 
 
-type EnquiryForm = 'lifestyle' | 'product' | 'modeling' | 'packaging' | 'animation'
+type EnquiryForm = 'lifestyle' | 'product' | 'modeling' | 'packaging' | 'animation' | 'furniture' | 'marketplace' | 'custom'
 // Services that open a detailed enquiry form when selected.
 const ENQUIRY_FORMS: Partial<Record<string, EnquiryForm>> = {
   [SERVICES[0].title]: 'lifestyle',
@@ -19,6 +22,9 @@ const ENQUIRY_FORMS: Partial<Record<string, EnquiryForm>> = {
   [SERVICES[2].title]: 'modeling',
   [SERVICES[3].title]: 'packaging',
   [SERVICES[4].title]: 'animation',
+  [SERVICES[5].title]: 'furniture',
+  [SERVICES[6].title]: 'marketplace',
+  [SERVICES[7].title]: 'custom',
 }
 
 function ServiceVisual({ service }: { service: (typeof SERVICES)[number] }) {
@@ -45,6 +51,9 @@ export function CustomProjectServices({ onFormOpenChange }: { onFormOpenChange?:
   if (activeForm === 'modeling') return <ModelingEnquiryForm onBack={() => setOpenForm(null)} />
   if (activeForm === 'packaging') return <PackagingEnquiryForm onBack={() => setOpenForm(null)} />
   if (activeForm === 'animation') return <AnimationEnquiryForm onBack={() => setOpenForm(null)} />
+  if (activeForm === 'furniture') return <FurnitureEnquiryForm onBack={() => setOpenForm(null)} />
+  if (activeForm === 'marketplace') return <MarketplaceEnquiryForm onBack={() => setOpenForm(null)} />
+  if (activeForm === 'custom') return <CustomServiceEnquiryForm onBack={() => setOpenForm(null)} />
 
   return (
     <section className="project-services" aria-label="Select services for your custom project">
