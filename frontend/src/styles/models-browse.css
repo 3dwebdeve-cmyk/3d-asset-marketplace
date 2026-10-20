@@ -89,3 +89,117 @@
 .plugins-browse-hero--furniture .plugins-browse-hero__subtitle {
   max-width: min(52%, 42rem);
 }
+
+.models-browse .plugins-browse-hero--electronics {
+  --site-hero-overlay: linear-gradient(90deg,
+      rgba(18, 20, 19, 0.88) 0%,
+      rgba(18, 20, 19, 0.72) 65%,
+      transparent 100%);
+}
+
+.models-browse > .plugins-browse-hero--electronics .site-hero-banner__overlay {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 50rem);
+  justify-self: start;
+  border-radius: inherit;
+}
+
+/* Keep the scene and complete controller in one image so their edges stay aligned. */
+:root body .models-browse > .plugins-browse-hero--electronics.site-hero-banner {
+  aspect-ratio: 19 / 3;
+  max-height: 18rem;
+  container-type: inline-size;
+  overflow: visible;
+  clip-path: inset(0 0 -100% 0 round clamp(0.875rem, 1.5vw, 1.5rem));
+  background: transparent;
+  margin-bottom: max(0.5rem, 2.5vw);
+}
+
+:root body .models-browse > .plugins-browse-hero--electronics .site-hero-banner__image {
+  position: absolute;
+  top: auto;
+  left: 0;
+  /* The photo is clipped at y=600 in the 1673x940 asset; the handle reaches y=639. */
+  bottom: calc(-100cqw * 340 / 1673);
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0;
+  /* Below the photo edge, reveal only the controller, excluding the podiums. */
+  clip-path: polygon(0 0, 100% 0, 100% 63.829787%, 90% 63.829787%,
+      90% 100%, 78% 100%, 78% 63.829787%, 0 63.829787%);
+  pointer-events: none;
+}
+
+.models-browse .plugins-browse-hero--toys .plugins-browse-hero__title,
+.models-browse .plugins-browse-hero--toys .plugins-browse-hero__subtitle {
+  color: #fff;
+}
+
+/* Vehicles live entirely in one layer, so no wheel is split at the frame edge. */
+:root body .models-browse > .plugins-browse-hero--toys.site-hero-banner {
+  aspect-ratio: 19 / 3;
+  max-height: none;
+  overflow: visible;
+  margin-bottom: max(1rem, 3.5vw);
+}
+
+:root body .models-browse > .plugins-browse-hero--toys .site-hero-banner__image {
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: inherit;
+}
+
+.models-browse .plugins-browse-hero--toys .site-hero-banner__overlay {
+  border-radius: inherit;
+}
+
+:root body .models-browse > .plugins-browse-hero--toys .toys-banner__popout {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  align-self: stretch;
+  overflow: visible;
+  clip-path: inset(0 0 -100% 0);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.toys-banner__popout img {
+  position: absolute;
+  top: 50%;
+  right: 1.5%;
+  width: 58%;
+  height: auto;
+  max-width: none;
+  transform: translateY(-35%);
+  filter: drop-shadow(0 0.2vw 0.2vw rgba(0, 0, 0, 0.18));
+  display: block;
+}
+
+@media (min-width: 721px) {
+  .models-browse .plugins-browse-hero--toys .plugins-browse-hero__container {
+    width: 40%;
+    max-width: 40%;
+  }
+}
+
+@media (max-width: 720px) {
+  :root body .models-browse > .plugins-browse-hero--electronics::before {
+    width: 60%;
+    right: auto;
+    background: var(--site-hero-overlay);
+    border-radius: inherit;
+  }
+
+  :root body .models-browse > .plugins-browse-hero--toys.site-hero-banner {
+    border-radius: clamp(0.875rem, 1.5vw, 1.5rem);
+  }
+
+  :root body .models-browse > .plugins-browse-hero--toys::before {
+    border-radius: inherit;
+  }
+}
