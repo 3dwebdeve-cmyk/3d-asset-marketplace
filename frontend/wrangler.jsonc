@@ -13,25 +13,24 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
+    // Every page goes through the Worker, so unknown addresses answer 404 (worker/routes.ts) and
+    // catalog pages get their own title. Static file folders are served directly; anything missed
+    // here still works, it only costs a Worker request.
     "run_worker_first": [
-      "/api",
-      "/api/*",
-      "/robots.txt",
-      "/sitemap.xml",
-      "/",
-      "/3d-models",
-      "/3d-models/*",
-      "/plugins",
-      "/categories",
-      "/about",
-      "/contact",
-      "/custom-projects",
-      "/terms",
-      "/privacy",
-      "/products/*",
-      "/Products/*",
-      "/plugins/*",
-      "/Plugins/*"
+      "/*",
+      "!/assets/*",
+      "!/fonts/*",
+      "!/images/*",
+      "!/models/*",
+      "!/hdri/*",
+      "!/fixtures/*",
+      "!/banner image/*",
+      "!/catego image/*",
+      "!/custome project image/*",
+      "!/homepage images/*",
+      "!/neww banner image/*",
+      "!/favicon.svg",
+      "!/og-default.jpg"
     ]
   },
   "vars": {
