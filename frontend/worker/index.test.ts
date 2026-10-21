@@ -58,7 +58,8 @@ describe('Cloudflare API proxy', () => {
   })
 
   it('serves the same headers to static pages through the _headers file', () => {
-    // wrangler.jsonc runs the Worker only for /api, so pages get their headers from this file.
+    // Static files skip the Worker (wrangler.jsonc), and pages the Worker serves come from the
+    // asset binding, which applies this file too.
     const lines = readFileSync('public/_headers', 'utf-8').split(/\r?\n/)
     const start = lines.indexOf('/*')
     expect(start).toBeGreaterThanOrEqual(0)

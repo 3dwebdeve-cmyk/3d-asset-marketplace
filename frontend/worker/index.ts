@@ -14,6 +14,7 @@ import {
 import type { PublicPluginDetail } from '../src/types/plugin'
 import type { PublicProductDetail } from '../src/types/product'
 import { buildCategoryTitle, categoryPath, getCategorySeo } from '../src/lib/categorySeo'
+import { isKnownAppPath } from './routes'
 
 interface AssetsBinding {
   fetch(request: Request): Promise<Response>
@@ -273,11 +274,16 @@ async function resolvePageSeo(
   }
 
   const match = DETAIL_ROUTE.exec(path)
-  if (!match || !SLUG_PATTERN.test(match[2])) {
-    return undefined
+  if (!match) {
+    // An address the app has no page for: answer 404 so it is not indexed as a copy of the home page.
+    return isKnownAppPath(path) ? undefined : getNotFoundPageSeo('Page')
   }
 
   const kind = match[1].toLowerCase() as CatalogKind
+  if (!SLUG_PATTERN.test(match[2])) {
+    // No product or plugin can have this address.
+    return getNotFoundPageSeo(kind === 'products' ? 'Product' : 'Plugin')
+  }
   return resolveDetailSeo(kind, match[2], env, siteOrigin)
 }
 
@@ -291,8 +297,9 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
 
   const assetResponse = await env.ASSETS.fetch(request)
 
+  const isHead = request.method === 'HEAD'
   if (
-    request.method !== 'GET' ||
+    (request.method !== 'GET' && !isHead) ||
     !assetResponse.ok ||
     !isHtmlResponse(assetResponse) ||
     isLikelyAssetPath(url.pathname)
@@ -314,6 +321,10 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
   headers.delete('ETag')
   if (seo.robots) {
     headers.set('X-Robots-Tag', seo.robots)
+  }
+  // Link checkers and crawlers often ask with HEAD; they must see the same status as GET.
+  if (isHead) {
+    return withSecurityHeaders(new Response(null, { status: seo.status, headers }))
   }
 
   const html = renderSeoHead(await assetResponse.text(), seo, { origin: siteOrigin, path })

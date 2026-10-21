@@ -14,6 +14,10 @@ Primary public origin: `https://assethive3d.com`.
 ## Verify after deployment
 
 - View page source on `/`, `/3d-models`, `/custom-projects`, a populated category, a real product and a plugin: unique title and description, root-domain canonical and social URLs, valid JSON-LD. Check again after JavaScript runs.
+- Addresses that do not exist answer **404** with a noindex "not found" page: an unknown path
+  (`/nothing-here`), product, plugin or category. `curl -sI https://assethive3d.com/nothing-here`
+  shows `HTTP/2 404`. The Worker knows the app's pages from `frontend/worker/routes.ts`; when a
+  new page is added to `src/App.tsx`, add it there too (a test fails until you do).
 - `/robots.txt` should link to `https://assethive3d.com/sitemap.xml` and allow public crawling; private account and checkout paths remain excluded.
 - `/sitemap.xml` should return XML with only intended public catalog pages and the new hostname. Demo and empty categories are excluded by the backend.
 - Verify the social image at `/og-default.jpg`, actual product images, mobile layout, real product content and checkout on the new domain.
