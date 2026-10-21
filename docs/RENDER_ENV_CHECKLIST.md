@@ -14,7 +14,7 @@ or weak, so a gap shows up as a failed deploy; read the Render log for the exact
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | From the Render Postgres page |
 | `ALLOWED_HOSTS` | The Render host name |
 | `FRONTEND_BASE_URL` | The public site address (`https://...`), used in email links |
-| `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | The same public site address |
+| `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | Only the public site address (`https://...`, no trailing `/`). The site calls the API through its own address, so it needs no other entry: remove old test addresses (`*.workers.dev`, `*.pages.dev`, `localhost`) and the `www.` address, which only redirects |
 | `JWT_REFRESH_COOKIE_SECURE` | `True` |
 | `BREVO_API_KEY`, `DEFAULT_FROM_EMAIL` | Without a real email backend the app refuses to start. The sender must be verified in Brevo |
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_PAYMENT_MODE` | `test` until the company account is live |
