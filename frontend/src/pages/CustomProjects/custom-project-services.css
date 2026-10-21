@@ -82,7 +82,7 @@
 /* Checkbox stays in the DOM for keyboard and screen-reader users; the card border and focus ring show selection. */
 .project-services__card input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; overflow: hidden; }
 .project-services__visual { position: relative; display: grid; place-items: center; height: 200px; margin: 0 -1.25rem 1.1rem; background: #f1f6fd; border-radius: 15px 15px 0 0; overflow: hidden; }
-.project-services__visual img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
+.project-services__visual img, .project-services__visual video { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
 .project-services__model, .project-services__package { width: 104px; height: 100px; }
 .project-services__model { fill: none; stroke: #92999d; stroke-width: 1; stroke-linejoin: round; }
 .project-services__marketplace { position: relative; color: #080c10; font: bold 60px Georgia, serif; line-height: 1; padding-bottom: 14px; }

@@ -28,6 +28,12 @@ const ENQUIRY_FORMS: Partial<Record<string, EnquiryForm>> = {
 }
 
 function ServiceVisual({ service }: { service: (typeof SERVICES)[number] }) {
+  if ('video' in service && service.video) {
+    // A short silent loop (about a quarter of the size of the old GIF). Visitors who ask for less
+    // motion get the still picture instead of a moving one.
+    const still = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+    return <video src={service.video} poster={service.image} muted loop playsInline autoPlay={!still} preload={still ? 'none' : 'metadata'} aria-hidden="true" tabIndex={-1} />
+  }
   if (service.image) return <img src={service.image} alt="" loading="lazy" style={{ objectPosition: 'imagePosition' in service ? service.imagePosition : undefined, objectFit: 'imageFit' in service ? 'contain' : undefined }} />
   if (service.visual === 'marketplace') return <span className="project-services__marketplace" aria-hidden="true">a<svg viewBox="0 0 70 25"><path d="M8 7Q35 28 61 5M50 5l13-2-2 12" /></svg></span>
   if (service.visual === 'other') return <span className="project-services__dots" aria-hidden="true">•••</span>

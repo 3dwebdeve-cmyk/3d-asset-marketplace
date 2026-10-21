@@ -1,0 +1,56 @@
+# Static files: images, fonts, video and caching
+
+How the files the pages download are stored, cached and updated. The cache rules live in
+`frontend/public/_headers`; a test (`frontend/worker/index.test.ts`) checks them.
+
+## What the browser keeps, and for how long
+
+| Files | Rule | Why |
+|---|---|---|
+| `/assets/*` (the built JS and CSS) | 1 year, `immutable` | Their names carry a hash, so a changed file gets a new name. |
+| `/fonts/*` | 1 year, `immutable` | Never change under the same name (see "Fonts"). |
+| Images, `.glb`, `.hdr`, `.mp4` | 1 day, then a background refresh for up to a week | They keep their names when replaced. |
+| Pages (HTML) | Always check | A new release must show at once. |
+
+**Replacing an image under the same name** can show the old one to returning visitors for up to a
+day (a week in the background-refresh case). If it matters, give the new file a new name, or add a
+version to the address (`/images/contact-hero.webp?v=3`) and update the code that uses it.
+
+## Category card images
+
+Each local category image has two copies next to it, `name-640.webp` and `name-1000.webp`; the card
+picks the one it needs (`srcset`). The big original is not kept in the repo.
+
+1. Put the full-size WebP in `frontend/public/catego image/` (or `homepage images/aaa/` for
+   Household) and add it to `LOCAL_CATEGORY_IMAGES` in `src/components/categoryImages.ts`.
+2. From `frontend/`: `python scripts/make_category_image_sizes.py public` (needs Pillow).
+3. Delete the full-size file again. A test fails if either copy is missing.
+
+## Fonts
+
+Inter, Libre Baskerville, Plus Jakarta Sans and Poppins are served from `frontend/public/fonts/`
+(SIL Open Font License), with the rules in `src/styles/fonts.css`. Nothing is loaded from Google, and
+the security policy no longer lists Google's font servers.
+
+To change a font: fetch Google's `css2` stylesheet with a modern browser user agent, run
+`python scripts/self_host_fonts.py <google.css> public/fonts src/styles/fonts.css`, and **give the new
+files new names** (they are cached for a year).
+
+## Preloading the main picture
+
+A `Link: <...>; rel=preload; as=image` rule in `_headers` lets the browser start fetching a page's top
+picture before the JavaScript has run. It is set only for pages whose picture is under 100 KB. In a
+browser test on a slow connection the two largest pictures came out slower when fetched at high
+priority, so `/3d-models` and `/custom-projects` have none. The address must match the one the page
+asks for exactly; a test checks the files exist. Re-measure on the live site before adding more.
+
+## Video
+
+`custome project image/rolling-cubes.mp4` replaced a 425 KB animated GIF. It is silent, loops, has a
+poster image, and does not autoplay for visitors who ask for reduced motion. Make new ones with
+`ffmpeg -i in.gif -an -c:v libx264 -tune animation -pix_fmt yuv420p -crf 20 -movflags +faststart out.mp4`.
+
+## Checking a change locally
+
+`npm run build`, then `npx wrangler dev --local` serves `dist/` with the real `_headers` rules, so
+`curl -I http://127.0.0.1:8787/assets/<file>` shows the headers a browser would get.

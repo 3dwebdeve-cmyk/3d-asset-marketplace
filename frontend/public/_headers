@@ -8,4 +8,54 @@
   Referrer-Policy: same-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https://accounts.google.com https://*.googleapis.com https://*.sentry.io https://*.ingest.sentry.io https://pub-a20fb6d206fc47a1b1e5e247e82838e0.r2.dev https://0d3f756f61c3239ec77f9941c82c20c3.r2.cloudflarestorage.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/v1/security/csp-report/
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https://accounts.google.com https://*.googleapis.com https://*.sentry.io https://*.ingest.sentry.io https://pub-a20fb6d206fc47a1b1e5e247e82838e0.r2.dev https://0d3f756f61c3239ec77f9941c82c20c3.r2.cloudflarestorage.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/v1/security/csp-report/
+
+# ---- Caching -------------------------------------------------------------------------------
+# Pages (HTML) keep Cloudflare's default "always check", so a new release shows at once.
+# Everything below is a file the page asks for. These rules only ADD a Cache-Control header;
+# the security headers above still apply to every URL.
+
+# Build files carry a hash in their name (index-Ce8yIk7f.js): a changed file gets a new name,
+# so the old one can be kept for a year and never re-checked.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Self-hosted fonts (see src/styles/fonts.css). To update a font, give the file a new name.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Images, 3D models and the like keep their names when replaced, so keep them for a day and let
+# a browser show the old copy for up to a week while it fetches the new one in the background.
+/*.webp
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.jpg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.gif
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.svg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.glb
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.hdr
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/*.mp4
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# ---- Preload -------------------------------------------------------------------------------
+# The big picture at the top of a page is otherwise only found after the JavaScript has run, which
+# on a slow phone is seconds later. A Link header lets the browser start fetching it as soon as the
+# page's headers arrive. The address must match the one the page asks for exactly (a test checks the
+# files exist).
+# Only pictures under 100 KB are listed. On a slow connection a big picture fetched at high priority
+# competes with the page's own JavaScript, and in a browser test the two largest ones (/3d-models,
+# 177 KB, and /custom-projects, 134 KB) came out slower with it, so they are left out on purpose.
+/
+  Link: </images/website-banner-1919x510.webp>; rel=preload; as=image; fetchpriority=high
+/plugins
+  Link: </images/Floating%20Plugin%20Interface%20Tiles.webp>; rel=preload; as=image; fetchpriority=high
+/about
+  Link: </images/new%20size/contact-page.webp>; rel=preload; as=image; fetchpriority=high
+/contact
+  Link: </images/contact-hero.webp?v=2>; rel=preload; as=image; fetchpriority=high
