@@ -14,29 +14,34 @@ from mail_log.models import OutboundEmailLog
 from payments.models import IdempotencyRecord
 
 
-def _database_cache_table() -> str | None:
+# The database cache table (CACHES["default"]["LOCATION"] in settings). Spelled out in the SQL
+# below so no query text is ever assembled from a variable.
+CACHE_TABLE = "marketplace_cache"
+
+
+def _uses_database_cache_table() -> bool:
     cache = settings.CACHES.get("default", {})
-    if cache.get("BACKEND") != "django.core.cache.backends.db.DatabaseCache":
-        return None
-    return cache["LOCATION"]
+    return (
+        cache.get("BACKEND") == "django.core.cache.backends.db.DatabaseCache"
+        and cache.get("LOCATION") == CACHE_TABLE
+    )
 
 
 class _ExpiredCacheRows:
     """Expired rows of the database cache. Django only removes them once the table is full,
     and until then it counts the whole table on every cache write (each rate-limited request)."""
 
-    def __init__(self, table: str, now):
-        self.table = connection.ops.quote_name(table)
+    def __init__(self, now):
         self.now = now
 
     def count(self) -> int:
         with connection.cursor() as cursor:
-            cursor.execute(f"SELECT COUNT(*) FROM {self.table} WHERE expires < %s", [self.now])
+            cursor.execute("SELECT COUNT(*) FROM marketplace_cache WHERE expires < %s", [self.now])
             return cursor.fetchone()[0]
 
     def delete(self) -> None:
         with connection.cursor() as cursor:
-            cursor.execute(f"DELETE FROM {self.table} WHERE expires < %s", [self.now])
+            cursor.execute("DELETE FROM marketplace_cache WHERE expires < %s", [self.now])
 
 
 class Command(BaseCommand):
@@ -62,9 +67,8 @@ class Command(BaseCommand):
             "aged_activity_logs": ActivityLog.objects.filter(created_at__lt=now - timedelta(days=activity_days)),
             "aged_mail_logs": OutboundEmailLog.objects.filter(created_at__lt=now - timedelta(days=mail_days)),
         }
-        cache_table = _database_cache_table()
-        if cache_table:
-            targets["expired_cache_entries"] = _ExpiredCacheRows(cache_table, now)
+        if _uses_database_cache_table():
+            targets["expired_cache_entries"] = _ExpiredCacheRows(now)
         counts = {name: rows.count() for name, rows in targets.items()}
         self.stdout.write(" ".join(f"{name}={count}" for name, count in counts.items()))
         self.stdout.write(f"execute={options['execute']}")

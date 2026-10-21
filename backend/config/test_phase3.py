@@ -99,10 +99,10 @@ class RetentionTests(TestCase):
         OutboundEmailLog.objects.filter(pk=mail.pk).update(created_at=past)
         cache.set("phase3-expired", 1, timeout=60)
         cache.set("phase3-live", 1, timeout=3600)
-        cache_table = connection.ops.quote_name(settings.CACHES["default"]["LOCATION"])
+        self.assertEqual(settings.CACHES["default"]["LOCATION"], "marketplace_cache")
         with connection.cursor() as cursor:
             cursor.execute(
-                f"UPDATE {cache_table} SET expires = %s WHERE cache_key LIKE %s", [past, "%phase3-expired"]
+                "UPDATE marketplace_cache SET expires = %s WHERE cache_key LIKE %s", [past, "%phase3-expired"]
             )
         call_command("prune_expired_records", stdout=StringIO())
         self.assertTrue(IdempotencyRecord.objects.filter(key="phase3-old").exists())
@@ -114,7 +114,7 @@ class RetentionTests(TestCase):
         self.assertFalse(ActivityLog.objects.filter(pk=log.pk).exists())
         self.assertFalse(OutboundEmailLog.objects.filter(pk=mail.pk).exists())
         with connection.cursor() as cursor:
-            cursor.execute(f"SELECT cache_key FROM {cache_table}")
+            cursor.execute("SELECT cache_key FROM marketplace_cache")
             keys = [row[0] for row in cursor.fetchall()]
         self.assertFalse(any(key.endswith("phase3-expired") for key in keys))
         self.assertTrue(any(key.endswith("phase3-live") for key in keys))
