@@ -1,10 +1,54 @@
-import { useEffect, useId, useRef } from 'react'
+import { Suspense, use, useEffect, useId, useRef, type RefObject } from 'react'
 
 import { trapFocusKeyDown } from '../../lib/focusTrap'
 import { useCartUiStore } from '../../store/cartUiStore'
-import { useAuthUiStore } from '../../store/authUiStore'
-import { AuthLoginPanel } from './AuthLoginPanel'
-import { AuthRegisterPanel } from './AuthRegisterPanel'
+import { useAuthUiStore, type AuthUiMode } from '../../store/authUiStore'
+import { ErrorBoundary } from '../ErrorBoundary'
+import { Button } from '../ui/Button'
+import { Spinner } from '../ui/Spinner'
+import { loadAuthPanels, loadedAuthPanels } from './loadAuthPanels'
+
+function focusFirstField(dialog: HTMLElement | null) {
+  const firstField = dialog?.querySelector<HTMLElement>('input:not([type="hidden"]), button, textarea, select')
+  ;(firstField ?? dialog)?.focus()
+}
+
+interface AuthDialogProps {
+  mode: AuthUiMode
+  dialogRef: RefObject<HTMLElement | null>
+}
+
+function AuthDialog({ mode, dialogRef }: AuthDialogProps) {
+  // The forms are downloaded on first use (see loadAuthPanels.ts). Until they arrive the modal shows
+  // only the backdrop and a spinner, so the card never opens small and then grows.
+  const { AuthLoginPanel, AuthRegisterPanel } = loadedAuthPanels() ?? use(loadAuthPanels())
+  const titleId = useId()
+  const panelTitleId = mode === 'login' ? `${titleId}-login` : `${titleId}-register`
+
+  useEffect(() => {
+    // Runs once the form is on screen, also when it arrived after the modal opened.
+    const focusTimer = window.setTimeout(() => focusFirstField(dialogRef.current), 0)
+    return () => window.clearTimeout(focusTimer)
+  }, [dialogRef, mode])
+
+  return (
+    <section
+      ref={dialogRef}
+      className="auth-card auth-card--market auth-modal__panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={panelTitleId}
+      tabIndex={-1}
+      data-testid="customer-auth-dialog"
+    >
+      {mode === 'login' ? (
+        <AuthLoginPanel titleId={panelTitleId} />
+      ) : (
+        <AuthRegisterPanel titleId={panelTitleId} />
+      )}
+    </section>
+  )
+}
 
 export function AuthModal() {
   const isOpen = useAuthUiStore((state) => state.isOpen)
@@ -13,7 +57,6 @@ export function AuthModal() {
   const closeCartDrawer = useCartUiStore((state) => state.closeDrawer)
   const dialogRef = useRef<HTMLElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
-  const titleId = useId()
 
   useEffect(() => {
     if (!isOpen) {
@@ -25,13 +68,6 @@ export function AuthModal() {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
 
-    const focusTimer = window.setTimeout(() => {
-      const firstField = dialogRef.current?.querySelector<HTMLElement>(
-        'input:not([type="hidden"]), button, textarea, select',
-      )
-      firstField?.focus()
-    }, 0)
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         closeAuthModal()
@@ -41,13 +77,15 @@ export function AuthModal() {
       const dialog = dialogRef.current
       if (dialog) {
         trapFocusKeyDown(event, dialog)
+      } else if (event.key === 'Tab') {
+        // The form is still downloading: keep focus from moving to the page behind the modal.
+        event.preventDefault()
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      window.clearTimeout(focusTimer)
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', handleKeyDown)
       previousFocusRef.current?.focus()
@@ -58,8 +96,6 @@ export function AuthModal() {
     return null
   }
 
-  const panelTitleId = mode === 'login' ? `${titleId}-login` : `${titleId}-register`
-
   return (
     <div className="auth-modal" role="presentation">
       <button
@@ -68,20 +104,24 @@ export function AuthModal() {
         aria-label="Close sign in dialog"
         onClick={closeAuthModal}
       />
-      <section
-        ref={dialogRef}
-        className="auth-card auth-card--market auth-modal__panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={panelTitleId}
-        data-testid="customer-auth-dialog"
-      >
-        {mode === 'login' ? (
-          <AuthLoginPanel titleId={panelTitleId} />
-        ) : (
-          <AuthRegisterPanel titleId={panelTitleId} />
+      <ErrorBoundary
+        fallback={(retry) => (
+          <div className="auth-modal__status" role="alert">
+            <p>Sign in could not be loaded. Check your connection and try again.</p>
+            <Button onClick={retry}>Try again</Button>
+          </div>
         )}
-      </section>
+      >
+        <Suspense
+          fallback={
+            <div className="auth-modal__status">
+              <Spinner label="Loading sign in" />
+            </div>
+          }
+        >
+          <AuthDialog mode={mode} dialogRef={dialogRef} />
+        </Suspense>
+      </ErrorBoundary>
     </div>
   )
 }

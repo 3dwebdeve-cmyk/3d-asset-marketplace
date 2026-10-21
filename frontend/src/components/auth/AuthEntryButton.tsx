@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { useAuthUiStore, type AuthUiMode } from '../../store/authUiStore'
+import { preloadAuthPanels } from './loadAuthPanels'
 
 interface AuthEntryButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   mode: AuthUiMode
@@ -15,6 +16,9 @@ export function AuthEntryButton({
   children,
   type = 'button',
   onClick,
+  onPointerEnter,
+  onFocus,
+  onTouchStart,
   ...rest
 }: AuthEntryButtonProps) {
   const location = useLocation()
@@ -24,6 +28,19 @@ export function AuthEntryButton({
     <button
       type={type}
       {...rest}
+      // Start downloading the sign-in forms as soon as the visitor heads for the button.
+      onPointerEnter={(event) => {
+        preloadAuthPanels()
+        onPointerEnter?.(event)
+      }}
+      onFocus={(event) => {
+        preloadAuthPanels()
+        onFocus?.(event)
+      }}
+      onTouchStart={(event) => {
+        preloadAuthPanels()
+        onTouchStart?.(event)
+      }}
       onClick={(event) => {
         onClick?.(event)
         if (event.defaultPrevented) {
