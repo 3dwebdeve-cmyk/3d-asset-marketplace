@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import * as Sentry from '@sentry/react'
+import { captureReactException } from '../lib/sentry'
 
 import { Button } from './ui/Button'
 import { ErrorState } from './ui/ErrorState'
@@ -7,7 +7,8 @@ import { logger } from '../lib/logger'
 
 interface ErrorBoundaryProps {
   children: ReactNode
-  fallback?: ReactNode
+  /** What to show instead; a function also gets a callback that tries rendering the children again. */
+  fallback?: ReactNode | ((retry: () => void) => ReactNode)
 }
 
 interface ErrorBoundaryState {
@@ -25,7 +26,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     // captureReactException preserves the React component stack in Sentry.
-    Sentry.captureReactException(error, info)
+    captureReactException(error, info)
     if (import.meta.env.DEV) {
       logger.error('Unhandled UI error', {
         message: error.message,
@@ -41,6 +42,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render(): ReactNode {
     if (!this.state.hasError) {
       return this.props.children
+    }
+
+    if (typeof this.props.fallback === 'function') {
+      return this.props.fallback(this.handleReset)
     }
 
     if (this.props.fallback) {

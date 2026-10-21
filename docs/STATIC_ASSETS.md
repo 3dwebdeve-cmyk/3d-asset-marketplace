@@ -44,6 +44,11 @@ browser test on a slow connection the two largest pictures came out slower when 
 priority, so `/3d-models` and `/custom-projects` have none. The address must match the one the page
 asks for exactly; a test checks the files exist. Re-measure on the live site before adding more.
 
+Fonts can be preloaded the same way (several preloads go on one `Link` line, separated by `, `; a
+font needs `as=font; type="font/woff2"; crossorigin`). Poppins is preloaded for every page in
+`index.html`; Libre Baskerville, used only by the home page title, only on `/` in `_headers`. Without
+them the titles re-flowed when the font arrived and pushed the page down.
+
 ## Video
 
 `custome project image/rolling-cubes.mp4` replaced a 425 KB animated GIF. It is silent, loops, has a

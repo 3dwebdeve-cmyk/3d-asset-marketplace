@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { listPublicCategories } from '../../api/categoriesApi'
+import { firstCategoriesPageQuery } from '../../hooks/useAllCategories'
 import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
@@ -79,11 +79,7 @@ export function ModelsBrowsePage() {
   // Old links used ?category=<id>. They keep working and are redirected to the readable address.
   const legacyCategory = searchParams.get('category')?.trim() ?? ''
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ['public-categories-list', { page_size: 100 }],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
-  })
+  const { data: categoriesData } = useQuery(firstCategoriesPageQuery)
   const urlCategory = useMemo(() => {
     const list = categoriesData?.results
     if (!list) return null

@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { logoutUser } from '../api/authApi'
 import { getCart } from '../api/cartApi'
-import { listPublicCategories } from '../api/categoriesApi'
+import { firstCategoriesPageQuery } from '../hooks/useAllCategories'
 import { AuthEntryButton } from './auth/AuthEntryButton'
 import { CategoryMenu } from './CategoryMenu'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
@@ -188,11 +188,7 @@ export function Navbar() {
     }
   }, [searchCatOpen])
 
-  const productCategoriesQuery = useQuery({
-    queryKey: ['public-categories-list', { page_size: 100 }],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
-  })
+  const productCategoriesQuery = useQuery(firstCategoriesPageQuery)
 
   // The navbar is universal: its category menu always represents the 3D model
   // catalog, even while the customer is browsing another section such as Plugins.

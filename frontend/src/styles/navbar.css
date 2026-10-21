@@ -6,6 +6,14 @@
   width: 100%;
 }
 
+/* Give the page content at least one screen of height, so the benefits banner and footer start
+   below the fold even while a page is still loading. Without it they show high up the screen and
+   are then pushed down 450-575 px when the content arrives, which is most of the layout shift on
+   the public pages. Dashboard and admin pages have their own full-height layouts. */
+.app-shell:not(.app-shell--dashboard) {
+  min-height: 100svh;
+}
+
 .navbar {
   position: sticky;
   top: 0;

@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const captureReactException = vi.hoisted(() => vi.fn())
 
-vi.mock('@sentry/react', () => ({
+vi.mock('../lib/sentry', () => ({
   captureReactException,
+  reportClientError: vi.fn(),
 }))
 
 import { ErrorBoundary } from './ErrorBoundary'
@@ -54,5 +55,24 @@ describe('ErrorBoundary', () => {
     )
 
     expect(screen.getByText('Custom fallback')).toBeInTheDocument()
+  })
+
+  it('lets a fallback function render the children again', () => {
+    let shouldThrow = true
+    function SometimesBoom() {
+      if (shouldThrow) throw new Error('Boom')
+      return <div>Recovered</div>
+    }
+
+    render(
+      <ErrorBoundary fallback={(retry) => <button onClick={retry}>Retry</button>}>
+        <SometimesBoom />
+      </ErrorBoundary>,
+    )
+
+    shouldThrow = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(screen.getByText('Recovered')).toBeInTheDocument()
   })
 })
