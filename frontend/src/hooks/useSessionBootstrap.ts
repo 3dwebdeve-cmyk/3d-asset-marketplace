@@ -46,10 +46,14 @@ export function useSessionBootstrap(): boolean {
   const restoreAccess = useAuthStore((state) => state.restoreAccess)
   const setUser = useAuthStore((state) => state.setUser)
   const clearSession = useAuthStore((state) => state.clearSession)
+  const setSessionHint = useAuthStore((state) => state.setSessionHint)
 
-  const [cookieProbeDone, setCookieProbeDone] = useState(
-    () => Boolean(useAuthStore.getState().accessToken),
-  )
+  // Nobody has signed in on this browser: there is no refresh cookie to find, so skip the
+  // probe (it would only be a failing request that shows as an error in the console).
+  const [cookieProbeDone, setCookieProbeDone] = useState(() => {
+    const { accessToken: current, sessionHint } = useAuthStore.getState()
+    return Boolean(current) || !sessionHint
+  })
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
@@ -65,6 +69,9 @@ export function useSessionBootstrap(): boolean {
         restoreAccess(access)
       }
       if (!cancelled) {
+        if (!access) {
+          setSessionHint(false)
+        }
         setCookieProbeDone(true)
       }
     })()
@@ -72,7 +79,7 @@ export function useSessionBootstrap(): boolean {
     return () => {
       cancelled = true
     }
-  }, [cookieProbeDone, restoreAccess])
+  }, [cookieProbeDone, restoreAccess, setSessionHint])
 
   const hasToken = Boolean(accessToken)
   const meEnabled = cookieProbeDone && hasToken
