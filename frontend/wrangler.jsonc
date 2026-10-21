@@ -4,6 +4,11 @@
   "main": "./worker/index.ts",
   "compatibility_date": "2026-10-06",
   "keep_vars": true,
+  // The shop lives on its own domain (a Custom Domain set in the dashboard). Without this, every
+  // deploy switches the <name>.<subdomain>.workers.dev address back on: a full second copy of the
+  // shop and API outside the domain's Cloudflare rules. Preview links of new versions stay on.
+  "workers_dev": false,
+  "preview_urls": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

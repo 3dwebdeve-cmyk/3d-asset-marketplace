@@ -128,6 +128,13 @@ describe('Cloudflare API proxy', () => {
     })
   })
 
+  it('keeps the workers.dev copy of the shop switched off on every deploy', () => {
+    const lines = readFileSync('wrangler.jsonc', 'utf-8').split(/\r?\n/)
+    const config = JSON.parse(lines.filter((line) => !line.trim().startsWith('//')).join('\n'))
+    expect(config.workers_dev).toBe(false)
+    expect(config.preview_urls).toBe(true)
+  })
+
   it('no longer depends on Google Fonts (the fonts are served from /fonts)', () => {
     const policy = SECURITY_HEADERS['Content-Security-Policy']
     expect(policy).not.toContain('fonts.googleapis.com')
