@@ -1,6 +1,7 @@
 # Stripe Sandbox Checklist
 
-Use Stripe **test mode** on local and staging. Live keys are a separate go-live decision.
+Use Stripe **test mode** on local and staging. Live keys are a separate go-live decision:
+see `STRIPE_LIVE_CHECKLIST.md`.
 
 ## Keys and webhook
 

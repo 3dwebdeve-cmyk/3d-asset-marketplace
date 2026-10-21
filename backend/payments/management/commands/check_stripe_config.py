@@ -11,7 +11,8 @@ from payments.stripe_smoke import StripeSmokeError, run_sandbox_fulfill_smoke
 class Command(BaseCommand):
     help = (
         "Print Stripe key/webhook readiness without exposing secrets. "
-        "Pass --require-test-mode for sandbox (sk_test_ / whsec_). "
+        "Pass --require-test-mode for sandbox (sk_test_ / whsec_), or "
+        "--require-live-mode before taking real payments. "
         "Pass --fail-on-warnings to exit 1 on launch-blocking issues. "
         "Pass --ping to call Stripe Balance.retrieve with the configured secret. "
         "Pass --smoke-fulfill for signed webhook fulfill + idempotent replay "
@@ -25,6 +26,14 @@ class Command(BaseCommand):
             help=(
                 "Fail/warn when live keys are set or sandbox keys/webhook secret "
                 "are missing (Phase B1 — docs/STRIPE_SANDBOX_CHECKLIST.md)."
+            ),
+        )
+        parser.add_argument(
+            "--require-live-mode",
+            action="store_true",
+            help=(
+                "Fail/warn unless STRIPE_PAYMENT_MODE=live with sk_live_ / pk_live_ "
+                "keys and a whsec_ secret (docs/STRIPE_LIVE_CHECKLIST.md)."
             ),
         )
         parser.add_argument(
@@ -62,13 +71,22 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options) -> None:
         require_test = bool(options.get("require_test_mode"))
+        require_live = bool(options.get("require_live_mode"))
         smoke = bool(options.get("smoke_fulfill"))
         if smoke:
+            if require_live:
+                raise CommandError("--smoke-fulfill runs in test mode only; drop --require-live-mode.")
             require_test = True
+        if require_test and require_live:
+            raise CommandError("Pass either --require-test-mode or --require-live-mode, not both.")
 
-        report = collect_stripe_config_report(require_test_mode=require_test)
+        report = collect_stripe_config_report(
+            require_test_mode=require_test,
+            require_live_mode=require_live,
+        )
 
         self.stdout.write(f"DEBUG={report.debug}")
+        self.stdout.write(f"STRIPE_PAYMENT_MODE={report.payment_mode}")
         self.stdout.write(f"STRIPE_SECRET_KEY_mode={report.secret_mode}")
         self.stdout.write(f"STRIPE_PUBLISHABLE_KEY_mode={report.publishable_mode}")
         self.stdout.write(f"STRIPE_WEBHOOK_SECRET_set={report.webhook_secret_set}")
@@ -80,11 +98,12 @@ class Command(BaseCommand):
         self.stdout.write(
             "webhook_event_types=" + ",".join(report.event_types)
         )
-        self.stdout.write(
-            "Sandbox steps: docs/STRIPE_SANDBOX_CHECKLIST.md - "
-            "stripe listen --forward-to localhost:8000"
-            f"{report.webhook_path}"
-        )
+        if not require_live:
+            self.stdout.write(
+                "Sandbox steps: docs/STRIPE_SANDBOX_CHECKLIST.md - "
+                "stripe listen --forward-to localhost:8000"
+                f"{report.webhook_path}"
+            )
 
         if options.get("ping"):
             if report.secret_mode == "empty":
@@ -98,6 +117,10 @@ class Command(BaseCommand):
                 raise CommandError(
                     f"Stripe Balance.retrieve failed: {exc}"
                 ) from exc
+            if require_live and mode != "live":
+                raise CommandError(
+                    f"Stripe answered in {mode} mode; --require-live-mode needs the live secret key."
+                )
             self.stdout.write(
                 self.style.SUCCESS(f"Stripe API ping OK (livemode={mode}).")
             )
@@ -108,7 +131,12 @@ class Command(BaseCommand):
             if options["fail_on_warnings"] or smoke:
                 raise CommandError(
                     f"Stripe config has {len(report.warnings)} issue(s). "
-                    "See messages above and docs/STRIPE_SANDBOX_CHECKLIST.md."
+                    "See messages above and "
+                    + (
+                        "docs/STRIPE_LIVE_CHECKLIST.md."
+                        if require_live
+                        else "docs/STRIPE_SANDBOX_CHECKLIST.md."
+                    )
                 )
             self.stdout.write(
                 self.style.WARNING(
@@ -143,6 +171,14 @@ class Command(BaseCommand):
                 "Optional browser card checkout remains in "
                 "docs/STRIPE_SANDBOX_CHECKLIST.md section 3."
             )
+            return
+
+        if require_live:
+            if not report.warnings:
+                self.stdout.write(
+                    "Operator: make one real purchase and refund it "
+                    "(docs/STRIPE_LIVE_CHECKLIST.md)."
+                )
             return
 
         if not report.warnings:

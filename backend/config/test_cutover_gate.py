@@ -168,6 +168,7 @@ class CutoverGateStagingTests(TestCase):
 
 
 @override_settings(
+    STRIPE_PAYMENT_MODE="live",
     STRIPE_SECRET_KEY="sk_live_cutover_unit",
     STRIPE_PUBLISHABLE_KEY="pk_live_cutover_unit",
     STRIPE_WEBHOOK_SECRET="whsec_cutover_live_unit",
