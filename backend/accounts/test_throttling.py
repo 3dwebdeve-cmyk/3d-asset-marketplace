@@ -222,3 +222,48 @@ class LoginLockoutAPITests(APITestCase):
             self._login(self.password, "203.0.113.30").status_code,
             status.HTTP_200_OK,
         )
+
+
+class GlobalRateThrottleTests(APITestCase):
+    """Each request meets exactly one global limit: ``anon`` by IP, or ``user`` once signed in."""
+
+    def setUp(self) -> None:
+        cache.clear()
+        self.user = User.objects.create_user(
+            email="global-throttle@example.com",
+            full_name="Global Throttle",
+            password="StrongPass123!",
+            role=Role.objects.get(role_name="Customer"),
+            country="India",
+            email_verified=True,
+        )
+
+    def test_anonymous_limit_is_the_stricter_one(self) -> None:
+        # Skipping the user limit for anonymous callers is only safe while anon is stricter.
+        from django.conf import settings
+        from rest_framework.throttling import SimpleRateThrottle
+
+        rates = settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]
+        parse = SimpleRateThrottle.parse_rate
+        anon_count, anon_seconds = parse(None, rates["anon"])
+        user_count, user_seconds = parse(None, rates["user"])
+        self.assertLessEqual(anon_count / anon_seconds, user_count / user_seconds)
+
+    def test_anonymous_request_records_only_the_anon_counter(self) -> None:
+        response = self.client.get(reverse("categories:category-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(cache.get("throttle_anon_127.0.0.1"))
+        self.assertIsNone(cache.get("throttle_user_127.0.0.1"))
+
+    def test_signed_in_request_records_only_the_user_counter(self) -> None:
+        self.client.force_authenticate(self.user)
+        response = self.client.get(reverse("categories:category-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(cache.get("throttle_anon_127.0.0.1"))
+        self.assertIsNotNone(cache.get(f"throttle_user_{self.user.pk}"))
+
+    @patch("rest_framework.throttling.AnonRateThrottle.rate", "1/min", create=True)
+    def test_anonymous_callers_are_still_limited(self) -> None:
+        url = reverse("categories:category-list")
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_429_TOO_MANY_REQUESTS)

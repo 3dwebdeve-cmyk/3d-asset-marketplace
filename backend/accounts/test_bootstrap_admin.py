@@ -86,7 +86,28 @@ class BootstrapAdministratorTests(TestCase):
         self.assertNotIn(STRONG, _run())
 
 
+@override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "loop-tests"}})
 class MaintenanceLoopTests(SimpleTestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def test_sends_the_report_once_a_day_across_restarts(self):
+        with patch.object(run_maintenance_loop, "call_command"), \
+             patch("config.ops_report.send_daily_report") as report:
+            run_maintenance_loop.run_once()
+            run_maintenance_loop.run_once()
+        report.assert_called_once()
+
+    def test_a_report_that_could_not_be_sent_is_tried_again(self):
+        with patch.object(run_maintenance_loop, "call_command"), \
+             patch("config.ops_report.send_daily_report", side_effect=[OSError("down"), None]) as report, \
+             self.assertLogs(run_maintenance_loop.logger, level="ERROR"):
+            run_maintenance_loop.run_once()
+            run_maintenance_loop.run_once()
+        self.assertEqual(report.call_count, 2)
+
     def test_runs_every_task_even_when_one_fails(self):
         called = []
 
@@ -96,8 +117,12 @@ class MaintenanceLoopTests(SimpleTestCase):
                 raise RuntimeError("boom with details")
 
         with patch.object(run_maintenance_loop, "call_command", side_effect=fake), \
+             patch("config.ops_report.send_daily_report") as report, \
              self.assertLogs(run_maintenance_loop.logger, level="ERROR") as logs:
             results = run_maintenance_loop.run_once()
+
+        # The daily report hears about every task, including the failed one.
+        report.assert_called_once_with(results)
 
         self.assertEqual(called, ["prune_expired_records", "manage_background_jobs", "check_payment_reconciliation"])
         self.assertEqual(results["manage_background_jobs"], False)
@@ -106,6 +131,15 @@ class MaintenanceLoopTests(SimpleTestCase):
         # Only the task name and exception type are logged, never the message.
         self.assertIn("task=manage_background_jobs error=RuntimeError", logs.output[0])
         self.assertNotIn("boom with details", logs.output[0])
+
+    def test_a_failing_report_does_not_stop_the_loop(self):
+        with patch.object(run_maintenance_loop, "call_command"), \
+             patch("config.ops_report.send_daily_report", side_effect=OSError("smtp down")), \
+             self.assertLogs(run_maintenance_loop.logger, level="ERROR") as logs:
+            results = run_maintenance_loop.run_once()
+
+        self.assertTrue(all(results.values()))
+        self.assertIn("daily_report_failed error=OSError", logs.output[0])
 
     @override_settings(STRIPE_PAYMENT_MODE="test")
     def test_stripe_comparison_stays_off_for_a_test_account(self):

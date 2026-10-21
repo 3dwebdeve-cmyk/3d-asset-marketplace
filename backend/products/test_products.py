@@ -88,6 +88,12 @@ class ProductPublicAPITests(APITestCase):
         self.assertEqual(second.status_code, status.HTTP_304_NOT_MODIFIED)
         self.assertEqual(second.get("ETag"), first.get("ETag"))
 
+        # Browsers send back the weak form that compression produces, sometimes in a list.
+        weak = self.client.get(self.list_url, HTTP_IF_NONE_MATCH=f'"other", W/{first["ETag"]}')
+        self.assertEqual(weak.status_code, status.HTTP_304_NOT_MODIFIED)
+        stale = self.client.get(self.list_url, HTTP_IF_NONE_MATCH='W/"other"')
+        self.assertEqual(stale.status_code, status.HTTP_200_OK)
+
     def test_list_returns_only_published_products(self) -> None:
         response = self.client.get(self.list_url)
 

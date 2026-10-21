@@ -42,11 +42,40 @@ def run_once() -> dict[str, bool]:
             # Name and exception type only; messages can carry record details.
             logger.error("maintenance_task_failed task=%s error=%s", name, type(exc).__name__)
             results[name] = False
+    close_old_connections()
+    send_report_once_a_day(results)
     return results
 
 
+# Render's free plan sleeps when idle and restarts this loop on every wake-up; the marker lives in
+# the database cache, so the team still gets one report a day, not one per restart.
+REPORT_MARKER = "ops_report:sent"
+REPORT_MIN_GAP_SECONDS = 20 * 3600
+
+
+def send_report_once_a_day(results: dict[str, bool]) -> None:
+    try:
+        # Without Sentry this email is how the team hears about a failed task.
+        from django.core.cache import cache
+
+        from config.ops_report import send_daily_report
+
+        if not cache.add(REPORT_MARKER, "1", timeout=REPORT_MIN_GAP_SECONDS):
+            return
+        try:
+            send_daily_report(results)
+        except Exception:
+            cache.delete(REPORT_MARKER)  # try again on the next run
+            raise
+    except Exception as exc:  # noqa: BLE001 - the report must never stop the loop
+        logger.error("daily_report_failed error=%s", type(exc).__name__)
+
+
 class Command(BaseCommand):
-    help = "Run daily maintenance forever: prune old records, check payments, reconcile with Stripe."
+    help = (
+        "Run daily maintenance forever: prune old records, check payments, reconcile with Stripe, "
+        "then email the daily health report."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument("--once", action="store_true", help="Run every task once and exit.")

@@ -135,7 +135,7 @@ export function getPluginPageSeo(plugin: PublicPluginDetail, siteOrigin: string)
 }
 
 /** Unknown or unpublished catalog items answer 404 so search engines drop them. */
-export function getNotFoundPageSeo(kind: 'Product' | 'Plugin'): PageSeo {
+export function getNotFoundPageSeo(kind: 'Product' | 'Plugin' | 'Page'): PageSeo {
   return {
     title: `${kind} not found | ${SITE_NAME}`,
     description: `The requested ${kind.toLowerCase()} could not be found.`,

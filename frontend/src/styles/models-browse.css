@@ -82,12 +82,172 @@
 .model-filters__prices { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-secondary); }
 .model-filters__clear { display: flex; align-items: center; justify-content: center; gap: 0.3rem; width: 100%; min-height: 2rem; border: 1px solid var(--action-color); border-radius: 0.3rem; background: white; color: var(--action-color); font: inherit; font-size: 0.7rem; cursor: pointer; }
 .model-filters__clear:hover { background: color-mix(in srgb, var(--action-color) 5%, white); }
-.plugins-browse > .plugins-browse-hero--furniture.site-hero-banner {
-  background: radial-gradient(ellipse at 78% 35%, #424448 0%, #1b2025 42%, #0e1319 78%);
+/* Clip each room independently so foreground objects can cross the rounded frame. */
+:root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing).site-hero-banner {
+  overflow: visible;
+  background: transparent;
+  margin-bottom: clamp(2rem, 4vw, 4rem);
+  --site-hero-overlay: linear-gradient(90deg, rgba(28, 30, 22, 0.92), rgba(28, 30, 22, 0.75) 35%, transparent 65%);
 }
 
-.plugins-browse-hero--furniture .plugins-browse-hero__subtitle {
-  max-width: min(52%, 42rem);
+:root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .model-banner__backdrop {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+:root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .model-banner__backdrop img {
+  position: absolute;
+  top: -50%;
+  width: 100%;
+  height: 200%;
+  object-fit: cover;
+  object-position: center;
+  /* Show the central scene, excluding the supplied image's white bands. */
+}
+
+:root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .site-hero-banner__overlay {
+  border-radius: inherit;
+  z-index: 1;
+}
+
+:root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .model-banner__popout {
+  position: absolute;
+  inset: auto 1% -18% auto;
+  width: min(60%, 52rem);
+  max-width: none;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.model-banner__popout img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 0.65rem 0.5rem rgba(35, 27, 15, 0.2));
+}
+
+:root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .plugins-browse-hero__container {
+  width: 42%;
+  max-width: 42%;
+  z-index: 3;
+}
+
+:is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .plugins-browse-hero__subtitle {
+  max-width: 100%;
+}
+
+@media (min-width: 721px) {
+  :root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing).site-hero-banner {
+    min-height: 15rem;
+  }
+}
+
+@media (max-width: 720px) {
+  :root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing).site-hero-banner {
+    aspect-ratio: 3 / 1;
+  }
+
+  :root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing)::before {
+    background: var(--site-hero-overlay);
+    border-radius: inherit;
+  }
+
+  :root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .plugins-browse-hero__container {
+    width: 38%;
+    max-width: 38%;
+  }
+
+  :root body .models-browse > :is(.plugins-browse-hero--furniture, .plugins-browse-hero--products, .plugins-browse-hero--food, .plugins-browse-hero--industrial, .plugins-browse-hero--character, .plugins-browse-hero--printing) .model-banner__popout {
+    width: 64%;
+    right: 0;
+  }
+}
+
+:root body .models-browse > .plugins-browse-hero--food {
+  --site-hero-overlay: linear-gradient(90deg, rgba(62, 32, 12, 0.86), rgba(62, 32, 12, 0.64) 35%, transparent 65%);
+}
+
+/* Compensate for the transparent space left by the removed donut stack. */
+:root body .models-browse > .plugins-browse-hero--food .model-banner__popout img {
+  transform: translateX(32%);
+}
+
+:root body .models-browse > .plugins-browse-hero--industrial.site-hero-banner {
+  --site-hero-overlay: none;
+}
+
+:root body .models-browse > .plugins-browse-hero--industrial .site-hero-banner__overlay,
+:root body .models-browse > .plugins-browse-hero--industrial::before {
+  display: none;
+}
+
+:root body .models-browse > .plugins-browse-hero--industrial .model-banner__popout {
+  width: min(35%, 32rem);
+  right: 2%;
+  bottom: -4%;
+}
+
+@media (max-width: 720px) {
+  :root body .models-browse > .plugins-browse-hero--industrial .model-banner__popout {
+    width: 48%;
+    right: 1%;
+  }
+}
+
+:root body .models-browse > .plugins-browse-hero--character {
+  --site-hero-overlay: linear-gradient(90deg, rgba(5, 16, 29, 0.84), rgba(5, 16, 29, 0.5) 35%, transparent 62%);
+}
+
+:root body .models-browse > .plugins-browse-hero--character .model-banner__popout {
+  width: min(29%, 28rem);
+  right: 18%;
+  bottom: -18%;
+}
+
+@media (max-width: 720px) {
+  :root body .models-browse > .plugins-browse-hero--character .model-banner__popout {
+    width: 35%;
+    right: 12%;
+  }
+}
+
+:root body .models-browse > .plugins-browse-hero--printing.site-hero-banner {
+  --site-hero-overlay: none;
+}
+
+:root body .models-browse > .plugins-browse-hero--printing .site-hero-banner__overlay,
+:root body .models-browse > .plugins-browse-hero--printing::before {
+  display: none;
+}
+
+/* This panoramic source already fills its canvas without white margins. */
+:root body .models-browse > .plugins-browse-hero--printing .model-banner__backdrop img {
+  top: 0;
+  height: 100%;
+  object-position: right center;
+}
+
+:root body .models-browse > .plugins-browse-hero--printing .model-banner__popout {
+  width: min(20%, 24rem);
+  right: 14%;
+  bottom: -4%;
+}
+
+@media (max-width: 720px) {
+  :root body .models-browse > .plugins-browse-hero--printing .model-banner__popout {
+    width: 28%;
+    right: 34%;
+  }
+}
+
+/* Preserve the vanity scene's framing. */
+:root body .models-browse > .plugins-browse-hero--products .model-banner__backdrop img {
+  top: -20%;
+  height: 140%;
 }
 
 .models-browse .plugins-browse-hero--electronics {
