@@ -116,14 +116,19 @@ describe('Cloudflare API proxy', () => {
       }
     })
 
-    it('preloads only pictures that exist, and only as images', () => {
+    it('preloads only pictures and fonts that exist', () => {
       const links = readRules().filter((r) => r.headers.Link)
       expect(links.length).toBeGreaterThan(0)
       for (const { pattern, headers } of links) {
-        const match = /^<([^>]+)>; rel=preload; as=image(; fetchpriority=high)?$/.exec(headers.Link)
-        expect(match, `${pattern}: ${headers.Link}`).not.toBeNull()
-        const file = decodeURIComponent(match![1].split('?')[0]).replace(/^\//, '')
-        expect(existsSync(join('public', file)), `${pattern} preloads ${file}`).toBe(true)
+        for (const entry of headers.Link.split(/, (?=<)/)) {
+          const match =
+            /^<([^>]+)>; rel=preload; as=image(; fetchpriority=high)?$/.exec(entry) ??
+            // A font preload must say crossorigin, or the browser fetches the font a second time.
+            /^<(\/fonts\/[^>]+\.woff2)>; rel=preload; as=font; type="font\/woff2"; crossorigin$/.exec(entry)
+          expect(match, `${pattern}: ${entry}`).not.toBeNull()
+          const file = decodeURIComponent(match![1].split('?')[0]).replace(/^\//, '')
+          expect(existsSync(join('public', file)), `${pattern} preloads ${file}`).toBe(true)
+        }
       }
     })
   })

@@ -9,6 +9,10 @@
   <!-- Fonts are served from /fonts (see src/styles/fonts.css). Preload the main UI font so the
        first text paints in it. crossorigin is required for font preloads. -->
   <link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <!-- Poppins draws the page titles and buttons on every page. Both files are about 8 KB and arrive
+       before the JavaScript has rendered anything, so the text never re-flows when the font swaps in. -->
+  <link rel="preload" href="/fonts/poppins-latin-400.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/poppins-latin-600.woff2" as="font" type="font/woff2" crossorigin />
   <title>Furniture &amp; Interior 3D Models | AssetHive3D</title>
   <meta name="description"
     content="Download production-ready 3D models of furniture, interiors, lighting and plants. Preview every model in 3D, buy securely and get a license with each order." />

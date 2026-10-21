@@ -667,6 +667,25 @@
   display: none;
 }
 
+/* Shown on the backdrop while the sign-in form downloads, or if it could not be loaded. */
+.auth-modal__status {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  max-width: min(100%, 360px);
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  background: var(--pure-white);
+  color: var(--text-main);
+  text-align: center;
+}
+
+.auth-modal__status p {
+  margin: 0;
+}
+
 @media (max-width: 480px) {
   .auth-page {
     padding: 1rem var(--site-gutter);
