@@ -765,6 +765,9 @@ CONTACT_ADMIN_RECIPIENTS = config(
     "CONTACT_ADMIN_RECIPIENTS",
     default="",
 )
+# Comma-separated inboxes for the daily health report (config/ops_report.py), sent by the daily
+# maintenance loop. Empty = every active Administrator.
+OPS_REPORT_RECIPIENTS = config("OPS_REPORT_RECIPIENTS", default="")
 EMAIL_HOST = config("EMAIL_HOST", default="")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
