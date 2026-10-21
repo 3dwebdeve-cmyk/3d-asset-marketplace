@@ -23,7 +23,6 @@ import { useNotFoundChrome, NotFoundChromeProvider } from './hooks/useNotFoundCh
 import { DashboardLayout } from './layouts/DashboardLayout'
 import { LoginPage } from './pages/Login/LoginPage'
 import { RegisterPage } from './pages/Register/RegisterPage'
-import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
 import { AdminRoute } from './routes/AdminRoute'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import './styles/auth.css'
@@ -33,6 +32,12 @@ import './styles/checkout-success.css'
 import './styles/responsive.css'
 import './styles/marketing.css'
 import './styles/motion.css'
+
+const AdminLoginPage = lazy(() =>
+  import('./pages/Admin/AdminLoginPage').then((module) => ({
+    default: module.AdminLoginPage,
+  })),
+)
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({

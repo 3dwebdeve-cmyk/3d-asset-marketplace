@@ -18,7 +18,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile, ProductImage
-from products.testing import put_pipeline_previews
+from products.testing import put_pipeline_uploads
 
 _HAPPY_CHECKSUM = "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
 
@@ -114,7 +114,7 @@ class CatalogImportAPITests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
 
     def _post_batch(self, items: list[dict], *, batch_id: str = "2026-09-03-run-01"):
-        put_pipeline_previews(items)
+        put_pipeline_uploads(items)
         return self.client.post(
             self.import_url,
             {
@@ -161,7 +161,7 @@ class CatalogImportAPITests(APITestCase):
         self.assertTrue(product.has_thumbnail)
         self.assertTrue(product.has_preview)
         self.assertTrue(product.has_package)
-        self.assertIn("models/MDL-000142/thumbnail.jpg", product.thumbnail)
+        self.assertRegex(product.thumbnail, r"models/MDL-000142/thumbnail-[0-9a-f]{12}\.webp$")
         # The predictable pipeline name is replaced by an unguessable one.
         self.assertRegex(product.preview_model, r"models/MDL-000142/preview-[0-9a-f]{32}\.glb$")
         self.assertFalse(default_storage.exists("models/MDL-000142/preview.glb"))
@@ -175,7 +175,7 @@ class CatalogImportAPITests(APITestCase):
 
         gallery = list(ProductImage.objects.filter(product=product))
         self.assertEqual(len(gallery), 1)
-        self.assertIn("models/MDL-000142/gallery/01.jpg", gallery[0].image_url)
+        self.assertRegex(gallery[0].image_url, r"models/MDL-000142/gallery/01-[0-9a-f]{12}\.webp$")
 
     def test_reimport_updates_idempotently(self) -> None:
         self._authenticate_as_admin()
@@ -440,10 +440,11 @@ def _image_bytes(fmt: str, color: tuple[int, int, int]) -> bytes:
     return output.getvalue()
 
 
-def _webp_item(sku: str = "MDL-000900") -> dict:
+def _webp_item(sku: str = "MDL-000900", **overrides: object) -> dict:
     return _happy_item(
         model_id=sku,
         r2_key_prefix=f"models/{sku}/",
+        **overrides,
         media={
             "thumbnail_key": f"models/{sku}/thumbnail.jpg",
             "preview_key": f"models/{sku}/preview.glb",
@@ -456,7 +457,7 @@ def _webp_item(sku: str = "MDL-000900") -> dict:
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class CatalogImportWebpTests(APITestCase):
-    """Pipeline thumbnails and gallery images are served as WebP."""
+    """Pipeline thumbnails and gallery images are served as WebP and must exist."""
 
     _authenticate_as_admin = CatalogImportAPITests._authenticate_as_admin
     _post_batch = CatalogImportAPITests._post_batch
@@ -521,3 +522,55 @@ class CatalogImportWebpTests(APITestCase):
         self.assertEqual(response.data["skipped"], 1)
         self.assertEqual(response.data["results"][0]["reason"], "invalid_thumbnail")
         self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())
+
+    def _post_without_uploads(self, items: list[dict], *, batch_id: str = "2026-09-03-run-01"):
+        return self.client.post(
+            self.import_url,
+            {"import_batch_id": batch_id, "import_source": "catalog-bridge", "items": items},
+            format="json",
+        )
+
+    def test_missing_thumbnail_object_skips_the_row(self) -> None:
+        response = self._post_without_uploads([_webp_item()])
+
+        self.assertEqual(response.data["skipped"], 1)
+        self.assertEqual(response.data["results"][0]["reason"], "missing_thumbnail_object")
+        self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())
+
+    def test_missing_gallery_object_skips_the_row(self) -> None:
+        self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (200, 40, 40)))
+
+        response = self._post_without_uploads([_webp_item()])
+
+        self.assertEqual(response.data["skipped"], 1)
+        self.assertEqual(response.data["results"][0]["reason"], "missing_gallery_object")
+        self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())
+
+    def test_reimport_without_the_thumbnail_keeps_the_existing_one(self) -> None:
+        self._post_batch([_webp_item()])
+        kept = Product.objects.get(sku="MDL-000900").thumbnail
+        self.assertTrue(default_storage.exists(self._key(kept)))
+
+        # The pipeline uploads a new preview but no longer has the thumbnail source.
+        put_pipeline_uploads([_webp_item()])
+        default_storage.delete("models/MDL-000900/thumbnail.jpg")
+        response = self._post_without_uploads([_webp_item()], batch_id="2026-09-03-run-02")
+
+        self.assertEqual(response.data["updated"], 1, response.data)
+        self.assertEqual(Product.objects.get(sku="MDL-000900").thumbnail, kept)
+
+    def test_preview_without_polygon_count_is_flagged_as_unchecked(self) -> None:
+        put_pipeline_uploads([_webp_item()])
+
+        with self.assertLogs("products.catalog_import", level="WARNING") as logs:
+            response = self._post_without_uploads([_webp_item(polygon_count=None)])
+
+        self.assertEqual(response.data["created"], 1, response.data)
+        self.assertEqual(response.data["results"][0]["warning"], "preview_unchecked")
+        self.assertTrue(any("catalog_import_preview_unchecked" in line for line in logs.output))
+
+    def test_checked_preview_has_no_warning(self) -> None:
+        response = self._post_batch([_webp_item()])
+
+        self.assertEqual(response.data["created"], 1, response.data)
+        self.assertNotIn("warning", response.data["results"][0])

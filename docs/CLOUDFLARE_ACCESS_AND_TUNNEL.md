@@ -31,6 +31,12 @@ Cloudflare address to the rate limits.
    Check: `curl -s https://<service>.onrender.com/api/v1/products/` returns 403 while the
    same path on the Worker address works.
 
+6. The Worker's `*.workers.dev` address is off (`"workers_dev": false` in `wrangler.jsonc`; a
+   dashboard toggle alone is undone by the next deploy). Otherwise it serves a full second copy
+   of the shop, API included, that search engines can index and that the domain's Cloudflare
+   rules (WAF, Access) do not cover. Keep it out of `CORS_ALLOWED_ORIGINS` and
+   `CSRF_TRUSTED_ORIGINS`. Preview links of new versions (`<version>-<name>...workers.dev`) stay on.
+
 If you lock yourself out of the console, remove `EDGE_REQUIRE` or fix the allowlist in Render
 and redeploy. A home IP that changes often is a poor allowlist: prefer Cloudflare Access
 (section 2) and widen the allowlist once it is on.

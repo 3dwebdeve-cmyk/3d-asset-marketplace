@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,9 +62,13 @@ describe('Cloudflare API proxy', () => {
     const lines = readFileSync('public/_headers', 'utf-8').split(/\r?\n/)
     const start = lines.indexOf('/*')
     expect(start).toBeGreaterThanOrEqual(0)
+    // Only this rule's lines: stop at the next URL pattern (a non-indented, non-comment line).
+    const rest = lines.slice(start + 1)
+    const end = rest.findIndex(
+      (line) => line.trim() !== '' && !line.startsWith(' ') && !line.startsWith('#'),
+    )
     const fileHeaders = Object.fromEntries(
-      lines
-        .slice(start + 1)
+      (end === -1 ? rest : rest.slice(0, end))
         .filter((line) => /^\s+[A-Za-z-]+: /.test(line))
         .map((line) => {
           const [name, ...value] = line.trim().split(': ')
@@ -72,6 +77,77 @@ describe('Cloudflare API proxy', () => {
     )
 
     expect(fileHeaders).toEqual(SECURITY_HEADERS)
+  })
+
+  describe('_headers caching and preload rules', () => {
+    // Every rule in the file, in order: its URL pattern and the headers it adds.
+    function readRules() {
+      const rules: { pattern: string; headers: Record<string, string> }[] = []
+      for (const line of readFileSync('public/_headers', 'utf-8').split(/\r?\n/)) {
+        if (line.trim() === '' || line.startsWith('#')) continue
+        if (!line.startsWith(' ')) {
+          rules.push({ pattern: line.trim(), headers: {} })
+        } else {
+          const [name, ...value] = line.trim().split(': ')
+          rules[rules.length - 1].headers[name] = value.join(': ')
+        }
+      }
+      return rules
+    }
+    const rule = (pattern: string) => readRules().find((r) => r.pattern === pattern)
+
+    it('keeps fingerprinted build files and fonts for a year, unchanged', () => {
+      for (const pattern of ['/assets/*', '/fonts/*']) {
+        expect(rule(pattern)?.headers['Cache-Control']).toBe('public, max-age=31536000, immutable')
+      }
+    })
+
+    it('keeps images and models for a day, with a background refresh', () => {
+      for (const extension of ['webp', 'png', 'jpg', 'gif', 'svg', 'glb', 'hdr', 'mp4']) {
+        const value = rule(`/*.${extension}`)?.headers['Cache-Control']
+        expect(value, extension).toMatch(/^public, max-age=86400, stale-while-revalidate=\d+$/)
+      }
+    })
+
+    it('never makes pages (HTML) cacheable, and keeps Cache-Control off the security rule', () => {
+      expect(rule('/*')?.headers['Cache-Control']).toBeUndefined()
+      for (const pattern of ['/', '/index.html', '/*.html']) {
+        expect(rule(pattern)?.headers['Cache-Control']).toBeUndefined()
+      }
+    })
+
+    it('preloads only pictures and fonts that exist', () => {
+      const links = readRules().filter((r) => r.headers.Link)
+      expect(links.length).toBeGreaterThan(0)
+      for (const { pattern, headers } of links) {
+        for (const entry of headers.Link.split(/, (?=<)/)) {
+          const match =
+            /^<([^>]+)>; rel=preload; as=image(; fetchpriority=high)?$/.exec(entry) ??
+            // A font preload must say crossorigin, or the browser fetches the font a second time.
+            /^<(\/fonts\/[^>]+\.woff2)>; rel=preload; as=font; type="font\/woff2"; crossorigin$/.exec(entry)
+          expect(match, `${pattern}: ${entry}`).not.toBeNull()
+          const file = decodeURIComponent(match![1].split('?')[0]).replace(/^\//, '')
+          expect(existsSync(join('public', file)), `${pattern} preloads ${file}`).toBe(true)
+        }
+      }
+    })
+  })
+
+  it('keeps the workers.dev copy of the shop switched off on every deploy', () => {
+    const lines = readFileSync('wrangler.jsonc', 'utf-8').split(/\r?\n/)
+    const config = JSON.parse(lines.filter((line) => !line.trim().startsWith('//')).join('\n'))
+    expect(config.workers_dev).toBe(false)
+    expect(config.preview_urls).toBe(true)
+  })
+
+  it('no longer depends on Google Fonts (the fonts are served from /fonts)', () => {
+    const policy = SECURITY_HEADERS['Content-Security-Policy']
+    expect(policy).not.toContain('fonts.googleapis.com')
+    expect(policy).not.toContain('fonts.gstatic.com')
+    const html = readFileSync('index.html', 'utf-8')
+    expect(html).not.toMatch(/fonts\.(googleapis|gstatic)\.com/)
+    expect(html).toContain('/fonts/plus-jakarta-sans-latin.woff2')
+    expect(existsSync('public/fonts/plus-jakarta-sans-latin.woff2')).toBe(true)
   })
 
   it('only lets the page connect to named storage hosts', () => {

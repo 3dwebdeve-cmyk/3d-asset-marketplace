@@ -6,11 +6,13 @@
   <meta name="google-site-verification" content="pXv2k3zAEugFzMhWr3Fy6fBQy2gy5RW_OJBoLr_4Yco" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Libre+Baskerville:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@400;600&display=swap"
-    rel="stylesheet" />
+  <!-- Fonts are served from /fonts (see src/styles/fonts.css). Preload the main UI font so the
+       first text paints in it. crossorigin is required for font preloads. -->
+  <link rel="preload" href="/fonts/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+  <!-- Poppins draws the page titles and buttons on every page. Both files are about 8 KB and arrive
+       before the JavaScript has rendered anything, so the text never re-flows when the font swaps in. -->
+  <link rel="preload" href="/fonts/poppins-latin-400.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/poppins-latin-600.woff2" as="font" type="font/woff2" crossorigin />
   <title>Furniture &amp; Interior 3D Models | AssetHive3D</title>
   <meta name="description"
     content="Download production-ready 3D models of furniture, interiors, lighting and plants. Preview every model in 3D, buy securely and get a license with each order." />

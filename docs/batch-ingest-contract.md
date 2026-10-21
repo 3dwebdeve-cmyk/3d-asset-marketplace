@@ -34,8 +34,10 @@ Booleans accept `TRUE`, `1`, `YES` and `Y`. Gallery paths are separated by `|` o
   a `.jpg` or `.png` (25 MB, 20 megapixels at most) is converted to
   `<name>-<12 hex>.webp` next to the original, and the product points to the WebP copy.
   The name changes when the image changes, so browsers never show a stale copy; a
-  re-import with a new thumbnail deletes the previous WebP copy. An image that is not in
-  storage at import time keeps its original key.
+  re-import with a new thumbnail deletes the previous WebP copy. The thumbnail and every
+  gallery image must already be in the public bucket when you import: a row whose image is
+  missing is skipped, so a product never goes in with a broken image. A re-import may leave
+  the thumbnail out and keep the one the product already has.
 
 ## Import gate
 
@@ -44,7 +46,12 @@ A row is skipped, with a reason, when any of these apply:
 Preview checks can also skip a row: `invalid_preview_format`, `missing_preview_object`,
 `invalid_preview`, `preview_too_large`, `preview_not_reduced`, `preview_unreadable`.
 Image checks can skip a row: `invalid_thumbnail`, `invalid_gallery_image` (not a JPEG/PNG/WebP
-image, over 25 MB or over 20 megapixels) and `image_unreadable` (storage error).
+image, over 25 MB or over 20 megapixels), `image_unreadable` (storage error), `missing_thumbnail_object` and
+`missing_gallery_object` (the file is not in the public bucket; upload it, then import again).
+A row that passes can still carry a `warning`. `preview_unchecked` means the preview was
+accepted without the 50% reduction check, because the row has no `Polycount` or the preview's
+triangles could not be counted: a full-detail model can become public that way, so send the
+`Polycount`. The import also logs `catalog_import_preview_unchecked`.
 Passing rows are created or updated as `pending_review`. Publishing always goes through
 the review queue (approve action); imports never publish directly.
 

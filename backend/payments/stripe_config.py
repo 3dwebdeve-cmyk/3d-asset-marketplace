@@ -47,6 +47,7 @@ def webhook_secret_looks_valid(value: str) -> bool:
 @dataclass(frozen=True)
 class StripeConfigReport:
     debug: bool
+    payment_mode: str
     secret_mode: KeyMode
     publishable_mode: KeyMode
     webhook_secret_set: bool
@@ -72,6 +73,7 @@ def collect_stripe_config_report(
     webhook = (getattr(settings, "STRIPE_WEBHOOK_SECRET", "") or "").strip()
     e2e = bool(getattr(settings, "E2E_STRIPE_SIMULATE", False))
     debug = bool(settings.DEBUG)
+    payment_mode = getattr(settings, "STRIPE_PAYMENT_MODE", "test")
 
     secret_mode = classify_secret_key(secret)
     publishable_mode = classify_publishable_key(publishable)
@@ -156,6 +158,12 @@ def collect_stripe_config_report(
             )
 
     if require_live_mode:
+        if payment_mode != "live":
+            # Checkout refuses every payment when the key and this mode disagree.
+            warnings.append(
+                "STRIPE_PAYMENT_MODE must be live for production cutover "
+                f"(currently {payment_mode})."
+            )
         if secret_mode != "live":
             warnings.append(
                 "STRIPE_SECRET_KEY must be sk_live_... for production cutover "
@@ -176,6 +184,7 @@ def collect_stripe_config_report(
 
     return StripeConfigReport(
         debug=debug,
+        payment_mode=payment_mode,
         secret_mode=secret_mode,
         publishable_mode=publishable_mode,
         webhook_secret_set=bool(webhook),
