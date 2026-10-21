@@ -55,6 +55,16 @@ them the titles re-flowed when the font arrived and pushed the page down.
 poster image, and does not autoplay for visitors who ask for reduced motion. Make new ones with
 `ffmpeg -i in.gif -an -c:v libx264 -tune animation -pix_fmt yuv420p -crf 20 -movflags +faststart out.mp4`.
 
+## Catalog API answers at the edge
+
+The Worker keeps public catalog answers (`/api/v1/categories/`, `products/`, `plugins/`,
+`plugin-categories/` and their single-item pages) in Cloudflare's cache for as long as the
+backend's `s-maxage` allows (60 seconds today, never more than 5 minutes), so most visitors are
+answered without waking Render. It stores an answer only when the backend marks it
+`public, s-maxage=N` (`backend/config/http_cache.py`), never errors, cookies or requests that carry
+a sign-in token. The `X-Edge-Cache` header says `HIT` or `MISS`. An admin change shows on the site
+within about a minute. The cache only works on the real domain, not on preview links.
+
 ## Checking a change locally
 
 `npm run build`, then `npx wrangler dev --local` serves `dist/` with the real `_headers` rules, so

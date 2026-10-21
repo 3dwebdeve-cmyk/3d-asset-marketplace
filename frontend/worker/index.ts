@@ -30,6 +30,11 @@ export interface WorkerEnv {
 
 type CatalogKind = 'products' | 'plugins'
 
+/** The parts of the Workers ExecutionContext the Worker uses. */
+export interface WorkerContext {
+  waitUntil(promise: Promise<unknown>): void
+}
+
 // Product and plugin detail routes, e.g. /products/desk-lamp or /Plugins/uv-tools.
 const DETAIL_ROUTE = /^\/(products|plugins)\/([^/]+)$/i
 const DETAIL_TIMEOUT_MS = 4000
@@ -142,11 +147,16 @@ type CatalogFetchResult =
   | { kind: 'unavailable' }
 
 /** Reads a public catalog endpoint. Failures are reported, never thrown, so pages still render. */
-async function fetchCatalogJson(url: URL): Promise<CatalogFetchResult> {
+async function fetchCatalogJson(url: URL, env: WorkerEnv): Promise<CatalogFetchResult> {
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  // With EDGE_REQUIRE on, the backend refuses calls that do not carry the shared secret.
+  if (env.EDGE_SHARED_SECRET) {
+    headers['X-Edge-Secret'] = env.EDGE_SHARED_SECRET
+  }
   let response: Response
   try {
     response = await fetch(url, {
-      headers: { Accept: 'application/json' },
+      headers,
       signal: AbortSignal.timeout(DETAIL_TIMEOUT_MS),
       cf: { cacheTtl: CATALOG_CACHE_TTL_SECONDS, cacheEverything: true },
     } as RequestInit)
@@ -193,6 +203,7 @@ async function resolveDetailSeo(
 
   const result = await fetchCatalogJson(
     new URL(`/api/v1/${kind}/${encodeURIComponent(slug)}/`, backend),
+    env,
   )
   if (result.kind === 'missing') {
     return getNotFoundPageSeo(kind === 'products' ? 'Product' : 'Plugin')
@@ -227,7 +238,7 @@ async function resolvePageSeo(
       const url = new URL('/api/v1/categories/', backend)
       url.searchParams.set('page_size', '100')
       url.searchParams.set('page', String(page))
-      const result = await fetchCatalogJson(url)
+      const result = await fetchCatalogJson(url, env)
       if (result.kind !== 'ok' || typeof result.body !== 'object' || !result.body) return undefined
       const body = result.body as { results?: { id: string; slug: string; name: string }[]; next?: unknown }
       if (!Array.isArray(body.results)) return undefined
@@ -237,7 +248,7 @@ async function resolvePageSeo(
         const productsUrl = new URL('/api/v1/products/', backend)
         productsUrl.searchParams.set('category_id', category.id)
         productsUrl.searchParams.set('page_size', '1')
-        const products = await fetchCatalogJson(productsUrl)
+        const products = await fetchCatalogJson(productsUrl, env)
         const listing = products.kind === 'ok' ? products.body as { results?: unknown[] } : null
         const empty = Array.isArray(listing?.results) && listing.results.length === 0
         return {
@@ -309,7 +320,79 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
   return withSecurityHeaders(new Response(html, { status: seo.status, headers }))
 }
 
-export async function handleRequest(request: Request, env: WorkerEnv): Promise<Response> {
+// Public catalog reads (lists and detail pages of categories, products and plugins). Their answers
+// are the same for every visitor; the backend still decides by sending `public, s-maxage=N`.
+const EDGE_CACHEABLE_API = /^\/api\/v1\/(categories|products|plugins|plugin-categories)\/([a-z0-9_-]+\/)?$/i
+const EDGE_CACHE_MAX_SECONDS = 300
+const BROWSER_CACHE_HEADER = 'X-Browser-Cache-Control'
+// Never stored: they belong to one visitor or one cross-site caller.
+const UNSHAREABLE_HEADERS = [
+  'Set-Cookie',
+  'Vary',
+  'Access-Control-Allow-Origin',
+  'Access-Control-Allow-Credentials',
+  'Access-Control-Expose-Headers',
+]
+
+function edgeCache(): Cache | undefined {
+  return typeof caches === 'undefined' ? undefined : (caches as unknown as { default: Cache }).default
+}
+
+function isEdgeCacheable(request: Request, url: URL): boolean {
+  return (
+    request.method === 'GET' &&
+    EDGE_CACHEABLE_API.test(url.pathname) &&
+    !request.headers.has('Authorization')
+  )
+}
+
+/** Seconds a shared cache may keep the answer, from the backend's own header; 0 = do not keep. */
+function sharedMaxAge(response: Response): number {
+  if (response.status !== 200 || response.headers.has('Set-Cookie')) return 0
+  if (!(response.headers.get('Content-Type') ?? '').toLowerCase().includes('application/json')) return 0
+  const cacheControl = (response.headers.get('Cache-Control') ?? '').toLowerCase()
+  if (!/(^|[\s,])public([\s,]|$)/.test(cacheControl) || /no-store|private/.test(cacheControl)) return 0
+  const match = /s-maxage=(\d+)/.exec(cacheControl)
+  return match ? Math.min(Number(match[1]), EDGE_CACHE_MAX_SECONDS) : 0
+}
+
+function etagMatches(ifNoneMatch: string | null, etag: string | null): boolean {
+  if (!ifNoneMatch || !etag) return false
+  const strip = (tag: string) => tag.trim().replace(/^W\//, '')
+  return ifNoneMatch.split(',').some((tag) => tag.trim() === '*' || strip(tag) === strip(etag))
+}
+
+/** 304 when the visitor already has this version, otherwise the answer with the given headers. */
+function conditionalResponse(request: Request, body: BodyInit | null, headers: Headers): Response {
+  if (etagMatches(request.headers.get('If-None-Match'), headers.get('ETag'))) {
+    for (const name of ['Content-Length', 'Content-Type', 'Content-Encoding']) headers.delete(name)
+    return new Response(null, { status: 304, headers })
+  }
+  return new Response(body, { status: 200, headers })
+}
+
+/** The stored copy keeps the backend's browser header aside; the cache itself uses s-maxage. */
+function toStoredCopy(response: Response, seconds: number): Response {
+  const headers = new Headers(response.headers)
+  for (const name of UNSHAREABLE_HEADERS) headers.delete(name)
+  headers.set(BROWSER_CACHE_HEADER, response.headers.get('Cache-Control') ?? '')
+  headers.set('Cache-Control', `public, max-age=${seconds}`)
+  return new Response(response.body, { status: response.status, headers })
+}
+
+function fromStoredCopy(stored: Response, request: Request): Response {
+  const headers = new Headers(stored.headers)
+  headers.set('Cache-Control', headers.get(BROWSER_CACHE_HEADER) || 'no-cache')
+  headers.delete(BROWSER_CACHE_HEADER)
+  headers.set('X-Edge-Cache', 'HIT')
+  return conditionalResponse(request, stored.body, headers)
+}
+
+export async function handleRequest(
+  request: Request,
+  env: WorkerEnv,
+  ctx?: WorkerContext,
+): Promise<Response> {
   const incomingUrl = new URL(request.url)
   if (incomingUrl.pathname === '/robots.txt') {
     return withSecurityHeaders(await robotsTxt(request, env, incomingUrl))
@@ -323,6 +406,16 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
     origin = backendOrigin(env.BACKEND_ORIGIN)
   } catch {
     return errorResponse(503, 'API proxy is not configured.')
+  }
+
+  const cache = isEdgeCacheable(request, incomingUrl) ? edgeCache() : undefined
+  // Keyed on the address alone: these answers do not depend on who asks.
+  const cacheKey = new Request(incomingUrl.toString(), { method: 'GET' })
+  if (cache) {
+    const stored = await cache.match(cacheKey).catch(() => undefined)
+    if (stored) {
+      return fromStoredCopy(stored, request)
+    }
   }
 
   const upstreamPath = incomingUrl.pathname === SITEMAP_PATH ? UPSTREAM_SITEMAP_PATH : incomingUrl.pathname
@@ -343,6 +436,11 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
   }
   headers.set('X-Forwarded-Host', incomingUrl.host)
   headers.set('X-Forwarded-Proto', 'https')
+  if (cache) {
+    // A full answer is needed to fill the cache; the visitor's own tag is checked on the way out.
+    headers.delete('If-None-Match')
+    headers.delete('If-Modified-Since')
+  }
 
   const init: RequestInit & { duplex?: 'half' } = {
     method: request.method,
@@ -371,6 +469,15 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
       }
       return withSecurityHeaders(new Response(xml, { status: response.status, headers: sitemapHeaders }))
     }
+    const seconds = cache ? sharedMaxAge(response) : 0
+    if (cache && seconds > 0) {
+      const store = cache.put(cacheKey, toStoredCopy(response.clone(), seconds)).catch(() => undefined)
+      if (ctx) ctx.waitUntil(store)
+      else await store
+      const headers = new Headers(response.headers)
+      headers.set('X-Edge-Cache', 'MISS')
+      return conditionalResponse(request, response.body, headers)
+    }
     return response
   } catch {
     return errorResponse(502, 'The API service is temporarily unavailable.')
@@ -378,5 +485,5 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
 }
 
 export default {
-  fetch: handleRequest,
+  fetch: (request: Request, env: WorkerEnv, ctx?: WorkerContext) => handleRequest(request, env, ctx),
 }

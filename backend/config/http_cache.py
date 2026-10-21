@@ -27,6 +27,13 @@ def apply_public_catalog_cache(response: Response) -> Response:
     return response
 
 
+def _etag_matches(if_none_match: str, etag: str) -> bool:
+    # Compression marks the ETag weak (W/"..."), so browsers send it back that way.
+    # If-None-Match uses weak comparison and may list several tags.
+    candidates = {tag.strip().removeprefix("W/") for tag in if_none_match.split(",")}
+    return etag in candidates or "*" in candidates
+
+
 def apply_public_catalog_etag(request, response: Response):
     """Make catalog refetches cheap when the representation has not changed."""
     if getattr(response, "status_code", None) != 200:
@@ -38,7 +45,7 @@ def apply_public_catalog_etag(request, response: Response):
     except (TypeError, ValueError):
         return response
     etag = f'"{hashlib.sha256(payload).hexdigest()}"'
-    if request.headers.get("If-None-Match") == etag:
+    if _etag_matches(request.headers.get("If-None-Match", ""), etag):
         not_modified = HttpResponseNotModified()
         not_modified["ETag"] = etag
         not_modified["Cache-Control"] = PUBLIC_CATALOG_CACHE_CONTROL
