@@ -17,6 +17,19 @@ class IPRateThrottle(SimpleRateThrottle):
         }
 
 
+class SignedInUserRateThrottle(UserRateThrottle):
+    """The global ``user`` limit, for signed-in callers only.
+
+    Anonymous callers already meet the stricter ``anon`` limit, keyed by the same IP, so
+    counting them here too only doubled the cache reads and writes on every request.
+    """
+
+    def get_cache_key(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return None
+        return super().get_cache_key(request, view)
+
+
 def hash_email(value) -> str | None:
     email = str(value or "").strip().lower()
     if not email:

@@ -478,7 +478,7 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "config.schema.MarketplaceSchema",
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+        "accounts.throttles.SignedInUserRateThrottle",
     ],
     # Behind Nginx or the Cloudflare Worker (config/edge.py), X-Forwarded-For ends with
     # the single verified client IP.

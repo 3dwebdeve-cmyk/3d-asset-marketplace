@@ -7,9 +7,12 @@ import importlib.util
 from pathlib import Path
 import os
 
+from django.conf import settings
 from django.contrib.sessions.models import Session
+from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
@@ -94,6 +97,13 @@ class RetentionTests(TestCase):
         ActivityLog.objects.filter(pk=log.pk).update(created_at=past)
         mail = OutboundEmailLog.objects.create(event_type="phase3-test")
         OutboundEmailLog.objects.filter(pk=mail.pk).update(created_at=past)
+        cache.set("phase3-expired", 1, timeout=60)
+        cache.set("phase3-live", 1, timeout=3600)
+        cache_table = connection.ops.quote_name(settings.CACHES["default"]["LOCATION"])
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"UPDATE {cache_table} SET expires = %s WHERE cache_key LIKE %s", [past, "%phase3-expired"]
+            )
         call_command("prune_expired_records", stdout=StringIO())
         self.assertTrue(IdempotencyRecord.objects.filter(key="phase3-old").exists())
         call_command("prune_expired_records", execute=True, stdout=StringIO())
@@ -103,6 +113,11 @@ class RetentionTests(TestCase):
         self.assertTrue(Session.objects.filter(session_key="phase3-new-session").exists())
         self.assertFalse(ActivityLog.objects.filter(pk=log.pk).exists())
         self.assertFalse(OutboundEmailLog.objects.filter(pk=mail.pk).exists())
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT cache_key FROM {cache_table}")
+            keys = [row[0] for row in cursor.fetchall()]
+        self.assertFalse(any(key.endswith("phase3-expired") for key in keys))
+        self.assertTrue(any(key.endswith("phase3-live") for key in keys))
 
     def test_unresolved_checkout_attempt_triggers_monitor(self):
         from accounts.models import Role, User
