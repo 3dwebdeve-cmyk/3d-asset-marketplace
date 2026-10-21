@@ -46,6 +46,8 @@ beforeEach(() => {
   resetToastStore()
   vi.clearAllMocks()
   mockedRefreshAccessToken.mockRejectedValue(new Error('no cookie'))
+  // These tests are about a browser where someone signed in before.
+  useAuthStore.setState({ sessionHint: true })
 })
 
 describe('useSessionBootstrap', () => {
@@ -57,6 +59,31 @@ describe('useSessionBootstrap', () => {
     await waitFor(() => expect(result.current).toBe(true))
     expect(mockedRefreshAccessToken).toHaveBeenCalledTimes(1)
     expect(mockedGetCurrentUser).not.toHaveBeenCalled()
+  })
+
+  it('skips the refresh request when nobody has signed in on this browser', async () => {
+    useAuthStore.setState({ sessionHint: false })
+
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    // A guest never had a refresh cookie, so asking would only be a failing request.
+    await waitFor(() => expect(result.current).toBe(true))
+    expect(mockedRefreshAccessToken).not.toHaveBeenCalled()
+    expect(mockedGetCurrentUser).not.toHaveBeenCalled()
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+  })
+
+  it('forgets the hint when the refresh finds no session, so the next visit does not ask', async () => {
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current).toBe(true))
+    expect(mockedRefreshAccessToken).toHaveBeenCalledTimes(1)
+    expect(useAuthStore.getState().sessionHint).toBe(false)
+    expect(JSON.parse(localStorage.getItem('auth-storage') ?? '{}').state.sessionHint).toBe(false)
   })
 
   it('retries once when a parallel rotation already consumed the refresh cookie', async () => {
