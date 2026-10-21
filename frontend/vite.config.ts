@@ -36,6 +36,6 @@ export default defineConfig(({ mode }) => ({
     // The form-wizard tests render large pages and type into many fields. Alone they take
     // about 3 s each, and a loaded full run or a slow CI machine pushes them past the 5 s
     // default, which fails them without any bug. A real hang still fails, only later.
-    testTimeout: 20_000,
+    testTimeout: 30_000,
   },
 }))
