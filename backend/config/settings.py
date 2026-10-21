@@ -461,6 +461,12 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "accounts.authentication.VersionedJWTAuthentication",
     ],
+    # Fail closed: an endpoint that forgets to say who may call it needs a signed-in user,
+    # instead of DRF's own default of "anyone". Public endpoints declare AllowAny themselves
+    # (config/test_api_permissions.py checks every endpoint declares its rule).
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
@@ -602,19 +608,31 @@ if R2_ENABLED:
     if _r2_parsed.scheme and _r2_parsed.netloc:
         _csp_img_src.append(f"{_r2_parsed.scheme}://{_r2_parsed.netloc}")
 
-SECURE_CSP = {
-    "default-src": [CSP.SELF],
-    # Django's built-in administrator currently emits small inline scripts.
-    "script-src": [CSP.SELF, CSP.UNSAFE_INLINE],
-    "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
-    "img-src": _csp_img_src,
-    "font-src": [CSP.SELF],
-    "connect-src": [CSP.SELF],
-    "object-src": [CSP.NONE],
-    "base-uri": [CSP.SELF],
-    "frame-ancestors": [CSP.NONE],
-    "form-action": [CSP.SELF],
-}
+if DEBUG or DJANGO_ADMIN_ENABLED:
+    # Django's built-in administrator and the DEBUG Swagger page are HTML pages with small
+    # inline scripts and styles.
+    SECURE_CSP = {
+        "default-src": [CSP.SELF],
+        "script-src": [CSP.SELF, CSP.UNSAFE_INLINE],
+        "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
+        "img-src": _csp_img_src,
+        "font-src": [CSP.SELF],
+        "connect-src": [CSP.SELF],
+        "object-src": [CSP.NONE],
+        "base-uri": [CSP.SELF],
+        "frame-ancestors": [CSP.NONE],
+        "form-action": [CSP.SELF],
+    }
+else:
+    # Without the Django admin the backend only answers with JSON, XML and plain error pages,
+    # so a browser opening one of its addresses may load, run, embed or submit nothing.
+    SECURE_CSP = {
+        "default-src": [CSP.NONE],
+        "object-src": [CSP.NONE],
+        "base-uri": [CSP.NONE],
+        "frame-ancestors": [CSP.NONE],
+        "form-action": [CSP.NONE],
+    }
 SECURE_CSP_REPORT_ONLY = {}
 
 FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="http://localhost:5173")
