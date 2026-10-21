@@ -131,3 +131,33 @@ class CheckEmailConfigReadyTests(TestCase):
                 )
         self.assertIn("Failed to send test email", str(ctx.exception))
 
+
+@override_settings(
+    DEBUG=False,
+    EMAIL_BACKEND="config.brevo_email_backend.BrevoAPIEmailBackend",
+    ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="x" * 40,
+    DEFAULT_FROM_EMAIL="AssetHive3D <Shop.Team@GMAIL.com>",
+    CONTACT_ADMIN_RECIPIENTS="ops@example.com",
+    PROJECT_MESSAGE_ADMIN_RECIPIENTS="projects@example.com",
+)
+class CheckEmailConfigSenderDomainTests(TestCase):
+    def test_free_mailbox_sender_blocks_launch(self) -> None:
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        text = out.getvalue()
+        self.assertIn("gmail.com, a free mailbox domain", text)
+        self.assertNotIn("Brevo API backend configured", text)
+
+    @override_settings(DEFAULT_FROM_EMAIL="AssetHive3D <noreply@assethive3d.com>")
+    def test_own_domain_sender_is_ready(self) -> None:
+        out = StringIO()
+        call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        self.assertIn("Email/Brevo config looks ready", out.getvalue())
+
+    @override_settings(DEBUG=True)
+    def test_free_mailbox_allowed_in_local_debug(self) -> None:
+        out = StringIO()
+        call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        self.assertNotIn("free mailbox", out.getvalue())
