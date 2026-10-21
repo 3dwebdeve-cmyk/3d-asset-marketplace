@@ -120,7 +120,8 @@ STEP 5.1 — Create a Brevo account
   1. Go to https://www.brevo.com and sign up
   2. Verify your Brevo account email
   3. In Brevo: add and verify your sending domain (or at least a sender email)
-     Domain verification (SPF / DKIM DNS records) greatly improves Gmail delivery
+     Domain authentication (SPF / DKIM / DMARC records) is required for Gmail
+     and Yahoo delivery: step by step in docs/EMAIL_DOMAIN_SETUP.md
 
 STEP 5.2 — Create SMTP credentials
   1. Brevo dashboard → SMTP & API (or Settings → SMTP)

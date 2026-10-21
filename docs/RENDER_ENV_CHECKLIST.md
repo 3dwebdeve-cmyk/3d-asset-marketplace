@@ -16,8 +16,8 @@ or weak, so a gap shows up as a failed deploy; read the Render log for the exact
 | `FRONTEND_BASE_URL` | The public site address (`https://...`), used in email links |
 | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | Only the public site address (`https://...`, no trailing `/`). The site calls the API through its own address, so it needs no other entry: remove old test addresses (`*.workers.dev`, `*.pages.dev`, `localhost`) and the `www.` address, which only redirects |
 | `JWT_REFRESH_COOKIE_SECURE` | `True` |
-| `BREVO_API_KEY`, `DEFAULT_FROM_EMAIL` | Without a real email backend the app refuses to start. The sender must be verified in Brevo |
-| `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_PAYMENT_MODE` | `test` until the company account is live |
+| `BREVO_API_KEY`, `DEFAULT_FROM_EMAIL` | Without a real email backend the app refuses to start. The sender must be an address on the shop's own domain, authenticated in Brevo (`EMAIL_DOMAIN_SETUP.md`) |
+| `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_PAYMENT_MODE` | `test` until the company account is live; switching: `STRIPE_LIVE_CHECKLIST.md` |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT_URL`, `R2_PUBLIC_BUCKET`, `R2_PRIVATE_BUCKET`, `R2_PUBLIC_BASE_URL` | Model and image storage |
 | `DJANGO_ADMIN_ENABLED` | `False` in production (refused otherwise) |
 | One of `ADMIN_CONSOLE_ALLOWED_IPS` or `ADMIN_CONSOLE_IP_LOCK_OFF=true` | The admin IP list, or the deliberate opt-out |
