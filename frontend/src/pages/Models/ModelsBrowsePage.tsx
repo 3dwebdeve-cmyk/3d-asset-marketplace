@@ -7,7 +7,8 @@ import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
 import { SoftwareIcon } from '../../components/SoftwareIcon'
 import { SOFTWARE_FILTERS } from '../../components/softwareFilters'
-import { MODELS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
+import { SiteHeroImage } from '../../components/SiteHeroImage'
+import { MODELS_HERO_IMAGE_SRC, PRODUCTS_BANNER_IMAGE_SRC, categoryBanner } from '../../lib/heroBanners'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { activateOnKey } from '../../lib/keyboard'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
@@ -22,27 +23,6 @@ import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
-const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
-const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/banner%20image/08.webp',
-  toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
-  electronics: '/images/new%20banner%20image%20size/Electronics.webp',
-  'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
-  character: '/images/new%20banner%20image%20size/Character.webp',
-  industrial: '/images/new%20banner%20image%20size/Industrial.webp',
-  '3d-printing': '/images/new%20banner%20image%20size/3D%20Printing.webp',
-  'assets-props': '/images/new%20banner%20image%20size/Assets%20%20Props.webp',
-  'interactive-webar': '/images/new%20banner%20image%20size/AR%20Armchair%20Studio%20Showcase.webp?v=2',
-  'architectural-3d-models': '/images/new%20banner%20image%20size/Architectural%203D%20Models.webp',
-  'interior-3d-models': '/images/new%20banner%20image%20size/Cinematic%20Floating%20Pavilion%20Interior.webp',
-  'cloth-items': '/images/new%20banner%20image%20size/Cloth%20Items.webp',
-  household: '/images/new%20banner%20image%20size/Household.webp',
-  'lifestyle-visualisation': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.webp',
-  'lifestyle-visualization': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.webp',
-  lights: '/images/new%20banner%20image%20size/Moody%20Modern%20Lighting%20Vignette.webp',
-  'plants-vegetation': '/images/new%20banner%20image%20size/Moody%20Panoramic%20Indoor%20Plant%20Collection.webp',
-  products: PRODUCTS_BANNER_IMAGE_SRC,
-}
 
 const FORMAT_OPTIONS = SOFTWARE_FILTERS
 const LICENSE_OPTIONS = [
@@ -332,20 +312,26 @@ export function ModelsBrowsePage() {
     return <NotFoundPage />
   }
 
-  const heroTitle = seoCopy.h1
+  // Until the category list arrives, take the category from the address, so the banner and heading
+  // are right from the first paint instead of showing "all models" and then switching.
+  const heroSlug = selectedCategory?.slug ?? (categoriesData ? '' : slugFromPath)
+  const heroCopy = categorySeo ?? (heroSlug
+    ? getCategorySeo(heroSlug, heroSlug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '))
+    : ALL_MODELS_SEO)
+  const heroTitle = heroCopy.h1
   const usesProductsBanner =
-    selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
-  const usesFurnitureBanner = selectedCategory?.slug === 'furniture'
-  const usesElectronicsBanner = selectedCategory?.slug === 'electronics'
-  const usesCharacterBanner = selectedCategory?.slug === 'character'
-  const usesPlantsBanner = selectedCategory?.slug === 'plants-vegetation'
-  const usesToysBanner = selectedCategory?.slug === 'toys'
-  const usesInteriorBanner = selectedCategory?.slug === 'interior-3d-models'
-  const usesInteractiveBanner = selectedCategory?.slug === 'interactive-webar'
+    selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || heroSlug === 'products'
+  const usesFurnitureBanner = heroSlug === 'furniture'
+  const usesElectronicsBanner = heroSlug === 'electronics'
+  const usesCharacterBanner = heroSlug === 'character'
+  const usesPlantsBanner = heroSlug === 'plants-vegetation'
+  const usesToysBanner = heroSlug === 'toys'
+  const usesInteriorBanner = heroSlug === 'interior-3d-models'
+  const usesInteractiveBanner = heroSlug === 'interactive-webar'
   const heroImageSrc = usesProductsBanner
     ? PRODUCTS_BANNER_IMAGE_SRC
-    : selectedCategory
-      ? CATEGORY_BANNER_BY_SLUG[selectedCategory.slug]
+    : heroSlug
+      ? categoryBanner(heroSlug)
       : MODELS_HERO_IMAGE_SRC
 
   return (
@@ -355,14 +341,14 @@ export function ModelsBrowsePage() {
       >
         <SiteHeroImage
           src={heroImageSrc}
-          width={usesElectronicsBanner ? 2804 : selectedCategory ? undefined : 2804}
-          height={usesElectronicsBanner ? 561 : selectedCategory ? undefined : 561}
+          width={heroSlug && !usesElectronicsBanner ? undefined : 2804}
+          height={heroSlug && !usesElectronicsBanner ? undefined : 561}
         />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
-          <p className="plugins-browse-hero__subtitle">{seoCopy.intro}</p>
+          <p className="plugins-browse-hero__subtitle">{heroCopy.intro}</p>
         </div>
       </section>
 
