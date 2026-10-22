@@ -120,7 +120,7 @@ beforeEach(() => {
 })
 
 describe('Navbar', () => {
-  it.each([false, true])('filters the category picker and supports keyboard selection (compact: %s)', async (compact) => {
+  it.each([false, true])('shows the plain category menu and supports keyboard selection (compact: %s)', async (compact) => {
     const user = userEvent.setup()
     const originalMatchMedia = window.matchMedia
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -140,12 +140,9 @@ describe('Navbar', () => {
       renderNavbar('/3d-models')
       await user.click(screen.getByRole('button', { name: /^all categories$/i }))
       await screen.findByRole('menuitem', { name: 'Furniture' })
-      const search = screen.getByRole('searchbox', { name: 'Search categories' })
-      await user.type(search, 'eLeC')
-      expect(screen.queryByRole('menuitem', { name: 'Furniture' })).not.toBeInTheDocument()
-      expect(screen.getByRole('menuitem', { name: 'Electronics' })).toBeInTheDocument()
-      await user.keyboard('{Enter}')
-      expect(screen.getByTestId('location')).toHaveTextContent(/^\/3d-models$/)
+      expect(screen.queryByRole('searchbox', { name: 'Search categories' })).not.toBeInTheDocument()
+      expect(screen.queryByText('Select Your Category')).not.toBeInTheDocument()
+      screen.getByRole('menuitem', { name: 'Furniture' }).focus()
       await user.keyboard('{ArrowDown}')
       expect(screen.getByRole('menuitem', { name: 'Electronics' })).toHaveFocus()
       await user.keyboard('{Enter}')
@@ -153,12 +150,9 @@ describe('Navbar', () => {
 
       const trigger = screen.getByRole('button', { name: compact ? /^electronics$/i : /^all categories$/i })
       await user.click(trigger)
-      const reopenedSearch = screen.getByRole('searchbox', { name: 'Search categories' })
-      expect(reopenedSearch).toHaveValue('')
-      await user.type(reopenedSearch, 'no matching category')
-      expect(screen.getByRole('status')).toHaveTextContent('No categories found')
-      await user.click(screen.getByRole('button', { name: 'Close categories' }))
-      expect(screen.queryByRole('searchbox', { name: 'Search categories' })).not.toBeInTheDocument()
+      screen.getByRole('menuitem', { name: 'Electronics' }).focus()
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('menuitem', { name: 'Electronics' })).not.toBeInTheDocument()
       expect(trigger).toHaveFocus()
     } finally {
       window.matchMedia = originalMatchMedia

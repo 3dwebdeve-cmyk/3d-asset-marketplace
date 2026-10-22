@@ -29,8 +29,7 @@ const FURNITURE_AND_INTERIOR: Record<string, Entry> = {
     description:
       'Furniture 3D models for interior design, visualization and AR: chairs, sofas and tables. ' + BUY_LINE,
     intro:
-      'Ready-to-use furniture 3D models for interior renders, architectural visualization, product viewers and real-time scenes. ' +
-      'Preview each model in 3D before you buy, check the polygon count, formats and license on its page, and download your files right after checkout.',
+      'Ready-to-use furniture 3D models for interior renders, architectural visualization, product viewers and real-time scenes.',
   },
   'interior-3d-models': {
     title: 'Interior 3D Models – Rooms, Décor & Scenes',

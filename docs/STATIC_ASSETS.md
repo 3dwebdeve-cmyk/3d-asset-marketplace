@@ -16,6 +16,28 @@ How the files the pages download are stored, cached and updated. The cache rules
 day (a week in the background-refresh case). If it matters, give the new file a new name, or add a
 version to the address (`/images/contact-hero.webp?v=3`) and update the code that uses it.
 
+## Automatic WebP conversion
+
+Add PNG, JPG or JPEG images anywhere inside `frontend/public/`. During `npm run dev`,
+new and changed files are converted automatically and the browser reloads. Images
+added while the server is stopped are converted on its next start. `npm run build`
+also performs conversion, so CI and deployments need no Python installation.
+
+`frontend/scripts/automaticWebp.ts` uses Sharp at quality 82, preserving transparency
+for pop-out banners, image dimensions and animation frames. Converted bytes are
+cached under `node_modules/.vite/automatic-webp` and emitted as content-hashed
+`dist/_webp/*.webp` files. Originals are preserved; no source files are rewritten.
+Existing local image URL literals in TS/JS, HTML and CSS are rewritten by Vite to
+the generated assets, including URL-encoded filenames. Use a root-relative literal
+such as `/banners/my-photo.png` when adding a static image. Dynamically assembled
+URLs, external URLs and social-preview absolute URLs retain their original format.
+SVG and existing WebP files are left as-is. Website uploads continue to use the
+backend's existing WebP conversion independently of this static asset pipeline.
+
+The older `optimize_static_images.py` is an optional manual export utility; it is
+not needed for normal development/builds. Category resizing remains a separate
+step because automatic conversion preserves the original dimensions.
+
 ## Category card images
 
 Each local category image has two copies next to it, `name-640.webp` and `name-1000.webp`; the card

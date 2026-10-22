@@ -7,7 +7,6 @@ import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
 import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
-import { HomeBuyingGuide } from '../../components/HomeBuyingGuide'
 import { useAllCategories } from '../../hooks/useAllCategories'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { HOME_DESCRIPTION, HOME_TITLE, buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
@@ -637,7 +636,6 @@ export function ProductsBrowsePage() {
             ))}
           </div>
         </section>
-        <HomeBuyingGuide />
       </main>
     )
   }
