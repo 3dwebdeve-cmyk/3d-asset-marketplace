@@ -420,6 +420,13 @@ button.product-detail-cta__link {
   line-height: 1.45;
 }
 
+.product-detail-cta__owned {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
 .product-detail-specs {
   margin-top: 0.35rem;
   border-top: 1px solid var(--border);

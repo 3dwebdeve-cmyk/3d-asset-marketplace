@@ -62,7 +62,15 @@ export function initFrontendSentry(): void {
         environment:
           import.meta.env.VITE_SENTRY_ENVIRONMENT?.trim() ||
           (import.meta.env.PROD ? 'production' : 'development'),
-        sendDefaultPii: false,
+        // Sentry 11 collects user info, cookies, headers, bodies and query strings by default;
+        // keep all of it off, as sendDefaultPii: false did before. beforeSend still filters.
+        dataCollection: {
+          userInfo: false,
+          cookies: false,
+          httpHeaders: false,
+          httpBodies: [],
+          urlQueryParams: false,
+        },
         tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0,
         integrations: [Sentry.browserTracingIntegration()],
         beforeSend(event) {

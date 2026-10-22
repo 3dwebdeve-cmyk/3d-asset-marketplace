@@ -92,7 +92,7 @@ describe('text helpers', () => {
 
 describe('titles', () => {
   it('keeps the home title and description inside what search results show', () => {
-    expect(HOME_TITLE).toBe('Furniture & Interior 3D Models | AssetHive3D')
+    expect(HOME_TITLE).toBe('Download Furniture & Interior 3D Models | AssetHive3D')
     expect(HOME_TITLE.length).toBeLessThanOrEqual(60)
     expect(HOME_DESCRIPTION.length).toBeLessThanOrEqual(160)
   })
