@@ -8,7 +8,7 @@ export const DEFAULT_SOCIAL_IMAGE = DEFAULT_OG_IMAGE_PATH
 export const DEFAULT_SOCIAL_IMAGE_ALT = 'Sofa, armchair and coffee table in a modern interior, with the AssetHive3D name'
 export const LOGO_PATH = '/images/AssetHive%203D.svg'
 
-export const HOME_TITLE = `${SITE_TAGLINE} | ${SITE_NAME}`
+export const HOME_TITLE = `Download ${SITE_TAGLINE} | ${SITE_NAME}`
 export const HOME_DESCRIPTION =
   'Download production-ready 3D models of furniture, interiors, lighting and plants. ' +
   'Preview every model in 3D, buy securely and get a license with each order.'

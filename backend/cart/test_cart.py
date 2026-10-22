@@ -375,3 +375,74 @@ class CartAPITests(APITestCase):
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         self.assertEqual(second.data.get("code"), "throttled")
+
+
+class OwnedItemTests(APITestCase):
+    """A digital item is bought once: neither the cart nor checkout lets the owner pay again."""
+
+    setUp = CartAPITests.setUp
+    authenticate = CartAPITests.authenticate
+
+    def give_customer(self, product: Product) -> None:
+        from orders.models import Order, OrderItem
+
+        order = Order.objects.create(
+            user=self.customer,
+            invoice_number=f"INV-OWNED-{product.pk.hex[:8]}",
+            total_amount=product.price,
+            order_status=Order.OrderStatus.PAID,
+            payment_status=Order.PaymentStatus.PAID,
+        )
+        OrderItem.objects.create(
+            order=order,
+            product_type=OrderItem.ProductType.PRODUCT,
+            product_id=product.pk,
+            quantity=1,
+            purchase_price=product.price,
+        )
+
+    def test_owned_item_cannot_be_added_to_the_cart(self) -> None:
+        self.give_customer(self.published_product)
+        self.authenticate()
+
+        response = self.client.post(
+            self.cart_url,
+            {"product_type": "product", "product_id": str(self.published_product.pk)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("already own", str(response.data))
+        self.assertFalse(CartItem.objects.filter(product_id=self.published_product.pk).exists())
+
+    def test_checkout_refuses_an_item_bought_after_it_was_added(self) -> None:
+        from orders.services import OrderError, OrderService
+
+        self.authenticate()
+        self.client.post(
+            self.cart_url,
+            {"product_type": "product", "product_id": str(self.published_product.pk)},
+            format="json",
+        )
+        self.give_customer(self.published_product)
+
+        with self.assertRaises(OrderError) as ctx:
+            OrderService.create_from_cart(self.customer)
+        self.assertIn("You already own Oak Chair", ctx.exception.message)
+
+    def test_a_refunded_item_can_be_bought_again(self) -> None:
+        from orders.models import Order
+
+        self.give_customer(self.published_product)
+        Order.objects.filter(user=self.customer).update(
+            order_status=Order.OrderStatus.REFUNDED, payment_status=Order.PaymentStatus.REFUNDED
+        )
+        self.authenticate()
+
+        response = self.client.post(
+            self.cart_url,
+            {"product_type": "product", "product_id": str(self.published_product.pk)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
