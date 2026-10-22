@@ -36,7 +36,7 @@ export function CategoryTile({
             {...responsiveImageProps(imageSrc, Boolean(localImage))}
             width={1000}
             height={566}
-            alt=""
+            alt={`${category.name} 3D model collection`}
             className="browse-category-card__image"
             onError={() => setFailedImage(imageSrc)}
             loading="lazy"

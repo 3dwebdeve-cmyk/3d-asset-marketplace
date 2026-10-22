@@ -1,5 +1,47 @@
 /* Public Products Browse Page Styles */
 
+.home-buying-guide {
+  margin: 2rem var(--site-gutter);
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--bg-primary);
+  text-align: left;
+}
+
+.home-buying-guide__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.home-buying-guide p,
+.home-buying-guide li {
+  line-height: 1.75;
+}
+
+.home-buying-guide a {
+  color: var(--action-color);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.home-buying-guide details {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.home-buying-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .home-buying-guide__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
