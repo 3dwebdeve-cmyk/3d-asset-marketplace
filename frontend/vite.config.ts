@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { automaticWebp } from './scripts/automaticWebp.ts'
 
 // Address used in the default link-preview tags of index.html (Facebook, LinkedIn and X read only
 // the static HTML, and they need a full address). Load the same VITE_SITE_URL as the client
@@ -18,7 +19,7 @@ function siteUrlInHtml(mode: string): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), siteUrlInHtml(mode)],
+  plugins: [react(), siteUrlInHtml(mode), ...(mode === 'test' ? [] : [automaticWebp()])],
   server: {
     // Same-origin `/api` (incl. `/api/v1`) in local dev so httpOnly refresh cookies work.
     proxy: {
