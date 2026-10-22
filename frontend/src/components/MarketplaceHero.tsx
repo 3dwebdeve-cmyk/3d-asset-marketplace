@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { HOME_HEADING } from '../lib/homeContent'
 
 interface TrendingTag {
   label: string
@@ -187,7 +188,7 @@ export function MarketplaceHero() {
 
         <div className="home-marketplace-hero__content">
           <h1 className="home-marketplace-hero__title">
-            Furniture &amp; interior 3D models for visualization and design
+            {HOME_HEADING}
           </h1>
 
           <form
