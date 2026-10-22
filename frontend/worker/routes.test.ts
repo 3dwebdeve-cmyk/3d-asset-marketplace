@@ -125,8 +125,8 @@ describe('wrangler.jsonc', () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
 
-    // Vite writes the built JavaScript and CSS to /assets.
-    expect(new Set(skipped.filter((name) => !name.includes('.')))).toEqual(new Set([...folders, 'assets']))
+    // Vite writes the built JavaScript and CSS to /assets, and scripts/automaticWebp.ts the converted pictures to /_webp.
+    expect(new Set(skipped.filter((name) => !name.includes('.')))).toEqual(new Set([...folders, 'assets', '_webp']))
     for (const file of skipped.filter((name) => name.includes('.'))) {
       expect(published.some((entry) => entry.name === file), file).toBe(true)
     }

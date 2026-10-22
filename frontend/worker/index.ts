@@ -14,6 +14,7 @@ import {
 import type { PublicPluginDetail } from '../src/types/plugin'
 import type { PublicProductDetail } from '../src/types/product'
 import { buildCategoryTitle, categoryPath, getCategorySeo } from '../src/lib/categorySeo'
+import { heroPreloadLink } from '../src/lib/heroBanners'
 import {
   conditionalResponse,
   edgeCache,
@@ -317,14 +318,20 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
 
   const path = normalizePath(url.pathname)
   const seo = await resolvePageSeo(path, env, siteOrigin)
+  const headers = new Headers(assetResponse.headers)
+  // The banner is otherwise only found after the JavaScript has run. The Link header lets the browser
+  // start on it as soon as the page's headers arrive, with the same srcset the <img> will use.
+  const preload = heroPreloadLink(path)
+  if (preload && (!seo || seo.status === 200)) {
+    headers.append('Link', preload)
+  }
   if (!seo) {
-    return withSecurityHeaders(assetResponse)
+    return withSecurityHeaders(new Response(assetResponse.body, { status: assetResponse.status, headers }))
   }
   if ((path === '/3d-models' || path.startsWith('/3d-models/') || path === '/plugins') && url.searchParams.get('search')?.trim()) {
     seo.robots = 'noindex, follow'
   }
 
-  const headers = new Headers(assetResponse.headers)
   headers.delete('Content-Length')
   headers.delete('ETag')
   if (seo.robots) {

@@ -19,6 +19,7 @@
     "run_worker_first": [
       "/*",
       "!/assets/*",
+      "!/_webp/*",
       "!/fonts/*",
       "!/images/*",
       "!/models/*",

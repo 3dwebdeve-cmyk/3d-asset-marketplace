@@ -44,6 +44,16 @@ describe('Cloudflare API proxy', () => {
     expect(response.headers.get('Content-Type')).toBe('text/html')
   })
 
+  it('preloads the banner of a page that has one, with its srcset', async () => {
+    const html = () => new Response('<html><head></head></html>', { headers: { 'Content-Type': 'text/html' } })
+    const plugins = await worker.fetch(new Request('https://marketplace.example/plugins'), createEnv(html()))
+    expect(plugins.headers.get('Link')).toMatch(
+      /^<\/images\/Floating%20Plugin%20Interface%20Tiles\.webp>; rel=preload; as=image; fetchpriority=high; imagesrcset="[^"]+-768\.webp 768w, /,
+    )
+    const cart = await worker.fetch(new Request('https://marketplace.example/cart'), createEnv(html()))
+    expect(cart.headers.get('Link')).toBeNull()
+  })
+
   it('keeps the security headers in sync with nginx.conf', () => {
     // Vitest runs from the frontend directory, where nginx.conf lives.
     const nginx = readFileSync('nginx.conf', 'utf-8')
