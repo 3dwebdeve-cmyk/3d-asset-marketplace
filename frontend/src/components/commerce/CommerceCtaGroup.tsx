@@ -1,10 +1,11 @@
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { AddToCartButton } from '../cart/AddToCartButton'
 import { Button } from '../ui/Button'
 import { WishlistToggle } from '../wishlist/WishlistToggle'
 import { useBuyNow } from '../../hooks/useBuyNow'
+import { useOwnedItems } from '../../hooks/useOwnedItems'
 import { useAuthStore } from '../../store/authStore'
 import type { CartProductType } from '../../types/cart'
 
@@ -37,7 +38,9 @@ export function CommerceCtaGroup({
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
   const { buyNow, isRedirecting } = useBuyNow()
+  const { isOwned } = useOwnedItems()
   const isSignedIn = isAuthenticated && Boolean(accessToken)
+  const owned = isSignedIn && isOwned(productType, productId)
   const returnTo = location.pathname
   const pathSegment = productType === 'product' ? 'products' : 'plugins'
   const itemLabel = productType === 'product' ? 'Product' : 'Plugin'
@@ -58,7 +61,18 @@ export function CommerceCtaGroup({
     window.prompt(`Copy this ${itemLabel.toLowerCase()} link:`, shareUrl)
   }
 
-  const buyButton = isSignedIn ? (
+  const buyButton = owned ? (
+    <Link
+      to="/dashboard/downloads"
+      className={
+        isBuybox
+          ? 'ui-button ui-button--primary product-detail-cta__full product-detail-cta__link'
+          : 'ui-button ui-button--primary product-detail-cta__buy product-detail-cta__link'
+      }
+    >
+      Download
+    </Link>
+  ) : isSignedIn ? (
     <Button
       type="button"
       className={isBuybox ? 'product-detail-cta__full' : 'product-detail-cta__buy'}
@@ -111,14 +125,17 @@ export function CommerceCtaGroup({
       <div className="product-detail-cta product-detail-cta--buybox">
         <div className="product-detail-cta__actions">
           {buyButton}
-          <AddToCartButton
-            productType={productType}
-            productId={productId}
-            productName={productName}
-            variant="full"
-            guestLabel={useStandardGuestLabels ? 'Add to cart' : undefined}
-          />
+          {owned ? null : (
+            <AddToCartButton
+              productType={productType}
+              productId={productId}
+              productName={productName}
+              variant="full"
+              guestLabel={useStandardGuestLabels ? 'Add to cart' : undefined}
+            />
+          )}
         </div>
+        {owned ? <p className="product-detail-cta__owned">You already own this {itemLabel.toLowerCase()}.</p> : null}
         {shareControl}
       </div>
     )
@@ -127,13 +144,16 @@ export function CommerceCtaGroup({
   return (
     <div className="product-detail-cta">
       {buyButton}
+      {owned ? <p className="product-detail-cta__owned">You already own this {itemLabel.toLowerCase()}.</p> : null}
 
       <div className="product-detail-cta__secondary">
-        <AddToCartButton
-          productType={productType}
-          productId={productId}
-          productName={productName}
-        />
+        {owned ? null : (
+          <AddToCartButton
+            productType={productType}
+            productId={productId}
+            productName={productName}
+          />
+        )}
 
         {showWishlist ? (
           <WishlistToggle

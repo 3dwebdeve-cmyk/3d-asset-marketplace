@@ -100,7 +100,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
           </p>
           <h1 className="product-hub-detail__title">
             {product.name}
-            <span className="product-hub-detail__verified-badge" title="Verified Asset" aria-label="Verified">
+            <span className="product-hub-detail__verified-badge" title="Verified Asset" role="img" aria-label="Verified asset">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="#1d6bf3" aria-hidden="true">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#1d6bf3" />
                 <path d="m10 15.17-3.59-3.58L5 13l5 5 9-9-1.41-1.42L10 15.17z" fill="#ffffff" />

@@ -254,10 +254,17 @@
 .auth-mode-tabs__item:hover,
 .auth-mode-tabs__item:focus-visible {
   color: var(--auth-ink, var(--text-main));
-  outline: none;
 }
 
-.auth-mode-tabs__item--active {
+/* Keyboard users must see which tab has focus; the dialog focuses one as it opens. */
+.auth-mode-tabs__item:focus-visible {
+  outline: 2px solid var(--auth-accent, var(--action-color));
+  outline-offset: 2px;
+}
+
+.auth-mode-tabs__item--active,
+.auth-mode-tabs__item--active:hover,
+.auth-mode-tabs__item--active:focus-visible {
   background: var(--auth-accent, var(--action-color));
   color: #fff;
   box-shadow: none;
