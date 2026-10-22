@@ -43,7 +43,10 @@ describe('loading Sentry only when it is configured', () => {
 
     module.initFrontendSentry()
     await vi.waitFor(() => expect(sentry.init).toHaveBeenCalledTimes(1))
-    expect(sentry.init.mock.calls[0][0]).toMatchObject({ sendDefaultPii: false })
+    // No personal data: Sentry 11 collects these by default unless each is switched off.
+    expect(sentry.init.mock.calls[0][0]).toMatchObject({
+      dataCollection: { userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false },
+    })
 
     module.captureReactException(new Error('boom'), { componentStack: '' })
     await vi.waitFor(() => expect(sentry.captureReactException).toHaveBeenCalledTimes(1))
