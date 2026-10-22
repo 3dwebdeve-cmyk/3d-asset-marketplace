@@ -220,6 +220,7 @@ export function MarketplaceHero() {
             <button
               type="submit"
               className="home-marketplace-search__submit"
+              aria-label="Search"
             >
               <span>Search</span>
               <ArrowRightIcon />

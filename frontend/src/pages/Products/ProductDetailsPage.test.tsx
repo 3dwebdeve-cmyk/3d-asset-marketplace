@@ -79,7 +79,7 @@ vi.mock('../../api/reviewsApi', async () => {
 
 vi.mock('../../components/viewer/LazyModelViewer', () => ({
   LazyModelViewer: ({ ariaLabel, modelUrl }: { ariaLabel: string; modelUrl: string }) => (
-    <div data-testid="lazy-model-viewer" role="img" aria-label={ariaLabel} data-model-url={modelUrl} />
+    <div data-testid="lazy-model-viewer" role="group" aria-label={ariaLabel} data-model-url={modelUrl} />
   ),
 }))
 
@@ -279,7 +279,7 @@ describe('ProductDetailsPage', () => {
     expect(screen.queryByRole('link', { name: /close/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
     expect(
-      screen.getByRole('img', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
+      screen.getByRole('group', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('lazy-model-viewer')).toBeInTheDocument()
     expect(document.title).toContain('Cyberpunk Drone 3D')

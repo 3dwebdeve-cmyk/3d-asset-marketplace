@@ -339,7 +339,7 @@ function ModelViewerCanvas({
   }, [selectedEnvironment.hdrPath, selectedEnvironment.label])
 
   return (
-    <div className="model-viewer" role="img" aria-label={ariaLabel}>
+    <div className="model-viewer" role="group" aria-label={ariaLabel}>
       <Canvas
         className="model-viewer__canvas"
         camera={{ position: [0, 0.9, 2.3], fov: 42, near: 0.1, far: 200 }}
@@ -425,7 +425,7 @@ function StableModelViewerCanvas({
   pixelRatio: number
 }) {
   return (
-    <div className="model-viewer" role="img" aria-label={ariaLabel}>
+    <div className="model-viewer" role="group" aria-label={ariaLabel}>
       <Canvas
         className="model-viewer__canvas"
         camera={{ position: [0, 0.9, 2.8], fov: 42, near: 0.1, far: 200 }}

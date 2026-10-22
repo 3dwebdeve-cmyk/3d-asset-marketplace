@@ -1176,6 +1176,13 @@
   transform: none;
 }
 
+.product-card__add-cart--owned,
+.product-card__add-cart--owned:hover {
+  background: transparent;
+  color: var(--action-color);
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
 .product-card__add-cart svg {
   flex-shrink: 0;
 }
