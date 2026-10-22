@@ -9,7 +9,7 @@ test.describe('marketplace checkout commerce', () => {
     await page.goto(`/products/${E2E_PRODUCT_SLUG}`)
     await expect(page.getByRole('heading', { name: 'E2E Checkout Chair' })).toBeVisible()
 
-    const viewer = page.getByRole('img', {
+    const viewer = page.getByRole('group', {
       name: /Interactive 3D preview of E2E Checkout Chair/i,
     })
     const viewerLoading = page.getByText(/Loading interactive preview/i)

@@ -113,7 +113,7 @@ describe('ModelViewer', () => {
     )
 
     expect(
-      screen.getByRole('img', { name: /interactive 3d preview of demo asset/i }),
+      screen.getByRole('group', { name: /interactive 3d preview of demo asset/i }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-dpr', '1.25')
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'always')
