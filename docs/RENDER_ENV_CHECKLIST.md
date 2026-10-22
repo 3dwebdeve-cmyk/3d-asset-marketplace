@@ -38,7 +38,8 @@ or weak, so a gap shows up as a failed deploy; read the Render log for the exact
 | Name | What it does |
 |---|---|
 | `RUN_BACKGROUND_JOBS_IN_WEB=true` | Sends the queued emails (verification, password reset, orders, security notices) |
-| `RUN_MAINTENANCE_LOOP_IN_WEB=true` | Daily housekeeping: prune old records, payment checks, and the Stripe comparison once the account is live |
+| `RUN_MAINTENANCE_LOOP_IN_WEB=true` | Daily housekeeping: prune old records, payment checks, the Stripe comparison once the account is live, then the daily report email |
+| `OPS_REPORT_RECIPIENTS` | Team inboxes for the daily report, comma separated (empty = every active Administrator). See `RUNBOOK.md` |
 | `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_ADMIN_NAME` | Creates the first administrator at startup (no shell on the free plan). Create-only: never resets a password and never promotes an existing customer. Password at least 12 characters and not a common or breached one. **Delete `BOOTSTRAP_ADMIN_PASSWORD` after the first successful deploy** |
 
 ## Do not set on Render
@@ -50,4 +51,5 @@ or weak, so a gap shows up as a failed deploy; read the Render log for the exact
 
 Render's paid Postgres plans include automatic backups; the free plan has none and expires after
 about 30 days. The `age`/R2 backup scripts in `backend/scripts/` are for self-hosting with Docker and
-are not used on Render. Confirm the retention of the plan you buy.
+are not used on Render. Confirm the retention of the plan you buy. Manual copies and the restore
+rehearsal: `RENDER_BACKUP_RESTORE.md`.

@@ -14,6 +14,15 @@ import {
 import type { PublicPluginDetail } from '../src/types/plugin'
 import type { PublicProductDetail } from '../src/types/product'
 import { buildCategoryTitle, categoryPath, getCategorySeo } from '../src/lib/categorySeo'
+import {
+  conditionalResponse,
+  edgeCache,
+  fromStoredCopy,
+  isEdgeCacheable,
+  sharedMaxAge,
+  toStoredCopy,
+} from './edgeCache'
+import { isKnownAppPath } from './routes'
 
 interface AssetsBinding {
   fetch(request: Request): Promise<Response>
@@ -30,6 +39,11 @@ export interface WorkerEnv {
 
 type CatalogKind = 'products' | 'plugins'
 
+/** The parts of the Workers ExecutionContext the Worker uses. */
+export interface WorkerContext {
+  waitUntil(promise: Promise<unknown>): void
+}
+
 // Product and plugin detail routes, e.g. /products/desk-lamp or /Plugins/uv-tools.
 const DETAIL_ROUTE = /^\/(products|plugins)\/([^/]+)$/i
 const DETAIL_TIMEOUT_MS = 4000
@@ -44,7 +58,7 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
   'Content-Security-Policy':
-    "default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https://accounts.google.com https://*.googleapis.com https://*.sentry.io https://*.ingest.sentry.io https://pub-a20fb6d206fc47a1b1e5e247e82838e0.r2.dev https://0d3f756f61c3239ec77f9941c82c20c3.r2.cloudflarestorage.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/v1/security/csp-report/",
+    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https://accounts.google.com https://*.googleapis.com https://*.sentry.io https://*.ingest.sentry.io https://pub-a20fb6d206fc47a1b1e5e247e82838e0.r2.dev https://0d3f756f61c3239ec77f9941c82c20c3.r2.cloudflarestorage.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/v1/security/csp-report/",
 }
 
 function withSecurityHeaders(response: Response): Response {
@@ -142,11 +156,16 @@ type CatalogFetchResult =
   | { kind: 'unavailable' }
 
 /** Reads a public catalog endpoint. Failures are reported, never thrown, so pages still render. */
-async function fetchCatalogJson(url: URL): Promise<CatalogFetchResult> {
+async function fetchCatalogJson(url: URL, env: WorkerEnv): Promise<CatalogFetchResult> {
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  // With EDGE_REQUIRE on, the backend refuses calls that do not carry the shared secret.
+  if (env.EDGE_SHARED_SECRET) {
+    headers['X-Edge-Secret'] = env.EDGE_SHARED_SECRET
+  }
   let response: Response
   try {
     response = await fetch(url, {
-      headers: { Accept: 'application/json' },
+      headers,
       signal: AbortSignal.timeout(DETAIL_TIMEOUT_MS),
       cf: { cacheTtl: CATALOG_CACHE_TTL_SECONDS, cacheEverything: true },
     } as RequestInit)
@@ -193,6 +212,7 @@ async function resolveDetailSeo(
 
   const result = await fetchCatalogJson(
     new URL(`/api/v1/${kind}/${encodeURIComponent(slug)}/`, backend),
+    env,
   )
   if (result.kind === 'missing') {
     return getNotFoundPageSeo(kind === 'products' ? 'Product' : 'Plugin')
@@ -227,7 +247,7 @@ async function resolvePageSeo(
       const url = new URL('/api/v1/categories/', backend)
       url.searchParams.set('page_size', '100')
       url.searchParams.set('page', String(page))
-      const result = await fetchCatalogJson(url)
+      const result = await fetchCatalogJson(url, env)
       if (result.kind !== 'ok' || typeof result.body !== 'object' || !result.body) return undefined
       const body = result.body as { results?: { id: string; slug: string; name: string }[]; next?: unknown }
       if (!Array.isArray(body.results)) return undefined
@@ -237,7 +257,7 @@ async function resolvePageSeo(
         const productsUrl = new URL('/api/v1/products/', backend)
         productsUrl.searchParams.set('category_id', category.id)
         productsUrl.searchParams.set('page_size', '1')
-        const products = await fetchCatalogJson(productsUrl)
+        const products = await fetchCatalogJson(productsUrl, env)
         const listing = products.kind === 'ok' ? products.body as { results?: unknown[] } : null
         const empty = Array.isArray(listing?.results) && listing.results.length === 0
         return {
@@ -262,11 +282,16 @@ async function resolvePageSeo(
   }
 
   const match = DETAIL_ROUTE.exec(path)
-  if (!match || !SLUG_PATTERN.test(match[2])) {
-    return undefined
+  if (!match) {
+    // An address the app has no page for: answer 404 so it is not indexed as a copy of the home page.
+    return isKnownAppPath(path) ? undefined : getNotFoundPageSeo('Page')
   }
 
   const kind = match[1].toLowerCase() as CatalogKind
+  if (!SLUG_PATTERN.test(match[2])) {
+    // No product or plugin can have this address.
+    return getNotFoundPageSeo(kind === 'products' ? 'Product' : 'Plugin')
+  }
   return resolveDetailSeo(kind, match[2], env, siteOrigin)
 }
 
@@ -280,8 +305,9 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
 
   const assetResponse = await env.ASSETS.fetch(request)
 
+  const isHead = request.method === 'HEAD'
   if (
-    request.method !== 'GET' ||
+    (request.method !== 'GET' && !isHead) ||
     !assetResponse.ok ||
     !isHtmlResponse(assetResponse) ||
     isLikelyAssetPath(url.pathname)
@@ -304,12 +330,20 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
   if (seo.robots) {
     headers.set('X-Robots-Tag', seo.robots)
   }
+  // Link checkers and crawlers often ask with HEAD; they must see the same status as GET.
+  if (isHead) {
+    return withSecurityHeaders(new Response(null, { status: seo.status, headers }))
+  }
 
   const html = renderSeoHead(await assetResponse.text(), seo, { origin: siteOrigin, path })
   return withSecurityHeaders(new Response(html, { status: seo.status, headers }))
 }
 
-export async function handleRequest(request: Request, env: WorkerEnv): Promise<Response> {
+export async function handleRequest(
+  request: Request,
+  env: WorkerEnv,
+  ctx?: WorkerContext,
+): Promise<Response> {
   const incomingUrl = new URL(request.url)
   if (incomingUrl.pathname === '/robots.txt') {
     return withSecurityHeaders(await robotsTxt(request, env, incomingUrl))
@@ -323,6 +357,16 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
     origin = backendOrigin(env.BACKEND_ORIGIN)
   } catch {
     return errorResponse(503, 'API proxy is not configured.')
+  }
+
+  const cache = isEdgeCacheable(request, incomingUrl) ? edgeCache() : undefined
+  // Keyed on the address alone: these answers do not depend on who asks.
+  const cacheKey = new Request(incomingUrl.toString(), { method: 'GET' })
+  if (cache) {
+    const stored = await cache.match(cacheKey).catch(() => undefined)
+    if (stored) {
+      return fromStoredCopy(stored, request)
+    }
   }
 
   const upstreamPath = incomingUrl.pathname === SITEMAP_PATH ? UPSTREAM_SITEMAP_PATH : incomingUrl.pathname
@@ -343,6 +387,11 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
   }
   headers.set('X-Forwarded-Host', incomingUrl.host)
   headers.set('X-Forwarded-Proto', 'https')
+  if (cache) {
+    // A full answer is needed to fill the cache; the visitor's own tag is checked on the way out.
+    headers.delete('If-None-Match')
+    headers.delete('If-Modified-Since')
+  }
 
   const init: RequestInit & { duplex?: 'half' } = {
     method: request.method,
@@ -371,6 +420,15 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
       }
       return withSecurityHeaders(new Response(xml, { status: response.status, headers: sitemapHeaders }))
     }
+    const seconds = cache ? sharedMaxAge(response) : 0
+    if (cache && seconds > 0) {
+      const store = cache.put(cacheKey, toStoredCopy(response.clone(), seconds)).catch(() => undefined)
+      if (ctx) ctx.waitUntil(store)
+      else await store
+      const headers = new Headers(response.headers)
+      headers.set('X-Edge-Cache', 'MISS')
+      return conditionalResponse(request, response.body, headers)
+    }
     return response
   } catch {
     return errorResponse(502, 'The API service is temporarily unavailable.')
@@ -378,5 +436,5 @@ export async function handleRequest(request: Request, env: WorkerEnv): Promise<R
 }
 
 export default {
-  fetch: handleRequest,
+  fetch: (request: Request, env: WorkerEnv, ctx?: WorkerContext) => handleRequest(request, env, ctx),
 }

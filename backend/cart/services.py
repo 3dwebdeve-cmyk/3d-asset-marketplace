@@ -98,6 +98,14 @@ class CartService:
             )
 
         _, currency = cls._validate_catalog_item(normalized_type, product_id)
+        from orders.entitlements import user_owns_catalog_item
+
+        # Digital items are bought once; the download stays available.
+        if user_owns_catalog_item(user, normalized_type, product_id):
+            raise CartError(
+                "You already own this item. Download it from Dashboard → Downloads.",
+                field="product_id",
+            )
         cart = cls.lock_cart(user)
         cls._ensure_currency_consistency(cart, currency)
 

@@ -58,7 +58,8 @@ describe('Cloudflare API proxy', () => {
   })
 
   it('serves the same headers to static pages through the _headers file', () => {
-    // wrangler.jsonc runs the Worker only for /api, so pages get their headers from this file.
+    // Static files skip the Worker (wrangler.jsonc), and pages the Worker serves come from the
+    // asset binding, which applies this file too.
     const lines = readFileSync('public/_headers', 'utf-8').split(/\r?\n/)
     const start = lines.indexOf('/*')
     expect(start).toBeGreaterThanOrEqual(0)
@@ -368,5 +369,14 @@ describe('Cloudflare API proxy', () => {
     await expect(response.json()).resolves.toEqual({
       detail: 'The API service is temporarily unavailable.',
     })
+  })
+})
+
+describe('page security policy', () => {
+  it('lets the 3D loader compile its WebAssembly decoder, but never allows eval', () => {
+    const policy = SECURITY_HEADERS['Content-Security-Policy']
+    const scriptSrc = policy.split(';').find((part) => part.trim().startsWith('script-src')) ?? ''
+    expect(scriptSrc).toContain("'wasm-unsafe-eval'")
+    expect(scriptSrc).not.toMatch(/'unsafe-eval'|'unsafe-inline'/)
   })
 })
