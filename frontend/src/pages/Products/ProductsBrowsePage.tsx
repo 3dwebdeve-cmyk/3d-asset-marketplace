@@ -7,6 +7,7 @@ import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
 import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
+import { HomeBuyingGuide } from '../../components/HomeBuyingGuide'
 import { useAllCategories } from '../../hooks/useAllCategories'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { HOME_DESCRIPTION, HOME_TITLE, buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
@@ -28,6 +29,8 @@ interface BrowseService {
   path: string
   buttonText: string
   iconSrc: string
+  iconWidth: number
+  iconHeight: number
 }
 
 const CATEGORY_DISPLAY_ORDER = [
@@ -123,6 +126,8 @@ const BROWSE_SERVICES: BrowseService[] = [
     path: '/3d-models',
     buttonText: 'Shop 3D Models',
     iconSrc: '/images/home/icon-3d-models.webp',
+    iconWidth: 489,
+    iconHeight: 450,
   },
   {
     title: 'Plugins & Tools',
@@ -130,6 +135,8 @@ const BROWSE_SERVICES: BrowseService[] = [
     path: '/plugins',
     buttonText: 'Explore Plugins',
     iconSrc: '/images/home/icon-plugins.webp',
+    iconWidth: 476,
+    iconHeight: 535,
   },
   {
     title: 'Inquiry Portal',
@@ -137,6 +144,8 @@ const BROWSE_SERVICES: BrowseService[] = [
     path: '/custom-projects',
     buttonText: 'Submit an Inquiry',
     iconSrc: '/images/home/icon-inquiry.webp',
+    iconWidth: 483,
+    iconHeight: 464,
   },
 ]
 
@@ -240,6 +249,8 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Model',
     icon: 'cube',
     image: '/images/custom-3Dmodel.webp',
+    imageWidth: 1536,
+    imageHeight: 1024,
     summary: 'Custom 3D models for furniture, products and interiors, built precisely for your project.',
     points: [
       'Furniture, product & game-ready models',
@@ -253,6 +264,8 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Plugin',
     icon: 'plugin',
     image: '/images/custom-plugin.webp',
+    imageWidth: 1536,
+    imageHeight: 1024,
     summary: 'Powerful Blender add-ons and tools to supercharge your workflow.',
     points: [
       'Custom Blender add-ons',
@@ -266,6 +279,8 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Texture',
     icon: 'pencil',
     image: '/images/custom-texture.webp',
+    imageWidth: 1254,
+    imageHeight: 1254,
     summary: 'Realistic and stylized textures that bring your 3D models to life.',
     points: [
       'PBR & stylized texturing',
@@ -279,6 +294,8 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Render',
     icon: 'camera',
     image: '/images/custom-render.webp',
+    imageWidth: 1717,
+    imageHeight: 916,
     summary: 'High-quality renders with perfect lighting, composition and detail.',
     points: [
       'Photorealistic renders',
@@ -329,7 +346,7 @@ function ServiceModule({ service }: { service: BrowseService }) {
   return (
     <article className="browse-service-card">
       <div className="browse-service-card__copy">
-        <h3 className="browse-service-card__title">{service.title}</h3>
+        <h2 className="browse-service-card__title">{service.title}</h2>
         <p className="browse-service-card__text">{service.description}</p>
         <Link to={service.path} className="browse-service-card__btn">
           {service.buttonText}
@@ -339,6 +356,8 @@ function ServiceModule({ service }: { service: BrowseService }) {
         <img
           src={service.iconSrc}
           alt=""
+          width={service.iconWidth}
+          height={service.iconHeight}
           className="browse-service-card__icon-img"
           loading="lazy"
           decoding="async"
@@ -447,7 +466,8 @@ export function ProductsBrowsePage() {
       <main className="products-browse-page products-browse-page--hub">
         <MarketplaceHero />
 
-        <section className="browse-service-cards" aria-label="Marketplace modules">
+        <section className="browse-service-cards" aria-labelledby="marketplace-services-heading">
+          <h2 id="marketplace-services-heading" className="visually-hidden">Explore the AssetHive3D marketplace</h2>
           {BROWSE_SERVICES.map((service) => (
             <ServiceModule key={service.path} service={service} />
           ))}
@@ -580,7 +600,9 @@ export function ProductsBrowsePage() {
                           : 'hub-offer__thumb'
                       }
                       src={offer.image}
-                      alt=""
+                      alt={`${offer.title} service preview`}
+                      width={offer.imageWidth}
+                      height={offer.imageHeight}
                       loading="lazy"
                       decoding="async"
                     />
@@ -615,6 +637,7 @@ export function ProductsBrowsePage() {
             ))}
           </div>
         </section>
+        <HomeBuyingGuide />
       </main>
     )
   }

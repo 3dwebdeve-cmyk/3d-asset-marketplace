@@ -328,6 +328,19 @@ class OrderService:
         if not available_items:
             raise OrderError("Your cart is empty.", field="items")
 
+        from orders.entitlements import owned_catalog_keys
+
+        # Bought since it was added to the cart (another tab, an earlier checkout): never charge twice.
+        owned = owned_catalog_keys(user, [(item.product_type, item.product_id) for item in available_items])
+        if owned:
+            names = sorted(
+                str(envelope.snapshots[key].get("name") or "an item") for key in owned
+            )
+            raise OrderError(
+                f"You already own {', '.join(names)}. Remove it from your cart to continue.",
+                field="items",
+            )
+
         resolved_items = [
             (
                 item.product_type,
