@@ -5,7 +5,6 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import {
   downloadCatalogFile,
-  listDownloadEntitlements,
   listDownloadHistory,
 } from '../../api/downloadsApi'
 import { listCustomerOrders } from '../../api/ordersApi'
@@ -19,6 +18,7 @@ import {
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
 import { useOrderDownloads } from '../../hooks/useOrderDownloads'
+import { entitlementsQuery as libraryQueryOptions } from '../../hooks/useOwnedItems'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
@@ -71,11 +71,7 @@ export function MyDownloadsPage() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilter>('')
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  const entitlementsQuery = useQuery({
-    queryKey: ['downloads', 'entitlements'],
-    queryFn: listDownloadEntitlements,
-    enabled: isCustomerSession,
-  })
+  const entitlementsQuery = useQuery({ ...libraryQueryOptions, enabled: isCustomerSession })
 
   const historyQuery = useQuery({
     queryKey: ['downloads', 'history', historyPage],
