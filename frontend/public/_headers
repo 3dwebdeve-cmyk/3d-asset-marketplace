@@ -48,17 +48,12 @@
 # on a slow phone is seconds later. A Link header lets the browser start fetching it as soon as the
 # page's headers arrive. The address must match the one the page asks for exactly (a test checks the
 # files exist).
-# Only pictures under 100 KB are listed. On a slow connection a big picture fetched at high priority
-# competes with the page's own JavaScript, and in a browser test the two largest ones (/3d-models,
-# 177 KB, and /custom-projects, 134 KB) came out slower with it, so they are left out on purpose.
+# Only the home page is listed here. Pages with a SiteHeroImage banner (/plugins, /about, /contact,
+# /custom-projects, /3d-models and each category) get their preload from the Worker
+# (heroPreloadLink in src/lib/heroBanners.ts), because it must carry the same srcset as the <img>:
+# a plain preload of the full picture would make a phone download it as well as its small copy.
 # The home page also preloads the font of its big title (Libre Baskerville, 34 KB, used on no other
 # page): without it the title re-flowed when the font arrived and pushed the content below it down.
 # Several preloads go on one Link line, separated by ", ".
 /
   Link: </images/website-banner-1919x510.webp>; rel=preload; as=image; fetchpriority=high, </fonts/libre-baskerville-latin.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin
-/plugins
-  Link: </images/Floating%20Plugin%20Interface%20Tiles.webp>; rel=preload; as=image; fetchpriority=high
-/about
-  Link: </images/new%20size/contact-page.webp>; rel=preload; as=image; fetchpriority=high
-/contact
-  Link: </images/contact-hero.webp?v=2>; rel=preload; as=image; fetchpriority=high
