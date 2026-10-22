@@ -103,7 +103,7 @@ function WishlistItemCard({
     >
       <div className="product-card__media">
         {detailPath ? (
-          <Link to={detailPath} className="product-card__media-link" tabIndex={-1}>
+          <Link to={detailPath} className="product-card__media-link" tabIndex={-1} aria-hidden="true">
             {catalog?.thumbnail ? (
               <img
                 src={catalog.thumbnail}

@@ -119,12 +119,12 @@ export function AuthRegisterPanel({
     <>
       <AuthModeTabs active="register" />
 
-      <header className="auth-card__header">
+      <div className="auth-card__header">
         <h1 id={titleId}>Create Studio Account</h1>
         <p className="auth-card__subtitle">
           Join technical artists, environment modelers, and VFX leads.
         </p>
-      </header>
+      </div>
 
       {displayError ? <Alert variant="error" message={displayError} /> : null}
 

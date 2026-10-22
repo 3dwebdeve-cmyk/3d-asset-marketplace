@@ -11,6 +11,7 @@ import * as wishlistApi from '../../api/wishlistApi'
 import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
 import { ProductsBrowsePage } from './ProductsBrowsePage'
+import { HOME_FAQS, HOME_GUIDE } from '../../lib/homeContent'
 
 vi.mock('../../api/productsApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/productsApi')>(
@@ -291,7 +292,7 @@ describe('ProductsBrowsePage', () => {
   it('gives the home page its own title, description, canonical address and structured data', async () => {
     renderProductsBrowsePage()
 
-    await waitFor(() => expect(document.title).toBe('Furniture & Interior 3D Models | AssetHive3D'))
+    await waitFor(() => expect(document.title).toBe('Download Furniture & Interior 3D Models | AssetHive3D'))
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
       'content',
       expect.stringContaining('production-ready 3D models of furniture, interiors, lighting and plants'),
@@ -301,6 +302,22 @@ describe('ProductsBrowsePage', () => {
       [JSON.parse(node.textContent ?? '[]')].flat(),
     )
     expect(data.map((item) => item['@type'])).toEqual(expect.arrayContaining(['Organization', 'WebSite']))
+  })
+
+  it('shows the crawlable buying guide with one main heading and sized images', () => {
+    const { container } = renderProductsBrowsePage()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    for (const section of HOME_GUIDE) {
+      expect(screen.getByRole('heading', { name: section.heading, level: 3 })).toBeInTheDocument()
+      for (const paragraph of section.paragraphs) expect(screen.getByText(paragraph)).toBeInTheDocument()
+      for (const link of section.links) expect(screen.getByRole('link', { name: link.label })).toHaveAttribute('href', link.path)
+    }
+    for (const faq of HOME_FAQS) expect(screen.getByText(faq.question)).toBeInTheDocument()
+    for (const image of container.querySelectorAll('img')) {
+      expect(image).toHaveAttribute('alt')
+      expect(image).toHaveAttribute('width')
+      expect(image).toHaveAttribute('height')
+    }
   })
 
   it('searches a trending tag from the marketplace hero', async () => {

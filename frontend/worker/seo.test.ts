@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { PublicProductDetail } from '../src/types/product'
+import { HOME_FAQS, HOME_GUIDE, HOME_HEADING } from '../src/lib/homeContent'
 import {
   appendSitemapLine,
   escapeHtml,
@@ -42,6 +43,25 @@ const product = {
 } as unknown as PublicProductDetail
 
 describe('renderSeoHead', () => {
+  it('serves the visible homepage guide and FAQs in the first HTML response', () => {
+    const html = renderSeoHead(SHELL, getStaticPageSeo('/')!, { origin: 'https://shop.example', path: '/' })
+    const body = html.slice(html.indexOf('<body>'))
+    expect(body.match(/<h1\b/g)).toHaveLength(1)
+    expect(body).toContain(escapeHtml(HOME_HEADING))
+    for (const section of HOME_GUIDE) {
+      expect(body).toContain(`<h3>${escapeHtml(section.heading)}</h3>`)
+      for (const paragraph of section.paragraphs) expect(body).toContain(escapeHtml(paragraph))
+      for (const link of section.links) {
+        expect(body).toContain(`<a href="${link.path}">${escapeHtml(link.label)}</a>`)
+      }
+    }
+    for (const faq of HOME_FAQS) {
+      expect(body).toContain(`<summary>${escapeHtml(faq.question)}</summary>`)
+      expect(body).toContain(escapeHtml(faq.answer))
+    }
+    const about = renderSeoHead(SHELL, getStaticPageSeo('/about')!, { origin: 'https://shop.example', path: '/about' })
+    expect(about).not.toContain('home-buying-guide-heading')
+  })
   it('includes readable content and crawlable links without requiring JavaScript', () => {
     const html = renderSeoHead(SHELL, getStaticPageSeo('/about')!, { origin: 'https://shop.example', path: '/about' })
     const body = html.slice(html.indexOf('<body>'))

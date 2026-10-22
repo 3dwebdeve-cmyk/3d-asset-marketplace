@@ -371,3 +371,12 @@ describe('Cloudflare API proxy', () => {
     })
   })
 })
+
+describe('page security policy', () => {
+  it('lets the 3D loader compile its WebAssembly decoder, but never allows eval', () => {
+    const policy = SECURITY_HEADERS['Content-Security-Policy']
+    const scriptSrc = policy.split(';').find((part) => part.trim().startsWith('script-src')) ?? ''
+    expect(scriptSrc).toContain("'wasm-unsafe-eval'")
+    expect(scriptSrc).not.toMatch(/'unsafe-eval'|'unsafe-inline'/)
+  })
+})
