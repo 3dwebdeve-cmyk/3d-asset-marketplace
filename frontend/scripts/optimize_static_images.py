@@ -1,4 +1,7 @@
-"""Generate deterministic WebP delivery assets from PNG files in public/."""
+"""Legacy manual converter. Vite now converts public PNG/JPEGs automatically via
+scripts/automaticWebp.ts during development and production builds. Use this script
+only when standalone WebP copies beside the originals are specifically needed.
+"""
 
 from __future__ import annotations
 

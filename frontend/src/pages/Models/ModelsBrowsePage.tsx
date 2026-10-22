@@ -22,15 +22,15 @@ import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
-const PRODUCTS_BANNER_IMAGE_SRC = '/neww%20banner%20image/Sunlit%20Spa%20Vanity%20with%20Headphones%20and%20Greenery.png'
+const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
 const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/neww%20banner%20image/Panoramic%20Green%20Interior%20with%20Sunlit%20Shadows.png',
-  toys: '/neww%20banner%20image/toy-sunlit-backdrop.png',
-  electronics: '/neww%20banner%20image/retro-tech-controller-popout-refined.png',
-  'food-drink': '/neww%20banner%20image/Golden%20Sunlit%20Botanical%20Banner%20Background.png',
-  character: '/neww%20banner%20image/Panoramic%203D%20Artist%20Workspace%20Banner.png',
-  industrial: '/neww%20banner%20image/Moody%20Industrial%20Workshop%20Banner.png',
-  '3d-printing': '/neww%20banner%20image/Gemini_Generated_Image_cdr5kccdr5kccdr5.png',
+  furniture: '/banner%20image/08.webp',
+  toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
+  electronics: '/images/new%20banner%20image%20size/Electronics.webp',
+  'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
+  character: '/images/new%20banner%20image%20size/Character.webp',
+  industrial: '/images/new%20banner%20image%20size/Industrial.webp',
+  '3d-printing': '/images/new%20banner%20image%20size/3D%20Printing.webp',
   'assets-props': '/images/new%20banner%20image%20size/Assets%20%20Props.webp',
   'interactive-webar': '/images/new%20banner%20image%20size/AR%20Armchair%20Studio%20Showcase.webp?v=2',
   'architectural-3d-models': '/images/new%20banner%20image%20size/Architectural%203D%20Models.webp',
@@ -336,11 +336,8 @@ export function ModelsBrowsePage() {
   const usesProductsBanner =
     selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
   const usesFurnitureBanner = selectedCategory?.slug === 'furniture'
-  const usesFoodBanner = selectedCategory?.slug === 'food-drink'
-  const usesIndustrialBanner = selectedCategory?.slug === 'industrial'
   const usesElectronicsBanner = selectedCategory?.slug === 'electronics'
   const usesCharacterBanner = selectedCategory?.slug === 'character'
-  const usesPrintingBanner = selectedCategory?.slug === '3d-printing'
   const usesPlantsBanner = selectedCategory?.slug === 'plants-vegetation'
   const usesToysBanner = selectedCategory?.slug === 'toys'
   const usesInteriorBanner = selectedCategory?.slug === 'interior-3d-models'
@@ -354,49 +351,14 @@ export function ModelsBrowsePage() {
   return (
     <main className="plugins-browse models-browse">
       <section
-        className={`plugins-browse-hero site-hero-banner${usesPrintingBanner ? ' plugins-browse-hero--printing' : ''}${usesIndustrialBanner ? ' plugins-browse-hero--industrial' : ''}${usesFoodBanner ? ' plugins-browse-hero--food' : ''}${usesFurnitureBanner ? ' plugins-browse-hero--furniture' : ''}${usesElectronicsBanner ? ' plugins-browse-hero--electronics' : ''}${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
+        className={`plugins-browse-hero site-hero-banner${usesFurnitureBanner ? ' plugins-browse-hero--furniture' : ''}${usesElectronicsBanner ? ' plugins-browse-hero--electronics' : ''}${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
       >
-        {usesFurnitureBanner || usesProductsBanner || usesFoodBanner || usesIndustrialBanner || usesCharacterBanner || usesPrintingBanner ? (
-          <>
-            <span className="model-banner__backdrop" aria-hidden="true">
-              <SiteHeroImage src={heroImageSrc} width={usesPrintingBanner ? 5280 : usesFurnitureBanner ? 2079 : 2078} height={usesPrintingBanner ? 800 : usesFurnitureBanner ? 756 : 757} />
-            </span>
-            {(usesFurnitureBanner || usesFoodBanner || usesIndustrialBanner || usesCharacterBanner || usesPrintingBanner) && <span className="model-banner__popout" aria-hidden="true">
-              <img
-                src={usesPrintingBanner
-                  ? '/neww%20banner%20image/Chibi%20Stone%20Dragon%20Figurine%20(2).png'
-                  : usesCharacterBanner
-                  ? '/neww%20banner%20image/Sculpted%20Fantasy%20Wolf%20Stalking.png'
-                  : usesIndustrialBanner
-                  ? '/neww%20banner%20image/Industrial%20Gearbox%20and%20Cordless%20Drill%20Set.png'
-                  : usesFoodBanner
-                  ? '/neww%20banner%20image/coffee-and-chocolate-donut-popout.png'
-                  : '/neww%20banner%20image/Mid-Century%20Green%20Sofa%20Living%20Set.png'}
-                alt=""
-                width={usesPrintingBanner ? 1436 : usesCharacterBanner ? 1505 : usesIndustrialBanner ? 1665 : 2078}
-                height={usesPrintingBanner ? 1096 : usesCharacterBanner ? 1045 : usesIndustrialBanner ? 944 : 757}
-                decoding="async"
-                fetchPriority="high"
-              />
-            </span>}
-          </>
-        ) : <SiteHeroImage
+        <SiteHeroImage
           src={heroImageSrc}
-          width={usesElectronicsBanner ? 1673 : selectedCategory ? undefined : 2804}
-          height={usesElectronicsBanner ? 940 : selectedCategory ? undefined : 561}
-        />}
+          width={usesElectronicsBanner ? 2804 : selectedCategory ? undefined : 2804}
+          height={usesElectronicsBanner ? 561 : selectedCategory ? undefined : 561}
+        />
         <div className="site-hero-banner__overlay" />
-        {usesToysBanner && (
-          <span className="toys-banner__popout" aria-hidden="true">
-            <img
-              src="/neww%20banner%20image/toy-vehicles-trio.png"
-              alt=""
-              width={2079}
-              height={756}
-              decoding="async"
-            />
-          </span>
-        )}
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 

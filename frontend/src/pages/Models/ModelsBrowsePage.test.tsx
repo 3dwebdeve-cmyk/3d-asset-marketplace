@@ -37,11 +37,11 @@ const characterCategoryId = '4ac87021-da4e-4470-9ab9-b52772444655'
 const productId = 'a2e77f31-f244-4607-b7d6-b58e3ff6de11'
 
 const additionalBannerCategories = [
-  { id: '317196c0-823a-4d92-975a-2671432b1af9', name: 'Toys', slug: 'toys', banner: '/neww%20banner%20image/toy-sunlit-backdrop.png' },
-  { id: '7b53be05-f444-467c-90e4-be34b41008c3', name: 'Electronics', slug: 'electronics', banner: '/neww%20banner%20image/retro-tech-controller-popout-refined.png' },
+  { id: '317196c0-823a-4d92-975a-2671432b1af9', name: 'Toys', slug: 'toys', banner: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp' },
+  { id: '7b53be05-f444-467c-90e4-be34b41008c3', name: 'Electronics', slug: 'electronics', banner: '/images/new%20banner%20image%20size/Electronics.webp' },
   { id: 'd0ac9c7c-4226-43bd-b9d5-a89e320a7f7f', name: 'Household', slug: 'household', banner: '/images/new%20banner%20image%20size/Household.webp' },
-  { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/neww%20banner%20image/Moody%20Industrial%20Workshop%20Banner.png' },
-  { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/neww%20banner%20image/Gemini_Generated_Image_cdr5kccdr5kccdr5.png' },
+  { id: '1b40c2c2-e570-441d-bf54-c466e1608eac', name: 'Industrial', slug: 'industrial', banner: '/images/new%20banner%20image%20size/Industrial.webp' },
+  { id: 'f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0', name: '3d Printing', slug: '3d-printing', banner: '/images/new%20banner%20image%20size/3D%20Printing.webp' },
   { id: 'b7b73085-a662-4daa-ac90-d07b89976b3c', name: 'Assets / Props', slug: 'assets-props', banner: '/images/new%20banner%20image%20size/Assets%20%20Props.webp' },
   { id: '4ecdc1ea-68b4-4e08-93de-d8e2d34ec1ad', name: 'Interactive / WebAr', slug: 'interactive-webar', banner: '/images/new%20banner%20image%20size/AR%20Armchair%20Studio%20Showcase.webp?v=2' },
   { id: 'e673b81b-2bc8-4f83-8dfc-081b9812a525', name: 'Architectural 3D Models', slug: 'architectural-3d-models', banner: '/images/new%20banner%20image%20size/Architectural%203D%20Models.webp' },
@@ -343,16 +343,9 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/neww%20banner%20image/Panoramic%20Green%20Interior%20with%20Sunlit%20Shadows.png',
+        '/banner%20image/08.webp',
       )
     })
-
-    const furniture = container.querySelector('.model-banner__popout')
-    expect(furniture).toHaveAttribute('aria-hidden', 'true')
-    expect(furniture?.querySelector('img')).toHaveAttribute(
-      'src',
-      '/neww%20banner%20image/Mid-Century%20Green%20Sofa%20Living%20Set.png',
-    )
 
     await waitFor(() => {
       expect(screen.getByLabelText(/^category$/i, { selector: 'select' })).toHaveValue(categoryId)
@@ -367,14 +360,13 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/neww%20banner%20image/Sunlit%20Spa%20Vanity%20with%20Headphones%20and%20Greenery.png',
+        '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp',
       )
     })
 
     expect(container.querySelector('.site-hero-banner')).toHaveClass(
       'plugins-browse-hero--products',
     )
-    expect(container.querySelector('.model-banner__popout')).not.toBeInTheDocument()
   })
 
   it('uses the food banner for the Food & Drink category', async () => {
@@ -383,15 +375,9 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/neww%20banner%20image/Golden%20Sunlit%20Botanical%20Banner%20Background.png',
+        '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
       )
     })
-    expect(container.querySelector('.site-hero-banner')).toHaveClass('plugins-browse-hero--food')
-    const foodPopout = container.querySelector('.model-banner__popout')
-    expect(foodPopout).toHaveAttribute('aria-hidden', 'true')
-    expect(foodPopout?.querySelector('img')).toHaveAttribute(
-      'src', '/neww%20banner%20image/coffee-and-chocolate-donut-popout.png',
-    )
   })
 
   it('uses the character banner for the Character category', async () => {
@@ -402,23 +388,18 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/neww%20banner%20image/Panoramic%203D%20Artist%20Workspace%20Banner.png',
+        '/images/new%20banner%20image%20size/Character.webp',
       )
     })
 
     expect(container.querySelector('.site-hero-banner')).toHaveClass(
       'plugins-browse-hero--character',
     )
-    const wolf = container.querySelector('.model-banner__popout')
-    expect(wolf).toHaveAttribute('aria-hidden', 'true')
-    expect(wolf?.querySelector('img')).toHaveAttribute(
-      'src', '/neww%20banner%20image/Sculpted%20Fantasy%20Wolf%20Stalking.png',
-    )
   })
 
   it.each(additionalBannerCategories)(
     'uses the assigned banner for the $name category',
-    async ({ id, banner, slug }) => {
+    async ({ id, banner }) => {
       const { container } = renderModelsBrowsePage(`/3d-models?category=${id}`)
 
       await waitFor(() => {
@@ -427,27 +408,7 @@ describe('ModelsBrowsePage', () => {
           banner,
         )
       })
-      const popout = container.querySelector('.toys-banner__popout')
-      if (slug === '3d-printing') {
-        expect(container.querySelector('.site-hero-banner')).toHaveClass('plugins-browse-hero--printing')
-        expect(container.querySelector('.model-banner__popout img')).toHaveAttribute(
-          'src', '/neww%20banner%20image/Chibi%20Stone%20Dragon%20Figurine%20(2).png',
-        )
-      }
-      if (slug === 'industrial') {
-        expect(container.querySelector('.site-hero-banner')).toHaveClass('plugins-browse-hero--industrial')
-        const industrialPopout = container.querySelector('.model-banner__popout')
-        expect(industrialPopout).toHaveAttribute('aria-hidden', 'true')
-        expect(industrialPopout?.querySelector('img')).toHaveAttribute(
-          'src', '/neww%20banner%20image/Industrial%20Gearbox%20and%20Cordless%20Drill%20Set.png',
-        )
-      }
-      if (slug === 'toys') {
-        expect(popout).toHaveAttribute('aria-hidden', 'true')
-        expect(popout?.querySelector('img')).toHaveAttribute('src', '/neww%20banner%20image/toy-vehicles-trio.png')
-      } else {
-        expect(popout).not.toBeInTheDocument()
-      }
+      expect(container.querySelector('.toys-banner__popout')).not.toBeInTheDocument()
     },
   )
 
