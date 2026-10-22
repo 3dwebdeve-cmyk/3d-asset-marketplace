@@ -317,6 +317,8 @@ export function Navbar() {
               src="/images/AssetHive%203D.svg"
               alt="AssetHive3D"
               className="navbar__brand-logo"
+              width={176}
+              height={30}
             />
           </Link>
 
@@ -654,6 +656,8 @@ export function Navbar() {
                   src="/images/AssetHive%203D.svg"
                   alt="AssetHive3D"
                   className="navbar__drawer-brand-logo"
+                  width={176}
+                  height={30}
                 />
               </Link>
               <button

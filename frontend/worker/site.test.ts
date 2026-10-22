@@ -156,7 +156,7 @@ describe('server-rendered page head', () => {
     const response = await worker.fetch(new Request('https://shop.example/'), createEnv())
     const html = await response.text()
 
-    expect(html).toContain('<title>Furniture &amp; Interior 3D Models | AssetHive3D</title>')
+    expect(html).toContain('<title>Download Furniture &amp; Interior 3D Models | AssetHive3D</title>')
     expect(upstream).not.toHaveBeenCalled()
   })
 
