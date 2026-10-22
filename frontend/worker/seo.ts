@@ -16,6 +16,7 @@ import type { PublicPluginDetail } from '../src/types/plugin'
 import type { PublicProductDetail } from '../src/types/product'
 import { NOINDEX_CATEGORY_SLUGS } from '../src/lib/categorySeo'
 import { buildCustomProjectsJsonLd } from '../src/lib/customProjectSeo'
+import { HOME_FAQS, HOME_GUIDE, HOME_HEADING } from '../src/lib/homeContent'
 
 /** Head content for one HTML response. Mirrors what useDocumentSeo sets in the browser. */
 export interface PageSeo {
@@ -152,13 +153,14 @@ function metaTag(attribute: 'name' | 'property', key: string, content: string): 
 /** A useful first response for every visitor, including clients without JavaScript.
  * React replaces this summary when the application loads; no bot-specific content is served.
  */
-function renderPageSummary(html: string, seo: PageSeo): string {
+function renderPageSummary(html: string, seo: PageSeo, path: string): string {
   const links = [
     ['/', 'AssetHive3D home'], ['/3d-models', '3D models'], ['/categories', 'Model categories'],
     ['/plugins', 'Plugins and tools'], ['/custom-projects', 'Custom 3D projects'],
     ['/about', 'About AssetHive3D'], ['/contact', 'Contact and enquiries'],
   ]
-  const content = `<main aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(seo.title)}</h1><p>${escapeHtml(seo.description)}</p><nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  const homeGuide = path === '/' ? `<section class="home-buying-guide" aria-labelledby="home-buying-guide-heading"><h2 id="home-buying-guide-heading">Choosing 3D models, plugins and custom services</h2><div class="home-buying-guide__grid">${HOME_GUIDE.map((section) => `<article><h3>${escapeHtml(section.heading)}</h3>${section.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join('')}<ul>${section.links.map((link) => `<li><a href="${escapeHtml(link.path)}">${escapeHtml(link.label)}</a></li>`).join('')}</ul></article>`).join('')}</div><h2>Questions about buying 3D assets</h2>${HOME_FAQS.map((faq) => `<details><summary>${escapeHtml(faq.question)}</summary><p>${escapeHtml(faq.answer)}</p></details>`).join('')}<p><a href="/contact">Contact AssetHive3D about compatibility, licenses or custom work</a></p></section>` : ''
+  const content = `<main aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p>${homeGuide}<nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
   return html.replace(/(<div\s+id=["']root["']\s*>)\s*(<\/div>)/i, (_match, open: string, close: string) => `${open}${content}${close}`)
 }
 
@@ -217,7 +219,7 @@ export function renderSeoHead(
   }
 
   const indented = tags.map((tag) => `    ${tag}`).join('\n')
-  return renderPageSummary(`${shell.slice(0, headEnd)}${indented}\n  ${shell.slice(headEnd)}`, seo)
+  return renderPageSummary(`${shell.slice(0, headEnd)}${indented}\n  ${shell.slice(headEnd)}`, seo, page.path)
 }
 
 /** Adds the absolute sitemap location to robots.txt, which must use a full URL. */

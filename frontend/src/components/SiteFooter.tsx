@@ -8,7 +8,7 @@ export function SiteFooter() {
       <div className="site-footer__inner">
         <div className="site-footer__brand-col">
           <Link className="site-footer__brand" to="/">
-            <img src="/images/AssetHive%203D.svg?v=2" alt="AssetHive3D" />
+            <img src="/images/AssetHive%203D.svg?v=2" alt="AssetHive3D" width={176} height={30} />
           </Link>
           <p className="site-footer__blurb">
             AssetHive3D is a marketplace for furniture and interior 3D models, with Blender and
