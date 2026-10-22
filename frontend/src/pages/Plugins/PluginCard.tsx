@@ -25,7 +25,7 @@ export function PluginCard({ plugin }: PluginCardProps) {
   return (
     <article className="product-card product-card--marketplace">
       <div className="product-card__media">
-        <Link to={detailPath} className="product-card__media-link" tabIndex={-1}>
+        <Link to={detailPath} className="product-card__media-link" tabIndex={-1} aria-hidden="true">
           {plugin.thumbnail && !imgError ? (
             <img
               src={plugin.thumbnail}

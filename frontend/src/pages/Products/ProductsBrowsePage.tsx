@@ -329,7 +329,7 @@ function ServiceModule({ service }: { service: BrowseService }) {
   return (
     <article className="browse-service-card">
       <div className="browse-service-card__copy">
-        <h3 className="browse-service-card__title">{service.title}</h3>
+        <h2 className="browse-service-card__title">{service.title}</h2>
         <p className="browse-service-card__text">{service.description}</p>
         <Link to={service.path} className="browse-service-card__btn">
           {service.buttonText}
