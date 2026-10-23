@@ -188,11 +188,13 @@ beforeEach(() => {
 })
 
 describe('ProductsBrowsePage', () => {
-  it('starts the model carousel after loading finishes when demo cards were already available', async () => {
-    // Development fallback cards make scrolling eligible before the real rail mounts.
-    // An empty API response keeps those same cards, so eligibility must track loading too.
+  it('starts the model carousel after loading finishes when product cards are available', async () => {
+    // The rail is only eligible to scroll once the product cards have loaded.
+    const [first] = samplePublicProducts.results
     vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
-      ...samplePublicProducts, count: 0, results: [],
+      ...samplePublicProducts,
+      count: 2,
+      results: [first, { ...first, id: `${first.id}-2`, slug: `${first.slug}-2` }],
     })
     const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1)
     const { container, unmount } = renderProductsBrowsePage()

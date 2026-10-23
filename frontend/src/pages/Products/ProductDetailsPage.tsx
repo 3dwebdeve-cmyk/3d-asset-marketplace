@@ -25,7 +25,6 @@ import { ProductCard } from './ProductCard'
 import { ProductCtaGroup } from './ProductCtaGroup'
 import { ProductImageGallery } from './ProductImageGallery'
 import { ProductSpecs } from './ProductSpecs'
-import { resolveDemoPreviewUrl } from './demoPreviewUrl'
 import '../../styles/product-details.css'
 import '../../styles/product-hub-details.css'
 import '../../styles/products-browse.css'
@@ -123,7 +122,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             productName={product.name}
             thumbnail={product.thumbnail}
             images={product.images}
-            previewModelUrl={resolveDemoPreviewUrl(product.slug, product.preview_model)}
+            previewModelUrl={product.preview_model}
             previewVideoUrl={product.preview_video}
             showStageChrome
             stageOverlays={

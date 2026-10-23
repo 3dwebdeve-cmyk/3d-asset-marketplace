@@ -23,7 +23,7 @@ afterEach(() => {
 describe('Cloudflare API proxy', () => {
   it('serves non-API requests from the static asset binding', async () => {
     const env = createEnv(new Response('spa'))
-    const request = new Request('https://marketplace.example/products/demo-plant-pot')
+    const request = new Request('https://marketplace.example/products/sample-product')
 
     const response = await worker.fetch(request, env)
 

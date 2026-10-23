@@ -413,22 +413,6 @@ describe('ProductDetailsPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses the real demo preview for a catalog entry seeded with the triangle fixture', async () => {
-    vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
-      ...sampleDetail,
-      name: 'Demo Plant Pot',
-      slug: 'demo-plant-pot',
-      preview_model: 'http://localhost:5173/fixtures/e2e-preview.glb',
-    })
-
-    renderProductDetails('/products/demo-plant-pot')
-
-    expect(await screen.findByTestId('lazy-model-viewer')).toHaveAttribute(
-      'data-model-url',
-      `${window.location.origin}/fixtures/demo-plant-pot.glb`,
-    )
-  })
-
   it('does not mount the viewer for unsafe preview_model URLs', async () => {
     vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
       ...sampleDetail,
