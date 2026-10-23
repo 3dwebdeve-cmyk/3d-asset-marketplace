@@ -4,7 +4,6 @@ import { Link, useParams } from 'react-router-dom'
 
 import { getPublicPlugin, listPublicPlugins } from '../../api/pluginsApi'
 import { RatingDisplay } from '../../components/reviews/RatingDisplay'
-import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -133,16 +132,6 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
             </div>
           </section>
 
-          <div className="product-hub-detail__media-reviews">
-            <ReviewsSection
-              productType="plugin"
-              productId={plugin.id}
-              catalogSlug={plugin.slug}
-              averageRating={plugin.average_rating}
-              reviewCount={plugin.review_count}
-              layout="hub"
-            />
-          </div>
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Plugin purchase details">
