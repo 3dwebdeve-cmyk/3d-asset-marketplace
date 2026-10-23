@@ -239,20 +239,14 @@ describe('PluginDetailsPage', () => {
     expect(document.title).toContain('UV Unwrap Pro')
   })
 
-  it('uses the same description and comments layout as a 3D model detail page', async () => {
+  it('shows the description without a comment section', async () => {
     renderPluginDetails()
-
-    const commentsHeading = await screen.findByRole('heading', {
-      name: /reviews & comments/i,
-    })
-    const commentsSection = commentsHeading.closest('section')
-    const mediaReviews = commentsSection?.parentElement
-
+    await screen.findByRole('heading', { level: 1, name: /uv unwrap pro/i })
     expect(screen.getByRole('heading', { name: /^description$/i })).toBeInTheDocument()
     expect(screen.getByText(sampleDetail.description)).toBeInTheDocument()
-    expect(mediaReviews).toHaveClass('product-hub-detail__media-reviews')
-    expect(mediaReviews?.parentElement).toHaveClass('product-detail-layout__media')
-
+    expect(screen.queryByRole('heading', { name: /reviews & comments/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add a comment/i })).not.toBeInTheDocument()
+    expect(reviewsApi.listReviews).not.toHaveBeenCalled()
     const similarPlugins = screen.getByRole('heading', { name: /similar plugins/i })
     expect(similarPlugins.closest('.product-hub-detail__lower-grid')).toBeInTheDocument()
   })
