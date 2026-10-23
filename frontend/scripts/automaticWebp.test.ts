@@ -3,11 +3,33 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createServer } from 'vite'
+import { build, createServer } from 'vite'
 import sharp from 'sharp'
 import { automaticWebp, convertImage, replaceImageUrls } from './automaticWebp'
 
 describe('automatic WebP assets', () => {
+  it('preserves PNG favicon and touch-icon links in production HTML while optimizing pictures', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'webp-icons-'))
+    try {
+      const publicDir = path.join(root, 'public')
+      await mkdir(publicDir)
+      const icons = ['favicon-48.png', 'favicon-192.png', 'apple-touch-icon.png']
+      const png = await sharp({ create: { width: 192, height: 192, channels: 4, background: '#0088ff' } }).png().toBuffer()
+      for (const name of [...icons, 'picture.png']) await writeFile(path.join(publicDir, name), png)
+      await writeFile(path.join(root, 'index.html'), `<html><head>${icons.map((name) =>
+        `<link rel="${name.startsWith('apple') ? 'apple-touch-icon' : 'icon'}" type="image/png" href="/${name}">`,
+      ).join('')}</head><body><img src="/picture.png"></body></html>`)
+      const result = await build({ root, configFile: false, plugins: [automaticWebp()], build: { write: false }, logLevel: 'silent' })
+      if (Array.isArray(result) || !('output' in result)) throw new Error('Expected one build output')
+      const html = result.output.find((asset) => asset.fileName === 'index.html')
+      if (!html || html.type !== 'asset') throw new Error('Missing built HTML')
+      const source = String(html.source)
+      for (const name of icons) expect(source).toContain(`href="/${name}"`)
+      expect(source).toMatch(/<img src="\/_webp\/[a-f0-9]+\.webp">/)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
   it('serves converted files and automatically notices newly added and replaced images', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'webp-test-'))
     const publicDir = path.join(root, 'public')

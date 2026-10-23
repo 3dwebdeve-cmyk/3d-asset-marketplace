@@ -5,6 +5,9 @@ import sharp from 'sharp'
 import type { Plugin, ResolvedConfig } from 'vite'
 
 const supported = /\.(png|jpe?g)$/i
+// Search engines and device icons need their original formats and stable URLs.
+// In particular, Google Search does not list WebP as a supported favicon format.
+const siteIcon = /^(?:favicon(?:[.-].*)?|apple-touch-icon(?:[.-].*)?)$/i
 
 async function imageFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -46,6 +49,7 @@ export function automaticWebp(): Plugin {
     const cache = path.join(config.cacheDir, 'automatic-webp')
     await mkdir(cache, { recursive: true })
     for (const file of await imageFiles(config.publicDir)) {
+      if (siteIcon.test(path.basename(file))) continue
       const relative = path.relative(config.publicDir, file).split(path.sep).join('/')
       const source = await readFile(file)
       const hash = createHash('sha256').update('webp-quality82-effort6-v1').update(source).digest('hex')
