@@ -395,7 +395,7 @@ def _check_public_cdn(product: Product, detail_payload: dict[str, Any] | None) -
             detail=(
                 f"R2_PUBLIC_BASE_URL={base}; wiring=ok; "
                 f"catalog_placeholders={len(placeholders)} "
-                "(re-run seed_demo_catalog with R2 on, or publish R2 media)"
+                "(publish R2 media)"
             ),
             blocking=False,
         )
@@ -649,8 +649,8 @@ def _run_load_smoke_inner(*, iterations: int) -> LoadSmokeResult:
             ):
                 warnings.append(
                     "public_cdn: catalog still uses frontend placeholder URLs; "
-                    "re-run seed_demo_catalog (R2 on) or publish media to the "
-                    "public bucket so thumbnails/previews use R2_PUBLIC_BASE_URL."
+                    "publish media to the public bucket so thumbnails/previews "
+                    "use R2_PUBLIC_BASE_URL."
                 )
 
         return LoadSmokeResult(
