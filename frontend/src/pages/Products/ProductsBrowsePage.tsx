@@ -13,8 +13,6 @@ import { HOME_DESCRIPTION, HOME_TITLE, buildOrganizationJsonLd, buildWebSiteJson
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
-import type { PublicPlugin } from '../../types/plugin'
-import type { PublicProduct } from '../../types/product'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
 import '../../styles/home.css'
@@ -64,59 +62,6 @@ const FALLBACK_CATEGORIES: CategoryPublic[] = [
 // Demo catalog is for local development only. Production shows the real empty
 // state instead of invented products when the API returns nothing or fails.
 const SHOW_DEMO_FALLBACK = import.meta.env.DEV
-
-const FALLBACK_PRODUCTS: PublicProduct[] = [
-  ['demo-oak-chair', 'Oak Lounge Chair', 'Furniture', '29.99'],
-  ['demo-desk-lamp', 'Modern Desk Lamp', 'Interiors', '19.99'],
-  ['demo-plant-pot', 'Decorative Plant Pot', 'Products', '9.99'],
-].map(([slug, name, categoryName, price]) => ({
-  id: `fallback-${slug}`,
-  name,
-  slug,
-  short_description: '',
-  price,
-  currency: 'USD',
-  discount_price: null,
-  thumbnail: '',
-  software_used: 'Blender',
-  category: { id: `fallback-${slug}-category`, name: categoryName, slug: categoryName.toLowerCase() },
-  license_type: 'standard',
-  average_rating: '0.00',
-  review_count: 0,
-  total_downloads: 0,
-  created_at: '2026-01-01T00:00:00Z',
-}))
-
-const FALLBACK_PLUGINS: PublicPlugin[] = [
-  ['demo-batch-exporter', 'Batch Exporter', '/homepage%20images/batch_exporter.webp', '12.99'],
-  ['demo-uv-toolkit', 'UV Toolkit', '/images/custom-plugin.webp', '19.99'],
-].map(([slug, name, thumbnail, price]) => ({
-  id: `fallback-${slug}`,
-  name,
-  slug,
-  short_description: '',
-  price,
-  currency: 'USD',
-  discount_price: null,
-  thumbnail,
-  version: '1.0.0',
-  compatibility: 'Blender',
-  license_type: 'standard',
-  average_rating: '0.00',
-  review_count: 0,
-  total_downloads: 0,
-  category: {
-    id: 'fallback-plugin-tools',
-    name: 'Plugin Tools',
-    slug: 'plugin-tools',
-    description: '',
-    image: '',
-    is_active: true,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  },
-  created_at: '2026-01-01T00:00:00Z',
-}))
 
 const BROWSE_SERVICES: BrowseService[] = [
   {
@@ -430,9 +375,7 @@ export function ProductsBrowsePage() {
   })
 
   const filteredProducts = useMemo(
-    () => productsData?.results.length
-      ? productsData.results
-      : SHOW_DEMO_FALLBACK ? FALLBACK_PRODUCTS : [],
+    () => productsData?.results ?? [],
     [productsData],
   )
 
@@ -446,9 +389,7 @@ export function ProductsBrowsePage() {
     }
     return rank(a.slug) - rank(b.slug)
   }).slice(0, 12)
-  const plugins = pluginsData?.results.length
-    ? pluginsData.results
-    : SHOW_DEMO_FALLBACK ? FALLBACK_PLUGINS : []
+  const plugins = pluginsData?.results ?? []
 
   useAutoScrollRail(productsRailRef, !isCatalogMode && !isLoading && filteredProducts.length > 1)
   useAutoScrollRail(pluginsRailRef, !isCatalogMode && !pluginsLoading && plugins.length > 1)
