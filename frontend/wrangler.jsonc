@@ -22,7 +22,6 @@
       "!/_webp/*",
       "!/fonts/*",
       "!/images/*",
-      "!/models/*",
       "!/hdri/*",
       "!/fixtures/*",
       "!/banner image/*",
