@@ -573,13 +573,14 @@ describe('ProductDetailsPage', () => {
     })
   })
 
-  it('does not render comments or fetch comment data', async () => {
+  it('renders the reviews and comments section below the model description', async () => {
     renderProductDetails()
     await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
-    expect(screen.queryByRole('heading', { name: /reviews & comments/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /add a comment/i })).not.toBeInTheDocument()
+    const heading = await screen.findByRole('heading', { name: /reviews & comments/i })
+    expect(heading.closest('.product-hub-detail__media-reviews')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add a comment/i })).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /comment/i })).not.toBeInTheDocument()
-    expect(reviewsApi.listReviews).not.toHaveBeenCalled()
+    await waitFor(() => expect(reviewsApi.listReviews).toHaveBeenCalled())
   })
 
   it('starts Stripe checkout when Buy now is clicked', async () => {

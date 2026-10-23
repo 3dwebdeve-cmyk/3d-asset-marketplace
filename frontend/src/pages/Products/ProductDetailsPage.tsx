@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { getPublicProduct, listPublicProducts } from '../../api/productsApi'
 import { RatingDisplay } from '../../components/reviews/RatingDisplay'
+import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -152,6 +153,16 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             </div>
           </section>
 
+          <div className="product-hub-detail__media-reviews">
+            <ReviewsSection
+              productType="product"
+              productId={product.id}
+              catalogSlug={product.slug}
+              averageRating={product.average_rating}
+              reviewCount={product.review_count}
+              layout="hub"
+            />
+          </div>
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Product purchase details">
