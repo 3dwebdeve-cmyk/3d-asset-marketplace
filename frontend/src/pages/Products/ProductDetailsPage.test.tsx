@@ -533,7 +533,7 @@ describe('ProductDetailsPage', () => {
     expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/sign in to leave a review/i)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /add a comment/i }))
+    await user.click(screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }))
 
     expect(useAuthUiStore.getState().isOpen).toBe(true)
     expect(useAuthUiStore.getState().mode).toBe('login')
@@ -589,77 +589,13 @@ describe('ProductDetailsPage', () => {
     })
   })
 
-  it('clears posted and updated comments after saving, but preserves failed submissions', async () => {
-    const user = userEvent.setup({ delay: null })
-    useAuthStore.setState({
-      accessToken: 'access-token',
-      user: testUser,
-      isAuthenticated: true,
-      postLogoutRedirect: null,
-    })
-    vi.mocked(reviewsApi.getReviewEligibility).mockResolvedValue({
-      can_review: true,
-      has_reviewed: false,
-      review: null,
-    })
-    const savedReview = {
-      id: '33333333-3333-3333-3333-333333333333',
-      product_type: 'product' as const,
-      product_id: productId,
-      rating: null,
-      review_text: 'Works well in Blender.',
-      author: { id: testUser.id, full_name: testUser.full_name },
-      created_at: '2026-10-05T12:00:00Z',
-      updated_at: '2026-10-05T12:00:00Z',
-    }
-    vi.mocked(reviewsApi.createReview).mockImplementation(async (payload) => {
-      const review = { ...savedReview, review_text: payload.review_text ?? '' }
-      vi.mocked(reviewsApi.getReviewEligibility).mockResolvedValue({
-        can_review: true,
-        has_reviewed: true,
-        review,
-      })
-      return review
-    })
-
+  it('does not render comments or fetch comment data', async () => {
     renderProductDetails()
-
-    await waitFor(() => {
-      expect(screen.getByRole('textbox', { name: /comment/i })).toBeInTheDocument()
-    })
-
-    await user.type(screen.getByRole('textbox', { name: /comment/i }), 'Works well in Blender.{Enter}')
-
-    await waitFor(() => {
-      expect(reviewsApi.createReview).toHaveBeenCalledWith({
-        product_type: 'product',
-        product_id: productId,
-        rating: null,
-        review_text: 'Works well in Blender.',
-      })
-    })
-
-    const commentBox = screen.getByRole('textbox', { name: /comment/i })
-    await waitFor(() => {
-      expect(commentBox).toHaveValue('')
-    })
-
-    await user.type(commentBox, 'Updated comment.{Enter}')
-    await waitFor(() => {
-      expect(reviewsApi.createReview).toHaveBeenLastCalledWith({
-        product_type: 'product',
-        product_id: productId,
-        rating: null,
-        review_text: 'Updated comment.',
-      })
-      expect(commentBox).toHaveValue('')
-    })
-
-    vi.mocked(reviewsApi.createReview).mockRejectedValueOnce(new Error('Save failed'))
-    await user.type(commentBox, 'Keep this draft.{Enter}')
-    await waitFor(() => {
-      expect(commentBox).toHaveValue('Keep this draft.')
-    })
+    await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+    expect(screen.queryByRole('heading', { name: /reviews & comments/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add a comment/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /comment/i })).not.toBeInTheDocument()
+    expect(reviewsApi.listReviews).not.toHaveBeenCalled()
   })
 
   it('starts Stripe checkout when Buy now is clicked', async () => {
