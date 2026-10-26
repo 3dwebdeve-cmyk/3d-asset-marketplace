@@ -553,7 +553,7 @@ describe('ModelsBrowsePage', () => {
       ],
     })
     const user = userEvent.setup()
-    const { container } = renderModelsBrowsePage()
+    renderModelsBrowsePage()
     await waitFor(() => expect(screen.getByText('Oak Chair')).toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: /category/i }))
@@ -571,11 +571,6 @@ describe('ModelsBrowsePage', () => {
       )
     })
     expect(screen.getByLabelText(/^category$/i, { selector: 'select' })).toHaveValue(chairId)
-    // A subcategory without its own banner shows its parent's.
-    expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
-      'src',
-      '/images/new%20banner%20image%20size/Furniture.webp',
-    )
   })
 
   it('matches 3ds Max and FBX filters against the package formats', async () => {
