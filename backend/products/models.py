@@ -57,6 +57,8 @@ class Product(models.Model):
     has_thumbnail = models.BooleanField(default=False)
     has_preview = models.BooleanField(default=False)
     has_package = models.BooleanField(default=False)
+    # Model formats inside the imported package (lowercase, no dot), e.g. ["fbx", "max"].
+    package_formats = models.JSONField(default=list, blank=True)
     description = models.TextField(blank=True)
     short_description = models.CharField(max_length=500, blank=True)
     price = models.DecimalField(

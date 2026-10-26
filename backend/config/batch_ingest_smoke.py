@@ -470,6 +470,10 @@ def _apply_happy_path() -> tuple[str, list[str]]:
         preview_key = str(item["media"].get("preview_key") or "")
         if preview_key:
             _write_preview_bytes(preview_key)
+        # The import skips a row whose package is not in private storage yet.
+        package_key = str(item["media"].get("package_key") or "")
+        if package_key:
+            _write_package_bytes(package_key)
 
     batch = CatalogImportService.import_batch(
         import_batch_id="i3-batch-ingest-smoke",

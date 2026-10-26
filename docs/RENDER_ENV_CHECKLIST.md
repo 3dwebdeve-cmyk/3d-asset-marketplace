@@ -32,6 +32,7 @@ or weak, so a gap shows up as a failed deploy; read the Render log for the exact
 | `R2_SIGNED_URL_EXPIRY` | `60` (or leave unset for the default) |
 | `MFA_SECRET_KEY` | Optional but recommended: a separate long random value. Falls back to `SECRET_KEY`. Changing it later resets every administrator's authenticator |
 | `STRIPE_WEBHOOK_SECRET` | When the Stripe webhook exists |
+| `CATALOG_INGEST_ALLOWED_IPS` | Optional. IPs/CIDRs allowed to call the uploader exe's `/api/v1/catalog-ingest/` route (API key still required). Empty = any IP. See `batch-ingest-contract.md` |
 
 ## Free-plan helpers (switch on the things Render's free plan lacks)
 

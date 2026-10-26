@@ -194,6 +194,51 @@ describe('Navbar', () => {
     expect(within(menu).queryByRole('menuitem', { name: /demo assets/i })).not.toBeInTheDocument()
   })
 
+  it('shows subcategories under their parent in the Explore menu', async () => {
+    const user = userEvent.setup()
+    const furniture = {
+      id: '44bba207-8a0c-490d-abdf-5a383ed2111b',
+      name: 'Furniture',
+      slug: 'furniture',
+      description: '',
+      image: '',
+      parent: null,
+      created_at: '2026-09-08T00:00:00Z',
+    }
+    const parent = { id: furniture.id, name: furniture.name, slug: furniture.slug }
+    const chairId = '5d1f0c8e-1d0e-4c55-9c3a-2b9f8a0c1d11'
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 4,
+      next: null,
+      previous: null,
+      results: [
+        furniture,
+        { ...furniture, id: chairId, name: 'Chair', slug: 'chair', parent },
+        { ...furniture, id: 'demo-assets-id', name: 'Demo Assets', slug: 'demo-assets' },
+        { ...furniture, id: 'demo-child-id', name: 'Demo Chair', slug: 'demo-chair',
+          parent: { id: 'demo-assets-id', name: 'Demo Assets', slug: 'demo-assets' } },
+      ],
+    })
+
+    renderNavbar('/')
+    await user.hover(screen.getByRole('button', { name: /^explore$/i }))
+    const menu = await screen.findByRole('menu', { name: /explore categories/i })
+    await within(menu).findByRole('menuitem', { name: /^furniture$/i })
+
+    // Collapsed by default; the parent row has a toggle.
+    expect(within(menu).queryByRole('menuitem', { name: /^chair$/i })).not.toBeInTheDocument()
+    const toggle = within(menu).getByRole('menuitem', { name: /show subcategories/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    const group = within(menu).getByRole('group', { name: /furniture subcategories/i })
+    expect(within(menu).queryByText(/demo/i)).not.toBeInTheDocument()
+    await user.click(within(group).getByRole('menuitem', { name: /^chair$/i }))
+
+    expect(screen.getByTestId('location')).toHaveTextContent(`/3d-models?category=${chairId}`)
+  })
+
   it('shows Login and Sign Up when logged out', () => {
     renderNavbar('/about')
 

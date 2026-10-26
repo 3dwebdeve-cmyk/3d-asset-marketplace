@@ -36,9 +36,11 @@ PUBLIC_MEDIA_PREFIXES = (
     "plugins/images/",
     "avatars/",
 )
-# Feature 16 public objects live under models/{Model_ID}/; package.zip stays private.
+# Feature 16 public objects live under models/{Model_ID}/; packages stay private.
+# The 3ds Max pipeline names the package <Model_ID>.zip, so any .zip is private.
 BATCH_PUBLIC_PREFIX = "models/"
 BATCH_PRIVATE_FILENAMES = frozenset({"package.zip"})
+BATCH_PRIVATE_SUFFIXES = (".zip",)
 
 
 def media_relative_path(storage_path: str) -> str | None:
@@ -76,7 +78,8 @@ def media_relative_path(storage_path: str) -> str | None:
 
 
 def is_batch_private_object(relative: str) -> bool:
-    return Path(relative.replace("\\", "/")).name.lower() in BATCH_PRIVATE_FILENAMES
+    name = Path(relative.replace("\\", "/")).name.lower()
+    return name in BATCH_PRIVATE_FILENAMES or name.endswith(BATCH_PRIVATE_SUFFIXES)
 
 
 def is_public_media_path(relative: str) -> bool:

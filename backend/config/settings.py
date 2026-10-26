@@ -378,6 +378,14 @@ if ADMIN_CONSOLE_IP_LOCK_OFF:
     if not ADMIN_MFA_REQUIRED:
         raise ImproperlyConfigured("ADMIN_CONSOLE_IP_LOCK_OFF needs ADMIN_MFA_REQUIRED=True.")
     ADMIN_CONSOLE_ALLOWED_IPS = []
+# Optional lock for the uploader exe's API-key route (/api/v1/catalog-ingest/*). It sits
+# outside /api/v1/admin/, so ADMIN_CONSOLE_ALLOWED_IPS and Cloudflare Access do not apply.
+# Empty = any IP; the API key is still required.
+CATALOG_INGEST_ALLOWED_IPS = config(
+    "CATALOG_INGEST_ALLOWED_IPS",
+    default="",
+    cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
+)
 # The Django admin has a password-only login, outside the /console 2FA sign-in.
 if DEPLOYMENT_PROFILE == "production" and DJANGO_ADMIN_ENABLED:
     raise ImproperlyConfigured(
@@ -389,6 +397,7 @@ if DEPLOYMENT_PROFILE in {"staging", "production"}:
     for label, values, required in (
         ("ADMIN_CONSOLE_ALLOWED_IPS", ADMIN_CONSOLE_ALLOWED_IPS, not ADMIN_CONSOLE_IP_LOCK_OFF),
         ("DJANGO_ADMIN_ALLOWED_IPS", DJANGO_ADMIN_ALLOWED_IPS, DJANGO_ADMIN_ENABLED),
+        ("CATALOG_INGEST_ALLOWED_IPS", CATALOG_INGEST_ALLOWED_IPS, False),
     ):
         if required and not values:
             raise ImproperlyConfigured(f"{label} must restrict administrator access.")
@@ -496,6 +505,8 @@ REST_FRAMEWORK = {
         "avatar_upload": "10/hour",
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
+        # Uploader exe: about 5 models per request, each scanned and re-stored.
+        "catalog_ingest": "30/min",
         "admin_plugin_write": "60/min",
         # Uploads can trigger storage writes, malware scanning and image parsing.
         "admin_upload": "12/min",

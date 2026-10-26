@@ -225,3 +225,28 @@ class KnownDevice(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["user", "device_hash"], name="uniq_known_device_per_user"),
         ]
+
+
+class CatalogApiKey(models.Model):
+    """API key for the unattended catalog uploader (``accounts.api_keys``).
+
+    Only a SHA-256 hash of the key is stored; the key itself is shown once at creation.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    # Public part of the key, used to find the row without scanning hashes.
+    key_prefix = models.CharField(max_length=16, unique=True)
+    key_hash = models.CharField(max_length=64)
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="catalog_api_keys")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "catalog_api_keys"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.key_prefix})"

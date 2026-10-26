@@ -158,3 +158,7 @@ class PaymentCheckoutDailyRateThrottle(UserRateThrottle):
     """Daily circuit breaker for calls that create/sync Stripe sessions."""
 
     scope = "payment_checkout_daily"
+
+
+class CatalogIngestRateThrottle(UserRateThrottle):
+    scope = "catalog_ingest"

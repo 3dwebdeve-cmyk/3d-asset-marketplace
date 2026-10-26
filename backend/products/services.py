@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -80,6 +80,7 @@ class ProductCreateData:
     has_thumbnail: bool = False
     has_preview: bool = False
     has_package: bool = False
+    package_formats: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -115,6 +116,7 @@ class ProductUpdateData:
     has_thumbnail: bool | None = None
     has_preview: bool | None = None
     has_package: bool | None = None
+    package_formats: list[str] | None = None
 
 
 class ProductService:
@@ -181,7 +183,12 @@ class ProductService:
         )
 
         if category_id is not None:
-            queryset = queryset.filter(category_id=category_id)
+            # A parent category also lists its active subcategories' products;
+            # a subcategory lists only its own.
+            queryset = queryset.filter(
+                Q(category_id=category_id)
+                | Q(category__parent_id=category_id, category__is_active=True)
+            )
         query = cls._normalize_search(search)
         if query:
             queryset = queryset.filter(
@@ -334,6 +341,7 @@ class ProductService:
             has_thumbnail=data.has_thumbnail,
             has_preview=data.has_preview,
             has_package=data.has_package,
+            package_formats=list(data.package_formats),
             description=data.description.strip(),
             short_description=data.short_description.strip(),
             price=data.price,
@@ -485,6 +493,10 @@ class ProductService:
         if data.glb_checksum is not None:
             product.glb_checksum = data.glb_checksum.strip()[:64]
             update_fields.append("glb_checksum")
+
+        if data.package_formats is not None:
+            product.package_formats = list(data.package_formats)
+            update_fields.append("package_formats")
 
         for field_name in ("has_thumbnail", "has_preview", "has_package"):
             value = getattr(data, field_name)

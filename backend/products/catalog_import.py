@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any
 
@@ -15,7 +15,7 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 
 from categories.models import Category
-from config.media import media_relative_path
+from config.media import media_relative_path, private_object_exists
 from config.storages import build_public_media_url, get_public_storage
 from config.upload_security import inspect_product_content
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
@@ -34,6 +34,8 @@ _GLB_CHECKSUM_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 _QA_READY = frozenset({"Ready for QA", "Approved"})
 _EXPORT_SUCCESS = "Success"
 _PACKAGEABLE_EXPORTS = ("fbx", "obj", "max")
+# A package must hold at least one model format besides the web preview formats.
+_PREVIEW_ONLY_FORMATS = frozenset({"glb", "gltf"})
 _STORAGE_ERRORS = (OSError, ValueError, SuspiciousFileOperation, BotoCoreError, ClientError)
 _UPSERTABLE_STATUSES = frozenset(
     {
@@ -51,6 +53,7 @@ class CatalogImportRowResult:
     reason: str = ""
     product_id: str | None = None
     status: str | None = None
+    warnings: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -63,6 +66,8 @@ class CatalogImportRowResult:
             payload["product_id"] = self.product_id
         if self.status is not None:
             payload["status"] = self.status
+        if self.warnings:
+            payload["warnings"] = list(self.warnings)
         return payload
 
 
@@ -145,6 +150,24 @@ class CatalogImportService:
         import_batch_id: str,
         import_source: str,
     ) -> CatalogImportRowResult:
+        warnings: list[str] = []
+        row = cls._import_item(
+            item,
+            import_batch_id=import_batch_id,
+            import_source=import_source,
+            warnings=warnings,
+        )
+        return replace(row, warnings=tuple(warnings)) if warnings else row
+
+    @classmethod
+    def _import_item(
+        cls,
+        item: dict[str, Any],
+        *,
+        import_batch_id: str,
+        import_source: str,
+        warnings: list[str],
+    ) -> CatalogImportRowResult:
         raw_model_id = str(item.get("model_id") or "").strip()
         display_id = raw_model_id.upper() if raw_model_id else ""
 
@@ -167,6 +190,7 @@ class CatalogImportService:
         category = cls.resolve_category(
             str(item.get("category") or ""),
             str(item.get("subcategory") or ""),
+            warnings=warnings,
         )
         if category is None:
             return CatalogImportRowResult(
@@ -209,6 +233,15 @@ class CatalogImportService:
                     action="skipped",
                     reason="published_sku",
                 )
+
+        # Catch a typo or failed upload now rather than at approval.
+        package_key = media_pointers["package_key"]
+        if package_key is not None and not private_object_exists(package_key):
+            return CatalogImportRowResult(
+                model_id=sku,
+                action="skipped",
+                reason="missing_package_object",
+            )
 
         try:
             media_pointers = cls._secure_preview(sku, item, media_pointers, existing)
@@ -284,14 +317,9 @@ class CatalogImportService:
             return "invalid_model_id"
 
         exports = item.get("exports") or {}
-        glb_status = str(exports.get("glb") or "").strip()
-        if glb_status != _EXPORT_SUCCESS:
-            return "exports_incomplete"
-        packageable = any(
-            str(exports.get(key) or "").strip() == _EXPORT_SUCCESS
-            for key in _PACKAGEABLE_EXPORTS
-        )
-        if not packageable:
+        if not cls._exports_packageable(exports) and not cls._package_formats_packageable(
+            cls.normalize_package_formats(item.get("package_formats"))
+        ):
             return "exports_incomplete"
 
         name = str(item.get("name") or "").strip()
@@ -360,11 +388,36 @@ class CatalogImportService:
 
         return None
 
+    @staticmethod
+    def _exports_packageable(exports: dict[str, Any]) -> bool:
+        """Bridge rule: a GLB preview plus at least one FBX, OBJ or MAX export."""
+        if str(exports.get("glb") or "").strip() != _EXPORT_SUCCESS:
+            return False
+        return any(
+            str(exports.get(key) or "").strip() == _EXPORT_SUCCESS
+            for key in _PACKAGEABLE_EXPORTS
+        )
+
+    @staticmethod
+    def _package_formats_packageable(package_formats: list[str]) -> bool:
+        """3ds Max plugin rule: the package holds a model format other than GLB/glTF."""
+        return any(fmt not in _PREVIEW_ONLY_FORMATS for fmt in package_formats)
+
+    @staticmethod
+    def normalize_package_formats(raw: Any) -> list[str]:
+        """Lowercase extensions without the dot, de-duplicated and sorted."""
+        if not isinstance(raw, (list, tuple)):
+            return []
+        formats = {str(value or "").strip().lower().lstrip(".") for value in raw}
+        return sorted(fmt for fmt in formats if fmt)
+
     @classmethod
     def resolve_category(
         cls,
         category_name: str,
         subcategory_name: str = "",
+        *,
+        warnings: list[str] | None = None,
     ) -> Category | None:
         parent_name = category_name.strip()
         if not parent_name:
@@ -391,7 +444,12 @@ class CatalogImportService:
             .order_by("name")
             .first()
         )
-        return child if child is not None else parent
+        if child is None:
+            # Keep the parent fallback, but tell the uploader the subcategory is missing.
+            if warnings is not None:
+                warnings.append("subcategory_not_found")
+            return parent
+        return child
 
     @classmethod
     def _normalize_object_key(cls, raw_key: str, *, sku: str) -> str:
@@ -419,31 +477,34 @@ class CatalogImportService:
             str(media.get("preview_key") or ""),
             sku=sku,
         )
-        if thumbnail_key.endswith("package.zip") or preview_key.endswith("package.zip"):
+        if _is_zip_key(thumbnail_key) or _is_zip_key(preview_key):
             raise ProductError("invalid_object_key", field="object_key")
 
         package_key_raw = str(media.get("package_key") or "").strip()
         package_key: str | None = None
         if package_key_raw:
             package_key = cls._normalize_object_key(package_key_raw, sku=sku)
-            # Storage treats every other name under models/<sku>/ as public.
-            if package_key != f"models/{sku}/package.zip":
+            # Only these two names are packages; storage keeps every .zip private.
+            if package_key not in (f"models/{sku}/package.zip", f"models/{sku}/{sku}.zip"):
                 raise ProductError("invalid_object_key", field="package_key")
 
         gallery_urls: list[str] = []
         for raw in media.get("gallery_keys") or []:
             key = cls._normalize_object_key(str(raw or ""), sku=sku)
-            if key.endswith("package.zip"):
+            if _is_zip_key(key):
                 raise ProductError("invalid_object_key", field="object_key")
             gallery_urls.append(build_public_media_url(key))
+
+        # The buyer's download is named after the package key unless the batch says otherwise.
+        default_file_name = package_key.rsplit("/", 1)[-1] if package_key else "package.zip"
 
         return {
             "thumbnail_url": build_public_media_url(thumbnail_key),
             "preview_key": preview_key,
             "preview_url": build_public_media_url(preview_key),
             "package_key": package_key,
-            "package_file_name": str(media.get("package_file_name") or "package.zip").strip()
-            or "package.zip",
+            "package_file_name": str(media.get("package_file_name") or "").strip()
+            or default_file_name,
             "package_file_format": str(media.get("package_file_format") or "zip").strip().lower()
             or "zip",
             "package_file_size": int(media.get("package_file_size") or 0),
@@ -602,6 +663,7 @@ class CatalogImportService:
                 has_thumbnail=media_pointers["has_thumbnail"],
                 has_preview=media_pointers["has_preview"],
                 has_package=media_pointers["has_package"],
+                package_formats=cls.normalize_package_formats(item.get("package_formats")),
             )
         )
 
@@ -667,6 +729,7 @@ class CatalogImportService:
                 has_thumbnail=media_pointers["has_thumbnail"],
                 has_preview=media_pointers["has_preview"],
                 has_package=media_pointers["has_package"],
+                package_formats=cls.normalize_package_formats(item.get("package_formats")),
             ),
         )
 
@@ -704,3 +767,7 @@ class CatalogImportService:
             version="1.0",
             is_preview=False,
         )
+
+
+def _is_zip_key(key: str) -> bool:
+    return key.lower().endswith(".zip")

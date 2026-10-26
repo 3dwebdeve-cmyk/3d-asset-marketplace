@@ -63,13 +63,23 @@ class ProductFileAdminSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+# Archive containers say nothing about which software opens the model.
+_ARCHIVE_FORMATS = frozenset({"zip", "rar", "7z"})
+
+
+def product_formats(obj: Product, files) -> list[str]:
+    """Model formats a buyer gets: the package contents plus the file rows."""
+    formats = {str(fmt).lower().lstrip(".") for fmt in obj.package_formats or ()}
+    formats.update(row.file_format.lower().lstrip(".") for row in files)
+    return sorted(fmt for fmt in formats if fmt and fmt not in _ARCHIVE_FORMATS)
+
+
 class ProductListPublicSerializer(serializers.ModelSerializer):
     category = ProductCategorySerializer(read_only=True)
     formats = serializers.SerializerMethodField()
 
     def get_formats(self, obj: Product) -> list[str]:
-        files = getattr(obj, "filter_files", ())
-        return sorted({row.file_format.lower().lstrip(".") for row in files})
+        return product_formats(obj, getattr(obj, "filter_files", ()))
 
     class Meta:
         model = Product
@@ -98,6 +108,10 @@ class ProductDetailPublicSerializer(serializers.ModelSerializer):
     category = ProductCategorySerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
     files = ProductFilePublicSerializer(many=True, read_only=True)
+    formats = serializers.SerializerMethodField()
+
+    def get_formats(self, obj: Product) -> list[str]:
+        return product_formats(obj, obj.files.all())
 
     class Meta:
         model = Product
@@ -127,6 +141,7 @@ class ProductDetailPublicSerializer(serializers.ModelSerializer):
             "category",
             "images",
             "files",
+            "formats",
             "created_at",
             "updated_at",
         )
@@ -459,10 +474,11 @@ class CatalogImportMediaSerializer(serializers.Serializer):
     thumbnail_key = serializers.CharField(required=False, allow_blank=True, default="")
     preview_key = serializers.CharField(required=False, allow_blank=True, default="")
     package_key = serializers.CharField(required=False, allow_blank=True, default="")
+    # Blank means "name it after the package key" (package.zip or <Model_ID>.zip).
     package_file_name = serializers.CharField(
         required=False,
         allow_blank=True,
-        default="package.zip",
+        default="",
         max_length=255,
     )
     package_file_format = serializers.CharField(
@@ -541,6 +557,12 @@ class CatalogImportItemSerializer(serializers.Serializer):
         max_length=128,
     )
     exports = CatalogImportExportsSerializer(required=False)
+    package_formats = serializers.ListField(
+        child=serializers.CharField(max_length=16, trim_whitespace=True),
+        required=False,
+        default=list,
+        max_length=32,
+    )
     media = CatalogImportMediaSerializer(required=False)
 
     def validate(self, attrs: dict) -> dict:

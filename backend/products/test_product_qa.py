@@ -85,6 +85,8 @@ class ProductQAWorkflowAPITests(APITestCase):
 
     def _import_happy_product(self, *, with_package_object: bool = True) -> Product:
         put_pipeline_previews([_happy_item()])
+        # The import checks the package exists, so upload it first, as the pipeline does.
+        self._write_package(_happy_item()["media"]["package_key"])
         response = self.client.post(
             self.import_url,
             {
@@ -97,9 +99,9 @@ class ProductQAWorkflowAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["created"], 1)
         product = Product.objects.get(sku="MDL-000142")
-        if with_package_object:
+        if not with_package_object:
             package = ProductFile.objects.get(product=product, is_preview=False)
-            self._write_package(package.storage_path)
+            default_storage.delete(package.storage_path)
         return product
 
     def _approve_url(self, product_id) -> str:
@@ -198,6 +200,7 @@ class ProductQAWorkflowAPITests(APITestCase):
         default_storage.save(
             "models/MDL-MISS-01/preview.glb", ContentFile(make_glb_bytes(100))
         )
+        self._write_package("models/MDL-MISS-01/package.zip")
         response = self.client.post(
             self.import_url,
             {
@@ -224,6 +227,7 @@ class ProductQAWorkflowAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["created"], 1)
         product = Product.objects.get(sku="MDL-MISS-01")
+        # The package went missing after the import (deleted from storage).
         package = ProductFile.objects.get(product=product, is_preview=False)
         if default_storage.exists(package.storage_path):
             default_storage.delete(package.storage_path)

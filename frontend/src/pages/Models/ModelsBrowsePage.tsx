@@ -5,9 +5,10 @@ import { listPublicCategories } from '../../api/categoriesApi'
 import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
-import { SOFTWARE_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
+import { MODEL_FORMAT_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
 import { MODELS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { buildCategoryTree } from '../../lib/categoryTree'
 import { activateOnKey } from '../../lib/keyboard'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { ProductCard } from '../Products/ProductCard'
@@ -39,7 +40,7 @@ const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
   products: PRODUCTS_BANNER_IMAGE_SRC,
 }
 
-const FORMAT_OPTIONS = SOFTWARE_FILTERS
+const FORMAT_OPTIONS = MODEL_FORMAT_FILTERS
 const LICENSE_OPTIONS = [
   { value: 'standard', label: 'Standard License' },
   { value: 'extended', label: 'Extended License' },
@@ -262,6 +263,22 @@ export function ModelsBrowsePage() {
     if (!selectedCategoryId) return null
     return categoriesData?.results.find((cat) => cat.id === selectedCategoryId) ?? null
   }, [categoriesData?.results, selectedCategoryId])
+  // Subcategories are listed under their parent; picking a parent includes them.
+  const categoryTree = useMemo(
+    () => buildCategoryTree(categoriesData?.results ?? []),
+    [categoriesData?.results],
+  )
+
+  const selectCategory = (id: string) => {
+    setSelectedCategoryId(id)
+    setCurrentPage(1)
+    setCategoryDropdownOpen(false)
+    if (id) trackCategoryClick(id)
+    const nextParams = new URLSearchParams(searchParams)
+    if (id) nextParams.set('category', id)
+    else nextParams.delete('category')
+    setSearchParams(nextParams, { replace: true })
+  }
 
   const heroTitle = selectedCategory?.slug === '3d-printing'
     ? '3D Printing'
@@ -276,7 +293,8 @@ export function ModelsBrowsePage() {
   const heroImageSrc = usesProductsBanner
     ? PRODUCTS_BANNER_IMAGE_SRC
     : selectedCategory
-      ? CATEGORY_BANNER_BY_SLUG[selectedCategory.slug]
+      ? CATEGORY_BANNER_BY_SLUG[selectedCategory.slug] ??
+        (selectedCategory.parent ? CATEGORY_BANNER_BY_SLUG[selectedCategory.parent.slug] : undefined)
       : MODELS_HERO_IMAGE_SRC
 
   return (
@@ -363,38 +381,28 @@ export function ModelsBrowsePage() {
                     onKeyDown={activateOnKey}
                     aria-selected={selectedCategoryId === ''}
                     className={`custom-select-option${selectedCategoryId === '' ? ' custom-select-option--active' : ''}`}
-                    onClick={() => {
-                      setSelectedCategoryId('')
-                      setCurrentPage(1)
-                      setCategoryDropdownOpen(false)
-                      const nextParams = new URLSearchParams(searchParams)
-                      nextParams.delete('category')
-                      setSearchParams(nextParams, { replace: true })
-                    }}
+                    onClick={() => selectCategory('')}
                   >
                     All categories
                   </li>
-                  {(categoriesData?.results ?? []).map((category) => (
-                    <li
-                      key={category.id}
-                      role="option"
-                      tabIndex={0}
-                      onKeyDown={activateOnKey}
-                      aria-selected={selectedCategoryId === category.id}
-                      className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
-                      onClick={() => {
-                        setSelectedCategoryId(category.id)
-                        setCurrentPage(1)
-                        setCategoryDropdownOpen(false)
-                        trackCategoryClick(category.id)
-                        const nextParams = new URLSearchParams(searchParams)
-                        nextParams.set('category', category.id)
-                        setSearchParams(nextParams, { replace: true })
-                      }}
-                    >
-                      {category.name}
-                    </li>
-                  ))}
+                  {categoryTree.flatMap(({ category, children }) =>
+                    [category, ...children].map((option) => {
+                      const isChild = option !== category
+                      return (
+                        <li
+                          key={option.id}
+                          role="option"
+                          tabIndex={0}
+                          onKeyDown={activateOnKey}
+                          aria-selected={selectedCategoryId === option.id}
+                          className={`custom-select-option${isChild ? ' custom-select-option--child' : ''}${selectedCategoryId === option.id ? ' custom-select-option--active' : ''}`}
+                          onClick={() => selectCategory(option.id)}
+                        >
+                          {option.name}
+                        </li>
+                      )
+                    }),
+                  )}
                 </ul>
               ) : null}
 
@@ -402,38 +410,32 @@ export function ModelsBrowsePage() {
                 id="model-category"
                 aria-label="Category"
                 value={selectedCategoryId}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setSelectedCategoryId(value)
-                  setCurrentPage(1)
-                  if (value) trackCategoryClick(value)
-
-                  const nextParams = new URLSearchParams(searchParams)
-                  if (value) nextParams.set('category', value)
-                  else nextParams.delete('category')
-
-                  setSearchParams(nextParams, { replace: true })
-                }}
+                onChange={(event) => selectCategory(event.target.value)}
                 className="custom-select-native"
                 tabIndex={-1}
                 aria-hidden="true"
               >
                 <option value="">All categories</option>
-                {(categoriesData?.results ?? []).map((category) => (
+                {categoryTree.flatMap(({ category, children }) => [
                   <option key={category.id} value={category.id}>
                     {category.name}
-                  </option>
-                ))}
+                  </option>,
+                  ...children.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {`  ${child.name}`}
+                    </option>
+                  )),
+                ])}
               </select>
             </div>
           </div>
 
           <fieldset className="model-filters__group software-filters">
             <legend>Software</legend>
-            {FORMAT_OPTIONS.map(({ value, label, icon, color }) => (
+            {FORMAT_OPTIONS.map(({ value, label, icon, color, badge }) => (
               <label className="model-filters__option software-filter__row" key={value}>
                 <input type="checkbox" checked={value.split(',').every((item) => formats.includes(item))} onChange={() => toggleFilter('formats', formats, value)} />
-                <SoftwareIcon icon={icon} color={color} />
+                <SoftwareIcon icon={icon} color={color} badge={badge} />
                 <span>{label}</span><span className="model-filters__count">{isLoading ? '\u2014' : facets.formats[value]}</span>
               </label>
             ))}

@@ -9,6 +9,8 @@ import { listPublicCategories } from '../api/categoriesApi'
 import { AuthEntryButton } from './auth/AuthEntryButton'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { buildCategoryTree } from '../lib/categoryTree'
+import type { CategoryTreeNode } from '../lib/categoryTree'
 import { isAdministrator } from '../lib/roles'
 import { trackCategoryClick } from '../lib/trackCategoryClick'
 import { toast } from '../lib/toast'
@@ -50,6 +52,8 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [drawerMenuOpen, setDrawerMenuOpen] = useState(true)
   const [drawerExploreOpen, setDrawerExploreOpen] = useState(false)
+  // Parent category whose subcategories are expanded in the Explore/search menus.
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
   const accountRef = useRef<HTMLDivElement>(null)
   const exploreRef = useRef<HTMLDivElement>(null)
   const searchCatRef = useRef<HTMLDivElement>(null)
@@ -197,24 +201,13 @@ export function Navbar() {
   // catalog, even while the customer is browsing another section such as Plugins.
   const categories = productCategoriesQuery.data?.results ?? []
 
-  // Keep Explore/search menus compact: top-level categories only, excluding
-  // the internal demo category from customer-facing navigation.
-  const exploreCategories = categories.filter((category) => {
-    if (category.slug === 'demo-assets' || category.name.trim().toLowerCase() === 'demo assets') {
-      return false
-    }
-    if ('parent' in category) {
-      return category.parent == null
-    }
-    return true
-  })
+  // Explore/search menus list top-level categories with their subcategories
+  // underneath, excluding the internal demo category from customer-facing navigation.
+  const exploreTree = buildCategoryTree(categories, { excludeDemo: true })
   const AllCategoriesIcon = getAllCategoriesIcon()
-  const selectedSearchCategory = exploreCategories.find((cat) => cat.id === categoryId)
-  const categoryHasChildren = (categoryIdToCheck: string) =>
-    categories.some(
-      (category) =>
-        'parent' in category && category.parent != null && category.parent.id === categoryIdToCheck,
-    )
+  const selectedSearchCategory = exploreTree
+    .flatMap(({ category, children }) => [category, ...children])
+    .find((cat) => cat.id === categoryId)
   const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
   const searchCategoriesLoading = productCategoriesQuery.isLoading
   const searchCategoriesError = productCategoriesQuery.isError
@@ -271,6 +264,68 @@ export function Navbar() {
   }
 
   const closeMobileNav = () => setMobileNavOpen(false)
+
+  const renderExploreNode = ({ category, children }: CategoryTreeNode) => {
+    const Icon = getCategoryIcon(category.slug)
+    const item = (
+      <button
+        type="button"
+        role="menuitem"
+        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''}`}
+        key={category.id}
+        onClick={() => handleSelectCategory(category.id)}
+      >
+        {category.image ? (
+          <img className="navbar__explore-image" src={category.image} alt="" />
+        ) : (
+          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
+        )}
+        <span className="navbar__explore-label">{category.name}</span>
+      </button>
+    )
+    if (children.length === 0) return item
+
+    const expanded = expandedCategoryId === category.id
+    const childrenId = `navbar-subcategories-${category.id}`
+    return (
+      <div className="navbar__explore-group" key={category.id}>
+        <div className="navbar__explore-row">
+          {item}
+          <button
+            type="button"
+            role="menuitem"
+            className="navbar__explore-toggle"
+            aria-label={expanded ? 'Hide subcategories' : 'Show subcategories'}
+            aria-expanded={expanded}
+            aria-controls={childrenId}
+            onClick={() => setExpandedCategoryId(expanded ? null : category.id)}
+          >
+            <span className="navbar__explore-chevron" aria-hidden="true">›</span>
+          </button>
+        </div>
+        {expanded ? (
+          <div
+            className="navbar__explore-children"
+            id={childrenId}
+            role="group"
+            aria-label={`${category.name} subcategories`}
+          >
+            {children.map((child) => (
+              <button
+                type="button"
+                role="menuitem"
+                className={`navbar__explore-item navbar__explore-item--child${categoryId === child.id ? ' navbar__explore-item--active' : ''}`}
+                key={child.id}
+                onClick={() => handleSelectCategory(child.id)}
+              >
+                <span className="navbar__explore-label">{child.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   const firstName = user?.full_name?.trim().split(/\s+/)[0] || 'User'
   const showCartButton = isAuthenticated && !isAdministrator(user?.role)
@@ -371,28 +426,7 @@ export function Navbar() {
                     <span className="navbar__explore-label">All Categories</span>
                     <span className="navbar__explore-chevron" aria-hidden="true">›</span>
                   </button>
-                  {exploreCategories.map((category) => {
-                    const Icon = getCategoryIcon(category.slug)
-                    return (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''}`}
-                        key={category.id}
-                        onClick={() => handleSelectCategory(category.id)}
-                      >
-                        {category.image ? (
-                          <img className="navbar__explore-image" src={category.image} alt="" />
-                        ) : (
-                          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
-                        )}
-                        <span className="navbar__explore-label">{category.name}</span>
-                        {categoryHasChildren(category.id) ? (
-                          <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                        ) : null}
-                      </button>
-                    )
-                  })}
+                  {exploreTree.map(renderExploreNode)}
                   {productCategoriesQuery.isLoading ? (
                     <p className="navbar__explore-status">Loading categories…</p>
                   ) : null}
@@ -441,33 +475,7 @@ export function Navbar() {
                     <span className="navbar__explore-label">All Categories</span>
                     <span className="navbar__explore-chevron" aria-hidden="true">›</span>
                   </button>
-                  {exploreCategories.map((category) => {
-                    const Icon = getCategoryIcon(category.slug)
-                    return (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''
-                          }`}
-                        key={category.id}
-                        onClick={() => handleSelectCategory(category.id)}
-                      >
-                        {'image' in category && category.image ? (
-                          <img
-                            className="navbar__explore-image"
-                            src={category.image}
-                            alt=""
-                          />
-                        ) : (
-                          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
-                        )}
-                        <span className="navbar__explore-label">{category.name}</span>
-                        {categoryHasChildren(category.id) ? (
-                          <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                        ) : null}
-                      </button>
-                    )
-                  })}
+                  {exploreTree.map(renderExploreNode)}
                   {searchCategoriesLoading ? (
                     <p className="navbar__explore-status">Loading categories…</p>
                   ) : null}
@@ -888,9 +896,9 @@ export function Navbar() {
                     <AllCategoriesIcon className="navbar__drawer-cat-icon" />
                     <span>All Categories</span>
                   </button>
-                  {exploreCategories.map((category) => {
+                  {exploreTree.flatMap(({ category, children }) => {
                     const Icon = getCategoryIcon(category.slug)
-                    return (
+                    return [
                       <button
                         type="button"
                         className="navbar__drawer-sublink navbar__drawer-sublink--button"
@@ -900,14 +908,27 @@ export function Navbar() {
                           handleSelectCategory(category.id)
                         }}
                       >
-                        {'image' in category && category.image ? (
+                        {category.image ? (
                           <img className="navbar__drawer-cat-image" src={category.image} alt="" />
                         ) : (
                           <Icon className="navbar__drawer-cat-icon" />
                         )}
                         <span>{category.name}</span>
-                      </button>
-                    )
+                      </button>,
+                      ...children.map((child) => (
+                        <button
+                          type="button"
+                          className="navbar__drawer-sublink navbar__drawer-sublink--button navbar__drawer-sublink--child"
+                          key={child.id}
+                          onClick={() => {
+                            closeMobileNav()
+                            handleSelectCategory(child.id)
+                          }}
+                        >
+                          <span>{child.name}</span>
+                        </button>
+                      )),
+                    ]
                   })}
                   {productCategoriesQuery.isLoading ? (
                     <p className="navbar__drawer-status">Loading categories…</p>
