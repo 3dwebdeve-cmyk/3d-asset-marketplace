@@ -61,6 +61,8 @@ class CatalogImportRowResult:
     status: str | None = None
     # The row was imported, but something deserves a look (for example "preview_unchecked").
     warning: str = ""
+    # Every warning for the row, including `warning` and "subcategory_not_found".
+    warnings: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -166,6 +168,9 @@ class CatalogImportService:
             import_source=import_source,
             warnings=warnings,
         )
+        # `warnings` lists every warning; `warning` keeps its single value for older callers.
+        if row.warning:
+            warnings.append(row.warning)
         return replace(row, warnings=tuple(warnings)) if warnings else row
 
     @classmethod

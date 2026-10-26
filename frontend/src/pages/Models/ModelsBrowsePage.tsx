@@ -6,7 +6,7 @@ import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
 import { SoftwareIcon } from '../../components/SoftwareIcon'
-import { SOFTWARE_FILTERS } from '../../components/softwareFilters'
+import { MODEL_FORMAT_FILTERS } from '../../components/softwareFilters'
 import { SiteHeroImage } from '../../components/SiteHeroImage'
 import { MODELS_HERO_IMAGE_SRC, PRODUCTS_BANNER_IMAGE_SRC, categoryBanner } from '../../lib/heroBanners'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
@@ -291,17 +291,6 @@ export function ModelsBrowsePage() {
     [categoriesData?.results],
   )
 
-  const selectCategory = (id: string) => {
-    setSelectedCategoryId(id)
-    setCurrentPage(1)
-    setCategoryDropdownOpen(false)
-    if (id) trackCategoryClick(id)
-    const nextParams = new URLSearchParams(searchParams)
-    if (id) nextParams.set('category', id)
-    else nextParams.delete('category')
-    setSearchParams(nextParams, { replace: true })
-  }
-
   const categorySeo = selectedCategory ? getCategorySeo(selectedCategory.slug, selectedCategory.name) : null
   const emptyCategory = Boolean(selectedCategory) && productsData !== undefined && productsData.length === 0
   const seoCopy = categorySeo ?? ALL_MODELS_SEO
@@ -436,23 +425,25 @@ export function ModelsBrowsePage() {
                   >
                     All categories
                   </li>
-                  {(categoriesData?.results ?? []).map((category) => (
-                    <li
-                      key={category.id}
-                      role="option"
-                      tabIndex={0}
-                      onKeyDown={activateOnKey}
-                      aria-selected={selectedCategoryId === category.id}
-                      className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
-                      onClick={() => {
-                        setCategoryDropdownOpen(false)
-                        trackCategoryClick(category.id)
-                        goToCategory(category)
-                      }}
-                    >
-                      {category.name}
-                    </li>
-                  ))}
+                  {categoryTree.flatMap(({ category, children }) =>
+                    [category, ...children].map((option) => (
+                      <li
+                        key={option.id}
+                        role="option"
+                        tabIndex={0}
+                        onKeyDown={activateOnKey}
+                        aria-selected={selectedCategoryId === option.id}
+                        className={`custom-select-option${option !== category ? ' custom-select-option--child' : ''}${selectedCategoryId === option.id ? ' custom-select-option--active' : ''}`}
+                        onClick={() => {
+                          setCategoryDropdownOpen(false)
+                          trackCategoryClick(option.id)
+                          goToCategory(option)
+                        }}
+                      >
+                        {option.name}
+                      </li>
+                    )),
+                  )}
                 </ul>
               ) : null}
 

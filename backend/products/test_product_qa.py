@@ -85,6 +85,8 @@ class ProductQAWorkflowAPITests(APITestCase):
 
     def _import_happy_product(self, *, with_package_object: bool = True) -> Product:
         put_pipeline_uploads([_happy_item()])
+        # The import checks the package exists, so upload it first, as the pipeline does.
+        self._write_package(_happy_item()["media"]["package_key"])
         response = self.client.post(
             self.import_url,
             {
@@ -214,6 +216,7 @@ class ProductQAWorkflowAPITests(APITestCase):
             )
         ]
         put_pipeline_images(items)
+        self._write_package("models/MDL-MISS-01/package.zip")
         response = self.client.post(
             self.import_url,
             {

@@ -102,6 +102,8 @@ class CatalogImportCommerceE2ETests(APITestCase):
     def test_import_qa_pay_download_happy_path(self) -> None:
         self._authenticate_admin()
         put_pipeline_uploads([_happy_item()])
+        # The import checks the package exists, so upload it first, as the pipeline does.
+        self._write_package(_happy_item()["media"]["package_key"])
         imported = self.client.post(
             self.import_url,
             {

@@ -23,7 +23,7 @@ from products.catalog_import import CatalogImportService
 from products.models import Product, ProductFile
 from products.services import ProductError, ProductService
 from products.test_catalog_import import _happy_item
-from products.testing import put_pipeline_images
+from products.testing import put_pipeline_images, put_pipeline_packages
 from products.testing import make_glb_bytes
 
 User = get_user_model()

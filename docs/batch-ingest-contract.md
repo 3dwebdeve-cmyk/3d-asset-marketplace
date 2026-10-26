@@ -153,11 +153,14 @@ add it there.
 }
 ```
 
-`reason` appears on skipped and failed rows. `warnings` appears only when there is one:
+`reason` appears on skipped and failed rows. `warnings` lists every warning for a row and
+appears only when there is one. `warning` (a single value) is kept for older callers and
+holds `preview_unchecked` when that applies.
 
 | Warning | Meaning |
 |---|---|
 | `subcategory_not_found` | The subcategory does not exist (or is inactive) under the category. The product was placed in the parent category. Create the subcategory in `/console`, then re-import. |
+| `preview_unchecked` | The preview was accepted without the 50% reduction check (see Import gate). Send `polygon_count`. |
 
 ## Import gate
 
@@ -180,13 +183,16 @@ and import again.
 
 Preview checks can also skip a row: `invalid_preview_format`, `missing_preview_object`,
 `invalid_preview`, `preview_too_large`, `preview_not_reduced`, `preview_unreadable`.
+
 Image checks can skip a row: `invalid_thumbnail`, `invalid_gallery_image` (not a JPEG/PNG/WebP
 image, over 25 MB or over 20 megapixels), `image_unreadable` (storage error), `missing_thumbnail_object` and
 `missing_gallery_object` (the file is not in the public bucket; upload it, then import again).
-A row that passes can still carry a `warning`. `preview_unchecked` means the preview was
+
+A row that passes can still carry a warning. `preview_unchecked` means the preview was
 accepted without the 50% reduction check, because the row has no `Polycount` or the preview's
 triangles could not be counted: a full-detail model can become public that way, so send the
 `Polycount`. The import also logs `catalog_import_preview_unchecked`.
+
 Passing rows are created or updated as `pending_review`. Publishing always goes through
 the review queue (approve action); imports never publish directly.
 

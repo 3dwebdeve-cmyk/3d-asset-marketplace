@@ -1,8 +1,17 @@
 import '../styles/software-filters.css'
 
-export function SoftwareIcon({ icon, color }: { icon: string; color: string }) {
-  if (icon === 'autodesk3dsmax') {
-    return <span className="software-filter__badge" aria-hidden="true">3</span>
+export function SoftwareIcon({ icon, color, badge }: { icon: string; color: string; badge?: string }) {
+  if (badge) {
+    const isWide = badge.length > 1
+    return (
+      <span
+        className={`software-filter__badge${isWide ? ' software-filter__badge--text' : ''}`}
+        style={isWide ? { background: color } : undefined}
+        aria-hidden="true"
+      >
+        {badge}
+      </span>
+    )
   }
   const source = `url("/images/software/${icon}.svg")`
   return (

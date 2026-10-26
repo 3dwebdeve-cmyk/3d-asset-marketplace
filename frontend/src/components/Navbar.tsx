@@ -11,7 +11,6 @@ import { CategoryMenu } from './CategoryMenu'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { buildCategoryTree } from '../lib/categoryTree'
-import type { CategoryTreeNode } from '../lib/categoryTree'
 import { isAdministrator } from '../lib/roles'
 import { trackCategoryClick } from '../lib/trackCategoryClick'
 import { toast } from '../lib/toast'
@@ -53,8 +52,6 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [drawerMenuOpen, setDrawerMenuOpen] = useState(true)
   const [drawerExploreOpen, setDrawerExploreOpen] = useState(false)
-  // Parent category whose subcategories are expanded in the Explore/search menus.
-  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
   const accountRef = useRef<HTMLDivElement>(null)
   const exploreRef = useRef<HTMLDivElement>(null)
   const searchCatRef = useRef<HTMLDivElement>(null)
@@ -202,7 +199,9 @@ export function Navbar() {
   // underneath, excluding the internal demo category from customer-facing navigation.
   const exploreTree = buildCategoryTree(categories, { excludeDemo: true })
   const AllCategoriesIcon = getAllCategoriesIcon()
-  const selectedSearchCategory = exploreCategories.find((cat) => cat.id === categoryId)
+  const selectedSearchCategory = exploreTree
+    .flatMap(({ category, children }) => [category, ...children])
+    .find((cat) => cat.id === categoryId)
   const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
 
   const cartCountQuery = useQuery({
@@ -257,68 +256,6 @@ export function Navbar() {
   }
 
   const closeMobileNav = () => setMobileNavOpen(false)
-
-  const renderExploreNode = ({ category, children }: CategoryTreeNode) => {
-    const Icon = getCategoryIcon(category.slug)
-    const item = (
-      <button
-        type="button"
-        role="menuitem"
-        className={`navbar__explore-item${categoryId === category.id ? ' navbar__explore-item--active' : ''}`}
-        key={category.id}
-        onClick={() => handleSelectCategory(category.id)}
-      >
-        {category.image ? (
-          <img className="navbar__explore-image" src={category.image} alt="" />
-        ) : (
-          <Icon className={`navbar__explore-icon navbar__explore-icon--${category.slug}`} />
-        )}
-        <span className="navbar__explore-label">{category.name}</span>
-      </button>
-    )
-    if (children.length === 0) return item
-
-    const expanded = expandedCategoryId === category.id
-    const childrenId = `navbar-subcategories-${category.id}`
-    return (
-      <div className="navbar__explore-group" key={category.id}>
-        <div className="navbar__explore-row">
-          {item}
-          <button
-            type="button"
-            role="menuitem"
-            className="navbar__explore-toggle"
-            aria-label={expanded ? 'Hide subcategories' : 'Show subcategories'}
-            aria-expanded={expanded}
-            aria-controls={childrenId}
-            onClick={() => setExpandedCategoryId(expanded ? null : category.id)}
-          >
-            <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-          </button>
-        </div>
-        {expanded ? (
-          <div
-            className="navbar__explore-children"
-            id={childrenId}
-            role="group"
-            aria-label={`${category.name} subcategories`}
-          >
-            {children.map((child) => (
-              <button
-                type="button"
-                role="menuitem"
-                className={`navbar__explore-item navbar__explore-item--child${categoryId === child.id ? ' navbar__explore-item--active' : ''}`}
-                key={child.id}
-                onClick={() => handleSelectCategory(child.id)}
-              >
-                <span className="navbar__explore-label">{child.name}</span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    )
-  }
 
   const firstName = user?.full_name?.trim().split(/\s+/)[0] || 'User'
   const showCartButton = isAuthenticated && !isAdministrator(user?.role)
@@ -405,7 +342,7 @@ export function Navbar() {
               </button>
               {exploreOpen ? (
                 <CategoryMenu
-                  categories={exploreCategories}
+                  categories={exploreTree}
                   selectedId={categoryId}
                   label={isMarketplaceHeader ? 'Explore categories' : 'All categories'}
                   loading={productCategoriesQuery.isLoading}
@@ -444,7 +381,7 @@ export function Navbar() {
               {searchCatOpen ? (
                 <CategoryMenu
                   className="navbar__search-cat-menu"
-                  categories={exploreCategories}
+                  categories={exploreTree}
                   selectedId={categoryId}
                   label="Search categories"
                   loading={productCategoriesQuery.isLoading}
