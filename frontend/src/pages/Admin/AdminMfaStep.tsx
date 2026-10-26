@@ -25,7 +25,7 @@ function groupKey(secret: string): string {
 
 function downloadCodes(codes: string[]): void {
   const blob = new Blob(
-    [`3D Asset Marketplace administrator recovery codes\nEach code works once.\n\n${codes.join('\n')}\n`],
+    [`AssetHive3D administrator recovery codes\nEach code works once.\n\n${codes.join('\n')}\n`],
     { type: 'text/plain' },
   )
   const url = URL.createObjectURL(blob)

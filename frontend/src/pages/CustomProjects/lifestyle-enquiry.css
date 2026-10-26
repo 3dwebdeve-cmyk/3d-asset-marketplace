@@ -1,0 +1,60 @@
+﻿.lifestyle-form { width: min(calc(100vw - 2rem), 1200px); justify-self: center; color: #17243a; font-size: 1rem; }
+.lifestyle-form__back { margin-bottom: 1rem; }
+.lifestyle-form form { background: #fff; border: 1px solid #dde6f2; border-radius: 24px; padding: 2.5rem; box-shadow: 0 2px 4px #1b345909; }
+.lifestyle-form header { display: flex; align-items: center; gap: 0.75rem; padding-bottom: 1.5rem; border-bottom: 1px solid #e7edf5; }
+.lifestyle-form header h2 { font-size: 1.4rem; margin: 0; scroll-margin-top: 110px; }
+.lifestyle-form header p { font-size: 0.9rem; color: #8c9ab1; margin: 0.25rem 0 0; }
+.lifestyle-form__icon { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #e0e7f2; border-radius: 12px; background: #f7f9fc; font-size: 1.5rem; }
+.lifestyle-form__badge { margin-left: auto; padding: 0.3rem 0.65rem; border-radius: 20px; background: #f2f5fb; color: #6577ad; font-size: 0.8rem; white-space: nowrap; }
+.lifestyle-form__section { padding: 1.5rem 0; border-bottom: 1px solid #e7edf5; }
+.lifestyle-form h3 { font-size: 1rem; letter-spacing: 0.025em; font-weight: 600; margin: 0 0 1rem; border-left: 4px solid #1b1c20; padding-left: 0.5rem; }
+.lifestyle-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.lifestyle-form__grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 1rem; }
+.lifestyle-form label { display: block; font-size: 0.95rem; min-width: 0; }
+.lifestyle-form label > span, .lifestyle-form legend > span { color: #8a99b0; font-weight: 400; }
+.lifestyle-form b { color: #e55e70; }
+.lifestyle-form small { display: block; color: #8796ad; font-size: 0.85rem; line-height: 1.6; }
+.lifestyle-form input:not([type=radio]):not([type=checkbox]):not([type=file]):not([type=color]), .lifestyle-form select, .lifestyle-form textarea { display: block; margin-top: 0.45rem; width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid #cfdcf0; border-radius: 9px; padding: 0.75rem; font: inherit; color: #17243a; background: #fff; }
+.lifestyle-form input::placeholder, .lifestyle-form textarea::placeholder { color: #96a2b6; }
+.lifestyle-form textarea { min-height: 104px; resize: vertical; }
+.lifestyle-form input:focus-visible, .lifestyle-form textarea:focus-visible, .lifestyle-form select:focus-visible, .lifestyle-form button:focus-visible { outline: 2px solid #0667ff; outline-offset: 3px; }
+.lifestyle-form__choices { border: 0; padding: 0; margin: 1rem 0 0; min-width: 0; }
+.lifestyle-form__grid > .lifestyle-form__choices { margin: 0; }
+.lifestyle-form__choices legend { font-size: 0.95rem; margin-bottom: 0.5rem; }
+.lifestyle-form__choices > div { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.lifestyle-form__choices label { position: relative; cursor: pointer; }
+.lifestyle-form__choices input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.lifestyle-form__choices label > span { display: inline-block; border: 1px solid #d6e0ef; color: #324967; border-radius: 20px; padding: 0.4rem 0.65rem; font-size: 0.9rem; }
+.lifestyle-form__choices input:checked + span { background: #edf4ff; border-color: #0667ff; color: #0667ff; }
+.lifestyle-form__choices input:focus-visible + span { outline: 2px solid #0667ff; outline-offset: 2px; }
+.lifestyle-form__file-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; margin: 0.4rem 0 0.9rem; }
+.lifestyle-form__file-tags span { font-size: 0.8rem; padding: 0.25rem 0.4rem; background: #f3f6fa; border: 1px solid #e0e7f2; border-radius: 4px; color: #627894; }
+.lifestyle-form__drop { border: 1px dashed #cbdaf2; border-radius: 10px; text-align: center; padding: 1.5rem; margin-bottom: 0.5rem; }
+.lifestyle-form__drop strong { display: block; font-size: 1rem; font-weight: 500; }
+.lifestyle-form__drop button { margin-top: 0.6rem; }
+.lifestyle-form button { font: inherit; font-size: 0.95rem; border: 1px solid #cbd8eb; padding: 0.55rem 1rem; background: #fff; color: #273b58; border-radius: 24px; cursor: pointer; }
+.lifestyle-form button:disabled { opacity: 0.5; cursor: wait; }
+.lifestyle-form footer { display: flex; justify-content: space-between; gap: 1rem; padding-top: 1.5rem; }
+.lifestyle-form footer > div { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.lifestyle-form button.lifestyle-form__submit { background: #1b1b1e; color: #fff; border-color: #1b1b1e; }
+.lifestyle-form__files { padding: 0; list-style: none; }
+.lifestyle-form__files li { display: flex; align-items: center; justify-content: space-between; overflow-wrap: anywhere; gap: 1rem; margin-top: 0.5rem; }
+.lifestyle-form__review { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: #f7f9fc; padding: 1rem; border-radius: 10px; line-height: 1.8; }
+.lifestyle-form .lifestyle-form__privacy { display: flex; flex-direction: row; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
+.lifestyle-form__error { color: #b42318; }
+.lifestyle-form__grid--full { grid-column: 1 / -1; }
+.lifestyle-form__subhead { font-size: 0.95rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: #17243a; }
+.lifestyle-form__tip {margin: 0.75rem 0; padding: 0.6rem 0.8rem; border-radius: 8px; background: #fff8e6; color: #7a5a00; font-size: 0.9rem; line-height: 1.5; }
+.marketplace-enquiry__outputs { margin-bottom: 1.25rem; }
+.marketplace-enquiry__outputs .lifestyle-form__choices > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.6rem; }
+.marketplace-enquiry__outputs .lifestyle-form__choices label > span { display: flex; align-items: center; height: 100%; min-height: 3.5rem; box-sizing: border-box; border-radius: 8px; padding: 0.75rem; }
+@media (max-width: 900px) { .marketplace-enquiry__outputs .lifestyle-form__choices > div { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .marketplace-enquiry__outputs .lifestyle-form__choices > div { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.lifestyle-form__success { padding-block: 2rem; }
+.lifestyle-form__color-field { position: relative; }
+.lifestyle-form__color-field input[type=text] { padding-right: 3rem; }
+.lifestyle-form .lifestyle-form__color-field input[type=color] { position: absolute; top: 50%; right: 0.65rem; transform: translateY(-50%); width: 24px; height: 24px; min-width: 0; margin: 0; padding: 3px; border: 1px solid #cfdcf0; border-radius: 4px; background: #fff; cursor: pointer; }
+.lifestyle-form__color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.lifestyle-form__color-picker::-webkit-color-swatch { border: 1px solid #9ba8b9; border-radius: 1px; }
+.lifestyle-form__color-picker::-moz-color-swatch { border: 1px solid #9ba8b9; border-radius: 1px; }
+@media (max-width: 600px) { .lifestyle-form form { padding: 1.25rem; } .lifestyle-form__grid, .lifestyle-form__grid--three { grid-template-columns: 1fr; } .lifestyle-form__badge { display: none; } .lifestyle-form footer { flex-wrap: wrap; } }

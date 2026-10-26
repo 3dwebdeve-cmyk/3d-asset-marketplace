@@ -20,7 +20,7 @@ export function AdminLayout() {
   const { isNotFound } = useNotFoundChrome()
 
   useDocumentSeo({
-    title: 'Admin console | 3D Asset Marketplace',
+    title: 'Admin console | AssetHive3D',
     description: 'Private administrator control panel.',
     robots: 'noindex, nofollow',
   })

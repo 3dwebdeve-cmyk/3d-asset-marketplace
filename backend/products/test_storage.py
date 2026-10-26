@@ -21,7 +21,6 @@ from config.storages import (
     call_with_storage_retries,
     content_disposition_filename,
     generate_private_presigned_url,
-    generate_public_presigned_url,
     get_private_storage,
     get_public_storage,
     is_retryable_storage_error,
@@ -195,22 +194,6 @@ class SignedUrlHelperTests(SimpleTestCase):
         self.assertIn("attachment; filename=", kwargs["Params"]["ResponseContentDisposition"])
         config = mock_client.call_args.kwargs["config"]
         self.assertEqual(config.retries["max_attempts"], R2_CLIENT_RETRY_ATTEMPTS)
-
-    @override_settings(
-        R2_ENABLED=True,
-        R2_ENDPOINT_URL="https://acc.r2.cloudflarestorage.com",
-        R2_ACCESS_KEY_ID="key",
-        R2_SECRET_ACCESS_KEY="secret",
-        R2_PUBLIC_BUCKET="3dam-public",
-    )
-    @patch("config.storages.boto3.client")
-    def test_public_presign_uses_public_bucket_as_attachment(self, mock_client) -> None:
-        mock_client.return_value.generate_presigned_url.return_value = "https://signed.test/x"
-        generate_public_presigned_url("products/previews/a.glb", file_name="a.glb")
-        _, kwargs = mock_client.return_value.generate_presigned_url.call_args
-        self.assertEqual(kwargs["Params"]["Bucket"], "3dam-public")
-        self.assertEqual(kwargs["Params"]["Key"], "products/previews/a.glb")
-        self.assertIn("attachment; filename=", kwargs["Params"]["ResponseContentDisposition"])
 
     def test_boto_retry_config_uses_standard_mode(self) -> None:
         config = boto_retry_config()

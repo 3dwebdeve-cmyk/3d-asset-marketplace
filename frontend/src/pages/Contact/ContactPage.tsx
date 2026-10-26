@@ -1,3 +1,4 @@
+import { CONTACT_SEO } from '../../lib/seoPages'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -135,9 +136,9 @@ export function ContactPage() {
   const selectedPhoneCountryIso = watch('phoneCountryCode')
 
   useDocumentSeo({
-    title: 'Enquiry | 3D Asset Marketplace',
-    description:
-      'Enquire about 3D models, plugins, custom work, bulk licensing, or technical support. We usually respond within 24 hours.',
+    title: CONTACT_SEO.title,
+    canonicalPath: '/contact',
+    description: CONTACT_SEO.description,
   })
 
   return (

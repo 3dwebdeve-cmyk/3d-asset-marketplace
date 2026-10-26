@@ -23,29 +23,49 @@ describe('MarketplaceHero', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => (
       { top: 100 - window.scrollY, height: 500 } as DOMRect
     ))
-    let frame: FrameRequestCallback = () => {}
+    let pending: FrameRequestCallback | null = null
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      frame = callback
+      pending = callback
       return 1
     })
+    let now = 0
+    const runFrame = () => {
+      const callback = pending
+      pending = null
+      now += 16
+      callback?.(now)
+    }
+    const settle = () => {
+      for (let i = 0; i < 200 && pending; i += 1) runFrame()
+    }
     const { container, unmount } = render(<MemoryRouter><MarketplaceHero /></MemoryRouter>)
-    const stage = container.querySelector<HTMLElement>('.home-marketplace-hero__stage')!
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    const backdrop = container.querySelector<HTMLElement>('.home-marketplace-hero__backdrop')!
+    const scale = () => Number(/scale3d\(([\d.]+)/.exec(backdrop.style.transform)?.[1])
+    expect(scale()).toBe(1)
+
     vi.stubGlobal('scrollY', 300)
     fireEvent.scroll(window)
-    frame(16)
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1.03')
+    runFrame()
+    // Eases toward the target instead of jumping to it.
+    expect(scale()).toBeGreaterThan(1)
+    expect(scale()).toBeLessThan(1.03)
+    settle()
+    expect(scale()).toBe(1.03)
+
     vi.stubGlobal('scrollY', 0)
     fireEvent.scroll(window)
-    frame(32)
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    settle()
+    expect(scale()).toBe(1)
+
     preference.matches = true
     vi.stubGlobal('scrollY', 300)
     fireEvent.scroll(window)
-    frame(48)
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('1')
+    runFrame()
+    expect(scale()).toBe(1)
+    expect(pending).toBeNull()
+
     unmount()
-    expect(stage.style.getPropertyValue('--hero-scroll-scale')).toBe('')
+    expect(backdrop.style.transform).toBe('')
   })
 
   it('renders all trending tags and sort pills', () => {
@@ -55,11 +75,15 @@ describe('MarketplaceHero', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('heading', { name: /World's largest 3D model marketplace/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /3D Models/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /3D character/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Game Environment/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Low Poly/i })).toBeInTheDocument()
+    const heading = screen.getByRole('heading', { level: 1 })
+    expect(heading).toHaveTextContent(/furniture & interior 3D models for visualization and design/i)
+    // The headline must stay a claim the shop can prove.
+    expect(heading).not.toHaveTextContent(/largest|best|#1/i)
+    expect(screen.getByRole('button', { name: /^3D Models$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Furniture/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Interior/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Lighting/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Plants/i })).toBeInTheDocument()
 
     expect(screen.getByRole('button', { name: /Newest/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Top Selling/i })).toBeInTheDocument()
@@ -75,15 +99,15 @@ describe('MarketplaceHero', () => {
       </MemoryRouter>,
     )
 
-    const charButton = screen.getByRole('button', { name: /3D character/i })
-    await user.click(charButton)
-    expect(charButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=3D+character')
+    const furnitureButton = screen.getByRole('button', { name: /Furniture/i })
+    await user.click(furnitureButton)
+    expect(furnitureButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=Furniture')
 
-    const lowPolyButton = screen.getByRole('button', { name: /Low Poly/i })
-    await user.click(lowPolyButton)
-    expect(lowPolyButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=Low+Poly')
+    const lightingButton = screen.getByRole('button', { name: /Lighting/i })
+    await user.click(lightingButton)
+    expect(lightingButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('location-probe').textContent).toBe('/3d-models?search=Lighting')
   })
 
   it('navigates when clicking sort pills and updates active state', async () => {

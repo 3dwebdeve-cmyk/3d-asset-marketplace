@@ -5,11 +5,13 @@ from django.urls import include, path
 from config.health import HealthzView
 from config.openapi import GatedSpectacularAPIView, GatedSpectacularSwaggerView
 from config.security_reports import CspReportView
+from config.sitemap import sitemap_view
 from orders.views import LicenseVerifyView
 
 urlpatterns = [
     path("healthz/", HealthzView.as_view(), name="healthz"),
     path("security/csp-report/", CspReportView.as_view(), name="csp-report"),
+    path("sitemap.xml", sitemap_view, name="sitemap"),
     path("schema/", GatedSpectacularAPIView.as_view(), name="schema"),
     path(
         "schema/swagger-ui/",

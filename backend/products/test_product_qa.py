@@ -19,7 +19,7 @@ from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
-from products.testing import make_glb_bytes, put_pipeline_previews
+from products.testing import make_glb_bytes, put_pipeline_images, put_pipeline_uploads
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
@@ -84,9 +84,7 @@ class ProductQAWorkflowAPITests(APITestCase):
         default_storage.save(storage_path, ContentFile(buffer.getvalue()))
 
     def _import_happy_product(self, *, with_package_object: bool = True) -> Product:
-        put_pipeline_previews([_happy_item()])
-        # The import checks the package exists, so upload it first, as the pipeline does.
-        self._write_package(_happy_item()["media"]["package_key"])
+        put_pipeline_uploads([_happy_item()])
         response = self.client.post(
             self.import_url,
             {
@@ -200,27 +198,28 @@ class ProductQAWorkflowAPITests(APITestCase):
         default_storage.save(
             "models/MDL-MISS-01/preview.glb", ContentFile(make_glb_bytes(100))
         )
-        self._write_package("models/MDL-MISS-01/package.zip")
+        items = [
+            _happy_item(
+                model_id="MDL-MISS-01",
+                r2_key_prefix="models/MDL-MISS-01/",
+                media={
+                    "thumbnail_key": "models/MDL-MISS-01/thumbnail.jpg",
+                    "preview_key": "models/MDL-MISS-01/preview.glb",
+                    "package_key": "models/MDL-MISS-01/package.zip",
+                    "package_file_name": "package.zip",
+                    "package_file_format": "zip",
+                    "package_file_size": 1048576,
+                    "gallery_keys": ["models/MDL-MISS-01/gallery/01.jpg"],
+                },
+            )
+        ]
+        put_pipeline_images(items)
         response = self.client.post(
             self.import_url,
             {
                 "import_batch_id": "2026-09-07-qa-missing-pkg",
                 "import_source": "catalog-bridge",
-                "items": [
-                    _happy_item(
-                        model_id="MDL-MISS-01",
-                        r2_key_prefix="models/MDL-MISS-01/",
-                        media={
-                            "thumbnail_key": "models/MDL-MISS-01/thumbnail.jpg",
-                            "preview_key": "models/MDL-MISS-01/preview.glb",
-                            "package_key": "models/MDL-MISS-01/package.zip",
-                            "package_file_name": "package.zip",
-                            "package_file_format": "zip",
-                            "package_file_size": 1048576,
-                            "gallery_keys": ["models/MDL-MISS-01/gallery/01.jpg"],
-                        },
-                    )
-                ],
+                "items": items,
             },
             format="json",
         )

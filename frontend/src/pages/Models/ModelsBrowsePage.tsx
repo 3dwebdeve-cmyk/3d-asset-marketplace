@@ -1,16 +1,22 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { listPublicCategories } from '../../api/categoriesApi'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { firstCategoriesPageQuery } from '../../hooks/useAllCategories'
 import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
-import { MODEL_FORMAT_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
-import { MODELS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
+import { SoftwareIcon } from '../../components/SoftwareIcon'
+import { SOFTWARE_FILTERS } from '../../components/softwareFilters'
+import { SiteHeroImage } from '../../components/SiteHeroImage'
+import { MODELS_HERO_IMAGE_SRC, PRODUCTS_BANNER_IMAGE_SRC, categoryBanner } from '../../lib/heroBanners'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { buildCategoryTree } from '../../lib/categoryTree'
 import { activateOnKey } from '../../lib/keyboard'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
+import { ALL_MODELS_SEO, buildCategoryTitle, categoryPath, getCategorySeo } from '../../lib/categorySeo'
+import { buildBreadcrumbJsonLd, buildItemListJsonLd, buildPageTitle } from '../../lib/seo'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 import { ProductCard } from '../Products/ProductCard'
 import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
@@ -18,27 +24,6 @@ import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
-const PRODUCTS_BANNER_IMAGE_SRC = '/images/new%20banner%20image%20size/Moody%20Luxury%20Skincare%20Collection.webp'
-const CATEGORY_BANNER_BY_SLUG: Record<string, string> = {
-  furniture: '/images/new%20banner%20image%20size/Furniture.webp',
-  toys: '/images/new%20banner%20image%20size/Wooden%20Train%20and%20Rainbow%20Toys%20on%20NavyBackdrop.webp',
-  electronics: '/images/new%20banner%20image%20size/Electronics.webp',
-  'food-drink': '/images/new%20banner%20image%20size/Food%20&%20Drink.webp',
-  character: '/images/new%20banner%20image%20size/Character.webp',
-  industrial: '/images/new%20banner%20image%20size/Industrial.webp',
-  '3d-printing': '/images/new%20banner%20image%20size/3D%20Printing.webp',
-  'assets-props': '/images/new%20banner%20image%20size/Assets%20%20Props.webp',
-  'interactive-webar': '/images/new%20banner%20image%20size/AR%20Armchair%20Studio%20Showcase.webp?v=2',
-  'architectural-3d-models': '/images/new%20banner%20image%20size/Architectural%203D%20Models.webp',
-  'interior-3d-models': '/images/new%20banner%20image%20size/Cinematic%20Floating%20Pavilion%20Interior.webp',
-  'cloth-items': '/images/new%20banner%20image%20size/Cloth%20Items.webp',
-  household: '/images/new%20banner%20image%20size/Household.webp',
-  'lifestyle-visualisation': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.webp',
-  'lifestyle-visualization': '/images/new%20banner%20image%20size/Moody%20Minimalist%20Sofa%20Nook.webp',
-  lights: '/images/new%20banner%20image%20size/Moody%20Modern%20Lighting%20Vignette.webp',
-  'plants-vegetation': '/images/new%20banner%20image%20size/Moody%20Panoramic%20Indoor%20Plant%20Collection.webp',
-  products: PRODUCTS_BANNER_IMAGE_SRC,
-}
 
 const FORMAT_OPTIONS = MODEL_FORMAT_FILTERS
 const LICENSE_OPTIONS = [
@@ -69,7 +54,28 @@ function readTraitFromUrl(searchParams: URLSearchParams, key: TraitKey): boolean
 
 export function ModelsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
+  const navigate = useNavigate()
+  const { categorySlug } = useParams()
+  const slugFromPath = categorySlug?.trim().toLowerCase() ?? ''
+  // Old links used ?category=<id>. They keep working and are redirected to the readable address.
+  const legacyCategory = searchParams.get('category')?.trim() ?? ''
+
+  const { data: categoriesData } = useQuery(firstCategoriesPageQuery)
+  const urlCategory = useMemo(() => {
+    const list = categoriesData?.results
+    if (!list) return null
+    if (slugFromPath) return list.find((cat) => cat.slug.toLowerCase() === slugFromPath) ?? null
+    if (legacyCategory) {
+      const wanted = legacyCategory.toLowerCase()
+      return list.find((cat) => cat.id === legacyCategory || cat.slug.toLowerCase() === wanted) ?? null
+    }
+    return null
+  }, [categoriesData?.results, slugFromPath, legacyCategory])
+  // An id the list does not know is passed through unchanged, exactly as before.
+  const categoryFromUrl = urlCategory?.id ?? (slugFromPath ? '' : legacyCategory)
+  // Wait for the category list before loading products, so a category page never flashes all models.
+  const categoryPending = Boolean(slugFromPath || legacyCategory) && !categoriesData
+  const categoryNotFound = Boolean(slugFromPath) && Boolean(categoriesData) && !urlCategory
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const sortFromUrl = readSortFromUrl(searchParams.get('ordering')?.trim() ?? '')
 
@@ -119,6 +125,14 @@ export function ModelsBrowsePage() {
       trackCategoryClick(categoryFromUrl)
     }
   }, [categoryFromUrl])
+
+  useEffect(() => {
+    if (slugFromPath || !legacyCategory || !urlCategory) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('category')
+    const query = next.toString()
+    navigate(`${categoryPath(urlCategory.slug)}${query ? `?${query}` : ''}`, { replace: true })
+  }, [slugFromPath, legacyCategory, urlCategory, searchParams, navigate])
 
   useEffect(() => {
     setSearchInput(searchFromUrl)
@@ -172,6 +186,16 @@ export function ModelsBrowsePage() {
     setSearchParams(nextParams, { replace: true })
   }
 
+  /** Move to a category's own address (or back to all models), keeping the other filters. */
+  const goToCategory = (category: { id: string; slug: string } | null) => {
+    setSelectedCategoryId(category?.id ?? '')
+    setCurrentPage(1)
+    const next = new URLSearchParams(searchParams)
+    next.delete('category')
+    const query = next.toString()
+    navigate(`${category ? categoryPath(category.slug) : '/3d-models'}${query ? `?${query}` : ''}`, { replace: true })
+  }
+
   const handleResetFilters = () => {
     setSearchInput('')
     setSelectedCategoryId('')
@@ -193,14 +217,10 @@ export function ModelsBrowsePage() {
     nextParams.delete('game_ready')
     nextParams.delete('ordering')
     for (const key of ['formats', 'licenses', 'min_price', 'max_price']) nextParams.delete(key)
-    setSearchParams(nextParams, { replace: true })
+    const query = nextParams.toString()
+    navigate(`/3d-models${query ? `?${query}` : ''}`, { replace: true })
   }
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ['public-categories-list', { page_size: 100 }],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
-  })
 
   const {
     data: productsData,
@@ -230,6 +250,8 @@ export function ModelsBrowsePage() {
       }),
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
+    // Not until the page's category matches the address, so no request ever asks for every model first.
+    enabled: !categoryPending && !categoryNotFound && (!(slugFromPath || legacyCategory) || selectedCategoryId === categoryFromUrl),
   })
 
   const priceMatches = (product: NonNullable<typeof productsData>[number]) => {
@@ -280,44 +302,70 @@ export function ModelsBrowsePage() {
     setSearchParams(nextParams, { replace: true })
   }
 
-  const heroTitle = selectedCategory?.slug === '3d-printing'
-    ? '3D Printing'
-    : selectedCategory?.name ?? '3D Model'
+  const categorySeo = selectedCategory ? getCategorySeo(selectedCategory.slug, selectedCategory.name) : null
+  const emptyCategory = Boolean(selectedCategory) && productsData !== undefined && productsData.length === 0
+  const seoCopy = categorySeo ?? ALL_MODELS_SEO
+  const pagePath = selectedCategory ? categoryPath(selectedCategory.slug) : '/3d-models'
+  const crumbs = [
+    { name: 'Home', path: '/' },
+    { name: '3D Models', path: '/3d-models' },
+    ...(selectedCategory ? [{ name: seoCopy.h1, path: pagePath }] : []),
+  ]
+  const listedProducts = products.map((product) => ({ name: product.name, path: `/products/${product.slug}` }))
+  useDocumentSeo({
+    title: categorySeo ? buildCategoryTitle(categorySeo) : buildPageTitle(ALL_MODELS_SEO.title),
+    description: seoCopy.description,
+    // Filtered and searched views all point back to the clean address of the page.
+    canonicalPath: pagePath,
+    // Searches, placeholder categories and categories with nothing in them are not worth indexing.
+    robots: searchFromUrl || (categorySeo && !categorySeo.indexable) || emptyCategory ? 'noindex, follow' : undefined,
+    jsonLd: [
+      buildBreadcrumbJsonLd(crumbs),
+      ...(listedProducts.length > 0 ? [buildItemListJsonLd(seoCopy.h1, listedProducts)] : []),
+    ],
+  })
+
+  if (categoryNotFound) {
+    return <NotFoundPage />
+  }
+
+  // Until the category list arrives, take the category from the address, so the banner and heading
+  // are right from the first paint instead of showing "all models" and then switching.
+  const heroSlug = selectedCategory?.slug ?? (categoriesData ? '' : slugFromPath)
+  const heroCopy = categorySeo ?? (heroSlug
+    ? getCategorySeo(heroSlug, heroSlug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '))
+    : ALL_MODELS_SEO)
+  const heroTitle = heroCopy.h1
   const usesProductsBanner =
-    selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || selectedCategory?.slug === 'products'
-  const usesCharacterBanner = selectedCategory?.slug === 'character'
-  const usesPlantsBanner = selectedCategory?.slug === 'plants-vegetation'
-  const usesToysBanner = selectedCategory?.slug === 'toys'
-  const usesInteriorBanner = selectedCategory?.slug === 'interior-3d-models'
-  const usesInteractiveBanner = selectedCategory?.slug === 'interactive-webar'
+    selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || heroSlug === 'products'
+  const usesFurnitureBanner = heroSlug === 'furniture'
+  const usesElectronicsBanner = heroSlug === 'electronics'
+  const usesCharacterBanner = heroSlug === 'character'
+  const usesPlantsBanner = heroSlug === 'plants-vegetation'
+  const usesToysBanner = heroSlug === 'toys'
+  const usesInteriorBanner = heroSlug === 'interior-3d-models'
+  const usesInteractiveBanner = heroSlug === 'interactive-webar'
   const heroImageSrc = usesProductsBanner
     ? PRODUCTS_BANNER_IMAGE_SRC
-    : selectedCategory
-      ? CATEGORY_BANNER_BY_SLUG[selectedCategory.slug] ??
-        (selectedCategory.parent ? CATEGORY_BANNER_BY_SLUG[selectedCategory.parent.slug] : undefined)
+    : heroSlug
+      ? categoryBanner(heroSlug)
       : MODELS_HERO_IMAGE_SRC
 
   return (
     <main className="plugins-browse models-browse">
       <section
-        className={`plugins-browse-hero site-hero-banner${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
+        className={`plugins-browse-hero site-hero-banner${usesFurnitureBanner ? ' plugins-browse-hero--furniture' : ''}${usesElectronicsBanner ? ' plugins-browse-hero--electronics' : ''}${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
       >
         <SiteHeroImage
           src={heroImageSrc}
-          width={selectedCategory ? undefined : 2804}
-          height={selectedCategory ? undefined : 561}
+          width={heroSlug && !usesElectronicsBanner ? undefined : 2804}
+          height={heroSlug && !usesElectronicsBanner ? undefined : 561}
         />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
-          <p className="plugins-browse-hero__subtitle">
-            Premium 3D models for games, film, and architecture.
-            <br />
-            Production-ready assets for product design and visualization.
-            <br />
-            Optimized for <strong>Blender, Maya, 3ds Max, and Cinema 4D.</strong>
-          </p>
+          <p className="plugins-browse-hero__subtitle">{heroCopy.intro}</p>
         </div>
       </section>
 
@@ -381,28 +429,30 @@ export function ModelsBrowsePage() {
                     onKeyDown={activateOnKey}
                     aria-selected={selectedCategoryId === ''}
                     className={`custom-select-option${selectedCategoryId === '' ? ' custom-select-option--active' : ''}`}
-                    onClick={() => selectCategory('')}
+                    onClick={() => {
+                      setCategoryDropdownOpen(false)
+                      goToCategory(null)
+                    }}
                   >
                     All categories
                   </li>
-                  {categoryTree.flatMap(({ category, children }) =>
-                    [category, ...children].map((option) => {
-                      const isChild = option !== category
-                      return (
-                        <li
-                          key={option.id}
-                          role="option"
-                          tabIndex={0}
-                          onKeyDown={activateOnKey}
-                          aria-selected={selectedCategoryId === option.id}
-                          className={`custom-select-option${isChild ? ' custom-select-option--child' : ''}${selectedCategoryId === option.id ? ' custom-select-option--active' : ''}`}
-                          onClick={() => selectCategory(option.id)}
-                        >
-                          {option.name}
-                        </li>
-                      )
-                    }),
-                  )}
+                  {(categoriesData?.results ?? []).map((category) => (
+                    <li
+                      key={category.id}
+                      role="option"
+                      tabIndex={0}
+                      onKeyDown={activateOnKey}
+                      aria-selected={selectedCategoryId === category.id}
+                      className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
+                      onClick={() => {
+                        setCategoryDropdownOpen(false)
+                        trackCategoryClick(category.id)
+                        goToCategory(category)
+                      }}
+                    >
+                      {category.name}
+                    </li>
+                  ))}
                 </ul>
               ) : null}
 
@@ -410,7 +460,11 @@ export function ModelsBrowsePage() {
                 id="model-category"
                 aria-label="Category"
                 value={selectedCategoryId}
-                onChange={(event) => selectCategory(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value) trackCategoryClick(value)
+                  goToCategory(categoriesData?.results.find((cat) => cat.id === value) ?? null)
+                }}
                 className="custom-select-native"
                 tabIndex={-1}
                 aria-hidden="true"

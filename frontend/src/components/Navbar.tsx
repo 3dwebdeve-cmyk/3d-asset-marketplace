@@ -5,8 +5,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { logoutUser } from '../api/authApi'
 import { getCart } from '../api/cartApi'
-import { listPublicCategories } from '../api/categoriesApi'
+import { firstCategoriesPageQuery } from '../hooks/useAllCategories'
 import { AuthEntryButton } from './auth/AuthEntryButton'
+import { CategoryMenu } from './CategoryMenu'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { buildCategoryTree } from '../lib/categoryTree'
@@ -70,7 +71,7 @@ export function Navbar() {
 
   const handleExploreMouseLeave = () => {
     exploreTimerRef.current = setTimeout(() => {
-      setExploreOpen(false)
+      if (!exploreRef.current?.contains(document.activeElement)) setExploreOpen(false)
       exploreTimerRef.current = null
     }, 180)
   }
@@ -85,7 +86,7 @@ export function Navbar() {
 
   const handleSearchCatMouseLeave = () => {
     searchCatTimerRef.current = setTimeout(() => {
-      setSearchCatOpen(false)
+      if (!searchCatRef.current?.contains(document.activeElement)) setSearchCatOpen(false)
       searchCatTimerRef.current = null
     }, 180)
   }
@@ -191,11 +192,7 @@ export function Navbar() {
     }
   }, [searchCatOpen])
 
-  const productCategoriesQuery = useQuery({
-    queryKey: ['public-categories-list', { page_size: 100 }],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
-  })
+  const productCategoriesQuery = useQuery(firstCategoriesPageQuery)
 
   // The navbar is universal: its category menu always represents the 3D model
   // catalog, even while the customer is browsing another section such as Plugins.
@@ -205,12 +202,8 @@ export function Navbar() {
   // underneath, excluding the internal demo category from customer-facing navigation.
   const exploreTree = buildCategoryTree(categories, { excludeDemo: true })
   const AllCategoriesIcon = getAllCategoriesIcon()
-  const selectedSearchCategory = exploreTree
-    .flatMap(({ category, children }) => [category, ...children])
-    .find((cat) => cat.id === categoryId)
+  const selectedSearchCategory = exploreCategories.find((cat) => cat.id === categoryId)
   const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
-  const searchCategoriesLoading = productCategoriesQuery.isLoading
-  const searchCategoriesError = productCategoriesQuery.isError
 
   const cartCountQuery = useQuery({
     queryKey: ['cart'],
@@ -377,11 +370,13 @@ export function Navbar() {
     >
       <nav className="navbar__inner" aria-label="Main">
         <div className="navbar__start">
-          <Link className="navbar__brand" to="/" onClick={closeMobileNav} aria-label="AssetHive 3D">
+          <Link className="navbar__brand" to="/" onClick={closeMobileNav} aria-label="AssetHive3D">
             <img
               src="/images/AssetHive%203D.svg"
-              alt="AssetHive 3D"
+              alt="AssetHive3D"
               className="navbar__brand-logo"
+              width={176}
+              height={30}
             />
           </Link>
 
@@ -409,31 +404,18 @@ export function Navbar() {
                 <span className="navbar__explore-trigger-chevron" aria-hidden="true" />
               </button>
               {exploreOpen ? (
-                <div
-                  className="navbar__explore-menu"
-                  role="menu"
-                  aria-label={isMarketplaceHeader ? 'Explore categories' : 'All categories'}
-                  onMouseEnter={handleExploreMouseEnter}
-                  onMouseLeave={handleExploreMouseLeave}
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
-                    onClick={() => handleSelectCategory('')}
-                  >
-                    <AllCategoriesIcon className="navbar__explore-icon navbar__explore-icon--all" />
-                    <span className="navbar__explore-label">All Categories</span>
-                    <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                  </button>
-                  {exploreTree.map(renderExploreNode)}
-                  {productCategoriesQuery.isLoading ? (
-                    <p className="navbar__explore-status">Loading categories…</p>
-                  ) : null}
-                  {productCategoriesQuery.isError ? (
-                    <p className="navbar__explore-status">Categories could not be loaded.</p>
-                  ) : null}
-                </div>
+                <CategoryMenu
+                  categories={exploreCategories}
+                  selectedId={categoryId}
+                  label={isMarketplaceHeader ? 'Explore categories' : 'All categories'}
+                  loading={productCategoriesQuery.isLoading}
+                  error={productCategoriesQuery.isError}
+                  onSelect={handleSelectCategory}
+                  onClose={() => {
+                    setExploreOpen(false)
+                    exploreRef.current?.querySelector<HTMLButtonElement>('.navbar__explore-trigger')?.focus()
+                  }}
+                />
               ) : null}
             </div>
           ) : null}
@@ -460,29 +442,19 @@ export function Navbar() {
                 <span className="navbar__search-cat-trigger-chevron" aria-hidden="true" />
               </button>
               {searchCatOpen ? (
-                <div
-                  className="navbar__explore-menu navbar__search-cat-menu"
-                  role="menu"
-                  aria-label="Search categories"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={`navbar__explore-item${categoryId === '' ? ' navbar__explore-item--active' : ''}`}
-                    onClick={() => handleSelectCategory('')}
-                  >
-                    <AllCategoriesIcon className="navbar__explore-icon navbar__explore-icon--all" />
-                    <span className="navbar__explore-label">All Categories</span>
-                    <span className="navbar__explore-chevron" aria-hidden="true">›</span>
-                  </button>
-                  {exploreTree.map(renderExploreNode)}
-                  {searchCategoriesLoading ? (
-                    <p className="navbar__explore-status">Loading categories…</p>
-                  ) : null}
-                  {searchCategoriesError ? (
-                    <p className="navbar__explore-status">Categories could not be loaded.</p>
-                  ) : null}
-                </div>
+                <CategoryMenu
+                  className="navbar__search-cat-menu"
+                  categories={exploreCategories}
+                  selectedId={categoryId}
+                  label="Search categories"
+                  loading={productCategoriesQuery.isLoading}
+                  error={productCategoriesQuery.isError}
+                  onSelect={handleSelectCategory}
+                  onClose={() => {
+                    setSearchCatOpen(false)
+                    searchCatRef.current?.querySelector<HTMLButtonElement>('.navbar__search-cat-trigger')?.focus()
+                  }}
+                />
               ) : null}
             </div> : null}
             <input
@@ -740,8 +712,10 @@ export function Navbar() {
               <Link to="/" onClick={closeMobileNav} className="navbar__drawer-brand-link">
                 <img
                   src="/images/AssetHive%203D.svg"
-                  alt="AssetHive 3D"
+                  alt="AssetHive3D"
                   className="navbar__drawer-brand-logo"
+                  width={176}
+                  height={30}
                 />
               </Link>
               <button

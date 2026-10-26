@@ -18,13 +18,14 @@ import {
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
 import { discountPercent } from '../../lib/pricing'
+import { NOINDEX_CATEGORY_SLUGS, categoryPath } from '../../lib/categorySeo'
+import { buildBreadcrumbJsonLd, buildProductJsonLd } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { ProductLicenseType, PublicProductDetail } from '../../types/product'
 import { ProductCard } from './ProductCard'
 import { ProductCtaGroup } from './ProductCtaGroup'
 import { ProductImageGallery } from './ProductImageGallery'
 import { ProductSpecs } from './ProductSpecs'
-import { resolveDemoPreviewUrl } from './demoPreviewUrl'
 import '../../styles/product-details.css'
 import '../../styles/product-hub-details.css'
 import '../../styles/products-browse.css'
@@ -73,7 +74,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
     hasDiscount && product.discount_price
       ? discountPercent(product.price, product.discount_price)
       : null
-  const browseCategoryHref = `/3d-models?category=${encodeURIComponent(product.category.id)}`
+  const browseCategoryHref = categoryPath(product.category.slug)
 
   const relatedQuery = useQuery({
     queryKey: ['public-products-related', product.category.id, product.id],
@@ -93,10 +94,12 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
     <>
       <header className="product-hub-detail__header">
         <div className="product-hub-detail__header-text">
-          <p className="product-hub-detail__eyebrow">{product.category.name}</p>
+          <p className="product-hub-detail__eyebrow">
+            <Link to={browseCategoryHref}>{product.category.name}</Link>
+          </p>
           <h1 className="product-hub-detail__title">
             {product.name}
-            <span className="product-hub-detail__verified-badge" title="Verified Asset" aria-label="Verified">
+            <span className="product-hub-detail__verified-badge" title="Verified Asset" role="img" aria-label="Verified asset">
               <svg viewBox="0 0 24 24" width="22" height="22" fill="#1d6bf3" aria-hidden="true">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#1d6bf3" />
                 <path d="m10 15.17-3.59-3.58L5 13l5 5 9-9-1.41-1.42L10 15.17z" fill="#ffffff" />
@@ -120,7 +123,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             productName={product.name}
             thumbnail={product.thumbnail}
             images={product.images}
-            previewModelUrl={resolveDemoPreviewUrl(product.slug, product.preview_model)}
+            previewModelUrl={product.preview_model}
             previewVideoUrl={product.preview_video}
             showStageChrome
             stageOverlays={
@@ -284,20 +287,40 @@ export function ProductDetailsPage() {
 
   const isNotFound = !trimmedSlug || isHttpNotFound(productQuery.error)
 
+  const seoProduct = productQuery.data
+  const seoPath = seoProduct ? `/products/${seoProduct.slug}` : undefined
   useDocumentSeo({
     title: isNotFound
-      ? 'Product not found | 3D Asset Marketplace'
-      : productQuery.data
-        ? buildProductPageTitle(productQuery.data.name)
-        : 'Product details | 3D Asset Marketplace',
+      ? 'Product not found | AssetHive3D'
+      : seoProduct
+        ? buildProductPageTitle(seoProduct.name, seoProduct.category.name)
+        : 'Product details | AssetHive3D',
     description: isNotFound
       ? 'The requested product could not be found.'
-      : productQuery.data
-        ? buildProductMetaDescription(
-          productQuery.data.name,
-          productQuery.data.short_description,
-        )
+      : seoProduct
+        ? buildProductMetaDescription(seoProduct.name, seoProduct.short_description, {
+          categoryName: seoProduct.category.name,
+          polygonCount: seoProduct.polygon_count,
+          licenseType: seoProduct.license_type,
+        })
         : 'Loading product details from the marketplace catalog.',
+    canonicalPath: seoPath,
+    type: 'product',
+    image: seoProduct?.thumbnail || seoProduct?.images[0]?.image_url || undefined,
+    imageAlt: seoProduct?.name,
+    // Placeholder (demo) products and missing products stay out of search results.
+    robots: isNotFound || (seoProduct && NOINDEX_CATEGORY_SLUGS.has(seoProduct.category.slug)) ? 'noindex' : undefined,
+    jsonLd: seoProduct && seoPath
+      ? [
+        buildProductJsonLd(seoProduct, seoPath),
+        buildBreadcrumbJsonLd([
+          { name: 'Home', path: '/' },
+          { name: '3D Models', path: '/3d-models' },
+          { name: seoProduct.category.name, path: categoryPath(seoProduct.category.slug) },
+          { name: seoProduct.name, path: seoPath },
+        ]),
+      ]
+      : undefined,
   })
 
   if (isNotFound) {

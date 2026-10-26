@@ -159,6 +159,7 @@ function renderProductsBrowsePage(initialPath = '/home') {
           <Route path="/home" element={<ProductsBrowsePage />} />
           <Route path="/categories" element={<div>All categories page</div>} />
           <Route path="/3d-models" element={<ModelsCatalogRoute />} />
+          <Route path="/3d-models/:categorySlug" element={<ModelsCatalogRoute />} />
           <Route path="/plugins" element={<div>Plugins page</div>} />
           <Route path="/custom-projects" element={<div>Custom projects page</div>} />
         </Routes>
@@ -187,11 +188,13 @@ beforeEach(() => {
 })
 
 describe('ProductsBrowsePage', () => {
-  it('starts the model carousel after loading finishes when demo cards were already available', async () => {
-    // Development fallback cards make scrolling eligible before the real rail mounts.
-    // An empty API response keeps those same cards, so eligibility must track loading too.
+  it('starts the model carousel after loading finishes when product cards are available', async () => {
+    // The rail is only eligible to scroll once the product cards have loaded.
+    const [first] = samplePublicProducts.results
     vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
-      ...samplePublicProducts, count: 0, results: [],
+      ...samplePublicProducts,
+      count: 2,
+      results: [first, { ...first, id: `${first.id}-2`, slug: `${first.slug}-2` }],
     })
     const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1)
     const { container, unmount } = renderProductsBrowsePage()
@@ -217,11 +220,10 @@ describe('ProductsBrowsePage', () => {
   it('renders browse hub hero, modules, and product preview', async () => {
     renderProductsBrowsePage()
 
-    expect(
-      screen.getByRole('heading', {
-        name: /world's largest 3d model marketplace/i,
-      }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      /furniture & interior 3D models for visualization and design/i,
+    )
+    expect(screen.queryByText(/world's largest/i)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /trending categories/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /shop 3d models/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /explore plugins/i })).toBeInTheDocument()
@@ -257,7 +259,7 @@ describe('ProductsBrowsePage', () => {
       '/custom-projects',
     )
     expect(
-      screen.getByText(/high-quality, custom 3d models built precisely/i),
+      screen.getByText(/custom 3d models for furniture, products and interiors/i),
     ).toBeInTheDocument()
     expect(screen.getByText(/product & game-ready models/i)).toBeInTheDocument()
     expect(screen.getByText(/clean & optimized topology/i)).toBeInTheDocument()
@@ -288,14 +290,39 @@ describe('ProductsBrowsePage', () => {
     })
   })
 
+  it('gives the home page its own title, description, canonical address and structured data', async () => {
+    renderProductsBrowsePage()
+
+    await waitFor(() => expect(document.title).toBe('Download Furniture & Interior 3D Models | AssetHive3D'))
+    expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+      'content',
+      expect.stringContaining('production-ready 3D models of furniture, interiors, lighting and plants'),
+    )
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', expect.stringMatching(/\/$/))
+    const data = [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((node) =>
+      [JSON.parse(node.textContent ?? '[]')].flat(),
+    )
+    expect(data.map((item) => item['@type'])).toEqual(expect.arrayContaining(['Organization', 'WebSite']))
+  })
+
+  it('has one main heading and sized images', () => {
+    const { container } = renderProductsBrowsePage()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    for (const image of container.querySelectorAll('img')) {
+      expect(image).toHaveAttribute('alt')
+      expect(image).toHaveAttribute('width')
+      expect(image).toHaveAttribute('height')
+    }
+  })
+
   it('searches a trending tag from the marketplace hero', async () => {
     const user = userEvent.setup()
     renderProductsBrowsePage()
 
-    await user.click(screen.getByRole('button', { name: /low poly/i }))
+    await user.click(screen.getByRole('button', { name: /^furniture$/i }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?search=Low+Poly')
+      expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?search=Furniture')
     })
   })
 
@@ -332,13 +359,13 @@ describe('ProductsBrowsePage', () => {
       '/custom-projects',
     )
     expect(
-      screen.getByText('Explore high-quality production-ready 3D models in all categories.'),
+      screen.getByText('Browse production-ready 3D models of furniture, interiors, lighting, plants and more.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Power-up your workflow with professional Blender and Unreal plugins.'),
+      screen.getByText('Speed up your 3D workflow with Blender and Unreal plugins and tools.'),
     ).toBeInTheDocument()
     expect(
-      screen.getByText('Have a specific custom asset requirement? Our team is here to help.'),
+      screen.getByText('Need a custom 3D model, texture or render? Send your brief and our team will reply.'),
     ).toBeInTheDocument()
   })
 
@@ -360,7 +387,7 @@ describe('ProductsBrowsePage', () => {
       name: /trending categories/i,
     })
     await waitFor(() => {
-      expect(within(categorySection).getAllByRole('button')).toHaveLength(12)
+      expect(within(categorySection).getAllByRole('link', { name: /^browse category/i })).toHaveLength(12)
     })
     expect(categoriesApi.listTrendingCategories).toHaveBeenCalledWith(50)
   })
@@ -376,18 +403,18 @@ describe('ProductsBrowsePage', () => {
     const categorySection = screen.getByRole('region', {
       name: /trending categories/i,
     })
-    const categoryButton = await within(categorySection).findByRole('button', {
+    const categoryLink = await within(categorySection).findByRole('link', {
       name: /browse sci-fi assets 3d models/i,
     })
 
-    expect(within(categorySection).getAllByRole('button')).toHaveLength(1)
+    // A real link to the category's own readable address, which search engines can follow.
+    expect(categoryLink).toHaveAttribute('href', '/3d-models/sci-fi-assets')
+    expect(within(categorySection).getAllByRole('link', { name: /^browse/i })).toHaveLength(1)
 
-    await user.click(categoryButton)
+    await user.click(categoryLink)
 
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent(
-        `/3d-models?category=${categoryId}`,
-      )
+      expect(screen.getByTestId('location')).toHaveTextContent('/3d-models/sci-fi-assets')
     })
     expect(categoriesApi.recordCategoryClick).toHaveBeenCalledWith(categoryId)
   })

@@ -1,10 +1,10 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import {
   downloadCatalogFile,
-  listDownloadEntitlements,
   listDownloadHistory,
 } from '../../api/downloadsApi'
 import { listCustomerOrders } from '../../api/ordersApi'
@@ -18,6 +18,7 @@ import {
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
 import { useOrderDownloads } from '../../hooks/useOrderDownloads'
+import { entitlementsQuery as libraryQueryOptions } from '../../hooks/useOwnedItems'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
@@ -47,6 +48,12 @@ function formatProductType(productType: string): string {
 }
 
 export function MyDownloadsPage() {
+  useDocumentSeo({
+    title: 'My downloads | AssetHive 3D',
+    description: 'Download the 3D models and plugins you have purchased.',
+    robots: 'noindex, nofollow',
+  })
+
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
@@ -64,11 +71,7 @@ export function MyDownloadsPage() {
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilter>('')
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  const entitlementsQuery = useQuery({
-    queryKey: ['downloads', 'entitlements'],
-    queryFn: listDownloadEntitlements,
-    enabled: isCustomerSession,
-  })
+  const entitlementsQuery = useQuery({ ...libraryQueryOptions, enabled: isCustomerSession })
 
   const historyQuery = useQuery({
     queryKey: ['downloads', 'history', historyPage],

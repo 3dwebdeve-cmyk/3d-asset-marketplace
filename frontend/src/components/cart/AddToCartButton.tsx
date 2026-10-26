@@ -1,7 +1,8 @@
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { useCart } from '../../hooks/useCart'
+import { useOwnedItems } from '../../hooks/useOwnedItems'
 import type { CartProductType } from '../../types/cart'
 import { Button } from '../ui/Button'
 
@@ -24,9 +25,36 @@ export function AddToCartButton({
 }: AddToCartButtonProps) {
   const location = useLocation()
   const { isSignedIn, isInCart, add, isPending } = useCart()
+  const { isOwned } = useOwnedItems()
 
   const returnTo = location.pathname
   const inCart = isInCart(productType, productId)
+
+  // Bought already: offer the download instead of a second purchase.
+  if (isSignedIn && isOwned(productType, productId)) {
+    const ownedClass = {
+      marketplace: 'product-card__add-cart product-card__add-cart--owned',
+      icon: 'product-detail-stage__overlay-btn product-detail-stage__overlay-btn--active',
+      full: 'ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link',
+      primary: 'ui-button ui-button--primary product-detail-cta__full product-detail-cta__link',
+      chip: 'ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link',
+    }[variant]
+    return (
+      <Link
+        to="/dashboard/downloads"
+        className={`${ownedClass} ${className ?? ''}`.trim()}
+        aria-label={`You own ${productName}. Go to your downloads`}
+      >
+        {variant === 'icon' ? (
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <span>{variant === 'marketplace' ? 'Owned' : 'Owned · Download'}</span>
+        )}
+      </Link>
+    )
+  }
 
   if (variant === 'marketplace') {
     const classes = `product-card__add-cart ${inCart ? 'product-card__add-cart--active' : ''} ${className ?? ''}`.trim()

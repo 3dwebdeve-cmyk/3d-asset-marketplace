@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as categoriesApi from '../../api/categoriesApi'
@@ -129,13 +129,20 @@ const sampleCategories = {
   ],
 }
 
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location">{location.pathname}{location.search}</div>
+}
+
 function renderModelsBrowsePage(initialPath = '/3d-models') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <Routes>
           <Route path="/3d-models" element={<ModelsBrowsePage />} />
+          <Route path="/3d-models/:categorySlug" element={<ModelsBrowsePage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -159,7 +166,9 @@ describe('ModelsBrowsePage', () => {
   it('renders hero title and product list', async () => {
     renderModelsBrowsePage()
 
-    expect(screen.getByRole('heading', { name: /^3d model$/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: '3D Models for Furniture, Interiors & Visualization' }),
+    ).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText('Oak Chair')).toBeInTheDocument()
@@ -168,6 +177,141 @@ describe('ModelsBrowsePage', () => {
     expect(screen.getAllByText('Furniture').length).toBeGreaterThan(0)
     expect(screen.getByText('$ 19.99')).toBeInTheDocument()
     expect(screen.getByText('$ 29.99')).toBeInTheDocument()
+  })
+
+  describe('readable category addresses', () => {
+    it('loads the category named in the address and gives it its own heading, intro and title', async () => {
+      renderModelsBrowsePage('/3d-models/furniture')
+
+      expect(await screen.findByRole('heading', { level: 1, name: 'Furniture 3D Models' })).toBeInTheDocument()
+      await waitFor(() => {
+        expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
+          expect.objectContaining({ category_id: categoryId }),
+        )
+      })
+      expect(screen.getByText(/ready-to-use furniture 3D models for interior renders/i)).toBeInTheDocument()
+      await waitFor(() => expect(document.title).toBe('Furniture 3D Models – Chairs, Sofas & Tables | AssetHive3D'))
+      expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+        'content',
+        expect.stringContaining('Furniture 3D models for interior design'),
+      )
+    })
+
+    it('points the canonical link at the clean category address even when filters are added', async () => {
+      renderModelsBrowsePage('/3d-models/furniture?formats=blend&ordering=price')
+
+      await screen.findByRole('heading', { level: 1, name: 'Furniture 3D Models' })
+      await waitFor(() => {
+        expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+          'href',
+          expect.stringMatching(/\/3d-models\/furniture$/),
+        )
+      })
+    })
+
+    it('describes the page for search engines with breadcrumbs and a product list', async () => {
+      renderModelsBrowsePage('/3d-models/furniture')
+
+      await screen.findByText('Oak Chair')
+      await waitFor(() => {
+        const blocks = [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((node) =>
+          [JSON.parse(node.textContent ?? '[]')].flat(),
+        )
+        const types = blocks.map((block) => block['@type'])
+        expect(types).toContain('BreadcrumbList')
+        expect(types).toContain('ItemList')
+        const list = blocks.find((block) => block['@type'] === 'ItemList')
+        expect(list.itemListElement[0].url).toMatch(/\/products\/oak-chair$/)
+      })
+    })
+
+    it('redirects an old ?category=<id> link to the readable address and keeps other filters', async () => {
+      renderModelsBrowsePage(`/3d-models?category=${categoryId}&ordering=price`)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('location')).toHaveTextContent('/3d-models/furniture?ordering=price')
+      })
+    })
+
+    it('shows the not-found page for a category that does not exist', async () => {
+      renderModelsBrowsePage('/3d-models/not-a-real-category')
+
+      expect(await screen.findByRole('heading', { name: /page not found|not found/i })).toBeInTheDocument()
+      expect(productsApi.listPublicProducts).not.toHaveBeenCalled()
+    })
+
+    it('waits for the category before loading products, so it never flashes the whole catalog', async () => {
+      renderModelsBrowsePage('/3d-models/furniture')
+
+      await waitFor(() => expect(productsApi.listPublicProducts).toHaveBeenCalled())
+      expect(productsApi.listPublicProducts).not.toHaveBeenCalledWith(
+        expect.objectContaining({ category_id: undefined }),
+      )
+    })
+
+    it('moves to the category address when a category is chosen in the filter', async () => {
+      const user = userEvent.setup()
+      renderModelsBrowsePage()
+
+      await screen.findByText('Oak Chair')
+      await user.selectOptions(screen.getByLabelText(/category/i, { selector: 'select' }), categoryId)
+
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/3d-models/furniture'))
+    })
+
+    it('keeps placeholder categories out of search results', async () => {
+      vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+        ...sampleCategories,
+        results: [
+          ...sampleCategories.results,
+          {
+            id: 'demo-category-id', name: 'Demo Assets', slug: 'demo-assets', description: '', image: '',
+            parent: null, created_at: '2026-01-01T00:00:00Z',
+          },
+        ],
+      })
+      renderModelsBrowsePage('/3d-models/demo-assets')
+
+      await screen.findByRole('heading', { level: 1, name: 'Demo Assets 3D Models' })
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow')
+      })
+    })
+
+    it('shows the not-found page, which is never indexed, for a made-up category', async () => {
+      renderModelsBrowsePage('/3d-models/not-a-real-category')
+
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, nofollow')
+      })
+    })
+
+    it('does not index a search results page, but lets crawlers follow its links', async () => {
+      renderModelsBrowsePage('/3d-models?search=chair')
+
+      await screen.findByRole('heading', { level: 1 })
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow')
+      })
+    })
+
+    it('does not index a category that has no models yet (a page with nothing on it)', async () => {
+      vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
+        count: 0, next: null, previous: null, results: [],
+      })
+      renderModelsBrowsePage('/3d-models/furniture')
+
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex, follow')
+      })
+    })
+
+    it('indexes a category that has models', async () => {
+      renderModelsBrowsePage('/3d-models/furniture')
+
+      await screen.findByText('Oak Chair')
+      expect(document.querySelector('meta[name="robots"]')).toBeNull()
+    })
   })
 
   it('filters models by category selection', async () => {
@@ -199,7 +343,7 @@ describe('ModelsBrowsePage', () => {
     await waitFor(() => {
       expect(container.querySelector('.site-hero-banner__image')).toHaveAttribute(
         'src',
-        '/images/new%20banner%20image%20size/Furniture.webp',
+        '/banner%20image/08.webp',
       )
     })
 
@@ -264,6 +408,7 @@ describe('ModelsBrowsePage', () => {
           banner,
         )
       })
+      expect(container.querySelector('.toys-banner__popout')).not.toBeInTheDocument()
     },
   )
 
@@ -271,7 +416,7 @@ describe('ModelsBrowsePage', () => {
     renderModelsBrowsePage('/3d-models?category=f2fd31a1-5fee-45f0-95d1-fd87d8ddb1a0')
 
     expect(
-      await screen.findByRole('heading', { name: '3D Printing' }),
+      await screen.findByRole('heading', { name: '3D Printing Models' }),
     ).toBeInTheDocument()
   })
 

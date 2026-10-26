@@ -2,13 +2,43 @@
 
 from __future__ import annotations
 
+from email.utils import parseaddr
+
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand, CommandError
 
 
+# Mail "from" one of these but sent through Brevo fails DMARC: Gmail and Yahoo reject it or
+# file it as spam. Send from the shop's own domain (docs/EMAIL_DOMAIN_SETUP.md).
+FREE_MAILBOX_DOMAINS = frozenset(
+    {
+        "gmail.com",
+        "googlemail.com",
+        "yahoo.com",
+        "outlook.com",
+        "hotmail.com",
+        "live.com",
+        "msn.com",
+        "icloud.com",
+        "me.com",
+        "aol.com",
+        "proton.me",
+        "protonmail.com",
+        "gmx.com",
+        "zoho.com",
+        "yandex.com",
+        "mail.com",
+    }
+)
+
+
 def _parse_recipients(raw: str) -> list[str]:
     return [part.strip() for part in (raw or "").split(",") if part.strip()]
+
+
+def _sender_domain(from_email: str) -> str:
+    return parseaddr(from_email)[1].rpartition("@")[2].strip().lower()
 
 
 class Command(BaseCommand):
@@ -78,6 +108,13 @@ class Command(BaseCommand):
             "Celery mail tasks require the same BREVO_API_KEY / EMAIL_* on web "
             "and worker - see backend/.env.example"
         )
+
+        if not settings.DEBUG and _sender_domain(from_email) in FREE_MAILBOX_DOMAINS:
+            warnings.append(
+                f"DEFAULT_FROM_EMAIL uses {_sender_domain(from_email)}, a free mailbox domain - "
+                "mail sent through Brevo/SMTP fails DMARC and lands in spam or is rejected. "
+                "Send from an address on the shop's own domain (docs/EMAIL_DOMAIN_SETUP.md)."
+            )
 
         if console:
             if settings.DEBUG or allow_console:

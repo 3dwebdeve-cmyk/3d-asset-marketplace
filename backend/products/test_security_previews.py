@@ -23,7 +23,8 @@ from products.catalog_import import CatalogImportService
 from products.models import Product, ProductFile
 from products.services import ProductError, ProductService
 from products.test_catalog_import import _happy_item
-from products.testing import make_glb_bytes, put_pipeline_packages
+from products.testing import put_pipeline_images
+from products.testing import make_glb_bytes
 
 User = get_user_model()
 
@@ -159,10 +160,12 @@ class ImportPreviewTests(TestCase):
         put_pipeline_packages([_happy_item()])
 
     def _import(self, item: dict | None = None):
+        item = item or _happy_item()
+        put_pipeline_images([item])
         batch = CatalogImportService.import_batch(
             import_batch_id="preview-security",
             import_source="catalog-bridge",
-            items=[item or _happy_item()],
+            items=[item],
             actor_id="test",
         )
         return batch.results[0]

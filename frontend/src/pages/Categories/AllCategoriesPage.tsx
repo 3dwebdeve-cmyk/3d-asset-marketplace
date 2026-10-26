@@ -1,20 +1,22 @@
+import { CATEGORIES_SEO } from '../../lib/seoPages'
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { CategoryTile } from '../../components/CategoryTile'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { useAllCategories } from '../../hooks/useAllCategories'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { buildBreadcrumbJsonLd, buildItemListJsonLd } from '../../lib/seo'
+import { categoryPath, NOINDEX_CATEGORY_SLUGS } from '../../lib/categorySeo'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import '../../styles/products-browse.css'
 import '../../styles/all-categories.css'
 
 const CATEGORY_ORDER = [
-  'furniture', 'products', 'toys', 'electronics', 'food-drink', 'character',
-  'industrial', 'household', 'plants-vegetation', 'lights', '3d-printing',
-  'assets-props', 'lifestyle-visualisation', 'cloth-items', 'interactive-webar',
-  'architectural-3d-models', 'interior-3d-models',
+  'furniture', 'interior-3d-models', 'household', 'lights', 'plants-vegetation',
+  'lifestyle-visualisation', 'products', 'architectural-3d-models', 'interactive-webar',
+  'electronics', 'food-drink', 'toys', 'character', 'assets-props', 'cloth-items',
+  'industrial', '3d-printing',
 ]
 
 function categoryRank(slug: string): number {
@@ -23,12 +25,7 @@ function categoryRank(slug: string): number {
 }
 
 export function AllCategoriesPage() {
-  const navigate = useNavigate()
   const categoriesQuery = useAllCategories()
-  useDocumentSeo({
-    title: 'All Categories | AssetHive3D',
-    description: 'Browse the full AssetHive3D collection by category.',
-  })
 
   const categories = useMemo(() => {
     return [...(categoriesQuery.data ?? [])]
@@ -37,8 +34,31 @@ export function AllCategoriesPage() {
       )
   }, [categoriesQuery.data])
 
+  const listed = categories
+    .filter((category) => !NOINDEX_CATEGORY_SLUGS.has(category.slug))
+    .map((category) => ({ name: `${category.name} 3D models`, path: categoryPath(category.slug) }))
+  useDocumentSeo({
+    title: CATEGORIES_SEO.title,
+    description: CATEGORIES_SEO.description,
+    canonicalPath: '/categories',
+    jsonLd: [
+      buildBreadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Categories', path: '/categories' },
+      ]),
+      ...(listed.length > 0 ? [buildItemListJsonLd('3D model categories', listed)] : []),
+    ],
+  })
+
   return (
     <main className="all-categories-page" aria-label="All categories">
+      <header className="all-categories-page__header">
+        <h1 className="all-categories-page__title">3D Model Categories</h1>
+        <p className="all-categories-page__intro">
+          Start with furniture and interior 3D models, or browse household objects, lighting, plants, product
+          visualization and more. Every category lists its models with formats and license details.
+        </p>
+      </header>
       {categoriesQuery.isPending ? (
         <Spinner label="Loading categories..." />
       ) : categoriesQuery.isError ? (
@@ -57,10 +77,7 @@ export function AllCategoriesPage() {
             <CategoryTile
               key={category.id}
               category={category}
-              onSelect={() => {
-                trackCategoryClick(category.id)
-                navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
-              }}
+              onSelect={() => trackCategoryClick(category.id)}
             />
           ))}
         </div>

@@ -49,6 +49,14 @@ Upload the zip **before** calling the import: the import checks it is there.
   key, so a pipeline package downloads as `<Model_ID>.zip`.
 - The import moves the preview to an unguessable name and deletes the original. The
   preview must be a reduced model; see `PREVIEW_PIPELINE.md`.
+- Thumbnail and gallery images are served as WebP. Upload `.webp` to have them used as-is;
+  a `.jpg` or `.png` (25 MB, 20 megapixels at most) is converted to
+  `<name>-<12 hex>.webp` next to the original, and the product points to the WebP copy.
+  The name changes when the image changes, so browsers never show a stale copy; a
+  re-import with a new thumbnail deletes the previous WebP copy. The thumbnail and every
+  gallery image must already be in the public bucket when you import: a row whose image is
+  missing is skipped, so a product never goes in with a broken image. A re-import may leave
+  the thumbnail out and keep the one the product already has.
 
 ## Uploader API key
 
@@ -172,10 +180,13 @@ and import again.
 
 Preview checks can also skip a row: `invalid_preview_format`, `missing_preview_object`,
 `invalid_preview`, `preview_too_large`, `preview_not_reduced`, `preview_unreadable`.
-In production every preview is scanned by ClamAV (`PACKAGE_SCAN_REQUIRED`); if
-`PACKAGE_SCAN_HOST` is unreachable, every row fails with `invalid_preview`. The zip is not
-scanned: it goes straight from the exe to R2.
-
+Image checks can skip a row: `invalid_thumbnail`, `invalid_gallery_image` (not a JPEG/PNG/WebP
+image, over 25 MB or over 20 megapixels), `image_unreadable` (storage error), `missing_thumbnail_object` and
+`missing_gallery_object` (the file is not in the public bucket; upload it, then import again).
+A row that passes can still carry a `warning`. `preview_unchecked` means the preview was
+accepted without the 50% reduction check, because the row has no `Polycount` or the preview's
+triangles could not be counted: a full-detail model can become public that way, so send the
+`Polycount`. The import also logs `catalog_import_preview_unchecked`.
 Passing rows are created or updated as `pending_review`. Publishing always goes through
 the review queue (approve action); imports never publish directly.
 

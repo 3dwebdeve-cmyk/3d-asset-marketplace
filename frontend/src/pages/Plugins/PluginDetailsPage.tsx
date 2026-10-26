@@ -4,7 +4,6 @@ import { Link, useParams } from 'react-router-dom'
 
 import { getPublicPlugin, listPublicPlugins } from '../../api/pluginsApi'
 import { RatingDisplay } from '../../components/reviews/RatingDisplay'
-import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -13,6 +12,7 @@ import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
 import { discountPercent } from '../../lib/pricing'
+import { buildBreadcrumbJsonLd, buildPluginPageTitle, buildPluginMetaDescription, buildPluginJsonLd } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { PluginLicenseType, PublicPluginDetail } from '../../types/plugin'
 import { ProductImageGallery } from '../Products/ProductImageGallery'
@@ -35,18 +35,6 @@ function licenseLabel(license: PluginLicenseType): string {
     default:
       return 'Standard'
   }
-}
-
-function buildPluginPageTitle(pluginName: string): string {
-  return `${pluginName} | 3D Asset Marketplace`
-}
-
-function buildPluginMetaDescription(pluginName: string, shortDescription: string): string {
-  const trimmed = shortDescription.trim()
-  if (trimmed) {
-    return trimmed.slice(0, 160)
-  }
-  return `View details for ${pluginName} on 3D Asset Marketplace.`
 }
 
 function useScrollPluginPageToTop(resetKey: string): void {
@@ -144,16 +132,6 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
             </div>
           </section>
 
-          <div className="product-hub-detail__media-reviews">
-            <ReviewsSection
-              productType="plugin"
-              productId={plugin.id}
-              catalogSlug={plugin.slug}
-              averageRating={plugin.average_rating}
-              reviewCount={plugin.review_count}
-              layout="hub"
-            />
-          </div>
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Plugin purchase details">
@@ -290,10 +268,10 @@ export function PluginDetailsPage() {
 
   useDocumentSeo({
     title: isNotFound
-      ? 'Plugin not found | 3D Asset Marketplace'
+      ? 'Plugin not found | AssetHive3D'
       : pluginQuery.data
         ? buildPluginPageTitle(pluginQuery.data.name)
-        : 'Plugin details | 3D Asset Marketplace',
+        : 'Plugin details | AssetHive3D',
     description: isNotFound
       ? 'The requested plugin could not be found.'
       : pluginQuery.data
@@ -302,6 +280,18 @@ export function PluginDetailsPage() {
           pluginQuery.data.short_description,
         )
         : 'Loading plugin details from the marketplace catalog.',
+    canonicalPath: pluginQuery.data ? `/plugins/${pluginQuery.data.slug}` : undefined,
+    type: 'product',
+    imageAlt: pluginQuery.data?.name,
+    robots: isNotFound ? 'noindex' : undefined,
+    image: pluginQuery.data?.thumbnail || undefined,
+    jsonLd: pluginQuery.data
+      ? [buildPluginJsonLd(pluginQuery.data), buildBreadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Plugins', path: '/plugins' },
+        { name: pluginQuery.data.name, path: `/plugins/${pluginQuery.data.slug}` },
+      ])]
+      : undefined,
   })
 
   if (isNotFound) {

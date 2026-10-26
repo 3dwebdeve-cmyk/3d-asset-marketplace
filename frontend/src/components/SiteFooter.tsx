@@ -8,11 +8,11 @@ export function SiteFooter() {
       <div className="site-footer__inner">
         <div className="site-footer__brand-col">
           <Link className="site-footer__brand" to="/">
-            <img src="/images/AssetHive%203D.svg?v=2" alt="AssetHive 3D" />
+            <img src="/images/AssetHive%203D.svg?v=2" alt="AssetHive3D" width={176} height={30} />
           </Link>
           <p className="site-footer__blurb">
-            The world&apos;s premium 3D model marketplace for creators, game developers,
-            animators, and VFX studios worldwide.
+            AssetHive3D is a marketplace for furniture and interior 3D models, with Blender and
+            Unreal plugins and custom 3D work for studios and creators.
           </p>
         </div>
 
@@ -26,25 +26,31 @@ export function SiteFooter() {
               3D Models
             </Link>
             <Link className="site-footer__link" to="/plugins">
-              Plugins
+              Blender & Unreal Plugins
             </Link>
             <Link className="site-footer__link" to="/custom-projects">
               Custom Projects
             </Link>
           </div>
           <div className="site-footer__col">
-            <h2 className="site-footer__heading">Resources</h2>
-            <Link className="site-footer__link" to="/plugins">
-              Blender Plugins
+            <h2 className="site-footer__heading">3D Model Categories</h2>
+            <Link className="site-footer__link" to="/3d-models/furniture">
+              Furniture 3D Models
             </Link>
-            <Link className="site-footer__link" to="/custom-projects">
-              Inquiry Portal
+            <Link className="site-footer__link" to="/3d-models/interior-3d-models">
+              Interior 3D Models
             </Link>
-            <Link className="site-footer__link" to="/contact">
-              Support
+            <Link className="site-footer__link" to="/3d-models/household">
+              Household 3D Models
             </Link>
-            <Link className="site-footer__link" to="/about">
-              About the Studio
+            <Link className="site-footer__link" to="/3d-models/lights">
+              Lighting 3D Models
+            </Link>
+            <Link className="site-footer__link" to="/3d-models/plants-vegetation">
+              Plant 3D Models
+            </Link>
+            <Link className="site-footer__link" to="/categories">
+              All Categories
             </Link>
           </div>
           <div className="site-footer__col">
@@ -77,7 +83,7 @@ export function SiteFooter() {
         </nav>
 
         <div className="site-footer__bottom">
-          <p className="site-footer__copy">© {year} AssetHive 3D. All rights reserved.</p>
+          <p className="site-footer__copy">© {year} AssetHive3D. All rights reserved.</p>
         </div>
       </div>
     </footer>

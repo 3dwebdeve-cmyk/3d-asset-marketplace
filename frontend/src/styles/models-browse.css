@@ -82,14 +82,27 @@
 .model-filters__prices { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-secondary); }
 .model-filters__clear { display: flex; align-items: center; justify-content: center; gap: 0.3rem; width: 100%; min-height: 2rem; border: 1px solid var(--action-color); border-radius: 0.3rem; background: white; color: var(--action-color); font: inherit; font-size: 0.7rem; cursor: pointer; }
 .model-filters__clear:hover { background: color-mix(in srgb, var(--action-color) 5%, white); }
-
-/* Subcategories sit under their parent in the category filter. */
-.models-browse .custom-select-option--child {
-  padding-left: 1.6rem;
-  color: var(--text-secondary);
+.plugins-browse > .plugins-browse-hero--furniture.site-hero-banner {
+  background: radial-gradient(ellipse at 78% 35%, #424448 0%, #1b2025 42%, #0e1319 78%);
 }
 
-.models-browse .custom-select-option--child:hover,
-.models-browse .custom-select-option--child.custom-select-option--active {
-  color: var(--action-color);
+.plugins-browse-hero--furniture .plugins-browse-hero__subtitle {
+  max-width: min(52%, 42rem);
+}
+
+@media (min-width: 721px) {
+  .models-browse .plugins-browse-hero--toys .plugins-browse-hero__container {
+    width: 40%;
+    max-width: 40%;
+  }
+}
+
+@media (max-width: 720px) {
+  :root body .models-browse > .plugins-browse-hero--toys.site-hero-banner {
+    border-radius: clamp(0.875rem, 1.5vw, 1.5rem);
+  }
+
+  :root body .models-browse > .plugins-browse-hero--toys::before {
+    border-radius: inherit;
+  }
 }

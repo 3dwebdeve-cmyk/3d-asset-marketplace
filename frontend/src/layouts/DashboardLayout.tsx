@@ -11,7 +11,6 @@ import { useAuthStore } from '../store/authStore'
 import '../styles/dashboard-layout.css'
 import '../styles/dashboard-list.css'
 import '../styles/dashboard-home.css'
-import '../styles/dashboard-project-form.css'
 import '../styles/dashboard-profile.css'
 
 function NavIcon({ name }: { name: DashboardNavIcon }) {
@@ -70,9 +69,8 @@ export function DashboardLayout() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const { isNotFound } = useNotFoundChrome()
 
+  // Account pages stay out of search. Each page sets its own title.
   useDocumentSeo({
-    title: 'Dashboard | 3D HUB',
-    description: 'Manage your orders, downloads, and account.',
     robots: 'noindex, nofollow',
   })
 

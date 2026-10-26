@@ -81,9 +81,8 @@ def _normalize_extension(filename: str) -> str:
     return Path(filename).suffix.lower()
 
 
-def _optimized_webp(uploaded: UploadedFile) -> ContentFile:
-    uploaded.seek(0)
-    with Image.open(uploaded) as opened:
+def _encode_webp(source) -> bytes:
+    with Image.open(source) as opened:
         image = ImageOps.exif_transpose(opened)
         if image.mode not in {"RGB", "RGBA"}:
             image = image.convert("RGBA" if "transparency" in image.info else "RGB")
@@ -95,9 +94,39 @@ def _optimized_webp(uploaded: UploadedFile) -> ContentFile:
             method=6,
             exact=image.mode == "RGBA",
         )
+    return output.getvalue()
+
+
+def _optimized_webp(uploaded: UploadedFile) -> ContentFile:
+    uploaded.seek(0)
+    data = _encode_webp(uploaded)
     uploaded.seek(0)
     name = f"{Path(uploaded.name).stem}.webp"
-    return ContentFile(output.getvalue(), name=name)
+    return ContentFile(data, name=name)
+
+
+def convert_image_bytes_to_webp(data: bytes) -> bytes:
+    """Check a JPEG/PNG/WebP image and return it re-encoded as WebP.
+
+    Used for images the batch pipeline uploads straight to storage, which never pass
+    through the upload form. Raises ValidationError when the bytes are not a usable image.
+    """
+    if not data:
+        raise ValidationError("Image file is empty.")
+    try:
+        with Image.open(BytesIO(data)) as image:
+            if image.width * image.height > PRODUCT_IMAGE_MAX_PIXELS:
+                raise ValidationError("Image dimensions exceed the 20 megapixel limit.")
+            image.verify()
+            detected_mime = _PIL_FORMAT_TO_MIME.get((image.format or "").upper())
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValidationError("File is not a valid image.") from exc
+    if detected_mime not in PRODUCT_IMAGE_ALLOWED_MIME_TYPES:
+        raise ValidationError("Image content does not match an allowed type.")
+    try:
+        return _encode_webp(BytesIO(data))
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValidationError("File is not a valid image.") from exc
 
 
 def validate_product_image_upload(uploaded: UploadedFile) -> ValidatedProductImageUpload:

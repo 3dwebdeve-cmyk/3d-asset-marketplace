@@ -8,11 +8,11 @@ import { listPublicProducts } from '../../api/productsApi'
 import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { useAllCategories } from '../../hooks/useAllCategories'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { HOME_DESCRIPTION, HOME_TITLE, buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
-import type { PublicPlugin } from '../../types/plugin'
-import type { PublicProduct } from '../../types/product'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
 import '../../styles/home.css'
@@ -26,6 +26,8 @@ interface BrowseService {
   path: string
   buttonText: string
   iconSrc: string
+  iconWidth: number
+  iconHeight: number
 }
 
 const CATEGORY_DISPLAY_ORDER = [
@@ -61,80 +63,33 @@ const FALLBACK_CATEGORIES: CategoryPublic[] = [
 // state instead of invented products when the API returns nothing or fails.
 const SHOW_DEMO_FALLBACK = import.meta.env.DEV
 
-const FALLBACK_PRODUCTS: PublicProduct[] = [
-  ['demo-oak-chair', 'Oak Lounge Chair', 'Furniture', '29.99'],
-  ['demo-desk-lamp', 'Modern Desk Lamp', 'Interiors', '19.99'],
-  ['demo-plant-pot', 'Decorative Plant Pot', 'Products', '9.99'],
-].map(([slug, name, categoryName, price]) => ({
-  id: `fallback-${slug}`,
-  name,
-  slug,
-  short_description: '',
-  price,
-  currency: 'USD',
-  discount_price: null,
-  thumbnail: '',
-  software_used: 'Blender',
-  category: { id: `fallback-${slug}-category`, name: categoryName, slug: categoryName.toLowerCase() },
-  license_type: 'standard',
-  average_rating: '0.00',
-  review_count: 0,
-  total_downloads: 0,
-  created_at: '2026-01-01T00:00:00Z',
-}))
-
-const FALLBACK_PLUGINS: PublicPlugin[] = [
-  ['demo-batch-exporter', 'Batch Exporter', '/homepage%20images/batch_exporter.webp', '12.99'],
-  ['demo-uv-toolkit', 'UV Toolkit', '/images/custom-plugin.webp', '19.99'],
-].map(([slug, name, thumbnail, price]) => ({
-  id: `fallback-${slug}`,
-  name,
-  slug,
-  short_description: '',
-  price,
-  currency: 'USD',
-  discount_price: null,
-  thumbnail,
-  version: '1.0.0',
-  compatibility: 'Blender',
-  license_type: 'standard',
-  average_rating: '0.00',
-  review_count: 0,
-  total_downloads: 0,
-  category: {
-    id: 'fallback-plugin-tools',
-    name: 'Plugin Tools',
-    slug: 'plugin-tools',
-    description: '',
-    image: '',
-    is_active: true,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  },
-  created_at: '2026-01-01T00:00:00Z',
-}))
-
 const BROWSE_SERVICES: BrowseService[] = [
   {
     title: '3D Models',
-    description: 'Explore high-quality production-ready 3D models in all categories.',
+    description: 'Browse production-ready 3D models of furniture, interiors, lighting, plants and more.',
     path: '/3d-models',
     buttonText: 'Shop 3D Models',
     iconSrc: '/images/home/icon-3d-models.webp',
+    iconWidth: 489,
+    iconHeight: 450,
   },
   {
     title: 'Plugins & Tools',
-    description: 'Power-up your workflow with professional Blender and Unreal plugins.',
+    description: 'Speed up your 3D workflow with Blender and Unreal plugins and tools.',
     path: '/plugins',
     buttonText: 'Explore Plugins',
     iconSrc: '/images/home/icon-plugins.webp',
+    iconWidth: 476,
+    iconHeight: 535,
   },
   {
     title: 'Inquiry Portal',
-    description: 'Have a specific custom asset requirement? Our team is here to help.',
+    description: 'Need a custom 3D model, texture or render? Send your brief and our team will reply.',
     path: '/custom-projects',
     buttonText: 'Submit an Inquiry',
     iconSrc: '/images/home/icon-inquiry.webp',
+    iconWidth: 483,
+    iconHeight: 464,
   },
 ]
 
@@ -238,10 +193,12 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Model',
     icon: 'cube',
     image: '/images/custom-3Dmodel.webp',
-    summary: 'High-quality, custom 3D models built precisely for your project needs.',
+    imageWidth: 1536,
+    imageHeight: 1024,
+    summary: 'Custom 3D models for furniture, products and interiors, built precisely for your project.',
     points: [
-      'Product & game-ready models',
-      'Characters, props & environments',
+      'Furniture, product & game-ready models',
+      'Interiors, props & environments',
       'Clean & optimized topology',
       'Fully customized designs',
     ],
@@ -251,6 +208,8 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Plugin',
     icon: 'plugin',
     image: '/images/custom-plugin.webp',
+    imageWidth: 1536,
+    imageHeight: 1024,
     summary: 'Powerful Blender add-ons and tools to supercharge your workflow.',
     points: [
       'Custom Blender add-ons',
@@ -264,6 +223,8 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Texture',
     icon: 'pencil',
     image: '/images/custom-texture.webp',
+    imageWidth: 1254,
+    imageHeight: 1254,
     summary: 'Realistic and stylized textures that bring your 3D models to life.',
     points: [
       'PBR & stylized texturing',
@@ -277,6 +238,8 @@ const OFFER_SERVICES = [
     cta: 'Get Custom Render',
     icon: 'camera',
     image: '/images/custom-render.webp',
+    imageWidth: 1717,
+    imageHeight: 916,
     summary: 'High-quality renders with perfect lighting, composition and detail.',
     points: [
       'Photorealistic renders',
@@ -327,7 +290,7 @@ function ServiceModule({ service }: { service: BrowseService }) {
   return (
     <article className="browse-service-card">
       <div className="browse-service-card__copy">
-        <h3 className="browse-service-card__title">{service.title}</h3>
+        <h2 className="browse-service-card__title">{service.title}</h2>
         <p className="browse-service-card__text">{service.description}</p>
         <Link to={service.path} className="browse-service-card__btn">
           {service.buttonText}
@@ -337,6 +300,8 @@ function ServiceModule({ service }: { service: BrowseService }) {
         <img
           src={service.iconSrc}
           alt=""
+          width={service.iconWidth}
+          height={service.iconHeight}
           className="browse-service-card__icon-img"
           loading="lazy"
           decoding="async"
@@ -410,9 +375,7 @@ export function ProductsBrowsePage() {
   })
 
   const filteredProducts = useMemo(
-    () => productsData?.results.length
-      ? productsData.results
-      : SHOW_DEMO_FALLBACK ? FALLBACK_PRODUCTS : [],
+    () => productsData?.results ?? [],
     [productsData],
   )
 
@@ -426,19 +389,25 @@ export function ProductsBrowsePage() {
     }
     return rank(a.slug) - rank(b.slug)
   }).slice(0, 12)
-  const plugins = pluginsData?.results.length
-    ? pluginsData.results
-    : SHOW_DEMO_FALLBACK ? FALLBACK_PLUGINS : []
+  const plugins = pluginsData?.results ?? []
 
   useAutoScrollRail(productsRailRef, !isCatalogMode && !isLoading && filteredProducts.length > 1)
   useAutoScrollRail(pluginsRailRef, !isCatalogMode && !pluginsLoading && plugins.length > 1)
+
+  useDocumentSeo({
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    canonicalPath: '/',
+    jsonLd: [buildOrganizationJsonLd(), buildWebSiteJsonLd()],
+  })
 
   if (!isCatalogMode) {
     return (
       <main className="products-browse-page products-browse-page--hub">
         <MarketplaceHero />
 
-        <section className="browse-service-cards" aria-label="Marketplace modules">
+        <section className="browse-service-cards" aria-labelledby="marketplace-services-heading">
+          <h2 id="marketplace-services-heading" className="visually-hidden">Explore the AssetHive3D marketplace</h2>
           {BROWSE_SERVICES.map((service) => (
             <ServiceModule key={service.path} service={service} />
           ))}
@@ -466,10 +435,7 @@ export function ProductsBrowsePage() {
                 <CategoryTile
                   key={category.id}
                   category={category}
-                  onSelect={() => {
-                    trackCategoryClick(category.id)
-                    navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
-                  }}
+                  onSelect={() => trackCategoryClick(category.id)}
                 />
               ))
             )}
@@ -574,7 +540,9 @@ export function ProductsBrowsePage() {
                           : 'hub-offer__thumb'
                       }
                       src={offer.image}
-                      alt=""
+                      alt={`${offer.title} service preview`}
+                      width={offer.imageWidth}
+                      height={offer.imageHeight}
                       loading="lazy"
                       decoding="async"
                     />

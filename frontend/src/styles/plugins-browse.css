@@ -39,6 +39,13 @@
   }
 }
 
+.plugins-browse > .plugins-browse-hero--furniture .site-hero-banner__image {
+  width: 100%;
+  object-fit: cover;
+  object-position: center 58%;
+  mask-image: none;
+}
+
 .plugins-browse-hero--products .site-hero-banner__image {
   object-fit: contain;
   object-position: center center;
@@ -479,19 +486,6 @@
 
 .plugins-browse-state p {
   margin: 0 0 1rem;
-  color: var(--text-secondary);
-}
-
-.plugins-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1.75rem;
-}
-
-.plugins-pagination__info {
-  font-size: 0.9rem;
   color: var(--text-secondary);
 }
 

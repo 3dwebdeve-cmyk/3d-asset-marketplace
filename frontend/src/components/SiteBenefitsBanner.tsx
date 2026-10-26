@@ -106,13 +106,13 @@ const FEATURES: readonly FeatureItem[] = [
     icon: <InstantDownloadsIcon />,
   },
   {
-    title: 'Fair Pricing',
-    text: 'Best value for premium quality assets.',
+    title: 'Clear Pricing',
+    text: 'Prices and license terms shown before you buy.',
     icon: <FairPricingIcon />,
   },
   {
-    title: 'Global Support',
-    text: 'Dedicated support for your queries worldwide.',
+    title: 'Customer Support',
+    text: 'Questions about a model or an order? Our team can help.',
     icon: <GlobalSupportIcon />,
   },
 ]

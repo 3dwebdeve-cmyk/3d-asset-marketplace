@@ -1,10 +1,14 @@
+import { PLUGINS_SEO } from '../../lib/seoPages'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { buildBreadcrumbJsonLd } from '../../lib/seo'
 import { listPublicPluginCategories, listPublicPlugins } from '../../api/pluginsApi'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
-import { SOFTWARE_FILTERS, SoftwareIcon } from '../../components/SoftwareIcon'
+import { SoftwareIcon } from '../../components/SoftwareIcon'
+import { SOFTWARE_FILTERS } from '../../components/softwareFilters'
 import { PLUGINS_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import type { PluginLicenseType, PluginOrdering, PublicPlugin } from '../../types/plugin'
@@ -219,7 +223,17 @@ export function PluginsBrowsePage() {
     return categoriesData?.results.find((cat) => cat.id === selectedCategoryId)?.name ?? null
   }, [categoriesData?.results, selectedCategoryId])
 
-  const heroTitle = selectedCategoryName ?? 'Plugins'
+  const heroTitle = selectedCategoryName ?? 'Blender & Unreal Plugins and Tools'
+  useDocumentSeo({
+    title: PLUGINS_SEO.title,
+    description: PLUGINS_SEO.description,
+    canonicalPath: '/plugins',
+    robots: searchFromUrl ? 'noindex, follow' : undefined,
+    jsonLd: buildBreadcrumbJsonLd([
+      { name: 'Home', path: '/' },
+      { name: 'Plugins', path: '/plugins' },
+    ]),
+  })
 
   return (
     <main className="plugins-browse">
@@ -230,8 +244,8 @@ export function PluginsBrowsePage() {
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
           <p className="plugins-browse-hero__subtitle">
-            Professional plugins for Blender, Maya, Cinema 4D, and more. Supercharge your 3D
-            workflow with tools built by industry experts.
+            Plugins and tools for Blender, Unreal and more. Speed up your 3D workflow, check
+            compatibility and license on each listing, and download right after checkout.
           </p>
         </div>
       </section>

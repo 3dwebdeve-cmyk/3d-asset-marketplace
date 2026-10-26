@@ -203,9 +203,3 @@ def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
         str(settings.R2_PRIVATE_BUCKET), object_key, file_name=file_name
     )
 
-
-def generate_public_presigned_url(object_key: str, *, file_name: str) -> str:
-    """Short-lived attachment GET URL for a public R2 object (forces download)."""
-    return _generate_presigned_attachment_url(
-        str(settings.R2_PUBLIC_BUCKET), object_key, file_name=file_name
-    )

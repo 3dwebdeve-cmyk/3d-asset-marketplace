@@ -6,6 +6,14 @@
   width: 100%;
 }
 
+/* Give the page content at least one screen of height, so the benefits banner and footer start
+   below the fold even while a page is still loading. Without it they show high up the screen and
+   are then pushed down 450-575 px when the content arrives, which is most of the layout shift on
+   the public pages. Dashboard and admin pages have their own full-height layouts. */
+.app-shell:not(.app-shell--dashboard) {
+  min-height: 100svh;
+}
+
 .navbar {
   position: sticky;
   top: 0;
@@ -135,6 +143,83 @@
     linear-gradient(135deg, #f4f9fc 0%, #edf4f8 58%, #f8fbfd 100%);
   font-family: 'Poppins', system-ui, 'Segoe UI', sans-serif;
   box-shadow: 0 16px 38px rgba(30, 53, 68, 0.16), 0 3px 10px rgba(30, 53, 68, 0.08);
+}
+
+/* Plain two-column category dropdown, matching the marketplace navigation. */
+.navbar .navbar__category-picker.navbar__explore-menu {
+  display: flex;
+  flex-direction: column;
+  width: min(31.5rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 6rem);
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e8e8e8;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 10%);
+}
+
+.navbar__category-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: column;
+  column-gap: 1.25rem;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.navbar__category-picker .navbar__explore-item {
+  width: 100%;
+  min-height: 2.15rem;
+  gap: 0.5rem;
+  padding: 0.4rem 0.25rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #46566a;
+  font-weight: 400;
+  box-shadow: none;
+}
+
+.navbar__category-picker .navbar__explore-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.navbar__category-picker .navbar__explore-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  color: #b7bbc0;
+}
+
+.navbar__category-picker .navbar__explore-item--active {
+  color: #2563eb;
+  background: transparent;
+}
+
+.navbar__category-picker .navbar__explore-item:hover {
+  color: #2563eb;
+  background: #f6f8fa;
+}
+
+.navbar__category-picker .navbar__explore-item:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.navbar__category-feedback:empty {
+  display: none;
+}
+
+@media (max-width: 380px) {
+  .navbar__category-list {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none !important;
+    grid-auto-flow: row;
+  }
 }
 
 .navbar__explore-menu::before {
