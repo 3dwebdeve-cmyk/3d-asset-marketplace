@@ -1,8 +1,10 @@
-"""JWT authentication that rejects access tokens with a stale ``tv`` claim."""
+"""JWT authentication with a token-version check, and catalog uploader API keys."""
 
 from __future__ import annotations
 
 from django.conf import settings
+from rest_framework.authentication import BaseAuthentication, get_authorization_header
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken
 
@@ -35,3 +37,34 @@ class VersionedJWTAuthentication(JWTAuthentication):
             if getattr(settings, "ADMIN_MFA_REQUIRED", True) and not validated_token.get("mfa"):
                 raise InvalidToken("Token is invalid or expired")
         return user
+
+
+class CatalogApiKeyAuthentication(BaseAuthentication):
+    """``Authorization: Api-Key <key>`` for the catalog uploader exe.
+
+    Attached only to the catalog-ingest import view, never to
+    ``DEFAULT_AUTHENTICATION_CLASSES``, so a key opens nothing else.
+    """
+
+    keyword = b"api-key"
+
+    def authenticate(self, request):
+        parts = get_authorization_header(request).split()
+        if not parts or parts[0].lower() != self.keyword:
+            return None
+        if len(parts) != 2:
+            raise AuthenticationFailed("Invalid API key.")
+        try:
+            key = parts[1].decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise AuthenticationFailed("Invalid API key.") from exc
+
+        from accounts.api_keys import CatalogApiKeyService
+
+        api_key = CatalogApiKeyService.verify(key)
+        if api_key is None:
+            raise AuthenticationFailed("Invalid API key.")
+        return api_key.user, api_key
+
+    def authenticate_header(self, request) -> str:
+        return "Api-Key"

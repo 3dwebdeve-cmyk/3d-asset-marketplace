@@ -18,7 +18,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile, ProductImage
-from products.testing import put_pipeline_uploads
+from products.testing import put_pipeline_objects, put_pipeline_packages, put_pipeline_uploads
 
 _HAPPY_CHECKSUM = "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
 
@@ -69,7 +69,7 @@ def _happy_item(**overrides: object) -> dict:
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
-class CatalogImportAPITests(APITestCase):
+class CatalogImportTestBase(APITestCase):
     def setUp(self) -> None:
         cache.clear()
         self.admin_role = Role.objects.get(role_name="Administrator")
@@ -114,7 +114,7 @@ class CatalogImportAPITests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
 
     def _post_batch(self, items: list[dict], *, batch_id: str = "2026-09-03-run-01"):
-        put_pipeline_uploads(items)
+        put_pipeline_objects(items)
         return self.client.post(
             self.import_url,
             {
@@ -125,6 +125,8 @@ class CatalogImportAPITests(APITestCase):
             format="json",
         )
 
+
+class CatalogImportAPITests(CatalogImportTestBase):
     def test_import_requires_administrator(self) -> None:
         response = self._post_batch([_happy_item()])
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -380,7 +382,7 @@ class CatalogImportAPITests(APITestCase):
         self.assertEqual(response.data["results"][0]["reason"], "invalid_object_key")
 
     def test_package_key_must_be_package_zip(self) -> None:
-        # Any other name under models/<sku>/ is classed as public media.
+        # Only package.zip and <sku>.zip are packages; other names are rejected.
         self._authenticate_as_admin()
         for key in ("models/MDL-000142/source.rar", "models/MDL-000142/gallery/package.zip"):
             with self.subTest(key=key):
@@ -524,6 +526,8 @@ class CatalogImportWebpTests(APITestCase):
         self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())
 
     def _post_without_uploads(self, items: list[dict], *, batch_id: str = "2026-09-03-run-01"):
+        # Images and preview are left to each test; the package is always there.
+        put_pipeline_packages(items)
         return self.client.post(
             self.import_url,
             {"import_batch_id": batch_id, "import_source": "catalog-bridge", "items": items},
@@ -567,6 +571,7 @@ class CatalogImportWebpTests(APITestCase):
 
         self.assertEqual(response.data["created"], 1, response.data)
         self.assertEqual(response.data["results"][0]["warning"], "preview_unchecked")
+        self.assertEqual(response.data["results"][0]["warnings"], ["preview_unchecked"])
         self.assertTrue(any("catalog_import_preview_unchecked" in line for line in logs.output))
 
     def test_checked_preview_has_no_warning(self) -> None:
@@ -574,3 +579,168 @@ class CatalogImportWebpTests(APITestCase):
 
         self.assertEqual(response.data["created"], 1, response.data)
         self.assertNotIn("warning", response.data["results"][0])
+
+
+
+def _pipeline_item(sku: str = "FUR-CHR-000123", **overrides: object) -> dict:
+    """A row as the 3ds Max plugin sends it: <ID>.zip, preview_<ID>.glb, package_formats."""
+    item = _happy_item(
+        model_id=sku,
+        r2_key_prefix=f"models/{sku}/",
+        exports={},
+        package_formats=["fbx", "max"],
+        media={
+            "thumbnail_key": f"models/{sku}/previewthumb_{sku}.jpg",
+            "preview_key": f"models/{sku}/preview_{sku}.glb",
+            "package_key": f"models/{sku}/{sku}.zip",
+            "package_file_size": 1048576,
+        },
+    )
+    item.update(overrides)
+    return item
+
+
+class PipelineCatalogImportTests(CatalogImportTestBase):
+    """3ds Max pipeline names, package checks, subcategory warnings, package formats."""
+
+    def _skip_reason(self, item: dict) -> str:
+        response = self._post_batch([item])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["skipped"], 1, response.data)
+        return response.data["results"][0]["reason"]
+
+    def test_pipeline_package_key_is_accepted_and_named_after_the_id(self) -> None:
+        self._authenticate_as_admin()
+        response = self._post_batch([_pipeline_item()])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["created"], 1, response.data)
+        self.assertNotIn("warnings", response.data["results"][0])
+        product = Product.objects.get(sku="FUR-CHR-000123")
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+        # The pipeline's JPEG thumbnail is served as WebP.
+        self.assertRegex(
+            product.thumbnail, r"models/FUR-CHR-000123/previewthumb_FUR-CHR-000123-[0-9a-f]{12}\.webp$"
+        )
+        self.assertRegex(
+            product.preview_model, r"models/FUR-CHR-000123/preview-[0-9a-f]{32}\.glb$"
+        )
+        self.assertFalse(default_storage.exists("models/FUR-CHR-000123/preview_FUR-CHR-000123.glb"))
+        package = ProductFile.objects.get(product=product, is_preview=False)
+        self.assertEqual(package.storage_path, "models/FUR-CHR-000123/FUR-CHR-000123.zip")
+        self.assertEqual(package.file_name, "FUR-CHR-000123.zip")
+
+    def test_explicit_package_file_name_is_kept(self) -> None:
+        self._authenticate_as_admin()
+        item = _pipeline_item()
+        item["media"]["package_file_name"] = "Oak Chair.zip"
+        self._post_batch([item])
+        package = ProductFile.objects.get(product__sku="FUR-CHR-000123", is_preview=False)
+        self.assertEqual(package.file_name, "Oak Chair.zip")
+
+    def test_other_zip_name_is_rejected_as_package(self) -> None:
+        self._authenticate_as_admin()
+        for name in ("Other.zip", "FUR-CHR-000999.zip", "fur-chr-000123.ZIP"):
+            item = _pipeline_item()
+            item["media"]["package_key"] = f"models/FUR-CHR-000123/{name}"
+            with self.subTest(name=name):
+                self.assertEqual(self._skip_reason(item), "invalid_object_key")
+        self.assertFalse(Product.objects.filter(sku="FUR-CHR-000123").exists())
+
+    def test_zip_is_rejected_as_thumbnail_preview_or_gallery(self) -> None:
+        self._authenticate_as_admin()
+        zip_key = "models/FUR-CHR-000123/FUR-CHR-000123.zip"
+        for field_name, value in (
+            ("thumbnail_key", zip_key),
+            ("preview_key", zip_key),
+            ("gallery_keys", [zip_key]),
+            ("thumbnail_key", "models/FUR-CHR-000123/Image.ZIP"),
+        ):
+            item = _pipeline_item()
+            item["media"][field_name] = value
+            with self.subTest(field=field_name, value=value):
+                self.assertEqual(self._skip_reason(item), "invalid_object_key")
+        self.assertFalse(Product.objects.filter(sku="FUR-CHR-000123").exists())
+
+    def test_missing_package_object_skips_row_and_keeps_preview(self) -> None:
+        self._authenticate_as_admin()
+        # A SKU no other test uploads: MEDIA_ROOT is shared across this class.
+        item = _pipeline_item("FUR-CHR-000777")
+        put_pipeline_uploads([item])  # the preview and images arrived, the zip upload failed
+        response = self.client.post(
+            self.import_url,
+            {"import_batch_id": "2026-10-26-missing", "items": [item]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["skipped"], 1)
+        self.assertEqual(response.data["results"][0]["reason"], "missing_package_object")
+        self.assertFalse(Product.objects.filter(sku="FUR-CHR-000777").exists())
+        # A retry after re-uploading the zip still finds the preview.
+        self.assertTrue(
+            default_storage.exists("models/FUR-CHR-000777/preview_FUR-CHR-000777.glb")
+        )
+
+    def test_missing_subcategory_falls_back_with_warning(self) -> None:
+        self._authenticate_as_admin()
+        response = self._post_batch([_pipeline_item(subcategory="Tables")])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = response.data["results"][0]
+        self.assertEqual(row["action"], "created")
+        self.assertEqual(row["warnings"], ["subcategory_not_found"])
+        self.assertEqual(Product.objects.get(sku="FUR-CHR-000123").category_id, self.furniture.pk)
+
+    def test_existing_subcategory_has_no_warning(self) -> None:
+        self._authenticate_as_admin()
+        response = self._post_batch([_pipeline_item(subcategory="chairs")])
+        self.assertNotIn("warnings", response.data["results"][0])
+        self.assertEqual(Product.objects.get(sku="FUR-CHR-000123").category_id, self.chairs.pk)
+
+    def test_package_formats_gate(self) -> None:
+        self._authenticate_as_admin()
+        cases = (
+            ("FUR-CHR-000201", ["blend"], "created"),
+            ("FUR-CHR-000202", [".FBX", "glb"], "created"),
+            ("FUR-CHR-000203", ["glb"], "exports_incomplete"),
+            ("FUR-CHR-000204", ["glb", "gltf"], "exports_incomplete"),
+            ("FUR-CHR-000205", [], "exports_incomplete"),
+        )
+        for sku, formats, expected in cases:
+            with self.subTest(formats=formats):
+                response = self._post_batch([_pipeline_item(sku, package_formats=formats)])
+                row = response.data["results"][0]
+                self.assertEqual(row.get("reason") or row["action"], expected)
+
+    def test_bridge_exports_still_pass_without_package_formats(self) -> None:
+        self._authenticate_as_admin()
+        item = _pipeline_item(exports=_happy_item()["exports"])
+        del item["package_formats"]
+        response = self._post_batch([item])
+        self.assertEqual(response.data["created"], 1, response.data)
+        self.assertEqual(Product.objects.get(sku="FUR-CHR-000123").package_formats, [])
+
+    def test_package_formats_are_stored_and_updated(self) -> None:
+        self._authenticate_as_admin()
+        self._post_batch([_pipeline_item(package_formats=["MAX", ".fbx", "fbx"])])
+        product = Product.objects.get(sku="FUR-CHR-000123")
+        self.assertEqual(product.package_formats, ["fbx", "max"])
+
+        self._post_batch([_pipeline_item(package_formats=["obj"])], batch_id="2026-10-26-run-02")
+        product.refresh_from_db()
+        self.assertEqual(product.package_formats, ["obj"])
+
+    def test_public_formats_list_package_contents_not_the_archive(self) -> None:
+        self._authenticate_as_admin()
+        self._post_batch([_pipeline_item(package_formats=["max", "fbx"])])
+        product = Product.objects.get(sku="FUR-CHR-000123")
+        product.status = Product.Status.PUBLISHED
+        product.save(update_fields=["status", "updated_at"])
+        self.client.credentials()
+
+        listing = self.client.get(self.public_list_url)
+        row = next(r for r in listing.data["results"] if r["slug"] == product.slug)
+        self.assertEqual(row["formats"], ["fbx", "max"])
+
+        detail = self.client.get(reverse("products:product-detail", kwargs={"slug": product.slug}))
+        self.assertEqual(detail.data["formats"], ["fbx", "max"])

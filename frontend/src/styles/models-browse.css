@@ -106,3 +106,14 @@
     border-radius: inherit;
   }
 }
+
+/* Subcategories sit under their parent in the category filter. */
+.models-browse .custom-select-option--child {
+  padding-left: 1.6rem;
+  color: var(--text-secondary);
+}
+
+.models-browse .custom-select-option--child:hover,
+.models-browse .custom-select-option--child.custom-select-option--active {
+  color: var(--action-color);
+}

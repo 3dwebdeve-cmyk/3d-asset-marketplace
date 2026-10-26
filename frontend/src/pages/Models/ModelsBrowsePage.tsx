@@ -6,10 +6,11 @@ import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
 import { SoftwareIcon } from '../../components/SoftwareIcon'
-import { SOFTWARE_FILTERS } from '../../components/softwareFilters'
+import { MODEL_FORMAT_FILTERS } from '../../components/softwareFilters'
 import { SiteHeroImage } from '../../components/SiteHeroImage'
 import { MODELS_HERO_IMAGE_SRC, PRODUCTS_BANNER_IMAGE_SRC, categoryBanner } from '../../lib/heroBanners'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { buildCategoryTree } from '../../lib/categoryTree'
 import { activateOnKey } from '../../lib/keyboard'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { ALL_MODELS_SEO, buildCategoryTitle, categoryPath, getCategorySeo } from '../../lib/categorySeo'
@@ -24,7 +25,7 @@ import '../../styles/models-browse.css'
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 
-const FORMAT_OPTIONS = SOFTWARE_FILTERS
+const FORMAT_OPTIONS = MODEL_FORMAT_FILTERS
 const LICENSE_OPTIONS = [
   { value: 'standard', label: 'Standard License' },
   { value: 'extended', label: 'Extended License' },
@@ -284,6 +285,11 @@ export function ModelsBrowsePage() {
     if (!selectedCategoryId) return null
     return categoriesData?.results.find((cat) => cat.id === selectedCategoryId) ?? null
   }, [categoriesData?.results, selectedCategoryId])
+  // Subcategories are listed under their parent; picking a parent includes them.
+  const categoryTree = useMemo(
+    () => buildCategoryTree(categoriesData?.results ?? []),
+    [categoriesData?.results],
+  )
 
   const categorySeo = selectedCategory ? getCategorySeo(selectedCategory.slug, selectedCategory.name) : null
   const emptyCategory = Boolean(selectedCategory) && productsData !== undefined && productsData.length === 0
@@ -419,23 +425,25 @@ export function ModelsBrowsePage() {
                   >
                     All categories
                   </li>
-                  {(categoriesData?.results ?? []).map((category) => (
-                    <li
-                      key={category.id}
-                      role="option"
-                      tabIndex={0}
-                      onKeyDown={activateOnKey}
-                      aria-selected={selectedCategoryId === category.id}
-                      className={`custom-select-option${selectedCategoryId === category.id ? ' custom-select-option--active' : ''}`}
-                      onClick={() => {
-                        setCategoryDropdownOpen(false)
-                        trackCategoryClick(category.id)
-                        goToCategory(category)
-                      }}
-                    >
-                      {category.name}
-                    </li>
-                  ))}
+                  {categoryTree.flatMap(({ category, children }) =>
+                    [category, ...children].map((option) => (
+                      <li
+                        key={option.id}
+                        role="option"
+                        tabIndex={0}
+                        onKeyDown={activateOnKey}
+                        aria-selected={selectedCategoryId === option.id}
+                        className={`custom-select-option${option !== category ? ' custom-select-option--child' : ''}${selectedCategoryId === option.id ? ' custom-select-option--active' : ''}`}
+                        onClick={() => {
+                          setCategoryDropdownOpen(false)
+                          trackCategoryClick(option.id)
+                          goToCategory(option)
+                        }}
+                      >
+                        {option.name}
+                      </li>
+                    )),
+                  )}
                 </ul>
               ) : null}
 
@@ -453,21 +461,26 @@ export function ModelsBrowsePage() {
                 aria-hidden="true"
               >
                 <option value="">All categories</option>
-                {(categoriesData?.results ?? []).map((category) => (
+                {categoryTree.flatMap(({ category, children }) => [
                   <option key={category.id} value={category.id}>
                     {category.name}
-                  </option>
-                ))}
+                  </option>,
+                  ...children.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {`  ${child.name}`}
+                    </option>
+                  )),
+                ])}
               </select>
             </div>
           </div>
 
           <fieldset className="model-filters__group software-filters">
             <legend>Software</legend>
-            {FORMAT_OPTIONS.map(({ value, label, icon, color }) => (
+            {FORMAT_OPTIONS.map(({ value, label, icon, color, badge }) => (
               <label className="model-filters__option software-filter__row" key={value}>
                 <input type="checkbox" checked={value.split(',').every((item) => formats.includes(item))} onChange={() => toggleFilter('formats', formats, value)} />
-                <SoftwareIcon icon={icon} color={color} />
+                <SoftwareIcon icon={icon} color={color} badge={badge} />
                 <span>{label}</span><span className="model-filters__count">{isLoading ? '\u2014' : facets.formats[value]}</span>
               </label>
             ))}

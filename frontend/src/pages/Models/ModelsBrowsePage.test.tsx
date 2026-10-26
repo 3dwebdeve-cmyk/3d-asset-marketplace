@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -536,6 +536,66 @@ describe('ModelsBrowsePage', () => {
     })
 
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument()
+  })
+
+  it('lists subcategories under their parent and filters by the chosen one', async () => {
+    const chairId = '5d1f0c8e-1d0e-4c55-9c3a-2b9f8a0c1d11'
+    const tableId = '7c2e9b1a-6f4d-4b3e-8a1c-0d9e8f7a6b22'
+    const furniture = sampleCategories.results[0]
+    const parent = { id: furniture.id, name: furniture.name, slug: furniture.slug }
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      ...sampleCategories,
+      count: sampleCategories.count + 2,
+      results: [
+        ...sampleCategories.results,
+        { ...furniture, id: chairId, name: 'Chair', slug: 'chair', parent },
+        { ...furniture, id: tableId, name: 'Table', slug: 'table', parent },
+      ],
+    })
+    const user = userEvent.setup()
+    renderModelsBrowsePage()
+    await waitFor(() => expect(screen.getByText('Oak Chair')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /category/i }))
+    const listbox = screen.getByRole('listbox', { name: /select category/i })
+    const optionNames = within(listbox).getAllByRole('option').map((option) => option.textContent)
+    const furnitureIndex = optionNames.indexOf('Furniture')
+    expect(optionNames.slice(furnitureIndex, furnitureIndex + 3)).toEqual(['Furniture', 'Chair', 'Table'])
+    expect(within(listbox).getByRole('option', { name: 'Chair' })).toHaveClass('custom-select-option--child')
+    expect(within(listbox).getByRole('option', { name: 'Furniture' })).not.toHaveClass('custom-select-option--child')
+
+    await user.click(within(listbox).getByRole('option', { name: 'Chair' }))
+    await waitFor(() => {
+      expect(productsApi.listPublicProducts).toHaveBeenLastCalledWith(
+        expect.objectContaining({ category_id: chairId }),
+      )
+    })
+    expect(screen.getByLabelText(/^category$/i, { selector: 'select' })).toHaveValue(chairId)
+  })
+
+  it('matches 3ds Max and FBX filters against the package formats', async () => {
+    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
+      ...samplePublicProducts,
+      results: [{ ...samplePublicProducts.results[0], formats: ['fbx', 'max'] }],
+    })
+    const user = userEvent.setup()
+    renderModelsBrowsePage()
+    await waitFor(() => expect(screen.getByText('Oak Chair')).toBeInTheDocument())
+
+    for (const name of [/fbx/i, /obj/i, /gltf/i]) {
+      expect(screen.getByRole('checkbox', { name })).toBeInTheDocument()
+    }
+
+    await user.click(screen.getByRole('checkbox', { name: /3ds max/i }))
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /3ds max/i }))
+
+    await user.click(screen.getByRole('checkbox', { name: /fbx/i }))
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: /fbx/i }))
+
+    await user.click(screen.getByRole('checkbox', { name: /gltf/i }))
+    expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument()
   })
 
   it('shows clear filters button when filters are active', async () => {
