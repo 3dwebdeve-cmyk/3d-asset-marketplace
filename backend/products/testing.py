@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import struct
 from io import BytesIO
+from pathlib import PurePosixPath
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -55,6 +56,27 @@ def put_pipeline_uploads(items: list[dict], *, triangles: int = 100) -> None:
     """Upload each item's preview, thumbnail and gallery images, as the batch pipeline does."""
     for item in items:
         key = str((item.get("media") or {}).get("preview_key") or "")
-        if key.endswith("/preview.glb") and ".." not in key and not default_storage.exists(key):
+        name = PurePosixPath(key).name.lower()
+        # preview-<hex>.glb is the importer's own secured copy, never a pipeline upload.
+        if (
+            name.endswith(".glb")
+            and not name.startswith("preview-")
+            and ".." not in key
+            and not default_storage.exists(key)
+        ):
             default_storage.save(key, ContentFile(make_glb_bytes(triangles)))
     put_pipeline_images(items)
+
+
+def put_pipeline_packages(items: list[dict]) -> None:
+    """Upload each item's package zip, as the batch pipeline does before an import."""
+    for item in items:
+        key = str((item.get("media") or {}).get("package_key") or "")
+        if key.lower().endswith(".zip") and ".." not in key and not default_storage.exists(key):
+            default_storage.save(key, ContentFile(b"PK\x05\x06" + b"\x00" * 18))
+
+
+def put_pipeline_objects(items: list[dict], *, triangles: int = 100) -> None:
+    """Upload every object the pipeline puts on R2 before calling the import."""
+    put_pipeline_uploads(items, triangles=triangles)
+    put_pipeline_packages(items)

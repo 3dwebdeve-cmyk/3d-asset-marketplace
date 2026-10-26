@@ -11,6 +11,7 @@ from products.views import (
     AdminProductListCreateView,
     AdminProductRejectView,
     AdminProductRequeueView,
+    CatalogIngestImportView,
     ProductDetailView,
     ProductListView,
 )
@@ -65,6 +66,11 @@ admin_urlpatterns = [
         AdminProductFileDetailView.as_view(),
         name="admin-product-file-detail",
     ),
+]
+
+# API-key routes for the catalog uploader exe, mounted at /api/v1/catalog-ingest/.
+ingest_urlpatterns = [
+    path("import/", CatalogIngestImportView.as_view(), name="import"),
 ]
 
 urlpatterns = public_urlpatterns

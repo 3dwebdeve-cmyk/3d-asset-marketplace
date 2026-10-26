@@ -23,7 +23,7 @@ from products.catalog_import import CatalogImportService
 from products.models import Product, ProductFile
 from products.services import ProductError, ProductService
 from products.test_catalog_import import _happy_item
-from products.testing import put_pipeline_images
+from products.testing import put_pipeline_images, put_pipeline_packages
 from products.testing import make_glb_bytes
 
 User = get_user_model()
@@ -157,6 +157,7 @@ class ImportPreviewTests(TestCase):
         self.addCleanup(media_override.disable)
         parent = Category.objects.create(name="Furniture", slug="furniture")
         Category.objects.create(name="Chairs", slug="chairs", parent=parent)
+        put_pipeline_packages([_happy_item()])
 
     def _import(self, item: dict | None = None):
         item = item or _happy_item()

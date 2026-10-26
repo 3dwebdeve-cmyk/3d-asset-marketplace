@@ -52,3 +52,16 @@ class MarketplaceSchema(AutoSchema):
         if getattr(self.view, "serializer_class", None):
             return super().get_response_serializers()
         return self._method_serializer(request=False)
+
+
+class CatalogApiKeyAuthenticationScheme(OpenApiAuthenticationExtension):
+    target_class = "accounts.authentication.CatalogApiKeyAuthentication"
+    name = "CatalogApiKey"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "apiKey",
+            "in": "header",
+            "name": "Authorization",
+            "description": "Api-Key <key>",
+        }

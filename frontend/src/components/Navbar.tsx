@@ -10,6 +10,7 @@ import { AuthEntryButton } from './auth/AuthEntryButton'
 import { CategoryMenu } from './CategoryMenu'
 import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { buildCategoryTree } from '../lib/categoryTree'
 import { isAdministrator } from '../lib/roles'
 import { trackCategoryClick } from '../lib/trackCategoryClick'
 import { toast } from '../lib/toast'
@@ -194,19 +195,13 @@ export function Navbar() {
   // catalog, even while the customer is browsing another section such as Plugins.
   const categories = productCategoriesQuery.data?.results ?? []
 
-  // Keep Explore/search menus compact: top-level categories only, excluding
-  // the internal demo category from customer-facing navigation.
-  const exploreCategories = categories.filter((category) => {
-    if (category.slug === 'demo-assets' || category.name.trim().toLowerCase() === 'demo assets') {
-      return false
-    }
-    if ('parent' in category) {
-      return category.parent == null
-    }
-    return true
-  })
+  // Explore/search menus list top-level categories with their subcategories
+  // underneath, excluding the internal demo category from customer-facing navigation.
+  const exploreTree = buildCategoryTree(categories, { excludeDemo: true })
   const AllCategoriesIcon = getAllCategoriesIcon()
-  const selectedSearchCategory = exploreCategories.find((cat) => cat.id === categoryId)
+  const selectedSearchCategory = exploreTree
+    .flatMap(({ category, children }) => [category, ...children])
+    .find((cat) => cat.id === categoryId)
   const searchCatLabel = selectedSearchCategory?.name ?? 'All Categories'
 
   const cartCountQuery = useQuery({
@@ -347,7 +342,7 @@ export function Navbar() {
               </button>
               {exploreOpen ? (
                 <CategoryMenu
-                  categories={exploreCategories}
+                  categories={exploreTree}
                   selectedId={categoryId}
                   label={isMarketplaceHeader ? 'Explore categories' : 'All categories'}
                   loading={productCategoriesQuery.isLoading}
@@ -386,7 +381,7 @@ export function Navbar() {
               {searchCatOpen ? (
                 <CategoryMenu
                   className="navbar__search-cat-menu"
-                  categories={exploreCategories}
+                  categories={exploreTree}
                   selectedId={categoryId}
                   label="Search categories"
                   loading={productCategoriesQuery.isLoading}
@@ -812,9 +807,9 @@ export function Navbar() {
                     <AllCategoriesIcon className="navbar__drawer-cat-icon" />
                     <span>All Categories</span>
                   </button>
-                  {exploreCategories.map((category) => {
+                  {exploreTree.flatMap(({ category, children }) => {
                     const Icon = getCategoryIcon(category.slug)
-                    return (
+                    return [
                       <button
                         type="button"
                         className="navbar__drawer-sublink navbar__drawer-sublink--button"
@@ -824,14 +819,27 @@ export function Navbar() {
                           handleSelectCategory(category.id)
                         }}
                       >
-                        {'image' in category && category.image ? (
+                        {category.image ? (
                           <img className="navbar__drawer-cat-image" src={category.image} alt="" />
                         ) : (
                           <Icon className="navbar__drawer-cat-icon" />
                         )}
                         <span>{category.name}</span>
-                      </button>
-                    )
+                      </button>,
+                      ...children.map((child) => (
+                        <button
+                          type="button"
+                          className="navbar__drawer-sublink navbar__drawer-sublink--button navbar__drawer-sublink--child"
+                          key={child.id}
+                          onClick={() => {
+                            closeMobileNav()
+                            handleSelectCategory(child.id)
+                          }}
+                        >
+                          <span>{child.name}</span>
+                        </button>
+                      )),
+                    ]
                   })}
                   {productCategoriesQuery.isLoading ? (
                     <p className="navbar__drawer-status">Loading categories…</p>

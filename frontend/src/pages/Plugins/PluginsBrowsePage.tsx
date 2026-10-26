@@ -393,7 +393,7 @@ export function PluginsBrowsePage() {
                   checked={selectedFormats.includes(format.id)}
                   onChange={() => toggleFormat(format.id)}
                 />
-                <SoftwareIcon icon={format.icon} color={format.color} />
+                <SoftwareIcon icon={format.icon} color={format.color} badge={format.badge} />
                 <span className="plugins-filters__option-name">{format.label}</span>
                 <span className="plugins-filters__option-count">{formatCounts[format.id]}</span>
               </label>
