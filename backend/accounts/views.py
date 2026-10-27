@@ -484,6 +484,10 @@ class CookieTokenRefreshView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [TokenRefreshRateThrottle]
 
+    def get_authenticate_header(self, request: Request) -> str:
+        # With no authenticators DRF would downgrade AuthenticationFailed to 403; keep 401.
+        return 'Bearer realm="api"'
+
     def post(self, request: Request) -> Response:
         from rest_framework_simplejwt.exceptions import TokenError
         from rest_framework_simplejwt.tokens import RefreshToken
