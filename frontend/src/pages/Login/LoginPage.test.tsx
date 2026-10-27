@@ -166,7 +166,7 @@ describe('LoginPage redirect', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
     })
-    expect(screen.getByLabelText(/remember this device/i)).toBeChecked()
+    expect(screen.queryByLabelText(/remember this device/i)).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
@@ -210,7 +210,7 @@ describe('LoginPage redirect', () => {
     expect(localStorage.getItem('auth-storage')).not.toMatch(/access-token|accessToken/)
   })
 
-  it('sends remember_me false when Remember me is unchecked', async () => {
+  it('always remembers the device without asking', async () => {
     const user = userEvent.setup()
     vi.mocked(authApi.loginUser).mockResolvedValue({
       access: 'access-token',
@@ -225,7 +225,6 @@ describe('LoginPage redirect', () => {
 
     await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-    await user.click(screen.getByLabelText(/remember this device/i))
     await user.click(
       within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
         name: /sign in to 3d hub/i,
@@ -236,9 +235,9 @@ describe('LoginPage redirect', () => {
       expect(screen.getByTestId('location')).toHaveTextContent('/dashboard')
     })
     expect(authApi.loginUser).toHaveBeenCalledWith(
-      expect.objectContaining({ remember_me: false }),
+      expect.objectContaining({ remember_me: true }),
     )
-    expect(useAuthStore.getState().rememberSession).toBe(false)
+    expect(useAuthStore.getState().rememberSession).toBe(true)
     expect(localStorage.getItem('auth-storage')).not.toMatch(/access-token|accessToken/)
   })
 

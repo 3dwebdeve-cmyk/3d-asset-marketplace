@@ -185,16 +185,6 @@ export function AuthLoginPanel({
           }}
         />
 
-        <label className="auth-check" htmlFor="auth-remember_me">
-          <input
-            id="auth-remember_me"
-            type="checkbox"
-            className="auth-check__input"
-            {...register('remember_me')}
-          />
-          <span className="auth-check__label">Remember this device for 30 days</span>
-        </label>
-
         <Button
           type="submit"
           className="auth-submit"
