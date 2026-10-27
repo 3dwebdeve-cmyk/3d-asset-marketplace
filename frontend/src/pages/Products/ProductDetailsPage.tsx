@@ -125,6 +125,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             images={product.images}
             previewModelUrl={product.preview_model}
             previewVideoUrl={product.preview_video}
+            showPreviewModeThumbs
             showStageChrome
             stageOverlays={
               <>

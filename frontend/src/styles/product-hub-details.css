@@ -1134,6 +1134,8 @@
 .product-hub-detail .product-detail-reviews__reply-form input {
   min-width: 0;
   padding: 0.55rem 0.2rem;
+  background: transparent;
+  color: var(--hub-text);
   border: 0;
   border-bottom: 1px solid var(--hub-border);
   outline: 0;

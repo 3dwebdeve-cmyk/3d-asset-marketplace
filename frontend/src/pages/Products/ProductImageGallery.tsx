@@ -66,6 +66,8 @@ export function ProductImageGallery({
   stageOverlays,
 }: ProductImageGalleryProps) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const swiped = useRef(false)
   const galleryId = useId()
   const hasSafePreviewModel = isSafePreviewModelUrl(previewModelUrl)
   const hasSafePreviewVideo = isSafePreviewVideoUrl(previewVideoUrl)
@@ -152,6 +154,8 @@ export function ProductImageGallery({
       if (galleryImages.length > 0) {
         setActiveIndex(galleryImages.length - 1)
         setViewMode('image')
+      } else if (hasSafePreviewVideo) {
+        setViewMode('video')
       }
     } else if (showVideoStage) {
       if (hasSafePreviewModel) {
@@ -229,6 +233,17 @@ export function ProductImageGallery({
     setViewMode('image')
   }, [])
 
+  // The fullscreen image view stays within images; stage navigation includes all media.
+  const stepLightbox = useCallback((direction: number) => {
+    if (galleryImages.length > 0) {
+      selectImage((safeIndex + direction + galleryImages.length) % galleryImages.length)
+    }
+  }, [galleryImages.length, safeIndex, selectImage])
+
+  const stagePosition = showModelStage ? 1 : showVideoStage
+    ? (hasSafePreviewModel ? 2 : 1)
+    : (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + safeIndex + 1
+
   useEffect(() => {
     if (!lightboxOpen) {
       return
@@ -242,12 +257,12 @@ export function ProductImageGallery({
       }
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
-        showPrevious()
+        stepLightbox(-1)
         return
       }
       if (event.key === 'ArrowRight') {
         event.preventDefault()
-        showNext()
+        stepLightbox(1)
       }
     }
 
@@ -259,11 +274,27 @@ export function ProductImageGallery({
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [lightboxOpen, closeLightbox, showPrevious, showNext])
+  }, [lightboxOpen, closeLightbox, stepLightbox])
 
   return (
     <div className="product-detail-gallery">
-      <div className="product-detail-stage" ref={stageRef}>
+      <div
+        className="product-detail-stage"
+        ref={stageRef}
+        role="region"
+        aria-label={`${productName} media gallery`}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (lightboxOpen || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+          // Arrow keys inside the model and video belong to their own controls.
+          if ((event.target as HTMLElement).closest('.product-detail-stage__viewer, video, input, textarea, select, [contenteditable="true"]')) return
+          if (totalCount <= 1 || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+          event.preventDefault()
+          event.stopPropagation()
+          if (event.key === 'ArrowLeft') showPrevious()
+          else showNext()
+        }}
+      >
         {showModelStage ? (
           <div className="product-detail-stage__viewer">
             <LazyModelViewer
@@ -303,7 +334,34 @@ export function ProductImageGallery({
           <button
             type="button"
             className="product-detail-stage__main"
-            onClick={openLightbox}
+            onPointerDown={(event) => {
+              if (event.pointerType === 'mouse') swiped.current = false
+            }}
+            onClick={() => {
+              if (swiped.current) { swiped.current = false; return }
+              openLightbox()
+            }}
+            onTouchStart={(event) => {
+              swiped.current = false
+              const touch = event.touches.length === 1 ? event.touches[0] : null
+              touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+            }}
+            onTouchMove={(event) => {
+              if (event.touches.length !== 1) touchStart.current = null
+            }}
+            onTouchCancel={() => { touchStart.current = null }}
+            onTouchEnd={(event) => {
+              const start = touchStart.current
+              touchStart.current = null
+              const touch = event.changedTouches[0]
+              if (!start || !touch || event.touches.length > 0 || totalCount <= 1) return
+              const dx = touch.clientX - start.x
+              const dy = touch.clientY - start.y
+              if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy) * 1.5) return
+              swiped.current = true
+              if (dx < 0) showNext()
+              else showPrevious()
+            }}
             aria-label={`View larger image of ${productName}`}
             aria-controls={`${galleryId}-lightbox`}
             aria-expanded={lightboxOpen}
@@ -317,6 +375,27 @@ export function ProductImageGallery({
           </button>
         )}
 
+        {totalCount > 1 ? (
+          <>
+            <button
+              type="button"
+              className="product-detail-stage__nav product-detail-stage__nav--prev"
+              aria-label="Previous preview"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); showPrevious() }}
+            ><span aria-hidden="true">‹</span></button>
+            <button
+              type="button"
+              className="product-detail-stage__nav product-detail-stage__nav--next"
+              aria-label="Next preview"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); showNext() }}
+            ><span aria-hidden="true">›</span></button>
+            <span className="product-detail-stage__counter" role="status" aria-live="polite" aria-atomic="true">
+              <span className="product-detail-stage__counter-label">Preview </span>{stagePosition} / {totalCount}
+            </span>
+          </>
+        ) : null}
         {showStageChrome && stageOverlays ? (
           <div className="product-detail-stage__overlays">{stageOverlays}</div>
         ) : null}
@@ -426,7 +505,7 @@ export function ProductImageGallery({
                 <button
                   type="button"
                   className="product-detail-lightbox__nav product-detail-lightbox__nav--prev"
-                  onClick={showPrevious}
+                  onClick={() => stepLightbox(-1)}
                   aria-label="Previous image"
                 >
                   Previous
@@ -434,7 +513,7 @@ export function ProductImageGallery({
                 <button
                   type="button"
                   className="product-detail-lightbox__nav product-detail-lightbox__nav--next"
-                  onClick={showNext}
+                  onClick={() => stepLightbox(1)}
                   aria-label="Next image"
                 >
                   Next
