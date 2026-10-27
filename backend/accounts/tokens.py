@@ -31,13 +31,22 @@ class VersionedRefreshToken(RefreshToken):
     """Refresh/access pair carrying ``tv`` = ``user.token_version``."""
 
     @classmethod
-    def for_user(cls, user, *, auth_time: int | None = None, mfa: bool = False):
+    def for_user(
+        cls,
+        user,
+        *,
+        auth_time: int | None = None,
+        mfa: bool = False,
+        session_id=None,
+    ):
         token = super().for_user(user)
         version = int(getattr(user, "token_version", 0) or 0)
         token["tv"] = version
         token["auth_time"] = int(auth_time if auth_time is not None else time.time())
         if mfa:
             token["mfa"] = True
+        if session_id is not None:
+            token["sid"] = str(session_id)
         return token
 
     def cap_to_admin_session(self) -> None:
@@ -58,6 +67,8 @@ def access_token_with_version(refresh: RefreshToken, *, admin: bool = False) -> 
         access["auth_time"] = int(refresh["auth_time"])
     if refresh.get("mfa"):
         access["mfa"] = True
+    if refresh.get("sid"):
+        access["sid"] = str(refresh["sid"])
     if admin and refresh.get("auth_time") is not None:
         session_end = int(refresh["auth_time"]) + admin_session_max_seconds()
         if session_end < int(access["exp"]):

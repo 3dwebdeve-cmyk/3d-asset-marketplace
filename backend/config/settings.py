@@ -429,6 +429,9 @@ LOGIN_LOCKOUT_ACCOUNT_MAX_FAILURES = config("LOGIN_LOCKOUT_ACCOUNT_MAX_FAILURES"
 LOGIN_LOCKOUT_WINDOW_SECONDS = config(
     "LOGIN_LOCKOUT_WINDOW_SECONDS", default=15 * 60, cast=int
 )
+# Customer accounts stay signed in on at most this many devices; a new sign-in ends
+# the least recently used one. Administrators are not limited.
+MAX_CUSTOMER_SESSIONS = config("MAX_CUSTOMER_SESSIONS", default=2, cast=int)
 
 # Celery runs in-process (no Redis broker / no worker container).
 # Celery supplies registered task functions and test-only eager execution.

@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 
 import { getCurrentUser, refreshAccessToken } from '../api/authApi'
-import { isHttpUnauthorized } from '../lib/apiError'
+import {
+  SESSION_REPLACED_MESSAGE,
+  isHttpUnauthorized,
+  isSessionReplaced,
+} from '../lib/apiError'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 
@@ -14,25 +19,46 @@ function isRotatedRefreshRejection(error: unknown): boolean {
   return data?.code === 'token_not_valid'
 }
 
+/** No response or a 5xx: the server could not answer, which says nothing about the session. */
+function isTransientFailure(error: unknown): boolean {
+  if (!isAxiosError(error)) {
+    return false
+  }
+  const status = error.response?.status
+  return status === undefined || status >= 500
+}
+
+type RefreshOutcome =
+  | { kind: 'restored'; access: string }
+  | { kind: 'rejected' }
+  | { kind: 'unavailable' }
+
+function failedRefresh(error: unknown): RefreshOutcome {
+  return isTransientFailure(error) ? { kind: 'unavailable' } : { kind: 'rejected' }
+}
+
 /**
  * One retry covers a refresh cookie that was just rotated by a parallel
  * request (checkout return). A missing cookie is not retried.
  */
-async function readAccessFromRefreshCookie(): Promise<string | null> {
+async function readAccessFromRefreshCookie(): Promise<RefreshOutcome> {
   try {
     const { access } = await refreshAccessToken()
-    return access
+    return { kind: 'restored', access }
   } catch (error) {
+    if (isSessionReplaced(error)) {
+      toast.error(SESSION_REPLACED_MESSAGE, { id: 'session-expired' })
+    }
     if (!isRotatedRefreshRejection(error)) {
-      return null
+      return failedRefresh(error)
     }
   }
 
   try {
     const { access } = await refreshAccessToken()
-    return access
-  } catch {
-    return null
+    return { kind: 'restored', access }
+  } catch (error) {
+    return failedRefresh(error)
   }
 }
 
@@ -64,16 +90,17 @@ export function useSessionBootstrap(): boolean {
     let cancelled = false
 
     void (async () => {
-      const access = await readAccessFromRefreshCookie()
-      if (!cancelled && access) {
-        restoreAccess(access)
+      const outcome = await readAccessFromRefreshCookie()
+      if (cancelled) {
+        return
       }
-      if (!cancelled) {
-        if (!access) {
-          setSessionHint(false)
-        }
-        setCookieProbeDone(true)
+      if (outcome.kind === 'restored') {
+        restoreAccess(outcome.access)
+      } else if (outcome.kind === 'rejected') {
+        setSessionHint(false)
       }
+      // 'unavailable' keeps the hint so the next visit tries the cookie again.
+      setCookieProbeDone(true)
     })()
 
     return () => {

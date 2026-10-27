@@ -227,6 +227,31 @@ class KnownDevice(models.Model):
         ]
 
 
+class UserSession(models.Model):
+    """One signed-in customer device; its id is the ``sid`` claim on that device's JWTs.
+
+    The id survives refresh rotation. A revoked session stops working on its next
+    request (``accounts.sessions``).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
+    # Same SHA-256 as KnownDevice, so signing in again on one browser reuses its slot.
+    device_hash = models.CharField(max_length=64, blank=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.CharField(max_length=32, blank=True)
+
+    class Meta:
+        db_table = "user_sessions"
+        indexes = [
+            models.Index(fields=["user", "revoked_at"]),
+        ]
+
+
 class CatalogApiKey(models.Model):
     """API key for the unattended catalog uploader (``accounts.api_keys``).
 

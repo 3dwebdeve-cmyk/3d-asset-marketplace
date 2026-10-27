@@ -56,7 +56,7 @@ from accounts.services import (
     PasswordResetService,
     ProfileService,
 )
-from accounts import login_guard, mfa
+from accounts import login_guard, mfa, sessions
 from accounts.security_notices import notify_admin_sign_in, notify_mfa_enabled, register_sign_in
 from accounts.tokens import admin_session_expired, admin_session_max_seconds
 from django.db import transaction
@@ -90,9 +90,18 @@ def _login_locked_response() -> Response:
     )
 
 
-def _issue_auth_response(user, *, remember: bool, mfa_passed: bool = False) -> Response:
-    """Return access + user in JSON; refresh only via httpOnly cookie."""
-    tokens = AuthenticationService.build_tokens(user, mfa=mfa_passed)
+def _issue_auth_response(
+    user, *, remember: bool, mfa_passed: bool = False, request: Request | None = None
+) -> Response:
+    """Return access + user in JSON; refresh only via httpOnly cookie.
+
+    Customer sign-ins open a device session (``accounts.sessions``); administrators do not.
+    """
+    is_admin = AuthenticationService.is_administrator(user)
+    session_id = None
+    if not is_admin:
+        session_id = sessions.start_session(user, request).pk
+    tokens = AuthenticationService.build_tokens(user, mfa=mfa_passed, session_id=session_id)
     response = Response(
         {
             "access": tokens["access"],
@@ -100,7 +109,6 @@ def _issue_auth_response(user, *, remember: bool, mfa_passed: bool = False) -> R
         },
         status=status.HTTP_200_OK,
     )
-    is_admin = AuthenticationService.is_administrator(user)
     set_refresh_cookie(
         response,
         tokens["refresh"],
@@ -194,6 +202,7 @@ class LoginView(APIView):
         response = _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
+            request=request,
         )
         register_sign_in(request, response, user)
         return response
@@ -220,6 +229,7 @@ class GoogleLoginView(APIView):
         response = _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
+            request=request,
         )
         register_sign_in(request, response, user)
         return response
@@ -414,6 +424,17 @@ class AdminCurrentUserView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+def _refresh_session_id(raw: str):
+    """``sid`` of a refresh token that was already verified (and may now be blacklisted)."""
+    from rest_framework_simplejwt.exceptions import TokenError
+    from rest_framework_simplejwt.tokens import UntypedToken
+
+    try:
+        return UntypedToken(raw, verify=False).payload.get("sid")
+    except TokenError:
+        return None
+
+
 class LogoutView(APIView):
     """Blacklist the refresh cookie and clear it. Cookie-only; no JSON refresh."""
 
@@ -427,6 +448,7 @@ class LogoutView(APIView):
             user = request.user if getattr(request.user, "is_authenticated", False) else None
             try:
                 AuthenticationService.blacklist_refresh_token(refresh, user=user)
+                sessions.end_session(_refresh_session_id(refresh))
             except AuthenticationError as exc:
                 clear_refresh_cookie(response)
                 raise AuthenticationFailed(exc.message) from exc
@@ -435,9 +457,30 @@ class LogoutView(APIView):
         return response
 
 
+def _session_ended_response(session_id) -> Response:
+    """401 for a device whose session ended; ``session_replaced`` means another device took it."""
+    replaced = sessions.revoked_reason(session_id) == sessions.REASON_REPLACED
+    response = Response(
+        {
+            "detail": (
+                "You were signed out because your account was signed in on another device."
+                if replaced
+                else "Your session has ended. Please sign in again."
+            ),
+            "code": "session_replaced" if replaced else "session_ended",
+        },
+        status=status.HTTP_401_UNAUTHORIZED,
+    )
+    clear_refresh_cookie(response)
+    return response
+
+
 class CookieTokenRefreshView(APIView):
     """Rotate refresh from httpOnly cookie; return access only."""
 
+    # The cookie is the credential. A stale Bearer header from a signed-out device must not
+    # turn the reply into a generic 401 before the view can say why the session ended.
+    authentication_classes: list = []
     permission_classes = [AllowAny]
     throttle_classes = [TokenRefreshRateThrottle]
 
@@ -479,6 +522,10 @@ class CookieTokenRefreshView(APIView):
             ):
                 raise TokenError("Administrator session expired")
 
+            session_id = None if is_admin else old_refresh.payload.get("sid")
+            if session_id and not sessions.is_active(session_id, user):
+                return _session_ended_response(session_id)
+
             # Recheck token validity after obtaining the account lock. Concurrent
             # requests must not both consume the same refresh token.
             with transaction.atomic():
@@ -487,11 +534,17 @@ class CookieTokenRefreshView(APIView):
                 if not user.is_active or refresh_tv != user.token_version:
                     raise TokenError("Token is invalid or expired")
                 old_refresh.blacklist()
+                if not is_admin and not session_id:
+                    # Signed in before device sessions existed: join the device limit now.
+                    session_id = sessions.start_session(user, request).pk
                 tokens = AuthenticationService.build_tokens(
                     user,
                     auth_time=int(auth_time) if auth_time is not None else None,
                     mfa=mfa_passed,
+                    session_id=session_id,
                 )
+            if session_id:
+                sessions.touch(session_id)
         except TokenError as exc:
             response = Response(
                 {"detail": "Token is invalid or expired", "code": "token_not_valid"},
