@@ -86,6 +86,49 @@ describe('useSessionBootstrap', () => {
     expect(JSON.parse(localStorage.getItem('auth-storage') ?? '{}').state.sessionHint).toBe(false)
   })
 
+  it('keeps the hint when the refresh fails because the network is down', async () => {
+    mockedRefreshAccessToken.mockRejectedValue(new AxiosError('Network Error', 'ERR_NETWORK'))
+
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current).toBe(true))
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    // The cookie may still be valid, so the next visit must try again.
+    expect(useAuthStore.getState().sessionHint).toBe(true)
+  })
+
+  it('keeps the hint when the refresh fails with a server error', async () => {
+    mockedRefreshAccessToken.mockRejectedValue(
+      new AxiosError('Bad Gateway', 'ERR_BAD_RESPONSE', undefined, undefined, {
+        status: 502,
+      } as AxiosResponse),
+    )
+
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current).toBe(true))
+    expect(useAuthStore.getState().sessionHint).toBe(true)
+  })
+
+  it('forgets the hint when the server rejects the refresh cookie', async () => {
+    mockedRefreshAccessToken.mockRejectedValue(
+      new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 401,
+      } as AxiosResponse),
+    )
+
+    const { result } = renderHook(() => useSessionBootstrap(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current).toBe(true))
+    expect(useAuthStore.getState().sessionHint).toBe(false)
+  })
+
   it('retries once when a parallel rotation already consumed the refresh cookie', async () => {
     mockedRefreshAccessToken
       .mockRejectedValueOnce({ response: { data: { code: 'token_not_valid' } } })

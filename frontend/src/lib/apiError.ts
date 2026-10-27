@@ -15,6 +15,18 @@ export function isHttpUnauthorized(error: unknown): boolean {
   return status === 401 || status === 403
 }
 
+export const SESSION_REPLACED_MESSAGE =
+  'You were signed out because your account was signed in on another device.'
+
+/** True when the server ended this device's session because a newer device signed in. */
+export function isSessionReplaced(error: unknown): boolean {
+  return (
+    isAxiosError(error) &&
+    error.response?.status === 401 &&
+    (error.response.data as { code?: unknown } | undefined)?.code === 'session_replaced'
+  )
+}
+
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (!isAxiosError<ApiErrorResponse>(error)) {
     return fallback

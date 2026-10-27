@@ -36,6 +36,12 @@ class VersionedJWTAuthentication(JWTAuthentication):
                 raise InvalidToken("Token is invalid or expired")
             if getattr(settings, "ADMIN_MFA_REQUIRED", True) and not validated_token.get("mfa"):
                 raise InvalidToken("Token is invalid or expired")
+        elif validated_token.get("sid"):
+            from accounts import sessions
+
+            # Ended by sign-out or by a newer device: stop now, not when the token expires.
+            if not sessions.is_active(validated_token["sid"], user):
+                raise InvalidToken("Token is invalid or expired")
         return user
 
 
