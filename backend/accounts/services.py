@@ -199,10 +199,17 @@ class AuthenticationService:
 
     @classmethod
     def build_tokens(
-        cls, user: User, *, auth_time: int | None = None, mfa: bool = False
+        cls,
+        user: User,
+        *,
+        auth_time: int | None = None,
+        mfa: bool = False,
+        session_id=None,
     ) -> dict[str, str]:
-        """Issue a session. ``auth_time`` carries the original sign-in through refreshes."""
-        refresh = VersionedRefreshToken.for_user(user, auth_time=auth_time, mfa=mfa)
+        """Issue a session. ``auth_time`` and ``session_id`` carry through refreshes."""
+        refresh = VersionedRefreshToken.for_user(
+            user, auth_time=auth_time, mfa=mfa, session_id=session_id
+        )
         is_admin = cls.is_administrator(user)
         if is_admin:
             refresh.cap_to_admin_session()
@@ -330,8 +337,11 @@ class AuthenticationService:
     @staticmethod
     def blacklist_all_refresh_tokens(user: User) -> None:
         """Invalidate every outstanding refresh token for the user (e.g. after password change)."""
+        from accounts import sessions
+
         for outstanding in OutstandingToken.objects.filter(user_id=user.pk):
             BlacklistedToken.objects.get_or_create(token=outstanding)
+        sessions.end_all_sessions(user)
 
     @staticmethod
     @transaction.atomic

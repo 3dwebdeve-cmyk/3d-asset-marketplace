@@ -31,11 +31,24 @@ def _user_agent(request: HttpRequest) -> str:
     return safe_email_text(request.META.get("HTTP_USER_AGENT", ""))[:255]
 
 
+def _device_cookie_value(request: HttpRequest) -> str:
+    """The browser's device id, minted once per request when it has none yet."""
+    raw = getattr(request, "_device_cookie_value", None)
+    if raw is None:
+        raw = str(request.COOKIES.get(DEVICE_COOKIE_NAME, "") or "")
+        if len(raw) < 32:
+            raw = secrets.token_urlsafe(32)
+        request._device_cookie_value = raw
+    return raw
+
+
+def device_hash_for_request(request: HttpRequest) -> str:
+    return _device_hash(_device_cookie_value(request))
+
+
 def register_sign_in(request: HttpRequest, response: HttpResponse, user: User) -> None:
     """Record the browser and email the owner when it is new to an account with history."""
-    raw = str(request.COOKIES.get(DEVICE_COOKIE_NAME, "") or "")
-    if len(raw) < 32:
-        raw = secrets.token_urlsafe(32)
+    raw = _device_cookie_value(request)
     device_hash = _device_hash(raw)
     user_agent = _user_agent(request)
 

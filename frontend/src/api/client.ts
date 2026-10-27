@@ -4,7 +4,11 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 
-import { isHttpUnauthorized } from '../lib/apiError'
+import {
+  SESSION_REPLACED_MESSAGE,
+  isHttpUnauthorized,
+  isSessionReplaced,
+} from '../lib/apiError'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import type { RefreshResponse } from '../types/auth'
@@ -114,9 +118,12 @@ apiClient.interceptors.response.use(
       // during refresh leaves the session in place so the user is not signed out.
       if (isHttpUnauthorized(refreshError)) {
         clearSession()
-        toast.error('Your session has expired. Please sign in again.', {
-          id: SESSION_EXPIRED_TOAST_ID,
-        })
+        toast.error(
+          isSessionReplaced(refreshError)
+            ? SESSION_REPLACED_MESSAGE
+            : 'Your session has expired. Please sign in again.',
+          { id: SESSION_EXPIRED_TOAST_ID },
+        )
       }
       return Promise.reject(refreshError)
     }
