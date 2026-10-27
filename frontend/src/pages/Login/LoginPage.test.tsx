@@ -166,7 +166,7 @@ describe('LoginPage redirect', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
     })
-    expect(screen.getByLabelText(/remember this device/i)).toBeChecked()
+    expect(screen.getByLabelText(/save the password/i)).toBeChecked()
 
     await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
@@ -225,7 +225,7 @@ describe('LoginPage redirect', () => {
 
     await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-    await user.click(screen.getByLabelText(/remember this device/i))
+    await user.click(screen.getByLabelText(/save the password/i))
     await user.click(
       within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
         name: /sign in to 3d hub/i,
