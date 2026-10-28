@@ -22,4 +22,23 @@ describe('AuthIconField', () => {
     await user.click(screen.getByRole('button', { name: /hide password/i }))
     expect(input).toHaveAttribute('type', 'password')
   })
+
+  it('renders attached error pop callout when error prop is provided', () => {
+    render(
+      <form>
+        <AuthIconField
+          id="secret"
+          label="Password"
+          revealable
+          error="The password you entered is incorrect. Please check and try again."
+        />
+      </form>,
+    )
+
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent(
+      'The password you entered is incorrect. Please check and try again.',
+    )
+    expect(alert).toHaveClass('auth-field-error-pop')
+  })
 })

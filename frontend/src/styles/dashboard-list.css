@@ -4,7 +4,7 @@
   --dash-list-ink: var(--text-main);
   --dash-list-muted: var(--text-secondary);
   --dash-list-line: var(--border);
-  --dash-list-bg: #ffffff;
+  --dash-list-bg: var(--bg-page);
   --dash-list-card: #ffffff;
   --dash-list-link: var(--action-color);
   --dash-list-font: 'Inter', 'Segoe UI', system-ui, sans-serif;
@@ -189,20 +189,6 @@
 
 .dash-list-page__link:hover {
   text-decoration: underline;
-}
-
-.dash-list-page__footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem;
-  margin-top: 0.75rem;
-  padding-top: 0.15rem;
-}
-
-.dash-list-page__footer-meta {
-  font-size: 0.75rem;
-  color: var(--dash-list-muted);
 }
 
 @media (max-width: 900px) {

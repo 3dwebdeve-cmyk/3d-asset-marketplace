@@ -40,10 +40,6 @@ debug-*.log
 .cursor/settings.json
 .cursor/debug-*.log
 
-# Local Meilisearch binary (Phase E / I1 operator smoke; not for remote)
-tools/meilisearch.exe
-tools/data.ms/
-tools/dumps/
 backend/.tools/
 
 # Local agent standards & roadmap (kept on disk, not for remote)
@@ -52,8 +48,12 @@ CODE_REVIEWER.md
 ARCHITECT_REVIEWER.md
 IMPLEMENTATION_ROADMAP.md
 
-# All Markdown docs stay local (not pushed to remote)
+# Markdown stays local by default (agent standards, MANUAL_STEPS.md, notes).
 *.md
+# Project documentation is versioned: runbooks under docs/ and the root status files.
+!docs/**/*.md
+!/README.md
+!/PROJECT_STATUS.md
 
 # Explicit env files (belt-and-suspenders; .env already covers these)
 backend/.env
@@ -61,6 +61,9 @@ frontend/.env
 .env.local
 frontend/.env.local
 backend/.env.local
+# Backup host secrets (backup token, age recipient); never loaded by Compose.
+.env.backup
 
 
-backend/.meili_docker.env
+# Local Compose overrides (copy docker-compose.override.example.yml). Never on servers.
+docker-compose.override.yml

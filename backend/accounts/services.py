@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import logging
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import authenticate
@@ -75,15 +76,25 @@ class RegistrationService:
 
         email = data.email.strip().lower()
 
-        if User.objects.filter(email=email).exists():
-            raise RegistrationError("An account with this email already exists.")
-
         versions = LegalAcceptanceService.validate_offered(
             data.accepted_legal if data.accepted_legal is not None else {},
             require_all=True,
         )
 
         role = cls._get_customer_role()
+
+        if User.objects.filter(email=email).exists():
+            # Same response shape as a new account, so the endpoint cannot be used to
+            # discover which emails are registered. The owner gets a notice instead.
+            cls._notify_existing_account(email)
+            return User(
+                id=uuid4(),
+                full_name=data.full_name,
+                email=email,
+                phone=data.phone,
+                country=data.country,
+                role=role,
+            )
 
         user = User.objects.create_user(
             email=email,
@@ -105,6 +116,22 @@ class RegistrationService:
         EmailVerificationService.send_verification(user)
 
         return user
+
+    @staticmethod
+    def _notify_existing_account(email: str) -> None:
+        try:
+            send_text_mail(
+                subject="Account registration attempt",
+                body=(
+                    "Someone tried to create a 3D Asset Marketplace account with this "
+                    "email address.\n\n"
+                    "If this was you, sign in or reset your password instead. "
+                    "If it was not you, you can ignore this message.\n"
+                ),
+                recipients=[email],
+            )
+        except Exception:
+            dev_mail_logger.exception("registration_notice_failed")
 
     @classmethod
     def _get_customer_role(cls) -> Role:
@@ -130,7 +157,10 @@ class AuthenticationService:
         user = authenticate(username=email, password=data.password)
 
         if user is None:
-            raise AuthenticationError("Invalid email or password.")
+            raise AuthenticationError(
+                "Invalid email or password.",
+                code="invalid_credentials",
+            )
 
         return user
 
@@ -147,8 +177,11 @@ class AuthenticationService:
         """Authenticate credentials and require a non-administrator (customer) account."""
         user = cls.authenticate_user(data)
         if cls.is_administrator(user):
+            # Same answer as a wrong password: the public login must not confirm an
+            # admin password from outside the admin IP allowlist.
             raise AuthenticationError(
-                "Administrators must use the admin sign-in page."
+                "Invalid email or password.",
+                code="invalid_credentials",
             )
         if not user.email_verified:
             raise AuthenticationError(
@@ -164,12 +197,25 @@ class AuthenticationService:
         role = getattr(user, "role", None)
         return role is not None and role.role_name == cls.ADMINISTRATOR_ROLE
 
-    @staticmethod
-    def build_tokens(user: User) -> dict[str, str]:
-        refresh = VersionedRefreshToken.for_user(user)
+    @classmethod
+    def build_tokens(
+        cls,
+        user: User,
+        *,
+        auth_time: int | None = None,
+        mfa: bool = False,
+        session_id=None,
+    ) -> dict[str, str]:
+        """Issue a session. ``auth_time`` and ``session_id`` carry through refreshes."""
+        refresh = VersionedRefreshToken.for_user(
+            user, auth_time=auth_time, mfa=mfa, session_id=session_id
+        )
+        is_admin = cls.is_administrator(user)
+        if is_admin:
+            refresh.cap_to_admin_session()
         return {
             "refresh": str(refresh),
-            "access": access_token_with_version(refresh),
+            "access": access_token_with_version(refresh, admin=is_admin),
         }
 
     @staticmethod
@@ -220,9 +266,9 @@ class AuthenticationService:
         full_name = str(payload.get("name") or "").strip() or email.split("@")[0]
         picture = str(payload.get("picture") or "").strip()
 
-        user = User.objects.select_related("role").filter(google_id=google_sub).first()
+        user = User.objects.select_for_update().select_related("role").filter(google_id=google_sub).first()
         if user is None:
-            user = User.objects.select_related("role").filter(email=email).first()
+            user = User.objects.select_for_update().select_related("role").filter(email=email).first()
 
         if user is not None:
             if not user.is_active:
@@ -237,6 +283,13 @@ class AuthenticationService:
                 )
 
             update_fields: list[str] = []
+            if not user.email_verified:
+                # The original registrant has never proved ownership of this inbox.
+                # Google ownership must not activate a password chosen by that person.
+                user.set_unusable_password()
+                cls.bump_token_version(user)
+                update_fields.extend(["password", "token_version"])
+                cls.blacklist_all_refresh_tokens(user)
             if not user.google_id:
                 user.google_id = google_sub
                 update_fields.append("google_id")
@@ -284,11 +337,19 @@ class AuthenticationService:
     @staticmethod
     def blacklist_all_refresh_tokens(user: User) -> None:
         """Invalidate every outstanding refresh token for the user (e.g. after password change)."""
+        from accounts import sessions
+
         for outstanding in OutstandingToken.objects.filter(user_id=user.pk):
             BlacklistedToken.objects.get_or_create(token=outstanding)
+        sessions.end_all_sessions(user)
 
     @staticmethod
+    @transaction.atomic
     def change_password(user: User, current_password: str, new_password: str) -> None:
+        # Authentication may have loaded this user before another security change.
+        user = User.objects.select_for_update().get(pk=user.pk)
+        if not user.is_active:
+            raise AuthenticationError('Account is inactive.')
         if not user.email_verified:
             raise AuthenticationError(
                 "Please verify your email address before changing your password.",
@@ -419,7 +480,7 @@ class PasswordResetService:
         token: str,
         new_password: str,
     ) -> None:
-        user = cls._get_user_from_uid(uid)
+        user = cls._get_user_from_uid(uid, for_update=True)
         if user is None or not password_reset_token_generator.check_token(user, token):
             log_password_reset(action="confirm_failure", email=None)
             raise AuthenticationError("Invalid or expired password reset link.")
@@ -428,6 +489,10 @@ class PasswordResetService:
         AuthenticationService.bump_token_version(user)
         user.save(update_fields=["password", "token_version", "updated_at"])
         AuthenticationService.blacklist_all_refresh_tokens(user)
+        from accounts.tasks import send_password_changed_task
+        from config.celery_utils import enqueue_after_commit
+
+        enqueue_after_commit(send_password_changed_task, str(user.pk))
         log_password_reset(
             action="confirm_success",
             email=user.email,
@@ -435,11 +500,14 @@ class PasswordResetService:
         )
 
     @staticmethod
-    def _get_user_from_uid(uid: str) -> User | None:
+    def _get_user_from_uid(uid: str, *, for_update: bool = False) -> User | None:
         """Resolve a urlsafe base64 user id. Invalid/truncated uids return None."""
         try:
             user_id = force_str(urlsafe_base64_decode(uid))
-            return User.objects.filter(pk=user_id, is_active=True).first()
+            queryset = User.objects.filter(pk=user_id, is_active=True)
+            if for_update:
+                queryset = queryset.select_for_update()
+            return queryset.first()
         except (TypeError, ValueError, OverflowError, ValidationError):
             return None
 
@@ -569,6 +637,7 @@ class EmailVerificationService:
 
 @dataclass(frozen=True)
 class ProfileUpdateData:
+    full_name: str | None = None
     company_name: str | None = None
     website: str | None = None
     address: str | None = None
@@ -589,6 +658,18 @@ class ProfileService:
     @transaction.atomic
     def update_profile(cls, user: User, data: ProfileUpdateData) -> UserProfile:
         profile = cls.get_or_create_profile(user)
+        user_updates = {
+            field: value
+            for field, value in (
+                ("full_name", data.full_name),
+            )
+            if value is not None and getattr(user, field) != value
+        }
+        if user_updates:
+            for field, value in user_updates.items():
+                setattr(user, field, value)
+            user.save(update_fields=[*user_updates.keys(), "updated_at"])
+
         updates = {
             field: value
             for field, value in (

@@ -1,0 +1,32 @@
+# Local development values for docker compose.
+#
+# Copy once:  cp docker-compose.override.example.yml docker-compose.override.yml
+# `docker compose up` then loads it automatically. The copy is gitignored.
+#
+# Never create docker-compose.override.yml on a staging or production host:
+# it would replace the secure defaults in docker-compose.yml.
+
+services:
+  migrate:
+    environment:
+      DEPLOYMENT_PROFILE: development
+
+  web:
+    environment:
+      DEPLOYMENT_PROFILE: development
+      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
+      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-True}
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-True}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+
+  worker:
+    environment:
+      DEPLOYMENT_PROFILE: development
+      ALLOW_LOCALHOST_FRONTEND: ${ALLOW_LOCALHOST_FRONTEND:-True}
+      DJANGO_ADMIN_ENABLED: ${DJANGO_ADMIN_ENABLED:-True}
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-False}
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-0}
+      ALLOW_CONSOLE_EMAIL: ${ALLOW_CONSOLE_EMAIL:-True}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}

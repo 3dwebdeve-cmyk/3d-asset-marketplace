@@ -1,5 +1,6 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
-import { useId, useRef } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { getProfile } from '../../api/authApi'
@@ -35,6 +36,12 @@ function DefaultAvatarSvg() {
 }
 
 export function ProfilePage() {
+  useDocumentSeo({
+    title: 'Your profile | AssetHive 3D',
+    description: 'Update your AssetHive 3D account details and password.',
+    robots: 'noindex, nofollow',
+  })
+
   const profileQuery = useQuery({
     queryKey: ['auth', 'profile'],
     queryFn: getProfile,
@@ -66,6 +73,8 @@ export function ProfilePage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const fileInputId = useId()
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false)
   const avatarError = clientError ?? avatarServerError
   const maxMb = AVATAR_MAX_BYTES / (1024 * 1024)
   const profile = profileQuery.data
@@ -96,7 +105,14 @@ export function ProfilePage() {
         <>
           <form
             className="profile-form"
-            onSubmit={handleSubmit(onSubmit)}
+            onSubmit={handleSubmit((values) => {
+              if (isDirty) {
+                onSubmit(values)
+              }
+              if (selectedFile) {
+                onUpload()
+              }
+            })}
             noValidate
             id="profileForm"
           >
@@ -175,10 +191,8 @@ export function ProfilePage() {
                     className="form-input input-username-readonly"
                     value={profile?.email ?? ''}
                     readOnly
+                    aria-readonly="true"
                   />
-                  <button type="button" className="btn-edit-username" tabIndex={-1}>
-                    Edit
-                  </button>
                 </div>
               </div>
             </div>
@@ -192,9 +206,13 @@ export function ProfilePage() {
                   type="text"
                   id="profile-display-name"
                   className="form-input"
-                  value={profile?.full_name ?? ''}
-                  readOnly
+                  autoComplete="name"
+                  aria-invalid={Boolean(errors.full_name)}
+                  {...register('full_name')}
                 />
+                {errors.full_name ? (
+                  <span className="form-error-text" role="alert">{errors.full_name.message}</span>
+                ) : null}
                 <span className="form-helper-text">
                   This is the name that people will see when they visit your public profile.
                 </span>
@@ -313,7 +331,7 @@ export function ProfilePage() {
               <button
                 type="submit"
                 className="btn-save-changes"
-                disabled={isSubmitting || !isDirty}
+                disabled={isSubmitting || isUploading || (!isDirty && !selectedFile)}
               >
                 {isSubmitting ? 'Please wait…' : 'Save changes'}
               </button>
@@ -333,7 +351,7 @@ export function ProfilePage() {
               Change Password
             </h2>
 
-            {passwordServerError ? (
+            {passwordServerError && Object.keys(passwordErrors).length === 0 ? (
               <div className="profile-alerts">
                 <Alert variant="error" message={passwordServerError} />
               </div>
@@ -354,7 +372,7 @@ export function ProfilePage() {
                   {...registerPassword('current_password')}
                 />
                 {passwordErrors.current_password ? (
-                  <span className="form-error-text" role="alert">
+                  <span className="form-error-text form-error-text--danger" role="alert">
                     {passwordErrors.current_password.message}
                   </span>
                 ) : null}
@@ -366,15 +384,30 @@ export function ProfilePage() {
                 New password
               </label>
               <div className="form-control-wrap">
-                <input
-                  id="new_password"
-                  className="form-input"
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Enter new password"
-                  aria-invalid={Boolean(passwordErrors.new_password)}
-                  {...registerPassword('new_password')}
-                />
+                <div className="profile-password-input">
+                  <input
+                    id="new_password"
+                    className="form-input"
+                    type={showNewPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Enter new password"
+                    aria-invalid={Boolean(passwordErrors.new_password)}
+                    {...registerPassword('new_password')}
+                  />
+                  <button
+                    type="button"
+                    className="profile-password-input__toggle"
+                    aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                    aria-pressed={showNewPassword}
+                    onClick={() => setShowNewPassword((visible) => !visible)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                      {showNewPassword ? <path d="M4 20 20 4" /> : null}
+                    </svg>
+                  </button>
+                </div>
                 {passwordErrors.new_password ? (
                   <span className="form-error-text" role="alert">
                     {passwordErrors.new_password.message}
@@ -388,15 +421,30 @@ export function ProfilePage() {
                 Confirm password
               </label>
               <div className="form-control-wrap">
-                <input
-                  id="new_password_confirm"
-                  className="form-input"
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Confirm new password"
-                  aria-invalid={Boolean(passwordErrors.new_password_confirm)}
-                  {...registerPassword('new_password_confirm')}
-                />
+                <div className="profile-password-input">
+                  <input
+                    id="new_password_confirm"
+                    className="form-input"
+                    type={showPasswordConfirm ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Confirm new password"
+                    aria-invalid={Boolean(passwordErrors.new_password_confirm)}
+                    {...registerPassword('new_password_confirm')}
+                  />
+                  <button
+                    type="button"
+                    className="profile-password-input__toggle"
+                    aria-label={showPasswordConfirm ? 'Hide confirm password' : 'Show confirm password'}
+                    aria-pressed={showPasswordConfirm}
+                    onClick={() => setShowPasswordConfirm((visible) => !visible)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                      {showPasswordConfirm ? <path d="M4 20 20 4" /> : null}
+                    </svg>
+                  </button>
+                </div>
                 {passwordErrors.new_password_confirm ? (
                   <span className="form-error-text" role="alert">
                     {passwordErrors.new_password_confirm.message}

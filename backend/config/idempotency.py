@@ -1,11 +1,17 @@
-"""HTTP Idempotency-Key helpers backed by Django cache (Redis in prod)."""
+"""HTTP Idempotency-Key helpers backed by PostgreSQL, not an evictable cache."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
 
-from django.core.cache import cache
+import hashlib
+from datetime import timedelta
+
+from django.utils import timezone
+
+from config.locking import advisory_lock
+from payments.models import IdempotencyRecord
 
 DEFAULT_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 
@@ -20,24 +26,22 @@ def get_or_set(
     *,
     ttl: int = DEFAULT_TTL_SECONDS,
 ) -> tuple[dict[str, Any], int]:
-    """Return a cached (body, status) or run ``producer`` and cache 2xx results.
-
-    Non-success responses are not cached so clients can retry the same key after
-    fixing validation errors. Concurrent callers may both miss; that is acceptable
-    for checkout (Stripe session + order creation already has service-level reuse).
-    """
-    cached = cache.get(cache_key)
-    if isinstance(cached, dict) and "body" in cached and "status" in cached:
-        return cached["body"], int(cached["status"])
-
-    body, status_code = producer()
-    if 200 <= status_code < 300:
-        cache.set(
-            cache_key,
-            {"body": body, "status": status_code},
-            timeout=ttl,
-        )
-    return body, status_code
+    """Serialize identical keys and commit the response with producer DB writes."""
+    digest = hashlib.sha256(cache_key.encode()).hexdigest()
+    with advisory_lock(f"idempotency:{digest}"):
+        record = IdempotencyRecord.objects.filter(
+            pk=digest, expires_at__gt=timezone.now(),
+        ).first()
+        if record is not None:
+            return record.body, record.status_code
+        body, status_code = producer()
+        if 200 <= status_code < 300:
+            IdempotencyRecord.objects.update_or_create(
+                pk=digest,
+                defaults={"body": body, "status_code": status_code,
+                          "expires_at": timezone.now() + timedelta(seconds=ttl)},
+            )
+        return body, status_code
 
 
 def idempotency_key_from_request(request: Any) -> str | None:

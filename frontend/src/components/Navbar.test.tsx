@@ -86,7 +86,8 @@ function renderNavbar(initialPath = '/') {
 }
 
 async function openAccountMenu(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /hi,/i }))
+  const firstName = testUser.full_name.trim().split(/\s+/)[0]
+  await user.click(screen.getByRole('button', { name: firstName }))
   return screen.getByRole('menu')
 }
 
@@ -119,6 +120,45 @@ beforeEach(() => {
 })
 
 describe('Navbar', () => {
+  it.each([false, true])('shows the plain category menu and supports keyboard selection (compact: %s)', async (compact) => {
+    const user = userEvent.setup()
+    const originalMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: compact && query.includes('max-width: 1200px'),
+      media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }))
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 2, next: null, previous: null,
+      results: ['Furniture', 'Electronics'].map((name) => ({
+        id: name.toLowerCase(), name, slug: name.toLowerCase(),
+        description: '', image: '', parent: null, created_at: '2026-09-08T00:00:00Z',
+      })),
+    })
+    try {
+      renderNavbar('/3d-models')
+      await user.click(screen.getByRole('button', { name: /^all categories$/i }))
+      await screen.findByRole('menuitem', { name: 'Furniture' })
+      expect(screen.queryByRole('searchbox', { name: 'Search categories' })).not.toBeInTheDocument()
+      expect(screen.queryByText('Select Your Category')).not.toBeInTheDocument()
+      screen.getByRole('menuitem', { name: 'Furniture' }).focus()
+      await user.keyboard('{ArrowDown}')
+      expect(screen.getByRole('menuitem', { name: 'Electronics' })).toHaveFocus()
+      await user.keyboard('{Enter}')
+      expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?category=electronics')
+
+      const trigger = screen.getByRole('button', { name: compact ? /^electronics$/i : /^all categories$/i })
+      await user.click(trigger)
+      screen.getByRole('menuitem', { name: 'Electronics' }).focus()
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('menuitem', { name: 'Electronics' })).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+    } finally {
+      window.matchMedia = originalMatchMedia
+    }
+  })
+
   it('uses the white marketplace header and existing categories on home', async () => {
     const user = userEvent.setup()
     const categoryId = '44bba207-8a0c-490d-abdf-5a383ed2111b'
@@ -144,7 +184,7 @@ describe('Navbar', () => {
     expect(document.querySelector('.navbar')).toHaveClass('navbar--marketplace-home')
     expect(screen.queryByRole('search')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /for business/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute(
       'href',
       '/3d-models',
@@ -153,12 +193,13 @@ describe('Navbar', () => {
       'href',
       '/custom-projects',
     )
-    expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^signup$/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^messages$/i })).toHaveAttribute('href', '/contact')
-    expect(screen.getByRole('button', { name: /^account$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^log\s*in$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^sign\s*up$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^messages$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^account$/i })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /^explore/i }))
+    await user.hover(screen.getByRole('button', { name: /^explore$/i }))
+    expect(await screen.findByRole('menu', { name: /explore categories/i })).toBeInTheDocument()
     await user.click(
       await screen.findByRole('menuitem', { name: /furniture/i }),
     )
@@ -168,22 +209,114 @@ describe('Navbar', () => {
     )
   })
 
-  it('shows Sign in and Register when logged out', () => {
+  it('hides Demo Assets from the Explore categories menu', async () => {
+    const user = userEvent.setup()
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [{
+        id: 'demo-assets-id',
+        name: 'Demo Assets',
+        slug: 'demo-assets',
+        description: '',
+        image: '',
+        parent: null,
+        created_at: '2026-09-08T00:00:00Z',
+      }],
+    })
+
+    renderNavbar('/home')
+    await user.hover(screen.getByRole('button', { name: /^explore$/i }))
+    const menu = await screen.findByRole('menu', { name: /explore categories/i })
+
+    expect(within(menu).queryByRole('menuitem', { name: /demo assets/i })).not.toBeInTheDocument()
+  })
+
+  it('shows subcategories under their parent in the Explore menu', async () => {
+    const user = userEvent.setup()
+    const furniture = {
+      id: '44bba207-8a0c-490d-abdf-5a383ed2111b',
+      name: 'Furniture',
+      slug: 'furniture',
+      description: '',
+      image: '',
+      parent: null,
+      created_at: '2026-09-08T00:00:00Z',
+    }
+    const parent = { id: furniture.id, name: furniture.name, slug: furniture.slug }
+    const chairId = '5d1f0c8e-1d0e-4c55-9c3a-2b9f8a0c1d11'
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 4,
+      next: null,
+      previous: null,
+      results: [
+        furniture,
+        { ...furniture, id: chairId, name: 'Chair', slug: 'chair', parent },
+        { ...furniture, id: 'demo-assets-id', name: 'Demo Assets', slug: 'demo-assets' },
+        { ...furniture, id: 'demo-child-id', name: 'Demo Chair', slug: 'demo-chair',
+          parent: { id: 'demo-assets-id', name: 'Demo Assets', slug: 'demo-assets' } },
+      ],
+    })
+
+    renderNavbar('/')
+    await user.hover(screen.getByRole('button', { name: /^explore$/i }))
+    const menu = await screen.findByRole('menu', { name: /explore categories/i })
+    await within(menu).findByRole('menuitem', { name: /^furniture$/i })
+
+    // Collapsed by default; the parent row has a toggle.
+    expect(within(menu).queryByRole('menuitem', { name: /^chair$/i })).not.toBeInTheDocument()
+    const toggle = within(menu).getByRole('menuitem', { name: /show subcategories/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    const group = within(menu).getByRole('group', { name: /furniture subcategories/i })
+    expect(within(menu).queryByText(/demo/i)).not.toBeInTheDocument()
+    await user.click(within(group).getByRole('menuitem', { name: /^chair$/i }))
+
+    expect(screen.getByTestId('location')).toHaveTextContent(`/3d-models?category=${chairId}`)
+  })
+
+  it('shows Login and Sign Up when logged out', () => {
     renderNavbar('/about')
 
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /register/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /login/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^about$/i })).toHaveAttribute('href', '/about')
     expect(screen.getByRole('link', { name: /^contact$/i })).toHaveAttribute('href', '/contact')
     expect(screen.getByRole('link', { name: /^custom projects$/i })).toHaveAttribute(
       'href',
       '/custom-projects',
     )
-    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/home')
-    expect(screen.getByRole('link', { name: /^3d model$/i })).toHaveAttribute('href', '/3d-models')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: /^3d models$/i })).toHaveAttribute('href', '/3d-models')
     expect(screen.getByRole('link', { name: /^plugins$/i })).toHaveAttribute('href', '/plugins')
     expect(screen.queryByRole('link', { name: /dashboard/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['/3d-models', /^3d models$/i],
+    ['/plugins', /^plugins$/i],
+    ['/custom-projects', /^custom projects$/i],
+    ['/about', /^about$/i],
+    ['/contact', /^contact$/i],
+  ])('marks the matching navbar link active on %s', (path, linkName) => {
+    renderNavbar(path as string)
+    const activeLink = screen.getByRole('link', { name: linkName as RegExp })
+
+    expect(activeLink).toHaveClass('navbar__link--active')
+    expect(activeLink).toHaveAttribute('aria-current', 'page')
+    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(1)
+  })
+
+  it('marks the Home navbar link active on the Home page', () => {
+    renderNavbar('/')
+
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveClass('navbar__link--active')
+    expect(screen.getByRole('link', { name: /^home$/i })).toHaveAttribute('aria-current', 'page')
+    expect(document.querySelectorAll('.navbar__primary-links .navbar__link--active')).toHaveLength(1)
   })
 
   it('shows user menu with Dashboard, Profile, and Sign out when logged in', async () => {
@@ -197,7 +330,8 @@ describe('Navbar', () => {
     renderNavbar()
 
     const firstName = testUser.full_name.trim().split(/\s+/)[0]
-    expect(screen.getByText(`Hi, ${firstName}`)).toBeInTheDocument()
+    expect(screen.getByText(firstName)).toBeInTheDocument()
+    expect(screen.getByTestId('customer-account-trigger')).toHaveAccessibleName(firstName)
     expect(document.querySelector('.navbar__account-avatar')).toHaveAttribute(
       'src',
       'https://cdn.example.com/avatar.jpg',
@@ -205,6 +339,8 @@ describe('Navbar', () => {
     expect(screen.getByRole('button', { name: /^cart$/i })).toBeInTheDocument()
 
     const menu = await openAccountMenu(user)
+    expect(within(menu).getByText(testUser.full_name)).toBeInTheDocument()
+    expect(within(menu).getByText(testUser.email)).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /dashboard/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /profile/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument()
@@ -212,8 +348,8 @@ describe('Navbar', () => {
     expect(within(menu).queryByRole('menuitem', { name: /my orders/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /my downloads/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /^wishlist/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /sign in/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^register$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /login/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /sign up/i })).not.toBeInTheDocument()
   })
 
   it('shows a cart count badge when the customer has items in cart', async () => {
@@ -271,12 +407,130 @@ describe('Navbar', () => {
     await user.click(within(menu).getByRole('menuitem', { name: /sign out/i }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('location')).toHaveTextContent(/^\/home$/)
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/)
     })
-    expect(screen.getByText('Marketplace home')).toBeInTheDocument()
+    expect(screen.getByText('Home page')).toBeInTheDocument()
     expect(screen.queryByText('Sign in page')).not.toBeInTheDocument()
     expect(authApi.logoutUser).toHaveBeenCalledWith()
     expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(screen.getByRole('button', { name: /^log\s*in$/i })).toBeInTheDocument()
+  })
+
+  it('renders mobile drawer with LOGIN, SIGN UP, Menu dropdown headings, and Explore dropdown', async () => {
+    const user = userEvent.setup()
+    const origMatchMedia = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('max-width: 1200px'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }))
+
+    renderNavbar('/home')
+
+    const menuButton = screen.getByRole('button', { name: /open menu/i })
+    await user.click(menuButton)
+
+    // The drawer should display LOGIN and SIGN UP at the top
     expect(screen.getByRole('button', { name: /^login$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^sign up$/i })).toBeInTheDocument()
+
+    // Menu accordion trigger button should be present
+    expect(screen.getByRole('button', { name: /^menu$/i })).toBeInTheDocument()
+
+    // Menu headings should be present
+    expect(screen.getByRole('link', { name: /^home$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^3d model$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^plugin$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^custom project$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^about$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^contact$/i })).toBeInTheDocument()
+
+    // Explore dropdown trigger button should be present
+    const exploreTrigger = screen.getByRole('button', { name: /^explore$/i })
+    expect(exploreTrigger).toBeInTheDocument()
+
+    // Open Explore dropdown
+    await user.click(exploreTrigger)
+    expect(screen.getByRole('button', { name: /^all categories$/i })).toBeInTheDocument()
+
+    window.matchMedia = origMatchMedia
+  })
+
+  it('navigates and filters immediately when selecting a category or All Categories from the search category dropdown', async () => {
+    const user = userEvent.setup()
+    const categoryId = 'arch-cat-123'
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: categoryId,
+          name: 'Architectural 3D Models',
+          slug: 'architectural-3d-models',
+          description: '',
+          image: '',
+          parent: null,
+          created_at: '2026-09-08T00:00:00Z',
+        },
+      ],
+    })
+
+    renderNavbar('/3d-models')
+
+    // Open the category dropdown in search bar
+    const categorySelectBtn = screen.getByRole('button', { name: /^all categories$/i })
+    await user.click(categorySelectBtn)
+
+    // Click the Architectural 3D Models category
+    const catItem = await screen.findByRole('menuitem', { name: /architectural 3d models/i })
+    await user.click(catItem)
+
+    expect(screen.getByTestId('location')).toHaveTextContent(`/3d-models?category=${categoryId}`)
+
+    // Open dropdown again and click "All Categories"
+    await user.click(screen.getByRole('button', { name: /^all categories$/i }))
+
+    const allCatItem = await screen.findByRole('menuitem', { name: /^all categories$/i })
+    await user.click(allCatItem)
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/3d-models')
+  })
+
+  it('uses the 3D model category menu on the Plugins page', async () => {
+    const user = userEvent.setup()
+    const categoryId = 'furniture-cat-123'
+    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [
+        {
+          id: categoryId,
+          name: 'Furniture',
+          slug: 'furniture',
+          description: '',
+          image: '',
+          parent: null,
+          created_at: '2026-09-08T00:00:00Z',
+        },
+      ],
+    })
+
+    renderNavbar('/plugins')
+
+    await user.click(screen.getByRole('button', { name: /^all categories$/i }))
+    const furnitureItem = await screen.findByRole('menuitem', { name: /furniture/i })
+    await user.click(furnitureItem)
+
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      `/3d-models?category=${categoryId}`,
+    )
+    expect(pluginsApi.listPublicPluginCategories).not.toHaveBeenCalled()
   })
 })

@@ -36,7 +36,7 @@ _LOCAL_HOST_NAMES = frozenset(
         "localhost",
         "127.0.0.1",
         "::1",
-        "0.0.0.0",
+        "0.0.0.0",  # nosec B104 - a host this check rejects, not a bind address
         "web",
         "frontend",
     }
@@ -138,8 +138,6 @@ class DeployConfigReport:
     allow_localhost_frontend: bool
     allow_console_email: bool
     db_password_weak: bool
-    meili_master_key_weak: bool
-    redis_url_set: bool
     warnings: list[str]
 
 
@@ -176,9 +174,6 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         .get("PASSWORD", "")
         or ""
     )
-    # Redis / Meilisearch removed from the stack; keep report fields for CLI compat.
-    redis_set = False
-    meili_weak = False
     example_secret = secret_key_is_example(secret)
     wildcard = allowed_hosts_has_wildcard(hosts)
     hosts_local = allowed_hosts_are_local_only(hosts)
@@ -269,7 +264,8 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         for item in (getattr(settings_obj, "ADMIN_CONSOLE_ALLOWED_IPS", None) or [])
         if str(item).strip()
     ]
-    if not debug and not console_ips:
+    ip_lock_off = bool(getattr(settings_obj, "ADMIN_CONSOLE_IP_LOCK_OFF", False))
+    if not debug and not console_ips and not ip_lock_off:
         warnings.append(
             "ADMIN_CONSOLE_ALLOWED_IPS is empty while DEBUG=False - "
             "set company office and/or VPN CIDRs so /console login and "
@@ -312,8 +308,6 @@ def collect_deploy_config_report(settings_obj=settings) -> DeployConfigReport:
         allow_localhost_frontend=allow_localhost_frontend,
         allow_console_email=allow_console_email,
         db_password_weak=weak_db,
-        meili_master_key_weak=meili_weak,
-        redis_url_set=redis_set,
         warnings=warnings,
     )
 

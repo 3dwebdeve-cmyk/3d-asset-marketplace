@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
@@ -41,7 +41,7 @@ function buildGalleryImages(
     .map((image, index) => ({
       id: image.id,
       src: image.image_url,
-      alt: `${productName} image ${index + 1}`,
+      alt: `${productName} 3D model, image ${index + 1}`,
     }))
 
   if (fromApi.length > 0) {
@@ -49,7 +49,7 @@ function buildGalleryImages(
   }
 
   if (thumbnail.trim()) {
-    return [{ id: 'thumbnail', src: thumbnail, alt: productName }]
+    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model` }]
   }
 
   return []
@@ -62,9 +62,12 @@ export function ProductImageGallery({
   previewModelUrl,
   previewVideoUrl = '',
   showStageChrome = false,
-  showPreviewModeThumbs = true,
+  showPreviewModeThumbs = false,
   stageOverlays,
 }: ProductImageGalleryProps) {
+  const stageRef = useRef<HTMLDivElement>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const swiped = useRef(false)
   const galleryId = useId()
   const hasSafePreviewModel = isSafePreviewModelUrl(previewModelUrl)
   const hasSafePreviewVideo = isSafePreviewVideoUrl(previewVideoUrl)
@@ -140,26 +143,106 @@ export function ProductImageGallery({
     setLightboxOpen(false)
   }, [])
 
+  const totalCount =
+    (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + galleryImages.length || 1
+
   const showPrevious = useCallback(() => {
-    if (galleryImages.length < 2) {
+    if (totalCount <= 1) {
       return
     }
-    setActiveIndex((current) => (current - 1 + galleryImages.length) % galleryImages.length)
-    setViewMode('image')
-  }, [galleryImages.length])
+    if (showModelStage) {
+      if (galleryImages.length > 0) {
+        setActiveIndex(galleryImages.length - 1)
+        setViewMode('image')
+      } else if (hasSafePreviewVideo) {
+        setViewMode('video')
+      }
+    } else if (showVideoStage) {
+      if (hasSafePreviewModel) {
+        setViewMode('model')
+      } else if (galleryImages.length > 0) {
+        setActiveIndex(galleryImages.length - 1)
+        setViewMode('image')
+      }
+    } else {
+      if (safeIndex > 0) {
+        setActiveIndex(safeIndex - 1)
+        setViewMode('image')
+      } else if (hasSafePreviewVideo) {
+        setViewMode('video')
+      } else if (hasSafePreviewModel) {
+        setViewMode('model')
+      } else {
+        setActiveIndex(galleryImages.length - 1)
+        setViewMode('image')
+      }
+    }
+  }, [
+    totalCount,
+    showModelStage,
+    showVideoStage,
+    safeIndex,
+    galleryImages.length,
+    hasSafePreviewModel,
+    hasSafePreviewVideo,
+  ])
 
   const showNext = useCallback(() => {
-    if (galleryImages.length < 2) {
+    if (totalCount <= 1) {
       return
     }
-    setActiveIndex((current) => (current + 1) % galleryImages.length)
-    setViewMode('image')
-  }, [galleryImages.length])
+    if (showModelStage) {
+      if (hasSafePreviewVideo) {
+        setViewMode('video')
+      } else if (galleryImages.length > 0) {
+        setActiveIndex(0)
+        setViewMode('image')
+      }
+    } else if (showVideoStage) {
+      if (galleryImages.length > 0) {
+        setActiveIndex(0)
+        setViewMode('image')
+      } else if (hasSafePreviewModel) {
+        setViewMode('model')
+      }
+    } else {
+      if (safeIndex < galleryImages.length - 1) {
+        setActiveIndex(safeIndex + 1)
+        setViewMode('image')
+      } else if (hasSafePreviewModel) {
+        setViewMode('model')
+      } else if (hasSafePreviewVideo) {
+        setViewMode('video')
+      } else {
+        setActiveIndex(0)
+        setViewMode('image')
+      }
+    }
+  }, [
+    totalCount,
+    showModelStage,
+    showVideoStage,
+    safeIndex,
+    galleryImages.length,
+    hasSafePreviewModel,
+    hasSafePreviewVideo,
+  ])
 
   const selectImage = useCallback((index: number) => {
     setActiveIndex(index)
     setViewMode('image')
   }, [])
+
+  // The fullscreen image view stays within images; stage navigation includes all media.
+  const stepLightbox = useCallback((direction: number) => {
+    if (galleryImages.length > 0) {
+      selectImage((safeIndex + direction + galleryImages.length) % galleryImages.length)
+    }
+  }, [galleryImages.length, safeIndex, selectImage])
+
+  const stagePosition = showModelStage ? 1 : showVideoStage
+    ? (hasSafePreviewModel ? 2 : 1)
+    : (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + safeIndex + 1
 
   useEffect(() => {
     if (!lightboxOpen) {
@@ -174,12 +257,12 @@ export function ProductImageGallery({
       }
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
-        showPrevious()
+        stepLightbox(-1)
         return
       }
       if (event.key === 'ArrowRight') {
         event.preventDefault()
-        showNext()
+        stepLightbox(1)
       }
     }
 
@@ -191,16 +274,27 @@ export function ProductImageGallery({
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [lightboxOpen, closeLightbox, showPrevious, showNext])
-
-  const counterLabel =
-    showImageStage && galleryImages.length > 0
-      ? `${safeIndex + 1} / ${galleryImages.length}`
-      : null
+  }, [lightboxOpen, closeLightbox, stepLightbox])
 
   return (
     <div className="product-detail-gallery">
-      <div className="product-detail-stage">
+      <div
+        className="product-detail-stage"
+        ref={stageRef}
+        role="region"
+        aria-label={`${productName} media gallery`}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (lightboxOpen || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+          // Arrow keys inside the model and video belong to their own controls.
+          if ((event.target as HTMLElement).closest('.product-detail-stage__viewer, video, input, textarea, select, [contenteditable="true"]')) return
+          if (totalCount <= 1 || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+          event.preventDefault()
+          event.stopPropagation()
+          if (event.key === 'ArrowLeft') showPrevious()
+          else showNext()
+        }}
+      >
         {showModelStage ? (
           <div className="product-detail-stage__viewer">
             <LazyModelViewer
@@ -240,7 +334,34 @@ export function ProductImageGallery({
           <button
             type="button"
             className="product-detail-stage__main"
-            onClick={openLightbox}
+            onPointerDown={(event) => {
+              if (event.pointerType === 'mouse') swiped.current = false
+            }}
+            onClick={() => {
+              if (swiped.current) { swiped.current = false; return }
+              openLightbox()
+            }}
+            onTouchStart={(event) => {
+              swiped.current = false
+              const touch = event.touches.length === 1 ? event.touches[0] : null
+              touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+            }}
+            onTouchMove={(event) => {
+              if (event.touches.length !== 1) touchStart.current = null
+            }}
+            onTouchCancel={() => { touchStart.current = null }}
+            onTouchEnd={(event) => {
+              const start = touchStart.current
+              touchStart.current = null
+              const touch = event.changedTouches[0]
+              if (!start || !touch || event.touches.length > 0 || totalCount <= 1) return
+              const dx = touch.clientX - start.x
+              const dy = touch.clientY - start.y
+              if (Math.abs(dx) < 50 || Math.abs(dx) <= Math.abs(dy) * 1.5) return
+              swiped.current = true
+              if (dx < 0) showNext()
+              else showPrevious()
+            }}
             aria-label={`View larger image of ${productName}`}
             aria-controls={`${galleryId}-lightbox`}
             aria-expanded={lightboxOpen}
@@ -254,35 +375,42 @@ export function ProductImageGallery({
           </button>
         )}
 
-        {showStageChrome && counterLabel ? (
-          <span className="product-detail-stage__counter" aria-live="polite">
-            {counterLabel}
-          </span>
-        ) : null}
-
-        {showStageChrome && stageOverlays ? (
-          <div className="product-detail-stage__overlays">{stageOverlays}</div>
-        ) : null}
-
-        {showStageChrome && showImageStage && galleryImages.length > 1 ? (
+        {totalCount > 1 ? (
           <>
             <button
               type="button"
               className="product-detail-stage__nav product-detail-stage__nav--prev"
-              onClick={showPrevious}
-              aria-label="Previous image"
-            >
-              ‹
-            </button>
+              aria-label="Previous preview"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); showPrevious() }}
+            ><span aria-hidden="true">‹</span></button>
             <button
               type="button"
               className="product-detail-stage__nav product-detail-stage__nav--next"
-              onClick={showNext}
-              aria-label="Next image"
-            >
-              ›
-            </button>
+              aria-label="Next preview"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => { event.stopPropagation(); showNext() }}
+            ><span aria-hidden="true">›</span></button>
+            <span className="product-detail-stage__counter" role="status" aria-live="polite" aria-atomic="true">
+              <span className="product-detail-stage__counter-label">Preview </span>{stagePosition} / {totalCount}
+            </span>
           </>
+        ) : null}
+        {showStageChrome && stageOverlays ? (
+          <div className="product-detail-stage__overlays">{stageOverlays}</div>
+        ) : null}
+        {showModelStage ? (
+          <button
+            type="button"
+            className="product-detail-stage__fullscreen"
+            aria-label="View 3D model in fullscreen"
+            title="Fullscreen"
+            onClick={() => void stageRef.current?.requestFullscreen()}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5" />
+            </svg>
+          </button>
         ) : null}
       </div>
 
@@ -321,6 +449,8 @@ export function ProductImageGallery({
           ) : null}
           {galleryImages.map((image, index) => {
             const failed = imgErrorIds.has(image.id)
+            if (failed) return null
+
             return (
               <li key={image.id}>
                 <button
@@ -333,18 +463,13 @@ export function ProductImageGallery({
                   onClick={() => selectImage(index)}
                   aria-label={`Show image ${index + 1} of ${galleryImages.length}`}
                   aria-current={showImageStage && index === safeIndex ? 'true' : undefined}
-                  disabled={failed}
                 >
-                  {failed ? (
-                    <span className="product-detail-gallery__thumb-fallback" aria-hidden="true" />
-                  ) : (
-                    <img
-                      src={image.src}
-                      alt=""
-                      className="product-detail-gallery__thumb-image"
-                      onError={() => markFailed(image.id)}
-                    />
-                  )}
+                  <img
+                    src={image.src}
+                    alt=""
+                    className="product-detail-gallery__thumb-image"
+                    onError={() => markFailed(image.id)}
+                  />
                 </button>
               </li>
             )
@@ -380,7 +505,7 @@ export function ProductImageGallery({
                 <button
                   type="button"
                   className="product-detail-lightbox__nav product-detail-lightbox__nav--prev"
-                  onClick={showPrevious}
+                  onClick={() => stepLightbox(-1)}
                   aria-label="Previous image"
                 >
                   Previous
@@ -388,7 +513,7 @@ export function ProductImageGallery({
                 <button
                   type="button"
                   className="product-detail-lightbox__nav product-detail-lightbox__nav--next"
-                  onClick={showNext}
+                  onClick={() => stepLightbox(1)}
                   aria-label="Next image"
                 >
                   Next

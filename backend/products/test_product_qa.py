@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from decimal import Decimal
 from io import BytesIO
 from zipfile import ZipFile
@@ -9,6 +10,7 @@ from zipfile import ZipFile
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -17,8 +19,10 @@ from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
+from products.testing import make_glb_bytes, put_pipeline_images, put_pipeline_uploads
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class ProductQAWorkflowAPITests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -80,6 +84,9 @@ class ProductQAWorkflowAPITests(APITestCase):
         default_storage.save(storage_path, ContentFile(buffer.getvalue()))
 
     def _import_happy_product(self, *, with_package_object: bool = True) -> Product:
+        put_pipeline_uploads([_happy_item()])
+        # The import checks the package exists, so upload it first, as the pipeline does.
+        self._write_package(_happy_item()["media"]["package_key"])
         response = self.client.post(
             self.import_url,
             {
@@ -92,9 +99,9 @@ class ProductQAWorkflowAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["created"], 1)
         product = Product.objects.get(sku="MDL-000142")
-        if with_package_object:
+        if not with_package_object:
             package = ProductFile.objects.get(product=product, is_preview=False)
-            self._write_package(package.storage_path)
+            default_storage.delete(package.storage_path)
         return product
 
     def _approve_url(self, product_id) -> str:
@@ -190,32 +197,39 @@ class ProductQAWorkflowAPITests(APITestCase):
 
     def test_approve_blocked_when_package_object_missing(self) -> None:
         self._authenticate_as_admin()
+        default_storage.save(
+            "models/MDL-MISS-01/preview.glb", ContentFile(make_glb_bytes(100))
+        )
+        items = [
+            _happy_item(
+                model_id="MDL-MISS-01",
+                r2_key_prefix="models/MDL-MISS-01/",
+                media={
+                    "thumbnail_key": "models/MDL-MISS-01/thumbnail.jpg",
+                    "preview_key": "models/MDL-MISS-01/preview.glb",
+                    "package_key": "models/MDL-MISS-01/package.zip",
+                    "package_file_name": "package.zip",
+                    "package_file_format": "zip",
+                    "package_file_size": 1048576,
+                    "gallery_keys": ["models/MDL-MISS-01/gallery/01.jpg"],
+                },
+            )
+        ]
+        put_pipeline_images(items)
+        self._write_package("models/MDL-MISS-01/package.zip")
         response = self.client.post(
             self.import_url,
             {
                 "import_batch_id": "2026-09-07-qa-missing-pkg",
                 "import_source": "catalog-bridge",
-                "items": [
-                    _happy_item(
-                        model_id="MDL-MISS-01",
-                        r2_key_prefix="models/MDL-MISS-01/",
-                        media={
-                            "thumbnail_key": "models/MDL-MISS-01/thumbnail.jpg",
-                            "preview_key": "models/MDL-MISS-01/preview.glb",
-                            "package_key": "models/MDL-MISS-01/package.zip",
-                            "package_file_name": "package.zip",
-                            "package_file_format": "zip",
-                            "package_file_size": 1048576,
-                            "gallery_keys": ["models/MDL-MISS-01/gallery/01.jpg"],
-                        },
-                    )
-                ],
+                "items": items,
             },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["created"], 1)
         product = Product.objects.get(sku="MDL-MISS-01")
+        # The package went missing after the import (deleted from storage).
         package = ProductFile.objects.get(product=product, is_preview=False)
         if default_storage.exists(package.storage_path):
             default_storage.delete(package.storage_path)
@@ -315,8 +329,8 @@ class ProductQAWorkflowAPITests(APITestCase):
         slugs = {row["slug"] for row in public.data["results"]}
         self.assertIn(product.slug, slugs)
 
-    def test_manual_draft_to_published_still_works(self) -> None:
-        """Admin create/publish path without import_batch_id remains ungated."""
+    def test_manual_create_cannot_bypass_publish_gates(self) -> None:
+        """Manual products must be created as drafts before package upload."""
         self._authenticate_as_admin()
         create = self.client.post(
             self.admin_list_url,
@@ -328,12 +342,8 @@ class ProductQAWorkflowAPITests(APITestCase):
             },
             format="json",
         )
-        self.assertEqual(create.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(create.data["status"], "published")
-        # Admin serializer exposes QA metadata; public serializers must not.
-        self.assertIn("reject_reason", create.data)
-        self.assertIn("reviewed_by", create.data)
-
+        self.assertEqual(create.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Product.objects.filter(name='Manual Prop').exists())
         draft = Product.objects.create(
             category=self.furniture,
             name="Manual Draft",
@@ -350,7 +360,29 @@ class ProductQAWorkflowAPITests(APITestCase):
             {"status": "published"},
             format="json",
         )
+        self.assertEqual(patch.status_code, status.HTTP_400_BAD_REQUEST)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, Product.Status.DRAFT)
+        package_path = 'products/files/manual-publish.zip'
+        self._write_package(package_path)
+        ProductFile.objects.create(product=draft, file_name='manual-publish.zip', file_format='zip',
+                                   file_size=10, storage_path=package_path)
+        # Direct publish is refused even with a package: review must approve it.
+        direct = self.client.patch(detail_url, {
+            'status': 'published', 'preview_model': 'https://example.com/manual.glb',
+        }, format='json')
+        self.assertEqual(direct.status_code, status.HTTP_400_BAD_REQUEST)
+        submit = self.client.patch(detail_url, {
+            'status': 'pending_review', 'sku': 'MANUAL-PROP-001',
+            'preview_model': 'https://example.com/manual.glb',
+        }, format='json')
+        self.assertEqual(submit.status_code, status.HTTP_200_OK)
+        approve_url = reverse('products_admin:admin-product-approve', kwargs={'product_id': draft.pk})
+        patch = self.client.post(approve_url, {}, format='json')
         self.assertEqual(patch.status_code, status.HTTP_200_OK)
+        # Admin serializer exposes QA metadata; public serializers must not.
+        self.assertIn('reject_reason', patch.data)
+        self.assertIn('reviewed_by', patch.data)
         draft.refresh_from_db()
         self.assertEqual(draft.status, Product.Status.PUBLISHED)
 

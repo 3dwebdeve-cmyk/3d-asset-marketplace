@@ -2,22 +2,24 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import F, QuerySet
 from django.http import FileResponse
+from django.utils import timezone
 
 from config.media import PrivateFileNotFound, resolve_private_download
+from config.sentry import capture_download_spike
 from downloads.models import DownloadHistory
 from orders.entitlements import user_owns_catalog_item
 from orders.models import Order, OrderItem
 from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
-from search.tasks import enqueue_sync_plugin, enqueue_sync_product
-
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -62,12 +64,31 @@ class DownloadService:
         raise DownloadError("Invalid product type.")
 
     @classmethod
+    def downloadable_product_files(
+        cls, product_ids: list[UUID]
+    ) -> dict[UUID, list[ProductFile]]:
+        """Private package files per product.
+
+        Public previews are never sold: anyone can already fetch them, so a product
+        without a package has nothing to download (``audit_published_packages``).
+        """
+        files: dict[UUID, list[ProductFile]] = {}
+        if not product_ids:
+            return files
+        for file_row in ProductFile.objects.filter(
+            product_id__in=product_ids,
+            is_preview=False,
+        ).order_by("-created_at"):
+            files.setdefault(file_row.product_id, []).append(file_row)
+        return files
+
+    @classmethod
     def list_owned_catalog_keys(cls, user: User) -> list[tuple[str, UUID]]:
         rows = OrderItem.objects.filter(
             order__user=user,
             order__order_status=Order.OrderStatus.PAID,
             order__payment_status=Order.PaymentStatus.PAID,
-        ).values_list("product_type", "product_id")
+        ).exclude(order__payment__status="disputed").values_list("product_type", "product_id")
         seen: set[tuple[str, UUID]] = set()
         keys: list[tuple[str, UUID]] = []
         for product_type, product_id in rows:
@@ -95,13 +116,7 @@ class DownloadService:
             for plugin in Plugin.objects.filter(pk__in=plugin_ids).only("id", "name", "slug")
         }
 
-        product_files: dict[UUID, list[ProductFile]] = {}
-        if product_ids:
-            for file_row in ProductFile.objects.filter(
-                product_id__in=product_ids,
-                is_preview=False,
-            ).order_by("-created_at"):
-                product_files.setdefault(file_row.product_id, []).append(file_row)
+        product_files = cls.downloadable_product_files(product_ids)
 
         plugin_files: dict[UUID, list[PluginFile]] = {}
         if plugin_ids:
@@ -174,10 +189,11 @@ class DownloadService:
 
     @classmethod
     def get_product_file(cls, product_id: UUID, file_id: UUID) -> ProductFile:
-        try:
-            return ProductFile.objects.get(pk=file_id, product_id=product_id, is_preview=False)
-        except ProductFile.DoesNotExist as exc:
-            raise DownloadError("File not found.") from exc
+        allowed = cls.downloadable_product_files([product_id]).get(product_id, [])
+        for file_row in allowed:
+            if file_row.pk == file_id:
+                return file_row
+        raise DownloadError("File not found.")
 
     @classmethod
     def get_plugin_file(cls, plugin_id: UUID, file_id: UUID) -> PluginFile:
@@ -190,9 +206,9 @@ class DownloadService:
     def stream_product_file(
         cls, user: User, product_id: UUID, file_id: UUID
     ) -> FileResponse | dict[str, Any]:
-        file_row = cls.get_product_file(product_id, file_id)
         if not user_owns_catalog_item(user, PRODUCT_TYPE_PRODUCT, product_id):
             raise DownloadError("File not found.")
+        file_row = cls.get_product_file(product_id, file_id)
         return cls._deliver_owned_file(
             user=user,
             product_type=PRODUCT_TYPE_PRODUCT,
@@ -241,10 +257,8 @@ class DownloadService:
         plugin_ids = [product_id for ptype, product_id in keys if ptype == PRODUCT_TYPE_PLUGIN]
 
         if product_ids:
-            for row in ProductFile.objects.filter(
-                product_id__in=product_ids,
-                is_preview=False,
-            ).order_by("-created_at"):
+            product_rows = cls.downloadable_product_files(product_ids)
+            for row in (row for rows in product_rows.values() for row in rows):
                 key = (PRODUCT_TYPE_PRODUCT, row.product_id)
                 if key in result:
                     result[key].append(
@@ -327,6 +341,7 @@ class DownloadService:
                 product_type=product_type,
                 product_id=product_id,
             )
+            .exclude(order__payment__status="disputed")
             .select_related("order")
             .order_by("-order__created_at")
             .first()
@@ -353,16 +368,33 @@ class DownloadService:
                 file_name=file_name,
                 order=order,
             )
+            # total_downloads counts links issued. Downloads from R2 go straight to the
+            # browser, so completed transfers are not visible here.
             if product_type == PRODUCT_TYPE_PRODUCT:
                 Product.objects.filter(pk=product_id).update(
                     total_downloads=F("total_downloads") + 1
                 )
-                enqueue_sync_product(product_id)
             else:
                 Plugin.objects.filter(pk=product_id).update(
                     total_downloads=F("total_downloads") + 1
                 )
-                enqueue_sync_plugin(product_id)
+        cls._alert_on_download_spike(user)
+
+    @classmethod
+    def _alert_on_download_spike(cls, user: User) -> None:
+        threshold = int(getattr(settings, "DOWNLOAD_ALERT_LINKS_PER_HOUR", 50) or 0)
+        if threshold <= 0:
+            return
+        links_last_hour = DownloadHistory.objects.filter(
+            user=user,
+            downloaded_at__gte=timezone.now() - timedelta(hours=1),
+        ).count()
+        # Fires once as the account crosses the threshold, not on every later link.
+        if links_last_hour == threshold:
+            logger.warning(
+                "download_spike user_id=%s links_last_hour=%s", user.pk, links_last_hour
+            )
+            capture_download_spike(user_id=str(user.pk), links_last_hour=links_last_hour)
 
     @classmethod
     def _deliver_owned_file(

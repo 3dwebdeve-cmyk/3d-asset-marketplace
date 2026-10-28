@@ -9,7 +9,7 @@ test.describe('marketplace checkout commerce', () => {
     await page.goto(`/products/${E2E_PRODUCT_SLUG}`)
     await expect(page.getByRole('heading', { name: 'E2E Checkout Chair' })).toBeVisible()
 
-    const viewer = page.getByRole('img', {
+    const viewer = page.getByRole('group', {
       name: /Interactive 3D preview of E2E Checkout Chair/i,
     })
     const viewerLoading = page.getByText(/Loading interactive preview/i)
@@ -33,7 +33,7 @@ test.describe('marketplace checkout commerce', () => {
     })
     await expect(page.getByText(/ready to download/i)).toBeVisible()
 
-    await page.getByRole('link', { name: 'My downloads' }).click()
+    await page.getByRole('link', { name: 'Go to my library' }).click()
     await expect(page).toHaveURL(/\/dashboard\/downloads/)
     await expect(page.getByRole('heading', { name: 'My Downloads' })).toBeVisible()
     await expect(page.getByText('E2E Checkout Chair')).toBeVisible()
@@ -45,13 +45,13 @@ test.describe('marketplace checkout commerce', () => {
         response.ok(),
       { timeout: 60_000 },
     )
-    const downloadPromise = page.waitForEvent('download', { timeout: 60_000 }).catch(() => null)
-    await page.getByRole('button', { name: /^Download$/ }).first().click()
+    // The file must actually download; a missing download event fails the test.
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByRole('button', { name: /^Download$/ }).first().click(),
+    ])
     await downloadResponse
-    const download = await downloadPromise
-    if (download) {
-      expect(download.suggestedFilename()).toMatch(/e2e-checkout-chair/i)
-    }
+    expect(download.suggestedFilename()).toMatch(/e2e-checkout-chair/i)
 
     await page.getByRole('tab', { name: 'Download history' }).click()
     await expect(page.getByText('e2e-checkout-chair.zip')).toBeVisible({ timeout: 15_000 })

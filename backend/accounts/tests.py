@@ -88,10 +88,18 @@ class AuthenticationAPITests(APITestCase):
             },
         }
 
+        mail.outbox.clear()
         response = self.client.post(self.register_url, payload, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("email", response.data)
+        # Same status and shape as a new registration, so the endpoint does not
+        # reveal which emails already have accounts.
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["email"], self.user.email)
+        self.assertNotEqual(response.data["id"], str(self.user.pk))
+        self.assertEqual(User.objects.filter(email=self.user.email).count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertNotIn("/verify-email/", mail.outbox[0].body)
 
     def test_register_rejects_password_mismatch(self) -> None:
         payload = {
@@ -181,10 +189,21 @@ class AuthenticationAPITests(APITestCase):
         me_response = self.client.get(self.me_url)
         self.assertEqual(me_response.status_code, status.HTTP_200_OK)
 
-        # Rotated/blacklisted refresh token must no longer work.
+        # Rotated/blacklisted refresh token must no longer work, and must not
+        # delete the replacement cookie a concurrent checkout return just stored.
         self.client.cookies[self.refresh_cookie] = old_refresh
         reused = self.client.post(self.refresh_url, {}, format="json")
         self.assertEqual(reused.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn(self.refresh_cookie, reused.cookies)
+
+    def test_refresh_clears_cookie_when_token_is_malformed(self) -> None:
+        self.client.cookies[self.refresh_cookie] = "not-a-valid-refresh-token"
+        response = self.client.post(self.refresh_url, {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        cleared = response.cookies.get(self.refresh_cookie)
+        self.assertIsNotNone(cleared)
+        self.assertEqual(cleared.value, "")
 
     def test_refresh_rejects_body_refresh_without_cookie(self) -> None:
         from accounts.services import AuthenticationService
@@ -317,6 +336,7 @@ class ProfileAPITests(APITestCase):
     def test_patch_profile_updates_fields(self) -> None:
         self._authenticate()
         payload = {
+            "full_name": "Updated Profile User",
             "company_name": "Acme Studios",
             "website": "https://acme.example.com",
             "address": "12 Market Street",
@@ -327,6 +347,7 @@ class ProfileAPITests(APITestCase):
         response = self.client.patch(self.profile_url, payload, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["full_name"], "Updated Profile User")
         self.assertEqual(response.data["company_name"], "Acme Studios")
         self.assertEqual(response.data["website"], "https://acme.example.com")
         self.assertEqual(response.data["address"], "12 Market Street")

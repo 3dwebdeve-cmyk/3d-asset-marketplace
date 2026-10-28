@@ -5,7 +5,6 @@ Cart pricing policy (v1):
 - Prices are NOT snapshotted in the cart; checkout snapshots purchase_price
   on OrderItem via OrderService.create() / OrderService.create_from_cart().
 - Unavailable catalog lines remain in the cart but are excluded from subtotal.
-- Promo coupons are retired; Cart.coupon FK remains for soft-remove / legacy rows.
 """
 from __future__ import annotations
 
@@ -61,6 +60,12 @@ class CartService:
         return Cart.objects.get(pk=cart.pk)
 
     @classmethod
+    def lock_cart(cls, user: User) -> Cart:
+        """Lock the shared cart row before reading or changing its lines."""
+        cart = cls.get_or_create_cart(user)
+        return Cart.objects.select_for_update().get(pk=cart.pk)
+
+    @classmethod
     def get_cart_envelope(cls, user: User) -> CartEnvelope:
         cart = cls.get_or_create_cart(user)
         items = list(cart.items.order_by("created_at"))
@@ -93,7 +98,15 @@ class CartService:
             )
 
         _, currency = cls._validate_catalog_item(normalized_type, product_id)
-        cart = cls.get_or_create_cart(user)
+        from orders.entitlements import user_owns_catalog_item
+
+        # Digital items are bought once; the download stays available.
+        if user_owns_catalog_item(user, normalized_type, product_id):
+            raise CartError(
+                "You already own this item. Download it from Dashboard → Downloads.",
+                field="product_id",
+            )
+        cart = cls.lock_cart(user)
         cls._ensure_currency_consistency(cart, currency)
 
         item, created = CartItem.objects.get_or_create(
@@ -123,6 +136,7 @@ class CartService:
                 field="quantity",
             )
 
+        cls.lock_cart(user)
         try:
             item = CartItem.objects.select_related("cart").get(
                 pk=item_id,
@@ -140,6 +154,7 @@ class CartService:
     @classmethod
     @transaction.atomic
     def remove_item(cls, user: User, item_id: UUID) -> None:
+        cls.lock_cart(user)
         try:
             item = CartItem.objects.get(pk=item_id, cart__user=user)
         except CartItem.DoesNotExist as exc:
@@ -149,31 +164,28 @@ class CartService:
     @classmethod
     @transaction.atomic
     def clear_cart(cls, user: User) -> None:
-        cart = cls.get_or_create_cart(user)
+        cart = cls.lock_cart(user)
         cart.items.all().delete()
-        if cart.coupon_id is not None:
-            cart.coupon = None
-            cart.save(update_fields=["coupon", "updated_at"])
 
     @classmethod
     @transaction.atomic
-    def remove_items(cls, user: User, keys: Iterable[tuple[str, UUID]]) -> None:
+    def remove_items(cls, user: User, keys: Iterable[tuple[str, UUID]], *, before=None) -> None:
         """Remove only the given (product_type, product_id) lines from the cart.
 
         Used after a successful checkout to drop just the purchased lines,
         leaving anything the customer added after starting checkout intact.
         """
-        cart = cls.get_or_create_cart(user)
+        cart = cls.lock_cart(user)
         key_set = set(keys)
         if not key_set:
             return
         query = Q()
         for product_type, product_id in key_set:
             query |= Q(product_type=product_type, product_id=product_id)
-        cart.items.filter(query).delete()
-        if not cart.items.exists() and cart.coupon_id is not None:
-            cart.coupon = None
-            cart.save(update_fields=["coupon", "updated_at"])
+        rows = cart.items.filter(query)
+        if before is not None:
+            rows = rows.filter(updated_at__lte=before)
+        rows.delete()
 
     @classmethod
     def _ensure_currency_consistency(cls, cart: Cart, currency: str) -> None:
@@ -301,7 +313,9 @@ class CartService:
                 "name": product.category.name,
                 "slug": product.category.slug,
             },
-            "is_available": product.status == Product.Status.PUBLISHED,
+            "is_available": (
+                product.status == Product.Status.PUBLISHED and product.category.is_active
+            ),
         }
 
     @classmethod

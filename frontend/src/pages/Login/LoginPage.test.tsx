@@ -2,10 +2,11 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as authApi from '../../api/authApi'
 import { AuthModal } from '../../components/auth/AuthModal'
+import { loadAuthPanels } from '../../components/auth/loadAuthPanels'
 import { Toaster } from '../../components/ui/Toaster'
 import { useAuthStore } from '../../store/authStore'
 import { useAuthUiStore } from '../../store/authUiStore'
@@ -58,6 +59,11 @@ function renderLogin(initialEntry: string | { pathname: string; state?: unknown 
     </QueryClientProvider>,
   )
 }
+
+// The forms are normally downloaded before the dialog opens (see loadAuthPanels.ts).
+beforeAll(async () => {
+  await loadAuthPanels()
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -160,7 +166,7 @@ describe('LoginPage redirect', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /welcome back/i })).toBeInTheDocument()
     })
-    expect(screen.getByLabelText(/remember this device/i)).toBeChecked()
+    expect(screen.getByLabelText(/save the password/i)).toBeChecked()
 
     await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
@@ -219,7 +225,7 @@ describe('LoginPage redirect', () => {
 
     await user.type(screen.getByLabelText(/email id/i), testUser.email)
     await user.type(screen.getByLabelText(/^password$/i), 'StrongPass123!')
-    await user.click(screen.getByLabelText(/remember this device/i))
+    await user.click(screen.getByLabelText(/save the password/i))
     await user.click(
       within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
         name: /sign in to 3d hub/i,
@@ -252,5 +258,43 @@ describe('LoginPage redirect', () => {
       expect(screen.getByText('Forgot password page')).toBeInTheDocument()
     })
     expect(useAuthUiStore.getState().isOpen).toBe(false)
+  })
+
+  it('shows attached error pop below password when user enters wrong password', async () => {
+    const user = userEvent.setup()
+    vi.mocked(authApi.loginUser).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 401,
+        data: { detail: 'No active account found with the given credentials' },
+      },
+    })
+
+    renderLogin('/login')
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/email id/i), 'wrong@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'WrongPassword123!')
+    await user.click(
+      within(screen.getByRole('form', { name: /welcome back/i })).getByRole('button', {
+        name: /sign in to 3d hub/i,
+      }),
+    )
+
+    const errorPop = await screen.findByRole('alert')
+    expect(errorPop).toHaveTextContent(
+      'The password you entered is incorrect. Please check and try again.',
+    )
+    expect(errorPop).toHaveClass('auth-field-error-pop')
+    expect(screen.getByLabelText(/^password$/i)).toHaveAttribute('aria-invalid', 'true')
+
+    // Typing in the password field clears the error pop
+    await user.type(screen.getByLabelText(/^password$/i), 'a')
+    expect(
+      screen.queryByText('The password you entered is incorrect. Please check and try again.'),
+    ).not.toBeInTheDocument()
   })
 })

@@ -12,7 +12,7 @@ class Command(BaseCommand):
         "Validate frozen batch-ingest fixture CSV headers against "
         "docs/batch-ingest-contract.md, dry-run ready-to-import gates "
         "(happy / mismatch / gate-failures), and optionally apply happy-path "
-        "import → QA approve → reindex. See docs/CATALOG_OPS_STAGING_CHECKLIST.md §I3."
+        "import → QA approve. See docs/CATALOG_OPS_STAGING_CHECKLIST.md §I3."
     )
 
     def add_arguments(self, parser) -> None:
@@ -21,8 +21,7 @@ class Command(BaseCommand):
             action="store_true",
             help=(
                 "Import happy fixture as pending_review, write a local package "
-                "object, QA approve → published, then reindex_search when Meili "
-                "is configured."
+                "object, QA approve → published."
             ),
         )
         parser.add_argument(

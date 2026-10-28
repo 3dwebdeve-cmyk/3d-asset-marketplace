@@ -1,3 +1,4 @@
+import { ABOUT_SEO } from '../../lib/seoPages'
 import { Link } from 'react-router-dom'
 
 import { ABOUT_HERO_IMAGE_SRC, SiteHeroImage } from '../../components/SiteHeroImage'
@@ -5,10 +6,12 @@ import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import '../../styles/about.css'
 import '../../styles/marketing.css'
 
+// Only things the shop really does. Do not put counts here (assets, creators, countries) unless
+// they are real and can be shown.
 const HERO_STATS = [
-  { value: '50K+', label: '3D Assets' },
-  { value: '10K+', label: 'Global Creators' },
-  { value: '180+', label: 'Countries' },
+  { value: '3D', label: 'Preview in your browser' },
+  { value: '1', label: 'License certificate per order' },
+  { value: 'Instant', label: 'Download once your order is paid' },
 ] as const
 
 const WHO_CARDS = [
@@ -18,8 +21,8 @@ const WHO_CARDS = [
     icon: 'cube' as const,
   },
   {
-    title: 'Global Creators',
-    text: 'A worldwide community shipping work for games, film, product, and AR.',
+    title: 'Creators and Studios',
+    text: 'For interior visualization, games, film, product, and AR work.',
     icon: 'people' as const,
   },
   {
@@ -31,7 +34,7 @@ const WHO_CARDS = [
 
 const MISSION_POINTS = [
   { title: 'Quality First', text: 'Carefully reviewed assets', icon: 'diamond' as const },
-  { title: 'Creator Focused', text: 'Built for a global community', icon: 'people' as const },
+  { title: 'Creator Focused', text: 'Built for people who make things in 3D', icon: 'people' as const },
   { title: 'Transparent', text: 'Clear process and communication', icon: 'shield' as const },
   { title: 'Always Improving', text: 'More models, more possibilities', icon: 'globe' as const },
 ]
@@ -41,7 +44,7 @@ const OFFER_CARDS = [
     title: '3D model marketplace',
     text: 'Browse and purchase high-quality models with clear specs, previews, and secure downloads.',
     to: '/3d-models',
-    image: '/images/about/offer-3d-models.jpg?v=1',
+    image: '/images/about/offer-3d-models.webp',
     imagePosition: 'center',
     badge: 'cube' as const,
     badgeTone: 'blue' as const,
@@ -50,7 +53,7 @@ const OFFER_CARDS = [
     title: 'Plugin store',
     text: 'Discover plugins and tools that fit your pipeline, with compatible software called out clearly.',
     to: '/plugins',
-    image: '/images/about/offer-plugins.jpg?v=1',
+    image: '/images/about/offer-plugins.webp',
     imagePosition: 'center',
     badge: 'puzzle' as const,
     badgeTone: 'green' as const,
@@ -59,7 +62,7 @@ const OFFER_CARDS = [
     title: 'Custom projects',
     text: 'Share a brief by email, receive a quotation, and collaborate with our studio through delivery.',
     to: '/contact?enquiryType=Custom%203D%20Modeling',
-    image: '/images/about/offer-custom-projects.jpg?v=1',
+    image: '/images/about/offer-custom-projects.webp',
     imagePosition: 'center',
     badge: 'doc' as const,
     badgeTone: 'orange' as const,
@@ -188,18 +191,18 @@ function Icon({ name }: { name: string }) {
 
 export function AboutPage() {
   useDocumentSeo({
-    title: 'About the Studio | 3D Asset Marketplace',
-    description:
-      'Learn about our studio, marketplace of premium 3D assets and plugins, and custom design services.',
+    title: ABOUT_SEO.title,
+    description: ABOUT_SEO.description,
+    canonicalPath: '/about',
   })
 
   return (
     <main className="about-page">
       <section className="about-hero site-hero-banner" aria-labelledby="about-title">
-        <SiteHeroImage src={ABOUT_HERO_IMAGE_SRC} width={4216} height={992} />
+        <SiteHeroImage src={ABOUT_HERO_IMAGE_SRC} width={2804} height={561} />
         <div className="about-hero__content">
           <div className="about-hero__copy">
-            <h1 id="about-title">Premium 3D assets and custom design, under one roof</h1>
+            <h1 id="about-title">3D models, plugins and custom 3D design in one place</h1>
             <p className="about-hero__lead">
               We build and curate marketplace-ready 3D models and plugins, and we partner with
               creators who need bespoke design work — from brief to delivery by email enquiry.

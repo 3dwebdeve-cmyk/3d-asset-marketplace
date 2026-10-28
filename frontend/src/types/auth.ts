@@ -33,6 +33,35 @@ export interface LoginResponse {
   user: AuthUser
 }
 
+/** Password accepted; the administrator must now pass the second factor. */
+export interface AdminMfaChallenge {
+  mfa_required: true
+  setup_required: boolean
+  mfa_token: string
+}
+
+export type AdminLoginResponse = LoginResponse | AdminMfaChallenge
+
+export function isAdminMfaChallenge(data: AdminLoginResponse): data is AdminMfaChallenge {
+  return 'mfa_required' in data && data.mfa_required === true
+}
+
+export interface AdminMfaSetupResponse {
+  secret: string
+  otpauth_uri: string
+}
+
+export interface AdminMfaConfirmResponse extends LoginResponse {
+  recovery_codes: string[]
+}
+
+export interface AdminMfaVerifyPayload {
+  mfa_token: string
+  code?: string
+  recovery_code?: string
+  remember_me: boolean
+}
+
 export interface RefreshResponse {
   access: string
 }
@@ -60,6 +89,7 @@ export interface UserProfile {
 }
 
 export interface ProfileUpdatePayload {
+  full_name?: string
   company_name?: string
   website?: string
   address?: string

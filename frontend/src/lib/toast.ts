@@ -20,11 +20,10 @@ function show(variant: ToastVariant, message: string, options?: ToastOptions): s
  * Imperative toast API usable anywhere, including outside React components
  * (e.g. axios interceptors, zustand actions).
  *
- * Success toasts are intentionally no-ops — prefer silent success UX;
- * errors and info toasts still surface.
+ * Success toasts confirm completed actions (saves, cart changes, sign-out).
  */
 export const toast = {
-  success: (_message: string, _options?: ToastOptions) => '',
+  success: (message: string, options?: ToastOptions) => show('success', message, options),
   error: (message: string, options?: ToastOptions) => show('error', message, options),
   info: (message: string, options?: ToastOptions) => show('info', message, options),
   dismiss: (id: string) => useToastStore.getState().dismissToast(id),

@@ -22,7 +22,7 @@ ALREADY BUILT IN THIS PROJECT (do not rebuild):
   - Resend API:  POST /api/v1/auth/email-verification/resend/
   - Frontend pages: /verify-email/:uid/:token and /verify-email/resend
   - Customer login is blocked (403 email_not_verified) until verified
-  - Checkout / custom-project money paths also require verified email
+  - Checkout requires a verified email
 
 YOU ONLY NEED TO CONFIGURE:
   - A real SMTP email provider
@@ -120,7 +120,8 @@ STEP 5.1 — Create a Brevo account
   1. Go to https://www.brevo.com and sign up
   2. Verify your Brevo account email
   3. In Brevo: add and verify your sending domain (or at least a sender email)
-     Domain verification (SPF / DKIM DNS records) greatly improves Gmail delivery
+     Domain authentication (SPF / DKIM / DMARC records) is required for Gmail
+     and Yahoo delivery: step by step in docs/EMAIL_DOMAIN_SETUP.md
 
 STEP 5.2 — Create SMTP credentials
   1. Brevo dashboard → SMTP & API (or Settings → SMTP)
@@ -278,7 +279,7 @@ Or mark verified without email:
   EMAIL_USE_TLS                   | Usually True on port 587
   FRONTEND_BASE_URL               | Origin used in verify / reset links
   CONTACT_ADMIN_RECIPIENTS        | Staff inbox(es) for contact form
-  PROJECT_MESSAGE_ADMIN_RECIPIENTS| Staff inbox(es) for custom-project alerts
+  PROJECT_MESSAGE_ADMIN_RECIPIENTS| Legacy-named fallback inbox used by contact/ops checks
 
 
 --------------------------------------------------------------------------------

@@ -4,7 +4,6 @@ import { Link, useParams } from 'react-router-dom'
 
 import { getPublicPlugin, listPublicPlugins } from '../../api/pluginsApi'
 import { RatingDisplay } from '../../components/reviews/RatingDisplay'
-import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -13,6 +12,7 @@ import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
 import { discountPercent } from '../../lib/pricing'
+import { buildBreadcrumbJsonLd, buildPluginPageTitle, buildPluginMetaDescription, buildPluginJsonLd } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import type { PluginLicenseType, PublicPluginDetail } from '../../types/plugin'
 import { ProductImageGallery } from '../Products/ProductImageGallery'
@@ -22,7 +22,6 @@ import { PluginSpecs } from './PluginSpecs'
 import '../../styles/product-details.css'
 import '../../styles/product-hub-details.css'
 import '../../styles/plugins-browse.css'
-import '../../styles/products-browse.css'
 import '../../styles/products-browse.css'
 
 const RELATED_PAGE_SIZE = 5
@@ -36,18 +35,6 @@ function licenseLabel(license: PluginLicenseType): string {
     default:
       return 'Standard'
   }
-}
-
-function buildPluginPageTitle(pluginName: string): string {
-  return `${pluginName} | 3D Asset Marketplace`
-}
-
-function buildPluginMetaDescription(pluginName: string, shortDescription: string): string {
-  const trimmed = shortDescription.trim()
-  if (trimmed) {
-    return trimmed.slice(0, 160)
-  }
-  return `View details for ${pluginName} on 3D Asset Marketplace.`
 }
 
 function useScrollPluginPageToTop(resetKey: string): void {
@@ -112,7 +99,7 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
             />
           </div>
         </div>
-        <Link to="/plugins" className="product-hub-detail__close">
+        <Link to="/plugins" className="product-hub-detail__close" aria-label="Close">
           ✕ Close
         </Link>
       </header>
@@ -136,10 +123,15 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
             }
           />
 
-          <p className="product-detail-media-note">
-            Full package download unlocks after purchase entitlement ships. Preview package URLs are
-            never exposed on this page.
-          </p>
+          <section className="product-hub-detail__description" aria-labelledby="plugin-description-heading">
+            <h2 id="plugin-description-heading" className="product-detail-section-title">
+              Description
+            </h2>
+            <div className="product-hub-detail__description-copy">
+              {plugin.description || plugin.short_description || 'No description is available for this plugin.'}
+            </div>
+          </section>
+
         </div>
 
         <aside className="product-hub-detail__aside" aria-label="Plugin purchase details">
@@ -187,10 +179,6 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
               />
             </div>
 
-            {plugin.short_description.trim() ? (
-              <p className="product-detail-purchase__summary">{plugin.short_description}</p>
-            ) : null}
-
             {plugin.documentation_url.trim() ? (
               <a
                 href={plugin.documentation_url}
@@ -202,71 +190,64 @@ function PluginDetailContent({ plugin }: { plugin: PublicPluginDetail }) {
               </a>
             ) : null}
           </div>
+
+          <div className="product-hub-detail__lower-grid">
+            <section className="product-detail-related" aria-labelledby="plugin-related-heading">
+              <div className="product-detail-related__header">
+                <h2 id="plugin-related-heading" className="product-detail-section-title">
+                  Similar plugins
+                </h2>
+                <Link to={browseCategoryHref} className="product-detail-related__browse">
+                  Browse {plugin.category.name}
+                </Link>
+              </div>
+
+              {relatedQuery.isLoading ? (
+                <div
+                  className="products-grid products-grid--skeleton"
+                  aria-label="Loading similar plugins"
+                >
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="product-card-skeleton">
+                      <div className="product-card-skeleton__media" />
+                      <div className="product-card-skeleton__body">
+                        <div className="product-card-skeleton__line product-card-skeleton__line--short" />
+                        <div className="product-card-skeleton__line" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : relatedQuery.isError ? (
+                <ErrorState
+                  title="Could not load similar plugins"
+                  description="Try refreshing this section."
+                  action={
+                    <Button variant="secondary" onClick={() => relatedQuery.refetch()}>
+                      Try again
+                    </Button>
+                  }
+                />
+              ) : relatedPlugins.length === 0 ? (
+                <EmptyState
+                  title="No similar plugins yet"
+                  description={`There are no other published plugins in ${plugin.category.name} right now.`}
+                  action={
+                    <Link to="/plugins" className="ui-button ui-button--secondary">
+                      Browse all plugins
+                    </Link>
+                  }
+                />
+              ) : (
+                <div className="products-grid">
+                  {relatedPlugins.map((item) => (
+                    <PluginCard key={item.id} plugin={item} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </aside>
       </div>
-
-      <ReviewsSection
-        productType="plugin"
-        productId={plugin.id}
-        catalogSlug={plugin.slug}
-        averageRating={plugin.average_rating}
-        reviewCount={plugin.review_count}
-        layout="hub"
-      />
-
-      <section className="product-detail-related" aria-labelledby="plugin-related-heading">
-        <div className="product-detail-related__header">
-          <h2 id="plugin-related-heading" className="product-detail-section-title">
-            Similar plugins
-          </h2>
-          <Link to={browseCategoryHref} className="product-detail-related__browse">
-            Browse {plugin.category.name}
-          </Link>
-        </div>
-
-        {relatedQuery.isLoading ? (
-          <div
-            className="products-grid products-grid--skeleton"
-            aria-label="Loading similar plugins"
-          >
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="product-card-skeleton">
-                <div className="product-card-skeleton__media" />
-                <div className="product-card-skeleton__body">
-                  <div className="product-card-skeleton__line product-card-skeleton__line--short" />
-                  <div className="product-card-skeleton__line" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : relatedQuery.isError ? (
-          <ErrorState
-            title="Could not load similar plugins"
-            description="Try refreshing this section."
-            action={
-              <Button variant="secondary" onClick={() => relatedQuery.refetch()}>
-                Try again
-              </Button>
-            }
-          />
-        ) : relatedPlugins.length === 0 ? (
-          <EmptyState
-            title="No similar plugins yet"
-            description={`There are no other published plugins in ${plugin.category.name} right now.`}
-            action={
-              <Link to="/plugins" className="ui-button ui-button--secondary">
-                Browse all plugins
-              </Link>
-            }
-          />
-        ) : (
-          <div className="products-grid">
-            {relatedPlugins.map((item) => (
-              <PluginCard key={item.id} plugin={item} />
-            ))}
-          </div>
-        )}
-      </section>
     </>
   )
 }
@@ -287,18 +268,30 @@ export function PluginDetailsPage() {
 
   useDocumentSeo({
     title: isNotFound
-      ? 'Plugin not found | 3D Asset Marketplace'
+      ? 'Plugin not found | AssetHive3D'
       : pluginQuery.data
         ? buildPluginPageTitle(pluginQuery.data.name)
-        : 'Plugin details | 3D Asset Marketplace',
+        : 'Plugin details | AssetHive3D',
     description: isNotFound
       ? 'The requested plugin could not be found.'
       : pluginQuery.data
         ? buildPluginMetaDescription(
-            pluginQuery.data.name,
-            pluginQuery.data.short_description,
-          )
+          pluginQuery.data.name,
+          pluginQuery.data.short_description,
+        )
         : 'Loading plugin details from the marketplace catalog.',
+    canonicalPath: pluginQuery.data ? `/plugins/${pluginQuery.data.slug}` : undefined,
+    type: 'product',
+    imageAlt: pluginQuery.data?.name,
+    robots: isNotFound ? 'noindex' : undefined,
+    image: pluginQuery.data?.thumbnail || undefined,
+    jsonLd: pluginQuery.data
+      ? [buildPluginJsonLd(pluginQuery.data), buildBreadcrumbJsonLd([
+        { name: 'Home', path: '/' },
+        { name: 'Plugins', path: '/plugins' },
+        { name: pluginQuery.data.name, path: `/plugins/${pluginQuery.data.slug}` },
+      ])]
+      : undefined,
   })
 
   if (isNotFound) {

@@ -68,11 +68,11 @@ def build_public_media_url(object_key: str) -> str:
 
 def signed_url_expiry_seconds() -> int:
     """Clamp R2_SIGNED_URL_EXPIRY to 60–3600 seconds."""
-    raw = getattr(settings, "R2_SIGNED_URL_EXPIRY", 300)
+    raw = getattr(settings, "R2_SIGNED_URL_EXPIRY", 60)
     try:
         value = int(raw)
     except (TypeError, ValueError):
-        value = 300
+        value = 60
     return max(60, min(value, 3600))
 
 
@@ -171,10 +171,9 @@ def verify_r2_buckets() -> dict[str, str]:
     return results
 
 
-def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
-    """Short-lived GET URL for a private R2 object. Never call when R2 is off."""
+def _generate_presigned_attachment_url(bucket: str, object_key: str, *, file_name: str) -> str:
     if not getattr(settings, "R2_ENABLED", False):
-        raise RuntimeError("Private presigned URLs require R2.")
+        raise RuntimeError("Presigned URLs require R2.")
 
     key = object_key.lstrip("/")
     if not key or ".." in key:
@@ -186,7 +185,7 @@ def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
         return client.generate_presigned_url(
             "get_object",
             Params={
-                "Bucket": str(settings.R2_PRIVATE_BUCKET),
+                "Bucket": bucket,
                 "Key": key,
                 "ResponseContentDisposition": (
                     f'attachment; filename="{content_disposition_filename(file_name)}"'
@@ -196,3 +195,11 @@ def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
         )
 
     return call_with_storage_retries(_presign)
+
+
+def generate_private_presigned_url(object_key: str, *, file_name: str) -> str:
+    """Short-lived GET URL for a private R2 object. Never call when R2 is off."""
+    return _generate_presigned_attachment_url(
+        str(settings.R2_PRIVATE_BUCKET), object_key, file_name=file_name
+    )
+

@@ -108,6 +108,7 @@ describe('PluginMediaSection', () => {
   })
 
   it('uploads and deletes plugin packages', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     vi.mocked(pluginsApi.uploadPluginFile).mockResolvedValue(plugin.files[0])
     vi.mocked(pluginsApi.deletePluginFile).mockResolvedValue()

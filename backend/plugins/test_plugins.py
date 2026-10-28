@@ -23,6 +23,15 @@ from plugins.upload_rules import (
 )
 
 
+# Query-count assertions must not include DatabaseCache throttle bookkeeping.
+LOCMEM_CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "plugin-tests",
+    }
+}
+
+
 def make_image_bytes() -> bytes:
     buffer = io.BytesIO()
     Image.new("RGB", (32, 32), color=(40, 100, 180)).save(buffer, format="PNG")
@@ -61,6 +70,7 @@ class PluginTestMixin:
         self.client.force_authenticate(user=self.admin_user)
 
 
+@override_settings(CACHES=LOCMEM_CACHES)
 class PluginPublicAPITests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -113,6 +123,7 @@ class PluginPublicAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "mesh-toolkit")
+        self.assertEqual(response.data["results"][0]["formats"], ["zip"])
 
     def test_public_list_supports_search_category_and_ordering(self) -> None:
         other = PluginCategory.objects.create(name="Maya", slug="maya")
@@ -147,7 +158,7 @@ class PluginPublicAPITests(APITestCase):
                 status=Plugin.Status.PUBLISHED,
             )
 
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             response = self.client.get(reverse("plugins:plugin-list"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -185,6 +196,7 @@ class PluginPublicAPITests(APITestCase):
         self.assertEqual(published_response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+@override_settings(CACHES=LOCMEM_CACHES)
 class PluginAdminAPITests(PluginTestMixin, APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -550,6 +562,7 @@ class PluginMediaAPITests(PluginTestMixin, APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("/media/plugins/images/", response.data["image_url"])
+        self.assertTrue(response.data["image_url"].endswith(".webp"))
         self.plugin.refresh_from_db()
         self.assertEqual(self.plugin.thumbnail, response.data["image_url"])
 

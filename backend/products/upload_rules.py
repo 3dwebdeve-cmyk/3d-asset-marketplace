@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 
+from django.core.files.base import ContentFile, File
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import UploadedFile
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+# Prevent decompression bombs and excessively large images that slow moderation/UI.
+PRODUCT_IMAGE_MAX_PIXELS = 20_000_000
 PRODUCT_FILE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
-# Interactive GLB/glTF previews must stay small enough for the browser viewer.
-PRODUCT_PREVIEW_MAX_BYTES = 12 * 1024 * 1024  # 12 MB
+# Interactive GLB/glTF previews for the browser viewer.
+PRODUCT_PREVIEW_MAX_BYTES = 25 * 1024 * 1024  # 25 MB
 PRODUCT_PREVIEW_EXTENSIONS = frozenset({".glb", ".gltf"})
 
 PRODUCT_IMAGE_ALLOWED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
@@ -58,7 +62,7 @@ _PIL_FORMAT_TO_MIME = {
 
 @dataclass(frozen=True)
 class ValidatedProductImageUpload:
-    file: UploadedFile
+    file: File
     extension: str
     mime_type: str
 
@@ -69,10 +73,60 @@ class ValidatedProductFileUpload:
     extension: str
     mime_type: str
     file_format: str
+    # Triangles in a GLB/glTF preview; None for other formats.
+    triangle_count: int | None = None
 
 
 def _normalize_extension(filename: str) -> str:
     return Path(filename).suffix.lower()
+
+
+def _encode_webp(source) -> bytes:
+    with Image.open(source) as opened:
+        image = ImageOps.exif_transpose(opened)
+        if image.mode not in {"RGB", "RGBA"}:
+            image = image.convert("RGBA" if "transparency" in image.info else "RGB")
+        output = BytesIO()
+        image.save(
+            output,
+            format="WEBP",
+            quality=82,
+            method=6,
+            exact=image.mode == "RGBA",
+        )
+    return output.getvalue()
+
+
+def _optimized_webp(uploaded: UploadedFile) -> ContentFile:
+    uploaded.seek(0)
+    data = _encode_webp(uploaded)
+    uploaded.seek(0)
+    name = f"{Path(uploaded.name).stem}.webp"
+    return ContentFile(data, name=name)
+
+
+def convert_image_bytes_to_webp(data: bytes) -> bytes:
+    """Check a JPEG/PNG/WebP image and return it re-encoded as WebP.
+
+    Used for images the batch pipeline uploads straight to storage, which never pass
+    through the upload form. Raises ValidationError when the bytes are not a usable image.
+    """
+    if not data:
+        raise ValidationError("Image file is empty.")
+    try:
+        with Image.open(BytesIO(data)) as image:
+            if image.width * image.height > PRODUCT_IMAGE_MAX_PIXELS:
+                raise ValidationError("Image dimensions exceed the 20 megapixel limit.")
+            image.verify()
+            detected_mime = _PIL_FORMAT_TO_MIME.get((image.format or "").upper())
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValidationError("File is not a valid image.") from exc
+    if detected_mime not in PRODUCT_IMAGE_ALLOWED_MIME_TYPES:
+        raise ValidationError("Image content does not match an allowed type.")
+    try:
+        return _encode_webp(BytesIO(data))
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValidationError("File is not a valid image.") from exc
 
 
 def validate_product_image_upload(uploaded: UploadedFile) -> ValidatedProductImageUpload:
@@ -119,6 +173,10 @@ def validate_product_image_upload(uploaded: UploadedFile) -> ValidatedProductIma
     try:
         uploaded.seek(0)
         with Image.open(uploaded) as image:
+            if image.width * image.height > PRODUCT_IMAGE_MAX_PIXELS:
+                raise ValidationError(
+                    {"image": "Image dimensions exceed the 20 megapixel limit."}
+                )
             image.verify()
             detected_format = (image.format or "").upper()
     except UnidentifiedImageError as exc:
@@ -148,9 +206,9 @@ def validate_product_image_upload(uploaded: UploadedFile) -> ValidatedProductIma
         )
 
     return ValidatedProductImageUpload(
-        file=uploaded,
-        extension=extension,
-        mime_type=detected_mime,
+        file=_optimized_webp(uploaded),
+        extension=".webp",
+        mime_type="image/webp",
     )
 
 
@@ -205,9 +263,13 @@ def validate_product_file_upload(uploaded: UploadedFile) -> ValidatedProductFile
         )
 
     file_format = _EXTENSION_TO_FORMAT[extension]
+    from config.upload_security import inspect_product_content
+
+    triangle_count = inspect_product_content(uploaded, extension)
     return ValidatedProductFileUpload(
         file=uploaded,
         extension=extension,
         mime_type=declared_mime,
         file_format=file_format,
+        triangle_count=triangle_count,
     )

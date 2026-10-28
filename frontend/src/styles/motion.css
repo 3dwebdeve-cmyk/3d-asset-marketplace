@@ -1,0 +1,88 @@
+/* Calm motion: native scrolling, small reveals and no spring overshoot. */
+:root {
+  --motion-ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  /* Fast start, long soft landing, no overshoot. */
+  --card-pop-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+
+  .app-shell :is(
+    .home-marketplace-hero__content, .plugins-browse-hero__container,
+    .custom-projects-hero__content, .about-hero__copy, .enquiry-hero__content
+  ) {
+    animation: content-arrive 700ms var(--motion-ease);
+  }
+
+  .app-shell .browse-rail-section { animation: none; }
+
+  :where(button, .home-page__cta, .browse-service-card__btn, .checkout-success-page__btn) {
+    transition: scale 200ms ease-out, background-color 200ms ease,
+      border-color 200ms ease, box-shadow 200ms ease;
+  }
+
+  :where(button, .home-page__cta, .browse-service-card__btn, .checkout-success-page__btn):active:not(:disabled) {
+    scale: 0.99;
+  }
+
+  .auth-modal__panel { animation: content-arrive 320ms var(--motion-ease); }
+  .cart-drawer__panel { animation: drawer-arrive 400ms var(--motion-ease); }
+  :is(.auth-modal__backdrop, .cart-drawer__backdrop) { animation: backdrop-arrive 250ms ease-out; }
+
+  @media (hover: hover) and (pointer: fine) {
+    /* The card under the cursor rises toward the visitor; the others step back.
+       z-index drops only after the card has shrunk, so it never slides under a neighbour. */
+    .app-shell .browse-category-card {
+      transition: transform 450ms var(--card-pop-ease), box-shadow 450ms var(--card-pop-ease),
+        border-color 250ms ease, filter 300ms ease, z-index 0s linear 450ms;
+    }
+
+    .app-shell .browse-category-card:is(:hover, :focus-visible) {
+      z-index: 2;
+      transform: translateY(-6px) scale(1.06);
+      border-color: rgba(228, 190, 138, 0.75);
+      box-shadow: 0 24px 48px -14px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(228, 190, 138, 0.35);
+      transition: transform 450ms var(--card-pop-ease), box-shadow 450ms var(--card-pop-ease),
+        border-color 250ms ease, filter 300ms ease, z-index 0s;
+    }
+
+    .app-shell .browse-category-card:active {
+      transform: translateY(-4px) scale(1.04);
+      transition-duration: 120ms;
+    }
+
+    .app-shell .browse-category-grid:has(.browse-category-card:hover) .browse-category-card:not(:hover) {
+      filter: brightness(0.72) saturate(0.85);
+    }
+
+    .app-shell .browse-category-card:hover .browse-category-card__image { transform: scale(1.04); }
+    .app-shell .browse-category-card:hover .browse-category-card__icon-badge { transform: none; }
+  }
+}
+
+@keyframes content-arrive {
+  from { opacity: 0.8; translate: 0 6px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes backdrop-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes drawer-arrive {
+  from { opacity: 0.8; translate: 24px 0; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

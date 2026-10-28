@@ -35,6 +35,13 @@ beforeEach(() => {
 })
 
 describe('ContactPage', () => {
+  it('prefills the selected custom project services', () => {
+    renderContactPage('/contact?enquiryType=Custom+3D+Modeling&services=3D+Modeling%2C+Packaging+Design')
+    expect(screen.getByLabelText(/^subject/i)).toHaveValue('Custom project enquiry')
+    expect(screen.getByLabelText(/your message/i)).toHaveValue('Selected services: 3D Modeling, Packaging Design\n\nProject details:\n')
+    expect(screen.getByLabelText(/enquiry type/i)).toHaveValue('Custom 3D Modeling')
+  })
+
   it('renders the enquiry layout and form', () => {
     renderContactPage()
 
@@ -56,14 +63,12 @@ describe('ContactPage', () => {
       screen.getByRole('heading', { name: /what can you enquire about/i }),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(/we're happy to help with anything related to our 3d assets and tools/i),
-    ).toBeInTheDocument()
-    expect(
       screen.getByText(/questions about our models, formats, licenses, or compatibility/i),
     ).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: /frequently asked questions/i }),
     ).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /view all/i })).not.toBeInTheDocument()
   })
 
   it('prefills email from the query string', () => {
@@ -87,7 +92,7 @@ describe('ContactPage', () => {
   })
 
   it('shows success state after a successful submission', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     vi.mocked(contactApi.submitContactForm).mockResolvedValue({
       detail: "Message sent — we'll reply by email.",
     })
@@ -132,7 +137,7 @@ describe('ContactPage', () => {
     const user = userEvent.setup()
     renderContactPage()
 
-    expect(screen.getByText(/we usually reply within 24 hours/i)).toBeInTheDocument()
+    expect(screen.queryByText(/we usually reply within 24 hours/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /can you create a custom 3d model/i }))
 

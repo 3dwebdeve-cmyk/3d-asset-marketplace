@@ -5,9 +5,15 @@ from unittest.mock import patch
 from django.core.files.storage import default_storage, storages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.http import Http404
-from django.test import SimpleTestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, override_settings
 
-from config.media import is_public_media_path, media_relative_path, open_stored_file
+from config.media import (
+    is_batch_private_object,
+    is_public_media_path,
+    media_relative_path,
+    open_stored_file,
+    serve_public_media,
+)
 from config.storages import (
     R2_CLIENT_RETRY_ATTEMPTS,
     boto_retry_config,
@@ -58,10 +64,28 @@ class MediaPathTests(SimpleTestCase):
         self.assertTrue(is_public_media_path("models/MDL-000142/gallery/01.jpg"))
         self.assertFalse(is_public_media_path("models/MDL-000142/package.zip"))
         self.assertFalse(is_public_media_path("products/files/a.zip"))
-        self.assertFalse(is_public_media_path("custom_projects/files/a.png"))
-        self.assertFalse(is_public_media_path("custom_projects/messages/a.bin"))
-        self.assertFalse(is_public_media_path("custom_projects/deliveries/a.zip"))
         self.assertTrue(is_public_media_path("products/images/x.png"))
+
+    def test_any_zip_under_models_is_private(self) -> None:
+        # The 3ds Max pipeline names the package <Model_ID>.zip.
+        for key in (
+            "models/FUR-CHR-000123/package.zip",
+            "models/FUR-CHR-000123/FUR-CHR-000123.zip",
+            "models/FUR-CHR-000123/Other.ZIP",
+        ):
+            with self.subTest(key=key):
+                self.assertTrue(is_batch_private_object(key))
+                self.assertFalse(is_public_media_path(key))
+        for name in (
+            "preview_FUR-CHR-000123.glb",
+            "previewthumb_FUR-CHR-000123.jpg",
+            "gallery.png",
+            "gallery.webp",
+        ):
+            key = f"models/FUR-CHR-000123/{name}"
+            with self.subTest(key=key):
+                self.assertFalse(is_batch_private_object(key))
+                self.assertTrue(is_public_media_path(key))
 
     @override_settings(R2_PUBLIC_BASE_URL="https://pub-test.r2.dev")
     def test_strips_public_r2_base_url(self) -> None:
@@ -206,3 +230,40 @@ class StorageHandlerReloadTests(SimpleTestCase):
     def test_named_public_alias_exists(self) -> None:
         storages["public"]
         storages["private"]
+
+
+class PipelinePackageServingTests(SimpleTestCase):
+    """The DEBUG media server and local streaming keep <Model_ID>.zip private."""
+
+    def test_debug_media_server_refuses_pipeline_package(self) -> None:
+        media_root = Path(tempfile.mkdtemp())
+        folder = media_root / "models" / "FUR-CHR-000123"
+        folder.mkdir(parents=True)
+        (folder / "FUR-CHR-000123.zip").write_bytes(b"PK")
+        (folder / "preview_FUR-CHR-000123.glb").write_bytes(b"glTF")
+
+        with override_settings(DEBUG=True, MEDIA_ROOT=str(media_root)):
+            preview = "models/FUR-CHR-000123/preview_FUR-CHR-000123.glb"
+            response = serve_public_media(RequestFactory().get(f"/media/{preview}"), preview)
+            self.assertEqual(response.status_code, 200)
+
+            package = "models/FUR-CHR-000123/FUR-CHR-000123.zip"
+            with self.assertRaises(Http404):
+                serve_public_media(RequestFactory().get(f"/media/{package}"), package)
+
+    def test_local_streaming_reads_pipeline_package_from_private_storage(self) -> None:
+        public_dir = tempfile.mkdtemp()
+        private_dir = tempfile.mkdtemp()
+        with override_settings(
+            R2_ENABLED=True,
+            R2_PUBLIC_BASE_URL="https://pub-test.r2.dev",
+            STORAGES=_storages(public_dir, private_dir),
+        ):
+            key = "models/FUR-CHR-000123/FUR-CHR-000123.zip"
+            get_private_storage().save(key, SimpleUploadedFile("p.zip", b"PK"))
+            self.assertFalse(get_public_storage().exists(key))
+            response = open_stored_file(key)
+            body = b"".join(response.streaming_content)
+            response.close()
+            self.assertEqual(body, b"PK")
+

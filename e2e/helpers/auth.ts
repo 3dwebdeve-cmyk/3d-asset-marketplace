@@ -63,7 +63,7 @@ export async function loginAsBuyer(page: Page): Promise<void> {
 
   // Modal login returns users to the page where they opened it (`/home`).
   await expect(dialog).toBeHidden()
-  await expect(page.getByRole('button', { name: /^Hi, E2E$/i })).toBeVisible()
+  await expect(page.getByTestId('customer-account-trigger')).toBeVisible()
 }
 
 export async function loginAsAdmin(page: Page): Promise<void> {
@@ -78,7 +78,10 @@ export async function loginAsAdmin(page: Page): Promise<void> {
       response.url().endsWith('/api/v1/auth/admin/login/') &&
       response.request().method() === 'POST',
   )
-  await page.getByRole('button', { name: /^Sign in$/i }).click()
+  // The marketplace navbar also renders a "Sign in" button on this route.
+  // Scope to the labelled admin form so Playwright does not match both.
+  const adminSignIn = page.getByRole('region', { name: /admin sign in/i })
+  await adminSignIn.getByRole('button', { name: /^Sign in$/i }).click()
   const loginResponse = await loginResponsePromise
 
   if (!loginResponse.ok()) {

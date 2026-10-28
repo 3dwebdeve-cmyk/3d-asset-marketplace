@@ -17,6 +17,7 @@ vi.mock('../../api/ordersApi', async () => {
   return {
     ...actual,
     listCustomerOrders: vi.fn(),
+    downloadCustomerOrderInvoice: vi.fn(),
   }
 })
 
@@ -79,11 +80,39 @@ describe('MyOrdersPage', () => {
     expect(screen.getAllByLabelText('Status: Pending')).toHaveLength(2)
   })
 
-  it('requests only custom_project orders', async () => {
+  it('requests all order types', async () => {
     renderMyOrdersPage()
     await screen.findByRole('link', { name: orderListItem.invoice_number })
-    expect(ordersApi.listCustomerOrders).toHaveBeenCalledWith(
-      expect.objectContaining({ item_type: 'custom_project' }),
+    const params = vi.mocked(ordersApi.listCustomerOrders).mock.calls[0][0]
+    expect(params).not.toHaveProperty('item_type')
+  })
+
+  it('hides invoice download for unpaid orders', async () => {
+    renderMyOrdersPage()
+    await screen.findByRole('link', { name: orderListItem.invoice_number })
+    expect(screen.queryByRole('button', { name: /download invoice/i })).not.toBeInTheDocument()
+  })
+
+  it('downloads the invoice PDF for paid orders', async () => {
+    const user = userEvent.setup()
+    const paidOrder = { ...orderListItem, order_status: 'paid', payment_status: 'paid' } as const
+    vi.mocked(ordersApi.listCustomerOrders).mockResolvedValue({
+      count: 1,
+      next: null,
+      previous: null,
+      results: [paidOrder],
+    })
+    vi.mocked(ordersApi.downloadCustomerOrderInvoice).mockResolvedValue(undefined)
+    renderMyOrdersPage()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: `Download invoice ${paidOrder.invoice_number}`,
+      }),
+    )
+    expect(ordersApi.downloadCustomerOrderInvoice).toHaveBeenCalledWith(
+      paidOrder.id,
+      paidOrder.invoice_number,
     )
   })
 
@@ -97,12 +126,10 @@ describe('MyOrdersPage', () => {
 
     renderMyOrdersPage()
 
-    expect(
-      await screen.findByText(/you have no custom project orders yet/i),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /request custom work/i })).toHaveAttribute(
+    expect(await screen.findByText(/you have no orders yet/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /browse 3d models/i })).toHaveAttribute(
       'href',
-      '/contact?enquiryType=Custom%203D%20Modeling',
+      '/3d-models',
     )
   })
 

@@ -75,6 +75,21 @@ class SecuritySmokeRunTests(TestCase):
     },
 )
 class SecuritySmokeProdLikeTests(TestCase):
+    def test_cors_preflight_allows_checkout_idempotency_key(self) -> None:
+        response = APIClient().options(
+            reverse("payments:checkout"),
+            HTTP_ORIGIN="https://shop.example.com",
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS="authorization,content-type,idempotency-key",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "https://shop.example.com",
+        )
+        allowed = response.headers.get("Access-Control-Allow-Headers", "").lower()
+        self.assertIn("idempotency-key", allowed)
+
     def test_cors_wildcard_fails(self) -> None:
         with override_settings(CORS_ALLOWED_ORIGINS=["*"]):
             result = run_security_smoke(django_deploy_check=False)

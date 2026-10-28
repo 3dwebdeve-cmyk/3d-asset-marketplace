@@ -28,12 +28,19 @@ RUN chmod +x /app/entrypoint.sh \
     && mkdir -p /app/staticfiles /app/media \
     && chown -R app:app /app/staticfiles /app/media
 
+# Build static assets into the immutable image using disposable settings.
+RUN SECRET_KEY=build-only-secret-key-at-least-32-bytes-long \
+    DB_NAME=build DB_USER=build DB_PASSWORD=build \
+    DEPLOYMENT_PROFILE=development \
+    ALLOW_LOCALHOST_FRONTEND=True ALLOW_CONSOLE_EMAIL=True \
+    python manage.py collectstatic --noinput
+
 USER app
 
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:8000/api/v1/healthz/ || exit 1
+    CMD ["python", "scripts/healthcheck.py"]
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--threads", "2", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-"]

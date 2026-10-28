@@ -9,6 +9,9 @@ import type {
   ReviewEligibility,
   ReviewListParams,
   ReviewProductType,
+  ReviewReactionResult,
+  ReviewReactionValue,
+  ReviewReply,
 } from '../types/review'
 
 function toListQuery(params: ReviewListParams): string {
@@ -41,6 +44,40 @@ export async function listReviews(params: ReviewListParams): Promise<PaginatedRe
 
 export async function createReview(payload: ReviewCreatePayload): Promise<Review> {
   const { data } = await apiClient.post<Review>('/api/v1/reviews/', payload)
+  return data
+}
+
+export async function createReviewReply(
+  reviewId: string,
+  text: string,
+  parentId?: string | null,
+): Promise<ReviewReply> {
+  const { data } = await apiClient.post<ReviewReply>(`/api/v1/reviews/${reviewId}/replies/`, {
+    text,
+    parent_id: parentId ?? null,
+  })
+  return data
+}
+
+export async function toggleReviewReaction(
+  reviewId: string,
+  value: ReviewReactionValue,
+): Promise<ReviewReactionResult> {
+  const { data } = await apiClient.post<ReviewReactionResult>(
+    `/api/v1/reviews/${reviewId}/reaction/`,
+    { value },
+  )
+  return data
+}
+
+export async function toggleReviewReplyReaction(
+  replyId: string,
+  value: ReviewReactionValue,
+): Promise<ReviewReactionResult> {
+  const { data } = await apiClient.post<ReviewReactionResult>(
+    `/api/v1/reviews/replies/${replyId}/reaction/`,
+    { value },
+  )
   return data
 }
 

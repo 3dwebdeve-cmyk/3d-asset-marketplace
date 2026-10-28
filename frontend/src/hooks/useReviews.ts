@@ -32,6 +32,7 @@ export function useReviews({
   const queryClient = useQueryClient()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
+  const userId = useAuthStore((state) => state.user?.id)
   const isSignedIn = isAuthenticated && Boolean(accessToken)
 
   const listQuery = useQuery({
@@ -48,7 +49,7 @@ export function useReviews({
   })
 
   const eligibilityQuery = useQuery({
-    queryKey: ['reviews', 'eligibility', productType, productId],
+    queryKey: ['reviews', 'eligibility', productType, productId, userId],
     queryFn: () => getReviewEligibility(productType, productId),
     enabled: isSignedIn && Boolean(productId),
   })
@@ -58,7 +59,7 @@ export function useReviews({
       createReview({
         product_type: productType,
         product_id: productId,
-        rating: payload.rating,
+        rating: payload.rating ?? null,
         review_text: payload.review_text,
       }),
     onSuccess: async () => {
@@ -95,9 +96,10 @@ export function useReviews({
     isLoading: listQuery.isLoading,
     isError: listQuery.isError,
     refetch: listQuery.refetch,
-    canReview: eligibilityQuery.data?.can_review ?? false,
+    canReview: isSignedIn,
+    canRate: eligibilityQuery.data?.can_rate ?? false,
     hasReviewed: eligibilityQuery.data?.has_reviewed ?? false,
-    myReview: eligibilityQuery.data?.review ?? null,
+    myReview: isSignedIn ? eligibilityQuery.data?.review ?? null : null,
     isEligibilityLoading: eligibilityQuery.isLoading,
     submitReview: submitMutation.mutate,
     isSubmitting: submitMutation.isPending,

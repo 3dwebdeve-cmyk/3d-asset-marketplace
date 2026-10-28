@@ -1,15 +1,19 @@
 :root {
   /*
-   * Brand palette — white / blue / black only.
-   * Do not introduce beige, cream, teal, purple, gold, or gray fills.
+   * Brand palette — light grey pages, white surfaces, blue actions and black text.
    */
-  --bg-primary: #ffffff; /* Pure White — page background */
-  --bg-card: #ffffff; /* Pure White — cards/containers */
-  --text-main: #000000; /* Pure Black — headings & body */
-  --action-color: #1d4ed8; /* Brand blue — buttons, links, actions */
+  --bg-primary: #ffffff;
+  /* White — component surfaces */
+  --bg-page: #f5f5f5;
+  --bg-card: #ffffff;
+  /* Pure White — cards/containers */
+  --text-main: #000000;
+  /* Pure Black — headings & body */
+  --action-color: #1d4ed8;
+  /* Brand blue — buttons, links, actions */
 
   /* Existing app tokens mapped to the palette */
-  --bg-main: #ffffff;
+  --bg-main: var(--bg-page);
   --bg-section: #ffffff;
   --bg-surface: #ffffff;
   --primary-accent: var(--action-color);
@@ -46,12 +50,10 @@
    */
   --site-hero-image: url('/images/site-hero-banner.webp');
   --site-hero-aspect: 4224 / 992;
-  --site-hero-overlay: linear-gradient(
-    105deg,
-    rgba(0, 0, 0, 0.45) 0%,
-    rgba(0, 0, 0, 0.1) 48%,
-    rgba(0, 0, 0, 0) 100%
-  );
+  --site-hero-overlay: linear-gradient(105deg,
+      rgba(0, 0, 0, 0.45) 0%,
+      rgba(0, 0, 0, 0.1) 48%,
+      rgba(0, 0, 0, 0) 100%);
 
   /*
    * Layout breakpoints (use with max-width / min-width media queries):
@@ -65,8 +67,8 @@
   --site-gutter: clamp(1rem, 2.5vw, 2.5cm);
   --site-max-width: none;
 
-  /* ~15px on 360px phones → ~19px on large desktops */
-  font-size: clamp(15px, 0.28vw + 14.1px, 19px);
+  /* Compact global type scale shared by every page and rem-based component. */
+  font-size: clamp(13.5px, 0.24vw + 12.75px, 16px);
   line-height: 145%;
   font-family: var(--sans);
   letter-spacing: 0.18px;
@@ -77,6 +79,11 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Keep the original type scale on the public Home page. */
+:root:has(.products-browse-page--hub) {
+  font-size: clamp(15px, 0.28vw + 14.1px, 19px);
 }
 
 *,
@@ -114,7 +121,7 @@ textarea {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  background: #ffffff;
+  background: var(--bg-page);
 }
 
 .site-hero-banner {
@@ -155,7 +162,7 @@ textarea {
   background: var(--site-hero-overlay);
 }
 
-.site-hero-banner > *:not(.site-hero-banner__image):not(.site-hero-banner__overlay) {
+.site-hero-banner>*:not(.site-hero-banner__image):not(.site-hero-banner__overlay) {
   grid-area: 1 / 1;
   z-index: 1;
   position: relative;
@@ -308,7 +315,7 @@ button.home-page__cta--secondary {
   place-items: start center;
   padding: clamp(2rem, 4vw, 3rem) var(--site-gutter);
   text-align: left;
-  background: #ffffff;
+  background: var(--bg-page);
   box-sizing: border-box;
 }
 
@@ -522,45 +529,7 @@ button.home-page__cta--secondary {
   color: var(--text-main);
 }
 
-/* ─── Project completed banner ──────────────────────────────── */
-.project-completed-banner {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1.1rem;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--action-color) 12%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--action-color) 35%, var(--bg-card));
-  color: var(--action-color);
-  font-size: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-/* ─── Upload progress bar ───────────────────────────────────── */
-.upload-progress {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  accent-color: var(--action-color);
-  margin-block: 0.5rem;
-}
-
-/* ─── Form hint text ────────────────────────────────────────── */
-.form-hint {
-  margin: 0.3rem 0 0;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
 /* ─── Inline delete confirmation ────────────────────────────── */
-.project-delete-confirm {
-  padding: 0.85rem 1.1rem;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text-main) 8%, var(--bg-card));
-  border: 1px solid color-mix(in srgb, var(--text-main) 30%, var(--bg-card));
-  color: var(--text-main);
-  margin-bottom: 1rem;
-}
 
 .admin-media-upload {
   position: relative;
@@ -673,13 +642,6 @@ button.home-page__cta--secondary {
   font: inherit;
 }
 
-.dashboard-card__details {
-  display: grid;
-  gap: 0.5rem;
-  margin: 0 0 1.5rem;
-  color: var(--text-body);
-}
-
 .dashboard-card__actions {
   display: flex;
   flex-wrap: wrap;
@@ -691,200 +653,6 @@ button.home-page__cta--secondary {
   border: 1px solid var(--accent-border);
   cursor: pointer;
   font: inherit;
-}
-
-.dashboard-password-form {
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-}
-
-.dashboard-password-form .ui-button {
-  width: auto;
-  margin-top: 0.25rem;
-}
-
-.project-message-thread {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.85rem;
-}
-
-.project-message-item {
-  display: grid;
-  gap: 0.4rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-section);
-}
-
-.project-message-item__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  align-items: baseline;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.project-message-item__sender {
-  font-weight: 600;
-  color: var(--text-heading);
-}
-
-.project-message-item__body {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--text-body);
-}
-
-.project-message-attachments {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
-}
-
-.project-message-attachment {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-}
-
-.project-message-attachment__meta {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
-}
-
-.project-message-attachment .ui-button {
-  width: auto;
-}
-
-.project-message-composer {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.project-message-composer__input {
-  resize: vertical;
-  min-height: 6rem;
-}
-
-.project-message-composer__hint {
-  margin: -0.35rem 0 0;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.project-message-composer__file {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  font-size: 0.95rem;
-  color: var(--text-secondary);
-}
-
-.project-message-composer__clear-file {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--text-heading);
-  text-decoration: underline;
-  cursor: pointer;
-  font: inherit;
-}
-
-.project-message-composer__clear-file:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.project-message-composer .ui-button {
-  width: auto;
-  justify-self: start;
-}
-
-.admin-project-messages {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-}
-
-.admin-project-messages__hint {
-  margin: 0 0 1rem;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-}
-
-.admin-project-deliveries {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-}
-
-.admin-project-deliveries__hint {
-  margin: 0 0 1rem;
-  color: var(--text-secondary);
-  font-size: 0.95rem;
-}
-
-.admin-project-deliveries__status-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.admin-project-deliveries__status-hint {
-  margin: 0 0 1rem;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.admin-project-deliveries__notes {
-  margin: 0.35rem 0 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  white-space: pre-wrap;
-}
-
-.admin-project-deliveries__clear-file {
-  margin-left: 0.75rem;
-}
-
-.project-list-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.project-unread-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.35rem;
-  height: 1.35rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  background: var(--action-color);
-  color: var(--pure-white);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.admin-table__row--has-unread td:first-child {
-  font-weight: 600;
 }
 
 html {
@@ -905,7 +673,7 @@ body {
   width: 100%;
   min-width: 0;
   overflow-x: hidden;
-  background: #ffffff;
+  background: var(--bg-page);
   color: var(--text-body);
 }
 
@@ -922,15 +690,18 @@ h1 {
   letter-spacing: -0.02em;
   margin: 1.25rem 0;
 }
+
 h2 {
   font-size: 24px;
   line-height: 1.25;
   letter-spacing: -0.02em;
   margin: 0 0 8px;
+
   @media (max-width: 1024px) {
     font-size: 20px;
   }
 }
+
 p {
   margin: 0;
 }

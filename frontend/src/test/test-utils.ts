@@ -22,6 +22,7 @@ export function resetAuthStore(): void {
     user: null,
     isAuthenticated: false,
     rememberSession: true,
+    sessionHint: false,
     postLogoutRedirect: null,
   })
   localStorage.clear()

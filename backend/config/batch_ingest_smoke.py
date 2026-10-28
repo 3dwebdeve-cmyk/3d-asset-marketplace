@@ -2,13 +2,16 @@
 
 Validates frozen column headers in ``docs/fixtures/batch-ingest/``, dry-runs
 the Feature 16 ready-to-import gate via ``CatalogImportService``, and optionally
-applies happy-path import → QA approve → Meilisearch reindex.
+applies happy-path import → QA approve.
 """
 
 from __future__ import annotations
 
 import csv
+import json
+import os
 import re
+import struct
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
@@ -17,7 +20,9 @@ from zipfile import ZipFile
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
+from PIL import Image
+
+from config.storages import get_private_storage, get_public_storage
 
 from accounts.models import User
 from categories.models import Category
@@ -129,7 +134,14 @@ class BatchIngestSmokeError(Exception):
 
 
 def fixtures_root() -> Path:
-    """Repo ``docs/fixtures/batch-ingest`` (BASE_DIR is ``backend/``)."""
+    """Fixture folder: ``BATCH_INGEST_FIXTURES_DIR`` or the repo's ``docs/fixtures/batch-ingest``.
+
+    The backend Docker image does not contain ``docs/``, so containers must mount the
+    fixtures and point ``BATCH_INGEST_FIXTURES_DIR`` at them.
+    """
+    override = os.environ.get("BATCH_INGEST_FIXTURES_DIR", "").strip()
+    if override:
+        return Path(override).resolve()
     return Path(settings.BASE_DIR).resolve().parent / "docs" / "fixtures" / "batch-ingest"
 
 
@@ -415,9 +427,37 @@ def _write_package_bytes(storage_path: str) -> None:
     buffer = BytesIO()
     with ZipFile(buffer, "w") as archive:
         archive.writestr("model.glb", b"glTF-binary-batch-ingest-smoke")
-    if default_storage.exists(storage_path):
-        default_storage.delete(storage_path)
-    default_storage.save(storage_path, ContentFile(buffer.getvalue()))
+    # Packages are private objects. Never delete or overwrite an existing one: on a
+    # shared environment that key could hold a real package for this SKU.
+    storage = get_private_storage()
+    if storage.exists(storage_path):
+        return
+    storage.save(storage_path, ContentFile(buffer.getvalue()))
+
+
+def _write_preview_bytes(storage_path: str) -> None:
+    """Stand-in for the pipeline's preview upload; the import moves it to a random key."""
+    document = json.dumps({"asset": {"version": "2.0"}}).encode()
+    document += b" " * (-len(document) % 4)
+    glb = struct.pack("<4sIIII", b"glTF", 2, 20 + len(document), len(document), 0x4E4F534A)
+    storage = get_public_storage()
+    if storage.exists(storage_path):
+        return
+    storage.save(storage_path, ContentFile(glb + document))
+
+
+_IMAGE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
+
+
+def _write_image_bytes(storage_path: str) -> None:
+    """Stand-in for the pipeline's thumbnail/gallery upload; the import serves it as WebP."""
+    image_format = _IMAGE_FORMATS.get(Path(storage_path).suffix.lower())
+    storage = get_public_storage()
+    if image_format is None or storage.exists(storage_path):
+        return
+    buffer = BytesIO()
+    Image.new("RGB", (8, 8), color=(120, 90, 60)).save(buffer, format=image_format)
+    storage.save(storage_path, ContentFile(buffer.getvalue()))
 
 
 def _pick_reviewer() -> User:
@@ -434,13 +474,24 @@ def _pick_reviewer() -> User:
 
 
 def _apply_happy_path() -> tuple[str, list[str]]:
-    """Import happy fixture → approve → reindex. Returns (sku, warnings)."""
+    """Import happy fixture → approve. Returns (sku, warnings)."""
     warnings: list[str] = []
     _ensure_furniture_category()
     reviewer = _pick_reviewer()
     items = load_scenario_items("happy")
     if not items:
         raise BatchIngestSmokeError("Happy fixture produced zero rows.")
+    for item in items:
+        preview_key = str(item["media"].get("preview_key") or "")
+        if preview_key:
+            _write_preview_bytes(preview_key)
+        for image_key in (item["media"].get("thumbnail_key"), *item["media"].get("gallery_keys", [])):
+            if image_key:
+                _write_image_bytes(str(image_key))
+        # The import skips a row whose package is not in private storage yet.
+        package_key = str(item["media"].get("package_key") or "")
+        if package_key:
+            _write_package_bytes(package_key)
 
     batch = CatalogImportService.import_batch(
         import_batch_id="i3-batch-ingest-smoke",
@@ -475,8 +526,6 @@ def _apply_happy_path() -> tuple[str, list[str]]:
         raise BatchIngestSmokeError(
             f"Unexpected status after import: {product.status}"
         )
-
-    warnings.append("Postgres search — reindex not required")
 
     return sku, warnings
 

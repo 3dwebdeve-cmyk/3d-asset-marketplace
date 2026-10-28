@@ -10,7 +10,7 @@ from config.cutover_gate import CutoverGateError, CutoverProfile, run_cutover_ga
 class Command(BaseCommand):
     help = (
         "Run Phase K1 cutover gate: deploy, email, Stripe, R2, Sentry, auth, "
-        "ops, Meili, healthz for profile local|staging|production. "
+        "ops, search, healthz for profile local|staging|production. "
         "Reuses existing report collectors — does not print secrets. "
         "See docs/CUTOVER_STAGING_CHECKLIST.md."
     )
@@ -22,7 +22,8 @@ class Command(BaseCommand):
             default="local",
             help=(
                 "Gate strictness. staging = test Stripe + public hosts; "
-                "production = live Stripe + SMTP + Sentry required."
+                "production = full security checks with STRIPE_PAYMENT_MODE, "
+                "defaulting to test payments."
             ),
         )
         parser.add_argument(
@@ -42,7 +43,7 @@ class Command(BaseCommand):
             "--require-smtp",
             action="store_true",
             help=(
-                "Treat SMTP + real staff recipients as blocking "
+                "Treat Brevo API/SMTP + real staff recipients as blocking "
                 "(always on for --profile production)."
             ),
         )

@@ -74,12 +74,56 @@ describe('ProfilePage', () => {
     })
 
     expect(updateProfile.mock.calls[0][0]).toEqual({
+      full_name: testProfile.full_name,
       company_name: 'Acme Studios',
       website: 'https://acme.example.com',
       address: '',
       city: 'Mumbai',
       country: 'India',
     })
+  })
+
+  it('keeps username read-only and allows display name updates', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(authApi, 'getProfile').mockResolvedValue(testProfile)
+    const updateProfile = vi.spyOn(authApi, 'updateProfile').mockResolvedValue({
+      ...testProfile,
+      full_name: 'Updated Name',
+    })
+
+    renderProfilePage()
+
+    const username = await screen.findByLabelText(/^username$/i)
+    const displayName = screen.getByLabelText(/display name/i)
+    expect(username).toHaveAttribute('readonly')
+    await user.clear(displayName)
+    await user.type(displayName, 'Updated Name')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(updateProfile).toHaveBeenCalled())
+    expect(updateProfile.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ full_name: 'Updated Name' }),
+    )
+    expect(updateProfile.mock.calls[0]?.[0]).not.toHaveProperty('email')
+  })
+
+  it('enables Save changes after selecting a valid avatar', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(authApi, 'getProfile').mockResolvedValue(testProfile)
+    vi.spyOn(authApi, 'uploadAvatar').mockResolvedValue({ ...testProfile, avatar: 'avatar.png' })
+
+    renderProfilePage()
+
+    await screen.findByRole('heading', { name: /profile information/i })
+    const saveButton = screen.getByRole('button', { name: /save changes/i })
+    expect(saveButton).toBeDisabled()
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(fileInput, new File(['avatar'], 'avatar.png', { type: 'image/png' }))
+    expect(saveButton).toBeEnabled()
+    await user.click(saveButton)
+
+    await waitFor(() => expect(authApi.uploadAvatar).toHaveBeenCalled())
   })
 
   it('renders profile sections matching the edit-profile layout', async () => {
@@ -110,7 +154,7 @@ describe('ProfilePage', () => {
 
     await user.type(screen.getByLabelText(/current password/i), 'OldPass123!')
     await user.type(screen.getByLabelText(/^new password$/i), 'NewPass123!')
-    await user.type(screen.getByLabelText(/confirm password/i), 'NewPass123!')
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'NewPass123!')
     await user.click(screen.getByRole('button', { name: /update password/i }))
 
     await waitFor(() => {
@@ -121,6 +165,22 @@ describe('ProfilePage', () => {
       new_password: 'NewPass123!',
       new_password_confirm: 'NewPass123!',
     })
+  })
+
+  it('toggles visibility for new and confirm password fields', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(authApi, 'getProfile').mockResolvedValue(testProfile)
+    renderProfilePage()
+
+    const newPassword = await screen.findByLabelText(/^new password$/i)
+    const confirmPassword = screen.getByLabelText(/^confirm password$/i)
+    expect(newPassword).toHaveAttribute('type', 'password')
+    expect(confirmPassword).toHaveAttribute('type', 'password')
+
+    await user.click(screen.getByRole('button', { name: /show new password/i }))
+    await user.click(screen.getByRole('button', { name: /show confirm password/i }))
+    expect(newPassword).toHaveAttribute('type', 'text')
+    expect(confirmPassword).toHaveAttribute('type', 'text')
   })
 
   it('shows an error state when profile loading fails', async () => {

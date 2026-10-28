@@ -1,29 +1,36 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { listPublicCategories } from '../../api/categoriesApi'
-import { listPublicProducts } from '../../api/productsApi'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { firstCategoriesPageQuery } from '../../hooks/useAllCategories'
+import { loadModelCatalog } from './modelCatalog'
 import { Button } from '../../components/ui/Button'
 import { Pagination } from '../../components/ui/Pagination'
+import { SoftwareIcon } from '../../components/SoftwareIcon'
+import { MODEL_FORMAT_FILTERS } from '../../components/softwareFilters'
 import { SiteHeroImage } from '../../components/SiteHeroImage'
+import { MODELS_HERO_IMAGE_SRC, PRODUCTS_BANNER_IMAGE_SRC, categoryBanner } from '../../lib/heroBanners'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { buildCategoryTree } from '../../lib/categoryTree'
+import { activateOnKey } from '../../lib/keyboard'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
+import { ALL_MODELS_SEO, buildCategoryTitle, categoryPath, getCategorySeo } from '../../lib/categorySeo'
+import { buildBreadcrumbJsonLd, buildItemListJsonLd, buildPageTitle } from '../../lib/seo'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { NotFoundPage } from '../NotFound/NotFoundPage'
 import { ProductCard } from '../Products/ProductCard'
 import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
+import '../../styles/models-browse.css'
 
 const PAGE_SIZE = 12
+const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 
-const SOFTWARE_CHIPS = ['Blender', 'Maya', '3ds Max', 'Cinema 4D'] as const
-
-type TraitKey = 'rigged' | 'animated' | 'pbr_ready' | 'game_ready'
-
-const TRAIT_CHIPS: { key: TraitKey; label: string }[] = [
-  { key: 'rigged', label: 'Rigged' },
-  { key: 'animated', label: 'Animated' },
-  { key: 'pbr_ready', label: 'PBR' },
-  { key: 'game_ready', label: 'Game-ready' },
+const FORMAT_OPTIONS = MODEL_FORMAT_FILTERS
+const LICENSE_OPTIONS = [
+  { value: 'standard', label: 'Standard License' },
+  { value: 'extended', label: 'Extended License' },
 ]
+type TraitKey = 'rigged' | 'animated' | 'pbr_ready' | 'game_ready'
 
 const SORT_OPTIONS = [
   '-created_at',
@@ -47,7 +54,28 @@ function readTraitFromUrl(searchParams: URLSearchParams, key: TraitKey): boolean
 
 export function ModelsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const categoryFromUrl = searchParams.get('category')?.trim() ?? ''
+  const navigate = useNavigate()
+  const { categorySlug } = useParams()
+  const slugFromPath = categorySlug?.trim().toLowerCase() ?? ''
+  // Old links used ?category=<id>. They keep working and are redirected to the readable address.
+  const legacyCategory = searchParams.get('category')?.trim() ?? ''
+
+  const { data: categoriesData } = useQuery(firstCategoriesPageQuery)
+  const urlCategory = useMemo(() => {
+    const list = categoriesData?.results
+    if (!list) return null
+    if (slugFromPath) return list.find((cat) => cat.slug.toLowerCase() === slugFromPath) ?? null
+    if (legacyCategory) {
+      const wanted = legacyCategory.toLowerCase()
+      return list.find((cat) => cat.id === legacyCategory || cat.slug.toLowerCase() === wanted) ?? null
+    }
+    return null
+  }, [categoriesData?.results, slugFromPath, legacyCategory])
+  // An id the list does not know is passed through unchanged, exactly as before.
+  const categoryFromUrl = urlCategory?.id ?? (slugFromPath ? '' : legacyCategory)
+  // Wait for the category list before loading products, so a category page never flashes all models.
+  const categoryPending = Boolean(slugFromPath || legacyCategory) && !categoriesData
+  const categoryNotFound = Boolean(slugFromPath) && Boolean(categoriesData) && !urlCategory
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const sortFromUrl = readSortFromUrl(searchParams.get('ordering')?.trim() ?? '')
 
@@ -67,6 +95,28 @@ export function ModelsBrowsePage() {
     game_ready: gameReadyFromUrl,
   })
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const categoryDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!categoryDropdownOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!categoryDropdownRef.current?.contains(event.target as Node)) {
+        setCategoryDropdownOpen(false)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCategoryDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [categoryDropdownOpen])
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
@@ -75,6 +125,14 @@ export function ModelsBrowsePage() {
       trackCategoryClick(categoryFromUrl)
     }
   }, [categoryFromUrl])
+
+  useEffect(() => {
+    if (slugFromPath || !legacyCategory || !urlCategory) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('category')
+    const query = next.toString()
+    navigate(`${categoryPath(urlCategory.slug)}${query ? `?${query}` : ''}`, { replace: true })
+  }, [slugFromPath, legacyCategory, urlCategory, searchParams, navigate])
 
   useEffect(() => {
     setSearchInput(searchFromUrl)
@@ -98,15 +156,21 @@ export function ModelsBrowsePage() {
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
 
-  const setSearchInUrl = (value: string) => {
-    const nextParams = new URLSearchParams(searchParams)
-    const trimmed = value.trim().slice(0, 100)
-    if (trimmed) {
-      nextParams.set('search', trimmed)
-    } else {
-      nextParams.delete('search')
-    }
-    setSearchParams(nextParams, { replace: true })
+  const formats = searchParams.get('formats')?.split(',').filter(Boolean) ?? []
+  const licenses = searchParams.get('licenses')?.split(',').filter(Boolean) ?? []
+  const minPrice = Math.max(0, Math.min(200, Number(searchParams.get('min_price')) || 0))
+  const maxPrice = Math.max(minPrice, Math.min(200, Number(searchParams.get('max_price') ?? 200) || 0))
+  const updateFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setCurrentPage(1)
+    setSearchParams(next, { replace: true })
+  }
+  const toggleFilter = (key: string, current: string[], value: string) => {
+    const values = value.split(',')
+    const active = values.every((item) => current.includes(item))
+    updateFilter(key, (active ? current.filter((item) => !values.includes(item)) : [...new Set([...current, ...values])]).join(','))
   }
 
   const handleSortChange = (sort: SortOption) => {
@@ -122,24 +186,14 @@ export function ModelsBrowsePage() {
     setSearchParams(nextParams, { replace: true })
   }
 
-  const handleSoftwareChip = (term: string) => {
-    setSearchInput(term)
+  /** Move to a category's own address (or back to all models), keeping the other filters. */
+  const goToCategory = (category: { id: string; slug: string } | null) => {
+    setSelectedCategoryId(category?.id ?? '')
     setCurrentPage(1)
-    setSearchInUrl(term)
-  }
-
-  const handleTraitToggle = (key: TraitKey) => {
-    const nextValue = !traits[key]
-    setTraits((prev) => ({ ...prev, [key]: nextValue }))
-    setCurrentPage(1)
-
-    const nextParams = new URLSearchParams(searchParams)
-    if (nextValue) {
-      nextParams.set(key, '1')
-    } else {
-      nextParams.delete(key)
-    }
-    setSearchParams(nextParams, { replace: true })
+    const next = new URLSearchParams(searchParams)
+    next.delete('category')
+    const query = next.toString()
+    navigate(`${category ? categoryPath(category.slug) : '/3d-models'}${query ? `?${query}` : ''}`, { replace: true })
   }
 
   const handleResetFilters = () => {
@@ -162,14 +216,11 @@ export function ModelsBrowsePage() {
     nextParams.delete('pbr_ready')
     nextParams.delete('game_ready')
     nextParams.delete('ordering')
-    setSearchParams(nextParams, { replace: true })
+    for (const key of ['formats', 'licenses', 'min_price', 'max_price']) nextParams.delete(key)
+    const query = nextParams.toString()
+    navigate(`/3d-models${query ? `?${query}` : ''}`, { replace: true })
   }
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ['public-categories-list', { page_size: 100 }],
-    queryFn: () => listPublicCategories({ page_size: 100 }),
-    staleTime: 1000 * 60 * 5,
-  })
 
   const {
     data: productsData,
@@ -179,7 +230,6 @@ export function ModelsBrowsePage() {
   } = useQuery({
     queryKey: [
       'public-models-browse',
-      currentPage,
       selectedCategoryId,
       debouncedSearch,
       sortOrdering,
@@ -189,9 +239,7 @@ export function ModelsBrowsePage() {
       traits.game_ready,
     ],
     queryFn: () =>
-      listPublicProducts({
-        page: currentPage,
-        page_size: PAGE_SIZE,
+      loadModelCatalog({
         category_id: selectedCategoryId || undefined,
         search: debouncedSearch || undefined,
         ordering: sortOrdering,
@@ -200,38 +248,113 @@ export function ModelsBrowsePage() {
         pbr_ready: traits.pbr_ready || undefined,
         game_ready: traits.game_ready || undefined,
       }),
+    staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
+    // Not until the page's category matches the address, so no request ever asks for every model first.
+    enabled: !categoryPending && !categoryNotFound && (!(slugFromPath || legacyCategory) || selectedCategoryId === categoryFromUrl),
   })
 
-  const products = productsData?.results ?? []
-  const totalCount = productsData?.count ?? 0
+  const priceMatches = (product: NonNullable<typeof productsData>[number]) => {
+    const price = Number(product.discount_price ?? product.price)
+    return price >= minPrice && (maxPrice === 200 || price <= maxPrice)
+  }
+  const priceFiltered = (productsData ?? []).filter(priceMatches)
+  const facets = {
+    formats: Object.fromEntries(FORMAT_OPTIONS.map(({ value }) => [value,
+      priceFiltered.filter((product) => value.split(',').some((format) => product.formats.includes(format))).length,
+    ])),
+    licenses: Object.fromEntries(LICENSE_OPTIONS.map(({ value }) => [value,
+      priceFiltered.filter((product) => product.license_type === value).length,
+    ])),
+  }
+  const filteredProducts = priceFiltered.filter((product) =>
+    (formats.length === 0 || formats.some((format) => product.formats.includes(format))) &&
+    (licenses.length === 0 || licenses.includes(product.license_type)),
+  )
+  const totalCount = filteredProducts.length
+  const products = filteredProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
   const hasActiveTrait = Object.values(traits).some(Boolean)
   const isFiltered =
     Boolean(searchInput) ||
     Boolean(selectedCategoryId) ||
     sortOrdering !== '-created_at' ||
-    hasActiveTrait
+    hasActiveTrait || formats.length > 0 || licenses.length > 0 || minPrice > 0 || maxPrice < 200
 
-  const selectedCategoryName = useMemo(() => {
+  const selectedCategory = useMemo(() => {
     if (!selectedCategoryId) return null
-    return categoriesData?.results.find((cat) => cat.id === selectedCategoryId)?.name ?? null
+    return categoriesData?.results.find((cat) => cat.id === selectedCategoryId) ?? null
   }, [categoriesData?.results, selectedCategoryId])
+  // Subcategories are listed under their parent; picking a parent includes them.
+  const categoryTree = useMemo(
+    () => buildCategoryTree(categoriesData?.results ?? []),
+    [categoriesData?.results],
+  )
 
-  const heroTitle = selectedCategoryName ?? '3D Model'
+  const categorySeo = selectedCategory ? getCategorySeo(selectedCategory.slug, selectedCategory.name) : null
+  const emptyCategory = Boolean(selectedCategory) && productsData !== undefined && productsData.length === 0
+  const seoCopy = categorySeo ?? ALL_MODELS_SEO
+  const pagePath = selectedCategory ? categoryPath(selectedCategory.slug) : '/3d-models'
+  const crumbs = [
+    { name: 'Home', path: '/' },
+    { name: '3D Models', path: '/3d-models' },
+    ...(selectedCategory ? [{ name: seoCopy.h1, path: pagePath }] : []),
+  ]
+  const listedProducts = products.map((product) => ({ name: product.name, path: `/products/${product.slug}` }))
+  useDocumentSeo({
+    title: categorySeo ? buildCategoryTitle(categorySeo) : buildPageTitle(ALL_MODELS_SEO.title),
+    description: seoCopy.description,
+    // Filtered and searched views all point back to the clean address of the page.
+    canonicalPath: pagePath,
+    // Searches, placeholder categories and categories with nothing in them are not worth indexing.
+    robots: searchFromUrl || (categorySeo && !categorySeo.indexable) || emptyCategory ? 'noindex, follow' : undefined,
+    jsonLd: [
+      buildBreadcrumbJsonLd(crumbs),
+      ...(listedProducts.length > 0 ? [buildItemListJsonLd(seoCopy.h1, listedProducts)] : []),
+    ],
+  })
+
+  if (categoryNotFound) {
+    return <NotFoundPage />
+  }
+
+  // Until the category list arrives, take the category from the address, so the banner and heading
+  // are right from the first paint instead of showing "all models" and then switching.
+  const heroSlug = selectedCategory?.slug ?? (categoriesData ? '' : slugFromPath)
+  const heroCopy = categorySeo ?? (heroSlug
+    ? getCategorySeo(heroSlug, heroSlug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '))
+    : ALL_MODELS_SEO)
+  const heroTitle = heroCopy.h1
+  const usesProductsBanner =
+    selectedCategoryId === PRODUCTS_BANNER_CATEGORY_ID || heroSlug === 'products'
+  const usesFurnitureBanner = heroSlug === 'furniture'
+  const usesElectronicsBanner = heroSlug === 'electronics'
+  const usesCharacterBanner = heroSlug === 'character'
+  const usesPlantsBanner = heroSlug === 'plants-vegetation'
+  const usesToysBanner = heroSlug === 'toys'
+  const usesInteriorBanner = heroSlug === 'interior-3d-models'
+  const usesInteractiveBanner = heroSlug === 'interactive-webar'
+  const heroImageSrc = usesProductsBanner
+    ? PRODUCTS_BANNER_IMAGE_SRC
+    : heroSlug
+      ? categoryBanner(heroSlug)
+      : MODELS_HERO_IMAGE_SRC
 
   return (
     <main className="plugins-browse models-browse">
-      <section className="plugins-browse-hero site-hero-banner">
-        <SiteHeroImage />
+      <section
+        className={`plugins-browse-hero site-hero-banner${usesFurnitureBanner ? ' plugins-browse-hero--furniture' : ''}${usesElectronicsBanner ? ' plugins-browse-hero--electronics' : ''}${usesProductsBanner ? ' plugins-browse-hero--products' : ''}${usesCharacterBanner ? ' plugins-browse-hero--character' : ''}${usesPlantsBanner ? ' plugins-browse-hero--plants' : ''}${usesToysBanner ? ' plugins-browse-hero--toys' : ''}${usesInteriorBanner ? ' plugins-browse-hero--interior' : ''}${usesInteractiveBanner ? ' plugins-browse-hero--interactive' : ''}`}
+      >
+        <SiteHeroImage
+          src={heroImageSrc}
+          width={heroSlug && !usesElectronicsBanner ? undefined : 2804}
+          height={heroSlug && !usesElectronicsBanner ? undefined : 561}
+        />
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
 
-          <p className="plugins-browse-hero__subtitle">
-            Premium 3D models for games, film, architecture, and product design. Browse
-            production-ready assets built for Blender, Maya, 3ds Max, and Cinema 4D.
-          </p>
+          <p className="plugins-browse-hero__subtitle">{heroCopy.intro}</p>
         </div>
       </section>
 
@@ -252,107 +375,144 @@ export function ModelsBrowsePage() {
                 {filtersOpen ? '−' : '+'}
               </span>
             </button>
-            {isFiltered ? (
-              <button
-                type="button"
-                className="plugins-filters__reset"
-                onClick={handleResetFilters}
-              >
-                Clear Filters
-              </button>
-            ) : null}
+            <svg className="model-filters__settings" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18M8 3v6M16 9v6M10 15v6" /></svg>
           </div>
 
           <div className="plugins-filters__panel">
-          <div className="plugins-filters__group">
-            <label className="plugins-filters__label" htmlFor="model-category">
+          <div className="plugins-filters__group" ref={categoryDropdownRef}>
+            <label className="plugins-filters__label" id="model-category-label">
               Category
             </label>
-            <select
-              id="model-category"
-              value={selectedCategoryId}
-              onChange={(event) => {
-                const value = event.target.value
-                setSelectedCategoryId(value)
-                setCurrentPage(1)
+            <div className="custom-select-dropdown">
+              <button
+                type="button"
+                id="model-category-trigger"
+                aria-labelledby="model-category-label model-category-trigger"
+                className={`custom-select-trigger${categoryDropdownOpen ? ' custom-select-trigger--open' : ''}`}
+                aria-expanded={categoryDropdownOpen}
+                aria-haspopup="listbox"
+                onClick={() => setCategoryDropdownOpen((open) => !open)}
+              >
+                <span className="custom-select-label">
+                  {selectedCategory?.name ?? 'All categories'}
+                </span>
+                <svg
+                  className={`custom-select-arrow${categoryDropdownOpen ? ' custom-select-arrow--open' : ''}`}
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
 
-                const nextParams = new URLSearchParams(searchParams)
-                if (value) nextParams.set('category', value)
-                else nextParams.delete('category')
-
-                setSearchParams(nextParams, { replace: true })
-              }}
-              className="plugins-filters__select"
-            >
-              <option value="">All categories</option>
-              {(categoriesData?.results ?? []).map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="plugins-filters__group">
-            <p className="plugins-filters__label" id="model-software-label">
-              Software
-            </p>
-            <div
-              className="plugins-filters__chips"
-              role="group"
-              aria-labelledby="model-software-label"
-            >
-              {SOFTWARE_CHIPS.map((term) => {
-                const active = searchInput.trim().toLowerCase() === term.toLowerCase()
-                return (
-                  <button
-                    key={term}
-                    type="button"
-                    className={`plugins-filters__chip${active ? ' plugins-filters__chip--active' : ''}`}
-                    onClick={() => handleSoftwareChip(term)}
-                    aria-pressed={active}
+              {categoryDropdownOpen ? (
+                <ul className="custom-select-menu" role="listbox" aria-label="Select Category">
+                  <li
+                    role="option"
+                    tabIndex={0}
+                    onKeyDown={activateOnKey}
+                    aria-selected={selectedCategoryId === ''}
+                    className={`custom-select-option${selectedCategoryId === '' ? ' custom-select-option--active' : ''}`}
+                    onClick={() => {
+                      setCategoryDropdownOpen(false)
+                      goToCategory(null)
+                    }}
                   >
-                    {term}
-                  </button>
-                )
-              })}
+                    All categories
+                  </li>
+                  {categoryTree.flatMap(({ category, children }) =>
+                    [category, ...children].map((option) => (
+                      <li
+                        key={option.id}
+                        role="option"
+                        tabIndex={0}
+                        onKeyDown={activateOnKey}
+                        aria-selected={selectedCategoryId === option.id}
+                        className={`custom-select-option${option !== category ? ' custom-select-option--child' : ''}${selectedCategoryId === option.id ? ' custom-select-option--active' : ''}`}
+                        onClick={() => {
+                          setCategoryDropdownOpen(false)
+                          trackCategoryClick(option.id)
+                          goToCategory(option)
+                        }}
+                      >
+                        {option.name}
+                      </li>
+                    )),
+                  )}
+                </ul>
+              ) : null}
+
+              <select
+                id="model-category"
+                aria-label="Category"
+                value={selectedCategoryId}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (value) trackCategoryClick(value)
+                  goToCategory(categoriesData?.results.find((cat) => cat.id === value) ?? null)
+                }}
+                className="custom-select-native"
+                tabIndex={-1}
+                aria-hidden="true"
+              >
+                <option value="">All categories</option>
+                {categoryTree.flatMap(({ category, children }) => [
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>,
+                  ...children.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {`  ${child.name}`}
+                    </option>
+                  )),
+                ])}
+              </select>
             </div>
           </div>
 
-          <div className="plugins-filters__group">
-            <p className="plugins-filters__label" id="model-traits-label">
-              Features
-            </p>
-            <div
-              className="plugins-filters__chips"
-              role="group"
-              aria-labelledby="model-traits-label"
-            >
-              {TRAIT_CHIPS.map(({ key, label }) => {
-                const active = traits[key]
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`plugins-filters__chip${active ? ' plugins-filters__chip--active' : ''}`}
-                    onClick={() => handleTraitToggle(key)}
-                    aria-pressed={active}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
+          <fieldset className="model-filters__group software-filters">
+            <legend>Software</legend>
+            {FORMAT_OPTIONS.map(({ value, label, icon, color, badge }) => (
+              <label className="model-filters__option software-filter__row" key={value}>
+                <input type="checkbox" checked={value.split(',').every((item) => formats.includes(item))} onChange={() => toggleFilter('formats', formats, value)} />
+                <SoftwareIcon icon={icon} color={color} badge={badge} />
+                <span>{label}</span><span className="model-filters__count">{isLoading ? '\u2014' : facets.formats[value]}</span>
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="model-filters__group">
+            <legend>Price</legend>
+            <div className="model-filters__range">
+              <div className="model-filters__track" style={{ background: `linear-gradient(to right, #ddd ${minPrice / 2}%, var(--action-color) ${minPrice / 2}%, var(--action-color) ${maxPrice / 2}%, #ddd ${maxPrice / 2}%)` }} />
+              <input aria-label="Minimum price" type="range" min="0" max="200" value={minPrice} onChange={(e) => updateFilter('min_price', String(Math.min(Number(e.target.value), maxPrice)))} />
+              <input aria-label="Maximum price" type="range" min="0" max="200" value={maxPrice} onChange={(e) => updateFilter('max_price', String(Math.max(Number(e.target.value), minPrice)))} />
             </div>
-          </div>
+            <div className="model-filters__prices"><span>${minPrice}</span><span>${maxPrice}{maxPrice === 200 ? '+' : ''}</span></div>
+          </fieldset>
+          <fieldset className="model-filters__group">
+            <legend>License</legend>
+            {LICENSE_OPTIONS.map(({ value, label }) => (
+              <label className="model-filters__option" key={value}>
+                <input type="checkbox" checked={licenses.includes(value)} onChange={() => toggleFilter('licenses', licenses, value)} />
+                <span>{label}</span><span className="model-filters__count">{isLoading ? '\u2014' : facets.licenses[value]}</span>
+              </label>
+            ))}
+          </fieldset>
+          <button type="button" className="model-filters__clear" onClick={handleResetFilters}>
+            <span aria-hidden="true">&#8635;</span> Clear Filters
+          </button>
           </div>
         </aside>
 
         <section className="plugins-browse-main">
           <div className="plugins-browse-toolbar">
-            <p className="plugins-browse-toolbar__count" aria-live="polite">
-              {isLoading
-                ? 'Loading models…'
-                : `${totalCount} Model${totalCount === 1 ? '' : 's'} found`}
+            <p className="plugins-browse-toolbar__count">
+              3D model
             </p>
             <div className="plugins-browse-toolbar__controls">
               <label className="plugins-browse-toolbar__sort" htmlFor="model-sort-select">

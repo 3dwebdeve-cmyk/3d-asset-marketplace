@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -23,6 +24,10 @@ from config.api_helpers import domain_error_response
 from accounts.permissions import IsAdministrator
 from accounts.serializers import (
     ActivityLogSerializer,
+    AdminMfaConfirmSerializer,
+    AdminMfaStartSerializer,
+    AdminMfaVerifySerializer,
+    AdminRecoveryCodesSerializer,
     AdminUserCreateSerializer,
     AdminUserResponseSerializer,
     AdminUserUpdateSerializer,
@@ -51,21 +56,52 @@ from accounts.services import (
     PasswordResetService,
     ProfileService,
 )
+from accounts import login_guard, mfa, sessions
+from accounts.security_notices import notify_admin_sign_in, notify_mfa_enabled, register_sign_in
+from accounts.tokens import admin_session_expired, admin_session_max_seconds
+from django.db import transaction
 from accounts.throttles import (
     AvatarUploadRateThrottle,
+    ChangePasswordRateThrottle,
     EmailVerificationConfirmRateThrottle,
+    EmailVerificationResendEmailRateThrottle,
     EmailVerificationResendRateThrottle,
+    LegalAcceptRateThrottle,
     LoginRateThrottle,
     PasswordResetConfirmRateThrottle,
+    PasswordResetEmailRateThrottle,
     PasswordResetRateThrottle,
     RegisterRateThrottle,
     TokenRefreshRateThrottle,
 )
 
 
-def _issue_auth_response(user, *, remember: bool) -> Response:
-    """Return access + user in JSON; refresh only via httpOnly cookie."""
-    tokens = AuthenticationService.build_tokens(user)
+def _login_locked_response() -> Response:
+    minutes = max(1, login_guard.retry_after_seconds() // 60)
+    return Response(
+        {
+            "detail": (
+                "Too many failed sign-in attempts for this account. "
+                f"Please try again in {minutes} minutes."
+            ),
+            "code": "throttled",
+        },
+        status=status.HTTP_429_TOO_MANY_REQUESTS,
+    )
+
+
+def _issue_auth_response(
+    user, *, remember: bool, mfa_passed: bool = False, request: Request | None = None
+) -> Response:
+    """Return access + user in JSON; refresh only via httpOnly cookie.
+
+    Customer sign-ins open a device session (``accounts.sessions``); administrators do not.
+    """
+    is_admin = AuthenticationService.is_administrator(user)
+    session_id = None
+    if not is_admin:
+        session_id = sessions.start_session(user, request).pk
+    tokens = AuthenticationService.build_tokens(user, mfa=mfa_passed, session_id=session_id)
     response = Response(
         {
             "access": tokens["access"],
@@ -73,8 +109,18 @@ def _issue_auth_response(user, *, remember: bool) -> Response:
         },
         status=status.HTTP_200_OK,
     )
-    set_refresh_cookie(response, tokens["refresh"], remember=remember)
+    set_refresh_cookie(
+        response,
+        tokens["refresh"],
+        remember=remember,
+        max_age_seconds=admin_session_max_seconds() if is_admin else None,
+    )
     return response
+
+
+def _mfa_error(message: str, code: str = "mfa_invalid") -> Response:
+    # 400, not 401: the browser has no session yet, so nothing should try a token refresh.
+    return Response({"detail": message, "code": code}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class RegisterView(APIView):
@@ -103,7 +149,7 @@ class LegalAcceptView(APIView):
     """Record acceptance of current legal document versions for the auth user."""
 
     permission_classes = [IsAuthenticated]
-    throttle_classes = [RegisterRateThrottle]
+    throttle_classes = [LegalAcceptRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = LegalAcceptSerializer(data=request.data)
@@ -134,10 +180,17 @@ class LoginView(APIView):
             password=serializer.validated_data["password"],
         )
 
+        client_ip = LoginRateThrottle().get_ident(request)
+        if login_guard.is_locked(credentials.email, client_ip):
+            log_auth_failure(scope="customer_login_locked", email=credentials.email)
+            return _login_locked_response()
+
         try:
             user = AuthenticationService.authenticate_customer(credentials)
         except AuthenticationError as exc:
             log_auth_failure(scope="customer_login", email=credentials.email)
+            if exc.code == "invalid_credentials":
+                login_guard.record_failure(credentials.email, client_ip)
             if exc.code == "email_not_verified":
                 return Response(
                     {"detail": exc.message, "code": exc.code},
@@ -145,10 +198,14 @@ class LoginView(APIView):
                 )
             raise AuthenticationFailed(exc.message) from exc
 
-        return _issue_auth_response(
+        login_guard.reset(credentials.email, client_ip)
+        response = _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
+            request=request,
         )
+        register_sign_in(request, response, user)
+        return response
 
 
 class GoogleLoginView(APIView):
@@ -169,14 +226,21 @@ class GoogleLoginView(APIView):
             log_auth_failure(scope="google_login", email=None)
             raise AuthenticationFailed(exc.message) from exc
 
-        return _issue_auth_response(
+        response = _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
+            request=request,
         )
+        register_sign_in(request, response, user)
+        return response
 
 
 class AdminLoginView(APIView):
-    """Issue JWT tokens only for Administrator accounts (admin UI login)."""
+    """Password step of administrator sign-in.
+
+    With ADMIN_MFA_REQUIRED (always on staging/production) this returns a short-lived
+    ``mfa_token`` instead of a session; the code step issues the session.
+    """
 
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
@@ -190,16 +254,156 @@ class AdminLoginView(APIView):
             password=serializer.validated_data["password"],
         )
 
+        client_ip = LoginRateThrottle().get_ident(request)
+        if login_guard.is_locked(credentials.email, client_ip):
+            log_auth_failure(scope="admin_login_locked", email=credentials.email)
+            return _login_locked_response()
+
         try:
             user = AuthenticationService.authenticate_administrator(credentials)
         except AuthenticationError as exc:
             log_auth_failure(scope="admin_login", email=credentials.email)
+            if exc.code == "invalid_credentials":
+                login_guard.record_failure(credentials.email, client_ip)
             raise AuthenticationFailed(exc.message) from exc
 
+        login_guard.reset(credentials.email, client_ip)
+        if getattr(settings, "ADMIN_MFA_REQUIRED", True):
+            return Response(
+                {
+                    "mfa_required": True,
+                    "setup_required": not mfa.is_enrolled(user),
+                    "mfa_token": mfa.issue_mfa_token(user),
+                },
+                status=status.HTTP_200_OK,
+            )
         return _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
         )
+
+
+class _AdminMfaStepView(APIView):
+    """Shared checks for the code step of administrator sign-in."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
+
+    def _pending_admin(self, token: str):
+        user = mfa.user_from_mfa_token(token)
+        if not AuthenticationService.is_administrator(user):
+            raise mfa.MfaError("Your sign-in expired. Enter your email and password again.")
+        return user
+
+
+class AdminMfaSetupView(_AdminMfaStepView):
+    """Start authenticator setup for an administrator who has none yet."""
+
+    def post(self, request: Request) -> Response:
+        serializer = AdminMfaStartSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user = self._pending_admin(serializer.validated_data["mfa_token"])
+            secret, uri = mfa.start_enrollment(user)
+        except mfa.MfaError as exc:
+            return _mfa_error(str(exc), "mfa_expired")
+        return Response({"secret": secret, "otpauth_uri": uri}, status=status.HTTP_200_OK)
+
+
+class AdminMfaConfirmView(_AdminMfaStepView):
+    """Finish setup with the first code; returns the session and the recovery codes."""
+
+    def post(self, request: Request) -> Response:
+        serializer = AdminMfaConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user = self._pending_admin(serializer.validated_data["mfa_token"])
+        except mfa.MfaError as exc:
+            return _mfa_error(str(exc), "mfa_expired")
+
+        client_ip = LoginRateThrottle().get_ident(request)
+        if login_guard.is_locked(user.email, client_ip):
+            return _login_locked_response()
+        try:
+            recovery_codes = mfa.confirm_enrollment(user, serializer.validated_data["code"])
+        except mfa.MfaError as exc:
+            login_guard.record_failure(user.email, client_ip)
+            log_auth_failure(scope="admin_mfa_setup", email=user.email)
+            return _mfa_error(str(exc))
+
+        login_guard.reset(user.email, client_ip)
+        notify_mfa_enabled(user)
+        notify_admin_sign_in(request, user, method="totp")
+        response = _issue_auth_response(
+            user,
+            remember=bool(serializer.validated_data.get("remember_me", True)),
+            mfa_passed=True,
+        )
+        response.data["recovery_codes"] = recovery_codes
+        return response
+
+
+class AdminMfaVerifyView(_AdminMfaStepView):
+    """Code step of administrator sign-in: authenticator code or one recovery code."""
+
+    def post(self, request: Request) -> Response:
+        serializer = AdminMfaVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            user = self._pending_admin(serializer.validated_data["mfa_token"])
+        except mfa.MfaError as exc:
+            return _mfa_error(str(exc), "mfa_expired")
+
+        client_ip = LoginRateThrottle().get_ident(request)
+        if login_guard.is_locked(user.email, client_ip):
+            return _login_locked_response()
+        try:
+            method = mfa.verify_second_factor(
+                user,
+                code=serializer.validated_data.get("code", ""),
+                recovery_code=serializer.validated_data.get("recovery_code", ""),
+            )
+        except mfa.MfaError as exc:
+            login_guard.record_failure(user.email, client_ip)
+            log_auth_failure(scope="admin_mfa_verify", email=user.email)
+            return _mfa_error(str(exc))
+
+        login_guard.reset(user.email, client_ip)
+        notify_admin_sign_in(request, user, method=method)
+        return _issue_auth_response(
+            user,
+            remember=bool(serializer.validated_data.get("remember_me", True)),
+            mfa_passed=True,
+        )
+
+
+class AdminRecoveryCodesView(APIView):
+    """How many recovery codes are left, and a fresh set behind a current code."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [ChangePasswordRateThrottle]
+
+    def get(self, request: Request) -> Response:
+        return Response(
+            {
+                "enrolled": mfa.is_enrolled(request.user),
+                "remaining": mfa.remaining_recovery_codes(request.user),
+            }
+        )
+
+    def post(self, request: Request) -> Response:
+        serializer = AdminRecoveryCodesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            mfa.verify_second_factor(request.user, code=serializer.validated_data["code"])
+        except mfa.MfaError as exc:
+            return _mfa_error(str(exc))
+        log_admin_action(
+            action="mfa_recovery_codes_replaced",
+            actor_id=str(request.user.pk),
+            target_id=str(request.user.pk),
+        )
+        return Response({"recovery_codes": mfa.replace_recovery_codes(request.user)})
 
 
 class CurrentUserView(APIView):
@@ -220,6 +424,17 @@ class AdminCurrentUserView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+def _refresh_session_id(raw: str):
+    """``sid`` of a refresh token that was already verified (and may now be blacklisted)."""
+    from rest_framework_simplejwt.exceptions import TokenError
+    from rest_framework_simplejwt.tokens import UntypedToken
+
+    try:
+        return UntypedToken(raw, verify=False).payload.get("sid")
+    except TokenError:
+        return None
+
+
 class LogoutView(APIView):
     """Blacklist the refresh cookie and clear it. Cookie-only; no JSON refresh."""
 
@@ -233,6 +448,7 @@ class LogoutView(APIView):
             user = request.user if getattr(request.user, "is_authenticated", False) else None
             try:
                 AuthenticationService.blacklist_refresh_token(refresh, user=user)
+                sessions.end_session(_refresh_session_id(refresh))
             except AuthenticationError as exc:
                 clear_refresh_cookie(response)
                 raise AuthenticationFailed(exc.message) from exc
@@ -241,11 +457,36 @@ class LogoutView(APIView):
         return response
 
 
+def _session_ended_response(session_id) -> Response:
+    """401 for a device whose session ended; ``session_replaced`` means another device took it."""
+    replaced = sessions.revoked_reason(session_id) == sessions.REASON_REPLACED
+    response = Response(
+        {
+            "detail": (
+                "You were signed out because your account was signed in on another device."
+                if replaced
+                else "Your session has ended. Please sign in again."
+            ),
+            "code": "session_replaced" if replaced else "session_ended",
+        },
+        status=status.HTTP_401_UNAUTHORIZED,
+    )
+    clear_refresh_cookie(response)
+    return response
+
+
 class CookieTokenRefreshView(APIView):
     """Rotate refresh from httpOnly cookie; return access only."""
 
+    # The cookie is the credential. A stale Bearer header from a signed-out device must not
+    # turn the reply into a generic 401 before the view can say why the session ended.
+    authentication_classes: list = []
     permission_classes = [AllowAny]
     throttle_classes = [TokenRefreshRateThrottle]
+
+    def get_authenticate_header(self, request: Request) -> str:
+        # With no authenticators DRF would downgrade AuthenticationFailed to 403; keep 401.
+        return 'Bearer realm="api"'
 
     def post(self, request: Request) -> Response:
         from rest_framework_simplejwt.exceptions import TokenError
@@ -263,11 +504,6 @@ class CookieTokenRefreshView(APIView):
             old_refresh = RefreshToken(raw)
             user_id = old_refresh.payload.get("user_id")
             try:
-                old_refresh.blacklist()
-            except AttributeError:
-                pass
-
-            try:
                 user = User.objects.get(pk=user_id)
             except User.DoesNotExist as exc:
                 raise AuthenticationFailed("Invalid refresh token.") from exc
@@ -281,22 +517,64 @@ class CookieTokenRefreshView(APIView):
             if refresh_tv != int(getattr(user, "token_version", 0) or 0):
                 raise TokenError("Token is invalid or expired")
 
-            tokens = AuthenticationService.build_tokens(user)
-        except TokenError:
+            auth_time = old_refresh.payload.get("auth_time")
+            mfa_passed = bool(old_refresh.payload.get("mfa"))
+            is_admin = AuthenticationService.is_administrator(user)
+            if is_admin and (
+                admin_session_expired(auth_time)
+                or (getattr(settings, "ADMIN_MFA_REQUIRED", True) and not mfa_passed)
+            ):
+                raise TokenError("Administrator session expired")
+
+            session_id = None if is_admin else old_refresh.payload.get("sid")
+            if session_id and not sessions.is_active(session_id, user):
+                return _session_ended_response(session_id)
+
+            # Recheck token validity after obtaining the account lock. Concurrent
+            # requests must not both consume the same refresh token.
+            with transaction.atomic():
+                user = User.objects.select_for_update().get(pk=user.pk)
+                old_refresh = RefreshToken(raw)
+                if not user.is_active or refresh_tv != user.token_version:
+                    raise TokenError("Token is invalid or expired")
+                old_refresh.blacklist()
+                if not is_admin and not session_id:
+                    # Signed in before device sessions existed: join the device limit now.
+                    session_id = sessions.start_session(user, request).pk
+                tokens = AuthenticationService.build_tokens(
+                    user,
+                    auth_time=int(auth_time) if auth_time is not None else None,
+                    mfa=mfa_passed,
+                    session_id=session_id,
+                )
+            if session_id:
+                sessions.touch(session_id)
+        except TokenError as exc:
             response = Response(
                 {"detail": "Token is invalid or expired", "code": "token_not_valid"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
-            clear_refresh_cookie(response)
+            # An already-rotated token is rejected, but deleting the cookie here
+            # races the successful rotation's Set-Cookie and signs the buyer out
+            # when checkout returns from Stripe. Expired or malformed tokens
+            # still clear the dead cookie.
+            if "blacklist" not in str(exc).lower():
+                clear_refresh_cookie(response)
             return response
 
         response = Response({"access": tokens["access"]}, status=status.HTTP_200_OK)
-        set_refresh_cookie(response, tokens["refresh"], remember=remember)
+        set_refresh_cookie(
+            response,
+            tokens["refresh"],
+            remember=remember,
+            max_age_seconds=admin_session_max_seconds() if is_admin else None,
+        )
         return response
 
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ChangePasswordRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = ChangePasswordSerializer(
@@ -334,7 +612,7 @@ class ChangePasswordView(APIView):
 
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PasswordResetRateThrottle]
+    throttle_classes = [PasswordResetRateThrottle, PasswordResetEmailRateThrottle]
 
     def post(self, request: Request) -> Response:
         serializer = PasswordResetRequestSerializer(data=request.data)
@@ -382,7 +660,10 @@ class PasswordResetConfirmView(APIView):
 
 class EmailVerificationResendView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [EmailVerificationResendRateThrottle]
+    throttle_classes = [
+        EmailVerificationResendRateThrottle,
+        EmailVerificationResendEmailRateThrottle,
+    ]
 
     def post(self, request: Request) -> Response:
         serializer = EmailVerificationResendSerializer(data=request.data)

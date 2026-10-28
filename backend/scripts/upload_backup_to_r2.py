@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Upload a Postgres dump to the private R2 bucket using the same R2_* env as the app.
+"""Upload an encrypted Postgres dump to the separate R2 backup bucket.
 
-Does not invent a second storage stack — boto3 + R2_ENDPOINT_URL / keys / R2_PRIVATE_BUCKET.
+The backup bucket has its own API token. The app's R2 token cannot read backups, so
+a leaked app key does not expose the customer database, and the bucket's lock rule
+stops anyone (including that token) deleting a backup early.
 
 Usage:
-  python backend/scripts/upload_backup_to_r2.py ./backups/marketplace-....dump
+  python backend/scripts/upload_backup_to_r2.py ./backups/marketplace-....dump.age
 
-Requires: R2_ACCOUNT_ID (or R2_ENDPOINT_URL), R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-R2_PRIVATE_BUCKET. Object key: backups/postgres/<filename>
+Requires: R2_ENDPOINT_URL (or R2_ACCOUNT_ID), R2_BACKUP_BUCKET,
+R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY. Object key: postgres/<filename>
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+
+ENCRYPTED_SUFFIX = ".age"
 
 
 def _endpoint() -> str:
@@ -27,6 +31,10 @@ def _endpoint() -> str:
     return f"https://{account}.r2.cloudflarestorage.com"
 
 
+def _env(name: str) -> str:
+    return (os.environ.get(name) or "").strip()
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(f"usage: {sys.argv[0]} <dump-file>", file=sys.stderr)
@@ -36,13 +44,26 @@ def main() -> int:
     if not dump_path.is_file():
         print(f"missing dump file: {dump_path}", file=sys.stderr)
         return 1
+    if dump_path.suffix != ENCRYPTED_SUFFIX:
+        print("Refusing to upload an unencrypted backup (expected a .age file).", file=sys.stderr)
+        return 1
 
-    access_key = (os.environ.get("R2_ACCESS_KEY_ID") or "").strip()
-    secret_key = (os.environ.get("R2_SECRET_ACCESS_KEY") or "").strip()
-    bucket = (os.environ.get("R2_PRIVATE_BUCKET") or "").strip()
-    if not access_key or not secret_key or not bucket:
+    bucket = _env("R2_BACKUP_BUCKET")
+    access_key = _env("R2_BACKUP_ACCESS_KEY_ID")
+    secret_key = _env("R2_BACKUP_SECRET_ACCESS_KEY")
+    if not bucket or not access_key or not secret_key:
         print(
-            "R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_PRIVATE_BUCKET are required.",
+            "R2_BACKUP_BUCKET, R2_BACKUP_ACCESS_KEY_ID and R2_BACKUP_SECRET_ACCESS_KEY "
+            "are required.",
+            file=sys.stderr,
+        )
+        return 1
+    if bucket in {_env("R2_PUBLIC_BUCKET"), _env("R2_PRIVATE_BUCKET")}:
+        print("Refusing to upload a backup into an app bucket.", file=sys.stderr)
+        return 1
+    if access_key == _env("R2_ACCESS_KEY_ID"):
+        print(
+            "Refusing to use the app's R2 key for backups; create a separate backup token.",
             file=sys.stderr,
         )
         return 1
@@ -53,7 +74,7 @@ def main() -> int:
         print("boto3 is required (install backend/requirements.txt).", file=sys.stderr)
         return 1
 
-    key = f"backups/postgres/{dump_path.name}"
+    key = f"postgres/{dump_path.name}"
     client = boto3.client(
         "s3",
         endpoint_url=_endpoint(),

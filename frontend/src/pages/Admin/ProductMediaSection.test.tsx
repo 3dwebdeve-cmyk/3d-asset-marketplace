@@ -1,9 +1,14 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createTestQueryClient, resetAuthStore, resetToastStore } from '../../test/test-utils'
 import { ProductMediaSection } from './ProductMediaSection'
+import { uploadProductFile } from '../../api/productsApi'
+
+vi.mock('../../components/viewer/ModelViewer', () => ({
+  default: ({ modelUrl }: { modelUrl: string }) => <div data-testid="admin-model-viewer">{modelUrl}</div>,
+}))
 
 vi.mock('../../api/productsApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/productsApi')>(
@@ -83,11 +88,11 @@ const sampleProduct = {
   updated_at: '2024-01-01T00:00:00Z',
 }
 
-function renderMediaSection() {
+function renderMediaSection(product = sampleProduct) {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <ProductMediaSection productId={productId} product={sampleProduct} />
+      <ProductMediaSection productId={productId} product={product} />
     </QueryClientProvider>,
   )
 }
@@ -99,6 +104,26 @@ beforeEach(() => {
 })
 
 describe('ProductMediaSection', () => {
+  it('shows the saved preview in the admin viewer, including draft products', async () => {
+    const preview_model = 'https://cdn.example.com/chair.glb'
+    renderMediaSection({ ...sampleProduct, preview_model })
+    expect(await screen.findByTestId('admin-model-viewer')).toHaveTextContent(preview_model)
+  })
+
+  it('explains preview requirements before a model is uploaded', () => {
+    renderMediaSection()
+    expect(screen.getByText(/Upload a GLB or self-contained GLTF/)).toBeInTheDocument()
+  })
+
+  it('rejects oversized previews before sending the upload', () => {
+    renderMediaSection()
+    const file = new File(['model'], 'chair.glb')
+    Object.defineProperty(file, 'size', { value: 26 * 1024 * 1024 })
+    fireEvent.change(document.getElementById('product-file-upload')!, { target: { files: [file] } })
+    expect(screen.getByRole('alert')).toHaveTextContent('Preview model must be 25 MB or smaller.')
+    expect(uploadProductFile).not.toHaveBeenCalled()
+  })
+
   it('shows supported format badges and uploaded media details', async () => {
     renderMediaSection()
 

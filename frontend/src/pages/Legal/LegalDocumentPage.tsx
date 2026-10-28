@@ -11,18 +11,18 @@ const COPY: Record<
   { title: string; description: string; heading: string; version: string; otherLabel: string; otherPath: string }
 > = {
   terms: {
-    title: 'Terms of Service | 3D Asset Marketplace',
+    title: 'Terms of Service | AssetHive3D',
     description:
-      'Terms of Service for buying 3D models, plugins, and custom project work on the 3D Asset Marketplace.',
+      'Terms of Service for buying 3D models, plugins, and custom project work on AssetHive3D.',
     heading: 'Terms of Service',
     version: LEGAL_DOCUMENT_VERSIONS.terms,
     otherLabel: 'Privacy Policy',
     otherPath: PRIVACY_PATH,
   },
   privacy: {
-    title: 'Privacy Policy | 3D Asset Marketplace',
+    title: 'Privacy Policy | AssetHive3D',
     description:
-      'How the 3D Asset Marketplace collects, uses, and protects account and order information.',
+      'How AssetHive3D collects, uses, and protects account and order information.',
     heading: 'Privacy Policy',
     version: LEGAL_DOCUMENT_VERSIONS.privacy,
     otherLabel: 'Terms of Service',
@@ -49,7 +49,7 @@ export function LegalDocumentPage({ kind }: LegalDocumentPageProps) {
           <p className="marketing-page__eyebrow">Legal</p>
           <h1>{copy.heading}</h1>
           <p className="home-page__subtitle">
-            Document version <strong>{copy.version}</strong>. By creating an account or completing
+            Document version <strong>{LEGAL_DOCUMENT_VERSIONS[kind]}</strong>. By creating an account or completing
             checkout, you confirm you have read this document.
           </p>
           <p className="home-page__subtitle">
@@ -112,8 +112,9 @@ function TermsBody() {
       <section>
         <h2>5. Custom projects</h2>
         <p>
-          Custom project quotations, messaging, and deliverables are handled in your project portal.
-          Accepting a quotation and paying for it creates a binding purchase for that scoped work.
+          Custom project enquiries, quotations, communication, and delivery arrangements are
+          handled directly with our team by email. Any agreed scope, pricing, payment terms, and
+          delivery terms will be provided in that correspondence.
         </p>
       </section>
       <section>

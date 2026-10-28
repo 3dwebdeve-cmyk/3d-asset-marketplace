@@ -1,22 +1,52 @@
-"""Report email readiness: backend, SMTP host, recipients; optional test send."""
+"""Report email readiness: backend, Brevo/SMTP, recipients; optional test send."""
 
 from __future__ import annotations
+
+from email.utils import parseaddr
 
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand, CommandError
 
 
+# Mail "from" one of these but sent through Brevo fails DMARC: Gmail and Yahoo reject it or
+# file it as spam. Send from the shop's own domain (docs/EMAIL_DOMAIN_SETUP.md).
+FREE_MAILBOX_DOMAINS = frozenset(
+    {
+        "gmail.com",
+        "googlemail.com",
+        "yahoo.com",
+        "outlook.com",
+        "hotmail.com",
+        "live.com",
+        "msn.com",
+        "icloud.com",
+        "me.com",
+        "aol.com",
+        "proton.me",
+        "protonmail.com",
+        "gmx.com",
+        "zoho.com",
+        "yandex.com",
+        "mail.com",
+    }
+)
+
+
 def _parse_recipients(raw: str) -> list[str]:
     return [part.strip() for part in (raw or "").split(",") if part.strip()]
 
 
+def _sender_domain(from_email: str) -> str:
+    return parseaddr(from_email)[1].rpartition("@")[2].strip().lower()
+
+
 class Command(BaseCommand):
     help = (
-        "Print email/SMTP configuration used by Django and Celery mail tasks. "
-        "Pass --fail-on-warnings when DEBUG=False and console mail / missing SMTP "
-        "or recipients would block launch. Pass --send-test-email ADDR to deliver "
-        "one smoke message through the configured backend."
+        "Print email configuration used by Django and Celery mail tasks. "
+        "Pass --fail-on-warnings when DEBUG=False and console mail / missing "
+        "Brevo or SMTP / recipients would block launch. Pass --send-test-email "
+        "ADDR to deliver one smoke message through the configured backend."
     )
 
     def add_arguments(self, parser) -> None:
@@ -31,13 +61,14 @@ class Command(BaseCommand):
             default="",
             help=(
                 "Send a short smoke email to ADDRESS using the active EMAIL_BACKEND. "
-                "Requires SMTP (or console) to be configured; does not invent a backend."
+                "Requires Brevo API, SMTP, or console to be configured."
             ),
         )
 
     def handle(self, *args, **options) -> None:
         backend = (getattr(settings, "EMAIL_BACKEND", "") or "").strip()
         allow_console = bool(getattr(settings, "ALLOW_CONSOLE_EMAIL", False))
+        brevo_key = bool((getattr(settings, "BREVO_API_KEY", "") or "").strip())
         host = (getattr(settings, "EMAIL_HOST", "") or "").strip()
         port = getattr(settings, "EMAIL_PORT", 587)
         use_tls = bool(getattr(settings, "EMAIL_USE_TLS", True))
@@ -56,11 +87,13 @@ class Command(BaseCommand):
         )
         warnings: list[str] = []
         console = "console" in backend.lower()
-        smtp = "smtp" in backend.lower()
+        smtp = "smtp" in backend.lower() and "brevo" not in backend.lower()
+        brevo = "brevo" in backend.lower()
 
         self.stdout.write(f"DEBUG={settings.DEBUG}")
         self.stdout.write(f"EMAIL_BACKEND={backend or '(empty)'}")
         self.stdout.write(f"ALLOW_CONSOLE_EMAIL={allow_console}")
+        self.stdout.write(f"BREVO_API_KEY_set={brevo_key}")
         self.stdout.write(f"EMAIL_HOST_set={bool(host)}")
         self.stdout.write(f"EMAIL_PORT={port}")
         self.stdout.write(f"EMAIL_USE_TLS={use_tls}")
@@ -72,24 +105,43 @@ class Command(BaseCommand):
             f"PROJECT_MESSAGE_ADMIN_RECIPIENTS_count={len(project)}"
         )
         self.stdout.write(
-            "Celery mail tasks require the same EMAIL_* on web and worker - "
-            "see docs/SMTP_STAGING_CHECKLIST.md"
+            "Celery mail tasks require the same BREVO_API_KEY / EMAIL_* on web "
+            "and worker - see backend/.env.example"
         )
+
+        if not settings.DEBUG and _sender_domain(from_email) in FREE_MAILBOX_DOMAINS:
+            warnings.append(
+                f"DEFAULT_FROM_EMAIL uses {_sender_domain(from_email)}, a free mailbox domain - "
+                "mail sent through Brevo/SMTP fails DMARC and lands in spam or is rejected. "
+                "Send from an address on the shop's own domain (docs/EMAIL_DOMAIN_SETUP.md)."
+            )
 
         if console:
             if settings.DEBUG or allow_console:
                 self.stdout.write(
                     self.style.WARNING(
                         "Console email backend active - OK for local DEBUG; "
-                        "staging/prod must use SMTP "
-                        "(EMAIL_BACKEND=...smtp.EmailBackend, ALLOW_CONSOLE_EMAIL=False)."
+                        "staging/prod must use BREVO_API_KEY or SMTP "
+                        "(ALLOW_CONSOLE_EMAIL=False)."
                     )
                 )
             else:
-                # Settings should have refused boot; still surface for --fail-on-warnings.
                 warnings.append(
                     "EMAIL_BACKEND still uses console while DEBUG=False and "
                     "ALLOW_CONSOLE_EMAIL is False."
+                )
+        elif brevo:
+            if not brevo_key:
+                warnings.append(
+                    "EMAIL_BACKEND is Brevo API but BREVO_API_KEY is empty - "
+                    "mail cannot leave the host."
+                )
+            elif not warnings:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "Brevo API backend configured (BREVO_API_KEY set). "
+                        "Confirm delivery with --send-test-email."
+                    )
                 )
         elif smtp:
             if not host:
@@ -111,14 +163,14 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.SUCCESS(
                         "SMTP backend configured (host set). "
-                        "Confirm delivery with --send-test-email."
+                        "Confirm delivery with --send-test-email. "
+                        "Note: Render free blocks SMTP — prefer BREVO_API_KEY."
                     )
                 )
         else:
-            # locmem / filebased / custom - fine for tests; warn off DEBUG.
             if not settings.DEBUG:
                 warnings.append(
-                    f"EMAIL_BACKEND={backend!r} is neither console nor SMTP. "
+                    f"EMAIL_BACKEND={backend!r} is neither console, Brevo, nor SMTP. "
                     "Confirm this is intentional for staging/prod."
                 )
 
@@ -155,17 +207,23 @@ class Command(BaseCommand):
                 ) from exc
             if not sent:
                 raise CommandError(
-                    f"send_mail returned 0 for {to_addr} — check EMAIL_* settings."
+                    f"send_mail returned 0 for {to_addr} — check email settings."
                 )
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Sent test email to {to_addr}. "
-                    "Confirm delivery in the inbox (or worker/console logs if console)."
+                    "Confirm delivery in the inbox (or Brevo transactional logs)."
                 )
             )
 
         if not warnings:
-            if smtp and host:
+            if brevo and brevo_key:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "Email/Brevo config looks ready for this env."
+                    )
+                )
+            elif smtp and host:
                 self.stdout.write(
                     self.style.SUCCESS(
                         "Email/SMTP config looks ready for this env."

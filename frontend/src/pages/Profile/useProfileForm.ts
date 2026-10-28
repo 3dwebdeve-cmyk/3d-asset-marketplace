@@ -67,18 +67,21 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
   })
 
   useEffect(() => {
-    if (!profile) {
+    // Avatar uploads also refresh the profile query. Do not discard text the
+    // user has typed but not saved yet.
+    if (!profile || isDirty) {
       return
     }
 
     reset({
+      full_name: profile.full_name ?? '',
       company_name: profile.company_name ?? '',
       website: profile.website ?? '',
       address: profile.address ?? '',
       city: profile.city ?? '',
       country: profile.country ?? '',
     })
-  }, [profile, reset])
+  }, [profile, reset, isDirty])
 
   const mutation = useMutation({
     mutationFn: updateProfile,
@@ -89,11 +92,13 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
       if (storedUser) {
         setUser({
           ...storedUser,
+          full_name: data.full_name,
           country: data.country,
         })
       }
 
       reset({
+        full_name: data.full_name ?? '',
         company_name: data.company_name ?? '',
         website: data.website ?? '',
         address: data.address ?? '',
@@ -139,6 +144,7 @@ export function useProfileForm(profile: UserProfile | undefined): UseProfileForm
     }
 
     mutation.mutate({
+      full_name: parsed.data.full_name,
       company_name: parsed.data.company_name,
       website: parsed.data.website,
       address: parsed.data.address,

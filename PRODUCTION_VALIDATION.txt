@@ -1,0 +1,84 @@
+Implementation validation - 2026-10-05
+
+Deployment follow-up: scanner availability no longer blocks settings import or
+migrations. Production upload scanning remains mandatory and fails closed when
+the scanner is missing/unreachable. check_package_scanner provides a separate
+operational readiness check. Verified with 23 targeted tests, including loading
+production settings in a subprocess without a scanner, and production Compose
+configuration validation with an empty scanner host. Other production requirements
+remain enforced; this fixes the logged scanner error, not all possible host issues.
+
+Implemented code changes
+Phase 1
+- Google ownership of an unverified registration invalidates its old password and
+  refresh sessions. Verified-account linking preserves legitimate credentials.
+- Refresh rotation is serialized on the account row; security-related admin edits
+  revoke old tokens, including deactivation/reactivation and role changes.
+- Review edits preserve moderation. Non-buyers can comment but cannot change stars.
+  Successful posts/updates clear the editor; failed saves keep the draft.
+- Failed-login counters serialize updates and lock account/client pairs rather
+  than allowing a remote attacker to globally lock someone else's account.
+- Administrator CIDR errors fail closed; production requires restricted networks.
+- Production explicitly forbids debug mode and simulated payments.
+- DRF upgraded to 3.17.2; frontend dependency patches included in the lockfile.
+
+Phase 2
+- Successful idempotent responses are committed in PostgreSQL with producer writes.
+  Concurrent matching keys execute once; a two-thread database test verifies this.
+- Checkout creation is serialized per customer and reuses recent matching pending
+  orders/sessions. Stripe requests carry stable order-based idempotency keys.
+- Unmatched completion/refund events return a retryable error instead of being
+  irreversibly acknowledged. Duplicate-event handling uses an inner savepoint.
+- Refund totals are recorded. Full refunds revoke access; partial refunds retain
+  access. Open/lost disputes suspend downloads; current Stripe state handles delayed
+  dispute deliveries, and won disputes restore access.
+- Email tasks are persisted transactionally and processed with leases/backoff;
+  failed jobs survive restarts. Worker readiness checks include heartbeat and failures.
+- Contact acknowledges receipt for delivery and reports missing recipients as 503.
+- Health probes require actual 200/JSON dependency health, not HTTPS redirects.
+- Restore drills stop on errors, exclude ownership/ACL incompatibilities explicitly
+  and require critical tables. Backup uploader rejects the public bucket.
+
+Phase 3
+- Product files receive content/format validation. ZIP checks cover traversal,
+  symlinks, encryption, entry/expansion limits. glTF external URLs are rejected.
+- Production requires ClamAV configuration and rejects unapproved/unavailable scans.
+  RAR/7z are not accepted in production because full archive inspection is unavailable.
+- Public/private R2 buckets must differ. Secure refresh cookies are required on hosts.
+- Forwarded TLS headers are trusted only from listed Cloudflare TCP peers.
+- Error, breadcrumb and transaction telemetry scrub sensitive paths, URLs and tokens.
+- Live frontend loads legal versions from the API before exposing registration or pay.
+- Startup runs the production/staging cutover gate; CI audits Python/npm dependencies.
+- Serializer-backed APIViews and versioned JWT have schema support; manual JSON
+  endpoints retain free-form schemas instead of invented contracts.
+
+Verification evidence
+- Full backend suite: 608 tests passed. Fast password hashing was used only inside
+  that test process; production password hashing was not changed.
+- Authentication/security subset: 80 tests passed with normal configured hashing.
+- Frontend suite before dependency refresh: 78 files / 337 tests passed.
+- Patched-lockfile frontend: 78 files / 337 tests passed; production build passed;
+  lint passed with four existing warnings (Fast Refresh and Navbar dependencies).
+- Backend pip-audit: no known vulnerabilities found after DRF upgrade.
+- npm audit fix: 19 packages changed; zero known vulnerabilities reported.
+- Django system check: clean. makemigrations --check --dry-run: no drift.
+- OpenAPI generation --validate: clean after schema/authentication/enum support.
+- Production and E2E Compose config validation: passed with dummy validation values.
+- New mail_log/payments migrations were applied successfully to the LOCAL dev DB.
+- Git diff whitespace check: passed.
+
+Not certified locally / still required for release
+- Deploy migrations, continuously running worker and updated malware signatures.
+- Verify trusted proxy/origin firewall/TLS, secure cookies and administrator access.
+- Audit existing/imported packages; new-upload inspection does not certify old assets.
+- Verify R2 private ACLs, expiring signed URLs, all published packages and backups.
+- Replay real Stripe scenarios and any previously acknowledged unmatched events.
+- Confirm real email delivery, queue alerts and failed-job retention/requeue procedure.
+- Perform database AND object restore, load, alerting and rollback drills.
+- Lint/build have pre-existing Fast Refresh warnings and a large model-viewer chunk;
+  these are not proof of a security vulnerability. Measure production load/device use.
+- Review PRODUCTION_RELEASE_STEPS.txt and record staging evidence before launch.
+
+These are implementation and test results, not a claim of zero vulnerabilities or
+production readiness. No production account, firewall, bucket or Stripe dashboard
+was changed. Commit and publishing status are recorded in the Git history.

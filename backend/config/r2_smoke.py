@@ -113,9 +113,11 @@ def run_private_presign_smoke() -> R2PresignSmokeResult:
 
 def _fetch_smoke_bytes(download_url: str) -> bool:
     """GET the signed URL and confirm body matches the smoke payload."""
+    if not download_url.startswith("https://"):
+        return False
     request = Request(download_url, method="GET")
     try:
-        with urlopen(request, timeout=30) as response:  # noqa: S310 — operator R2 URL
+        with urlopen(request, timeout=30) as response:  # noqa: S310  # nosec B310 - https checked above
             body = response.read()
     except (HTTPError, URLError, TimeoutError, OSError) as exc:
         raise R2SmokeError(

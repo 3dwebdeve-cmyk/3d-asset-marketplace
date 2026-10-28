@@ -164,7 +164,8 @@ class CategoryService:
             category.parent = cls._resolve_parent(data.parent_id, category=category)
             update_fields.append("parent")
 
-        if data.slug is not None and data.name is None:
+        # An explicit slug is honoured even when a name is sent with it.
+        if data.slug is not None:
             slug = data.slug.strip().lower()
             if not slug:
                 raise CategoryError("Slug cannot be empty.", field="slug")

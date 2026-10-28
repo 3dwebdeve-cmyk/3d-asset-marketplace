@@ -11,7 +11,10 @@ from rest_framework.views import APIView
 from uuid import UUID
 
 from accounts.permissions import IsAdministrator, IsEmailVerified
-from accounts.throttles import PaymentCheckoutRateThrottle
+from accounts.throttles import (
+    PaymentCheckoutDailyRateThrottle,
+    PaymentCheckoutRateThrottle,
+)
 from config.api_helpers import domain_error_body, domain_error_response, parse_choice, parse_uuid
 from config.idempotency import (
     build_cache_key,
@@ -46,31 +49,47 @@ def _accepted_legal_from_request(request: Request):
 
 class CreateCheckoutSessionView(APIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
-    throttle_classes = [PaymentCheckoutRateThrottle]
+    throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
 
     def post(self, request: Request) -> Response:
-        accepted_legal = _accepted_legal_from_request(request)
+        try:
+            accepted_legal = _accepted_legal_from_request(request)
 
-        def _produce() -> tuple[dict, int]:
-            try:
-                result = CheckoutService.create_checkout_session(
-                    request.user,
-                    accepted_legal=accepted_legal,
+            def _produce() -> tuple[dict, int]:
+                try:
+                    result = CheckoutService.create_checkout_session(
+                        request.user,
+                        accepted_legal=accepted_legal,
+                    )
+                except CheckoutError as exc:
+                    return _checkout_error_body(exc), status.HTTP_400_BAD_REQUEST
+                return result, status.HTTP_201_CREATED
+
+            idem_key = idempotency_key_from_request(request)
+            if idem_key:
+                body, code = get_or_set(
+                    build_cache_key("checkout", request.user.pk, idem_key),
+                    _produce,
+                    ttl=30 * 60,
                 )
-            except CheckoutError as exc:
-                return _checkout_error_body(exc), status.HTTP_400_BAD_REQUEST
-            return result, status.HTTP_201_CREATED
+                return Response(body, status=code)
 
-        idem_key = idempotency_key_from_request(request)
-        if idem_key:
-            body, code = get_or_set(
-                build_cache_key("checkout", request.user.pk, idem_key),
-                _produce,
-            )
+            body, code = _produce()
             return Response(body, status=code)
-
-        body, code = _produce()
-        return Response(body, status=code)
+        except Exception:
+            # Keep implementation details out of the API response while
+            # preserving the complete traceback in Render application logs.
+            logger.exception(
+                "checkout_session_create_failed user_id=%s",
+                request.user.pk,
+            )
+            return Response(
+                {
+                    "detail": "Unable to start checkout. Please try again.",
+                    "code": "checkout_internal_error",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class StripeWebhookView(APIView):
@@ -135,9 +154,11 @@ class ConfirmCheckoutSessionView(APIView):
     """Owner-only Stripe session sync used by /checkout/success when webhooks lag."""
 
     permission_classes = [IsAuthenticated, IsEmailVerified]
-    throttle_classes = [PaymentCheckoutRateThrottle]
+    throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
 
     def post(self, request: Request) -> Response:
+        if not isinstance(request.data, dict):
+            raise ValidationError({"order_id": ["This field is required."]})
         raw_order_id = request.data.get("order_id")
         if not raw_order_id:
             raise ValidationError({"order_id": ["This field is required."]})

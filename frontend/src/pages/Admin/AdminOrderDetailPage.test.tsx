@@ -45,6 +45,7 @@ const sampleOrder = {
       quantity: 2,
       purchase_price: '29.99',
       line_total: '59.98',
+      license_code: null,
       created_at: '2026-07-28T00:00:00Z',
       updated_at: '2026-07-28T00:00:00Z',
     },
@@ -98,34 +99,20 @@ describe('AdminOrderDetailPage', () => {
     })
   })
 
-  it('marks a pending order as paid', async () => {
-    const user = userEvent.setup()
-    vi.mocked(ordersApi.updateAdminOrderStatus).mockResolvedValue({
-      ...sampleOrder,
-      order_status: 'paid',
-      payment_status: 'paid',
-    })
-
+  it('does not offer a manual mark-as-paid action', async () => {
     renderPage()
 
     await screen.findByRole('heading', { name: 'INV-20260728-ABCD' })
-    await user.click(screen.getByRole('button', { name: /mark as paid/i }))
-
-    await waitFor(() => {
-      expect(ordersApi.updateAdminOrderStatus).toHaveBeenCalledWith(orderId, {
-        order_status: 'paid',
-        payment_status: 'paid',
-      })
-    })
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /set order → paid/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /set payment → paid/i })).not.toBeInTheDocument()
   })
 
-  it('shows allowed status transition actions for a pending order', async () => {
+  it('shows only cancellation as a manual transition for a pending order', async () => {
     renderPage()
 
     await screen.findByRole('heading', { name: 'INV-20260728-ABCD' })
-    expect(screen.getByRole('button', { name: /set order → paid/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /set order → cancelled/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /set payment → paid/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /set payment → cancelled/i })).toBeInTheDocument()
     expect(screen.getByText('oak-chair')).toBeInTheDocument()
   })

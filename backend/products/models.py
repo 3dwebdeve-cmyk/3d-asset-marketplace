@@ -57,6 +57,8 @@ class Product(models.Model):
     has_thumbnail = models.BooleanField(default=False)
     has_preview = models.BooleanField(default=False)
     has_package = models.BooleanField(default=False)
+    # Model formats inside the imported package (lowercase, no dot), e.g. ["fbx", "max"].
+    package_formats = models.JSONField(default=list, blank=True)
     description = models.TextField(blank=True)
     short_description = models.CharField(max_length=500, blank=True)
     price = models.DecimalField(
@@ -74,6 +76,9 @@ class Product(models.Model):
     )
     thumbnail = models.URLField(blank=True)
     preview_model = models.URLField(blank=True)
+    # Triangles in the public preview, measured when it was stored. The preview must
+    # be a reduced model (see PREVIEW_MAX_POLYGON_SHARE in products.services).
+    preview_triangle_count = models.PositiveIntegerField(null=True, blank=True)
     preview_video = models.URLField(blank=True)
     polygon_count = models.PositiveIntegerField(null=True, blank=True)
     vertex_count = models.PositiveIntegerField(null=True, blank=True)
@@ -98,7 +103,11 @@ class Product(models.Model):
         validators=[MinValueValidator(Decimal("0.00"))],
     )
     review_count = models.PositiveIntegerField(default=0)
-    total_downloads = models.PositiveIntegerField(default=0)
+    total_downloads = models.PositiveIntegerField(
+        default=0,
+        verbose_name="download links issued",
+        help_text="Counts signed download links issued, not completed transfers.",
+    )
     status = models.CharField(
         max_length=20,
         choices=Status.choices,

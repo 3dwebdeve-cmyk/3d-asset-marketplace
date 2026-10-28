@@ -91,6 +91,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     # Bumped on password change/reset so outstanding access JWTs fail auth.
     token_version = models.PositiveIntegerField(default=0)
+    # Administrator TOTP (accounts.mfa). The secret is derived from MFA_SECRET_KEY and
+    # this nonce, never stored, so a database copy alone cannot generate codes.
+    mfa_nonce = models.CharField(max_length=64, blank=True, default="", editable=False)
+    mfa_pending_nonce = models.CharField(max_length=64, blank=True, default="", editable=False)
+    mfa_enabled_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Highest time step already accepted; a code cannot be replayed.
+    mfa_last_counter = models.BigIntegerField(default=0, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -183,3 +190,88 @@ class LegalAcceptance(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user_id}:{self.document_key}:{self.version}"
+
+
+class AdminRecoveryCode(models.Model):
+    """Single-use backup code for an administrator who lost their authenticator."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="recovery_codes")
+    # Keyed hash of the code; the code itself is shown once and never stored.
+    code_hash = models.CharField(max_length=64)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "admin_recovery_codes"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "code_hash"], name="uniq_recovery_code_per_user"),
+        ]
+
+
+class KnownDevice(models.Model):
+    """A browser that has signed in to the account, for new-device sign-in emails."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="known_devices")
+    # SHA-256 of the random device cookie; the cookie value itself is not stored.
+    device_hash = models.CharField(max_length=64)
+    user_agent = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "known_devices"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "device_hash"], name="uniq_known_device_per_user"),
+        ]
+
+
+class UserSession(models.Model):
+    """One signed-in customer device; its id is the ``sid`` claim on that device's JWTs.
+
+    The id survives refresh rotation. A revoked session stops working on its next
+    request (``accounts.sessions``).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sessions")
+    # Same SHA-256 as KnownDevice, so signing in again on one browser reuses its slot.
+    device_hash = models.CharField(max_length=64, blank=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_reason = models.CharField(max_length=32, blank=True)
+
+    class Meta:
+        db_table = "user_sessions"
+        indexes = [
+            models.Index(fields=["user", "revoked_at"]),
+        ]
+
+
+class CatalogApiKey(models.Model):
+    """API key for the unattended catalog uploader (``accounts.api_keys``).
+
+    Only a SHA-256 hash of the key is stored; the key itself is shown once at creation.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    # Public part of the key, used to find the row without scanning hashes.
+    key_prefix = models.CharField(max_length=16, unique=True)
+    key_hash = models.CharField(max_length=64)
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="catalog_api_keys")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "catalog_api_keys"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.key_prefix})"

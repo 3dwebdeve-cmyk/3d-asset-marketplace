@@ -6,29 +6,26 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.core import mail
-from django.core.exceptions import ImproperlyConfigured
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase, override_settings
 
+from config.settings_guard_testing import import_settings
+
 
 class ConsoleEmailGuardTests(SimpleTestCase):
+    """Imports the real settings module, so a change to the guard is caught."""
+
+    console = "django.core.mail.backends.console.EmailBackend"
+
     def test_settings_refuse_console_when_debug_false_without_allow(self) -> None:
-        """Mirror settings.py Phase A3 guard (same contract as test_health)."""
-        debug = False
-        running_tests = False
-        email_backend = "django.core.mail.backends.console.EmailBackend"
-        allow_console_email = False
-        with self.assertRaises(ImproperlyConfigured):
-            if (
-                not debug
-                and not running_tests
-                and "console" in email_backend.lower()
-                and not allow_console_email
-            ):
-                raise ImproperlyConfigured(
-                    "EMAIL_BACKEND must not use the console backend when DEBUG=False."
-                )
+        result = import_settings(EMAIL_BACKEND=self.console, ALLOW_CONSOLE_EMAIL="False")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must not use the console backend", result.stderr)
+
+    def test_settings_allow_console_when_explicitly_permitted(self) -> None:
+        result = import_settings(EMAIL_BACKEND=self.console, ALLOW_CONSOLE_EMAIL="True")
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 @override_settings(
@@ -54,6 +51,7 @@ class CheckEmailConfigLocalTests(TestCase):
     DEBUG=False,
     EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
     ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="",
     EMAIL_HOST="",
     EMAIL_HOST_USER="",
     EMAIL_HOST_PASSWORD="",
@@ -68,8 +66,30 @@ class CheckEmailConfigProdGapsTests(TestCase):
 
 @override_settings(
     DEBUG=False,
+    EMAIL_BACKEND="config.brevo_email_backend.BrevoAPIEmailBackend",
+    ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="x" * 40,
+    EMAIL_HOST="",
+    EMAIL_HOST_USER="",
+    EMAIL_HOST_PASSWORD="",
+    DEFAULT_FROM_EMAIL="webmaster@example.com",
+    CONTACT_ADMIN_RECIPIENTS="ops@example.com",
+    PROJECT_MESSAGE_ADMIN_RECIPIENTS="projects@example.com",
+)
+class CheckEmailConfigBrevoReadyTests(TestCase):
+    def test_ready_when_brevo_key_set(self) -> None:
+        out = StringIO()
+        call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        text = out.getvalue()
+        self.assertIn("BREVO_API_KEY_set=True", text)
+        self.assertIn("Email/Brevo config looks ready", text)
+
+
+@override_settings(
+    DEBUG=False,
     EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
     ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="",
     EMAIL_HOST="smtp.example.com",
     EMAIL_PORT=587,
     EMAIL_USE_TLS=True,
@@ -110,3 +130,34 @@ class CheckEmailConfigReadyTests(TestCase):
                     send_test_email="smoke@example.com",
                 )
         self.assertIn("Failed to send test email", str(ctx.exception))
+
+
+@override_settings(
+    DEBUG=False,
+    EMAIL_BACKEND="config.brevo_email_backend.BrevoAPIEmailBackend",
+    ALLOW_CONSOLE_EMAIL=False,
+    BREVO_API_KEY="x" * 40,
+    DEFAULT_FROM_EMAIL="AssetHive3D <Shop.Team@GMAIL.com>",
+    CONTACT_ADMIN_RECIPIENTS="ops@example.com",
+    PROJECT_MESSAGE_ADMIN_RECIPIENTS="projects@example.com",
+)
+class CheckEmailConfigSenderDomainTests(TestCase):
+    def test_free_mailbox_sender_blocks_launch(self) -> None:
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        text = out.getvalue()
+        self.assertIn("gmail.com, a free mailbox domain", text)
+        self.assertNotIn("Brevo API backend configured", text)
+
+    @override_settings(DEFAULT_FROM_EMAIL="AssetHive3D <noreply@assethive3d.com>")
+    def test_own_domain_sender_is_ready(self) -> None:
+        out = StringIO()
+        call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        self.assertIn("Email/Brevo config looks ready", out.getvalue())
+
+    @override_settings(DEBUG=True)
+    def test_free_mailbox_allowed_in_local_debug(self) -> None:
+        out = StringIO()
+        call_command("check_email_config", fail_on_warnings=True, stdout=out)
+        self.assertNotIn("free mailbox", out.getvalue())

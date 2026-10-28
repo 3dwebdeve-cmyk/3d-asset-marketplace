@@ -141,14 +141,20 @@ def _check_shared_throttle_cache() -> WafReadinessCheck:
             detail=f"DEBUG=True cache_backend={backend or 'unset'} (advisory)",
             blocking=False,
         )
-    if "locmem" in backend:
+    if "locmem" in backend or "dummy" in backend:
+        return WafReadinessCheck(
+            name="shared_throttle_cache",
+            ok=False,
+            detail=(
+                f"cache_backend={backend} is per-process - throttle counters "
+                "multiply by the Gunicorn worker count; use DatabaseCache"
+            ),
+        )
+    if "db.databasecache" in backend:
         return WafReadinessCheck(
             name="shared_throttle_cache",
             ok=True,
-            detail=(
-                "LocMem cache configured (per-process throttles; Redis removed)"
-            ),
-            blocking=False,
+            detail="DatabaseCache configured (throttles shared across workers)",
         )
     return WafReadinessCheck(
         name="shared_throttle_cache",
@@ -179,26 +185,35 @@ def _check_nginx_cf_client_ip() -> WafReadinessCheck:
             ok=True,
             detail=(
                 "frontend/nginx.conf not readable in this container - "
-                "verify CF-Connecting-IP map on the SPA image host"
+                "verify set_real_ip_from / real_ip_header CF-Connecting-IP "
+                "on the SPA image host"
             ),
             blocking=False,
         )
     text = found.read_text(encoding="utf-8")
-    has_map = "cf_connecting_ip" in text or "CF-Connecting-IP" in text
-    has_forward = "$real_client_ip" in text
-    if not (has_map and has_forward):
+    problems: list[str] = []
+    if "real_ip_header CF-Connecting-IP" not in text:
+        problems.append("missing `real_ip_header CF-Connecting-IP`")
+    if "set_real_ip_from" not in text:
+        problems.append("missing `set_real_ip_from` Cloudflare ranges")
+    if "$http_cf_connecting_ip" in text:
+        problems.append(
+            "uses $http_cf_connecting_ip directly (spoofable when origin is hit directly)"
+        )
+    if 'proxy_set_header CF-Connecting-IP ""' not in text:
+        problems.append("does not strip CF-Connecting-IP before proxying to Django")
+    if problems:
         return WafReadinessCheck(
             name="nginx_cf_client_ip",
             ok=False,
-            detail=(
-                f"{found.as_posix()} missing CF-Connecting-IP → "
-                "$real_client_ip proxy headers"
-            ),
+            detail=f"{found.as_posix()}: " + "; ".join(problems),
         )
     return WafReadinessCheck(
         name="nginx_cf_client_ip",
         ok=True,
-        detail=f"{found.as_posix()} prefers CF-Connecting-IP for client IP",
+        detail=(
+            f"{found.as_posix()} trusts CF-Connecting-IP only from Cloudflare ranges"
+        ),
     )
 
 

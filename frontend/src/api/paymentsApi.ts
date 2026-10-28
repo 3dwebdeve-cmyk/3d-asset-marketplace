@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { newId } from '../lib/ids'
 import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
 import type {
   AdminPaymentDetail,
@@ -14,6 +15,7 @@ export async function createCheckoutSession(
   const { data } = await apiClient.post<CheckoutSessionResponse>(
     '/api/v1/payments/checkout/',
     { accepted_legal: acceptedLegal },
+    { headers: { 'Idempotency-Key': newId() } },
   )
   return data
 }

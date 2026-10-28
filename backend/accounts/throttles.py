@@ -1,31 +1,95 @@
-from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+import hashlib
+
+from rest_framework.throttling import SimpleRateThrottle, UserRateThrottle
 
 
-class LoginRateThrottle(AnonRateThrottle):
+class IPRateThrottle(SimpleRateThrottle):
+    """Key by client IP for every caller.
+
+    Unlike ``AnonRateThrottle``, authenticated requests are not exempt, so an
+    attacker cannot skip auth limits by sending their own valid Bearer token.
+    """
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": self.get_ident(request),
+        }
+
+
+class SignedInUserRateThrottle(UserRateThrottle):
+    """The global ``user`` limit, for signed-in callers only.
+
+    Anonymous callers already meet the stricter ``anon`` limit, keyed by the same IP, so
+    counting them here too only doubled the cache reads and writes on every request.
+    """
+
+    def get_cache_key(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return None
+        return super().get_cache_key(request, view)
+
+
+def hash_email(value) -> str | None:
+    email = str(value or "").strip().lower()
+    if not email:
+        return None
+    return hashlib.sha256(email.encode("utf-8")).hexdigest()
+
+
+class EmailScopedRateThrottle(SimpleRateThrottle):
+    """Key by the submitted ``email`` so one inbox cannot be flooded from many IPs."""
+
+    def get_cache_key(self, request, view):
+        data = getattr(request, "data", None)
+        email = data.get("email") if hasattr(data, "get") else None
+        ident = hash_email(email)
+        if ident is None:
+            return None
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+
+class LoginRateThrottle(IPRateThrottle):
     scope = "auth_login"
 
 
-class RegisterRateThrottle(AnonRateThrottle):
+class RegisterRateThrottle(IPRateThrottle):
     scope = "auth_register"
 
 
-class PasswordResetRateThrottle(AnonRateThrottle):
+class LegalAcceptRateThrottle(UserRateThrottle):
+    scope = "legal_accept"
+
+
+class PasswordResetRateThrottle(IPRateThrottle):
     scope = "auth_password_reset"
 
 
-class PasswordResetConfirmRateThrottle(AnonRateThrottle):
+class PasswordResetEmailRateThrottle(EmailScopedRateThrottle):
+    scope = "auth_password_reset_email"
+
+
+class PasswordResetConfirmRateThrottle(IPRateThrottle):
     scope = "auth_password_reset_confirm"
 
 
-class EmailVerificationResendRateThrottle(AnonRateThrottle):
+class ChangePasswordRateThrottle(UserRateThrottle):
+    scope = "auth_change_password"
+
+
+class EmailVerificationResendRateThrottle(IPRateThrottle):
     scope = "auth_email_verification_resend"
 
 
-class EmailVerificationConfirmRateThrottle(AnonRateThrottle):
+class EmailVerificationResendEmailRateThrottle(EmailScopedRateThrottle):
+    scope = "auth_email_verification_resend_email"
+
+
+class EmailVerificationConfirmRateThrottle(IPRateThrottle):
     scope = "auth_email_verification_confirm"
 
 
-class TokenRefreshRateThrottle(AnonRateThrottle):
+class TokenRefreshRateThrottle(IPRateThrottle):
     scope = "auth_token_refresh"
 
 
@@ -39,6 +103,12 @@ class AdminCategoryWriteRateThrottle(UserRateThrottle):
 
 class AdminProductWriteRateThrottle(UserRateThrottle):
     scope = "admin_product_write"
+
+
+class AdminUploadRateThrottle(UserRateThrottle):
+    """Bound costly image/package uploads separately from small admin writes."""
+
+    scope = "admin_upload"
 
 
 class AdminPluginWriteRateThrottle(UserRateThrottle):
@@ -69,13 +139,39 @@ class DownloadRateThrottle(UserRateThrottle):
     scope = "download"
 
 
-class ContactFormRateThrottle(AnonRateThrottle):
+class ContactFormRateThrottle(IPRateThrottle):
     scope = "contact_form"
 
 
-class CategoryClickRateThrottle(AnonRateThrottle):
+class CategoryClickRateThrottle(IPRateThrottle):
     scope = "category_click"
+
+
+class CatalogSearchRateThrottle(IPRateThrottle):
+    scope = "catalog_search"
+
+
+class LicenseVerifyRateThrottle(IPRateThrottle):
+    """Public license lookups; limits brute-force guessing of license codes."""
+
+    scope = "license_verify"
+
+
+class CspReportRateThrottle(IPRateThrottle):
+    """Keep anonymous CSP reports from becoming a log-amplification vector."""
+
+    scope = "csp_report"
 
 
 class PaymentCheckoutRateThrottle(UserRateThrottle):
     scope = "payment_checkout"
+
+
+class PaymentCheckoutDailyRateThrottle(UserRateThrottle):
+    """Daily circuit breaker for calls that create/sync Stripe sessions."""
+
+    scope = "payment_checkout_daily"
+
+
+class CatalogIngestRateThrottle(UserRateThrottle):
+    scope = "catalog_ingest"

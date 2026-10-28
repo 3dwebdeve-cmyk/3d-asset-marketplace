@@ -1,59 +1,139 @@
-const BENEFITS = [
+import type { ReactNode } from 'react'
+
+function SecureCheckoutIcon() {
+  return (
+    <svg viewBox="50 35 38 38" width="36" height="36" fill="none" aria-hidden="true">
+      <path
+        fill="#0163f8"
+        d="M82.52,42.81l-11.52-4.48c-.19-.07-.41-.07-.6,0l-11.52,4.48c-.32.12-.53.43-.53.78v9.6c0,7.31,4.13,13.53,11.93,18,.13.07.27.11.41.11s.28-.04.41-.11c7.81-4.46,11.93-10.68,11.93-18v-9.6c0-.34-.21-.65-.53-.78ZM81.39,53.18c0,8.21-5.71,13.37-10.68,16.31-4.97-2.94-10.68-8.1-10.68-16.31v-9.03l10.68-4.16,10.68,4.16v9.03Z"
+      />
+      <path
+        fill="#0163f8"
+        d="M67.31,49.98v1.75c-1.07.1-1.92.99-1.92,2.09v5.12c0,1.16.95,2.11,2.11,2.11h6.4c1.16,0,2.11-.95,2.11-2.11v-5.12c0-1.1-.85-1.99-1.92-2.09v-1.75c0-1.87-1.52-3.39-3.39-3.39s-3.39,1.52-3.39,3.39ZM74.35,53.82v5.12c0,.25-.2.45-.45.45h-6.4c-.25,0-.45-.2-.45-.45v-5.12c0-.25.2-.45.45-.45h6.4c.25,0,.45.2.45.45ZM72.43,49.98v1.73h-3.45v-1.73c0-.95.77-1.73,1.73-1.73s1.73.77,1.73,1.73Z"
+      />
+    </svg>
+  )
+}
+
+function RegularUpdatesIcon() {
+  return (
+    <svg viewBox="416 38 46 32" width="36" height="36" fill="none" aria-hidden="true">
+      <path
+        fill="#0163f8"
+        d="M428.09,48.06c.04.09.1.18.17.25,0,0,0,.01.01.02,0,0,0,0,.01,0,.07.07.16.13.26.17.1.04.21.06.32.06h5.76c.46,0,.83-.37.83-.83s-.37-.83-.83-.83h-3.75l1.17-1.17c1.5-1.64,3.42-2.83,5.55-3.44,3.07-.88,6.3-.51,9.1,1.05,2.79,1.55,4.81,4.1,5.69,7.17.1.37.44.6.8.6.08,0,.15-.01.23-.03.44-.13.7-.59.57-1.03-1-3.5-3.3-6.4-6.48-8.17-3.18-1.77-6.86-2.19-10.36-1.19-2.43.69-4.62,2.05-6.3,3.89l-1.14,1.14v-3.75c0-.46-.37-.83-.83-.83s-.83.37-.83.83v5.76c0,.11.02.22.06.32Z"
+      />
+      <path
+        fill="#0163f8"
+        d="M453.93,61.5c-.04-.09-.1-.18-.17-.25,0,0,0-.01-.01-.02,0,0,0,0-.01,0-.07-.07-.16-.13-.26-.17-.1-.04-.21-.06-.32-.06h-5.76c-.46,0-.83.37-.83.83s.37.83.83.83h3.75l-1.17,1.17c-1.5,1.64-3.42,2.83-5.55,3.44-6.35,1.81-12.98-1.88-14.79-8.22-.13-.44-.58-.7-1.03-.57-.44.13-.7.59-.57,1.03,1.71,5.98,7.18,9.89,13.11,9.89,1.23,0,2.49-.17,3.73-.52,2.43-.69,4.62-2.05,6.3-3.89l1.14-1.14v3.75c0,.46.37.83.83.83s.83-.37.83-.83v-5.76c0-.11-.02-.22-.06-.32Z"
+      />
+    </svg>
+  )
+}
+
+function InstantDownloadsIcon() {
+  return (
+    <svg viewBox="796 36 36 34" width="36" height="36" fill="none" aria-hidden="true">
+      <path
+        fill="#0163f8"
+        d="M821.25,64.68h-1.28c-.46,0-.83-.37-.83-.83s.37-.83.83-.83h1.15c1.89-.63,3.36-2.13,3.96-4.04.49-1.58.34-3.26-.43-4.73-.77-1.47-2.06-2.55-3.65-3.04-.23-.07-.42-.24-.52-.47-1.19-2.81-3.56-4.9-6.5-5.73-5.33-1.52-10.89,1.59-12.41,6.92-.07.24-.24.44-.47.54-1.69.72-2.91,2.23-3.27,4.03-.29,1.46,0,2.94.83,4.18.81,1.21,2.04,2.04,3.47,2.35h.56c.46,0,.83.37.83.83s-.37.83-.83.83h-.64c-.05,0-.11,0-.16-.02-1.89-.37-3.53-1.47-4.6-3.07-1.07-1.6-1.46-3.53-1.08-5.43.44-2.21,1.88-4.08,3.88-5.07,1.91-5.98,8.27-9.42,14.35-7.69,3.3.94,5.99,3.24,7.42,6.34,1.84.67,3.34,1.99,4.26,3.73.98,1.86,1.17,3.99.54,6-.77,2.47-2.7,4.4-5.17,5.17-.08.02-.16.04-.25.04Z"
+      />
+      <path
+        fill="#0163f8"
+        d="M811.65,66.6h0c-.11,0-.22-.02-.31-.06-.1-.04-.19-.1-.27-.18l-5.12-5.12c-.32-.32-.32-.85,0-1.18.32-.32.85-.32,1.18,0l3.7,3.7v-11.43c0-.46.37-.83.83-.83s.83.37.83.83v11.43l3.7-3.7c.32-.32.85-.32,1.18,0,.32.32.32.85,0,1.18l-5.12,5.12c-.08.08-.17.14-.27.18-.1.04-.2.06-.31.06h0Z"
+      />
+    </svg>
+  )
+}
+
+function FairPricingIcon() {
+  return (
+    <svg viewBox="1166 38 40 32" width="36" height="36" fill="none" aria-hidden="true">
+      <path
+        fill="#0163f8"
+        d="M1182.43,67.44c-.21,0-.43-.08-.59-.24l-11.52-11.52c-.16-.16-.24-.37-.24-.59v-12.16c0-.46.37-.83.83-.83h14.71c.22,0,.43.09.59.24l10.24,10.24c.32.32.32.85,0,1.18l-13.43,13.43c-.16.16-.38.24-.59.24ZM1171.74,54.75l10.68,10.68,12.26-12.26-9.4-9.4h-13.54v10.98Z"
+      />
+      <path
+        fill="#0163f8"
+        d="M1177.31,51.13c-1.34,0-2.43-1.09-2.43-2.43s1.09-2.43,2.43-2.43,2.43,1.09,2.43,2.43-1.09,2.43-2.43,2.43ZM1177.31,47.93c-.42,0-.77.34-.77.77s.34.77.77.77.77-.34.77-.77-.34-.77-.77-.77Z"
+      />
+      <path
+        fill="#0163f8"
+        d="M1181.15,59.13c-.21,0-.43-.08-.59-.24-.32-.32-.32-.85,0-1.18l7.68-7.68c.32-.32.85-.32,1.18,0,.32.32.32.85,0,1.18l-7.68,7.68c-.16.16-.38.24-.59.24Z"
+      />
+      <path
+        fill="#0163f8"
+        d="M1181.79,53.5c-.88,0-1.6-.72-1.6-1.6s.72-1.6,1.6-1.6,1.6.72,1.6,1.6-.72,1.6-1.6,1.6ZM1181.79,51.84s-.06.03-.06.06c0,.07.13.07.13,0,0-.03-.03-.06-.06-.06Z"
+      />
+      <path
+        fill="#0163f8"
+        d="M1188.18,59.9c-.88,0-1.6-.72-1.6-1.6s.72-1.6,1.6-1.6,1.6.72,1.6,1.6-.72,1.6-1.6,1.6ZM1188.18,58.23s-.06.03-.06.06c0,.07.13.07.13,0,0-.03-.03-.06-.06-.06Z"
+      />
+    </svg>
+  )
+}
+
+function GlobalSupportIcon() {
+  return (
+    <svg viewBox="1534 38 34 34" width="36" height="36" fill="none" aria-hidden="true">
+      <path
+        fill="#0163f8"
+        d="M1566.96,54.78c0-8.22-6.69-14.91-14.91-14.91h0c-8.22,0-14.91,6.69-14.91,14.91s6.69,14.91,14.91,14.91h0c8.22,0,14.91-6.69,14.91-14.91ZM1562.93,60.34h-3.89c.49-1.51.8-3.08.87-4.73h5.35c-.12,1.94-.65,3.78-1.53,5.41-.08-.38-.4-.67-.8-.67ZM1540.38,61.02c-.87-1.63-1.4-3.46-1.53-5.41h5.35c.07,1.65.38,3.22.87,4.73h-3.89c-.4,0-.72.29-.8.67ZM1541.18,49.21h3.89c-.49,1.51-.8,3.08-.87,4.73h-5.35c.12-1.94.65-3.78,1.53-5.41.08.38.4.67.8.67ZM1563.73,48.54c.87,1.63,1.4,3.46,1.53,5.41h-5.35c-.07-1.65-.38-3.22-.87-4.73h3.89c.4,0,.72-.29.8-.67ZM1558.24,53.95h-5.36v-4.73h4.42c.54,1.5.86,3.07.93,4.73ZM1552.89,47.55v-4.96c1.6,1.58,2.82,3.22,3.7,4.96h-3.7ZM1551.23,47.55h-3.7c.88-1.74,2.09-3.38,3.7-4.96v4.96ZM1551.23,49.21v4.73h-5.36c.08-1.67.39-3.24.93-4.73h4.42ZM1545.87,55.61h5.36v4.73h-4.42c-.54-1.5-.86-3.07-.93-4.73ZM1551.23,62.01v4.96c-1.6-1.58-2.82-3.22-3.7-4.96h3.7ZM1552.89,62.01h3.7c-.88,1.74-2.09,3.38-3.7,4.96v-4.96ZM1552.89,60.34v-4.73h5.36c-.08,1.67-.39,3.24-.93,4.73h-4.42ZM1563.17,47.6c-.08-.02-.15-.05-.23-.05h-4.54c-.92-2.05-2.24-3.98-4.01-5.8,3.67.66,6.82,2.82,8.78,5.84ZM1549.73,41.75c-1.77,1.82-3.09,3.75-4.01,5.8h-4.54c-.08,0-.16.02-.23.05,1.96-3.02,5.11-5.19,8.78-5.84ZM1540.95,61.96c.08.02.15.05.23.05h4.54c.92,2.05,2.24,3.98,4.01,5.8-3.67-.66-6.82-2.82-8.78-5.84ZM1554.39,67.8c1.77-1.82,3.1-3.75,4.01-5.8h4.54c.08,0,.16-.02.23-.05-1.96,3.02-5.11,5.19-8.78,5.84Z"
+      />
+    </svg>
+  )
+}
+
+interface FeatureItem {
+  title: string
+  text: string
+  icon: ReactNode
+}
+
+const FEATURES: readonly FeatureItem[] = [
   {
     title: 'Secure Checkout',
     text: 'Safe transactions and privacy protection.',
-    icon: '/images/benefit-secure.webp',
-    alt: 'Secure checkout shield icon',
+    icon: <SecureCheckoutIcon />,
   },
   {
     title: 'Regular Updates',
     text: 'New models, plugins and tools added regularly.',
-    icon: '/images/benefit-updates.webp',
-    alt: 'Regular updates refresh icon',
+    icon: <RegularUpdatesIcon />,
   },
   {
     title: 'Instant Downloads',
     text: 'Access your files instantly anytime, anywhere.',
-    icon: '/images/benefit-downloads.webp',
-    alt: 'Instant downloads cloud icon',
+    icon: <InstantDownloadsIcon />,
   },
   {
-    title: 'Fair Pricing',
-    text: 'Best value for premium quality assets.',
-    icon: '/images/benefit-pricing.webp',
-    alt: 'Fair pricing tag icon',
+    title: 'Clear Pricing',
+    text: 'Prices and license terms shown before you buy.',
+    icon: <FairPricingIcon />,
   },
   {
-    title: 'Global Support',
-    text: 'Dedicated support for your queries worldwide.',
-    icon: '/images/benefit-support.webp',
-    alt: 'Global support globe icon',
+    title: 'Customer Support',
+    text: 'Questions about a model or an order? Our team can help.',
+    icon: <GlobalSupportIcon />,
   },
-] as const
+]
 
 export function SiteBenefitsBanner() {
   return (
-    <section className="site-benefits" aria-label="Why shop with us">
-      <div className="site-benefits__inner">
-        {BENEFITS.map((item) => (
-          <div key={item.title} className="site-benefits__item">
-            <img
-              className="site-benefits__icon"
-              src={item.icon}
-              alt=""
-              width={48}
-              height={48}
-              loading="lazy"
-              decoding="async"
-              fetchPriority="low"
-              aria-hidden="true"
-            />
-            <div>
-              <p className="site-benefits__title">{item.title}</p>
-              <p className="site-benefits__text">{item.text}</p>
+    <section className="site-features-banner" aria-label="Our features">
+      <div className="site-features-banner__content">
+        <div className="site-features-banner__grid">
+          {FEATURES.map((item) => (
+            <div key={item.title} className="site-features-banner__item">
+              <span className="site-features-banner__icon">
+                {item.icon}
+              </span>
+              <div className="site-features-banner__info">
+                <p className="site-features-banner__title">{item.title}</p>
+                <p className="site-features-banner__text">{item.text}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   )

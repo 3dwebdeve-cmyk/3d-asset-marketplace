@@ -58,7 +58,9 @@ def set_refresh_cookie(
     token: str,
     *,
     remember: bool,
+    max_age_seconds: int | None = None,
 ) -> None:
+    """``max_age_seconds`` shortens a remembered cookie (administrator sessions)."""
     common: dict[str, Any] = {
         "httponly": True,
         "secure": refresh_cookie_secure(),
@@ -66,6 +68,8 @@ def set_refresh_cookie(
         "path": refresh_cookie_path(),
     }
     max_age = refresh_cookie_max_age(remember=remember)
+    if max_age is not None and max_age_seconds is not None:
+        max_age = min(max_age, max_age_seconds)
     if max_age is not None:
         common["max_age"] = max_age
 

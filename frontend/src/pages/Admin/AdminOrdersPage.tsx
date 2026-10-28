@@ -9,6 +9,7 @@ import {
   listAdminOrders,
 } from '../../api/ordersApi'
 import { listAdminPlugins } from '../../api/pluginsApi'
+import { newId } from '../../lib/ids'
 import { listAdminProducts } from '../../api/productsApi'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
@@ -41,7 +42,7 @@ interface CreateLineItemDraft {
 }
 
 const emptyLineItem = (): CreateLineItemDraft => ({
-  key: crypto.randomUUID(),
+  key: newId(),
   product_type: 'product',
   product_id: '',
   quantity: '1',

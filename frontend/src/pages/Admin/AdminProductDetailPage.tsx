@@ -49,11 +49,16 @@ export function AdminProductDetailPage() {
     queryFn: () => listAdminCategories({ is_active: true, page_size: 100 }),
   })
 
+  // Hydrate the form once per product. Refetches after media uploads or QA actions
+  // must not overwrite edits the administrator has not saved yet.
+  const [hydratedProductId, setHydratedProductId] = useState<string | null>(null)
+
   useEffect(() => {
-    if (!productQuery.data) {
+    const product = productQuery.data
+    if (!product || hydratedProductId === product.id) {
       return
     }
-    const product = productQuery.data
+    setHydratedProductId(product.id)
     setForm({
       category_id: product.category.id,
       name: product.name,
@@ -83,7 +88,7 @@ export function AdminProductDetailPage() {
       license_type: product.license_type,
       status: product.status,
     })
-  }, [productQuery.data])
+  }, [productQuery.data, hydratedProductId])
 
   const invalidateProduct = async () => {
     await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
@@ -559,7 +564,7 @@ export function AdminProductDetailPage() {
                   type="button"
                   variant="secondary"
                   isLoading={archiveMutation.isPending}
-                  onClick={() => archiveMutation.mutate()}
+                  onClick={() => window.confirm('Archive this product? It will be hidden from the storefront.') && archiveMutation.mutate()}
                 >
                   Archive
                 </Button>

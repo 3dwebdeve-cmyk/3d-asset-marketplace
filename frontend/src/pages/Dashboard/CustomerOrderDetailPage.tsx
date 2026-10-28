@@ -1,9 +1,9 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { downloadCatalogFileByUrl } from '../../api/downloadsApi'
-import { downloadCustomerOrderInvoice, getCustomerOrder } from '../../api/ordersApi'
+import { getCustomerOrder } from '../../api/ordersApi'
+import { OrderItemDownloads } from '../../components/orders/OrderItemDownloads'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -12,12 +12,11 @@ import {
   OrderPaymentStatusBadge,
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
-import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
+import { useOrderDownloads } from '../../hooks/useOrderDownloads'
+import { isHttpNotFound } from '../../lib/apiError'
 import { formatLocaleDateTime, formatMoneyPlain } from '../../lib/format'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
-import type { OrderItemDownloadFile } from '../../types/download'
-import type { CustomerOrderItem } from '../../types/order'
 import '../../styles/invoice-card.css'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 
@@ -48,59 +47,6 @@ function ProductThumb({ productType }: { productType: string }) {
   )
 }
 
-function OrderItemDownloads({
-  item,
-  onDownload,
-}: {
-  item: CustomerOrderItem
-  onDownload: (file: OrderItemDownloadFile) => Promise<void>
-}) {
-  if (!item.can_download) {
-    return (
-      <button
-        type="button"
-        className="invoice-card__download-btn"
-        disabled
-        title="Downloads unlock when order and payment are both paid"
-      >
-        Download
-      </button>
-    )
-  }
-
-  if (item.files.length === 0) {
-    return <span className="invoice-card__muted">No files</span>
-  }
-
-  if (item.files.length === 1) {
-    const file = item.files[0]
-    return (
-      <button
-        type="button"
-        className="invoice-card__download-btn"
-        onClick={() => void onDownload(file)}
-      >
-        Download
-      </button>
-    )
-  }
-
-  return (
-    <div className="invoice-card__download-stack">
-      {item.files.map((file) => (
-        <button
-          key={file.id}
-          type="button"
-          className="invoice-card__download-btn"
-          onClick={() => void onDownload(file)}
-        >
-          {file.file_name}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function BackIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
@@ -121,45 +67,32 @@ function DownloadIcon() {
 }
 
 export function CustomerOrderDetailPage() {
+  useDocumentSeo({
+    title: 'Order details | AssetHive 3D',
+    description: 'View the details and downloads for your AssetHive 3D order.',
+    robots: 'noindex, nofollow',
+  })
+
   const { orderId = '' } = useParams()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   const isCustomerSession = isAuthenticated && !isAdministrator(user?.role)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
-  const [invoiceError, setInvoiceError] = useState<string | null>(null)
-  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false)
+  const {
+    downloadFile,
+    downloadInvoice,
+    downloadLicense,
+    fileError: downloadError,
+    invoiceError,
+    downloadingFileId,
+    downloadingInvoiceId,
+    downloadingLicenseId,
+  } = useOrderDownloads()
 
   const orderQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],
     queryFn: () => getCustomerOrder(orderId),
     enabled: Boolean(orderId) && isCustomerSession,
   })
-
-  const onDownload = async (file: OrderItemDownloadFile) => {
-    setDownloadError(null)
-    try {
-      await downloadCatalogFileByUrl(file.download_url, file.file_name)
-    } catch (error) {
-      setDownloadError(
-        getApiErrorMessage(error, 'Could not download the file. Please try again.'),
-      )
-    }
-  }
-
-  const onDownloadInvoice = async () => {
-    if (!orderQuery.data) return
-    setInvoiceError(null)
-    setIsDownloadingInvoice(true)
-    try {
-      await downloadCustomerOrderInvoice(orderQuery.data.id, orderQuery.data.invoice_number)
-    } catch (error) {
-      setInvoiceError(
-        getApiErrorMessage(error, 'Could not download the invoice. Please try again.'),
-      )
-    } finally {
-      setIsDownloadingInvoice(false)
-    }
-  }
 
   if (!isCustomerSession) {
     return (
@@ -216,6 +149,7 @@ export function CustomerOrderDetailPage() {
   const order = orderQuery.data
   const canDownloadInvoice =
     order.order_status === 'paid' && order.payment_status === 'paid'
+  const isDownloadingInvoice = downloadingInvoiceId === order.id
 
   return (
     <main className="dashboard-page">
@@ -235,7 +169,7 @@ export function CustomerOrderDetailPage() {
               type="button"
               className="invoice-card__btn-download"
               disabled={isDownloadingInvoice}
-              onClick={() => void onDownloadInvoice()}
+              onClick={() => void downloadInvoice(order.id, order.invoice_number)}
             >
               <DownloadIcon />
               <span>{isDownloadingInvoice ? 'Downloading…' : 'Download invoice'}</span>
@@ -337,7 +271,28 @@ export function CustomerOrderDetailPage() {
                   <td>{formatMoneyPlain(item.purchase_price, order.currency)}</td>
                   <td>{formatMoneyPlain(item.line_total, order.currency)}</td>
                   <td>
-                    <OrderItemDownloads item={item} onDownload={onDownload} />
+                    <OrderItemDownloads
+                      item={item}
+                      onDownload={downloadFile}
+                      downloadingFileId={downloadingFileId}
+                    />
+                    {item.can_download ? (
+                      <button
+                        type="button"
+                        className="invoice-card__download-btn"
+                        disabled={downloadingLicenseId === item.id}
+                        title="License certificate (PDF) for this item"
+                        onClick={() =>
+                          void downloadLicense(
+                            order.id,
+                            item.id,
+                            `license-${order.invoice_number}-${item.slug ?? item.id}.pdf`,
+                          )
+                        }
+                      >
+                        {downloadingLicenseId === item.id ? 'Downloading…' : 'License'}
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))}

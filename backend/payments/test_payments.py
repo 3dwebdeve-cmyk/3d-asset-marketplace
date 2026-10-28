@@ -163,6 +163,24 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Order.objects.count(), 0)
 
+    @patch(
+        "payments.views.CheckoutService.create_checkout_session",
+        side_effect=RuntimeError("unexpected checkout failure"),
+    )
+    def test_unexpected_error_returns_safe_json_response(self, _mock_checkout) -> None:
+        self._authenticate()
+
+        with self.assertLogs("payments.views", level="ERROR") as captured:
+            response = self.client.post(self.checkout_url)
+
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(response.data["code"], "checkout_internal_error")
+        self.assertEqual(
+            response.data["detail"],
+            "Unable to start checkout. Please try again.",
+        )
+        self.assertIn("checkout_session_create_failed", captured.output[0])
+
     @override_settings(
         E2E_STRIPE_SIMULATE=True,
         STRIPE_SECRET_KEY="sk_test_e2e_dummy",
@@ -266,6 +284,19 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             status=Payment.Status.PENDING,
         )
 
+    def _paid_checkout_session(self, **overrides) -> dict:
+        data = {
+            "id": self.payment.stripe_checkout_session_id,
+            "payment_intent": "pi_test_1",
+            "payment_status": "paid",
+            "amount_total": 4999,
+            "currency": "usd",
+            "client_reference_id": str(self.user.pk),
+            "metadata": {"order_id": str(self.order.pk)},
+        }
+        data.update(overrides)
+        return data
+
     def _post_webhook(self, event):
         with patch("payments.views.stripe.Webhook.construct_event", return_value=event):
             return self.client.post(
@@ -279,7 +310,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         event = _FakeEvent(
             "evt_test_1",
             "checkout.session.completed",
-            {"id": "cs_test_webhook", "payment_intent": "pi_test_1"},
+            self._paid_checkout_session(),
         )
         response = self._post_webhook(event)
 
@@ -297,11 +328,112 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         )
         self.assertEqual(StripeWebhookEvent.objects.count(), 1)
 
+    def test_unpaid_checkout_completed_does_not_grant_entitlement(self) -> None:
+        event = _FakeEvent(
+            "evt_test_unpaid",
+            "checkout.session.completed",
+            self._paid_checkout_session(
+                payment_status="unpaid",
+                payment_intent=None,
+            ),
+        )
+
+        response = self._post_webhook(event)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PENDING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+        self.assertEqual(self.payment.status, Payment.Status.PENDING)
+        self.assertTrue(CartItem.objects.filter(pk=self.cart_item.pk).exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_async_payment_success_fulfills_after_unpaid_completion(self) -> None:
+        unpaid = _FakeEvent(
+            "evt_test_async_pending",
+            "checkout.session.completed",
+            self._paid_checkout_session(
+                payment_status="unpaid",
+                payment_intent=None,
+            ),
+        )
+        succeeded = _FakeEvent(
+            "evt_test_async_succeeded",
+            "checkout.session.async_payment_succeeded",
+            self._paid_checkout_session(payment_intent="pi_test_async"),
+        )
+
+        self.assertEqual(self._post_webhook(unpaid).status_code, status.HTTP_200_OK)
+        self.assertEqual(self._post_webhook(succeeded).status_code, status.HTTP_200_OK)
+
+        self.order.refresh_from_db()
+        self.payment.refresh_from_db()
+        self.assertEqual(self.order.order_status, Order.OrderStatus.PAID)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
+        self.assertEqual(self.payment.stripe_payment_intent_id, "pi_test_async")
+        self.assertFalse(CartItem.objects.filter(pk=self.cart_item.pk).exists())
+        self.assertEqual(StripeWebhookEvent.objects.count(), 2)
+
+    def test_checkout_fulfillment_rejects_mismatched_session_data(self) -> None:
+        scenarios = {
+            "order metadata": {
+                "metadata": {
+                    "order_id": "00000000-0000-0000-0000-000000000099"
+                }
+            },
+            "customer reference": {
+                "client_reference_id": "00000000-0000-0000-0000-000000000098"
+            },
+            "amount": {"amount_total": 1},
+            "currency": {"currency": "eur"},
+        }
+
+        for index, (label, overrides) in enumerate(scenarios.items(), start=1):
+            with self.subTest(label):
+                event_id = f"evt_test_mismatch_{index}"
+                event = _FakeEvent(
+                    event_id,
+                    "checkout.session.completed",
+                    self._paid_checkout_session(**overrides),
+                )
+                # A paid session we cannot fulfill must not be acknowledged, so
+                # Stripe retries it and the failure is reported.
+                response = self._post_webhook(event)
+                self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+                self.assertFalse(
+                    StripeWebhookEvent.objects.filter(stripe_event_id=event_id).exists()
+                )
+                self.order.refresh_from_db()
+                self.payment.refresh_from_db()
+                self.assertEqual(self.order.order_status, Order.OrderStatus.PENDING)
+                self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+                self.assertEqual(self.payment.status, Payment.Status.PENDING)
+
+        self.assertTrue(CartItem.objects.filter(pk=self.cart_item.pk).exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_unpaid_checkout_mismatch_is_acknowledged_quietly(self) -> None:
+        # Async payment methods send completed sessions that are not yet paid.
+        event = _FakeEvent(
+            "evt_test_unpaid_mismatch",
+            "checkout.session.completed",
+            self._paid_checkout_session(
+                payment_status="unpaid",
+                client_reference_id="00000000-0000-0000-0000-000000000098",
+            ),
+        )
+        response = self._post_webhook(event)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+
     def test_duplicate_webhook_delivery_is_a_noop(self) -> None:
         event = _FakeEvent(
             "evt_test_dup",
             "checkout.session.completed",
-            {"id": "cs_test_webhook", "payment_intent": "pi_test_1"},
+            self._paid_checkout_session(),
         )
         first = self._post_webhook(event)
         second = self._post_webhook(event)
@@ -318,9 +450,13 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             frozenset(
                 {
                     "checkout.session.completed",
+                    "checkout.session.async_payment_succeeded",
+                    "checkout.session.async_payment_failed",
                     "checkout.session.expired",
                     "payment_intent.payment_failed",
                     "charge.refunded",
+                    "charge.dispute.created",
+                    "charge.dispute.closed",
                 }
             ),
         )
@@ -352,7 +488,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         event = _FakeEvent(
             "evt_test_receipt",
             "checkout.session.completed",
-            {"id": "cs_test_webhook", "payment_intent": "pi_test_receipt"},
+            self._paid_checkout_session(payment_intent="pi_test_receipt"),
         )
         response = self._post_webhook(event)
 
@@ -373,7 +509,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         event = _FakeEvent(
             "evt_test_receipt_fail",
             "checkout.session.completed",
-            {"id": "cs_test_webhook", "payment_intent": "pi_test_fail"},
+            self._paid_checkout_session(payment_intent="pi_test_fail"),
         )
         with patch(
             "orders.notifications.EmailMessage.send",
@@ -476,7 +612,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(self.order.order_status, Order.OrderStatus.PAID)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
 
-    def test_charge_refunded_unknown_intent_is_noop(self) -> None:
+    def test_charge_refunded_unknown_intent_requests_retry(self) -> None:
         self._mark_paid_with_intent("pi_test_known")
         event = _FakeEvent(
             "evt_test_unknown_pi",
@@ -488,10 +624,41 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             },
         )
         response = self._post_webhook(event)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
-        self.assertEqual(StripeWebhookEvent.objects.count(), 1)
+        self.assertEqual(StripeWebhookEvent.objects.count(), 0)
+
+    @patch("payments.webhook_service.stripe.Dispute.retrieve")
+    def test_dispute_revokes_access_and_won_dispute_restores_it(self, retrieve):
+        from orders.entitlements import user_owns_catalog_item
+
+        self._mark_paid_with_intent("pi_disputed")
+        retrieve.return_value = {"id": "dp_test", "status": "needs_response"}
+        dispute = {"id": "dp_test", "payment_intent": "pi_disputed"}
+        self.assertEqual(self._post_webhook(_FakeEvent(
+            "evt_dispute_created", "charge.dispute.created", dispute,
+        )).status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.DISPUTED)
+        self.assertFalse(user_owns_catalog_item(self.user, "product", self.product.pk))
+        retrieve.return_value = {"id": "dp_test", "status": "won"}
+        self.assertEqual(self._post_webhook(_FakeEvent(
+            "evt_dispute_won", "charge.dispute.closed", dispute,
+        )).status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
+
+    def test_partial_refund_amount_is_recorded(self):
+        self._mark_paid_with_intent("pi_partial_audit")
+        event = _FakeEvent("evt_partial_audit", "charge.refunded", {
+            "id": "ch_partial", "payment_intent": "pi_partial_audit",
+            "refunded": False, "amount_refunded": 100,
+        })
+        self.assertEqual(self._post_webhook(event).status_code, 200)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.refunded_amount, Decimal("1.00"))
+        self.assertEqual(self.payment.status, Payment.Status.SUCCEEDED)
 
 
 @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
@@ -559,6 +726,9 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
                 "status": "complete",
                 "payment_status": "paid",
                 "payment_intent": "pi_confirm_1",
+                "amount_total": 4999,
+                "currency": "usd",
+                "client_reference_id": str(self.user.pk),
                 "metadata": _FakeStripeObject({"order_id": str(self.order.pk)}),
             }
         )

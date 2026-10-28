@@ -24,4 +24,5 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Reviews', to: adminPath('reviews'), enabled: true },
   { label: 'Downloads', to: adminPath('downloads'), enabled: true },
   { label: 'Analytics', to: adminPath('analytics'), enabled: true },
+  { label: 'Security', to: adminPath('security'), enabled: true },
 ]

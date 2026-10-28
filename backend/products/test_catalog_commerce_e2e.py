@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from io import BytesIO
 from unittest.mock import patch
 from zipfile import ZipFile
@@ -20,12 +21,18 @@ from categories.models import Category
 from downloads.models import DownloadHistory
 from orders.models import Order
 from payments.models import Payment
+from payments.payment_common import to_cents
 from payments.test_payments import _FakeEvent, _fake_session
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
+from products.testing import put_pipeline_uploads
 
 
-@override_settings(STRIPE_SECRET_KEY="sk_test_dummy", STRIPE_WEBHOOK_SECRET="whsec_test")
+@override_settings(
+    STRIPE_SECRET_KEY="sk_test_dummy",
+    STRIPE_WEBHOOK_SECRET="whsec_test",
+    MEDIA_ROOT=tempfile.mkdtemp(),
+)
 class CatalogImportCommerceE2ETests(APITestCase):
     def setUp(self) -> None:
         cache.clear()
@@ -94,6 +101,9 @@ class CatalogImportCommerceE2ETests(APITestCase):
 
     def test_import_qa_pay_download_happy_path(self) -> None:
         self._authenticate_admin()
+        put_pipeline_uploads([_happy_item()])
+        # The import checks the package exists, so upload it first, as the pipeline does.
+        self._write_package(_happy_item()["media"]["package_key"])
         imported = self.client.post(
             self.import_url,
             {
@@ -109,7 +119,6 @@ class CatalogImportCommerceE2ETests(APITestCase):
         product = Product.objects.get(sku="MDL-000142")
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
         package = ProductFile.objects.get(product=product, is_preview=False)
-        payload = self._write_package(package.storage_path)
 
         self.client.credentials()
         public_before = self.client.get(self.public_list_url)
@@ -176,7 +185,15 @@ class CatalogImportCommerceE2ETests(APITestCase):
         event = _FakeEvent(
             "evt_e2e_paid",
             "checkout.session.completed",
-            {"id": "cs_test_e2e", "payment_intent": "pi_e2e_1"},
+            {
+                "id": "cs_test_e2e",
+                "payment_intent": "pi_e2e_1",
+                "payment_status": "paid",
+                "amount_total": to_cents(payment.amount),
+                "currency": payment.currency.lower(),
+                "client_reference_id": str(self.customer.pk),
+                "metadata": {"order_id": str(order.pk)},
+            },
         )
         with patch("payments.views.stripe.Webhook.construct_event", return_value=event):
             webhook = self.client.post(

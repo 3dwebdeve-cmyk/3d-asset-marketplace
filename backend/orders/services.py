@@ -121,9 +121,12 @@ class OrderService:
             queryset = queryset.filter(user_id=customer_id)
         if search and search.strip():
             query = search.strip()[:100]
+            # A license code from a leaked certificate leads straight to its order.
             queryset = queryset.filter(
-                Q(invoice_number__icontains=query) | Q(user__email__icontains=query)
-            )
+                Q(invoice_number__icontains=query)
+                | Q(user__email__icontains=query)
+                | Q(items__license_code=query.upper())
+            ).distinct()
         if ordering not in ALLOWED_ORDERING:
             ordering = "-created_at"
         return queryset.order_by(ordering)
@@ -139,7 +142,9 @@ class OrderService:
         ordering: str = "-created_at",
         item_type: str | None = None,
     ) -> QuerySet[Order]:
-        queryset = Order.objects.filter(user=user).annotate(item_count=Count("items"))
+        queryset = Order.objects.filter(user=user).annotate(
+            item_count=Count("items", distinct=True)
+        )
         if order_status:
             queryset = queryset.filter(order_status=order_status)
         if payment_status:
@@ -305,13 +310,14 @@ class OrderService:
 
     @classmethod
     @transaction.atomic
-    def create_from_cart(cls, user: User) -> Order:
+    def create_from_cart(cls, user: User, *, reuse_pending: bool = False) -> Order:
         """Snapshot the user's cart into a PENDING order for checkout.
 
         Only available cart lines are included (mirrors CartService totals).
         """
         from cart.services import CartService
 
+        CartService.lock_cart(user)
         envelope = CartService.get_cart_envelope(user)
         available_items = [
             item
@@ -321,6 +327,19 @@ class OrderService:
         ]
         if not available_items:
             raise OrderError("Your cart is empty.", field="items")
+
+        from orders.entitlements import owned_catalog_keys
+
+        # Bought since it was added to the cart (another tab, an earlier checkout): never charge twice.
+        owned = owned_catalog_keys(user, [(item.product_type, item.product_id) for item in available_items])
+        if owned:
+            names = sorted(
+                str(envelope.snapshots[key].get("name") or "an item") for key in owned
+            )
+            raise OrderError(
+                f"You already own {', '.join(names)}. Remove it from your cart to continue.",
+                field="items",
+            )
 
         resolved_items = [
             (
@@ -343,6 +362,31 @@ class OrderService:
             )
             for item in available_items
         ]
+
+        if reuse_pending:
+            from datetime import timedelta
+            from django.utils import timezone
+
+            expected = {(kind, pk, qty, price) for kind, pk, qty, price, title, slug in resolved_items}
+            # Stripe drops idempotency keys after 24 hours. Reusing an older
+            # attempt blocks checkout instead of starting a new session.
+            fresh_attempt_after = timezone.now() - timedelta(hours=23)
+            candidates = Order.objects.filter(
+                user=user, order_status=Order.OrderStatus.PENDING,
+                payment_status=Order.PaymentStatus.PENDING,
+                total_amount=envelope.totals.total, currency=envelope.totals.currency,
+            ).filter(
+                Q(
+                    checkout_attempt__status__in=['prepared', 'ready', 'review'],
+                    checkout_attempt__created_at__gte=fresh_attempt_after,
+                )
+                | Q(created_at__gte=timezone.now() - timedelta(minutes=25), payment__status="pending")
+            ).prefetch_related("items").order_by("-created_at")[:10]
+            for candidate in candidates:
+                actual = {(item.product_type, item.product_id, item.quantity, item.purchase_price)
+                          for item in candidate.items.all()}
+                if actual == expected:
+                    return cls.get(candidate.pk)
 
         order = cls._create_order_with_unique_invoice(
             user=user,
@@ -384,14 +428,18 @@ class OrderService:
         for _attempt in range(5):
             invoice_number = cls._generate_invoice_number()
             try:
-                return Order.objects.create(
-                    user=user,
-                    invoice_number=invoice_number,
-                    total_amount=total_amount,
-                    currency=currency,
-                    order_status=Order.OrderStatus.PENDING,
-                    payment_status=Order.PaymentStatus.PENDING,
-                )
+                # A collision must roll back to a savepoint before the next
+                # attempt; otherwise PostgreSQL leaves the outer transaction
+                # unusable until rollback.
+                with transaction.atomic():
+                    return Order.objects.create(
+                        user=user,
+                        invoice_number=invoice_number,
+                        total_amount=total_amount,
+                        currency=currency,
+                        order_status=Order.OrderStatus.PENDING,
+                        payment_status=Order.PaymentStatus.PENDING,
+                    )
             except IntegrityError:
                 if _attempt == 4:
                     raise OrderError(
@@ -447,7 +495,7 @@ class OrderService:
 
     @classmethod
     def mark_refunded(cls, order: Order) -> Order:
-        """Mark a paid order refunded and revert linked custom-project payments.
+        """Mark a paid order refunded and revoke linked download entitlements.
 
         Idempotent when both order and payment statuses are already refunded.
         Downloads are denied automatically via ``order_allows_download`` /

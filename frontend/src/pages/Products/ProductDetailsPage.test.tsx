@@ -13,11 +13,12 @@ import * as reviewsApi from '../../api/reviewsApi'
 import {
   createTestQueryClient,
   resetAuthStore,
+  resetAuthUiStore,
   resetToastStore,
   testUser,
 } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
-import { useToastStore } from '../../store/toastStore'
+import { useAuthUiStore } from '../../store/authUiStore'
 import type { PublicProductDetail } from '../../types/product'
 import { ProductDetailsPage } from './ProductDetailsPage'
 import { Toaster } from '../../components/ui/Toaster'
@@ -77,8 +78,8 @@ vi.mock('../../api/reviewsApi', async () => {
 })
 
 vi.mock('../../components/viewer/LazyModelViewer', () => ({
-  LazyModelViewer: ({ ariaLabel }: { ariaLabel: string }) => (
-    <div data-testid="lazy-model-viewer" role="img" aria-label={ariaLabel} />
+  LazyModelViewer: ({ ariaLabel, modelUrl }: { ariaLabel: string; modelUrl: string }) => (
+    <div data-testid="lazy-model-viewer" role="group" aria-label={ariaLabel} data-model-url={modelUrl} />
   ),
 }))
 
@@ -202,6 +203,7 @@ function renderProductDetails(initialPath = '/products/cyberpunk-drone-3d') {
 beforeEach(() => {
   vi.clearAllMocks()
   resetAuthStore()
+  resetAuthUiStore()
   resetToastStore()
   vi.mocked(productsApi.getPublicProduct).mockResolvedValue(sampleDetail)
   vi.mocked(productsApi.listPublicProducts).mockResolvedValue(relatedList)
@@ -270,23 +272,124 @@ describe('ProductDetailsPage', () => {
     expect(productsApi.getPublicProduct).toHaveBeenCalledWith('cyberpunk-drone-3d')
     expect(screen.getByText(/standard license/i)).toBeInTheDocument()
     expect(screen.getByText(/-20%/i)).toBeInTheDocument()
-    expect(screen.getByText(/futuristic sci-fi drone asset/i)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /technical specs/i })).toBeInTheDocument()
-    expect(screen.getByText(/^polygons$/i)).toBeInTheDocument()
+    expect(screen.queryByText(/futuristic sci-fi drone asset/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /preview specifications/i })).toBeInTheDocument()
+    expect(screen.getByText(/^triangles$/i)).toBeInTheDocument()
     expect(screen.getByText('12,000')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /close/i })).toHaveAttribute('href', '/3d-models')
-    expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /close/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /show 3d preview/i })).toBeInTheDocument()
     expect(
-      screen.getByRole('img', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
+      screen.getByRole('group', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('lazy-model-viewer')).toBeInTheDocument()
     expect(document.title).toContain('Cyberpunk Drone 3D')
 
-    const browseCategory = screen.getByRole('link', { name: /browse sci-fi assets/i })
-    expect(browseCategory).toHaveAttribute(
-      'href',
-      `/3d-models?category=${encodeURIComponent(categoryId)}`,
-    )
+    expect(screen.queryByRole('link', { name: /browse sci-fi assets/i })).not.toBeInTheDocument()
+  })
+
+  describe('search engine tags', () => {
+    function structuredData(): Array<Record<string, any>> {
+      return [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((node) =>
+        [JSON.parse(node.textContent ?? '[]')].flat(),
+      )
+    }
+
+    it('gives the page a keyword title, a factual description and its own canonical address', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => {
+        expect(document.title).toMatch(/^Cyberpunk Drone 3D.*3D Model \| AssetHive3D$/)
+      })
+      // A hand-written short description is used exactly as written.
+      expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+        'content',
+        'Futuristic sci-fi drone asset',
+      )
+      expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+        'href',
+        expect.stringMatching(/\/products\/cyberpunk-drone-3d$/),
+      )
+      expect(document.querySelector('meta[property="og:type"]')).toHaveAttribute('content', 'product')
+      expect(document.querySelector('meta[property="og:image"]')).toHaveAttribute(
+        'content',
+        'https://cdn.example.com/thumb.jpg',
+      )
+    })
+
+    it('builds the description only from real facts when no short description was written', async () => {
+      vi.mocked(productsApi.getPublicProduct).mockResolvedValue({ ...sampleDetail, short_description: '' })
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+          'content',
+          'Cyberpunk Drone 3D: Sci-Fi Assets 3D model, 12,000 polygons. Preview in 3D, secure checkout and instant download. Standard license.',
+        )
+      })
+    })
+
+    it('publishes the real price, currency and rating as structured data, nothing invented', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => expect(structuredData().some((item) => item['@type'] === 'Product')).toBe(true))
+      const product = structuredData().find((item) => item['@type'] === 'Product')!
+      expect(product.name).toBe('Cyberpunk Drone 3D')
+      expect(product.offers).toMatchObject({
+        '@type': 'Offer',
+        priceCurrency: 'USD',
+        price: '39.99',
+        availability: 'https://schema.org/InStock',
+      })
+      expect(product.aggregateRating).toMatchObject({ ratingValue: 4.8, reviewCount: 12 })
+      expect(product.image).toEqual(expect.arrayContaining(['https://cdn.example.com/thumb.jpg']))
+    })
+
+    it('adds a breadcrumb trail through the category and links the category in the page', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+
+      await waitFor(() => expect(structuredData().some((item) => item['@type'] === 'BreadcrumbList')).toBe(true))
+      const crumbs = structuredData().find((item) => item['@type'] === 'BreadcrumbList')!
+      expect(crumbs.itemListElement.map((entry: { name: string }) => entry.name)).toEqual([
+        'Home',
+        '3D Models',
+        'Sci-Fi Assets',
+        'Cyberpunk Drone 3D',
+      ])
+      expect(screen.getByRole('link', { name: 'Sci-Fi Assets' })).toHaveAttribute('href', '/3d-models/sci-fi-assets')
+    })
+
+    it('keeps placeholder demo products out of search results, and indexes real ones', async () => {
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+      expect(document.querySelector('meta[name="robots"]')).toBeNull()
+    })
+
+    it('does not index a demo product', async () => {
+      vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
+        ...sampleDetail,
+        category: { id: 'demo', name: 'Demo Assets', slug: 'demo-assets' },
+      })
+      renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+      await waitFor(() => {
+        expect(document.querySelector('meta[name="robots"]')).toHaveAttribute('content', 'noindex')
+      })
+    })
+
+    it('removes its tags again when the visitor leaves the page', async () => {
+      const { unmount } = renderProductDetails()
+      await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+      await waitFor(() => expect(document.querySelector('link[rel="canonical"]')).not.toBeNull())
+
+      unmount()
+
+      expect(document.querySelector('link[rel="canonical"]')).toBeNull()
+      expect(document.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(0)
+    })
   })
 
   it('keeps the image stage when no preview model is available', async () => {
@@ -345,7 +448,7 @@ describe('ProductDetailsPage', () => {
       expect(screen.getByRole('heading', { name: /page not found/i })).toBeInTheDocument()
     })
 
-    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/home')
+    expect(screen.getByRole('link', { name: /homepage/i })).toHaveAttribute('href', '/')
   })
 
   it('shows error state with retry for non-404 failures', async () => {
@@ -383,10 +486,10 @@ describe('ProductDetailsPage', () => {
     )
 
     const dialog = await screen.findByRole('dialog', { name: /image viewer/i })
-    expect(within(dialog).getByAltText(/cyberpunk drone 3d image 1/i)).toBeInTheDocument()
+    expect(within(dialog).getByAltText(/cyberpunk drone 3d 3d model, image 1/i)).toBeInTheDocument()
 
     await user.keyboard('{ArrowRight}')
-    expect(within(dialog).getByAltText(/cyberpunk drone 3d image 2/i)).toBeInTheDocument()
+    expect(within(dialog).getByAltText(/cyberpunk drone 3d 3d model, image 2/i)).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
     await waitFor(() => {
@@ -395,6 +498,7 @@ describe('ProductDetailsPage', () => {
   })
 
   it('prompts guests to sign in for cart and wishlist CTAs', async () => {
+    const user = userEvent.setup()
     renderProductDetails()
 
     await waitFor(() => {
@@ -404,13 +508,19 @@ describe('ProductDetailsPage', () => {
     })
 
     expect(
-      screen.getAllByRole('button', { name: /sign in to add to cart/i }).length,
+      screen.getAllByRole('button', { name: /^add to cart$/i }).length,
     ).toBeGreaterThanOrEqual(1)
     expect(
       screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /sign in to buy/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /share link for/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /^buy now$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/sign in to leave a review/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }))
+
+    expect(useAuthUiStore.getState().isOpen).toBe(true)
+    expect(useAuthUiStore.getState().mode).toBe('login')
   })
 
   it('shows working add-to-cart and wishlist controls for authenticated users', async () => {
@@ -461,6 +571,16 @@ describe('ProductDetailsPage', () => {
       product_type: 'product',
       product_id: productId,
     })
+  })
+
+  it('renders the reviews and comments section below the model description', async () => {
+    renderProductDetails()
+    await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+    const heading = await screen.findByRole('heading', { name: /reviews & comments/i })
+    expect(heading.closest('.product-hub-detail__media-reviews')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add a comment/i })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /comment/i })).not.toBeInTheDocument()
+    await waitFor(() => expect(reviewsApi.listReviews).toHaveBeenCalled())
   })
 
   it('starts Stripe checkout when Buy now is clicked', async () => {
@@ -527,13 +647,7 @@ describe('ProductDetailsPage', () => {
     })
   })
 
-  it('copies the share link and excludes package storage paths from the document', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    })
-
+  it('hides the share control and short summary and excludes package storage paths', async () => {
     renderProductDetails()
 
     await waitFor(() => {
@@ -542,13 +656,8 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    await userEvent.click(screen.getByRole('button', { name: /share link for/i }))
-
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalled()
-    })
-    expect(writeText.mock.calls[0]?.[0]).toContain('/products/cyberpunk-drone-3d')
-    expect(useToastStore.getState().toasts).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Futuristic sci-fi drone asset')).not.toBeInTheDocument()
 
     expect(document.body.textContent).not.toMatch(/storage_path/i)
     expect(document.body.innerHTML).not.toContain('secret.zip')

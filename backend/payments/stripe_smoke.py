@@ -32,7 +32,7 @@ from orders.entitlements import order_allows_download, user_owns_catalog_item
 from orders.models import Order, OrderItem
 from payments.checkout_service import CheckoutService
 from payments.models import Payment, StripeWebhookEvent
-from payments.payment_common import e2e_stripe_simulate_enabled, stripe
+from payments.payment_common import e2e_stripe_simulate_enabled, stripe, to_cents
 from payments.stripe_config import collect_stripe_config_report
 from products.models import Product
 
@@ -85,6 +85,9 @@ def _build_checkout_completed_payload(
     session_id: str,
     payment_intent_id: str,
     order_id: str,
+    customer_id: str,
+    amount_total: int,
+    currency: str,
 ) -> bytes:
     event: dict[str, Any] = {
         "id": event_id,
@@ -96,6 +99,10 @@ def _build_checkout_completed_payload(
                 "id": session_id,
                 "object": "checkout.session",
                 "payment_intent": payment_intent_id,
+                "payment_status": "paid",
+                "amount_total": amount_total,
+                "currency": currency.lower(),
+                "client_reference_id": customer_id,
                 "metadata": {"order_id": order_id},
             }
         },
@@ -196,6 +203,9 @@ def run_sandbox_fulfill_smoke(*, cleanup: bool = True) -> StripeFulfillSmokeResu
             session_id=session_id,
             payment_intent_id=payment_intent_id,
             order_id=str(order.pk),
+            customer_id=str(user.pk),
+            amount_total=to_cents(payment.amount, payment.currency),
+            currency=payment.currency,
         )
 
         with override_settings(

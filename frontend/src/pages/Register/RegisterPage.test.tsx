@@ -2,10 +2,11 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as authApi from '../../api/authApi'
 import { AuthModal } from '../../components/auth/AuthModal'
+import { loadAuthPanels } from '../../components/auth/loadAuthPanels'
 import { useAuthUiStore } from '../../store/authUiStore'
 import { createTestQueryClient, resetAuthStore, resetAuthUiStore } from '../../test/test-utils'
 import { RegisterPage } from './RegisterPage'
@@ -34,6 +35,11 @@ function renderRegister() {
   )
 }
 
+// The forms are normally downloaded before the dialog opens (see loadAuthPanels.ts).
+beforeAll(async () => {
+  await loadAuthPanels()
+})
+
 beforeEach(() => {
   vi.clearAllMocks()
   resetAuthStore()
@@ -42,7 +48,7 @@ beforeEach(() => {
 
 describe('RegisterPage', () => {
   it('submits phone and country with the rest of the register payload', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     vi.mocked(authApi.registerUser).mockResolvedValue({
       id: 'user-1',
       full_name: 'Ada Lovelace',

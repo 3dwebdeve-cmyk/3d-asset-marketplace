@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tempfile
 from io import StringIO
 
 from django.core.management import call_command
@@ -19,6 +20,7 @@ from products.models import Product
 
 @override_settings(
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    MEDIA_ROOT=tempfile.mkdtemp(),
 )
 class BatchIngestSmokeTests(TestCase):
     def setUp(self) -> None:
@@ -92,10 +94,7 @@ class BatchIngestSmokeTests(TestCase):
         product = Product.objects.get(sku="MDL-000142")
         self.assertEqual(product.status, Product.Status.PUBLISHED)
         self.assertEqual(product.import_batch_id, "i3-batch-ingest-smoke")
-        self.assertTrue(
-            any("Postgres search" in w for w in result.warnings),
-            msg=result.warnings,
-        )
+        self.assertEqual(result.warnings, ())
 
     def test_command_dry_run_ok(self) -> None:
         out = StringIO()

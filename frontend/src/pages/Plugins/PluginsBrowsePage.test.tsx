@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,7 @@ vi.mock('../../api/pluginsApi', async () => {
     ...actual,
     listPublicPlugins: vi.fn(),
     listPublicPluginCategories: vi.fn(),
+    getPublicPlugin: vi.fn(),
   }
 })
 
@@ -36,6 +37,7 @@ const samplePublicPlugins = {
       thumbnail: '',
       version: '2.1',
       compatibility: 'Blender 4.x',
+      formats: ['blend'],
       license_type: 'standard' as const,
       average_rating: '4.90',
       review_count: 0,
@@ -90,13 +92,36 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(pluginsApi.listPublicPlugins).mockResolvedValue(samplePublicPlugins)
   vi.mocked(pluginsApi.listPublicPluginCategories).mockResolvedValue(samplePluginCategories)
+  vi.mocked(pluginsApi.getPublicPlugin).mockImplementation(async () => ({
+    ...samplePublicPlugins.results[0],
+    description: '',
+    documentation_url: '',
+    images: [],
+    files: [{
+      id: 'file-1',
+      file_name: 'rig.blend',
+      file_format: 'blend',
+      file_size: 100,
+      version: '1',
+      is_primary: true,
+    }],
+    updated_at: '2026-01-01T00:00:00Z',
+  }))
 })
 
 describe('PluginsBrowsePage', () => {
+  it('labels the plugin results section', () => {
+    renderPluginsBrowsePage()
+
+    expect(screen.getByText('Plugin', { selector: '.plugins-browse-toolbar__count' })).toBeInTheDocument()
+  })
+
   it('renders hero title and plugin list', async () => {
     renderPluginsBrowsePage()
 
-    expect(screen.getByRole('heading', { name: /^plugins$/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Blender & Unreal Plugins and Tools' }),
+    ).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()
@@ -115,7 +140,7 @@ describe('PluginsBrowsePage', () => {
       expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()
     })
 
-    await user.selectOptions(screen.getByLabelText(/category/i), categoryId)
+    await user.selectOptions(screen.getByLabelText(/category/i, { selector: 'select' }), categoryId)
 
     await waitFor(() => {
       expect(pluginsApi.listPublicPlugins).toHaveBeenCalledWith(
@@ -134,7 +159,7 @@ describe('PluginsBrowsePage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/^category$/i)).toHaveValue(categoryId)
+      expect(screen.getByLabelText(/^category$/i, { selector: 'select' })).toHaveValue(categoryId)
     })
   })
 
@@ -197,5 +222,67 @@ describe('PluginsBrowsePage', () => {
     })
 
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
+  it('filters by file format, price, and license, then clears filters', async () => {
+    const user = userEvent.setup()
+    const blenderPlugin = samplePublicPlugins.results[0]
+    const unityPlugin = {
+      ...blenderPlugin,
+      id: 'unity-plugin',
+      name: 'Unity Terrain Tools',
+      slug: 'unity-terrain-tools',
+      price: '120.00',
+      discount_price: null,
+      license_type: 'extended' as const,
+      formats: ['unitypackage'],
+    }
+    vi.mocked(pluginsApi.listPublicPlugins).mockResolvedValue({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [blenderPlugin, unityPlugin],
+    })
+    vi.mocked(pluginsApi.getPublicPlugin).mockImplementation(async (slug) => ({
+      ...(slug === unityPlugin.slug ? unityPlugin : blenderPlugin),
+      description: '',
+      documentation_url: '',
+      images: [],
+      files: [{
+        id: `file-${slug}`,
+        file_name: slug === unityPlugin.slug ? 'terrain.unitypackage' : 'rig.blend',
+        file_format: slug === unityPlugin.slug ? 'unitypackage' : 'blend',
+        file_size: 100,
+        version: '1',
+        is_primary: true,
+      }],
+      updated_at: '2026-01-01T00:00:00Z',
+    }))
+
+    renderPluginsBrowsePage()
+    await screen.findByText('Unity Terrain Tools')
+    expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: /blender \(\.blend\)/i }))
+    expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()
+    expect(screen.queryByText('Unity Terrain Tools')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /clear filters/i }))
+    expect(screen.getByText('Unity Terrain Tools')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: /extended license/i }))
+    expect(screen.queryByText('Blender Auto-Rig Pro')).not.toBeInTheDocument()
+    expect(screen.getByText('Unity Terrain Tools')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /clear filters/i }))
+    fireEvent.change(screen.getByRole('slider', { name: /maximum price/i }), {
+      target: { value: '50' },
+    })
+    expect(screen.getByText('Blender Auto-Rig Pro')).toBeInTheDocument()
+    expect(screen.queryByText('Unity Terrain Tools')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /clear filters/i }))
+    expect(screen.getByRole('slider', { name: /maximum price/i })).toHaveValue('200')
+    expect(screen.getByText('Unity Terrain Tools')).toBeInTheDocument()
   })
 })

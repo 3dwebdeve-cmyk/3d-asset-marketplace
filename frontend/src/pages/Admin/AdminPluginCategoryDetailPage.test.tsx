@@ -77,6 +77,7 @@ describe('AdminPluginCategoryDetailPage', () => {
   })
 
   it('deactivates a plugin category', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const user = userEvent.setup()
     vi.mocked(pluginsApi.deactivateAdminPluginCategory).mockResolvedValue({
       ...category,

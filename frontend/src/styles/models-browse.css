@@ -1,0 +1,119 @@
+.models-browse {
+  background: var(--bg-page);
+}
+
+.models-browse .plugins-browse-main {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 404px));
+  justify-content: center;
+  align-content: start;
+  column-gap: 1.15rem;
+}
+
+.models-browse .plugins-browse-main > * {
+  grid-column: 1 / -1;
+}
+
+.models-browse .plugins-grid {
+  grid-template-columns: subgrid;
+}
+
+@media (max-width: 1100px) {
+  .models-browse .plugins-browse-main {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 404px));
+  }
+}
+
+@media (max-width: 640px) {
+  .models-browse .plugins-browse-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 901px) {
+  .models-browse .plugins-browse__body {
+    grid-template-columns: minmax(240px, 285px) minmax(0, 1fr);
+  }
+}
+
+.models-browse .plugins-filters {
+  padding: 1rem;
+  border-radius: 0.4rem;
+}
+
+.models-browse .plugins-filters__title {
+  font-size: 0.72rem;
+  letter-spacing: 0;
+}
+
+.models-browse .plugins-filters__header { margin-bottom: 1.2rem; }
+.models-browse .plugins-filters__label,
+.model-filters__group legend { font-size: 0.75rem; font-weight: 600; }
+.models-browse .plugins-filters .plugins-filters__select {
+  padding: 0.45rem 0.6rem;
+  font-size: 0.7rem;
+  border-radius: 0.3rem;
+  color: var(--text-secondary);
+}
+.model-filters__group {
+  min-width: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+.model-filters__group legend { margin-bottom: 0.5rem; padding: 0; }
+.model-filters__option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.65rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.model-filters__option input { margin: 0; width: 0.8rem; height: 0.8rem; accent-color: var(--action-color); }
+.model-filters__count { margin-left: auto; font-size: 0.65rem; font-variant-numeric: tabular-nums; }
+.model-filters__range { position: relative; height: 1.6rem; margin-inline: 0.15rem; }
+.model-filters__track { position: absolute; top: calc(50% - 1.5px); height: 3px; width: 100%; border-radius: 2px; }
+.model-filters__range input { position: absolute; inset: 0; width: 100%; margin: 0; appearance: none; background: transparent; pointer-events: none; }
+.model-filters__range input::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border: 2px solid var(--action-color); border-radius: 50%; background: white; pointer-events: auto; cursor: grab; }
+.model-filters__range input::-moz-range-thumb { width: 10px; height: 10px; border: 2px solid var(--action-color); border-radius: 50%; background: white; pointer-events: auto; cursor: grab; }
+.model-filters__range input:focus-visible { outline: 2px solid var(--action-color); outline-offset: 3px; border-radius: 3px; }
+.model-filters__prices { display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-secondary); }
+.model-filters__clear { display: flex; align-items: center; justify-content: center; gap: 0.3rem; width: 100%; min-height: 2rem; border: 1px solid var(--action-color); border-radius: 0.3rem; background: white; color: var(--action-color); font: inherit; font-size: 0.7rem; cursor: pointer; }
+.model-filters__clear:hover { background: color-mix(in srgb, var(--action-color) 5%, white); }
+.plugins-browse > .plugins-browse-hero--furniture.site-hero-banner {
+  background: radial-gradient(ellipse at 78% 35%, #424448 0%, #1b2025 42%, #0e1319 78%);
+}
+
+.plugins-browse-hero--furniture .plugins-browse-hero__subtitle {
+  max-width: min(52%, 42rem);
+}
+
+@media (min-width: 721px) {
+  .models-browse .plugins-browse-hero--toys .plugins-browse-hero__container {
+    width: 40%;
+    max-width: 40%;
+  }
+}
+
+@media (max-width: 720px) {
+  :root body .models-browse > .plugins-browse-hero--toys.site-hero-banner {
+    border-radius: clamp(0.875rem, 1.5vw, 1.5rem);
+  }
+
+  :root body .models-browse > .plugins-browse-hero--toys::before {
+    border-radius: inherit;
+  }
+}
+
+/* Subcategories sit under their parent in the category filter. */
+.models-browse .custom-select-option--child {
+  padding-left: 1.6rem;
+  color: var(--text-secondary);
+}
+
+.models-browse .custom-select-option--child:hover,
+.models-browse .custom-select-option--child.custom-select-option--active {
+  color: var(--action-color);
+}

@@ -66,10 +66,6 @@ class Command(BaseCommand):
         self.stdout.write(f"ALLOW_CONSOLE_EMAIL={report.allow_console_email}")
         self.stdout.write(f"DB_PASSWORD_weak={report.db_password_weak}")
         self.stdout.write(
-            f"MEILI_MASTER_KEY_weak={report.meili_master_key_weak}"
-        )
-        self.stdout.write(f"REDIS_URL_set={report.redis_url_set}")
-        self.stdout.write(
             "Confirm Postgres / Gunicorn are NOT "
             "published on the public internet - only the SPA/proxy port "
             "(or Cloudflare tunnel). See docs/DEPLOY_SECRETS_STAGING_CHECKLIST.md."

@@ -3,21 +3,46 @@ export type ReviewProductType = 'product' | 'plugin'
 export interface ReviewAuthor {
   id: string
   full_name: string
+  avatar?: string
 }
 
 export interface Review {
   id: string
   product_type: ReviewProductType
   product_id: string
-  rating: number
+  rating: number | null
   review_text: string
   author: ReviewAuthor
+  replies?: ReviewReply[]
+  like_count?: number
+  dislike_count?: number
+  viewer_reaction?: ReviewReactionValue | null
   created_at: string
   updated_at: string
 }
 
+export type ReviewReactionValue = 'like' | 'dislike'
+
+export interface ReviewReply {
+  id: string
+  parent_id: string | null
+  text: string
+  author: ReviewAuthor
+  like_count?: number
+  dislike_count?: number
+  viewer_reaction?: ReviewReactionValue | null
+  created_at: string
+}
+
+export interface ReviewReactionResult {
+  like_count: number
+  dislike_count: number
+  viewer_reaction: ReviewReactionValue | null
+}
+
 export interface ReviewEligibility {
   can_review: boolean
+  can_rate?: boolean
   has_reviewed: boolean
   review: Review | null
 }
@@ -25,7 +50,7 @@ export interface ReviewEligibility {
 export interface ReviewCreatePayload {
   product_type: ReviewProductType
   product_id: string
-  rating: number
+  rating?: number | null
   review_text?: string
 }
 
@@ -53,7 +78,7 @@ export interface AdminReview {
   id: string
   product_type: ReviewProductType
   product_id: string
-  rating: number
+  rating: number | null
   review_text: string
   is_hidden: boolean
   author: ReviewAuthor

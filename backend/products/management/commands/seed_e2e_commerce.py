@@ -9,7 +9,7 @@ from zipfile import ZipFile
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from accounts.models import Role, User
@@ -83,6 +83,12 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options) -> None:
+        # Creates accounts with publicly known passwords: never run it against a
+        # production or staging database.
+        if getattr(settings, "DEPLOYMENT_PROFILE", "") not in {"test", "development"}:
+            raise CommandError(
+                "seed_e2e_commerce only runs with DEPLOYMENT_PROFILE=test or development."
+            )
         email = str(options["email"]).strip().lower()
         password = str(options["password"])
         slug = str(options["slug"]).strip()
@@ -91,6 +97,19 @@ class Command(BaseCommand):
         unverified_email = str(options["unverified_email"]).strip().lower()
         unverified_password = str(options["unverified_password"])
         plugin_slug = str(options["plugin_slug"]).strip()
+
+        # Fixed fixture accounts may be refreshed on repeat runs. Any other address
+        # must not match an existing account, or the seed would reset a real user.
+        fixture_emails = {DEFAULT_BUYER_EMAIL, DEFAULT_ADMIN_EMAIL, DEFAULT_UNVERIFIED_EMAIL}
+        for flag, value in (
+            ("--email", email),
+            ("--admin-email", admin_email),
+            ("--unverified-email", unverified_email),
+        ):
+            if value not in fixture_emails and User.objects.filter(email=value).exists():
+                raise CommandError(
+                    f"{flag} {value} already exists; refusing to overwrite an existing account."
+                )
 
         customer_role = Role.objects.get(role_name="Customer")
         buyer = self._upsert_customer(
@@ -152,7 +171,7 @@ class Command(BaseCommand):
             product=product,
             file_name="e2e-checkout-chair.zip",
             defaults={
-                "file_format": "ZIP",
+                "file_format": "zip",
                 "file_size": len(package_bytes),
                 "storage_path": PACKAGE_STORAGE_PATH,
                 "version": "1.0",

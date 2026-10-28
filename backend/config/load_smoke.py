@@ -286,7 +286,7 @@ def _check_search(
         )
         detail_parts.append(f"hit={hit}")
         if not hit and int(response.data.get("count") or 0) == 0:
-            # Meili miss with ORM fallback still OK if catalog filters differently;
+            # A search miss is still OK if the catalog filters differently;
             # require at least a 200 paginated shape — hit is preferred.
             detail_parts.append("no_hit_advisory")
         if query_count > SEARCH_QUERY_BUDGET:
@@ -395,7 +395,7 @@ def _check_public_cdn(product: Product, detail_payload: dict[str, Any] | None) -
             detail=(
                 f"R2_PUBLIC_BASE_URL={base}; wiring=ok; "
                 f"catalog_placeholders={len(placeholders)} "
-                "(re-run seed_demo_catalog with R2 on, or publish R2 media)"
+                "(publish R2 media)"
             ),
             blocking=False,
         )
@@ -626,7 +626,7 @@ def _run_load_smoke_inner(*, iterations: int) -> LoadSmokeResult:
                 warnings.append(
                     f"{check.name}: latency {check.latency_ms}ms exceeds "
                     f"{LATENCY_ADVISORY_MS:.0f}ms advisory "
-                    "(investigate CDN / Meili / N+1)."
+                    "(investigate CDN / search / N+1)."
                 )
 
         if not _r2_enabled():
@@ -649,8 +649,8 @@ def _run_load_smoke_inner(*, iterations: int) -> LoadSmokeResult:
             ):
                 warnings.append(
                     "public_cdn: catalog still uses frontend placeholder URLs; "
-                    "re-run seed_demo_catalog (R2 on) or publish media to the "
-                    "public bucket so thumbnails/previews use R2_PUBLIC_BASE_URL."
+                    "publish media to the public bucket so thumbnails/previews "
+                    "use R2_PUBLIC_BASE_URL."
                 )
 
         return LoadSmokeResult(

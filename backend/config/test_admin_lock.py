@@ -1,6 +1,7 @@
 """Django /admin/ and SPA console API network locks."""
 
 from django.http import HttpResponse
+from django.core.exceptions import ImproperlyConfigured
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from config.admin_lock import (
@@ -30,6 +31,10 @@ class DjangoAdminLockHelperTests(SimpleTestCase):
     def test_parse_cidrs(self) -> None:
         networks = parse_allowed_networks("127.0.0.1, 10.0.0.0/8")
         self.assertEqual(len(networks), 2)
+
+    def test_invalid_allowlist_fails_closed(self) -> None:
+        with self.assertRaises(ImproperlyConfigured):
+            parse_allowed_networks("invalid-cidr")
 
 
 class DjangoAdminLockMiddlewareTests(SimpleTestCase):
@@ -116,6 +121,47 @@ class SpaAdminConsoleLockMiddlewareTests(SimpleTestCase):
         )
         response = self.middleware(request)
         self.assertEqual(response.status_code, 403)
+
+    @override_settings(ADMIN_CONSOLE_ALLOWED_IPS=["10.0.0.0/8"])
+    def test_spoofed_cf_connecting_ip_is_ignored(self) -> None:
+        request = self.factory.post(
+            "/api/v1/auth/admin/login/",
+            REMOTE_ADDR="203.0.113.9",
+            HTTP_CF_CONNECTING_IP="10.0.0.1",
+        )
+        response = self.middleware(request)
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(ADMIN_CONSOLE_ALLOWED_IPS=["10.0.0.0/8"])
+    def test_spoofed_x_forwarded_for_is_ignored(self) -> None:
+        request = self.factory.get(
+            "/api/v1/admin/products/",
+            REMOTE_ADDR="203.0.113.9",
+            HTTP_X_FORWARDED_FOR="10.0.0.1",
+        )
+        response = self.middleware(request)
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(ADMIN_CONSOLE_ALLOWED_IPS=["10.0.0.0/8"])
+    def test_nginx_real_ip_outside_network_forbidden_even_if_peer_matches(self) -> None:
+        # Behind Nginx the TCP peer is the (private) Nginx container address.
+        request = self.factory.get(
+            "/api/v1/admin/products/",
+            REMOTE_ADDR="10.5.0.3",
+            HTTP_X_REAL_IP="203.0.113.9",
+        )
+        response = self.middleware(request)
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(ADMIN_CONSOLE_ALLOWED_IPS=["10.0.0.0/8"])
+    def test_nginx_real_ip_inside_network_allowed(self) -> None:
+        request = self.factory.get(
+            "/api/v1/admin/products/",
+            REMOTE_ADDR="172.18.0.4",
+            HTTP_X_REAL_IP="10.20.30.40",
+        )
+        response = self.middleware(request)
+        self.assertEqual(response.status_code, 200)
 
     @override_settings(ADMIN_CONSOLE_ALLOWED_IPS=["10.0.0.0/8"])
     def test_public_auth_unaffected(self) -> None:

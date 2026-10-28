@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from rest_framework import status
@@ -8,9 +9,15 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsAdministrator
+from accounts.authentication import CatalogApiKeyAuthentication
+from accounts.permissions import CatalogIngestIPAllowed, HasCatalogApiKey, IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminProductWriteRateThrottle
+from accounts.throttles import (
+    AdminProductWriteRateThrottle,
+    AdminUploadRateThrottle,
+    CatalogIngestRateThrottle,
+    CatalogSearchRateThrottle,
+)
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
 from products.catalog_import import CatalogImportService
@@ -35,8 +42,9 @@ from products.services import (
     ProductService,
     ProductUpdateData,
 )
-from search.pagination import paginated_list_response, parse_page
-from search.services import hydrate_products, normalize_query, search_published_products
+from search.services import normalize_query
+
+logger = logging.getLogger(__name__)
 
 
 def _product_error_response(exc: ProductError) -> Response:
@@ -70,6 +78,12 @@ class ProductListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = ProductPagination
 
+    def get_throttles(self) -> list:
+        throttles = super().get_throttles()
+        if normalize_query(self.request.query_params.get("search")):
+            throttles.append(CatalogSearchRateThrottle())
+        return throttles
+
     def get(self, request: Request) -> Response:
         category_id = parse_uuid(
             request.query_params.get("category_id"),
@@ -83,32 +97,6 @@ class ProductListView(PublicCatalogCacheMixin, APIView):
         game_ready = _parse_bool_filter(request.query_params.get("game_ready"))
 
         paginator = self.pagination_class()
-        query = normalize_query(search)
-        if query:
-            page, page_size = parse_page(request, paginator)
-            search_page = search_published_products(
-                query=query,
-                page=page,
-                page_size=page_size,
-                category_id=category_id,
-                ordering=ordering,
-                animated=animated,
-                rigged=rigged,
-                pbr_ready=pbr_ready,
-                game_ready=game_ready,
-            )
-            if search_page is not None:
-                items = hydrate_products(search_page.ids)
-                return paginated_list_response(
-                    request,
-                    paginator=paginator,
-                    items=items,
-                    total=search_page.estimated_total,
-                    page=page,
-                    page_size=page_size,
-                    serializer_class=ProductListPublicSerializer,
-                )
-
         queryset = ProductService.list_public(
             category_id=category_id,
             search=search,
@@ -316,7 +304,7 @@ class AdminProductDetailView(APIView):
 
 class AdminProductImageUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminProductWriteRateThrottle]
+    throttle_classes = [AdminProductWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, product_id: UUID) -> Response:
@@ -376,7 +364,7 @@ class AdminProductImageDetailView(APIView):
 
 class AdminProductFileUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminProductWriteRateThrottle]
+    throttle_classes = [AdminProductWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, product_id: UUID) -> Response:
@@ -457,6 +445,58 @@ class AdminCatalogImportView(APIView):
             action="catalog_import",
             actor_id=str(request.user.pk),
             target_id=data["import_batch_id"],
+        )
+        return Response(batch.to_dict(), status=status.HTTP_200_OK)
+
+
+class CatalogIngestImportView(APIView):
+    """POST /api/v1/catalog-ingest/import/ — the uploader exe's import, by API key.
+
+    Same import as the admin route, outside /api/v1/admin/ because an unattended exe
+    cannot pass the admin MFA sign-in, IP lock or Cloudflare Access. Accepts only
+    ``Authorization: Api-Key <key>``; an administrator JWT is not enough.
+    """
+
+    authentication_classes = [CatalogApiKeyAuthentication]
+    permission_classes = [CatalogIngestIPAllowed, HasCatalogApiKey]
+    throttle_classes = [CatalogIngestRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request) -> Response:
+        serializer = CatalogImportEnvelopeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        batch = CatalogImportService.import_batch(
+            import_batch_id=data["import_batch_id"],
+            import_source=data.get("import_source") or "catalog-bridge",
+            items=data["items"],
+            actor_id=str(request.user.pk),
+        )
+
+        key_prefix = request.auth.key_prefix
+        logger.info(
+            "catalog_ingest key_prefix=%s batch_id=%s items=%s created=%s updated=%s "
+            "skipped=%s failed=%s",
+            key_prefix,
+            data["import_batch_id"],
+            len(data["items"]),
+            batch.created,
+            batch.updated,
+            batch.skipped,
+            batch.failed,
+        )
+        log_admin_action(
+            action="catalog_ingest_import",
+            actor_id=str(request.user.pk),
+            target_id=data["import_batch_id"],
+            metadata={
+                "key_prefix": key_prefix,
+                "created": batch.created,
+                "updated": batch.updated,
+                "skipped": batch.skipped,
+                "failed": batch.failed,
+            },
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)
 

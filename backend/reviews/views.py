@@ -17,8 +17,13 @@ from reviews.serializers import (
     ReviewAdminUpdateSerializer,
     ReviewCreateSerializer,
     ReviewPublicSerializer,
+    ReviewReactionSerializer,
+    ReviewReplyCreateSerializer,
+    ReviewReplySerializer,
 )
+from reviews.models import Review, ReviewReaction, ReviewReply, ReviewReplyReaction
 from reviews.services import ReviewError, ReviewService
+from orders.entitlements import user_owns_catalog_item
 
 
 def _error_response(exc: ReviewError) -> Response:
@@ -97,7 +102,7 @@ class ReviewListCreateView(APIView):
 
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
-        serializer = ReviewPublicSerializer(page, many=True)
+        serializer = ReviewPublicSerializer(page, many=True, context={"request": request})
         return paginator.get_paginated_response(serializer.data)
 
     def post(self, request: Request) -> Response:
@@ -116,7 +121,7 @@ class ReviewListCreateView(APIView):
             return _error_response(exc)
 
         return Response(
-            ReviewPublicSerializer(review).data,
+            ReviewPublicSerializer(review, context={"request": request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
@@ -144,7 +149,99 @@ class MyReviewView(APIView):
             return _error_response(exc)
         if review is None:
             return Response({"detail": "No review found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
-        return Response(ReviewPublicSerializer(review).data)
+        return Response(ReviewPublicSerializer(review, context={"request": request}).data)
+
+
+class ReviewReplyCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ReviewWriteRateThrottle]
+
+    def post(self, request: Request, review_id: UUID) -> Response:
+        serializer = ReviewReplyCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            review = Review.objects.get(pk=review_id, is_hidden=False)
+        except Review.DoesNotExist as exc:
+            raise NotFound(detail="Review not found.") from exc
+        parent = None
+        parent_id = serializer.validated_data.get("parent_id")
+        if parent_id:
+            try:
+                parent = ReviewReply.objects.get(pk=parent_id, review=review)
+            except ReviewReply.DoesNotExist as exc:
+                raise ValidationError({"parent_id": ["Reply does not belong to this comment."]}) from exc
+        reply = ReviewReply.objects.create(
+            review=review,
+            user=request.user,
+            parent=parent,
+            text=serializer.validated_data["text"],
+        )
+        return Response(ReviewReplySerializer(reply, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class ReviewReplyReactionView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ReviewWriteRateThrottle]
+
+    def post(self, request: Request, reply_id: UUID) -> Response:
+        serializer = ReviewReactionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            reply = ReviewReply.objects.select_related("review").get(
+                pk=reply_id,
+                review__is_hidden=False,
+            )
+        except ReviewReply.DoesNotExist as exc:
+            raise NotFound(detail="Reply not found.") from exc
+
+        value = serializer.validated_data["value"]
+        reaction, created = ReviewReplyReaction.objects.get_or_create(
+            reply=reply,
+            user=request.user,
+            defaults={"value": value},
+        )
+        viewer_reaction = value
+        if not created and reaction.value == value:
+            reaction.delete()
+            viewer_reaction = None
+        elif not created:
+            reaction.value = value
+            reaction.save(update_fields=["value"])
+
+        return Response({
+            "like_count": reply.reactions.filter(value=ReviewReplyReaction.Value.LIKE).count(),
+            "dislike_count": reply.reactions.filter(value=ReviewReplyReaction.Value.DISLIKE).count(),
+            "viewer_reaction": viewer_reaction,
+        })
+
+
+class ReviewReactionView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ReviewWriteRateThrottle]
+
+    def post(self, request: Request, review_id: UUID) -> Response:
+        serializer = ReviewReactionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            review = Review.objects.get(pk=review_id, is_hidden=False)
+        except Review.DoesNotExist as exc:
+            raise NotFound(detail="Review not found.") from exc
+        value = serializer.validated_data["value"]
+        reaction, created = ReviewReaction.objects.get_or_create(
+            review=review, user=request.user, defaults={"value": value}
+        )
+        viewer_reaction = value
+        if not created and reaction.value == value:
+            reaction.delete()
+            viewer_reaction = None
+        elif not created:
+            reaction.value = value
+            reaction.save(update_fields=["value"])
+        return Response({
+            "like_count": review.reactions.filter(value=ReviewReaction.Value.LIKE).count(),
+            "dislike_count": review.reactions.filter(value=ReviewReaction.Value.DISLIKE).count(),
+            "viewer_reaction": viewer_reaction,
+        })
 
 
 class ReviewEligibilityView(APIView):
@@ -169,20 +266,20 @@ class ReviewEligibilityView(APIView):
         try:
             normalized = ReviewService._normalize_product_type(product_type)
             ReviewService._validate_catalog_item(normalized, product_id)
-            can_review = ReviewService.user_has_purchased(
-                request.user,
-                normalized,
-                product_id,
-            )
             existing = ReviewService.get_mine(request.user, normalized, product_id)
         except ReviewError as exc:
             return _error_response(exc)
 
         return Response(
             {
-                "can_review": can_review,
+                "can_review": True,
+                "can_rate": user_owns_catalog_item(request.user, normalized, product_id),
                 "has_reviewed": existing is not None,
-                "review": ReviewPublicSerializer(existing).data if existing else None,
+                "review": (
+                    ReviewPublicSerializer(existing, context={"request": request}).data
+                    if existing
+                    else None
+                ),
             }
         )
 

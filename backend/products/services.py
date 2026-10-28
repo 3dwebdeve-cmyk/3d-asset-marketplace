@@ -1,39 +1,23 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
-from pathlib import Path
 from uuid import UUID
 
-from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from categories.models import Category
 from config.media import private_object_exists
-from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
-from products.storage import ProductMediaStorageService
-from products.upload_rules import (
-    validate_product_file_upload,
-    validate_product_image_upload,
+from config.currency import normalize_currency, validate_catalog_prices
+from products.errors import ProductError
+from products.media_service import (  # noqa: F401 - re-exported for existing imports
+    PREVIEW_MAX_POLYGON_SHARE,
+    ProductMediaService,
+    preview_reduction_error,
 )
-from search.tasks import enqueue_sync_product
-
-
-class ProductError(Exception):
-    def __init__(
-        self,
-        message: str,
-        field: str | None = None,
-        *,
-        errors: dict[str, list[str]] | None = None,
-    ) -> None:
-        self.message = message
-        self.field = field
-        self.errors = errors
-        super().__init__(message)
-
+from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 
 @dataclass(frozen=True)
 class ProductCreateData:
@@ -63,6 +47,7 @@ class ProductCreateData:
     has_thumbnail: bool = False
     has_preview: bool = False
     has_package: bool = False
+    package_formats: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -98,9 +83,10 @@ class ProductUpdateData:
     has_thumbnail: bool | None = None
     has_preview: bool | None = None
     has_package: bool | None = None
+    package_formats: list[str] | None = None
 
 
-class ProductService:
+class ProductService(ProductMediaService):
     @classmethod
     def _base_queryset(cls) -> QuerySet[Product]:
         return Product.objects.select_related("category", "reviewed_by").prefetch_related(
@@ -110,12 +96,9 @@ class ProductService:
 
     @classmethod
     def _normalize_search(cls, search: str | None) -> str | None:
-        if not search:
-            return None
-        query = search.strip()
-        if not query:
-            return None
-        return query[:100]
+        from search.services import normalize_query
+
+        return normalize_query(search)
 
     @classmethod
     def list_public(
@@ -133,7 +116,14 @@ class ProductService:
         # Defer heavy detail/admin-only columns to shrink list payload SQL.
         queryset = (
             Product.objects.select_related("category")
-            .filter(status=Product.Status.PUBLISHED)
+            .prefetch_related(
+                Prefetch(
+                    "files",
+                    queryset=ProductFile.objects.only("product_id", "file_format"),
+                    to_attr="filter_files",
+                )
+            )
+            .filter(status=Product.Status.PUBLISHED, category__is_active=True)
             .defer(
                 "description",
                 "preview_model",
@@ -160,7 +150,12 @@ class ProductService:
         )
 
         if category_id is not None:
-            queryset = queryset.filter(category_id=category_id)
+            # A parent category also lists its active subcategories' products;
+            # a subcategory lists only its own.
+            queryset = queryset.filter(
+                Q(category_id=category_id)
+                | Q(category__parent_id=category_id, category__is_active=True)
+            )
         query = cls._normalize_search(search)
         if query:
             queryset = queryset.filter(
@@ -224,6 +219,7 @@ class ProductService:
             return cls._base_queryset().get(
                 slug=slug.strip(),
                 status=Product.Status.PUBLISHED,
+                category__is_active=True,
             )
         except Product.DoesNotExist as exc:
             raise ProductError("Product not found.") from exc
@@ -287,6 +283,7 @@ class ProductService:
         category = cls._resolve_category(data.category_id)
         cls._validate_pricing(data.price, data.discount_price)
         currency = cls._normalize_currency(data.currency)
+        cls._validate_currency_prices(currency, data.price, data.discount_price)
         license_type = cls._normalize_license(data.license_type)
         status = cls._normalize_status(data.status)
         sku = cls._validate_sku_unique(data.sku)
@@ -296,6 +293,9 @@ class ProductService:
                 "Imported products must be published via the approve endpoint.",
                 field="status",
             )
+
+        if status == Product.Status.PUBLISHED:
+            raise ProductError('Create as draft, upload a package and preview, then publish.', field='status')
 
         product = Product.objects.create(
             category=category,
@@ -308,6 +308,7 @@ class ProductService:
             has_thumbnail=data.has_thumbnail,
             has_preview=data.has_preview,
             has_package=data.has_package,
+            package_formats=list(data.package_formats),
             description=data.description.strip(),
             short_description=data.short_description.strip(),
             price=data.price,
@@ -326,12 +327,12 @@ class ProductService:
             license_type=license_type,
             status=status,
         )
-        enqueue_sync_product(product.pk)
         return product
 
     @classmethod
     @transaction.atomic
     def update_product(cls, product: Product, data: ProductUpdateData) -> Product:
+        product = Product.objects.select_for_update().get(pk=product.pk)
         update_fields: list[str] = ["updated_at"]
 
         if data.category_id is not None:
@@ -346,7 +347,8 @@ class ProductService:
             product.slug = Product.build_slug(name, exclude_id=product.pk)
             update_fields.extend(["name", "slug"])
 
-        if data.slug is not None and data.name is None:
+        # An explicit slug is honoured even when a name is sent with it.
+        if data.slug is not None:
             slug = data.slug.strip().lower()
             if not slug:
                 raise ProductError("Slug cannot be empty.", field="slug")
@@ -430,13 +432,11 @@ class ProductService:
         if data.status is not None:
             new_status = cls._normalize_status(data.status)
             cls._validate_status_transition(product.status, new_status)
-            # Imported batch rows must use the dedicated approve endpoint to publish.
-            if (
-                new_status == Product.Status.PUBLISHED
-                and product.import_batch_id.strip()
-            ):
+            # Publishing goes through the review queue so the reviewer is recorded.
+            # Direct edits cannot publish, whatever the product's origin.
+            if new_status == Product.Status.PUBLISHED and product.status != Product.Status.PUBLISHED:
                 raise ProductError(
-                    "Imported products must be published via the approve endpoint.",
+                    "Publish through the review queue so the reviewer is recorded.",
                     field="status",
                 )
             product.status = new_status
@@ -461,15 +461,21 @@ class ProductService:
             product.glb_checksum = data.glb_checksum.strip()[:64]
             update_fields.append("glb_checksum")
 
+        if data.package_formats is not None:
+            product.package_formats = list(data.package_formats)
+            update_fields.append("package_formats")
+
         for field_name in ("has_thumbnail", "has_preview", "has_package"):
             value = getattr(data, field_name)
             if value is not None:
                 setattr(product, field_name, value)
                 update_fields.append(field_name)
 
+        cls._validate_currency_prices(product.currency, product.price, product.discount_price)
+        if product.status == Product.Status.PUBLISHED:
+            cls._validate_publish_ready(product)
         product.save(update_fields=list(dict.fromkeys(update_fields)))
         updated = cls.get_by_id(product.pk)
-        enqueue_sync_product(updated.pk)
         return updated
 
     @classmethod
@@ -481,16 +487,16 @@ class ProductService:
         )
 
     @classmethod
-    def _validate_publish_ready(cls, product: Product) -> None:
+    def _validate_publish_ready(cls, product: Product, *, require_sku: bool = False) -> None:
         """Conservative publish gates for the QA approve path (Feature 16 Phase 8).
 
         Aligned with docs/batch-ingest-contract.md sellability needs: identity,
         pricing, category, web preview, and at least one paid package file.
-        Manual draft→published via admin create/PATCH is unchanged.
+        Manual publishing uses the same delivery checks; SKUs remain required for batch approval.
         """
         errors: dict[str, list[str]] = {}
 
-        if not product.sku:
+        if (require_sku or product.import_batch_id) and not product.sku:
             errors["sku"] = ["SKU is required before publish."]
 
         name = (product.name or "").strip()
@@ -501,6 +507,11 @@ class ProductService:
             errors["category"] = ["Category is required before publish."]
         elif not Category.objects.filter(pk=product.category_id, is_active=True).exists():
             errors["category"] = ["Category not found or inactive."]
+
+        try:
+            cls._validate_currency_prices(product.currency, product.price, product.discount_price)
+        except ProductError as exc:
+            errors['price'] = [exc.message]
 
         if product.price is None or product.price < Decimal("0.00"):
             errors["price"] = ["A valid non-negative price is required."]
@@ -523,6 +534,16 @@ class ProductService:
 
         if not (product.preview_model or "").strip():
             errors["preview_model"] = ["Preview model is required before publish."]
+        elif product.polygon_count and product.preview_triangle_count is None:
+            errors["preview_model"] = [
+                "Preview has not been measured. Upload the reduced preview again."
+            ]
+        else:
+            reduction_error = preview_reduction_error(
+                product.preview_triangle_count, product.polygon_count
+            )
+            if reduction_error:
+                errors["preview_model"] = [reduction_error]
 
         if errors:
             raise ProductError(
@@ -534,13 +555,14 @@ class ProductService:
     @transaction.atomic
     def approve_product(cls, product: Product, *, reviewer) -> Product:
         """pending_review → published with publish gates. Clears reject_reason."""
+        product = Product.objects.select_for_update().get(pk=product.pk)
         if product.status != Product.Status.PENDING_REVIEW:
             raise ProductError(
                 f"Cannot approve product with status '{product.status}'.",
                 field="status",
             )
         cls._validate_status_transition(product.status, Product.Status.PUBLISHED)
-        cls._validate_publish_ready(product)
+        cls._validate_publish_ready(product, require_sku=True)
 
         product.status = Product.Status.PUBLISHED
         product.reviewed_at = timezone.now()
@@ -557,7 +579,6 @@ class ProductService:
             ]
         )
         approved = cls.get_by_id(product.pk)
-        enqueue_sync_product(approved.pk)
         return approved
 
     @classmethod
@@ -598,7 +619,6 @@ class ProductService:
             update_fields.append("qa_notes")
         product.save(update_fields=update_fields)
         rejected = cls.get_by_id(product.pk)
-        enqueue_sync_product(rejected.pk)
         return rejected
 
     @classmethod
@@ -614,150 +634,7 @@ class ProductService:
         product.status = Product.Status.PENDING_REVIEW
         product.save(update_fields=["status", "updated_at"])
         requeued = cls.get_by_id(product.pk)
-        enqueue_sync_product(requeued.pk)
         return requeued
-
-    @classmethod
-    @transaction.atomic
-    def add_image(
-        cls,
-        product: Product,
-        uploaded: UploadedFile,
-        *,
-        display_order: int = 0,
-        is_primary: bool = False,
-    ) -> ProductImage:
-        validated = validate_product_image_upload(uploaded)
-        image_url = ProductMediaStorageService.save_image(
-            str(product.pk),
-            validated.file,
-            validated.extension,
-        )
-
-        if is_primary:
-            ProductImage.objects.filter(product=product, is_primary=True).update(
-                is_primary=False
-            )
-
-        image = ProductImage.objects.create(
-            product=product,
-            image_url=image_url,
-            display_order=display_order,
-            is_primary=is_primary,
-        )
-
-        if is_primary or not product.thumbnail:
-            product.thumbnail = image_url
-            product.save(update_fields=["thumbnail", "updated_at"])
-
-        return image
-
-    @classmethod
-    @transaction.atomic
-    def delete_image(cls, product: Product, image_id: UUID) -> None:
-        try:
-            image = ProductImage.objects.get(pk=image_id, product=product)
-        except ProductImage.DoesNotExist as exc:
-            raise ProductError("Product image not found.") from exc
-
-        image_url = image.image_url
-        was_primary = image.is_primary
-        image.delete()
-        ProductMediaStorageService.delete_if_managed(
-            image_url,
-            prefix=ProductMediaStorageService.IMAGE_PREFIX,
-        )
-
-        if was_primary or product.thumbnail == image_url:
-            replacement = (
-                ProductImage.objects.filter(product=product)
-                .order_by("display_order", "created_at")
-                .first()
-            )
-            product.thumbnail = replacement.image_url if replacement else ""
-            if replacement and not replacement.is_primary:
-                ProductImage.objects.filter(product=product).update(is_primary=False)
-                replacement.is_primary = True
-                replacement.save(update_fields=["is_primary", "updated_at"])
-            product.save(update_fields=["thumbnail", "updated_at"])
-
-    @classmethod
-    @transaction.atomic
-    def add_file(
-        cls,
-        product: Product,
-        uploaded: UploadedFile,
-        *,
-        version: str = "1.0",
-        is_preview: bool = False,
-    ) -> ProductFile:
-        validated = validate_product_file_upload(uploaded)
-        # GLB/glTF uploads always become the interactive public preview.
-        use_public_preview = validated.file_format in {"glb", "gltf"}
-        effective_is_preview = True if use_public_preview else is_preview
-        if use_public_preview:
-            storage_path = ProductMediaStorageService.save_preview(
-                str(product.pk),
-                validated.file,
-                validated.extension,
-            )
-        else:
-            storage_path = ProductMediaStorageService.save_file(
-                str(product.pk),
-                validated.file,
-                validated.extension,
-            )
-        file_name = Path(uploaded.name).name if uploaded.name else f"asset{validated.extension}"
-
-        product_file = ProductFile.objects.create(
-            product=product,
-            file_name=file_name,
-            file_format=validated.file_format,
-            file_size=uploaded.size or 0,
-            storage_path=storage_path,
-            version=version.strip() or "1.0",
-            is_preview=effective_is_preview,
-        )
-
-        if use_public_preview:
-            product.preview_model = storage_path
-            product.save(update_fields=["preview_model", "updated_at"])
-
-        return product_file
-
-    @classmethod
-    @transaction.atomic
-    def delete_file(cls, product: Product, file_id: UUID) -> None:
-        try:
-            product_file = ProductFile.objects.get(pk=file_id, product=product)
-        except ProductFile.DoesNotExist as exc:
-            raise ProductError("Product file not found.") from exc
-
-        storage_path = product_file.storage_path
-        was_preview = product_file.is_preview
-        product_file.delete()
-        # Preview GLBs live under products/previews/; packages under products/files/.
-        ProductMediaStorageService.delete_if_managed(
-            storage_path,
-            prefix=ProductMediaStorageService.PREVIEW_PREFIX,
-        )
-        ProductMediaStorageService.delete_if_managed(
-            storage_path,
-            prefix=ProductMediaStorageService.FILE_PREFIX,
-        )
-
-        if was_preview and product.preview_model == storage_path:
-            replacement = (
-                ProductFile.objects.filter(
-                    product=product,
-                    is_preview=True,
-                    file_format__in=["glb", "gltf"],
-                )
-                .order_by("created_at")
-                .first()
-            )
-            product.preview_model = replacement.storage_path if replacement else ""
-            product.save(update_fields=["preview_model", "updated_at"])
 
     @staticmethod
     def _resolve_ordering(ordering: str | None) -> str:
@@ -805,13 +682,17 @@ class ProductService:
 
     @staticmethod
     def _normalize_currency(currency: str) -> str:
-        normalized = currency.strip().upper()
-        if len(normalized) != 3 or not normalized.isalpha():
-            raise ProductError(
-                "Currency must be a 3-letter ISO code.",
-                field="currency",
-            )
-        return normalized
+        try:
+            return normalize_currency(currency)
+        except ValueError as exc:
+            raise ProductError(str(exc), field='currency') from exc
+
+    @staticmethod
+    def _validate_currency_prices(currency, price, discount):
+        try:
+            validate_catalog_prices(currency, price, discount)
+        except ValueError as exc:
+            raise ProductError(str(exc), field='price') from exc
 
     @staticmethod
     def _normalize_license(license_type: str) -> str:

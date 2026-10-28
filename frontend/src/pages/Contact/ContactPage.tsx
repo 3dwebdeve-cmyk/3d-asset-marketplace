@@ -1,5 +1,5 @@
-import { useId, useState } from 'react'
-import type { ChangeEvent, DragEvent } from 'react'
+import { CONTACT_SEO } from '../../lib/seoPages'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Alert } from '../../components/ui/Alert'
@@ -120,9 +120,7 @@ function TopicIcon({ name }: { name: (typeof ENQUIRY_TOPICS)[number]['icon'] }) 
 }
 
 export function ContactPage() {
-  const fileInputId = useId()
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0)
-  const [isDragging, setIsDragging] = useState(false)
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null)
   const {
     register,
     handleSubmit,
@@ -132,31 +130,16 @@ export function ContactPage() {
     isSubmitting,
     serverError,
     successMessage,
-    attachmentError,
-    attachments,
-    onAttachmentsChange,
-    clearAttachments,
     onSubmit,
   } = useContactForm()
 
   const selectedPhoneCountryIso = watch('phoneCountryCode')
 
   useDocumentSeo({
-    title: 'Enquiry | 3D Asset Marketplace',
-    description:
-      'Enquire about 3D models, plugins, custom work, bulk licensing, or technical support. We usually respond within 24 hours.',
+    title: CONTACT_SEO.title,
+    canonicalPath: '/contact',
+    description: CONTACT_SEO.description,
   })
-
-  const onFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onAttachmentsChange(event.target.files)
-    event.target.value = ''
-  }
-
-  const onDrop = (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault()
-    setIsDragging(false)
-    onAttachmentsChange(event.dataTransfer.files)
-  }
 
   return (
     <main className="marketing-page enquiry-page">
@@ -341,83 +324,6 @@ export function ContactPage() {
                   />
                 </FormField>
 
-                <div className="enquiry-attach">
-                  <p className="enquiry-attach__label" id="enquiry-attach-label">
-                    Attach Files <span>(Optional)</span>
-                  </p>
-                  <label
-                    htmlFor={fileInputId}
-                    className={`enquiry-attach__dropzone${isDragging ? ' enquiry-attach__dropzone--active' : ''}`}
-                    onDragEnter={(event) => {
-                      event.preventDefault()
-                      setIsDragging(true)
-                    }}
-                    onDragOver={(event) => {
-                      event.preventDefault()
-                      setIsDragging(true)
-                    }}
-                    onDragLeave={(event) => {
-                      event.preventDefault()
-                      setIsDragging(false)
-                    }}
-                    onDrop={onDrop}
-                  >
-                    <span className="enquiry-attach__icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24">
-                        <path d="M12 15V5" />
-                        <path d="m8.5 8.5 3.5-3.5 3.5 3.5" />
-                        <path d="M5 16.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1.5" />
-                      </svg>
-                    </span>
-                    <span className="enquiry-attach__title">
-                      Drag &amp; drop files here or <em>click to browse</em>
-                    </span>
-                    <span className="enquiry-attach__hint">
-                      Supports images, reference files, sketches (Max 20MB)
-                    </span>
-                    <input
-                      id={fileInputId}
-                      className="enquiry-attach__input"
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.zip,.rar,.7z,.txt,.doc,.docx"
-                      aria-labelledby="enquiry-attach-label"
-                      onChange={onFileInputChange}
-                    />
-                  </label>
-                  {attachments.length > 0 ? (
-                    <div className="enquiry-attach__files">
-                      <ul>
-                        {attachments.map((file) => (
-                          <li key={`${file.name}-${file.size}`}>{file.name}</li>
-                        ))}
-                      </ul>
-                      <button
-                        type="button"
-                        className="enquiry-attach__clear"
-                        onClick={clearAttachments}
-                      >
-                        Clear files
-                      </button>
-                    </div>
-                  ) : null}
-                  {attachmentError ? (
-                    <p className="form-field__error" role="alert">
-                      {attachmentError}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="enquiry-tip" role="note">
-                  <span className="enquiry-tip__icon" aria-hidden="true">
-                    i
-                  </span>
-                  <p>
-                    You can share reference images, sketches or sample files to help us
-                    understand your requirement better.
-                  </p>
-                </div>
-
                 <div className="enquiry-consent">
                   <label className="enquiry-consent__label">
                     <input type="checkbox" {...register('privacyAccepted')} />
@@ -469,9 +375,6 @@ export function ContactPage() {
                   </span>
                   <div>
                     <h2 id="enquiry-topics-title">What can you enquire about?</h2>
-                    <p className="enquiry-topics__subtitle">
-                      We&apos;re happy to help with anything related to our 3D assets and tools.
-                    </p>
                   </div>
                 </div>
               </header>

@@ -1,3 +1,4 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useLayoutEffect } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 
@@ -7,6 +8,12 @@ import { useAuthStore } from '../../store/authStore'
 import { useAuthUiStore } from '../../store/authUiStore'
 
 export function LoginPage() {
+  useDocumentSeo({
+    title: 'Sign in | AssetHive 3D',
+    description: 'Sign in to your AssetHive 3D account to manage orders, downloads and your wishlist.',
+    robots: 'noindex, nofollow',
+  })
+
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
@@ -31,5 +38,5 @@ export function LoginPage() {
     return <Navigate to={redirectFrom ?? '/dashboard'} replace />
   }
 
-  return <Navigate to="/home" replace />
+  return <Navigate to="/" replace />
 }

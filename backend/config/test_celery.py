@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 
 class CelerySettingsTests(SimpleTestCase):
@@ -48,22 +48,16 @@ class CelerySettingsTests(SimpleTestCase):
         ):
             self.assertEqual(task.queue, "email")
 
-    def test_search_sync_tasks_use_default_queue(self) -> None:
-        from search.tasks import sync_plugin_task, sync_product_task
-
-        for task in (sync_product_task, sync_plugin_task):
-            self.assertNotEqual(getattr(task, "queue", None), "email")
-
     def test_celery_app_loads(self) -> None:
         from config.celery import app
 
         self.assertEqual(app.main, "config")
 
 
-class EnqueueAfterCommitTests(SimpleTestCase):
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=False)
-    @patch("config.celery_utils.transaction.on_commit")
-    def test_enqueue_registers_on_commit(self, mock_on_commit: MagicMock) -> None:
+class EnqueueAfterCommitTests(TestCase):
+    @override_settings(BACKGROUND_JOBS_TEST_EAGER=False)
+    @patch("django.db.transaction.on_commit")
+    def test_enqueue_persists_transactional_outbox(self, mock_on_commit: MagicMock) -> None:
         from config.celery_utils import enqueue_after_commit
 
         task = MagicMock()
@@ -71,14 +65,15 @@ class EnqueueAfterCommitTests(SimpleTestCase):
         task.delay = MagicMock()
 
         enqueue_after_commit(task, "arg1", kw="v")
-        mock_on_commit.assert_called_once()
-        callback = mock_on_commit.call_args[0][0]
+        from mail_log.models import BackgroundJob
+        job = BackgroundJob.objects.get()
+        self.assertEqual(job.args, ["arg1"])
+        self.assertEqual(job.kwargs, {"kw": "v"})
+        mock_on_commit.assert_not_called()
         task.delay.assert_not_called()
-        callback()
-        task.delay.assert_called_once_with("arg1", kw="v")
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("config.celery_utils.transaction.on_commit")
+    @patch("django.db.transaction.on_commit")
     def test_eager_mode_enqueues_immediately(self, mock_on_commit: MagicMock) -> None:
         from config.celery_utils import enqueue_after_commit
 

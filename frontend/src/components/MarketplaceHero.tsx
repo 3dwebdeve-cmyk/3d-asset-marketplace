@@ -1,20 +1,38 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { HOME_HEADING } from '../lib/homeContent'
 
-const TRENDING_TAGS = [
+interface TrendingTag {
+  label: string
+  search: string
+}
+
+interface SortPill {
+  label: string
+  ordering: string
+}
+
+type SearchCategory = 'plugins' | 'models'
+
+/** How far the banner zooms in by the time it has scrolled out of view. */
+const HERO_MAX_ZOOM = 0.06
+/** Time constant of the zoom easing; larger feels softer and lags the scroll more. */
+const HERO_ZOOM_SMOOTHING_MS = 90
+
+const TRENDING_TAGS: readonly TrendingTag[] = [
   { label: '3D Models', search: '' },
-  { label: '3D character', search: '3D character' },
-  { label: 'Game Environment', search: 'Game Environment' },
-  { label: 'Low Poly', search: 'Low Poly' },
-  { label: 'Sci-Fi Vehicles', search: 'Sci-Fi Vehicles' },
-] as const
+  { label: 'Furniture', search: 'Furniture' },
+  { label: 'Interior', search: 'Interior' },
+  { label: 'Lighting', search: 'Lighting' },
+  { label: 'Plants', search: 'Plants' },
+]
 
-const SORT_PILLS = [
+const SORT_PILLS: readonly SortPill[] = [
   { label: 'Newest', ordering: '-created_at' },
   { label: 'Top Selling', ordering: '-total_downloads' },
   { label: 'Trending', ordering: '-review_count' },
-] as const
+]
 
 function ArrowUpRightIcon({ size = 9 }: { size?: number }) {
   return (
@@ -28,28 +46,6 @@ function ArrowUpRightIcon({ size = 9 }: { size?: number }) {
       aria-hidden="true"
     >
       <path d="M4 12 12 4M6 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function ImageFrameIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      aria-hidden="true"
-    >
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2.2" />
-      <circle cx="9" cy="10" r="1.5" />
-      <path
-        d="m6.5 16.5 3.2-3.4a1.2 1.2 0 0 1 1.7 0L14 15.5l1.4-1.4a1.2 1.2 0 0 1 1.7 0l1.9 1.9"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   )
 }
@@ -71,9 +67,91 @@ function SearchIcon({ size = 18, strokeWidth = 2 }: { size?: number; strokeWidth
   )
 }
 
+function ArrowRightIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      aria-hidden="true"
+    >
+      <path d="M5 12h14M14 7l5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function MarketplaceHero() {
   const navigate = useNavigate()
+  const stageRef = useRef<HTMLDivElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
   const [searchInput, setSearchInput] = useState('')
+  const [searchCategory, setSearchCategory] = useState<SearchCategory>('models')
+  const [activeSort, setActiveSort] = useState<string>('-review_count')
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+
+  // Scroll zoom: the image eases toward the scroll position instead of jumping to it,
+  // and only its own layer is transformed, so the rest of the hero is not restyled.
+  useEffect(() => {
+    const stage = stageRef.current
+    const backdrop = backdropRef.current
+    if (!stage || !backdrop) return
+    const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    let distance = 1
+    let target = 1
+    let current = 1
+    let frame: number | null = null
+    let lastTime = 0
+    const apply = () => {
+      const scale = current.toFixed(4)
+      backdrop.style.transform = `scale3d(${scale}, ${scale}, 1)`
+    }
+    const measure = () => {
+      const rect = stage.getBoundingClientRect()
+      distance = Math.max(1, rect.top + window.scrollY + rect.height)
+    }
+    const readTarget = () => {
+      const progress = Math.max(0, Math.min(1, window.scrollY / distance))
+      target = preference?.matches ? 1 : 1 + progress * HERO_MAX_ZOOM
+    }
+    const step = (time: number) => {
+      frame = null
+      const elapsed = lastTime ? Math.min(64, time - lastTime) : 16
+      lastTime = time
+      current += (target - current) * (1 - Math.exp(-elapsed / HERO_ZOOM_SMOOTHING_MS))
+      if (preference?.matches || Math.abs(target - current) < 0.0002) {
+        current = target
+        lastTime = 0
+      } else {
+        frame = requestAnimationFrame(step)
+      }
+      apply()
+    }
+    const schedule = () => {
+      readTarget()
+      if (frame === null) frame = requestAnimationFrame(step)
+    }
+    const onResize = () => {
+      measure()
+      schedule()
+    }
+    measure()
+    readTarget()
+    current = target
+    apply()
+    window.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', onResize)
+    preference?.addEventListener('change', schedule)
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', onResize)
+      preference?.removeEventListener('change', schedule)
+      backdrop.style.removeProperty('transform')
+    }
+  }, [])
 
   const navigateToModels = (search: string, ordering = '') => {
     const params = new URLSearchParams()
@@ -86,17 +164,31 @@ export function MarketplaceHero() {
 
   const onSearchSubmit = (event: FormEvent) => {
     event.preventDefault()
-    navigateToModels(searchInput)
+    const query = searchInput.trim().slice(0, 100)
+    const path = searchCategory === 'plugins' ? '/plugins' : '/3d-models'
+    navigate(query ? `${path}?search=${encodeURIComponent(query)}` : path)
+  }
+
+  const handleTagClick = (tag: TrendingTag) => {
+    setActiveTag(tag.label)
+    setSearchInput(tag.search)
+    navigateToModels(tag.search)
+  }
+
+  const handleSortClick = (pill: SortPill) => {
+    setActiveSort(pill.ordering)
+    navigateToModels(searchInput, pill.ordering)
   }
 
   return (
     <section className="home-marketplace-hero" aria-label="Marketplace search">
-      <div className="home-marketplace-hero__stage">
+      <div className="home-marketplace-hero__stage" ref={stageRef}>
+        <div className="home-marketplace-hero__backdrop" ref={backdropRef} aria-hidden="true" />
         <div className="home-marketplace-hero__shade" aria-hidden="true" />
 
         <div className="home-marketplace-hero__content">
           <h1 className="home-marketplace-hero__title">
-            World&apos;s largest 3D model marketplace
+            {HOME_HEADING}
           </h1>
 
           <form
@@ -104,23 +196,34 @@ export function MarketplaceHero() {
             onSubmit={onSearchSubmit}
             role="search"
           >
-            <span className="home-marketplace-search__leading" aria-hidden="true">
-              <ImageFrameIcon />
-            </span>
-            <input
-              type="search"
-              className="home-marketplace-search__input"
-              aria-label="Search 3D models"
-              placeholder="Search over 2 million models"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-            />
+            <div className="home-marketplace-search__category">
+              <select
+                aria-label="Search category"
+                value={searchCategory}
+                onChange={(event) => setSearchCategory(event.target.value as SearchCategory)}
+              >
+                <option value="plugins">Plugins</option>
+                <option value="models">3D Models</option>
+              </select>
+            </div>
+            <label className="home-marketplace-search__field">
+              <SearchIcon size={17} strokeWidth={1.7} />
+              <input
+                type="search"
+                className="home-marketplace-search__input"
+                aria-label="Search marketplace"
+                placeholder="Search furniture, interiors, lighting, plugins…"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+              />
+            </label>
             <button
               type="submit"
               className="home-marketplace-search__submit"
-              aria-label="Search marketplace"
+              aria-label="Search"
             >
-              <SearchIcon size={18} strokeWidth={2.15} />
+              <span>Search</span>
+              <ArrowRightIcon />
             </button>
           </form>
 
@@ -129,9 +232,12 @@ export function MarketplaceHero() {
             {TRENDING_TAGS.map((tag) => (
               <button
                 type="button"
-                className="home-marketplace-trending__chip"
+                className={`home-marketplace-trending__chip${
+                  activeTag === tag.label ? ' home-marketplace-trending__chip--active' : ''
+                }`}
                 key={tag.label}
-                onClick={() => navigateToModels(tag.search)}
+                aria-pressed={activeTag === tag.label}
+                onClick={() => handleTagClick(tag)}
               >
                 <ArrowUpRightIcon />
                 {tag.label}
@@ -144,12 +250,11 @@ export function MarketplaceHero() {
               <button
                 type="button"
                 key={pill.label}
-                className={
-                  pill.label === 'Trending'
-                    ? 'home-marketplace-sort__btn home-marketplace-sort__btn--active'
-                    : 'home-marketplace-sort__btn'
-                }
-                onClick={() => navigateToModels('', pill.ordering)}
+                className={`home-marketplace-sort__btn${
+                  activeSort === pill.ordering ? ' home-marketplace-sort__btn--active' : ''
+                }`}
+                aria-pressed={activeSort === pill.ordering}
+                onClick={() => handleSortClick(pill)}
               >
                 <ArrowUpRightIcon size={10} />
                 {pill.label}

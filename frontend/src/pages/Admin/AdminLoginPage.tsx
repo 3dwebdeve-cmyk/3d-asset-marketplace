@@ -9,6 +9,7 @@ import { ADMIN_BASE } from '../../config/adminPaths'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
+import { AdminMfaStep } from './AdminMfaStep'
 import { useAdminLoginForm } from './useAdminLoginForm'
 
 export function AdminLoginPage() {
@@ -23,10 +24,13 @@ export function AdminLoginPage() {
     serverError,
     isSuccess,
     onSubmit,
+    mfaPending,
+    completeSignIn,
+    restartSignIn,
   } = useAdminLoginForm()
 
   useDocumentSeo({
-    title: 'Admin sign in | 3D Asset Marketplace',
+    title: 'Admin sign in | AssetHive3D',
     description: 'Administrator sign-in for the marketplace control panel.',
     robots: 'noindex, nofollow',
   })
@@ -43,6 +47,18 @@ export function AdminLoginPage() {
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  if (mfaPending) {
+    return (
+      <main className="auth-page">
+        <AdminMfaStep
+          pending={mfaPending}
+          onComplete={completeSignIn}
+          onRestart={restartSignIn}
+        />
+      </main>
+    )
   }
 
   return (

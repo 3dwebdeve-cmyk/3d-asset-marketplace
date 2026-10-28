@@ -2,10 +2,27 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
   pull_request:
 
 jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan committed history for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -34,6 +51,27 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Python dependency security audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+      - name: Static security scan (bandit)
+        # Fails on medium or high findings, and also when any file could not be
+        # scanned: bandit exits 0 after skipping files it fails to parse.
+        run: |
+          pip install bandit==1.9.4
+          bandit -r . -x ./.venv,./media,./staticfiles --severity-level medium -q -f json -o /tmp/bandit.json || true
+          python - <<'EOF'
+          import json, sys
+          report = json.load(open("/tmp/bandit.json"))
+          for error in report["errors"]:
+              print(f"bandit could not scan {error['filename']}: {error['reason']}")
+          for issue in report["results"]:
+              print(f"{issue['filename']}:{issue['line_number']} {issue['test_id']} "
+                    f"{issue['issue_severity']} {issue['issue_text']}")
+          print(f"bandit scanned {report['metrics']['_totals']['loc']} lines")
+          sys.exit(1 if report["errors"] or report["results"] else 0)
+          EOF
       - name: Write test env
         run: |
           printf '%s\n' \
@@ -45,9 +83,33 @@ jobs:
             'DB_HOST=localhost' \
             'DB_PORT=5432' > .env
       - name: OpenAPI schema check
-        run: python manage.py spectacular --file /tmp/openapi.yml
+        run: python manage.py spectacular --validate --file /tmp/openapi.yml
+      - name: Strict migration and Django checks
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py check
       - name: Run tests
         run: python manage.py test --verbosity=1
+      - name: Verify restricted runtime database role on disposable CI database
+        env:
+          DB_NAME: marketplace_db
+          DB_HOST: localhost
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_MIGRATION_USER: postgres
+          DB_MIGRATION_PASSWORD: postgres
+          DB_RUNTIME_USER: ci_runtime
+          DB_RUNTIME_PASSWORD: ci-runtime-password-strong
+          ADMIN_CONSOLE_ALLOWED_IPS: 127.0.0.1/32
+          DJANGO_ADMIN_ALLOWED_IPS: 127.0.0.1/32
+          FRONTEND_BASE_URL: https://ci.example.invalid
+          ALLOW_CONSOLE_EMAIL: "True"
+        run: |
+          python manage.py migrate --noinput
+          python scripts/provision_runtime_role.py
+          DB_USER=ci_runtime DB_PASSWORD="$DB_RUNTIME_PASSWORD" \
+            DEPLOYMENT_PROFILE=staging DEBUG=False \
+            python manage.py check_db_runtime_role
 
   frontend:
     runs-on: ubuntu-latest
@@ -63,6 +125,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: JavaScript dependency security audit
+        run: npm audit --audit-level=moderate
       - name: Unit tests
         run: npm test
       - name: Lint
@@ -108,6 +172,7 @@ jobs:
       - name: Build and start Compose stack
         run: |
           set -o pipefail
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml config --quiet
           if ! docker compose \
             -f docker-compose.yml \
             -f docker-compose.e2e.yml \
@@ -137,6 +202,24 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps -a
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color --tail=300 web
           exit 1
+
+      - name: Verify actual outbox worker and release migration
+        run: |
+          for i in $(seq 1 12); do
+            if docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T worker \
+              python manage.py check_background_jobs; then
+              break
+            fi
+            if [ "$i" -eq 12 ]; then
+              echo "Outbox worker never reported a live heartbeat"
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml ps -a
+              docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --no-color --tail=200 worker
+              exit 1
+            fi
+            sleep 5
+          done
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \
+            python manage.py migrate --check
 
       - name: Seed E2E commerce fixtures
         run: |

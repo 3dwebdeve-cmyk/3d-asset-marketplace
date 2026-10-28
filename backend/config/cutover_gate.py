@@ -73,7 +73,6 @@ def _check_deploy(profile: CutoverProfile) -> CutoverCheck:
         f"SECRET_KEY_is_example={report.secret_key_is_example} "
         f"ALLOWED_HOSTS_local_only={report.allowed_hosts_local_only} "
         f"CSRF_count={report.csrf_trusted_origins_count} "
-        f"REDIS_set={report.redis_url_set} "
         f"ALLOW_LOCALHOST_FRONTEND={report.allow_localhost_frontend} "
         f"ALLOW_CONSOLE_EMAIL={report.allow_console_email}"
     )
@@ -84,11 +83,11 @@ def _check_deploy(profile: CutoverProfile) -> CutoverCheck:
             detail=detail + " (local profile — host gates advisory)",
             blocking=False,
         )
-    if report.warnings:
+    if report.warnings or report.debug:
         return CutoverCheck(
             name="deploy_secrets",
             ok=False,
-            detail=f"{detail}; issues={len(report.warnings)}",
+            detail=f"{detail}; issues={len(report.warnings) + int(report.debug)}",
             blocking=True,
         )
     return CutoverCheck(name="deploy_secrets", ok=True, detail=detail)
@@ -110,7 +109,7 @@ def _check_django_deploy(profile: CutoverProfile, *, enabled: bool) -> CutoverCh
             detail="check --deploy clean",
         )
     # Local / DEBUG=True almost always fails deploy checks.
-    if not _host_like_profile(profile) or settings.DEBUG:
+    if not _host_like_profile(profile):
         return CutoverCheck(
             name="django_deploy_check",
             ok=True,
@@ -129,31 +128,41 @@ def _check_email(profile: CutoverProfile, *, require_smtp: bool) -> CutoverCheck
     backend = (getattr(settings, "EMAIL_BACKEND", "") or "").strip()
     allow_console = bool(getattr(settings, "ALLOW_CONSOLE_EMAIL", False))
     host = (getattr(settings, "EMAIL_HOST", "") or "").strip()
+    brevo_key = bool((getattr(settings, "BREVO_API_KEY", "") or "").strip())
     console = "console" in backend.lower()
-    smtp = "smtp" in backend.lower()
+    brevo = "brevo" in backend.lower()
+    smtp = "smtp" in backend.lower() and not brevo
     contact = _parse_recipients(
         getattr(settings, "CONTACT_ADMIN_RECIPIENTS", "") or ""
     )
     project = _parse_recipients(
         getattr(settings, "PROJECT_MESSAGE_ADMIN_RECIPIENTS", "") or ""
     )
+    mode = (
+        "console"
+        if console
+        else ("brevo" if brevo else ("smtp" if smtp else "other"))
+    )
     detail = (
-        f"backend={'console' if console else ('smtp' if smtp else 'other')} "
+        f"backend={mode} "
+        f"BREVO_API_KEY_set={brevo_key} "
         f"EMAIL_HOST_set={bool(host)} "
         f"ALLOW_CONSOLE_EMAIL={allow_console} "
         f"contact_recipients={len(contact)} "
         f"project_recipients={len(project)}"
     )
 
-    must_smtp = require_smtp or profile == "production"
-    if must_smtp:
+    must_outbound = require_smtp or profile == "production"
+    if must_outbound:
         problems: list[str] = []
         if console or allow_console:
             problems.append("console mail not allowed")
-        if not smtp:
-            problems.append("EMAIL_BACKEND must be SMTP")
-        if not host:
+        if not smtp and not brevo:
+            problems.append("EMAIL_BACKEND must be SMTP or Brevo API")
+        if smtp and not host:
             problems.append("EMAIL_HOST empty")
+        if brevo and not brevo_key:
+            problems.append("BREVO_API_KEY empty")
         if not contact or not project:
             problems.append("staff recipients incomplete")
         if problems:
@@ -165,12 +174,14 @@ def _check_email(profile: CutoverProfile, *, require_smtp: bool) -> CutoverCheck
             )
         return CutoverCheck(name="email_smtp", ok=True, detail=detail)
 
-    if _host_like_profile(profile) and (console or allow_console or not smtp):
+    if _host_like_profile(profile) and (
+        console or allow_console or (not smtp and not brevo)
+    ):
         return CutoverCheck(
             name="email_smtp",
             ok=True,
             detail=(
-                f"{detail}; SMTP deferred (Phase A3) — "
+                f"{detail}; SMTP/Brevo deferred (Phase A3) — "
                 "blocking on --require-smtp / production profile"
             ),
             blocking=False,
@@ -184,15 +195,16 @@ def _check_email(profile: CutoverProfile, *, require_smtp: bool) -> CutoverCheck
 
 
 def _check_stripe(profile: CutoverProfile) -> CutoverCheck:
-    if profile == "production":
+    payment_mode = getattr(settings, "STRIPE_PAYMENT_MODE", "test")
+    if profile == "production" and payment_mode == "live":
         report = collect_stripe_config_report(require_live_mode=True)
-    elif profile == "staging":
+    elif profile in {"staging", "production"}:
         report = collect_stripe_config_report(require_test_mode=True)
     else:
         report = collect_stripe_config_report()
 
     detail = (
-        f"secret={report.secret_mode} publishable={report.publishable_mode} "
+        f"payment_mode={payment_mode} secret={report.secret_mode} publishable={report.publishable_mode} "
         f"webhook_set={report.webhook_secret_set} "
         f"webhook_valid={report.webhook_secret_looks_valid} "
         f"E2E_SIMULATE={report.e2e_simulate}"
@@ -211,6 +223,10 @@ def _check_stripe(profile: CutoverProfile) -> CutoverCheck:
             detail=f"{detail}; issues={len(report.warnings)}",
             blocking=True,
         )
+    if profile == "staging" and payment_mode != "test":
+        return CutoverCheck(name="stripe", ok=False, detail=detail + "; staging requires test payments")
+    if profile == "production" and payment_mode == "test" and report.e2e_simulate:
+        return CutoverCheck(name="stripe", ok=False, detail=detail + "; simulation forbidden")
     return CutoverCheck(name="stripe", ok=True, detail=detail)
 
 
@@ -352,7 +368,7 @@ def _check_search(profile: CutoverProfile) -> CutoverCheck:
     return CutoverCheck(
         name="search_postgres",
         ok=True,
-        detail="backend=postgres_icontains (Meilisearch removed)",
+        detail="backend=postgres_icontains",
     )
 
 
@@ -415,7 +431,7 @@ def _manual_reminders(profile: CutoverProfile) -> tuple[str, ...]:
     )
     if profile == "production":
         return base + (
-            "Switch Stripe Dashboard webhook + sk_live_/pk_live_ only after staging OK",
+            "Keep Stripe test keys for this release; live activation is a separate decision",
             "Cut DNS / Cloudflare proxied; confirm TLS + HSTS after HTTPS works",
         )
     if profile == "staging":

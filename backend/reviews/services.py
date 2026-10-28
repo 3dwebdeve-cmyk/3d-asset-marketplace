@@ -8,12 +8,10 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Avg, Count, Q, QuerySet
 
-from orders.entitlements import user_owns_catalog_item
 from plugins.models import Plugin
 from products.models import Product
 from reviews.models import Review
-from search.tasks import enqueue_sync_plugin, enqueue_sync_product
-
+from orders.entitlements import user_owns_catalog_item
 User = get_user_model()
 
 ALLOWED_PUBLIC_ORDERING = {
@@ -26,6 +24,7 @@ ALLOWED_ADMIN_ORDERING = ALLOWED_PUBLIC_ORDERING | {
     "updated_at",
     "-updated_at",
 }
+MAX_COMMENTS_PER_USER_PRODUCT = 5
 
 
 class ReviewError(Exception):
@@ -129,23 +128,26 @@ class ReviewService:
         *,
         product_type: str,
         product_id: UUID,
-        rating: int,
+        rating: int | None,
         review_text: str = "",
     ) -> tuple[Review, bool]:
-        if not (1 <= rating <= 5):
+        if rating is not None and not (1 <= rating <= 5):
             raise ReviewError("Rating must be between 1 and 5.", field="rating")
 
         normalized_type = cls._normalize_product_type(product_type)
         cls._validate_catalog_item(normalized_type, product_id)
 
-        if not cls.user_has_purchased(user, normalized_type, product_id):
+        if rating is not None and not user_owns_catalog_item(user, normalized_type, product_id):
             raise ReviewError(
-                "You must purchase this item before leaving a review.",
-                code="not_purchased",
-                status_code=403,
+                "Only verified purchasers can leave a star rating. You can still post a comment.",
+                field="rating", code="not_purchased", status_code=403,
             )
-
         text = (review_text or "").strip()
+        if rating is None and not text:
+            raise ReviewError(
+                "Write a comment or select a rating.",
+                field="review_text",
+            )
         if len(text) > 2000:
             raise ReviewError(
                 "Review text must be at most 2000 characters.",
@@ -153,19 +155,45 @@ class ReviewService:
             )
 
         with transaction.atomic():
-            review, created = Review.objects.update_or_create(
+            if normalized_type == Review.ProductType.PRODUCT:
+                Product.objects.select_for_update().get(pk=product_id)
+            else:
+                Plugin.objects.select_for_update().get(pk=product_id)
+
+            comment_count = Review.objects.filter(
                 user=user,
                 product_type=normalized_type,
                 product_id=product_id,
-                defaults={
-                    "rating": rating,
-                    "review_text": text,
-                    "is_hidden": False,
-                },
+            ).count()
+            if comment_count >= MAX_COMMENTS_PER_USER_PRODUCT:
+                raise ReviewError(
+                    "You can post a maximum of 5 comments on this product.",
+                    field="review_text",
+                    code="comment_limit_reached",
+                )
+
+            if rating is not None and Review.objects.filter(
+                user=user,
+                product_type=normalized_type,
+                product_id=product_id,
+                rating__isnull=False,
+            ).exists():
+                raise ReviewError(
+                    "You have already rated this product.",
+                    field="rating",
+                    code="rating_already_submitted",
+                )
+
+            review = Review.objects.create(
+                user=user,
+                product_type=normalized_type,
+                product_id=product_id,
+                rating=rating,
+                review_text=text,
             )
             cls._recompute_aggregates(normalized_type, product_id)
             review.refresh_from_db()
-            return review, created
+            return review, True
 
     @classmethod
     def set_hidden(cls, review: Review, hidden: bool) -> Review:
@@ -183,16 +211,6 @@ class ReviewService:
         with transaction.atomic():
             Review.objects.filter(pk=review.pk).delete()
             cls._recompute_aggregates(product_type, product_id)
-
-    @classmethod
-    def user_has_purchased(
-        cls,
-        user: User,
-        product_type: str,
-        product_id: UUID,
-    ) -> bool:
-        # Same entitlement gate as downloads — both order and payment must be paid.
-        return user_owns_catalog_item(user, product_type, product_id)
 
     @classmethod
     def build_catalog_titles(
@@ -236,7 +254,7 @@ class ReviewService:
             product_id=product_id,
             is_hidden=False,
         ).aggregate(
-            review_count=Count("id"),
+            review_count=Count("rating"),
             average_rating=Avg("rating"),
         )
         count = int(stats["review_count"] or 0)
@@ -251,14 +269,12 @@ class ReviewService:
                 average_rating=average,
                 review_count=count,
             )
-            enqueue_sync_product(product_id)
             return
 
         Plugin.objects.filter(pk=product_id).update(
             average_rating=average,
             review_count=count,
         )
-        enqueue_sync_plugin(product_id)
 
     @classmethod
     def _normalize_product_type(cls, product_type: str) -> str:

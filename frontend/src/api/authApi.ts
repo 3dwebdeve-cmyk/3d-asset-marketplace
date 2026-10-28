@@ -1,5 +1,9 @@
-import { apiClient } from './client'
+import { apiClient, refreshSessionAccessToken } from './client'
 import type {
+  AdminLoginResponse,
+  AdminMfaConfirmResponse,
+  AdminMfaSetupResponse,
+  AdminMfaVerifyPayload,
   AdminUser,
   AdminUserCreatePayload,
   AdminUserListParams,
@@ -41,17 +45,41 @@ export async function loginWithGoogle(
   return response.data
 }
 
-export async function adminLoginUser(payload: LoginPayload): Promise<LoginResponse> {
-  const response = await apiClient.post<LoginResponse>('/api/v1/auth/admin/login/', {
+export async function adminLoginUser(payload: LoginPayload): Promise<AdminLoginResponse> {
+  const response = await apiClient.post<AdminLoginResponse>('/api/v1/auth/admin/login/', {
     ...payload,
     remember_me: payload.remember_me ?? true,
   })
   return response.data
 }
 
-export async function refreshAccessToken(): Promise<RefreshResponse> {
-  const response = await apiClient.post<RefreshResponse>('/api/v1/auth/token/refresh/', {})
+export async function adminMfaSetup(mfaToken: string): Promise<AdminMfaSetupResponse> {
+  const response = await apiClient.post<AdminMfaSetupResponse>('/api/v1/auth/admin/mfa/setup/', {
+    mfa_token: mfaToken,
+  })
   return response.data
+}
+
+export async function adminMfaConfirm(
+  mfaToken: string,
+  code: string,
+  rememberMe: boolean,
+): Promise<AdminMfaConfirmResponse> {
+  const response = await apiClient.post<AdminMfaConfirmResponse>(
+    '/api/v1/auth/admin/mfa/confirm/',
+    { mfa_token: mfaToken, code, remember_me: rememberMe },
+  )
+  return response.data
+}
+
+export async function adminMfaVerify(payload: AdminMfaVerifyPayload): Promise<LoginResponse> {
+  const response = await apiClient.post<LoginResponse>('/api/v1/auth/admin/mfa/verify/', payload)
+  return response.data
+}
+
+export async function refreshAccessToken(): Promise<RefreshResponse> {
+  const access = await refreshSessionAccessToken()
+  return { access }
 }
 
 export async function getCurrentUser(): Promise<AuthUser> {
@@ -167,4 +195,24 @@ export async function updateAdminUser(
 export async function deactivateAdminUser(userId: string): Promise<AdminUser> {
   const response = await apiClient.delete<AdminUser>(`/api/v1/auth/admin/users/${userId}/`)
   return response.data
+}
+
+export interface AdminRecoveryCodesStatus {
+  enrolled: boolean
+  remaining: number
+}
+
+export async function getAdminRecoveryCodesStatus(): Promise<AdminRecoveryCodesStatus> {
+  const response = await apiClient.get<AdminRecoveryCodesStatus>(
+    '/api/v1/auth/admin/mfa/recovery-codes/',
+  )
+  return response.data
+}
+
+export async function replaceAdminRecoveryCodes(code: string): Promise<string[]> {
+  const response = await apiClient.post<{ recovery_codes: string[] }>(
+    '/api/v1/auth/admin/mfa/recovery-codes/',
+    { code },
+  )
+  return response.data.recovery_codes
 }

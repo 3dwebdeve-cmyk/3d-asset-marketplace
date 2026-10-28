@@ -25,20 +25,25 @@ export function PluginCard({ plugin }: PluginCardProps) {
   return (
     <article className="product-card product-card--marketplace">
       <div className="product-card__media">
-        <Link to={detailPath} className="product-card__media-link" tabIndex={-1}>
+        <Link to={detailPath} className="product-card__media-link" tabIndex={-1} aria-label={`View ${plugin.name} plugin`}>
           {plugin.thumbnail && !imgError ? (
             <img
               src={plugin.thumbnail}
-              alt=""
+              alt={`${plugin.name} plugin preview`}
+              width={640}
+              height={400}
               className="product-card__image"
               onError={() => setImgError(true)}
               loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="product-card__image-placeholder" aria-hidden="true">
               <svg
                 className="product-card__placeholder-icon"
                 viewBox="0 0 24 24"
+                width="44"
+                height="44"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"

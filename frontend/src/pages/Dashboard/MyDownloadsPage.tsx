@@ -1,10 +1,10 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import {
   downloadCatalogFile,
-  listDownloadEntitlements,
   listDownloadHistory,
 } from '../../api/downloadsApi'
 import { listCustomerOrders } from '../../api/ordersApi'
@@ -17,6 +17,8 @@ import {
   OrderPaymentStatusBadge,
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
+import { useOrderDownloads } from '../../hooks/useOrderDownloads'
+import { entitlementsQuery as libraryQueryOptions } from '../../hooks/useOwnedItems'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
@@ -35,28 +37,41 @@ type DownloadsTab = 'library' | 'history' | 'invoices'
 type StatusFilter = '' | OrderStatus
 type PaymentFilter = '' | OrderPaymentStatus
 
+const DOWNLOADS_TABS: readonly DownloadsTab[] = ['library', 'history', 'invoices']
+
+function parseTab(value: string | null): DownloadsTab {
+  return DOWNLOADS_TABS.includes(value as DownloadsTab) ? (value as DownloadsTab) : 'library'
+}
+
 function formatProductType(productType: string): string {
   return productType === 'product' ? 'Product' : 'Plugin'
 }
 
 export function MyDownloadsPage() {
+  useDocumentSeo({
+    title: 'My downloads | AssetHive 3D',
+    description: 'Download the 3D models and plugins you have purchased.',
+    robots: 'noindex, nofollow',
+  })
+
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   const isCustomerSession = isAuthenticated && !isAdministrator(user?.role)
 
-  const [activeTab, setActiveTab] = useState<DownloadsTab>('library')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = parseTab(searchParams.get('tab'))
+  const setActiveTab = (tab: DownloadsTab) => {
+    setSearchParams(tab === 'library' ? {} : { tab }, { replace: true })
+  }
+  const { downloadInvoice, invoiceError, downloadingInvoiceId } = useOrderDownloads()
   const [historyPage, setHistoryPage] = useState(1)
   const [invoicePage, setInvoicePage] = useState(1)
   const [orderStatus, setOrderStatus] = useState<StatusFilter>('')
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilter>('')
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  const entitlementsQuery = useQuery({
-    queryKey: ['downloads', 'entitlements'],
-    queryFn: listDownloadEntitlements,
-    enabled: isCustomerSession,
-  })
+  const entitlementsQuery = useQuery({ ...libraryQueryOptions, enabled: isCustomerSession })
 
   const historyQuery = useQuery({
     queryKey: ['downloads', 'history', historyPage],
@@ -132,8 +147,11 @@ export function MyDownloadsPage() {
   const entitlements = entitlementsQuery.data ?? []
   const historyResults = historyQuery.data?.results ?? []
   const invoiceResults = invoicesQuery.data?.results ?? []
-  const libraryRows = entitlements.flatMap((entitlement) =>
-    entitlement.files.map((file) => ({ entitlement, file })),
+  type LibraryRow = { entitlement: DownloadEntitlement; file: DownloadFile | null }
+  const libraryRows = entitlements.flatMap<LibraryRow>((entitlement) =>
+    entitlement.files.length > 0
+      ? entitlement.files.map((file) => ({ entitlement, file }))
+      : [{ entitlement, file: null }],
   )
   const invoicesTrulyEmpty =
     invoicesQuery.isSuccess &&
@@ -183,6 +201,9 @@ export function MyDownloadsPage() {
       </div>
 
       {downloadError ? <Alert variant="error" message={downloadError} /> : null}
+      {activeTab === 'invoices' && invoiceError ? (
+        <Alert variant="error" message={invoiceError} />
+      ) : null}
 
       {activeTab === 'invoices' && !invoicesTrulyEmpty && !invoicesQuery.isLoading ? (
         <div className="dash-list-page__filters" aria-label="Invoice filters">
@@ -262,25 +283,33 @@ export function MyDownloadsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {libraryRows.map(({ entitlement, file }) => (
-                    <tr key={file.id}>
-                      <td>{formatProductType(entitlement.product_type)}</td>
-                      <td>{entitlement.title}</td>
-                      <td>{file.file_name}</td>
-                      <td>{file.version}</td>
-                      <td>{formatFileSize(file.file_size)}</td>
-                      <td>{formatDateTime(file.last_downloaded_at)}</td>
-                      <td>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => void onDownload(entitlement, file)}
-                        >
-                          Download
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {libraryRows.map(({ entitlement, file }) =>
+                    file ? (
+                      <tr key={file.id}>
+                        <td>{formatProductType(entitlement.product_type)}</td>
+                        <td>{entitlement.title}</td>
+                        <td>{file.file_name}</td>
+                        <td>{file.version}</td>
+                        <td>{formatFileSize(file.file_size)}</td>
+                        <td>{formatDateTime(file.last_downloaded_at)}</td>
+                        <td>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void onDownload(entitlement, file)}
+                          >
+                            Download
+                          </Button>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={`${entitlement.product_type}-${entitlement.product_id}`}>
+                        <td>{formatProductType(entitlement.product_type)}</td>
+                        <td>{entitlement.title}</td>
+                        <td colSpan={5}>No downloadable files yet. Please contact support.</td>
+                      </tr>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
@@ -374,6 +403,7 @@ export function MyDownloadsPage() {
                     <th scope="col">Order status</th>
                     <th scope="col">Payment</th>
                     <th scope="col">Items</th>
+                    <th scope="col">Invoice PDF</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -410,6 +440,25 @@ export function MyDownloadsPage() {
                           <OrderPaymentStatusBadge status={order.payment_status} />
                         </td>
                         <td>{order.item_count}</td>
+                        <td>
+                          {order.order_status === 'paid' && order.payment_status === 'paid' ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              isLoading={downloadingInvoiceId === order.id}
+                              aria-label={`Download invoice ${order.invoice_number}`}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void downloadInvoice(order.id, order.invoice_number)
+                              }}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              Download
+                            </Button>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                       </tr>
                     )
                   })}

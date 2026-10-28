@@ -20,19 +20,17 @@ export type OrderOrdering =
   | 'payment_status'
   | '-payment_status'
 
-export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+// Order and payment states share one vocabulary, so one map serves both.
+const ORDER_STATE_LABELS: Record<OrderStatus, string> = {
   pending: 'Pending',
   paid: 'Paid',
   cancelled: 'Cancelled',
   refunded: 'Refunded',
 }
 
-export const ORDER_PAYMENT_STATUS_LABELS: Record<OrderPaymentStatus, string> = {
-  pending: 'Pending',
-  paid: 'Paid',
-  cancelled: 'Cancelled',
-  refunded: 'Refunded',
-}
+export const ORDER_STATUS_LABELS = ORDER_STATE_LABELS
+
+export const ORDER_PAYMENT_STATUS_LABELS: Record<OrderPaymentStatus, string> = ORDER_STATE_LABELS
 
 export interface OrderCustomerBrief {
   id: string
@@ -62,6 +60,8 @@ export interface AdminOrderItem {
   quantity: number
   purchase_price: string
   line_total: string
+  /** Set once the buyer has downloaded a license certificate for this line. */
+  license_code: string | null
   created_at: string
   updated_at: string
 }
@@ -135,29 +135,31 @@ export interface CustomerOrderItem {
   quantity: number
   purchase_price: string
   line_total: string
+  license_code: string | null
   can_download: boolean
   files: OrderItemDownloadFile[]
   created_at: string
   updated_at: string
 }
 
-/** Allowed admin status transitions (mirrors OrderService maps). */
-export const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+/**
+ * Only these targets are offered by hand in the admin console. Paid and refunded
+ * states come from verified Stripe events, and the API rejects them.
+ */
+export const ADMIN_MANUAL_STATUS_TARGETS: ReadonlySet<string> = new Set(['cancelled'])
+
+/** Allowed transitions for order and payment states (mirrors OrderService maps). */
+const STATE_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   pending: ['paid', 'cancelled'],
   paid: ['refunded'],
   cancelled: [],
   refunded: [],
 }
 
-export const ALLOWED_PAYMENT_STATUS_TRANSITIONS: Record<
-  OrderPaymentStatus,
-  OrderPaymentStatus[]
-> = {
-  pending: ['paid', 'cancelled'],
-  paid: ['refunded'],
-  cancelled: [],
-  refunded: [],
-}
+export const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = STATE_TRANSITIONS
+
+export const ALLOWED_PAYMENT_STATUS_TRANSITIONS: Record<OrderPaymentStatus, OrderPaymentStatus[]> =
+  STATE_TRANSITIONS
 
 export interface CustomerOrder extends CustomerOrderListItem {
   items: CustomerOrderItem[]

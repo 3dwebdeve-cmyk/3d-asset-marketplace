@@ -22,9 +22,11 @@
   color: #fff;
   font-family: var(--hero-ui);
   background-color: var(--pure-black);
+  border-radius: 0 0 clamp(0.875rem, 1.5vw, 1.5rem) clamp(0.875rem, 1.5vw, 1.5rem);
+  overflow: hidden;
 }
 
-.products-browse-page--hub > .home-marketplace-hero {
+.products-browse-page--hub>.home-marketplace-hero {
   width: calc(100% + var(--site-gutter) + var(--site-gutter));
   margin: 0 calc(-1 * var(--site-gutter)) 0;
 }
@@ -37,7 +39,7 @@
   min-height: clamp(14rem, 42vw, 22rem);
   overflow: hidden;
   background-color: var(--pure-black);
-  background-image: url('/images/home-page-banner.webp?v=3');
+  background-image: url('/images/website-banner-1919x510.webp');
   background-attachment: scroll;
   background-position: center center;
   background-size: cover;
@@ -47,14 +49,17 @@
   justify-content: center;
 }
 
-@media (min-width: 901px) {
-  .home-marketplace-hero__stage {
-    background-attachment: fixed;
-  }
-}
-
-.home-marketplace-hero__media {
-  display: none;
+/* Scroll zoom layer. MarketplaceHero eases its transform every frame, so no CSS
+   transition here: one would restart on each frame and make the zoom lag and stutter. */
+.home-marketplace-hero__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: inherit;
+  transform-origin: center;
+  pointer-events: none;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .home-marketplace-hero__shade {
@@ -62,12 +67,10 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(6, 12, 20, 0.35) 0%,
-    rgba(6, 12, 20, 0.15) 45%,
-    rgba(6, 12, 20, 0.45) 100%
-  );
+  background: linear-gradient(180deg,
+      rgba(6, 12, 20, 0.35) 0%,
+      rgba(6, 12, 20, 0.15) 45%,
+      rgba(6, 12, 20, 0.45) 100%);
 }
 
 .home-marketplace-hero__content {
@@ -86,7 +89,7 @@
   text-align: center;
 }
 
-.home-marketplace-hero__content > * {
+.home-marketplace-hero__content>* {
   pointer-events: auto;
 }
 
@@ -105,30 +108,69 @@
 
 .home-marketplace-search {
   display: grid;
-  grid-template-columns: 2.75rem minmax(0, 1fr) 2.85rem;
+  grid-template-columns: 8rem minmax(0, 1fr) auto;
   align-items: stretch;
   width: min(100%, 36rem);
-  min-height: 2.85rem;
+  min-height: 2.75rem;
   margin: 0.2rem 0 0;
-  padding: 0;
+  padding: 0.2rem;
   border: 0;
-  border-radius: 0.65rem;
+  border-radius: 0.72rem;
   background: #ffffff;
   box-shadow: none;
   overflow: hidden;
   text-align: left;
 }
 
-.home-marketplace-search__leading {
-  display: grid;
-  place-items: center;
-  color: var(--text-secondary);
+.home-marketplace-search__category {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid #dde1e7;
+}
+
+.home-marketplace-search__category::after {
+  position: absolute;
+  right: 0.65rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 1.5px solid #14213d;
+  border-bottom: 1.5px solid #14213d;
+  content: '';
+  pointer-events: none;
+  transform: translateY(-0.15rem) rotate(45deg);
+}
+
+.home-marketplace-search__category select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 1.7rem 0 0.65rem;
+  border: 0;
+  outline: 0;
+  color: #14213d;
+  background: transparent;
+  font-family: var(--hero-ui);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.home-marketplace-search__field {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+  padding-left: 0.85rem;
+  color: #8490a3;
 }
 
 .home-marketplace-search__input {
   min-width: 0;
+  width: 100%;
   height: 100%;
-  padding: 0.7rem 0.4rem;
+  padding: 0.45rem 0.65rem 0.45rem 0;
   border: 0;
   outline: 0;
   color: var(--hero-ink);
@@ -152,16 +194,21 @@
 }
 
 .home-marketplace-search__submit {
-  display: grid;
-  place-items: center;
-  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 6.1rem;
   min-height: 100%;
   margin: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: 0.58rem;
   background: var(--hero-teal);
   color: #ffffff;
   cursor: pointer;
+  font-family: var(--hero-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
   transition: background 140ms ease;
 }
 
@@ -197,7 +244,7 @@
   min-height: 1.55rem;
   padding: 0.2rem 0.55rem;
   border: 1px solid var(--hero-chip-border);
-  border-radius: 999px;
+  border-radius: 0.55rem;
   background: var(--hero-chip);
   color: #ffffff;
   font-family: var(--hero-ui);
@@ -218,6 +265,12 @@
   outline: none;
 }
 
+.home-marketplace-trending__chip--active {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+}
+
 .home-marketplace-sort {
   display: flex;
   flex-wrap: wrap;
@@ -231,15 +284,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.28rem;
-  min-height: 1.85rem;
-  padding: 0.28rem 0.85rem;
+  gap: 0.22rem;
+  min-height: 1.55rem;
+  padding: 0.2rem 0.55rem;
   border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 0.55rem;
   background: var(--hero-sort);
   color: #ffffff;
   font-family: var(--hero-ui);
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 600;
   cursor: pointer;
   box-shadow: none;
@@ -268,63 +321,129 @@
   color: var(--hero-ink);
 }
 
+@media (min-width: 901px) {
+  .home-marketplace-hero__stage {
+    justify-content: flex-start;
+  }
+
+  .home-marketplace-hero__content {
+    align-items: flex-start;
+    width: min(42rem, 46vw);
+    max-width: none;
+    margin: 0;
+    padding-inline: clamp(2rem, 5vw, 6rem) 0;
+    text-align: left;
+  }
+
+  .home-marketplace-hero__title,
+  .home-marketplace-search,
+  .home-marketplace-trending,
+  .home-marketplace-sort {
+    width: 100%;
+    max-width: 36rem;
+  }
+
+  .home-marketplace-hero__title {
+    text-align: center;
+  }
+
+  .home-marketplace-search {
+    max-width: 38rem;
+    margin-inline: auto;
+  }
+
+  .home-marketplace-trending,
+  .home-marketplace-sort {
+    justify-content: center;
+  }
+}
+
 /* White modules sit flush under the pinned banner */
-.products-browse-page--hub > .browse-service-cards,
-.products-browse-page--hub > .browse-rail-section {
+.products-browse-page--hub>.browse-service-cards,
+.products-browse-page--hub>.browse-rail-section {
   position: relative;
   z-index: 3;
 }
 
-.products-browse-page--hub > .browse-service-cards {
+.products-browse-page--hub>.browse-service-cards {
   margin-top: 0;
-  background: #ffffff;
+  background: var(--bg-page);
   border-radius: 0;
   box-shadow: none;
 }
 
 @media (max-width: 900px) {
   .home-marketplace-hero {
-    --hero-window-height: clamp(14rem, 38vw, 20rem);
+    --hero-window-height: auto;
   }
 
   .home-marketplace-hero__stage {
-    min-height: 14rem;
-    max-height: 20rem;
+    height: auto;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
     background-attachment: scroll;
-    background-position: center 35%;
+    background-position: center center;
+    background-size: cover;
+  }
+
+  .home-marketplace-hero__content {
+    overflow: visible;
+    padding-block: 2.25rem 2.5rem;
   }
 }
 
 @media (max-width: 700px) {
   .home-marketplace-hero {
-    --hero-window-height: clamp(13.5rem, 48vw, 18rem);
+    --hero-window-height: auto;
   }
 
   .home-marketplace-hero__stage {
-    min-height: 13rem;
-    max-height: 18rem;
-    height: var(--hero-window-height);
-    overflow: hidden;
+    height: auto;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
     background-attachment: scroll;
-    background-position: center 30%;
+    background-position: center center;
+    background-size: cover;
   }
 
   .home-marketplace-hero__content {
-    gap: 0.55rem;
-    padding-block: 1rem 1.25rem;
-    overflow: hidden;
+    gap: 0.75rem;
+    padding-block: 2rem 2.25rem;
+    padding-inline: 1rem;
+    overflow: visible;
   }
 
   .home-marketplace-hero__title {
-    max-width: 14ch;
-    font-size: clamp(1.2rem, 5.2vw, 1.65rem);
+    max-width: 18ch;
+    font-size: clamp(1.35rem, 5.5vw, 1.85rem);
+    line-height: 1.25;
   }
 
   .home-marketplace-search {
-    grid-template-columns: 2.5rem minmax(0, 1fr) 2.65rem;
+    grid-template-columns: 6.5rem minmax(0, 1fr) 2.75rem;
     width: 100%;
     max-width: 36rem;
     min-height: 2.75rem;
+  }
+
+  .home-marketplace-search__category select {
+    padding-left: 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .home-marketplace-search__field {
+    gap: 0.35rem;
+    padding-left: 0.55rem;
+  }
+
+  .home-marketplace-search__submit {
+    min-width: 0;
+  }
+
+  .home-marketplace-search__submit span {
+    display: none;
   }
 
   .home-marketplace-search__input {
@@ -334,41 +453,47 @@
   .home-marketplace-trending,
   .home-marketplace-sort {
     flex-wrap: wrap;
+    justify-content: center;
     max-width: 100%;
+    gap: 0.35rem 0.45rem;
   }
 }
 
 @media (max-width: 420px) {
   .home-marketplace-hero {
-    --hero-window-height: 13rem;
+    --hero-window-height: auto;
   }
 
   .home-marketplace-hero__stage {
-    min-height: 12.5rem;
-    max-height: 13.5rem;
+    height: auto;
+    min-height: auto;
+    max-height: none;
+    background-position: center center;
   }
 
   .home-marketplace-hero__content {
-    padding-block: 0.85rem 1.1rem;
+    padding-block: 1.75rem 2rem;
+    padding-inline: 0.75rem;
+    gap: 0.65rem;
   }
 
   .home-marketplace-hero__title {
-    font-size: clamp(1.15rem, 5.8vw, 1.45rem);
+    font-size: clamp(1.2rem, 5.8vw, 1.5rem);
+    line-height: 1.25;
   }
 
   .home-marketplace-search {
     border-radius: 0.6rem;
-    grid-template-columns: 2.6rem minmax(0, 1fr) 2.75rem;
-  }
-
-  .home-marketplace-sort__btn {
-    min-height: 1.7rem;
-    padding: 0.22rem 0.7rem;
-    font-size: 0.7rem;
+    grid-template-columns: 5.8rem minmax(0, 1fr) 2.6rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .home-marketplace-hero__backdrop {
+    transform: none !important;
+    will-change: auto;
+  }
+
   .home-marketplace-hero__stage {
     background-attachment: scroll;
   }

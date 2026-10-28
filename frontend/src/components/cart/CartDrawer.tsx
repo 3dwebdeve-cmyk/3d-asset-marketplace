@@ -6,7 +6,8 @@ import { useCartUiStore } from '../../store/cartUiStore'
 import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/ErrorState'
 import { Spinner } from '../ui/Spinner'
-import { CartLineItem, formatCartPrice } from './CartLineItem'
+import { CartLineItem } from './CartLineItem'
+import { formatMoney } from '../../lib/format'
 
 export function CartDrawer() {
   const isDrawerOpen = useCartUiStore((state) => state.isDrawerOpen)
@@ -107,12 +108,12 @@ export function CartDrawer() {
             {Number(cart.discount_amount) > 0 ? (
               <div className="cart-summary cart-summary--discount">
                 <span>Discount</span>
-                <strong>−{formatCartPrice(cart.discount_amount, cart.currency)}</strong>
+                <strong>−{formatMoney(cart.discount_amount, cart.currency)}</strong>
               </div>
             ) : null}
             <div className="cart-summary cart-summary--total">
               <span>Total</span>
-              <strong>{formatCartPrice(cart.total, cart.currency)}</strong>
+              <strong>{formatMoney(cart.total, cart.currency)}</strong>
             </div>
             <Button
               type="button"

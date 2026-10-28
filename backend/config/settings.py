@@ -15,6 +15,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
+from corsheaders.defaults import default_headers
 from decouple import Config, RepositoryEmpty, RepositoryEnv
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.csp import CSP
@@ -47,6 +48,13 @@ if len(SECRET_KEY.encode("utf-8")) < 32:
 # SECURITY WARNING: don't run with debug turned on in production!
 
 DEBUG = config("DEBUG", cast=bool, default=False)
+DEPLOYMENT_PROFILE = config(
+    "DEPLOYMENT_PROFILE", default="development" if DEBUG else "production",
+).strip()
+if DEPLOYMENT_PROFILE not in {"development", "test", "staging", "production"}:
+    raise ImproperlyConfigured("Unknown DEPLOYMENT_PROFILE.")
+if DEPLOYMENT_PROFILE in {"staging", "production"} and DEBUG:
+    raise ImproperlyConfigured("DEBUG must be False on staging and production.")
 ALLOWED_HOSTS = config(
     "ALLOWED_HOSTS",
     default="127.0.0.1,localhost",
@@ -72,7 +80,6 @@ INSTALLED_APPS = [
     'categories',
     'products',
     'plugins',
-    'custom_projects',
     'orders',
     'analytics',
     'wishlist',
@@ -89,6 +96,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Before everything that reads the visitor IP (admin lock, throttles, login lockout).
+    'config.edge.TrustedEdgeMiddleware',
     'config.admin_lock.DjangoAdminLockMiddleware',
     'django.middleware.csp.ContentSecurityPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -157,6 +166,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        'NAME': 'accounts.password_validation.BreachedPasswordValidator',
+    },
 ]
 
 
@@ -180,6 +192,8 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+MIN_DISK_FREE_MB = config("MIN_DISK_FREE_MB", default=1024, cast=int)
+MAX_DB_SIZE_MB = config("MAX_DB_SIZE_MB", default=10240, cast=int)
 PUBLIC_API_BASE_URL = config("PUBLIC_API_BASE_URL", default="http://127.0.0.1:8000")
 
 # Cloudflare R2 (Feature 14). All values required before named S3 backends activate.
@@ -189,12 +203,52 @@ R2_SECRET_ACCESS_KEY = config("R2_SECRET_ACCESS_KEY", default="").strip()
 R2_ENDPOINT_URL = config("R2_ENDPOINT_URL", default="").strip()
 R2_PUBLIC_BUCKET = config("R2_PUBLIC_BUCKET", default="").strip()
 R2_PRIVATE_BUCKET = config("R2_PRIVATE_BUCKET", default="").strip()
+if R2_PUBLIC_BUCKET and R2_PUBLIC_BUCKET == R2_PRIVATE_BUCKET:
+    raise ImproperlyConfigured("R2 public and private buckets must be different.")
 R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
-R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=300, cast=int)
+R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=60, cast=int)
+# The backup token belongs only on the backup host (.env.backup). In the app, code
+# execution would expose every backup, so staging and production refuse to start.
+if DEPLOYMENT_PROFILE in {"staging", "production"} and config(
+    "R2_BACKUP_SECRET_ACCESS_KEY", default=""
+).strip():
+    raise ImproperlyConfigured(
+        "R2_BACKUP_SECRET_ACCESS_KEY must not be in the app environment; "
+        "keep it in .env.backup on the backup host."
+    )
+# Sentry warning when one account requests this many download links within an hour.
+# Alert only: buyers are never blocked.
+DOWNLOAD_ALERT_LINKS_PER_HOUR = config("DOWNLOAD_ALERT_LINKS_PER_HOUR", default=50, cast=int)
 if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
     R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 _running_tests = "test" in sys.argv or "pytest" in " ".join(sys.argv).lower()
+BACKGROUND_JOBS_TEST_EAGER = _running_tests
+
+# Administrator two-factor sign-in (TOTP authenticator app + recovery codes). The test
+# runner defaults it off so unrelated tests can sign admins in with a password; the MFA
+# tests turn it on. Staging and production refuse to run without it.
+ADMIN_MFA_REQUIRED = config("ADMIN_MFA_REQUIRED", cast=bool, default=not _running_tests)
+if DEPLOYMENT_PROFILE in {"staging", "production"} and not ADMIN_MFA_REQUIRED:
+    raise ImproperlyConfigured("ADMIN_MFA_REQUIRED cannot be turned off on staging or production.")
+# TOTP secrets are derived from this key and never stored. A dedicated key lets
+# SECRET_KEY rotate without resetting every administrator's authenticator.
+MFA_SECRET_KEY = config("MFA_SECRET_KEY", default="").strip() or SECRET_KEY
+# Hard limit on an administrator session from the 2FA sign-in, refreshes included.
+ADMIN_SESSION_MAX_HOURS = config("ADMIN_SESSION_MAX_HOURS", default=8, cast=int)
+# Reject passwords found in known breaches (Have I Been Pwned range API; only the first
+# five characters of the password's SHA-1 leave the server). Fails open if unreachable.
+PASSWORD_BREACH_CHECK = config("PASSWORD_BREACH_CHECK", cast=bool, default=not _running_tests)
+BACKGROUND_JOBS_EXPECTED_WORKERS = config("BACKGROUND_JOBS_EXPECTED_WORKERS", default=1, cast=int)
+BACKGROUND_JOBS_MAX_READY_AGE_SECONDS = config("BACKGROUND_JOBS_MAX_READY_AGE_SECONDS", default=300, cast=int)
+BACKGROUND_JOBS_MAX_RUN_SECONDS = config("BACKGROUND_JOBS_MAX_RUN_SECONDS", default=1800, cast=int)
+PACKAGE_SCAN_REQUIRED = DEPLOYMENT_PROFILE in {"staging", "production"}
+PACKAGE_SCAN_HOST = config("PACKAGE_SCAN_HOST", default="").strip()
+PACKAGE_SCAN_PORT = config("PACKAGE_SCAN_PORT", default=3310, cast=int)
+PACKAGE_SCAN_SIGNATURE_MAX_AGE_DAYS = config("PACKAGE_SCAN_SIGNATURE_MAX_AGE_DAYS", default=3, cast=int)
+# A missing scanner must disable package uploads, not prevent migrations or the
+# rest of the application from starting. scan_upload remains fail-closed, and
+# check_package_scanner is the explicit operational readiness check.
 R2_ENABLED = (not _running_tests) and all(
     (
         R2_ACCOUNT_ID,
@@ -259,12 +313,17 @@ else:
 STRIPE_SECRET_KEY = config("STRIPE_SECRET_KEY", default="")
 STRIPE_PUBLISHABLE_KEY = config("STRIPE_PUBLISHABLE_KEY", default="")
 STRIPE_WEBHOOK_SECRET = config("STRIPE_WEBHOOK_SECRET", default="")
+STRIPE_PAYMENT_MODE = config("STRIPE_PAYMENT_MODE", default="test").strip().lower()
+if STRIPE_PAYMENT_MODE not in {"test", "live"}:
+    raise ImproperlyConfigured("STRIPE_PAYMENT_MODE must be test or live.")
 
 # Browser E2E / Compose overlay only. Never enable with live Stripe keys.
 # When True, checkout returns the SPA success URL and confirm fulfills locally
 # (same path as a verified checkout.session.completed webhook).
 E2E_STRIPE_SIMULATE = config("E2E_STRIPE_SIMULATE", cast=bool, default=False)
 if E2E_STRIPE_SIMULATE:
+    if not DEBUG and config("DEPLOYMENT_PROFILE", default="production") != "test":
+        raise ImproperlyConfigured("Payment simulation is restricted to DEBUG or the explicit test profile.")
     _stripe_secret = STRIPE_SECRET_KEY or ""
     if _stripe_secret.startswith("sk_live_"):
         raise ImproperlyConfigured(
@@ -280,15 +339,29 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 52 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 AUTH_USER_MODEL = "accounts.User"
+TEST_RUNNER = "config.test_runner.MarketplaceTestRunner"
 
-# Django contrib admin at /admin/ (SPA console is /console/). Default on so local
-# Compose keeps working. Staging/prod: set DJANGO_ADMIN_ENABLED=False or an IP allowlist.
-DJANGO_ADMIN_ENABLED = config("DJANGO_ADMIN_ENABLED", cast=bool, default=True)
+# Django contrib admin at /admin/ (SPA console is /console/). On by default so local
+# Compose keeps working; off by default and refused in production. Staging needs an IP allowlist.
+DJANGO_ADMIN_ENABLED = config(
+    "DJANGO_ADMIN_ENABLED", cast=bool, default=DEPLOYMENT_PROFILE != "production"
+)
 DJANGO_ADMIN_ALLOWED_IPS = config(
     "DJANGO_ADMIN_ALLOWED_IPS",
     default="",
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
+# Cloudflare Worker -> Render (no nginx): the Worker signs each API request with this secret and
+# passes the real visitor IP; config/edge.py trusts that IP only when the secret matches. Set the
+# same value as a Worker secret named EDGE_SHARED_SECRET. EDGE_REQUIRE=True also refuses API
+# calls that skipped the Worker (turn it on after the Worker sends the secret).
+EDGE_SHARED_SECRET = config("EDGE_SHARED_SECRET", default="").strip()
+EDGE_REQUIRE = config("EDGE_REQUIRE", cast=bool, default=False)
+if EDGE_SHARED_SECRET and len(EDGE_SHARED_SECRET) < 32:
+    raise ImproperlyConfigured("EDGE_SHARED_SECRET must be at least 32 characters.")
+if EDGE_REQUIRE and not EDGE_SHARED_SECRET:
+    raise ImproperlyConfigured("EDGE_REQUIRE needs EDGE_SHARED_SECRET.")
+
 # SPA /console/ API lock: when set, only these IPs/CIDRs may hit
 # /api/v1/auth/admin/* and /api/v1/admin/*. Empty = open (local). Use office/VPN egress.
 ADMIN_CONSOLE_ALLOWED_IPS = config(
@@ -296,20 +369,73 @@ ADMIN_CONSOLE_ALLOWED_IPS = config(
     default="",
     cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
 )
+# For teams whose office IP keeps changing: switch the IP lock off on purpose. Administrators
+# still need their password AND an authenticator code (ADMIN_MFA_REQUIRED cannot be turned off
+# on staging or production). Any ADMIN_CONSOLE_ALLOWED_IPS value is then ignored. Prefer
+# Cloudflare Access (docs/CLOUDFLARE_ACCESS_AND_TUNNEL.md) as soon as a domain is available.
+ADMIN_CONSOLE_IP_LOCK_OFF = config("ADMIN_CONSOLE_IP_LOCK_OFF", cast=bool, default=False)
+if ADMIN_CONSOLE_IP_LOCK_OFF:
+    if not ADMIN_MFA_REQUIRED:
+        raise ImproperlyConfigured("ADMIN_CONSOLE_IP_LOCK_OFF needs ADMIN_MFA_REQUIRED=True.")
+    ADMIN_CONSOLE_ALLOWED_IPS = []
+# Optional lock for the uploader exe's API-key route (/api/v1/catalog-ingest/*). It sits
+# outside /api/v1/admin/, so ADMIN_CONSOLE_ALLOWED_IPS and Cloudflare Access do not apply.
+# Empty = any IP; the API key is still required.
+CATALOG_INGEST_ALLOWED_IPS = config(
+    "CATALOG_INGEST_ALLOWED_IPS",
+    default="",
+    cast=lambda value: [part.strip() for part in value.split(",") if part.strip()],
+)
+# The Django admin has a password-only login, outside the /console 2FA sign-in.
+if DEPLOYMENT_PROFILE == "production" and DJANGO_ADMIN_ENABLED:
+    raise ImproperlyConfigured(
+        "DJANGO_ADMIN_ENABLED must be False in production; manage the site from /console."
+    )
+if DEPLOYMENT_PROFILE in {"staging", "production"}:
+    import ipaddress
 
-# In-process LocMem cache (no Redis). Rate limits / idempotency are per-process.
-# REDIS_URL kept as an empty stub so older health checks / env files stay harmless.
-REDIS_URL = ""
-REDIS_PASSWORD = ""
+    for label, values, required in (
+        ("ADMIN_CONSOLE_ALLOWED_IPS", ADMIN_CONSOLE_ALLOWED_IPS, not ADMIN_CONSOLE_IP_LOCK_OFF),
+        ("DJANGO_ADMIN_ALLOWED_IPS", DJANGO_ADMIN_ALLOWED_IPS, DJANGO_ADMIN_ENABLED),
+        ("CATALOG_INGEST_ALLOWED_IPS", CATALOG_INGEST_ALLOWED_IPS, False),
+    ):
+        if required and not values:
+            raise ImproperlyConfigured(f"{label} must restrict administrator access.")
+        for value in values:
+            try:
+                network = ipaddress.ip_network(value, strict=False)
+            except ValueError as exc:
+                raise ImproperlyConfigured(f"{label} contains an invalid IP/CIDR.") from exc
+            if network.prefixlen == 0:
+                raise ImproperlyConfigured(f"{label} must not allow the whole internet.")
+
+# Postgres-backed cache (no Redis) so throttle counters, login lockouts and
+# idempotency keys are shared by every Gunicorn worker and survive restarts.
+# Table is created by `manage.py createcachetable` (entrypoint.sh).
+# MAX_ENTRIES must stay high: culling a small cache would wipe throttle counters.
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "marketplace-default",
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "marketplace_cache",
+        "OPTIONS": {
+            "MAX_ENTRIES": config("CACHE_MAX_ENTRIES", default=100000, cast=int),
+            "CULL_FREQUENCY": 10,
+        },
     }
 }
 
+LOGIN_LOCKOUT_MAX_FAILURES = config("LOGIN_LOCKOUT_MAX_FAILURES", default=10, cast=int)
+LOGIN_LOCKOUT_ACCOUNT_MAX_FAILURES = config("LOGIN_LOCKOUT_ACCOUNT_MAX_FAILURES", default=50, cast=int)
+LOGIN_LOCKOUT_WINDOW_SECONDS = config(
+    "LOGIN_LOCKOUT_WINDOW_SECONDS", default=15 * 60, cast=int
+)
+# Customer accounts stay signed in on at most this many devices; a new sign-in ends
+# the least recently used one. Administrators are not limited.
+MAX_CUSTOMER_SESSIONS = config("MAX_CUSTOMER_SESSIONS", default=2, cast=int)
+
 # Celery runs in-process (no Redis broker / no worker container).
-# Emails and notifications still send via enqueue_after_commit + eager delay().
+# Celery supplies registered task functions and test-only eager execution.
+# Production delivery uses the PostgreSQL outbox worker, not the memory broker.
 CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = None
 CELERY_TASK_IGNORE_RESULT = True
@@ -322,6 +448,7 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_TASK_DEFAULT_RETRY_DELAY = 60
+EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", default=30, cast=int)
 CELERY_TASK_ANNOTATIONS = {
     "*": {
         "max_retries": 0 if _running_tests else 5,
@@ -335,11 +462,6 @@ CELERY_TASK_ROUTES = {
     "contact.send_submission": {"queue": "email"},
 }
 
-# Catalog search is Postgres icontains only (Meilisearch removed).
-MEILI_URL = ""
-MEILI_MASTER_KEY = ""
-MEILI_REQUIRED = False
-
 # Legal document versions required at register + checkout (Phase I).
 # Bump a version string when Terms/Privacy change; clients must re-accept.
 LEGAL_DOCUMENT_VERSIONS = {
@@ -351,6 +473,12 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "accounts.authentication.VersionedJWTAuthentication",
     ],
+    # Fail closed: an endpoint that forgets to say who may call it needs a signed-in user,
+    # instead of DRF's own default of "anyone". Public endpoints declare AllowAny themselves
+    # (config/test_api_permissions.py checks every endpoint declares its rule).
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
@@ -359,34 +487,50 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "config.pagination.StandardPagination",
     "EXCEPTION_HANDLER": "accounts.exceptions.custom_exception_handler",
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "config.schema.MarketplaceSchema",
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
+        "accounts.throttles.SignedInUserRateThrottle",
     ],
+    # Behind Nginx or the Cloudflare Worker (config/edge.py), X-Forwarded-For ends with
+    # the single verified client IP.
+    "NUM_PROXIES": 1,
     "DEFAULT_THROTTLE_RATES": {
         "anon": "120/min",
         "user": "300/min",
         "auth_login": "5/min",
         "auth_register": "3/min",
+        "legal_accept": "10/hour",
         "auth_password_reset": "5/hour",
+        "auth_password_reset_email": "3/hour",
         "auth_password_reset_confirm": "10/hour",
+        "auth_change_password": "10/hour",
         "auth_email_verification_resend": "5/hour",
+        "auth_email_verification_resend_email": "3/hour",
         "auth_email_verification_confirm": "10/hour",
         "auth_token_refresh": "20/min",
+        "catalog_search": "30/min",
+        "csp_report": "30/min",
         "avatar_upload": "10/hour",
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
+        # Uploader exe: about 5 models per request, each scanned and re-stored.
+        "catalog_ingest": "30/min",
         "admin_plugin_write": "60/min",
+        # Uploads can trigger storage writes, malware scanning and image parsing.
+        "admin_upload": "12/min",
         "admin_order_write": "60/min",
         "wishlist_write": "30/min",
         "cart_write": "30/min",
         "review_write": "20/min",
         "admin_review_write": "60/min",
         "download": "30/min",
+        "license_verify": "30/min",
         "contact_form": "5/hour",
         "category_click": "60/min",
         "payment_checkout": "10/min",
+        # Limits a user's Stripe API activity over a full day, not only bursts.
+        "payment_checkout_daily": "30/day",
     },
 }
 
@@ -395,6 +539,17 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Canonical HTTP API under /api/v1/.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "DISABLE_ERRORS_AND_WARNINGS": False,
+    "ENUM_NAME_OVERRIDES": {
+        "ProductStatusEnum": "products.models.Product.Status",
+        "PluginStatusEnum": "plugins.models.Plugin.Status",
+        "StripePaymentStatusEnum": "payments.models.Payment.Status",
+        "OrderStateEnum": "orders.models.Order.OrderStatus",
+        "CatalogItemTypeEnum": "reviews.models.Review.ProductType",
+        "OrderItemTypeEnum": "orders.models.OrderItem.ProductType",
+        "ProductLicenseEnum": "products.models.Product.LicenseType",
+        "PluginLicenseEnum": "plugins.models.Plugin.LicenseType",
+    },
 }
 
 SIMPLE_JWT = {
@@ -422,6 +577,8 @@ if _jwt_refresh_secure in {"", "none"}:
     JWT_REFRESH_COOKIE_SECURE = None
 else:
     JWT_REFRESH_COOKIE_SECURE = _jwt_refresh_secure in {"1", "true", "yes", "on"}
+if DEPLOYMENT_PROFILE in {"staging", "production"} and JWT_REFRESH_COOKIE_SECURE is False:
+    raise ImproperlyConfigured("Refresh cookies must be Secure on staging and production.")
 
 # Production hardening (applied when DEBUG is False).
 if not DEBUG:
@@ -453,6 +610,9 @@ CORS_ALLOWED_ORIGINS = config(
 )
 # Required for SPA cookie-based refresh (same-origin via Nginx/Vite proxy preferred).
 CORS_ALLOW_CREDENTIALS = True
+# Cross-origin SPA hosts send Idempotency-Key on checkout; browsers drop the
+# request at preflight unless it is listed here.
+CORS_ALLOW_HEADERS = (*default_headers, "idempotency-key")
 
 # Backend/API CSP. The separately deployed frontend host must emit its own CSP
 # header at the CDN or web-server layer.
@@ -462,19 +622,31 @@ if R2_ENABLED:
     if _r2_parsed.scheme and _r2_parsed.netloc:
         _csp_img_src.append(f"{_r2_parsed.scheme}://{_r2_parsed.netloc}")
 
-SECURE_CSP = {
-    "default-src": [CSP.SELF],
-    # Django's built-in administrator currently emits small inline scripts.
-    "script-src": [CSP.SELF, CSP.UNSAFE_INLINE],
-    "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
-    "img-src": _csp_img_src,
-    "font-src": [CSP.SELF],
-    "connect-src": [CSP.SELF],
-    "object-src": [CSP.NONE],
-    "base-uri": [CSP.SELF],
-    "frame-ancestors": [CSP.NONE],
-    "form-action": [CSP.SELF],
-}
+if DEBUG or DJANGO_ADMIN_ENABLED:
+    # Django's built-in administrator and the DEBUG Swagger page are HTML pages with small
+    # inline scripts and styles.
+    SECURE_CSP = {
+        "default-src": [CSP.SELF],
+        "script-src": [CSP.SELF, CSP.UNSAFE_INLINE],
+        "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
+        "img-src": _csp_img_src,
+        "font-src": [CSP.SELF],
+        "connect-src": [CSP.SELF],
+        "object-src": [CSP.NONE],
+        "base-uri": [CSP.SELF],
+        "frame-ancestors": [CSP.NONE],
+        "form-action": [CSP.SELF],
+    }
+else:
+    # Without the Django admin the backend only answers with JSON, XML and plain error pages,
+    # so a browser opening one of its addresses may load, run, embed or submit nothing.
+    SECURE_CSP = {
+        "default-src": [CSP.NONE],
+        "object-src": [CSP.NONE],
+        "base-uri": [CSP.NONE],
+        "frame-ancestors": [CSP.NONE],
+        "form-action": [CSP.NONE],
+    }
 SECURE_CSP_REPORT_ONLY = {}
 
 FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="http://localhost:5173")
@@ -534,13 +706,38 @@ LOGGING = {
     },
 }
 
-# Dev default: print emails to the console. Override with SMTP env vars in production.
+# --- Email ---
+# Prefer Brevo HTTP API when BREVO_API_KEY is set (works on hosts that block
+# outbound SMTP, e.g. Render free web services). Otherwise default to console.
+BREVO_API_KEY = config("BREVO_API_KEY", default="").strip()
+BREVO_SENDER_NAME = config("BREVO_SENDER_NAME", default="3D Asset Marketplace")
+BREVO_API_URL = config(
+    "BREVO_API_URL",
+    default="https://api.brevo.com/v3/smtp/email",
+)
+BREVO_API_TIMEOUT_SECONDS = config(
+    "BREVO_API_TIMEOUT_SECONDS",
+    default=15,
+    cast=int,
+)
+_BREVO_BACKEND = "config.brevo_email_backend.BrevoAPIEmailBackend"
 EMAIL_BACKEND = config(
     "EMAIL_BACKEND",
-    default="django.core.mail.backends.console.EmailBackend",
+    default=(
+        _BREVO_BACKEND
+        if BREVO_API_KEY
+        else "django.core.mail.backends.console.EmailBackend"
+    ),
 )
+# If ops left SMTP configured but also set BREVO_API_KEY (Render free), use API.
+if (
+    BREVO_API_KEY
+    and "smtp" in EMAIL_BACKEND.lower()
+    and "brevo" not in EMAIL_BACKEND.lower()
+):
+    EMAIL_BACKEND = _BREVO_BACKEND
 # Local Compose may force DEBUG=False while still using console mail.
-# Production must set ALLOW_CONSOLE_EMAIL=False (or omit) and use SMTP.
+# Production must set ALLOW_CONSOLE_EMAIL=False (or omit) and use SMTP or Brevo API.
 ALLOW_CONSOLE_EMAIL = config(
     "ALLOW_CONSOLE_EMAIL",
     cast=bool,
@@ -554,8 +751,18 @@ if (
 ):
     raise ImproperlyConfigured(
         "EMAIL_BACKEND must not use the console backend when DEBUG=False. "
-        "Configure SMTP for production, or set ALLOW_CONSOLE_EMAIL=True only "
-        "for local Compose / staging experiments."
+        "Configure BREVO_API_KEY (recommended on Render free) or SMTP, "
+        "or set ALLOW_CONSOLE_EMAIL=True only for local Compose / staging experiments."
+    )
+if (
+    not DEBUG
+    and not _running_tests
+    and "brevo_email_backend" in EMAIL_BACKEND.lower()
+    and not BREVO_API_KEY
+):
+    raise ImproperlyConfigured(
+        "EMAIL_BACKEND is Brevo API but BREVO_API_KEY is empty. "
+        "Set BREVO_API_KEY from Brevo → SMTP & API → API keys."
     )
 DEFAULT_FROM_EMAIL = config(
     "DEFAULT_FROM_EMAIL",
@@ -572,6 +779,9 @@ CONTACT_ADMIN_RECIPIENTS = config(
     "CONTACT_ADMIN_RECIPIENTS",
     default="",
 )
+# Comma-separated inboxes for the daily health report (config/ops_report.py), sent by the daily
+# maintenance loop. Empty = every active Administrator.
+OPS_REPORT_RECIPIENTS = config("OPS_REPORT_RECIPIENTS", default="")
 EMAIL_HOST = config("EMAIL_HOST", default="")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")

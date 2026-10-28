@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from io import StringIO
-from urllib.parse import urlparse
 
-from django.core.exceptions import ImproperlyConfigured
 from django.core import mail
 from django.core.cache import cache
 from django.core.management import call_command
@@ -16,6 +14,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
+from config.settings_guard_testing import import_settings
 from config.mail import (
     frontend_base_url,
     frontend_base_url_is_localhost,
@@ -35,21 +34,20 @@ class FrontendBaseUrlHelperTests(SimpleTestCase):
         self.assertFalse(frontend_base_url_uses_https("http://localhost:5173"))
 
     def test_settings_refuse_localhost_frontend_when_debug_false(self) -> None:
-        """Mirror settings.py Phase D2 guard."""
-        debug = False
-        running_tests = False
-        allow_localhost_frontend = False
-        frontend_host = (urlparse("http://localhost:5173").hostname or "").lower()
-        with self.assertRaises(ImproperlyConfigured):
-            if (
-                not debug
-                and not running_tests
-                and not allow_localhost_frontend
-                and frontend_host in {"localhost", "127.0.0.1", "::1"}
-            ):
-                raise ImproperlyConfigured(
-                    "FRONTEND_BASE_URL must be the public SPA origin when DEBUG=False."
-                )
+        # Imports the real settings module, so a change to the guard is caught.
+        result = import_settings(
+            FRONTEND_BASE_URL="http://localhost:5173",
+            ALLOW_LOCALHOST_FRONTEND="False",
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("FRONTEND_BASE_URL must be the public SPA origin", result.stderr)
+
+    def test_settings_allow_localhost_frontend_when_explicitly_permitted(self) -> None:
+        result = import_settings(
+            FRONTEND_BASE_URL="http://localhost:5173",
+            ALLOW_LOCALHOST_FRONTEND="True",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class EnsureAdministratorCommandTests(TestCase):

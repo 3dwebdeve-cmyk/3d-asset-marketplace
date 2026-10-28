@@ -131,13 +131,20 @@ class DownloadAPITests(APITestCase):
         buffer = BytesIO()
         with ZipFile(buffer, "w") as archive:
             archive.writestr("model.glb", b"glTF")
+        content = buffer.getvalue()
+        mime = "application/zip"
+        if name.endswith(".glb"):
+            from products.test_products import make_glb_bytes
+
+            content = make_glb_bytes()
+            mime = "model/gltf-binary"
         response = self.client.post(
             self.admin_product_files_url,
             {
-                "file": SimpleUploadedFile(
+          "file": SimpleUploadedFile(
                     name,
-                    buffer.getvalue(),
-                    content_type="application/zip",
+                    content,
+                    content_type=mime,
                 ),
                 "version": "1.0",
                 "is_preview": is_preview,
@@ -360,6 +367,44 @@ class DownloadAPITests(APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(len(response.data[0]["files"]), 1)
         self.assertEqual(str(response.data[0]["files"][0]["id"]), str(product_file.pk))
+
+    def _preview_download_url(self, preview_file: ProductFile) -> str:
+        return reverse(
+            "downloads:product-file-download",
+            kwargs={"product_id": self.product.pk, "file_id": preview_file.pk},
+        )
+
+    def test_glb_only_product_has_nothing_to_download(self) -> None:
+        # The preview is public, so selling it would give the model away for free.
+        preview_file = self._upload_product_file(name="model.glb")
+        self.assertTrue(preview_file.is_preview)
+        order = self.create_paid_order(self.customer)
+        self.authenticate()
+
+        entitlements = self.client.get(self.entitlements_url)
+        self.assertEqual(entitlements.status_code, status.HTTP_200_OK)
+        self.assertEqual(entitlements.data[0]["files"], [])
+
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(DownloadHistory.objects.count(), 0)
+
+        detail = self.client.get(reverse("orders:order-detail", kwargs={"order_id": order.pk}))
+        self.assertEqual(detail.data["items"][0]["files"], [])
+
+    def test_preview_not_downloadable_when_package_exists(self) -> None:
+        package_file = self._upload_product_file()
+        preview_file = self._upload_product_file(name="model.glb")
+        self.create_paid_order(self.customer)
+        self.authenticate()
+        response = self.client.get(self._preview_download_url(preview_file))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        detail = self.client.get(
+            reverse("orders:order-detail", kwargs={"order_id": Order.objects.get().pk})
+        )
+        file_ids = [str(f["id"]) for f in detail.data["items"][0]["files"]]
+        self.assertEqual(file_ids, [str(package_file.pk)])
 
     def test_customer_history_lists_own_downloads_only(self) -> None:
         product_file = self._upload_product_file()

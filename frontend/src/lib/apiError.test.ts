@@ -1,7 +1,7 @@
 import { AxiosError } from 'axios'
 import { describe, expect, it } from 'vitest'
 
-import { getApiErrorMessage, isHttpNotFound } from './apiError'
+import { getApiErrorMessage, isHttpNotFound, isSessionReplaced } from './apiError'
 import type { ApiErrorResponse } from '../types/auth'
 
 function axiosError(
@@ -68,6 +68,13 @@ describe('getApiErrorMessage', () => {
       'SKU is required before publish. At least one sellable package file is required before publish.',
     )
   })
+
+  it('uses the caller context for an HTML 500 response', () => {
+    const error = axiosError(500, '<html>Server Error</html>' as unknown as ApiErrorResponse)
+    expect(getApiErrorMessage(error, 'Could not start checkout. Please try again.')).toBe(
+      'Could not start checkout. Please try again.',
+    )
+  })
 })
 
 describe('isHttpNotFound', () => {
@@ -79,5 +86,20 @@ describe('isHttpNotFound', () => {
     expect(isHttpNotFound(axiosError(500, { detail: 'Server error.' }))).toBe(false)
     expect(isHttpNotFound(new Error('network down'))).toBe(false)
     expect(isHttpNotFound(undefined)).toBe(false)
+  })
+})
+
+describe('isSessionReplaced', () => {
+  it('recognises a session ended by another device signing in', () => {
+    const error = axiosError(401, {
+      detail: 'You were signed out because your account was signed in on another device.',
+      code: 'session_replaced',
+    })
+    expect(isSessionReplaced(error)).toBe(true)
+  })
+
+  it('ignores other authentication failures', () => {
+    expect(isSessionReplaced(axiosError(401, { detail: 'x', code: 'token_not_valid' }))).toBe(false)
+    expect(isSessionReplaced(new Error('network'))).toBe(false)
   })
 })

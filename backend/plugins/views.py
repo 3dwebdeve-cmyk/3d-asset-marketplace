@@ -10,7 +10,11 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
-from accounts.throttles import AdminPluginWriteRateThrottle
+from accounts.throttles import (
+    AdminPluginWriteRateThrottle,
+    AdminUploadRateThrottle,
+    CatalogSearchRateThrottle,
+)
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
 from plugins.models import Plugin
@@ -39,8 +43,7 @@ from plugins.services import (
     PluginService,
     PluginUpdateData,
 )
-from search.pagination import paginated_list_response, parse_page
-from search.services import hydrate_plugins, normalize_query, search_published_plugins
+from search.services import normalize_query
 
 
 def _error_response(exc: PluginError) -> Response:
@@ -100,6 +103,12 @@ class PluginListView(PublicCatalogCacheMixin, APIView):
     permission_classes = [AllowAny]
     pagination_class = PluginPagination
 
+    def get_throttles(self) -> list:
+        throttles = super().get_throttles()
+        if normalize_query(self.request.query_params.get("search")):
+            throttles.append(CatalogSearchRateThrottle())
+        return throttles
+
     def get(self, request: Request) -> Response:
         category_id = parse_uuid(
             request.query_params.get("category_id"),
@@ -108,28 +117,6 @@ class PluginListView(PublicCatalogCacheMixin, APIView):
         search = request.query_params.get("search") or None
         ordering = request.query_params.get("ordering") or None
         paginator = self.pagination_class()
-        query = normalize_query(search)
-        if query:
-            page, page_size = parse_page(request, paginator)
-            search_page = search_published_plugins(
-                query=query,
-                page=page,
-                page_size=page_size,
-                category_id=category_id,
-                ordering=ordering,
-            )
-            if search_page is not None:
-                items = hydrate_plugins(search_page.ids)
-                return paginated_list_response(
-                    request,
-                    paginator=paginator,
-                    items=items,
-                    total=search_page.estimated_total,
-                    page=page,
-                    page_size=page_size,
-                    serializer_class=PluginListPublicSerializer,
-                )
-
         queryset = PluginService.list_public(
             category_id=category_id,
             search=search,
@@ -404,7 +391,7 @@ class AdminPluginDetailView(APIView):
 
 class AdminPluginImageUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminPluginWriteRateThrottle]
+    throttle_classes = [AdminPluginWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, plugin_id: UUID) -> Response:
@@ -448,7 +435,7 @@ class AdminPluginImageDetailView(APIView):
 
 class AdminPluginFileUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
-    throttle_classes = [AdminPluginWriteRateThrottle]
+    throttle_classes = [AdminPluginWriteRateThrottle, AdminUploadRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request: Request, plugin_id: UUID) -> Response:

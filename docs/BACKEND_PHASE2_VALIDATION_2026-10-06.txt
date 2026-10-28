@@ -1,0 +1,90 @@
+Backend production-readiness Phase 2 implementation — 2026-10-06
+
+Scope and behavior
+- Checkout persists the order snapshot, complete Stripe create parameters, and a
+  stable idempotency key before making the external request. Per-user PostgreSQL
+  advisory locks serialize checkout without holding an open transaction over the
+  network call. A timeout or local crash retries the same request and key while
+  the key is under 23 hours old. Older unresolved attempts require reconciliation;
+  the key is never resent after Stripe may have pruned it.
+- Checkout attempts are prepared, ready, review, or expired. A changed cart first
+  expires prior open Stripe sessions; a completed/unknown prior session or an
+  unresolved attempt blocks a new checkout. Legacy pending Payment rows are
+  backfilled into attempt records by migration. Existing paid orders are not
+  mutated by the migration.
+- A signed, amount/currency/customer/order-validated webhook can recover a
+  Payment row if Stripe completed before the local API response was saved.
+  Duplicate events remain idempotent. Completion/expiry/failure/refund/dispute
+  handlers lock Payment rows or use conditional state changes. PaymentIntent
+  failure alone is nonterminal for Checkout; async payment failure is terminal.
+  A different PaymentIntent cannot replace an already associated intent.
+  Partial refunds remain recorded without revoking access; full refunds revoke.
+- Cart writes and order snapshots lock the cart row. Fulfillment only removes
+  purchased cart lines that were not edited after the order snapshot. Invoice
+  collisions retry in a transaction savepoint.
+- The outbox records per-worker heartbeats and running jobs, renews the lease
+  during long tasks, and checks worker count, queue age, expired leases, failed
+  jobs, and excessive runtime. Operator commands inspect without printing task
+  args/kwargs, explicitly requeue failed jobs, and prune old failed payloads.
+
+Schema / rollout
+- Apply payments migrations 0004–0007 and mail_log migrations 0003–0004 before
+  starting the new web or background worker process. All tables/columns are
+  additive; the checkout-attempt backfill touches only existing pending payments.
+- Checkout serialization relies on PostgreSQL session advisory locks. Verify
+  that deployment connections remain bound to one server session for the
+  duration of checkout; transaction-pooling proxies need a different lock
+  strategy before rollout.
+- Keep the old outbox worker stopped while replacing it; then start the new
+  process and run `python manage.py check_background_jobs`. For multiple workers,
+  set BACKGROUND_JOBS_EXPECTED_WORKERS to their expected count. The default is 1.
+  BACKGROUND_JOBS_MAX_READY_AGE_SECONDS defaults to 300 and
+  BACKGROUND_JOBS_MAX_RUN_SECONDS to 1800. Alert on a failing health command.
+- Use `python manage.py manage_background_jobs inspect` to see job IDs and state.
+  For a failed job, investigate provider/log state before running
+  `manage_background_jobs requeue --job-id ID --execute`. Without --execute it
+  is a dry run. `manage_background_jobs prune --older-than-days 30 --execute`
+  removes old failed job payloads and stale worker records; inspect first.
+- To recover a known checkout, locate its session by metadata order_id in the
+  Stripe TEST Dashboard if the local session ID is missing. Run
+  `python manage.py reconcile_checkout ORDER_ID --session-id cs_test_...` to
+  inspect, then append --execute to persist an open or asynchronously unpaid
+  session, or fulfill an authenticated paid session. An expired session is
+  marked expired. This command
+  refuses non-test secret keys and never creates a new Stripe session. A paid
+  session already marked failed/expired locally requires manual investigation
+  and a deliberate refund or fulfillment decision; the webhook keeps retrying
+  and does not silently grant access.
+- Failed email delivery is at least once. If the provider accepts an email and
+  the worker crashes before deleting its job, a restarted worker can send it
+  again. Operators must investigate delivery logs before manually requeueing.
+
+Validation
+- Stripe calls in automated tests are mocked; no remote sandbox/live charge,
+  refund, or dispute was made. The implementation was checked against Stripe's
+  idempotency, Checkout expiry, and event-type documentation. Stripe may prune
+  idempotency keys after 24 hours, so the local retry cutoff is 23 hours.
+- Focused Phase 2 recovery, checkout smoke/load, and outbox tests passed (25).
+  A final focused 12-test run also passed after adding the legacy migration,
+  operator reconciliation, and paid-after-expiry regression tests. The same 12
+  tests passed again with the normal configured password hasher.
+- Full backend suite: 648 tests passed, using fast password hashing only in the
+  isolated test process. Production password hashers were unchanged.
+- Fresh disposable PostgreSQL test databases applied the new migrations.
+  `makemigrations --check --dry-run` found no drift. Django system check found
+  no issues. Git whitespace check passed. The disposable test databases and
+  temporary test files were removed.
+
+Stripe configuration and remaining external verification
+- Effective saved local secret/publishable key prefixes remain sk_test_/pk_test_.
+  No saved environment file or Stripe credential was changed. E2E payment
+  simulation remains disabled for normal operation.
+- Remote test endpoint ownership and webhook signing secret association remain
+  unverified. After verifying both, exercise real Stripe test completion,
+  async failure, refund, and dispute events. Phase 3 deployment/security work
+  remains separate and unapproved.
+
+Primary Stripe references
+- https://docs.stripe.com/api/idempotent_requests
+- https://docs.stripe.com/api/checkout/sessions/expire
+- https://docs.stripe.com/api/events/types

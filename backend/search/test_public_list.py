@@ -1,14 +1,15 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from accounts.throttles import CatalogSearchRateThrottle
 from categories.models import Category
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
-from search.services import hydrate_products, search_published_products
 
 
 class PostgresPublicSearchApiTests(APITestCase):
@@ -58,12 +59,21 @@ class PostgresPublicSearchApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 2)
 
-    def test_meili_helpers_are_noops(self) -> None:
-        self.assertIsNone(
-            search_published_products(query="chair", page=1, page_size=10)
-        )
-        ordered = hydrate_products([self.table.pk, self.chair.pk])
-        self.assertEqual([item.slug for item in ordered], ["pine-table", "oak-chair"])
+    def test_single_character_search_is_ignored(self) -> None:
+        response = self.client.get(self.list_url, {"search": "p"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+
+    @patch.object(CatalogSearchRateThrottle, "rate", "1/min", create=True)
+    def test_search_requests_are_throttled(self) -> None:
+        first = self.client.get(self.list_url, {"search": "pine"})
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        second = self.client.get(self.list_url, {"search": "oak"})
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        browse = self.client.get(self.list_url)
+        self.assertEqual(browse.status_code, status.HTTP_200_OK)
 
 
 class PostgresPluginSearchApiTests(APITestCase):
@@ -87,3 +97,15 @@ class PostgresPluginSearchApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "mesh-toolkit")
+
+    @patch.object(CatalogSearchRateThrottle, "rate", "1/min", create=True)
+    def test_plugin_search_requests_are_throttled(self) -> None:
+        url = reverse("plugins:plugin-list")
+        self.assertEqual(
+            self.client.get(url, {"search": "mesh"}).status_code,
+            status.HTTP_200_OK,
+        )
+        self.assertEqual(
+            self.client.get(url, {"search": "tool"}).status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+        )

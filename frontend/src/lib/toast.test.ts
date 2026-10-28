@@ -9,13 +9,14 @@ beforeEach(() => {
 })
 
 describe('toast API', () => {
-  it('skips success toasts and creates error and info toasts', () => {
+  it('creates success, error and info toasts', () => {
     toast.success('Signed in')
     toast.error('Session expired')
     toast.info('Profile saved')
 
     const toasts = useToastStore.getState().toasts
     expect(toasts.map((item) => [item.variant, item.message])).toEqual([
+      ['success', 'Signed in'],
       ['error', 'Session expired'],
       ['info', 'Profile saved'],
     ])

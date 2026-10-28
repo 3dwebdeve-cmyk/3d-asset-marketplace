@@ -205,6 +205,7 @@ describe('AdminOrdersPage', () => {
           quantity: 2,
           purchase_price: '29.99',
           line_total: '59.98',
+          license_code: null,
           created_at: order.created_at,
           updated_at: order.updated_at,
         },

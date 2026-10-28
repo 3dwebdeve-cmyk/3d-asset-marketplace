@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { ScrollToTop } from './components/ScrollToTop'
+import { SiteMotion } from './components/SiteMotion'
 import { Navbar } from './components/Navbar'
 import { SiteBenefitsBanner } from './components/SiteBenefitsBanner'
 import { SiteFooter } from './components/SiteFooter'
@@ -22,7 +23,6 @@ import { useNotFoundChrome, NotFoundChromeProvider } from './hooks/useNotFoundCh
 import { DashboardLayout } from './layouts/DashboardLayout'
 import { LoginPage } from './pages/Login/LoginPage'
 import { RegisterPage } from './pages/Register/RegisterPage'
-import { AdminLoginPage } from './pages/Admin/AdminLoginPage'
 import { AdminRoute } from './routes/AdminRoute'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import './styles/auth.css'
@@ -31,10 +31,23 @@ import './styles/cart.css'
 import './styles/checkout-success.css'
 import './styles/responsive.css'
 import './styles/marketing.css'
+import './styles/motion.css'
+
+const AdminLoginPage = lazy(() =>
+  import('./pages/Admin/AdminLoginPage').then((module) => ({
+    default: module.AdminLoginPage,
+  })),
+)
 
 const ProductsBrowsePage = lazy(() =>
   import('./pages/Products/ProductsBrowsePage').then((module) => ({
     default: module.ProductsBrowsePage,
+  })),
+)
+
+const AllCategoriesPage = lazy(() =>
+  import('./pages/Categories/AllCategoriesPage').then((module) => ({
+    default: module.AllCategoriesPage,
   })),
 )
 
@@ -143,6 +156,12 @@ const ProfilePage = lazy(() =>
 const AdminDashboardPage = lazy(() =>
   import('./pages/Admin/AdminDashboardPage').then((module) => ({
     default: module.AdminDashboardPage,
+  })),
+)
+
+const AdminSecurityPage = lazy(() =>
+  import('./pages/Admin/AdminSecurityPage').then((module) => ({
+    default: module.AdminSecurityPage,
   })),
 )
 
@@ -296,25 +315,28 @@ function AppRoutes() {
   return (
     <>
       <ScrollToTop />
+      <SiteMotion />
       {!hideNavbar ? <Navbar /> : null}
       {!isNotFound ? <CartDrawer /> : null}
       {!isNotFound ? <AuthModal /> : null}
       <div className={`app-shell${isDashboardChrome ? ' app-shell--dashboard' : ''}`}>
         <Suspense fallback={<Spinner fullPage />}>
           <Routes>
-            <Route path="/" element={<Navigate to="/home" replace />} />
-            <Route path="/home" element={<ProductsBrowsePage />} />
-            <Route path="/Home" element={<Navigate to="/home" replace />} />
+            <Route path="/" element={<ProductsBrowsePage />} />
+            <Route path="/categories" element={<AllCategoriesPage />} />
+            <Route path="/home" element={<Navigate to="/" replace />} />
+            <Route path="/Home" element={<Navigate to="/" replace />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
-            <Route path="/products" element={<Navigate to="/home" replace />} />
-            <Route path="/Products" element={<Navigate to="/home" replace />} />
+            <Route path="/products" element={<Navigate to="/" replace />} />
+            <Route path="/Products" element={<Navigate to="/" replace />} />
             <Route path="/products/:slug" element={<ProductDetailsPage />} />
             <Route path="/Products/:slug" element={<ProductDetailsPage />} />
             <Route path="/3d-models" element={<ModelsBrowsePage />} />
+            <Route path="/3d-models/:categorySlug" element={<ModelsBrowsePage />} />
             <Route path="/3D-models" element={<Navigate to="/3d-models" replace />} />
             <Route path="/plugins" element={<PluginsBrowsePage />} />
             <Route path="/Plugins" element={<Navigate to="/plugins" replace />} />
@@ -393,6 +415,7 @@ function AppRoutes() {
               <Route path={`${ADMIN_BASE}/analytics`} element={<AdminAnalyticsPage />} />
               <Route path={`${ADMIN_BASE}/users`} element={<AdminUsersPage />} />
               <Route path={`${ADMIN_BASE}/users/:userId`} element={<AdminUserDetailPage />} />
+              <Route path={`${ADMIN_BASE}/security`} element={<AdminSecurityPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

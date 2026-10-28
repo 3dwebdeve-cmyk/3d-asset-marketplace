@@ -1,12 +1,15 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactElement, RefObject } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import type { RefObject } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { listTrendingCategories } from '../../api/categoriesApi'
 import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
+import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
-import { Button } from '../../components/ui/Button'
+import { useAllCategories } from '../../hooks/useAllCategories'
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
+import { HOME_DESCRIPTION, HOME_TITLE, buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
@@ -17,126 +20,76 @@ import '../../styles/products-browse.css'
 
 const HUB_PREVIEW_SIZE = 6
 
-type IconProps = { className?: string }
-type IconComponent = (props: IconProps) => ReactElement
-
 interface BrowseService {
   title: string
   description: string
   path: string
   buttonText: string
   iconSrc: string
+  iconWidth: number
+  iconHeight: number
 }
 
-function FurnitureIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M5 13h14v3H5v-3ZM7 16v3M17 16v3M6 13V9a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v4"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
+const CATEGORY_DISPLAY_ORDER = [
+  'furniture', 'products', 'toys', 'electronics', 'food-drink', 'character',
+  'industrial', '3d-printing', 'assets-props', 'interactive-webar',
+  'architectural-3d-models', 'interior-3d-models',
+]
 
-function VehiclesIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M4 14h16l-1.5-5.2A2 2 0 0 0 16.6 7H7.4a2 2 0 0 0-1.9 1.8L4 14Z"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path d="M4 14v3h2.5M20 14v3h-2.5M7 17.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM20 17.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" stroke="currentColor" strokeWidth="1.7" />
-    </svg>
-  )
-}
+const FALLBACK_CATEGORIES: CategoryPublic[] = [
+  ['furniture', 'Furniture'],
+  ['products', 'Products'],
+  ['toys', 'Toys'],
+  ['electronics', 'Electronics'],
+  ['food-drink', 'Food & Drink'],
+  ['character', 'Characters'],
+  ['industrial', 'Industrial'],
+  ['3d-printing', '3D Printing'],
+  ['assets-props', 'Assets & Props'],
+  ['interactive-webar', 'Interactive WebAR'],
+  ['architectural-3d-models', 'Architecture'],
+  ['interior-3d-models', 'Interiors'],
+].map(([slug, name]) => ({
+  id: `fallback-${slug}`,
+  name,
+  slug,
+  description: '',
+  image: '',
+  parent: null,
+  created_at: '2026-01-01T00:00:00Z',
+}))
 
-function ArchitectureIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M4 20h16M6 20V9l6-4 6 4v11M9 12h1M9 15h1M14 12h1M14 15h1"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function SciFiIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" />
-      <path
-        d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function DefaultCategoryIcon({ className }: IconProps) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 8v8M8 12h8" />
-    </svg>
-  )
-}
-
-const CATEGORY_ICONS: Record<string, IconComponent> = {
-  furniture: FurnitureIcon,
-  vehicles: VehiclesIcon,
-  architecture: ArchitectureIcon,
-  'sci-fi': SciFiIcon,
-  'sci-fi-assets': SciFiIcon,
-  scifi: SciFiIcon,
-}
-
-function getCategoryIcon(slug: string): IconComponent | undefined {
-  const normalized = slug.trim().toLowerCase()
-  if (CATEGORY_ICONS[normalized]) return CATEGORY_ICONS[normalized]
-  const match = Object.keys(CATEGORY_ICONS).find((key) => normalized.includes(key))
-  return match ? CATEGORY_ICONS[match] : undefined
-}
+// Demo catalog is for local development only. Production shows the real empty
+// state instead of invented products when the API returns nothing or fails.
+const SHOW_DEMO_FALLBACK = import.meta.env.DEV
 
 const BROWSE_SERVICES: BrowseService[] = [
   {
     title: '3D Models',
-    description: 'Explore high-quality production-ready 3D models in all categories.',
+    description: 'Browse production-ready 3D models of furniture, interiors, lighting, plants and more.',
     path: '/3d-models',
     buttonText: 'Shop 3D Models',
-    iconSrc: '/images/home/icon-3d-models.png',
+    iconSrc: '/images/home/icon-3d-models.webp',
+    iconWidth: 489,
+    iconHeight: 450,
   },
   {
     title: 'Plugins & Tools',
-    description: 'Power-up your workflow with professional Blender and Unreal plugins.',
+    description: 'Speed up your 3D workflow with Blender and Unreal plugins and tools.',
     path: '/plugins',
     buttonText: 'Explore Plugins',
-    iconSrc: '/images/home/icon-plugins.png',
+    iconSrc: '/images/home/icon-plugins.webp',
+    iconWidth: 476,
+    iconHeight: 535,
   },
   {
     title: 'Inquiry Portal',
-    description: 'Have a specific custom asset requirement? Our team is here to help.',
+    description: 'Need a custom 3D model, texture or render? Send your brief and our team will reply.',
     path: '/custom-projects',
     buttonText: 'Submit an Inquiry',
-    iconSrc: '/images/home/icon-inquiry.png',
+    iconSrc: '/images/home/icon-inquiry.webp',
+    iconWidth: 483,
+    iconHeight: 464,
   },
 ]
 
@@ -147,20 +100,36 @@ function useAutoScrollRail(
   useEffect(() => {
     const rail = railRef.current
     if (!rail || !enabled) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
 
     let paused = false
     let frame = 0
     let last = performance.now()
-    const speedPxPerSec = 36
+    const speedPxPerSec = 40
 
     const tick = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05)
       last = now
       if (!paused && rail.scrollWidth > rail.clientWidth + 1) {
-        const maxScroll = rail.scrollWidth - rail.clientWidth
-        const next = rail.scrollLeft + speedPxPerSec * dt
-        rail.scrollLeft = next >= maxScroll - 0.5 ? 0 : next
+        const firstDup = rail.querySelector('[data-cycle="1"]') as HTMLElement | null
+        const firstChild = rail.firstElementChild as HTMLElement | null
+        if (firstDup && firstChild) {
+          const cycleWidth = firstDup.offsetLeft - firstChild.offsetLeft
+          if (cycleWidth > 0) {
+            rail.scrollLeft += speedPxPerSec * dt
+            if (rail.scrollLeft >= cycleWidth) {
+              rail.scrollLeft -= cycleWidth
+            }
+          } else {
+            const maxScroll = rail.scrollWidth - rail.clientWidth
+            const next = rail.scrollLeft + speedPxPerSec * dt
+            rail.scrollLeft = next >= maxScroll - 0.5 ? 0 : next
+          }
+        } else {
+          const maxScroll = rail.scrollWidth - rail.clientWidth
+          const next = rail.scrollLeft + speedPxPerSec * dt
+          rail.scrollLeft = next >= maxScroll - 0.5 ? 0 : next
+        }
       }
       frame = requestAnimationFrame(tick)
     }
@@ -199,16 +168,37 @@ function useAutoScrollRail(
   }, [railRef, enabled])
 }
 
+function getRailDisplayItems<T extends { id: string }>(items: T[]) {
+  if (items.length <= 1) {
+    return items.map((item) => ({ item, cycle: 0, key: item.id }))
+  }
+  const minTarget = 8
+  const repetitions = Math.max(2, Math.ceil(minTarget / items.length))
+  const list: { item: T; cycle: number; key: string }[] = []
+  for (let cycle = 0; cycle < repetitions; cycle++) {
+    for (const item of items) {
+      list.push({
+        item,
+        cycle,
+        key: cycle === 0 ? item.id : `${item.id}-cycle-${cycle}`,
+      })
+    }
+  }
+  return list
+}
+
 const OFFER_SERVICES = [
   {
     title: 'Custom 3D Model',
     cta: 'Get Custom Model',
     icon: 'cube',
-    image: '/images/custom-3Dmodel.png',
-    summary: 'High-quality, custom 3D models built precisely for your project needs.',
+    image: '/images/custom-3Dmodel.webp',
+    imageWidth: 1536,
+    imageHeight: 1024,
+    summary: 'Custom 3D models for furniture, products and interiors, built precisely for your project.',
     points: [
-      'Product & game-ready models',
-      'Characters, props & environments',
+      'Furniture, product & game-ready models',
+      'Interiors, props & environments',
       'Clean & optimized topology',
       'Fully customized designs',
     ],
@@ -217,7 +207,9 @@ const OFFER_SERVICES = [
     title: 'Custom Plugin',
     cta: 'Get Custom Plugin',
     icon: 'plugin',
-    image: '/images/custom-plugin.png',
+    image: '/images/custom-plugin.webp',
+    imageWidth: 1536,
+    imageHeight: 1024,
     summary: 'Powerful Blender add-ons and tools to supercharge your workflow.',
     points: [
       'Custom Blender add-ons',
@@ -230,7 +222,9 @@ const OFFER_SERVICES = [
     title: 'Custom Texturing',
     cta: 'Get Custom Texture',
     icon: 'pencil',
-    image: '/images/custom-texture.png',
+    image: '/images/custom-texture.webp',
+    imageWidth: 1254,
+    imageHeight: 1254,
     summary: 'Realistic and stylized textures that bring your 3D models to life.',
     points: [
       'PBR & stylized texturing',
@@ -243,7 +237,9 @@ const OFFER_SERVICES = [
     title: 'Custom Rendering',
     cta: 'Get Custom Render',
     icon: 'camera',
-    image: '/images/custom-render.png',
+    image: '/images/custom-render.webp',
+    imageWidth: 1717,
+    imageHeight: 916,
     summary: 'High-quality renders with perfect lighting, composition and detail.',
     points: [
       'Photorealistic renders',
@@ -294,7 +290,7 @@ function ServiceModule({ service }: { service: BrowseService }) {
   return (
     <article className="browse-service-card">
       <div className="browse-service-card__copy">
-        <h3 className="browse-service-card__title">{service.title}</h3>
+        <h2 className="browse-service-card__title">{service.title}</h2>
         <p className="browse-service-card__text">{service.description}</p>
         <Link to={service.path} className="browse-service-card__btn">
           {service.buttonText}
@@ -304,57 +300,14 @@ function ServiceModule({ service }: { service: BrowseService }) {
         <img
           src={service.iconSrc}
           alt=""
+          width={service.iconWidth}
+          height={service.iconHeight}
           className="browse-service-card__icon-img"
           loading="lazy"
           decoding="async"
         />
       </div>
     </article>
-  )
-}
-
-function CategoryTile({
-  category,
-  onSelect,
-}: {
-  category: CategoryPublic
-  onSelect: () => void
-}) {
-  const [imgError, setImgError] = useState(false)
-  const IconComponent = getCategoryIcon(category.slug)
-
-  return (
-    <button
-      type="button"
-      className="browse-category-card"
-      onClick={onSelect}
-      aria-label={`Browse ${category.name} 3D models`}
-    >
-      <div className="browse-category-card__media">
-        {category.image && !imgError ? (
-          <img
-            src={category.image}
-            alt=""
-            className="browse-category-card__image"
-            onError={() => setImgError(true)}
-            loading="lazy"
-          />
-        ) : (
-          <div className="browse-category-card__placeholder" aria-hidden="true" />
-        )}
-        <div className="browse-category-card__overlay" aria-hidden="true" />
-      </div>
-      <div className="browse-category-card__content">
-        <div className="browse-category-card__icon-badge" aria-hidden="true">
-          {IconComponent ? (
-            <IconComponent className="browse-category-card__icon" />
-          ) : (
-            <DefaultCategoryIcon className="browse-category-card__icon" />
-          )}
-        </div>
-        <span className="browse-category-card__name">{category.name}</span>
-      </div>
-    </button>
   )
 }
 
@@ -366,6 +319,7 @@ export function ProductsBrowsePage() {
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const viewAll = searchParams.get('view') === 'all'
   const isCatalogMode = Boolean(searchFromUrl || categoryFromUrl || viewAll)
+  const { data: allCategories } = useAllCategories(!isCatalogMode)
 
   useEffect(() => {
     clearPostLogoutRedirect()
@@ -385,16 +339,14 @@ export function ProductsBrowsePage() {
   const pluginsRailRef = useRef<HTMLDivElement>(null)
 
   const { data: trendingCategories = [] } = useQuery({
-    queryKey: ['public-categories-trending', { limit: 12 }],
-    queryFn: () => listTrendingCategories(12),
+    queryKey: ['public-categories-trending', { limit: 50 }],
+    queryFn: () => listTrendingCategories(50),
     staleTime: 1000 * 60,
   })
 
   const {
     data: productsData,
     isLoading,
-    isError,
-    refetch,
   } = useQuery({
     queryKey: ['public-products-browse', 'hub'],
     queryFn: () =>
@@ -410,7 +362,6 @@ export function ProductsBrowsePage() {
   const {
     data: pluginsData,
     isLoading: pluginsLoading,
-    isError: pluginsError,
   } = useQuery({
     queryKey: ['public-plugins-hub-preview'],
     queryFn: () =>
@@ -423,20 +374,40 @@ export function ProductsBrowsePage() {
     enabled: !isCatalogMode,
   })
 
-  const filteredProducts = useMemo(() => productsData?.results ?? [], [productsData])
+  const filteredProducts = useMemo(
+    () => productsData?.results ?? [],
+    [productsData],
+  )
 
-  const categories = trendingCategories.slice(0, 12)
+  const categoriesSource = trendingCategories.length
+    ? trendingCategories
+    : SHOW_DEMO_FALLBACK ? FALLBACK_CATEGORIES : []
+  const categories = [...categoriesSource].sort((a, b) => {
+    const rank = (slug: string) => {
+      const index = CATEGORY_DISPLAY_ORDER.indexOf(slug.trim().toLowerCase())
+      return index === -1 ? CATEGORY_DISPLAY_ORDER.length : index
+    }
+    return rank(a.slug) - rank(b.slug)
+  }).slice(0, 12)
   const plugins = pluginsData?.results ?? []
 
-  useAutoScrollRail(productsRailRef, !isCatalogMode && filteredProducts.length > 1)
-  useAutoScrollRail(pluginsRailRef, !isCatalogMode && plugins.length > 1)
+  useAutoScrollRail(productsRailRef, !isCatalogMode && !isLoading && filteredProducts.length > 1)
+  useAutoScrollRail(pluginsRailRef, !isCatalogMode && !pluginsLoading && plugins.length > 1)
+
+  useDocumentSeo({
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
+    canonicalPath: '/',
+    jsonLd: [buildOrganizationJsonLd(), buildWebSiteJsonLd()],
+  })
 
   if (!isCatalogMode) {
     return (
       <main className="products-browse-page products-browse-page--hub">
         <MarketplaceHero />
 
-        <section className="browse-service-cards" aria-label="Marketplace modules">
+        <section className="browse-service-cards" aria-labelledby="marketplace-services-heading">
+          <h2 id="marketplace-services-heading" className="visually-hidden">Explore the AssetHive3D marketplace</h2>
           {BROWSE_SERVICES.map((service) => (
             <ServiceModule key={service.path} service={service} />
           ))}
@@ -451,6 +422,10 @@ export function ProductsBrowsePage() {
             <h2 id="trending-categories-heading" className="browse-rail-section__title">
               Trending Categories
             </h2>
+            <Link className="browse-rail-section__view-all" to="/categories">
+              View all {allCategories ? `${allCategories.length} ` : ''}
+              {allCategories?.length === 1 ? 'category' : 'categories'} →
+            </Link>
           </div>
           <div className="browse-category-grid">
             {categories.length === 0 ? (
@@ -460,10 +435,7 @@ export function ProductsBrowsePage() {
                 <CategoryTile
                   key={category.id}
                   category={category}
-                  onSelect={() => {
-                    trackCategoryClick(category.id)
-                    navigate(`/3d-models?category=${encodeURIComponent(category.id)}`)
-                  }}
+                  onSelect={() => trackCategoryClick(category.id)}
                 />
               ))
             )}
@@ -488,24 +460,19 @@ export function ProductsBrowsePage() {
                 </div>
               ))}
             </div>
-          ) : isError ? (
-            <div className="products-error-state">
-              <h3>Failed to load products</h3>
-              <p>We encountered an issue fetching models from the marketplace catalog.</p>
-              <Button variant="secondary" onClick={() => refetch()}>
-                Try Again
-              </Button>
-            </div>
-          ) : filteredProducts.length === 0 ? (
-            <p className="browse-rail__empty">No 3D models are available yet.</p>
           ) : (
             <div
               className="browse-rail browse-rail--cards browse-rail--auto"
               ref={productsRailRef}
               aria-label="Shop 3D Models"
             >
-              {filteredProducts.map((product) => (
-                <div key={product.id} className="browse-rail__item">
+              {getRailDisplayItems(filteredProducts).map(({ item: product, cycle, key }) => (
+                <div
+                  key={key}
+                  className="browse-rail__item"
+                  data-cycle={cycle}
+                  inert={cycle > 0 ? true : undefined}
+                >
                   <ProductCard product={product} />
                 </div>
               ))}
@@ -513,7 +480,7 @@ export function ProductsBrowsePage() {
           )}
         </section>
 
-        <section className="browse-rail-section" aria-labelledby="explore-plugins-heading">
+        <section className="browse-rail-section browse-rail-section--plugins" aria-labelledby="explore-plugins-heading">
           <div className="browse-rail-section__header">
             <h2 id="explore-plugins-heading" className="browse-rail-section__title">
               Explore Plugins
@@ -531,18 +498,19 @@ export function ProductsBrowsePage() {
                 </div>
               ))}
             </div>
-          ) : pluginsError ? (
-            <p className="browse-rail__empty">Plugins could not be loaded right now.</p>
-          ) : plugins.length === 0 ? (
-            <p className="browse-rail__empty">No plugins are available yet.</p>
           ) : (
             <div
               className="browse-rail browse-rail--cards browse-rail--auto"
               ref={pluginsRailRef}
               aria-label="Explore Plugins"
             >
-              {plugins.map((plugin) => (
-                <div key={plugin.id} className="browse-rail__item">
+              {getRailDisplayItems(plugins).map(({ item: plugin, cycle, key }) => (
+                <div
+                  key={key}
+                  className="browse-rail__item"
+                  data-cycle={cycle}
+                  inert={cycle > 0 ? true : undefined}
+                >
                   <PluginCard plugin={plugin} />
                 </div>
               ))}
@@ -562,7 +530,8 @@ export function ProductsBrowsePage() {
           <div className="hub-offer__grid">
             {OFFER_SERVICES.map((offer) => (
               <article key={offer.title} className="hub-offer__card">
-                <div className="hub-offer__media">
+                {/* tabIndex lets a tap or keyboard focus reveal the details via :focus-within. */}
+                <div className="hub-offer__media" tabIndex={0}>
                   {offer.image ? (
                     <img
                       className={
@@ -571,7 +540,9 @@ export function ProductsBrowsePage() {
                           : 'hub-offer__thumb'
                       }
                       src={offer.image}
-                      alt=""
+                      alt={`${offer.title} service preview`}
+                      width={offer.imageWidth}
+                      height={offer.imageHeight}
                       loading="lazy"
                       decoding="async"
                     />

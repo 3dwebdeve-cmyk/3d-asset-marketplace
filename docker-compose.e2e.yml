@@ -9,8 +9,14 @@
 # Never commit real secrets; CI writes a disposable .env from placeholders.
 
 services:
+  migrate:
+    environment:
+      DEPLOYMENT_PROFILE: test
+      E2E_STRIPE_SIMULATE: "False"
+
   web:
     environment:
+      DEPLOYMENT_PROFILE: test
       E2E_STRIPE_SIMULATE: "True"
       # Placeholder test-mode key only — not a real Stripe credential.
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_e2e_ci_placeholder_not_a_real_secret}
@@ -22,6 +28,29 @@ services:
       ALLOW_LOCALHOST_FRONTEND: "True"
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       SENTRY_DSN: ""
+      # The E2E stack is plain HTTP with console mail, unlike the secure base defaults.
+      SECURE_SSL_REDIRECT: "False"
+      SECURE_HSTS_SECONDS: "0"
+      ALLOW_CONSOLE_EMAIL: "True"
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      DJANGO_ADMIN_ENABLED: "True"
+      # Browser E2E signs the seeded admin in with a password. Allowed only on the
+      # test/development profiles; backend tests cover the two-factor flow.
+      ADMIN_MFA_REQUIRED: "False"
+      # CI must not depend on haveibeenpwned.com.
+      PASSWORD_BREACH_CHECK: "False"
+
+  # worker extends the base web service, so it does not inherit web's overrides above.
+  worker:
+    environment:
+      DEPLOYMENT_PROFILE: test
+      ALLOW_LOCALHOST_FRONTEND: "True"
+      # The E2E stack is plain HTTP with console mail, unlike the secure base defaults.
+      SECURE_SSL_REDIRECT: "False"
+      SECURE_HSTS_SECONDS: "0"
+      ALLOW_CONSOLE_EMAIL: "True"
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+      DJANGO_ADMIN_ENABLED: "True"
 
   frontend:
     environment: {}

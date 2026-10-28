@@ -1,8 +1,10 @@
+import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { listCustomerOrders } from '../../api/ordersApi'
+import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Pagination } from '../../components/ui/Pagination'
@@ -11,6 +13,7 @@ import {
   OrderPaymentStatusBadge,
   OrderStatusBadge,
 } from '../../components/ui/StatusBadge'
+import { useOrderDownloads } from '../../hooks/useOrderDownloads'
 import { isAdministrator } from '../../lib/roles'
 import { useAuthStore } from '../../store/authStore'
 import {
@@ -27,6 +30,12 @@ type StatusFilter = '' | OrderStatus
 type PaymentFilter = '' | OrderPaymentStatus
 
 export function MyOrdersPage() {
+  useDocumentSeo({
+    title: 'My orders | AssetHive 3D',
+    description: 'View your AssetHive 3D order history.',
+    robots: 'noindex, nofollow',
+  })
+
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
@@ -35,15 +44,15 @@ export function MyOrdersPage() {
   const [page, setPage] = useState(1)
   const [orderStatus, setOrderStatus] = useState<StatusFilter>('')
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilter>('')
+  const { downloadInvoice, invoiceError, downloadingInvoiceId } = useOrderDownloads()
 
   const ordersQuery = useQuery({
-    queryKey: ['orders', 'custom-project', { page, orderStatus, paymentStatus }],
+    queryKey: ['orders', 'list', { page, orderStatus, paymentStatus }],
     queryFn: () =>
       listCustomerOrders({
         page,
         page_size: PAGE_SIZE,
         ordering: '-created_at',
-        item_type: 'custom_project',
         order_status: orderStatus || undefined,
         payment_status: paymentStatus || undefined,
       }),
@@ -74,10 +83,10 @@ export function MyOrdersPage() {
     <main className="dash-list-page" aria-labelledby="my-orders-title">
       <header className="dash-list-page__header">
         <h1 id="my-orders-title" className="dash-list-page__title">
-          My Orders
+          Orders &amp; invoices
         </h1>
         <p className="dash-list-page__subtitle">
-          Payments for custom work you commissioned from the studio.
+          Your marketplace purchases and custom work payments, with downloadable invoices.
         </p>
       </header>
 
@@ -110,14 +119,11 @@ export function MyOrdersPage() {
       ) : isTrulyEmpty ? (
         <section className="dash-list-page__card">
           <p className="dash-list-page__status" role="status">
-            You have no custom project orders yet. Send us a project enquiry to get started.
+            You have no orders yet. Purchased models, plugins and custom work will appear here.
           </p>
           <div className="dash-list-page__actions">
-            <Link
-              className="dash-list-page__btn dash-list-page__btn--primary"
-              to="/contact?enquiryType=Custom%203D%20Modeling"
-            >
-              Request custom work
+            <Link className="dash-list-page__btn dash-list-page__btn--primary" to="/3d-models">
+              Browse 3D models
             </Link>
             <Link className="dash-list-page__btn" to="/custom-projects">
               Learn about custom work
@@ -161,6 +167,8 @@ export function MyOrdersPage() {
             </label>
           </div>
 
+          {invoiceError ? <Alert variant="error" message={invoiceError} /> : null}
+
           <section className="dash-list-page__card">
             <div className="dash-list-page__table-wrap">
               <table className="dash-list-page__table">
@@ -172,6 +180,7 @@ export function MyOrdersPage() {
                     <th scope="col">Order status</th>
                     <th scope="col">Payment</th>
                     <th scope="col">Items</th>
+                    <th scope="col">Invoice PDF</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -208,6 +217,25 @@ export function MyOrdersPage() {
                           <OrderPaymentStatusBadge status={order.payment_status} />
                         </td>
                         <td>{order.item_count}</td>
+                        <td>
+                          {order.order_status === 'paid' && order.payment_status === 'paid' ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              isLoading={downloadingInvoiceId === order.id}
+                              aria-label={`Download invoice ${order.invoice_number}`}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void downloadInvoice(order.id, order.invoice_number)
+                              }}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              Download
+                            </Button>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                       </tr>
                     )
                   })}

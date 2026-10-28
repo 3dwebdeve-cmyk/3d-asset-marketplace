@@ -1,9 +1,13 @@
 import io
 import tempfile
+import struct
+from zipfile import ZipFile
 from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.test import override_settings
 from django.urls import reverse
 from PIL import Image
@@ -20,6 +24,19 @@ def make_image_bytes(format_name: str = "PNG", size=(64, 64), color=(20, 120, 20
     buffer = io.BytesIO()
     image = Image.new("RGB", size, color=color)
     image.save(buffer, format=format_name)
+    return buffer.getvalue()
+
+
+def make_glb_bytes():
+    document = b'{"asset":{"version":"2.0"}}'
+    document += b" " * (-len(document) % 4)
+    return struct.pack("<4sIIII", b"glTF", 2, 20 + len(document), len(document), 0x4E4F534A) + document
+
+
+def make_usdz_bytes():
+    buffer = io.BytesIO()
+    with ZipFile(buffer, "w") as archive:
+        archive.writestr("chair.usda", '#usda 1.0\n')
     return buffer.getvalue()
 
 
@@ -62,12 +79,29 @@ class ProductPublicAPITests(APITestCase):
             kwargs={"slug": "oak-chair"},
         )
 
+    def test_catalog_response_supports_conditional_etag_requests(self) -> None:
+        first = self.client.get(self.list_url)
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertTrue(first.get("ETag"))
+
+        second = self.client.get(self.list_url, HTTP_IF_NONE_MATCH=first["ETag"])
+        self.assertEqual(second.status_code, status.HTTP_304_NOT_MODIFIED)
+        self.assertEqual(second.get("ETag"), first.get("ETag"))
+
+        # Browsers send back the weak form that compression produces, sometimes in a list.
+        weak = self.client.get(self.list_url, HTTP_IF_NONE_MATCH=f'"other", W/{first["ETag"]}')
+        self.assertEqual(weak.status_code, status.HTTP_304_NOT_MODIFIED)
+        stale = self.client.get(self.list_url, HTTP_IF_NONE_MATCH='W/"other"')
+        self.assertEqual(stale.status_code, status.HTTP_200_OK)
+
     def test_list_returns_only_published_products(self) -> None:
         response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
+        # An archive says nothing about the model formats, so it is not listed.
+        self.assertEqual(response.data["results"][0]["formats"], [])
         self.assertIn("public", (response.get("Cache-Control") or "").lower())
 
     def test_list_excludes_pending_review_and_rejected(self) -> None:
@@ -247,14 +281,14 @@ class ProductAdminAPITests(APITestCase):
                 "name": "Glass Pavilion",
                 "price": "89.50",
                 "short_description": "Modern glass structure",
-                "status": "published",
+                "status": "draft",
             },
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["slug"], "glass-pavilion")
-        self.assertEqual(response.data["status"], "published")
+        self.assertEqual(response.data["status"], "draft")
         self.assertTrue(Product.objects.filter(slug="glass-pavilion").exists())
 
     def test_admin_rejects_inactive_category(self) -> None:
@@ -277,12 +311,26 @@ class ProductAdminAPITests(APITestCase):
 
     def test_admin_update_product(self) -> None:
         self._authenticate_as_admin()
+        package_path = default_storage.save('products/files/admin-update.zip', ContentFile(b'package'))
+        ProductFile.objects.create(product=self.product, file_name='admin-update.zip', file_format='zip',
+                                   file_size=7, storage_path=package_path)
 
-        response = self.client.patch(
+        # Publishing is only through the review queue, so a direct PATCH is refused.
+        direct = self.client.patch(
             self.detail_url,
-            {"status": "published", "price": "150.00"},
+            {"status": "published", "price": "150.00", "preview_model": "https://example.com/model.glb"},
             format="json",
         )
+        self.assertEqual(direct.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.client.patch(
+            self.detail_url,
+            {"status": "pending_review", "sku": "ADMIN-UPDATE-001", "price": "150.00",
+             "preview_model": "https://example.com/model.glb"},
+            format="json",
+        )
+        approve_url = reverse("products_admin:admin-product-approve", kwargs={"product_id": self.product.pk})
+        response = self.client.post(approve_url, {}, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.product.refresh_from_db()
@@ -541,6 +589,7 @@ class ProductMediaUploadAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("/media/products/images/", response.data["image_url"])
+        self.assertTrue(response.data["image_url"].endswith(".webp"))
         self.product.refresh_from_db()
         self.assertIn("/media/products/images/", self.product.thumbnail)
         self.assertEqual(ProductImage.objects.filter(product=self.product).count(), 1)
@@ -561,11 +610,30 @@ class ProductMediaUploadAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_upload_rejects_excessive_image_dimensions(self) -> None:
+        self._authenticate_as_admin()
+        # A highly-compressible solid image stays below the byte limit but must
+        # still be rejected before it can consume excessive browser/server RAM.
+        image = SimpleUploadedFile(
+            "oversized.png",
+            make_image_bytes(size=(5_000, 5_000)),
+            content_type="image/png",
+        )
+
+        response = self.client.post(
+            self.images_url,
+            {"image": image},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("20 megapixel", str(response.data))
+
     def test_upload_preview_file_sets_preview_model(self) -> None:
         self._authenticate_as_admin()
         glb = SimpleUploadedFile(
             "preview.glb",
-            b"glTF binary placeholder content",
+            make_glb_bytes(),
             content_type="model/gltf-binary",
         )
 
@@ -587,7 +655,7 @@ class ProductMediaUploadAPITests(APITestCase):
         self._authenticate_as_admin()
         glb = SimpleUploadedFile(
             "auto-preview.glb",
-            b"glTF binary auto preview content",
+            make_glb_bytes(),
             content_type="model/gltf-binary",
         )
 
@@ -606,7 +674,7 @@ class ProductMediaUploadAPITests(APITestCase):
         self._authenticate_as_admin()
         usdz = SimpleUploadedFile(
             "chair.usdz",
-            b"PK\x03\x04 usdz placeholder content",
+            make_usdz_bytes(),
             content_type="model/vnd.usdz+zip",
         )
 

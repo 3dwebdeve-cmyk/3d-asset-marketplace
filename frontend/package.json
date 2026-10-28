@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "deploy": "npm run build && wrangler deploy",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
@@ -14,14 +15,14 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
-    "@sentry/react": "^10.75.0",
+    "@sentry/react": "^11.8.0",
     "@tanstack/react-query": "^5.101.2",
-    "axios": "^1.18.1",
+    "axios": "^1.20.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.81.0",
-    "react-router-dom": "^7.18.1",
-    "three": "^0.185.1",
+    "react-router-dom": "^7.18.4",
+    "three": "^0.186.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
@@ -35,8 +36,14 @@
     "@vitejs/plugin-react": "^6.0.3",
     "jsdom": "^29.1.1",
     "oxlint": "^1.71.0",
-    "typescript": "~6.0.2",
+    "sharp": "0.35.5",
+    "typescript": "^7.0.2",
     "vite": "^8.1.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.12",
+    "wrangler": "^4.148.0"
+  },
+  "overrides": {
+    "sharp": "0.35.5",
+    "undici": "7.30.1"
   }
 }

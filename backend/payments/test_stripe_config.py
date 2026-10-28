@@ -165,3 +165,68 @@ class CheckStripeConfigCommandTests(TestCase):
         with self.assertRaises(CommandError) as ctx:
             call_command("check_stripe_config", ping=True)
         self.assertIn("Balance.retrieve failed", str(ctx.exception))
+
+
+@override_settings(
+    DEBUG=False,
+    STRIPE_PAYMENT_MODE="live",
+    STRIPE_SECRET_KEY="sk_live_dummy",
+    STRIPE_PUBLISHABLE_KEY="pk_live_dummy",
+    STRIPE_WEBHOOK_SECRET="whsec_livesecret",
+    E2E_STRIPE_SIMULATE=False,
+)
+class CheckStripeConfigLiveModeTests(TestCase):
+    def test_ready_live(self) -> None:
+        out = StringIO()
+        call_command(
+            "check_stripe_config",
+            require_live_mode=True,
+            fail_on_warnings=True,
+            stdout=out,
+        )
+        text = out.getvalue()
+        self.assertIn("STRIPE_PAYMENT_MODE=live", text)
+        self.assertIn("Stripe config looks ready", text)
+        self.assertIn("real purchase", text)
+        self.assertNotIn("stripe listen", text)
+        self.assertNotIn("sk_live_dummy", text)
+        self.assertNotIn("whsec_livesecret", text)
+
+    def test_live_keys_with_test_payment_mode_fail(self) -> None:
+        # Checkout refuses every payment when the key and the mode disagree.
+        with override_settings(STRIPE_PAYMENT_MODE="test"):
+            report = collect_stripe_config_report(require_live_mode=True)
+            self.assertTrue(any("STRIPE_PAYMENT_MODE must be live" in w for w in report.warnings))
+            with self.assertRaises(CommandError) as ctx:
+                call_command("check_stripe_config", require_live_mode=True, fail_on_warnings=True, stdout=StringIO())
+        self.assertIn("STRIPE_LIVE_CHECKLIST", str(ctx.exception))
+
+    def test_test_keys_fail_live_check(self) -> None:
+        with override_settings(STRIPE_SECRET_KEY="sk_test_dummy", STRIPE_PUBLISHABLE_KEY="pk_test_dummy"):
+            report = collect_stripe_config_report(require_live_mode=True)
+        self.assertTrue(any("sk_live_" in w for w in report.warnings))
+        self.assertTrue(any("pk_live_" in w for w in report.warnings))
+
+    def test_modes_are_exclusive(self) -> None:
+        with self.assertRaises(CommandError):
+            call_command("check_stripe_config", require_live_mode=True, require_test_mode=True)
+        with self.assertRaises(CommandError):
+            call_command("check_stripe_config", require_live_mode=True, smoke_fulfill=True)
+
+    @patch(
+        "payments.management.commands.check_stripe_config.ping_stripe_api",
+        return_value="test",
+    )
+    def test_ping_must_answer_live(self, _mock_ping: MagicMock) -> None:
+        with self.assertRaises(CommandError) as ctx:
+            call_command("check_stripe_config", require_live_mode=True, ping=True, stdout=StringIO())
+        self.assertIn("test mode", str(ctx.exception))
+
+    @patch(
+        "payments.management.commands.check_stripe_config.ping_stripe_api",
+        return_value="live",
+    )
+    def test_ping_live_ok(self, _mock_ping: MagicMock) -> None:
+        out = StringIO()
+        call_command("check_stripe_config", require_live_mode=True, ping=True, stdout=out)
+        self.assertIn("livemode=live", out.getvalue())

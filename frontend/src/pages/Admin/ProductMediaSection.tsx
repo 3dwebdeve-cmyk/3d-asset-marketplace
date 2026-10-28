@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { lazy, Suspense, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent } from 'react'
 
 import {
@@ -35,6 +35,8 @@ interface ProductMediaSectionProps {
   productId: string
   product: AdminProduct
 }
+
+const ModelViewer = lazy(() => import('../../components/viewer/ModelViewer'))
 
 export function ProductMediaSection({ productId, product }: ProductMediaSectionProps) {
   const queryClient = useQueryClient()
@@ -122,6 +124,12 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
 
   const uploadFile = (file: File) => {
     setMediaError(null)
+    const maxMb = isPreviewModelFile(file) ? PRODUCT_PREVIEW_MAX_MB : PRODUCT_FILE_MAX_MB
+    if (file.size > maxMb * 1024 * 1024) {
+      setMediaError(`${isPreviewModelFile(file) ? 'Preview model' : 'File'} must be ${maxMb} MB or smaller.`)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
     fileUploadMutation.mutate(file)
   }
 
@@ -164,6 +172,23 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
         Upload gallery images for thumbnails and downloadable 3D model files for customers.
       </p>
       {mediaError ? <Alert variant="error" message={mediaError} /> : null}
+
+      <div className="admin-media-panel">
+        <h3 className="admin-media-panel__title">3D preview</h3>
+        {product.preview_model ? (
+          <Suspense fallback={<Spinner label="Loading 3D viewer..." />}>
+            <ModelViewer
+              key={product.preview_model}
+              modelUrl={product.preview_model}
+              ariaLabel={`3D preview of ${product.name}`}
+            />
+          </Suspense>
+        ) : (
+          <p className="home-page__subtitle">
+            Upload a GLB or self-contained GLTF file (max {PRODUCT_PREVIEW_MAX_MB} MB) below to test the 3D preview. Other formats are downloads only.
+          </p>
+        )}
+      </div>
 
       <div className="admin-media-panel">
         <h3 className="admin-media-panel__title">Product images</h3>
@@ -240,7 +265,7 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
                       type="button"
                       variant="secondary"
                       isLoading={imageDeleteMutation.isPending}
-                      onClick={() => imageDeleteMutation.mutate(image.id)}
+                      onClick={() => window.confirm('Remove this image?') && imageDeleteMutation.mutate(image.id)}
                     >
                       Remove
                     </Button>
@@ -339,7 +364,7 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
                       type="button"
                       variant="secondary"
                       isLoading={fileDeleteMutation.isPending}
-                      onClick={() => fileDeleteMutation.mutate(file.id)}
+                      onClick={() => window.confirm('Remove this package file? Buyers will no longer be able to download it.') && fileDeleteMutation.mutate(file.id)}
                     >
                       Remove
                     </Button>

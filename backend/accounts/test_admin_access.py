@@ -62,10 +62,14 @@ class AdministratorAccessAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(
-            response.data.get("detail"),
-            "Administrators must use the admin sign-in page.",
+        wrong_password = self.client.post(
+            self.login_url,
+            {"email": self.admin_user.email, "password": "Wrong-password-1!"},
+            format="json",
         )
+        # A correct admin password must be indistinguishable from a wrong one.
+        self.assertEqual(response.data, wrong_password.data)
+        self.assertEqual(response.data.get("detail"), "Invalid email or password.")
         self.assertNotIn("access", response.data)
 
     def test_customer_login_allows_customer(self) -> None:

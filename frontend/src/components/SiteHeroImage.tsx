@@ -1,8 +1,14 @@
-export const SITE_HERO_IMAGE_SRC = '/images/site-hero-banner.webp?v=9'
-export const PLUGINS_HERO_IMAGE_SRC = '/images/plugins-hero.webp?v=5'
-export const CUSTOM_PROJECTS_HERO_IMAGE_SRC = '/images/custom-projects-hero.webp?v=3'
-export const CONTACT_HERO_IMAGE_SRC = '/images/contact-hero.webp?v=2'
-export const ABOUT_HERO_IMAGE_SRC = '/images/about/about-hero.webp?v=7'
+import '../styles/mobile-hero.css'
+import { HERO_IMAGE_SIZES, SITE_HERO_IMAGE_SRC, heroSrcSet } from '../lib/heroBanners'
+
+export {
+  SITE_HERO_IMAGE_SRC,
+  PLUGINS_HERO_IMAGE_SRC,
+  MODELS_HERO_IMAGE_SRC,
+  CUSTOM_PROJECTS_HERO_IMAGE_SRC,
+  CONTACT_HERO_IMAGE_SRC,
+  ABOUT_HERO_IMAGE_SRC,
+} from '../lib/heroBanners'
 
 type SiteHeroImageProps = {
   src?: string
@@ -19,10 +25,11 @@ export function SiteHeroImage({
     <img
       className="site-hero-banner__image"
       src={src}
+      srcSet={heroSrcSet(src)}
       alt=""
       width={width}
       height={height}
-      sizes="100vw"
+      sizes={HERO_IMAGE_SIZES}
       decoding="async"
       fetchPriority="high"
     />

@@ -1,7 +1,8 @@
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { useCart } from '../../hooks/useCart'
+import { useOwnedItems } from '../../hooks/useOwnedItems'
 import type { CartProductType } from '../../types/cart'
 import { Button } from '../ui/Button'
 
@@ -11,6 +12,7 @@ interface AddToCartButtonProps {
   productName: string
   className?: string
   variant?: 'chip' | 'primary' | 'icon' | 'full' | 'marketplace'
+  guestLabel?: string
 }
 
 export function AddToCartButton({
@@ -19,12 +21,40 @@ export function AddToCartButton({
   productName,
   className,
   variant = 'chip',
+  guestLabel,
 }: AddToCartButtonProps) {
   const location = useLocation()
   const { isSignedIn, isInCart, add, isPending } = useCart()
+  const { isOwned } = useOwnedItems()
 
   const returnTo = location.pathname
   const inCart = isInCart(productType, productId)
+
+  // Bought already: offer the download instead of a second purchase.
+  if (isSignedIn && isOwned(productType, productId)) {
+    const ownedClass = {
+      marketplace: 'product-card__add-cart product-card__add-cart--owned',
+      icon: 'product-detail-stage__overlay-btn product-detail-stage__overlay-btn--active',
+      full: 'ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link',
+      primary: 'ui-button ui-button--primary product-detail-cta__full product-detail-cta__link',
+      chip: 'ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link',
+    }[variant]
+    return (
+      <Link
+        to="/dashboard/downloads"
+        className={`${ownedClass} ${className ?? ''}`.trim()}
+        aria-label={`You own ${productName}. Go to your downloads`}
+      >
+        {variant === 'icon' ? (
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <span>{variant === 'marketplace' ? 'Owned' : 'Owned · Download'}</span>
+        )}
+      </Link>
+    )
+  }
 
   if (variant === 'marketplace') {
     const classes = `product-card__add-cart ${inCart ? 'product-card__add-cart--active' : ''} ${className ?? ''}`.trim()
@@ -68,6 +98,14 @@ export function AddToCartButton({
   }
 
   if (variant === 'icon') {
+    const iconCart = (
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="9" cy="20" r="1.5" />
+        <circle cx="17" cy="20" r="1.5" />
+        <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+
     if (!isSignedIn) {
       return (
         <AuthEntryButton
@@ -76,7 +114,7 @@ export function AddToCartButton({
           className={`product-detail-stage__overlay-btn ${className ?? ''}`.trim()}
           aria-label={`Sign in to add ${productName} to cart`}
         >
-          <span aria-hidden="true">🛒</span>
+          {iconCart}
         </AuthEntryButton>
       )
     }
@@ -92,7 +130,7 @@ export function AddToCartButton({
           add(productType, productId)
         }}
       >
-        <span aria-hidden="true">🛒</span>
+        {iconCart}
       </button>
     )
   }
@@ -105,7 +143,7 @@ export function AddToCartButton({
           returnTo={returnTo}
           className={`ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link ${className ?? ''}`.trim()}
         >
-          Sign in to add to cart
+          {guestLabel ?? 'Sign in to add to cart'}
         </AuthEntryButton>
       )
     }
@@ -139,6 +177,14 @@ export function AddToCartButton({
       ? `ui-button ui-button--primary product-detail-cta__full ${className ?? ''}`.trim()
       : `product-detail-cta__chip ${className ?? ''}`.trim()
 
+  const cartIconSvg = (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '6px', verticalAlign: '-2px' }}>
+      <circle cx="9" cy="20" r="1.5" />
+      <circle cx="17" cy="20" r="1.5" />
+      <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+
   if (!isSignedIn) {
     return (
       <AuthEntryButton
@@ -150,7 +196,14 @@ export function AddToCartButton({
             : `ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link ${className ?? ''}`.trim()
         }
       >
-        Sign in to add to cart
+        {variant === 'primary' ? (
+          <>
+            {cartIconSvg}
+            Add to Shopping Cart
+          </>
+        ) : (
+          'Sign in to add to cart'
+        )}
       </AuthEntryButton>
     )
   }
@@ -169,7 +222,8 @@ export function AddToCartButton({
       }}
       title={inCart ? `${productName} is already in your cart` : undefined}
     >
-      {inCart ? 'In cart' : idleLabel}
+      {variant === 'primary' && cartIconSvg}
+      {inCart ? (variant === 'primary' ? 'In Shopping Cart' : 'In cart') : idleLabel}
     </Button>
   )
 }
