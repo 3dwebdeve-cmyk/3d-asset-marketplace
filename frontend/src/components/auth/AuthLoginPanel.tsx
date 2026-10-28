@@ -192,7 +192,7 @@ export function AuthLoginPanel({
             className="auth-check__input"
             {...register('remember_me')}
           />
-          <span className="auth-check__label">Remember this device for 30 days</span>
+          <span className="auth-check__label">Save the password</span>
         </label>
 
         <Button

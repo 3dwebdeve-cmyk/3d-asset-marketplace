@@ -277,7 +277,7 @@ describe('ProductDetailsPage', () => {
     expect(screen.getByText(/^triangles$/i)).toBeInTheDocument()
     expect(screen.getByText('12,000')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /close/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /show 3d preview/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /show 3d preview/i })).toBeInTheDocument()
     expect(
       screen.getByRole('group', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
