@@ -4,13 +4,6 @@ interface ProductSpecsProps {
   product: PublicProductDetail
 }
 
-function formatCount(value: number | null): string {
-  if (value === null || Number.isNaN(value)) {
-    return '—'
-  }
-  return value.toLocaleString()
-}
-
 function yesNo(value: boolean): string {
   return value ? 'Yes' : 'No'
 }
@@ -93,15 +86,11 @@ function SpecIcon({ name }: { name: string }) {
 export function ProductSpecs({ product }: ProductSpecsProps) {
   const rows: Array<{ label: string; value: string }> = [
     { label: 'Category', value: product.category.name },
-    { label: 'Triangles', value: formatCount(product.polygon_count ?? null) },
-    { label: 'Vertices', value: formatCount(product.vertex_count ?? null) },
     { label: 'Viewer', value: product.preview_model ? 'Browser 3D' : 'Image preview' },
     { label: 'Rigged', value: yesNo(product.rigged) },
     { label: 'Animated', value: yesNo(product.animated) },
     { label: 'PBR materials', value: yesNo(product.pbr_ready) },
-    { label: 'Game ready', value: yesNo(product.game_ready) },
     { label: 'Type', value: product.preview_model ? 'Interactive preview' : '3D asset' },
-    { label: 'Geometry', value: 'Mesh' },
   ]
 
   return (

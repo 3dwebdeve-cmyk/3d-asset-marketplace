@@ -274,8 +274,10 @@ describe('ProductDetailsPage', () => {
     expect(screen.getByText(/-20%/i)).toBeInTheDocument()
     expect(screen.queryByText(/futuristic sci-fi drone asset/i)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /preview specifications/i })).toBeInTheDocument()
-    expect(screen.getByText(/^triangles$/i)).toBeInTheDocument()
-    expect(screen.getByText('12,000')).toBeInTheDocument()
+    expect(screen.queryByText(/^triangles$/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^vertices$/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^game ready$/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^geometry$/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /close/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show 3d preview/i })).toBeInTheDocument()
     expect(
