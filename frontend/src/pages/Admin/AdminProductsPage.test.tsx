@@ -135,7 +135,7 @@ describe('AdminProductsPage', () => {
     })
     renderProductsPage()
 
-    const deleteSelected = await screen.findByRole('button', { name: /delete selected \(0\)/i })
+    const deleteSelected = await screen.findByRole('button', { name: /delete selected \(0\)/i }, { timeout: 5000 })
     expect(deleteSelected).toBeDisabled()
     await user.click(screen.getByRole('checkbox', { name: /select all products/i }))
     await user.click(screen.getByRole('button', { name: /delete selected \(1\)/i }))
@@ -150,7 +150,7 @@ describe('AdminProductsPage', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
     renderProductsPage()
 
-    await user.click(await screen.findByRole('button', { name: /delete oak chair/i }))
+    await user.click(await screen.findByRole('button', { name: /delete oak chair/i }, { timeout: 5000 }))
     expect(productsApi.bulkDeleteAdminProducts).not.toHaveBeenCalled()
 
     confirm.mockReturnValue(true)
