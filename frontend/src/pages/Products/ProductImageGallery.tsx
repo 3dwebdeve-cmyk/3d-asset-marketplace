@@ -66,6 +66,7 @@ export function ProductImageGallery({
   stageOverlays,
 }: ProductImageGalleryProps) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const thumbnailsRef = useRef<HTMLUListElement>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const swiped = useRef(false)
   const galleryId = useId()
@@ -244,6 +245,43 @@ export function ProductImageGallery({
     ? (hasSafePreviewModel ? 2 : 1)
     : (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + safeIndex + 1
 
+  const hasThumbnails = galleryImages.length > 0 ||
+    (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo))
+
+  // Move only the thumbnail strip, never the page, when the selected preview changes.
+  const revealSelectedThumbnail = useCallback(() => {
+    const strip = thumbnailsRef.current
+    const selected = strip?.querySelector<HTMLButtonElement>('[aria-current="true"]')
+    if (!strip || !selected) return
+    const stripBounds = strip.getBoundingClientRect()
+    const selectedBounds = selected.getBoundingClientRect()
+    const inset = 4 // Keep the active outline inside the scroll viewport.
+    let offset = 0
+    if (selectedBounds.left < stripBounds.left + inset) {
+      offset = selectedBounds.left - stripBounds.left - inset
+    } else if (selectedBounds.right > stripBounds.right - inset) {
+      offset = selectedBounds.right - stripBounds.right + inset
+    }
+    if (offset) {
+      strip.scrollTo?.({
+        left: strip.scrollLeft + offset,
+        behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    revealSelectedThumbnail()
+  }, [stagePosition, galleryImages, imgErrorIds, showPreviewModeThumbs, revealSelectedThumbnail])
+
+  useEffect(() => {
+    const strip = thumbnailsRef.current
+    if (!strip || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(revealSelectedThumbnail)
+    observer.observe(strip)
+    return () => observer.disconnect()
+  }, [hasThumbnails, revealSelectedThumbnail])
+
   useEffect(() => {
     if (!lightboxOpen) {
       return
@@ -414,9 +452,31 @@ export function ProductImageGallery({
         ) : null}
       </div>
 
-      {galleryImages.length > 0 ||
-      (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo)) ? (
-        <ul className="product-detail-gallery__thumbs" aria-label="Product image thumbnails">
+      {hasThumbnails ? (
+        <section className="product-detail-gallery__rail" aria-label="Gallery thumbnails">
+          <div className="product-detail-gallery__rail-header">
+            <h3 className="product-detail-gallery__rail-title">Gallery</h3>
+            <span className="product-detail-gallery__rail-counter" aria-hidden="true">
+              {stagePosition} / {totalCount}
+            </span>
+          </div>
+          <div className="product-detail-gallery__rail-controls">
+            <button
+              type="button"
+              className="product-detail-gallery__rail-nav"
+              aria-label="Previous gallery item"
+              aria-controls={`${galleryId}-thumbnails`}
+              disabled={totalCount <= 1}
+              onClick={showPrevious}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
+            </button>
+        <ul
+          ref={thumbnailsRef}
+          id={`${galleryId}-thumbnails`}
+          className="product-detail-gallery__thumbs"
+          aria-label="Product image thumbnails"
+        >
           {showPreviewModeThumbs && hasSafePreviewModel ? (
             <li>
               <button
@@ -428,7 +488,12 @@ export function ProductImageGallery({
                 aria-label="Show 3D preview"
                 aria-current={showModelStage ? 'true' : undefined}
               >
-                <span className="product-detail-gallery__thumb-3d">3D</span>
+                <span className="product-detail-gallery__thumb-3d">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10 9-5M12 12 3 7m9 5v10" />
+                  </svg>
+                  <span>3D</span>
+                </span>
               </button>
             </li>
           ) : null}
@@ -443,7 +508,10 @@ export function ProductImageGallery({
                 aria-label="Show preview video"
                 aria-current={showVideoStage ? 'true' : undefined}
               >
-                <span className="product-detail-gallery__thumb-3d">Video</span>
+                <span className="product-detail-gallery__thumb-3d">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg>
+                  <span>Video</span>
+                </span>
               </button>
             </li>
           ) : null}
@@ -475,6 +543,18 @@ export function ProductImageGallery({
             )
           })}
         </ul>
+            <button
+              type="button"
+              className="product-detail-gallery__rail-nav"
+              aria-label="Next gallery item"
+              aria-controls={`${galleryId}-thumbnails`}
+              disabled={totalCount <= 1}
+              onClick={showNext}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {lightboxOpen && activeImage && !activeFailed ? (
