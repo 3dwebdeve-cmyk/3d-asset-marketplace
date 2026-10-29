@@ -20,6 +20,7 @@ vi.mock('../../api/productsApi', async () => {
     listAdminCategories: vi.fn(),
     updateAdminProduct: vi.fn(),
     archiveAdminProduct: vi.fn(),
+    bulkDeleteAdminProducts: vi.fn(),
     approveAdminProduct: vi.fn(),
     rejectAdminProduct: vi.fn(),
     requeueAdminProduct: vi.fn(),
@@ -172,7 +173,8 @@ describe('AdminProductDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /import qa/i })).toBeInTheDocument()
     })
-    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approve & publish/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /publish as free/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^requeue$/i })).not.toBeInTheDocument()
   })
@@ -270,13 +272,56 @@ describe('AdminProductDetailPage', () => {
     renderProductDetailPage()
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /approve & publish at usd 29\.99/i })).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: /^approve$/i }))
+    await user.clear(screen.getByLabelText(/price \(usd\)/i))
+    await user.type(screen.getByLabelText(/price \(usd\)/i), '45')
+    await user.click(screen.getByRole('button', { name: /approve & publish/i }))
 
     await waitFor(() => {
-      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId)
+      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, {
+        pricing: 'paid',
+        price: '45.00',
+      })
     })
+  })
+
+  it('publishes a product as a free download in one click', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      status: 'pending_review',
+    })
+    vi.mocked(productsApi.approveAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      price: '0.00',
+      is_free: true,
+      status: 'published',
+    })
+
+    renderProductDetailPage()
+
+    await user.click(await screen.findByRole('button', { name: /publish as free/i }))
+
+    await waitFor(() => {
+      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, { pricing: 'free' })
+    })
+  })
+
+  it('refuses a paid approval without a price', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      status: 'pending_review',
+    })
+
+    renderProductDetailPage()
+
+    await user.clear(await screen.findByLabelText(/price \(usd\)/i))
+    await user.click(screen.getByRole('button', { name: /approve & publish/i }))
+
+    expect(screen.getByText(/enter a price above 0/i)).toBeInTheDocument()
+    expect(productsApi.approveAdminProduct).not.toHaveBeenCalled()
   })
 })

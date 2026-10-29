@@ -418,6 +418,52 @@ class OrderService:
         return cls.get(order.pk)
 
     @classmethod
+    @transaction.atomic
+    def claim_free_product(cls, user: User, product: Product) -> tuple[Order, bool]:
+        """Add a free model to the customer's library: a paid order of 0, no checkout.
+
+        Returns (order, created). Claiming a model the customer already owns returns
+        the existing order, so the Downloads page lists it once.
+        """
+        if product.status != Product.Status.PUBLISHED or not product.is_free:
+            raise OrderError("This model is not a free download.", field="product_id")
+
+        # Serialize claims per customer, so a double click creates one order.
+        User.objects.select_for_update().filter(pk=user.pk).exists()
+        existing = (
+            OrderItem.objects.select_related("order")
+            .filter(
+                order__user=user,
+                order__order_status=Order.OrderStatus.PAID,
+                order__payment_status=Order.PaymentStatus.PAID,
+                product_type=OrderItem.ProductType.PRODUCT,
+                product_id=product.pk,
+            )
+            .first()
+        )
+        if existing is not None:
+            return existing.order, False
+
+        order = cls._create_order_with_unique_invoice(
+            user=user,
+            total_amount=Decimal("0.00"),
+            currency=product.currency,
+        )
+        OrderItem.objects.create(
+            order=order,
+            product_type=OrderItem.ProductType.PRODUCT,
+            product_id=product.pk,
+            title=product.name,
+            slug=product.slug,
+            quantity=1,
+            purchase_price=Decimal("0.00"),
+        )
+        order.order_status = Order.OrderStatus.PAID
+        order.payment_status = Order.PaymentStatus.PAID
+        order.save(update_fields=["order_status", "payment_status", "updated_at"])
+        return order, True
+
+    @classmethod
     def _create_order_with_unique_invoice(
         cls,
         *,

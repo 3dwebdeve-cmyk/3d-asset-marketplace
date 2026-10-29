@@ -15,6 +15,7 @@ from accounts.security_log import log_admin_action
 from accounts.throttles import (
     AdminProductWriteRateThrottle,
     AdminUploadRateThrottle,
+    CartWriteRateThrottle,
     CatalogIngestRateThrottle,
     CatalogSearchRateThrottle,
 )
@@ -26,6 +27,8 @@ from products.pagination import ProductPagination
 from products.serializers import (
     CatalogImportEnvelopeSerializer,
     ProductAdminSerializer,
+    ProductApproveSerializer,
+    ProductBulkDeleteSerializer,
     ProductCreateSerializer,
     ProductDetailPublicSerializer,
     ProductFileAdminSerializer,
@@ -42,6 +45,7 @@ from products.services import (
     ProductService,
     ProductUpdateData,
 )
+from orders.services import OrderError, OrderService
 from search.services import normalize_query
 
 logger = logging.getLogger(__name__)
@@ -122,6 +126,32 @@ class ProductDetailView(PublicCatalogCacheMixin, APIView):
 
         serializer = ProductDetailPublicSerializer(product)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProductClaimFreeView(APIView):
+    """POST /api/v1/products/<slug>/claim-free/ — add a free model to the customer's library.
+
+    No checkout: the model is listed in Dashboard → Downloads right away.
+    """
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [CartWriteRateThrottle]
+
+    def post(self, request: Request, slug: str) -> Response:
+        try:
+            product = ProductService.get_public_by_slug(slug)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+
+        try:
+            order, created = OrderService.claim_free_product(request.user, product)
+        except OrderError as exc:
+            return domain_error_response(exc, default_code="not_free")
+
+        return Response(
+            {"order_id": str(order.pk), "product_id": str(product.pk), "created": created},
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class AdminProductListCreateView(APIView):
@@ -300,6 +330,38 @@ class AdminProductDetailView(APIView):
             ProductAdminSerializer(updated).data,
             status=status.HTTP_200_OK,
         )
+
+
+class AdminProductBulkDeleteView(APIView):
+    """POST /api/admin/products/bulk-delete/ — delete selected products.
+
+    A product someone has ordered is archived instead, so the buyer keeps the download.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request) -> Response:
+        serializer = ProductBulkDeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        result: dict[str, list[str]] = {"deleted": [], "archived": [], "not_found": []}
+        for product_id in dict.fromkeys(serializer.validated_data["product_ids"]):
+            try:
+                product = ProductService.get_by_id(product_id)
+            except ProductError:
+                result["not_found"].append(str(product_id))
+                continue
+            outcome = ProductService.delete_or_archive(product)
+            result[outcome].append(str(product_id))
+            log_admin_action(
+                action=f"product_{'delete' if outcome == 'deleted' else 'archive'}",
+                actor_id=str(request.user.pk),
+                target_id=str(product_id),
+                metadata={"name": product.name, "sku": product.sku or ""},
+            )
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class AdminProductImageUploadView(APIView):
@@ -517,8 +579,17 @@ class AdminProductApproveView(APIView):
         except ProductError as exc:
             raise NotFound(exc.message) from exc
 
+        serializer = ProductApproveSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        pricing = serializer.validated_data.get("pricing")
+
         try:
-            updated = ProductService.approve_product(product, reviewer=request.user)
+            updated = ProductService.approve_product(
+                product,
+                reviewer=request.user,
+                pricing=pricing,
+                price=serializer.validated_data.get("price"),
+            )
         except ProductError as exc:
             return _product_error_response(exc)
 
@@ -526,6 +597,7 @@ class AdminProductApproveView(APIView):
             action="product_approve",
             actor_id=str(request.user.pk),
             target_id=str(updated.pk),
+            metadata={"pricing": pricing, "price": str(updated.price)} if pricing else None,
         )
         return Response(
             ProductAdminSerializer(updated).data,

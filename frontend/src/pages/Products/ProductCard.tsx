@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
+import { isFreeProduct } from '../../types/product'
 import type { PublicProduct } from '../../types/product'
 
 interface ProductCardProps {
@@ -15,14 +16,15 @@ function formatCardPrice(amount: number): string {
 export function ProductCard({ product }: ProductCardProps) {
   const [imgError, setImgError] = useState(false)
 
-  const hasDiscount = Boolean(
+  const isFree = isFreeProduct(product)
+  const hasDiscount = !isFree && Boolean(
     product.discount_price && Number(product.discount_price) < Number(product.price),
   )
 
   const displayPrice = hasDiscount
     ? Number(product.discount_price)
     : Number(product.price)
-  const formattedPrice = formatCardPrice(displayPrice)
+  const formattedPrice = isFree ? 'Free' : formatCardPrice(displayPrice)
   const formattedOriginal = formatCardPrice(Number(product.price))
   const categoryLabel = product.category?.name?.trim() ?? ''
   const detailPath = `/products/${product.slug}`
