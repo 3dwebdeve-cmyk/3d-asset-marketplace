@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID
@@ -10,7 +11,11 @@ from django.utils import timezone
 
 from categories.models import Category
 from config.media import private_object_exists
-from config.currency import normalize_currency, validate_catalog_prices
+from config.currency import (
+    MINIMUM_CHECKOUT_AMOUNTS,
+    normalize_currency,
+    validate_catalog_prices,
+)
 from products.errors import ProductError
 from products.media_service import (  # noqa: F401 - re-exported for existing imports
     PREVIEW_MAX_POLYGON_SHARE,
@@ -18,6 +23,10 @@ from products.media_service import (  # noqa: F401 - re-exported for existing im
     preview_reduction_error,
 )
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
+from products.storage import ProductMediaStorageService
+
+logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class ProductCreateData:
@@ -487,6 +496,82 @@ class ProductService(ProductMediaService):
         )
 
     @classmethod
+    @transaction.atomic
+    def delete_or_archive(cls, product: Product) -> str:
+        """Delete a model nobody has ordered; archive one that was ordered.
+
+        An order line keeps the buyer's download working, so a model someone owns is
+        only hidden (archived). Returns "deleted" or "archived". Files the uploader put
+        under models/<sku>/ stay in storage; media uploaded in /console is removed.
+        """
+        from cart.models import CartItem
+        from orders.models import OrderItem
+        from wishlist.models import WishlistItem
+
+        product = Product.objects.select_for_update().get(pk=product.pk)
+        product_type = OrderItem.ProductType.PRODUCT
+        if OrderItem.objects.filter(product_type=product_type, product_id=product.pk).exists():
+            if product.status != Product.Status.ARCHIVED:
+                cls.archive_product(product)
+            return "archived"
+
+        media = [
+            (product.thumbnail, ProductMediaStorageService.IMAGE_PREFIX),
+            (product.preview_model, ProductMediaStorageService.PREVIEW_PREFIX),
+            *(
+                (url, ProductMediaStorageService.IMAGE_PREFIX)
+                for url in product.images.values_list("image_url", flat=True)
+            ),
+            *(
+                (path, ProductMediaStorageService.FILE_PREFIX)
+                for path in product.files.values_list("storage_path", flat=True)
+            ),
+            *(
+                (path, ProductMediaStorageService.PREVIEW_PREFIX)
+                for path in product.files.values_list("storage_path", flat=True)
+            ),
+        ]
+        CartItem.objects.filter(product_type=product_type, product_id=product.pk).delete()
+        WishlistItem.objects.filter(product_type=product_type, product_id=product.pk).delete()
+        product.delete()
+
+        def remove_media() -> None:
+            for url, prefix in media:
+                try:
+                    ProductMediaStorageService.delete_if_managed(url, prefix=prefix)
+                except Exception:  # a storage hiccup must not undo the delete
+                    logger.exception("product_delete_media_failed prefix=%s", prefix)
+
+        transaction.on_commit(remove_media)
+        return "deleted"
+
+    @classmethod
+    def _apply_approval_pricing(
+        cls, product: Product, pricing: str | None, price: Decimal | None
+    ) -> list[str]:
+        """Set the price chosen at approval; returns the fields to save."""
+        if pricing is None:
+            return []
+        if pricing == "free":
+            product.price = Decimal("0.00")
+            product.discount_price = None
+            return ["price", "discount_price"]
+        if pricing != "paid":
+            raise ProductError("Pricing must be 'free' or 'paid'.", field="pricing")
+        minimum = MINIMUM_CHECKOUT_AMOUNTS.get(normalize_currency(product.currency))
+        if price is None or price <= 0:
+            raise ProductError("Enter a price above 0 for a paid model.", field="price")
+        if minimum is not None and price < minimum:
+            raise ProductError(
+                f"The lowest price checkout accepts is {minimum} {product.currency}.",
+                field="price",
+            )
+        product.price = price
+        if product.discount_price is not None and product.discount_price >= price:
+            product.discount_price = None
+        return ["price", "discount_price"]
+
+    @classmethod
     def _validate_publish_ready(cls, product: Product, *, require_sku: bool = False) -> None:
         """Conservative publish gates for the QA approve path (Feature 16 Phase 8).
 
@@ -553,14 +638,26 @@ class ProductService(ProductMediaService):
 
     @classmethod
     @transaction.atomic
-    def approve_product(cls, product: Product, *, reviewer) -> Product:
-        """pending_review → published with publish gates. Clears reject_reason."""
+    def approve_product(
+        cls,
+        product: Product,
+        *,
+        reviewer,
+        pricing: str | None = None,
+        price: Decimal | None = None,
+    ) -> Product:
+        """pending_review → published with publish gates. Clears reject_reason.
+
+        ``pricing`` sets the price on approval: "free" makes the model a free download
+        (price 0), "paid" sets ``price``. Without it the current price is kept.
+        """
         product = Product.objects.select_for_update().get(pk=product.pk)
         if product.status != Product.Status.PENDING_REVIEW:
             raise ProductError(
                 f"Cannot approve product with status '{product.status}'.",
                 field="status",
             )
+        price_fields = cls._apply_approval_pricing(product, pricing, price)
         cls._validate_status_transition(product.status, Product.Status.PUBLISHED)
         cls._validate_publish_ready(product, require_sku=True)
 
@@ -575,6 +672,7 @@ class ProductService(ProductMediaService):
                 "reviewed_at",
                 "reviewed_by",
                 "reject_reason",
+                *price_fields,
                 "updated_at",
             ]
         )
