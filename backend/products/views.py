@@ -445,6 +445,7 @@ class AdminCatalogImportView(APIView):
             action="catalog_import",
             actor_id=str(request.user.pk),
             target_id=data["import_batch_id"],
+            metadata=batch.audit_metadata() or None,
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)
 
@@ -477,7 +478,7 @@ class CatalogIngestImportView(APIView):
         key_prefix = request.auth.key_prefix
         logger.info(
             "catalog_ingest key_prefix=%s batch_id=%s items=%s created=%s updated=%s "
-            "skipped=%s failed=%s",
+            "skipped=%s failed=%s preview_not_scanned=%s",
             key_prefix,
             data["import_batch_id"],
             len(data["items"]),
@@ -485,6 +486,7 @@ class CatalogIngestImportView(APIView):
             batch.updated,
             batch.skipped,
             batch.failed,
+            "true" if batch.not_scanned_model_ids else "false",
         )
         log_admin_action(
             action="catalog_ingest_import",
@@ -496,6 +498,7 @@ class CatalogIngestImportView(APIView):
                 "updated": batch.updated,
                 "skipped": batch.skipped,
                 "failed": batch.failed,
+                **batch.audit_metadata(),
             },
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)

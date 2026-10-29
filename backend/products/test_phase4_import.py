@@ -36,7 +36,8 @@ class ReimportKeepsMediaTests(TestCase):
         )
 
     def test_reimport_without_gallery_or_package_keeps_existing_media(self) -> None:
-        CatalogImportService._sync_gallery(self.product, [])
+        # Even a gallery the import may replace is kept when the batch sends none.
+        CatalogImportService._sync_gallery(self.product, [], replace=True)
         CatalogImportService._sync_package(self.product, {"package_key": ""})
 
         self.assertEqual(ProductImage.objects.filter(product=self.product).count(), 1)
