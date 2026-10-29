@@ -5,36 +5,91 @@
 .site-preloader {
   position: fixed;
   inset: 0;
-  z-index: 10000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  z-index: 99999;
+  display: grid;
+  place-content: center;
   padding: 24px;
   box-sizing: border-box;
   background: #fff;
-  color: #000;
-  font-family: 'Poppins', system-ui, sans-serif;
+  color: #172033;
+  text-align: center;
+  font-family: 'Plus Jakarta Sans', Arial, sans-serif;
+  transition: opacity 250ms ease;
 }
 
-.site-preloader__animation {
-  display: block;
-  flex-shrink: 0;
-  width: min(100%, 500px, 65vh);
-  aspect-ratio: 1;
-  border: 0;
-  filter: hue-rotate(45deg);
+.site-preloader--done {
+  opacity: 0;
   pointer-events: none;
 }
 
+.site-preloader__stage {
+  width: min(230px, 80vw, 48svh);
+  aspect-ratio: 1;
+  margin: auto;
+  filter: hue-rotate(45deg);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.site-preloader__stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.site-preloader__title {
+  position: relative;
+  z-index: 1;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  margin: 12px 0 10px;
+  letter-spacing: -1px;
+}
+
+.site-preloader__title span {
+  color: #2563eb;
+}
+
 .site-preloader__label {
-  margin: 16px 0 0;
-  font-size: 14px;
-  text-align: center;
+  font-size: 13px;
+  color: #667085;
+  margin: 0;
+  letter-spacing: 1px;
+}
+
+.site-preloader__track {
+  width: 130px;
+  height: 3px;
+  margin: 25px auto;
+  background: #eaf0ff;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.site-preloader__track::after {
+  content: '';
+  display: block;
+  width: 45%;
+  height: 100%;
+  background: #2563eb;
+  animation: preloader-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes preloader-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(325%); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .site-preloader__animation {
-    display: none;
+  .site-preloader {
+    transition: none;
+  }
+
+  .site-preloader__track::after {
+    animation: none;
+    transform: translateX(60%);
   }
 }
