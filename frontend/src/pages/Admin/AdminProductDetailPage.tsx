@@ -7,6 +7,7 @@ import { listAdminCategories } from '../../api/categoriesApi'
 import {
   approveAdminProduct,
   archiveAdminProduct,
+  bulkDeleteAdminProducts,
   getAdminProduct,
   rejectAdminProduct,
   requeueAdminProduct,
@@ -21,6 +22,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type {
+  AdminProductApprovePayload,
   AdminProductUpdatePayload,
   ProductLicenseType,
   ProductStatus,
@@ -37,6 +39,7 @@ export function AdminProductDetailPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [qaNotes, setQaNotes] = useState('')
   const [qaError, setQaError] = useState<string | null>(null)
+  const [approvePrice, setApprovePrice] = useState('')
 
   const productQuery = useQuery({
     queryKey: ['admin', 'products', productId],
@@ -59,6 +62,7 @@ export function AdminProductDetailPage() {
       return
     }
     setHydratedProductId(product.id)
+    setApprovePrice(Number(product.price) > 0 ? product.price : '')
     setForm({
       category_id: product.category.id,
       name: product.name,
@@ -121,10 +125,30 @@ export function AdminProductDetailPage() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: () => bulkDeleteAdminProducts([productId]),
+    onSuccess: async (result) => {
+      toast.success(
+        result.archived.length
+          ? 'A customer owns this model, so it was archived (hidden) instead of deleted.'
+          : 'Product deleted',
+      )
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+      navigate('/console/products', { replace: true })
+    },
+    onError: (error) => {
+      setFormError(getApiErrorMessage(error, 'Could not delete product.'))
+    },
+  })
+
   const approveMutation = useMutation({
-    mutationFn: () => approveAdminProduct(productId),
-    onSuccess: async () => {
-      toast.success('Product approved and published')
+    mutationFn: (pricing: AdminProductApprovePayload) => approveAdminProduct(productId, pricing),
+    onSuccess: async (_product, pricing) => {
+      toast.success(
+        pricing.pricing === 'free'
+          ? 'Published as a free download'
+          : 'Product approved and published',
+      )
       setQaError(null)
       await invalidateProduct()
     },
@@ -165,6 +189,16 @@ export function AdminProductDetailPage() {
 
   const qaPending =
     approveMutation.isPending || rejectMutation.isPending || requeueMutation.isPending
+
+  const onApprovePaid = () => {
+    const price = Number.parseFloat(approvePrice)
+    if (!Number.isFinite(price) || price <= 0) {
+      setQaError('Enter a price above 0, or use "Publish as free".')
+      return
+    }
+    setQaError(null)
+    approveMutation.mutate({ pricing: 'paid', price: price.toFixed(2) })
+  }
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -228,9 +262,48 @@ export function AdminProductDetailPage() {
                 {product.status === 'pending_review' ? (
                   <>
                     <p className="home-page__subtitle">
-                      This product is pending review. Approve publishes it; reject requires a
-                      reason.
+                      This product is pending review. Choose its price and approve to publish
+                      it, or publish it as a free download. Reject requires a reason.
                     </p>
+                    {product.qa_notes ? (
+                      <p className="home-page__subtitle">QA notes: {product.qa_notes}</p>
+                    ) : null}
+                    <FormField id="qa-price" label={`Price (${product.currency})`}>
+                      <Input
+                        id="qa-price"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={approvePrice}
+                        onChange={(event) => setApprovePrice(event.target.value)}
+                        disabled={qaPending}
+                      />
+                    </FormField>
+                    <div className="dashboard-card__actions">
+                      <Button
+                        type="button"
+                        isLoading={approveMutation.isPending && approveMutation.variables?.pricing === 'paid'}
+                        disabled={qaPending}
+                        onClick={onApprovePaid}
+                      >
+                        Approve &amp; publish
+                        {Number.parseFloat(approvePrice) > 0
+                          ? ` at ${product.currency} ${Number.parseFloat(approvePrice).toFixed(2)}`
+                          : ''}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        isLoading={approveMutation.isPending && approveMutation.variables?.pricing === 'free'}
+                        disabled={qaPending}
+                        onClick={() => {
+                          setQaError(null)
+                          approveMutation.mutate({ pricing: 'free' })
+                        }}
+                      >
+                        Publish as free
+                      </Button>
+                    </div>
                     {product.reject_reason ? (
                       <p className="home-page__subtitle">
                         Prior reject reason: {product.reject_reason}
@@ -256,17 +329,6 @@ export function AdminProductDetailPage() {
                       />
                     </FormField>
                     <div className="dashboard-card__actions">
-                      <Button
-                        type="button"
-                        isLoading={approveMutation.isPending}
-                        disabled={qaPending}
-                        onClick={() => {
-                          setQaError(null)
-                          approveMutation.mutate()
-                        }}
-                      >
-                        Approve
-                      </Button>
                       <Button
                         type="button"
                         variant="secondary"
@@ -567,6 +629,18 @@ export function AdminProductDetailPage() {
                   onClick={() => window.confirm('Archive this product? It will be hidden from the storefront.') && archiveMutation.mutate()}
                 >
                   Archive
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  isLoading={deleteMutation.isPending}
+                  onClick={() =>
+                    window.confirm(
+                      'Delete this product permanently? If a customer already owns it, it is archived instead so their download keeps working.',
+                    ) && deleteMutation.mutate()
+                  }
+                >
+                  Delete
                 </Button>
               </div>
             </form>

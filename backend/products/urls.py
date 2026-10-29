@@ -3,6 +3,7 @@ from django.urls import path
 from products.views import (
     AdminCatalogImportView,
     AdminProductApproveView,
+    AdminProductBulkDeleteView,
     AdminProductDetailView,
     AdminProductFileDetailView,
     AdminProductFileUploadView,
@@ -12,6 +13,7 @@ from products.views import (
     AdminProductRejectView,
     AdminProductRequeueView,
     CatalogIngestImportView,
+    ProductClaimFreeView,
     ProductDetailView,
     ProductListView,
 )
@@ -21,11 +23,13 @@ app_name = "products"
 public_urlpatterns = [
     path("", ProductListView.as_view(), name="product-list"),
     path("<slug:slug>/", ProductDetailView.as_view(), name="product-detail"),
+    path("<slug:slug>/claim-free/", ProductClaimFreeView.as_view(), name="product-claim-free"),
 ]
 
 admin_urlpatterns = [
     path("", AdminProductListCreateView.as_view(), name="admin-products"),
     path("import/", AdminCatalogImportView.as_view(), name="admin-catalog-import"),
+    path("bulk-delete/", AdminProductBulkDeleteView.as_view(), name="admin-product-bulk-delete"),
     path(
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),
