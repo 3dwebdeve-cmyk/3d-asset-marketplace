@@ -4,22 +4,27 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import posixpath
 import re
-import uuid
 from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Q
 
 from categories.models import Category
 from config.media import media_relative_path, private_object_exists
 from config.storages import build_public_media_url, get_public_storage
-from config.upload_security import inspect_product_content
+from config.upload_security import (
+    SCAN_MALWARE_FOUND,
+    SCAN_UNAVAILABLE,
+    inspect_product_content,
+    scan_error_code,
+)
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 from products.services import (
     ProductCreateData,
@@ -28,7 +33,7 @@ from products.services import (
     ProductUpdateData,
     preview_reduction_error,
 )
-from products.upload_rules import PRODUCT_PREVIEW_MAX_BYTES, convert_image_bytes_to_webp
+from products.upload_rules import PRODUCT_PREVIEW_MAX_BYTES, validate_image_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +46,12 @@ _PREVIEW_ONLY_FORMATS = frozenset({"glb", "gltf"})
 _STORAGE_ERRORS = (OSError, ValueError, SuspiciousFileOperation, BotoCoreError, ClientError)
 # Pipeline renders can be larger than the admin form's 5 MB upload limit.
 _IMPORT_IMAGE_MAX_BYTES = 25 * 1024 * 1024
-# WebP copies made by the import: "<original name>-<12 hex>.webp".
-_WEBP_COPY_RE = re.compile(r"-[0-9a-f]{12}\.webp$")
+# Copies older imports made under models/<sku>/: "<image name>-<12 hex>.webp" and
+# "preview-<32 hex>.glb". The import no longer makes them; re-imports clean them up.
+_IMPORT_COPY_KEY_RE = re.compile(
+    r"models/(?P<sku>[^/]+)/(?:.+-[0-9a-f]{12}\.webp|preview-[0-9a-f]{32}\.glb)"
+)
+PREVIEW_NOT_SCANNED_NOTE = "Preview imported without a virus scan (no scanner configured)."
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
@@ -90,6 +99,16 @@ class CatalogImportBatchResult:
     skipped: int
     failed: int
     results: list[CatalogImportRowResult]
+
+    @property
+    def not_scanned_model_ids(self) -> list[str]:
+        """Rows imported without a virus scan, for the audit log."""
+        return [row.model_id for row in self.results if "preview_not_scanned" in row.warnings]
+
+    def audit_metadata(self) -> dict[str, Any]:
+        if not self.not_scanned_model_ids:
+            return {}
+        return {"preview_not_scanned": True, "not_scanned_model_ids": self.not_scanned_model_ids}
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -257,15 +276,20 @@ class CatalogImportService:
                 reason="missing_package_object",
             )
 
+        # The preview first: a rejected preview then costs no image reads. Neither check
+        # writes to storage (only a preview found to be malware is deleted), so a skipped
+        # row leaves R2 as the uploader left it.
         try:
-            media_pointers = cls._convert_images_to_webp(sku, media_pointers, existing)
+            media_pointers = cls._check_preview(sku, item, media_pointers, existing)
         except ProductError as exc:
             return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.message)
 
         try:
-            media_pointers = cls._secure_preview(sku, item, media_pointers, existing)
+            media_pointers = cls._check_images(sku, media_pointers, existing)
         except ProductError as exc:
             return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.message)
+
+        previous_copies = cls._import_copies(sku, existing)
 
         try:
             with transaction.atomic():
@@ -293,17 +317,20 @@ class CatalogImportService:
                 if product.preview_triangle_count != media_pointers["preview_triangle_count"]:
                     product.preview_triangle_count = media_pointers["preview_triangle_count"]
                     product.save(update_fields=["preview_triangle_count", "updated_at"])
-                cls._sync_gallery(product, media_pointers["gallery_urls"])
+                cls._sync_gallery(
+                    product,
+                    media_pointers["gallery_urls"],
+                    replace=media_pointers["replace_gallery"],
+                )
                 cls._sync_package(product, media_pointers)
+                cls._sync_scan_note(product, media_pointers["preview_not_scanned"])
         except ProductError as exc:
-            cls._delete_preview_object(media_pointers["new_preview_key"])
             return CatalogImportRowResult(
                 model_id=sku,
                 action="failed",
                 reason=exc.field or "product_error",
             )
         except Exception:
-            cls._delete_preview_object(media_pointers["new_preview_key"])
             logger.exception(
                 "catalog_import_row_failed model_id=%s batch_id=%s",
                 sku,
@@ -315,8 +342,9 @@ class CatalogImportService:
                 reason="internal_error",
             )
 
-        cls._delete_preview_object(media_pointers["replaced_preview_key"])
-        cls._delete_replaced_thumbnail(product, media_pointers["replaced_thumbnail_key"])
+        cls._delete_unreferenced_copies(previous_copies)
+        if media_pointers["preview_not_scanned"]:
+            warnings.append("preview_not_scanned")
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -523,7 +551,6 @@ class CatalogImportService:
         return {
             "thumbnail_key": thumbnail_key,
             "thumbnail_url": build_public_media_url(thumbnail_key),
-            "replaced_thumbnail_key": None,
             "preview_key": preview_key,
             "preview_url": build_public_media_url(preview_key),
             "package_key": package_key,
@@ -540,26 +567,22 @@ class CatalogImportService:
         }
 
     @classmethod
-    def _secure_preview(
+    def _check_preview(
         cls,
         sku: str,
         item: dict[str, Any],
         media_pointers: dict[str, Any],
         existing: Product | None,
     ) -> dict[str, Any]:
-        """Measure the pipeline's preview and move it to an unguessable public key.
+        """Check the pipeline's preview where it is; the product points straight at it.
 
-        The pipeline uploads ``models/<sku>/preview.glb``, a name anyone can guess for
-        any SKU, including unreleased drafts. A rejected source is removed too, so it
-        does not stay public under the predictable name.
+        The import never copies, renames or deletes the uploader's files. A rejected
+        preview stays in place for the uploader's report, and its next upload replaces it.
+        The one exception is a file the virus scanner reports as malware.
         """
         source_key = media_pointers["preview_key"]
-        pointers = {
-            **media_pointers,
-            "new_preview_key": None,
-            "replaced_preview_key": None,
-            "preview_unchecked": False,
-        }
+        # preview_not_scanned: None when the product keeps its current preview (unknown).
+        pointers = {**media_pointers, "preview_unchecked": False, "preview_not_scanned": False}
         if not source_key.lower().endswith(".glb"):
             raise ProductError("invalid_preview_format", field="preview_key")
 
@@ -571,39 +594,51 @@ class CatalogImportService:
             raise ProductError("preview_unreadable", field="preview_key") from None
 
         if not source_exists:
-            # A re-import may skip the upload and keep the preview already secured.
+            # A re-import may skip the upload and keep the preview the product already has.
             if (
                 existing is not None
                 and existing.preview_model
                 and existing.preview_triangle_count is not None
             ):
+                pointers["preview_key"] = media_relative_path(existing.preview_model)
                 pointers["preview_url"] = existing.preview_model
                 pointers["preview_triangle_count"] = existing.preview_triangle_count
+                pointers["preview_not_scanned"] = None
                 return pointers
             raise ProductError("missing_preview_object", field="preview_key")
 
         try:
-            too_large = storage.size(source_key) > PRODUCT_PREVIEW_MAX_BYTES
-            data = b""
-            if not too_large:
-                with storage.open(source_key, "rb") as handle:
-                    data = handle.read()
+            if storage.size(source_key) > PRODUCT_PREVIEW_MAX_BYTES:
+                raise ProductError("preview_too_large", field="preview_key")
+            with storage.open(source_key, "rb") as handle:
+                data = handle.read()
         except _STORAGE_ERRORS:
             logger.exception("catalog_import_preview_unreadable model_id=%s", sku)
             raise ProductError("preview_unreadable", field="preview_key") from None
-        if too_large:
-            cls._delete_preview_object(source_key)
-            raise ProductError("preview_too_large", field="preview_key")
 
+        # A configured scanner is always used. Without one, CATALOG_IMPORT_SCAN_REQUIRED=False
+        # lets the studio's own uploads in unscanned; the structure checks still run.
+        skip_scan = not settings.CATALOG_IMPORT_SCAN_REQUIRED and not settings.PACKAGE_SCAN_HOST
         try:
-            triangles = inspect_product_content(ContentFile(data, name="preview.glb"), ".glb")
-        except ValidationError:
-            cls._delete_preview_object(source_key)
+            triangles = inspect_product_content(
+                ContentFile(data, name="preview.glb"), ".glb", scan=not skip_scan
+            )
+        except ValidationError as exc:
+            scan_code = scan_error_code(exc)
+            if scan_code == SCAN_MALWARE_FOUND:
+                logger.warning("catalog_import_preview_malware model_id=%s key=%s", sku, source_key)
+                cls._delete_public_object(source_key)
+                raise ProductError("preview_malware", field="preview_key") from None
+            if scan_code == SCAN_UNAVAILABLE:
+                logger.error("catalog_import_scanner_unavailable model_id=%s", sku)
+                raise ProductError("scanner_unavailable", field="preview_key") from None
             raise ProductError("invalid_preview", field="preview_key") from None
+        if skip_scan:
+            logger.warning("catalog_import_preview_not_scanned model_id=%s", sku)
+            pointers["preview_not_scanned"] = True
 
         polygon_count = item.get("polygon_count")
         if preview_reduction_error(triangles, int(polygon_count) if polygon_count else None):
-            cls._delete_preview_object(source_key)
             raise ProductError("preview_not_reduced", field="preview_key")
         if not triangles or not polygon_count:
             # The reduction rule needs both numbers. Without them the preview is accepted
@@ -616,44 +651,29 @@ class CatalogImportService:
                 polygon_count,
             )
 
-        try:
-            new_key = storage.save(
-                f"models/{sku}/preview-{uuid.uuid4().hex}.glb", ContentFile(data)
-            )
-        except _STORAGE_ERRORS:
-            logger.exception("catalog_import_preview_store_failed model_id=%s", sku)
-            raise ProductError("preview_unreadable", field="preview_key") from None
-        cls._delete_preview_object(source_key)
-
         pointers.update(
-            preview_key=new_key,
-            preview_url=build_public_media_url(new_key),
+            preview_url=_versioned_url(source_key, data),
             preview_triangle_count=triangles,
-            new_preview_key=new_key,
         )
-        if existing is not None and existing.preview_model:
-            previous = media_relative_path(existing.preview_model)
-            if previous and previous != new_key and previous.startswith(f"models/{sku}/preview-"):
-                pointers["replaced_preview_key"] = previous
         return pointers
 
     @classmethod
-    def _convert_images_to_webp(
+    def _check_images(
         cls,
         sku: str,
         media_pointers: dict[str, Any],
         existing: Product | None,
     ) -> dict[str, Any]:
-        """Serve the pipeline's thumbnail and gallery images as WebP.
+        """Check the pipeline's thumbnail and gallery images where they are.
 
-        Each image gets a WebP copy next to the original, named after its content, so a
-        changed image gets a new URL and the CDN never serves a stale one. An image that
-        is not in storage skips the row, so a product never goes in with a broken image.
-        A re-import may leave the thumbnail out and keep the one the product already has.
+        The product points at the original files. An image that is not in storage skips
+        the row, so a product never goes in with a broken image. A re-import may leave the
+        thumbnail out and keep the one the product already has.
         """
+        thumbnail_key = media_pointers["thumbnail_key"]
         try:
-            thumbnail_key = cls._webp_copy(
-                media_pointers["thumbnail_key"],
+            thumbnail_url = cls._check_image(
+                thumbnail_key,
                 reason="invalid_thumbnail",
                 missing="missing_thumbnail_object",
             )
@@ -661,43 +681,32 @@ class CatalogImportService:
             kept = media_relative_path(existing.thumbnail) if existing is not None else None
             if exc.message != "missing_thumbnail_object" or not kept:
                 raise
-            thumbnail_key = kept
+            thumbnail_key, thumbnail_url = kept, existing.thumbnail
+
+        replace_gallery = cls._gallery_is_replaceable(sku, existing)
         pointers = {
             **media_pointers,
             "thumbnail_key": thumbnail_key,
-            "thumbnail_url": build_public_media_url(thumbnail_key),
+            "thumbnail_url": thumbnail_url,
+            "replace_gallery": replace_gallery,
         }
-
-        # The import only fills an empty gallery, so don't convert images it won't use.
-        if existing is None or not ProductImage.objects.filter(product=existing).exists():
-            gallery_keys = [
-                cls._webp_copy(
+        # Don't read images the import won't use.
+        if replace_gallery:
+            pointers["gallery_urls"] = [
+                cls._check_image(
                     key, reason="invalid_gallery_image", missing="missing_gallery_object"
                 )
                 for key in media_pointers["gallery_keys"]
             ]
-            pointers["gallery_keys"] = gallery_keys
-            pointers["gallery_urls"] = [build_public_media_url(key) for key in gallery_keys]
-
-        if existing is not None and existing.thumbnail:
-            previous = media_relative_path(existing.thumbnail)
-            if (
-                previous
-                and previous != thumbnail_key
-                and previous.startswith(f"models/{sku}/")
-                and _WEBP_COPY_RE.search(previous)
-            ):
-                pointers["replaced_thumbnail_key"] = previous
         return pointers
 
     @staticmethod
-    def _webp_copy(key: str, *, reason: str, missing: str) -> str:
+    def _check_image(key: str, *, reason: str, missing: str) -> str:
+        """The image's public URL, after checking it is a usable image. Saves nothing."""
         storage = get_public_storage()
         try:
             if not storage.exists(key):
                 raise ProductError(missing, field="media")
-            if key.lower().endswith(".webp"):
-                return key
             if storage.size(key) > _IMPORT_IMAGE_MAX_BYTES:
                 raise ProductError(reason, field="media")
             with storage.open(key, "rb") as handle:
@@ -707,40 +716,55 @@ class CatalogImportService:
             raise ProductError("image_unreadable", field="media") from None
 
         try:
-            webp = convert_image_bytes_to_webp(data)
+            validate_image_bytes(data)
         except ValidationError:
             raise ProductError(reason, field="media") from None
-
-        target = f"{posixpath.splitext(key)[0]}-{hashlib.sha256(webp).hexdigest()[:12]}.webp"
-        try:
-            if not storage.exists(target):
-                target = storage.save(target, ContentFile(webp))
-        except _STORAGE_ERRORS:
-            logger.exception("catalog_import_image_store_failed key=%s", target)
-            raise ProductError("image_unreadable", field="media") from None
-        return target
+        return _versioned_url(key, data)
 
     @staticmethod
-    def _delete_replaced_thumbnail(product: Product, key: str | None) -> None:
-        """Remove the WebP thumbnail an earlier import made, once nothing points at it."""
-        if not key:
-            return
-        url = build_public_media_url(key)
-        if product.thumbnail == url or ProductImage.objects.filter(image_url=url).exists():
-            return
+    def _gallery_is_replaceable(sku: str, existing: Product | None) -> bool:
+        """True when the gallery is empty or every image came from an earlier import.
+
+        A re-import must not touch gallery images an administrator uploaded.
+        """
+        if existing is None:
+            return True
+        urls = ProductImage.objects.filter(product=existing).values_list("image_url", flat=True)
+        prefix = f"models/{sku}/"
+        return all((media_relative_path(url) or "").startswith(prefix) for url in urls)
+
+    @staticmethod
+    def _import_copies(sku: str, existing: Product | None) -> list[str]:
+        """Keys of the preview and WebP copies earlier imports made for this product."""
+        if existing is None:
+            return []
+        urls = [
+            existing.thumbnail,
+            existing.preview_model,
+            *ProductImage.objects.filter(product=existing).values_list("image_url", flat=True),
+        ]
+        keys = {media_relative_path(url or "") for url in urls}
+        return sorted(key for key in keys if key and is_import_copy_key(key, sku=sku))
+
+    @classmethod
+    def _delete_unreferenced_copies(cls, keys: list[str]) -> None:
+        """Remove old import copies once no product or gallery image points at them."""
+        for key in keys:
+            if (
+                Product.objects.filter(
+                    Q(thumbnail__contains=key) | Q(preview_model__contains=key)
+                ).exists()
+                or ProductImage.objects.filter(image_url__contains=key).exists()
+            ):
+                continue
+            cls._delete_public_object(key)
+
+    @staticmethod
+    def _delete_public_object(key: str) -> None:
         try:
             get_public_storage().delete(key)
         except _STORAGE_ERRORS:
-            logger.exception("catalog_import_thumbnail_delete_failed key=%s", key)
-
-    @staticmethod
-    def _delete_preview_object(key: str | None) -> None:
-        if not key:
-            return
-        try:
-            get_public_storage().delete(key)
-        except _STORAGE_ERRORS:
-            logger.exception("catalog_import_preview_delete_failed key=%s", key)
+            logger.exception("catalog_import_object_delete_failed key=%s", key)
 
     @classmethod
     def _create_product(
@@ -870,11 +894,12 @@ class CatalogImportService:
         )
 
     @classmethod
-    def _sync_gallery(cls, product: Product, gallery_urls: list[str]) -> None:
-        # A re-import must not delete gallery images an administrator uploaded.
-        # The import only fills an empty gallery.
-        if not gallery_urls or ProductImage.objects.filter(product=product).exists():
+    def _sync_gallery(cls, product: Product, gallery_urls: list[str], *, replace: bool) -> None:
+        # A re-import must not delete gallery images an administrator uploaded: the
+        # gallery is only replaced when it is empty or every image came from an import.
+        if not gallery_urls or not replace:
             return
+        ProductImage.objects.filter(product=product).delete()
         ProductImage.objects.bulk_create(
             [
                 ProductImage(
@@ -886,6 +911,21 @@ class CatalogImportService:
                 for index, url in enumerate(gallery_urls)
             ]
         )
+
+    @staticmethod
+    def _sync_scan_note(product: Product, not_scanned: bool | None) -> None:
+        """Tell reviewers (QA notes in /console) when the preview went in unscanned."""
+        if not_scanned is None:  # the product kept its current preview
+            return
+        notes = product.qa_notes or ""
+        if not_scanned and PREVIEW_NOT_SCANNED_NOTE not in notes:
+            notes = f"{notes}\n{PREVIEW_NOT_SCANNED_NOTE}".strip()
+        elif not not_scanned and PREVIEW_NOT_SCANNED_NOTE in notes:
+            notes = notes.replace(PREVIEW_NOT_SCANNED_NOTE, "").strip()
+        else:
+            return
+        product.qa_notes = notes
+        product.save(update_fields=["qa_notes", "updated_at"])
 
     @classmethod
     def _sync_package(cls, product: Product, media_pointers: dict[str, Any]) -> None:
@@ -907,3 +947,18 @@ class CatalogImportService:
 
 def _is_zip_key(key: str) -> bool:
     return key.lower().endswith(".zip")
+
+
+def _versioned_url(key: str, data: bytes) -> str:
+    """Public URL with a content hash, so a re-uploaded file is never served stale."""
+    return f"{build_public_media_url(key)}?v={hashlib.sha256(data).hexdigest()[:12]}"
+
+
+def is_import_copy_key(key: str, *, sku: str | None = None) -> bool:
+    """A copy earlier imports made: a random preview or a WebP copy of an image.
+
+    Never matches the uploader's own files (preview_<ID>.glb, previewthumb_<ID>.*,
+    render_<ID>_NN.*), which the import must leave alone.
+    """
+    match = _IMPORT_COPY_KEY_RE.fullmatch(key)
+    return match is not None and (sku is None or match.group("sku") == sku)
