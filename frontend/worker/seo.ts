@@ -159,7 +159,14 @@ function renderPageSummary(html: string, seo: PageSeo, path: string): string {
     ['/plugins', 'Plugins and tools'], ['/custom-projects', 'Custom 3D projects'],
     ['/about', 'About AssetHive3D'], ['/contact', 'Contact and enquiries'],
   ]
-  const content = `<main aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p><nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  const content = `<main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p><nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  // The static shell also contains the preloader. Replace only our summary slot,
+  // so page content never depends on #root being otherwise empty.
+  const summarySlot = /<main\b[^>]*\bid=["']page-summary["'][^>]*>[\s\S]*?<\/main>/i
+  if (summarySlot.test(html)) {
+    return html.replace(summarySlot, () => content)
+  }
+  // Older/empty shells still work, while unrelated rendered app content is preserved.
   return html.replace(/(<div\s+id=["']root["']\s*>)\s*(<\/div>)/i, (_match, open: string, close: string) => `${open}${content}${close}`)
 }
 
