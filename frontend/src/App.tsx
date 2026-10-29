@@ -9,7 +9,7 @@ import { SiteBenefitsBanner } from './components/SiteBenefitsBanner'
 import { SiteFooter } from './components/SiteFooter'
 import { CartDrawer } from './components/cart/CartDrawer'
 import { AuthModal } from './components/auth/AuthModal'
-import { Spinner } from './components/ui/Spinner'
+import { Preloader } from './components/ui/Preloader'
 import {
   ADMIN_BASE,
   ADMIN_LOGIN,
@@ -320,7 +320,7 @@ function AppRoutes() {
       {!isNotFound ? <CartDrawer /> : null}
       {!isNotFound ? <AuthModal /> : null}
       <div className={`app-shell${isDashboardChrome ? ' app-shell--dashboard' : ''}`}>
-        <Suspense fallback={<Spinner fullPage />}>
+        <Suspense fallback={<Preloader />}>
           <Routes>
             <Route path="/" element={<ProductsBrowsePage />} />
             <Route path="/categories" element={<AllCategoriesPage />} />
@@ -431,7 +431,7 @@ function App() {
   const isReady = useSessionBootstrap()
 
   if (!isReady) {
-    return <Spinner fullPage label="Restoring your session..." />
+    return <Preloader label="Restoring your session..." />
   }
 
   return (
