@@ -18,7 +18,7 @@ vi.mock('../../api/cartApi', async () => {
 
 vi.mock('../../api/downloadsApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/downloadsApi')>('../../api/downloadsApi')
-  return { ...actual, listDownloadEntitlements: vi.fn() }
+  return { ...actual, listDownloadEntitlements: vi.fn(), downloadCatalogFileByUrl: vi.fn() }
 })
 
 vi.mock('../../api/productsApi', async () => {
@@ -70,7 +70,7 @@ beforeEach(() => {
 })
 
 describe('free models', () => {
-  it('offer one Download button, no Buy Now or cart, and go to Downloads without checkout', async () => {
+  it('offer one Download button, no Buy Now or cart, and download without checkout', async () => {
     const user = userEvent.setup()
     useAuthStore.setState({ accessToken: 'access-token', user: testUser, isAuthenticated: true })
     vi.mocked(productsApi.claimFreeProduct).mockResolvedValue({
@@ -78,6 +78,20 @@ describe('free models', () => {
       product_id: FREE_ID,
       created: true,
     })
+    vi.mocked(downloadsApi.downloadCatalogFileByUrl).mockResolvedValue()
+    const file = {
+      id: 'file-id',
+      file_name: 'FREE-000001.zip',
+      file_format: 'zip',
+      file_size: 10,
+      version: '1.0',
+      download_url: '/api/v1/downloads/products/free-product-id/files/file-id/download/',
+    }
+    vi.mocked(downloadsApi.listDownloadEntitlements)
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([
+        { product_type: 'product', product_id: FREE_ID, title: 'Free Lamp', slug: 'free-lamp', files: [file] },
+      ])
     renderFreeCta()
 
     const download = await screen.findByRole('button', { name: 'Download free' })
@@ -88,6 +102,7 @@ describe('free models', () => {
 
     await waitFor(() => expect(productsApi.claimFreeProduct).toHaveBeenCalledWith('free-lamp'))
     expect(await screen.findByText('My downloads')).toBeInTheDocument()
+    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(file.download_url, 'FREE-000001.zip')
   })
 
   it('ask visitors to sign in to download', async () => {

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
+import { downloadCatalogFileByUrl } from '../../api/downloadsApi'
 import { claimFreeProduct } from '../../api/productsApi'
 import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { AddToCartButton } from '../cart/AddToCartButton'
@@ -61,7 +62,13 @@ export function CommerceCtaGroup({
     mutationFn: () => claimFreeProduct(productSlug),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: entitlementsQuery.queryKey })
-      toast.success(`${productName} is in your Downloads.`)
+      // Start the download right away; the model also stays in Dashboard → Downloads.
+      const library = await queryClient.fetchQuery(entitlementsQuery)
+      const file = library.find((item) => item.product_id === productId)?.files[0]
+      if (file) {
+        void downloadCatalogFileByUrl(file.download_url, file.file_name).catch(() => undefined)
+      }
+      toast.success(`${productName} is downloading and saved in your Downloads.`)
       navigate('/dashboard/downloads')
     },
     onError: (error) => {
