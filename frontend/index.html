@@ -42,9 +42,7 @@
 <body>
   <div id="root">
     <div class="site-preloader" role="status" aria-live="polite" aria-busy="true">
-      <iframe class="site-preloader__animation"
-        src="https://lottie.host/embed/488013ff-0d7b-45d3-856c-641ecf29dbb1/VKkkAlq0FN.lottie"
-        title="Blue animated icon" loading="eager" tabindex="-1" aria-hidden="true"></iframe>
+      <!-- React mounts one persistent animation; an iframe here would restart on boot. -->
       <p class="site-preloader__label">Loading marketplace...</p>
     </div>
   </div>
