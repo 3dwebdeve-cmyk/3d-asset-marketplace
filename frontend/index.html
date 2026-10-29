@@ -3,6 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
+  <link rel="stylesheet" href="/src/styles/preloader.css" />
   <!-- Use PNG favicons for browsers and search engines; keep these URLs stable. -->
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
@@ -39,7 +40,14 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div class="site-preloader" role="status" aria-live="polite" aria-busy="true">
+      <iframe class="site-preloader__animation"
+        src="https://lottie.host/embed/488013ff-0d7b-45d3-856c-641ecf29dbb1/VKkkAlq0FN.lottie"
+        title="Blue animated icon" loading="eager" tabindex="-1" aria-hidden="true"></iframe>
+      <p class="site-preloader__label">Loading marketplace...</p>
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
