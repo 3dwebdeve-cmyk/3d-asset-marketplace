@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="stylesheet" href="/src/styles/preloader.css" />
+  <link rel="preload" href="/images/assethive-preloader.webp" as="image" media="(prefers-reduced-motion: no-preference)" />
   <!-- Use PNG favicons for browsers and search engines; keep these URLs stable. -->
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
@@ -41,12 +42,14 @@
 
 <body>
   <div id="root">
-    <div class="site-preloader" role="status" aria-live="polite" aria-busy="true">
-      <iframe class="site-preloader__animation"
-        src="https://lottie.host/embed/488013ff-0d7b-45d3-856c-641ecf29dbb1/VKkkAlq0FN.lottie"
-        title="Blue animated icon" loading="eager" tabindex="-1" aria-hidden="true"></iframe>
-      <p class="site-preloader__label">Loading marketplace...</p>
-    </div>
+    <section class="site-preloader" role="status" aria-label="Loading AssetHive3D" aria-live="polite" aria-busy="true">
+      <div class="site-preloader__stage" aria-hidden="true">
+        <img src="/images/assethive-preloader-still.webp" alt="" width="500" height="500" />
+      </div>
+      <h2 class="site-preloader__title">AssetHive<span>3D</span></h2>
+      <p class="site-preloader__label">Preparing your creative space</p>
+      <div class="site-preloader__track" aria-hidden="true"></div>
+    </section>
   </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
