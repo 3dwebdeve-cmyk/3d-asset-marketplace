@@ -58,6 +58,12 @@ class MediaPathTests(SimpleTestCase):
         )
         self.assertIsNone(media_relative_path("../secret.zip"))
 
+    def test_cache_busting_query_is_not_part_of_the_key(self) -> None:
+        self.assertEqual(
+            media_relative_path("http://127.0.0.1:8000/media/models/M/preview_M.glb?v=0123456789ab"),
+            "models/M/preview_M.glb",
+        )
+
     def test_batch_ingest_public_keys_exclude_package(self) -> None:
         self.assertTrue(is_public_media_path("models/MDL-000142/thumbnail.jpg"))
         self.assertTrue(is_public_media_path("models/MDL-000142/preview.glb"))

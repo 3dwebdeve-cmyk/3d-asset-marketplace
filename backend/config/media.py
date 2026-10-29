@@ -48,7 +48,8 @@ def media_relative_path(storage_path: str) -> str | None:
     if not storage_path:
         return None
 
-    value = storage_path.strip()
+    # Imported media URLs carry a "?v=<hash>" cache-buster; the key is the path alone.
+    value = storage_path.strip().split("#", 1)[0].split("?", 1)[0]
     public_base = str(getattr(settings, "R2_PUBLIC_BASE_URL", "") or "").rstrip("/")
     if public_base and (
         value == public_base or value.startswith(f"{public_base}/")

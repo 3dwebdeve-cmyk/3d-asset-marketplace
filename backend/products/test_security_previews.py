@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -175,18 +176,53 @@ class ImportPreviewTests(TestCase):
             default_storage.delete(SOURCE_KEY)
         default_storage.save(SOURCE_KEY, ContentFile(data))
 
-    def test_full_detail_preview_is_skipped_and_removed(self) -> None:
+    def test_accepted_preview_is_used_in_place(self) -> None:
+        self._put_source(make_glb_bytes(100))
+        row = self._import()
+        self.assertEqual(row.action, "created")
+        product = Product.objects.get(sku="MDL-000142")
+        self.assertRegex(product.preview_model, r"/media/models/MDL-000142/preview\.glb\?v=[0-9a-f]{12}$")
+        self.assertTrue(default_storage.exists(SOURCE_KEY))
+        _, files = default_storage.listdir("models/MDL-000142")
+        self.assertFalse([name for name in files if name.startswith("preview-")])
+
+    def test_full_detail_preview_is_skipped_and_kept(self) -> None:
         self._put_source(make_glb_bytes(7000))  # happy item has 12480 polygons
         row = self._import()
         self.assertEqual((row.action, row.reason), ("skipped", "preview_not_reduced"))
-        self.assertFalse(default_storage.exists(SOURCE_KEY))
+        self.assertTrue(default_storage.exists(SOURCE_KEY))
         self.assertFalse(Product.objects.filter(sku="MDL-000142").exists())
 
-    def test_invalid_preview_is_skipped_and_removed(self) -> None:
+    def test_invalid_preview_is_skipped_and_kept(self) -> None:
         self._put_source(b"glTF not a model")
         row = self._import()
         self.assertEqual((row.action, row.reason), ("skipped", "invalid_preview"))
+        self.assertTrue(default_storage.exists(SOURCE_KEY))
+
+    @patch("products.catalog_import.PRODUCT_PREVIEW_MAX_BYTES", 10)
+    def test_too_large_preview_is_skipped_and_kept(self) -> None:
+        self._put_source(make_glb_bytes(100))
+        row = self._import()
+        self.assertEqual((row.action, row.reason), ("skipped", "preview_too_large"))
+        self.assertTrue(default_storage.exists(SOURCE_KEY))
+
+    @override_settings(PACKAGE_SCAN_HOST="clamav", PACKAGE_SCAN_PORT=3310)
+    def test_infected_preview_is_skipped_and_deleted(self) -> None:
+        self._put_source(make_glb_bytes(100))
+        with patch("config.upload_security.socket.create_connection") as connect:
+            connect.return_value.__enter__.return_value.recv.side_effect = [
+                b"stream: Eicar-Signature FOUND\0"
+            ]
+            row = self._import()
+        self.assertEqual((row.action, row.reason), ("skipped", "preview_malware"))
         self.assertFalse(default_storage.exists(SOURCE_KEY))
+
+    @override_settings(PACKAGE_SCAN_REQUIRED=True, PACKAGE_SCAN_HOST="")
+    def test_preview_is_kept_when_the_scanner_is_unavailable(self) -> None:
+        self._put_source(make_glb_bytes(100))
+        row = self._import()
+        self.assertEqual((row.action, row.reason), ("skipped", "scanner_unavailable"))
+        self.assertTrue(default_storage.exists(SOURCE_KEY))
 
     def test_missing_preview_object_is_skipped(self) -> None:
         row = self._import()
@@ -198,26 +234,39 @@ class ImportPreviewTests(TestCase):
         row = self._import(item)
         self.assertEqual((row.action, row.reason), ("skipped", "invalid_preview_format"))
 
-    def test_reimport_replaces_and_deletes_old_random_preview(self) -> None:
+    def test_reimport_deletes_old_random_preview_copy(self) -> None:
         self._put_source(make_glb_bytes(100))
         self._import()
-        first = Product.objects.get(sku="MDL-000142").preview_model
-        first_key = first.split("/media/", 1)[1]
-        self.assertTrue(default_storage.exists(first_key))
+        # The product still points at a random copy an older import made.
+        old_key = "models/MDL-000142/preview-" + "c" * 32 + ".glb"
+        default_storage.save(old_key, ContentFile(make_glb_bytes(100)))
+        Product.objects.filter(sku="MDL-000142").update(
+            preview_model=f"http://testserver/media/{old_key}"
+        )
 
         self._put_source(make_glb_bytes(200))
         row = self._import()
         self.assertEqual(row.action, "updated")
         product = Product.objects.get(sku="MDL-000142")
-        self.assertNotEqual(product.preview_model, first)
+        self.assertRegex(product.preview_model, r"/models/MDL-000142/preview\.glb\?v=")
         self.assertEqual(product.preview_triangle_count, 200)
-        self.assertFalse(default_storage.exists(first_key))
-        self.assertFalse(default_storage.exists(SOURCE_KEY))
+        self.assertFalse(default_storage.exists(old_key))
+        self.assertTrue(default_storage.exists(SOURCE_KEY))
 
-    def test_reimport_without_new_upload_keeps_secured_preview(self) -> None:
+    def test_changed_preview_gets_a_new_url(self) -> None:
         self._put_source(make_glb_bytes(100))
         self._import()
         first = Product.objects.get(sku="MDL-000142").preview_model
+
+        self._put_source(make_glb_bytes(200))
+        self._import()
+        self.assertNotEqual(Product.objects.get(sku="MDL-000142").preview_model, first)
+
+    def test_reimport_without_new_upload_keeps_the_preview(self) -> None:
+        self._put_source(make_glb_bytes(100))
+        self._import()
+        first = Product.objects.get(sku="MDL-000142").preview_model
+        default_storage.delete(SOURCE_KEY)
 
         row = self._import()
         self.assertEqual(row.action, "updated")

@@ -105,8 +105,8 @@ def _optimized_webp(uploaded: UploadedFile) -> ContentFile:
     return ContentFile(data, name=name)
 
 
-def convert_image_bytes_to_webp(data: bytes) -> bytes:
-    """Check a JPEG/PNG/WebP image and return it re-encoded as WebP.
+def validate_image_bytes(data: bytes) -> None:
+    """Check that the bytes are a usable JPEG/PNG/WebP image of at most 20 megapixels.
 
     Used for images the batch pipeline uploads straight to storage, which never pass
     through the upload form. Raises ValidationError when the bytes are not a usable image.
@@ -119,13 +119,14 @@ def convert_image_bytes_to_webp(data: bytes) -> bytes:
                 raise ValidationError("Image dimensions exceed the 20 megapixel limit.")
             image.verify()
             detected_mime = _PIL_FORMAT_TO_MIME.get((image.format or "").upper())
-    except (UnidentifiedImageError, OSError) as exc:
-        raise ValidationError("File is not a valid image.") from exc
-    if detected_mime not in PRODUCT_IMAGE_ALLOWED_MIME_TYPES:
-        raise ValidationError("Image content does not match an allowed type.")
-    try:
-        return _encode_webp(BytesIO(data))
-    except (UnidentifiedImageError, OSError) as exc:
+        if detected_mime not in PRODUCT_IMAGE_ALLOWED_MIME_TYPES:
+            raise ValidationError("Image content does not match an allowed type.")
+        # verify() leaves the image unusable; decode it fully from a fresh handle.
+        with Image.open(BytesIO(data)) as image:
+            if image.width * image.height > PRODUCT_IMAGE_MAX_PIXELS:
+                raise ValidationError("Image dimensions exceed the 20 megapixel limit.")
+            image.load()
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise ValidationError("File is not a valid image.") from exc
 
 

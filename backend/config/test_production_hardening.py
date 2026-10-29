@@ -11,7 +11,13 @@ from django.test import SimpleTestCase, TestCase, override_settings
 
 from config.celery_utils import enqueue_after_commit
 from config.sentry import before_send
-from config.upload_security import inspect_product_content, scan_upload
+from config.upload_security import (
+    SCAN_MALWARE_FOUND,
+    SCAN_UNAVAILABLE,
+    inspect_product_content,
+    scan_error_code,
+    scan_upload,
+)
 from mail_log.management.commands.process_background_jobs import process_one
 from mail_log.models import BackgroundJob
 
@@ -35,14 +41,29 @@ class UploadSecurityTests(SimpleTestCase):
 
     @override_settings(PACKAGE_SCAN_REQUIRED=True, PACKAGE_SCAN_HOST="")
     def test_required_scanner_fails_closed(self):
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as ctx:
             scan_upload(SimpleUploadedFile("model.zip", b"file"))
+        self.assertEqual(scan_error_code(ctx.exception), SCAN_UNAVAILABLE)
 
     @override_settings(PACKAGE_SCAN_REQUIRED=True, PACKAGE_SCAN_HOST="clamav", PACKAGE_SCAN_PORT=3310)
     @patch("config.upload_security.socket.create_connection", side_effect=OSError())
     def test_unreachable_scanner_fails_closed(self, connection):
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as ctx:
             scan_upload(SimpleUploadedFile("model.zip", b"file"))
+        self.assertEqual(scan_error_code(ctx.exception), SCAN_UNAVAILABLE)
+
+    @override_settings(PACKAGE_SCAN_HOST="clamav", PACKAGE_SCAN_PORT=3310)
+    @patch("config.upload_security.socket.create_connection")
+    def test_scan_verdicts_are_told_apart(self, connection):
+        recv = connection.return_value.__enter__.return_value.recv
+        for reply, code in (
+            (b"stream: Eicar-Signature FOUND\0", SCAN_MALWARE_FOUND),
+            (b"INSTREAM size limit exceeded. ERROR\0", SCAN_UNAVAILABLE),
+        ):
+            recv.side_effect = [reply]
+            with self.subTest(reply=reply), self.assertRaises(ValidationError) as ctx:
+                scan_upload(SimpleUploadedFile("model.zip", b"file"))
+            self.assertEqual(scan_error_code(ctx.exception), code)
 
     def test_telemetry_scrubs_sensitive_paths_queries_and_breadcrumbs(self):
         event = {"request": {"url": "https://example.test/reset-password/user/secret"},

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import tempfile
 from decimal import Decimal
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from django.core.cache import cache
+from django.core.management import call_command
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.test import override_settings
@@ -18,7 +19,12 @@ from rest_framework.test import APITestCase
 from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile, ProductImage
-from products.testing import put_pipeline_objects, put_pipeline_packages, put_pipeline_uploads
+from products.testing import (
+    make_glb_bytes,
+    put_pipeline_objects,
+    put_pipeline_packages,
+    put_pipeline_uploads,
+)
 
 _HAPPY_CHECKSUM = "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456"
 
@@ -163,10 +169,10 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertTrue(product.has_thumbnail)
         self.assertTrue(product.has_preview)
         self.assertTrue(product.has_package)
-        self.assertRegex(product.thumbnail, r"models/MDL-000142/thumbnail-[0-9a-f]{12}\.webp$")
-        # The predictable pipeline name is replaced by an unguessable one.
-        self.assertRegex(product.preview_model, r"models/MDL-000142/preview-[0-9a-f]{32}\.glb$")
-        self.assertFalse(default_storage.exists("models/MDL-000142/preview.glb"))
+        # The product points at the uploader's own files, with a content hash for caches.
+        self.assertRegex(product.thumbnail, r"models/MDL-000142/thumbnail\.jpg\?v=[0-9a-f]{12}$")
+        self.assertRegex(product.preview_model, r"models/MDL-000142/preview\.glb\?v=[0-9a-f]{12}$")
+        self.assertTrue(default_storage.exists("models/MDL-000142/preview.glb"))
         self.assertEqual(product.preview_triangle_count, 100)
         self.assertNotIn("package.zip", product.thumbnail)
         self.assertNotIn("package.zip", product.preview_model)
@@ -177,7 +183,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
 
         gallery = list(ProductImage.objects.filter(product=product))
         self.assertEqual(len(gallery), 1)
-        self.assertRegex(gallery[0].image_url, r"models/MDL-000142/gallery/01-[0-9a-f]{12}\.webp$")
+        self.assertRegex(gallery[0].image_url, r"models/MDL-000142/gallery/01\.jpg\?v=[0-9a-f]{12}$")
 
     def test_reimport_updates_idempotently(self) -> None:
         self._authenticate_as_admin()
@@ -458,8 +464,8 @@ def _webp_item(sku: str = "MDL-000900", **overrides: object) -> dict:
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
-class CatalogImportWebpTests(APITestCase):
-    """Pipeline thumbnails and gallery images are served as WebP and must exist."""
+class CatalogImportImageTests(APITestCase):
+    """Pipeline thumbnails and gallery images must exist and are used where they are."""
 
     _authenticate_as_admin = CatalogImportAPITests._authenticate_as_admin
     _post_batch = CatalogImportAPITests._post_batch
@@ -475,7 +481,7 @@ class CatalogImportWebpTests(APITestCase):
         for name in files:
             default_storage.delete(f"{prefix}/{name}")
         for name in directories:
-            CatalogImportWebpTests._remove_folder(f"{prefix}/{name}")
+            CatalogImportImageTests._remove_folder(f"{prefix}/{name}")
 
     @staticmethod
     def _put(key: str, data: bytes) -> None:
@@ -485,9 +491,24 @@ class CatalogImportWebpTests(APITestCase):
 
     @staticmethod
     def _key(url: str) -> str:
-        return url.split("/media/", 1)[-1]
+        return url.split("/media/", 1)[-1].split("?", 1)[0]
 
-    def test_pipeline_images_are_served_as_webp(self) -> None:
+    @classmethod
+    def _all_keys(cls, prefix: str = "models/MDL-000900") -> set[str]:
+        if not default_storage.exists(prefix):
+            return set()
+        directories, files = default_storage.listdir(prefix)
+        keys = {f"{prefix}/{name}" for name in files}
+        for name in directories:
+            keys |= cls._all_keys(f"{prefix}/{name}")
+        return keys
+
+    def _legacy_webp_copy(self, key: str) -> str:
+        """A WebP copy as imports made before they stopped converting images."""
+        self._put(key, _image_bytes("WEBP", (10, 10, 10)))
+        return f"http://testserver/media/{key}"
+
+    def test_pipeline_images_are_used_as_uploaded(self) -> None:
         self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (200, 40, 40)))
         self._put("models/MDL-000900/gallery/01.png", _image_bytes("PNG", (40, 200, 40)))
 
@@ -495,17 +516,19 @@ class CatalogImportWebpTests(APITestCase):
 
         self.assertEqual(response.data["created"], 1, response.data)
         product = Product.objects.get(sku="MDL-000900")
-        self.assertRegex(product.thumbnail, r"models/MDL-000900/thumbnail-[0-9a-f]{12}\.webp$")
+        self.assertRegex(product.thumbnail, r"models/MDL-000900/thumbnail\.jpg\?v=[0-9a-f]{12}$")
         gallery = ProductImage.objects.get(product=product)
-        self.assertRegex(gallery.image_url, r"models/MDL-000900/gallery/01-[0-9a-f]{12}\.webp$")
-        for url in (product.thumbnail, gallery.image_url):
-            with default_storage.open(self._key(url), "rb") as handle:
-                self.assertEqual(Image.open(handle).format, "WEBP")
+        self.assertRegex(gallery.image_url, r"models/MDL-000900/gallery/01\.png\?v=[0-9a-f]{12}$")
+        self.assertFalse(any(key.endswith(".webp") for key in self._all_keys()))
 
-    def test_changed_thumbnail_replaces_the_previous_webp(self) -> None:
+    def test_changed_thumbnail_gets_a_new_url_and_old_webp_copy_is_deleted(self) -> None:
         self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (200, 40, 40)))
         self._post_batch([_webp_item()])
-        first = Product.objects.get(sku="MDL-000900").thumbnail
+        product = Product.objects.get(sku="MDL-000900")
+        first = product.thumbnail
+        # The product still points at a WebP copy an older import made.
+        legacy_key = "models/MDL-000900/thumbnail-0123456789ab.webp"
+        Product.objects.filter(pk=product.pk).update(thumbnail=self._legacy_webp_copy(legacy_key))
 
         self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (40, 40, 200)))
         response = self._post_batch([_webp_item()], batch_id="2026-09-03-run-02")
@@ -513,8 +536,60 @@ class CatalogImportWebpTests(APITestCase):
         self.assertEqual(response.data["updated"], 1, response.data)
         second = Product.objects.get(sku="MDL-000900").thumbnail
         self.assertNotEqual(first, second)
+        self.assertEqual(self._key(first), self._key(second))
         self.assertTrue(default_storage.exists(self._key(second)))
-        self.assertFalse(default_storage.exists(self._key(first)))
+        self.assertFalse(default_storage.exists(legacy_key))
+
+    def test_skipped_row_creates_no_object(self) -> None:
+        put_pipeline_uploads([_webp_item()], triangles=9000)  # not reduced: 12480 polygons
+        put_pipeline_packages([_webp_item()])
+        before = self._all_keys()
+
+        response = self._post_without_uploads([_webp_item()])
+
+        self.assertEqual(response.data["results"][0]["reason"], "preview_not_reduced")
+        self.assertEqual(self._all_keys(), before)
+
+    def test_reimport_replaces_a_gallery_made_by_an_import(self) -> None:
+        self._post_batch([_webp_item()])
+        product = Product.objects.get(sku="MDL-000900")
+        legacy_key = "models/MDL-000900/gallery/01-0123456789ab.webp"
+        ProductImage.objects.filter(product=product).update(
+            image_url=self._legacy_webp_copy(legacy_key)
+        )
+
+        item = _webp_item()
+        item["media"]["gallery_keys"] = [
+            "models/MDL-000900/gallery/01.png",
+            "models/MDL-000900/gallery/02.png",
+        ]
+        response = self._post_batch([item], batch_id="2026-09-03-run-02")
+
+        self.assertEqual(response.data["updated"], 1, response.data)
+        urls = list(
+            ProductImage.objects.filter(product=product)
+            .order_by("display_order")
+            .values_list("image_url", flat=True)
+        )
+        self.assertEqual(
+            [self._key(url) for url in urls],
+            ["models/MDL-000900/gallery/01.png", "models/MDL-000900/gallery/02.png"],
+        )
+        self.assertFalse(default_storage.exists(legacy_key))
+
+    def test_reimport_keeps_a_gallery_an_administrator_added(self) -> None:
+        self._post_batch([_webp_item()])
+        product = Product.objects.get(sku="MDL-000900")
+        ProductImage.objects.create(
+            product=product,
+            image_url="http://testserver/media/products/images/admin.webp",
+            display_order=5,
+        )
+
+        response = self._post_batch([_webp_item()], batch_id="2026-09-03-run-02")
+
+        self.assertEqual(response.data["updated"], 1, response.data)
+        self.assertEqual(ProductImage.objects.filter(product=product).count(), 2)
 
     def test_unreadable_thumbnail_skips_the_row(self) -> None:
         self._put("models/MDL-000900/thumbnail.jpg", b"not an image")
@@ -535,6 +610,8 @@ class CatalogImportWebpTests(APITestCase):
         )
 
     def test_missing_thumbnail_object_skips_the_row(self) -> None:
+        self._put("models/MDL-000900/preview.glb", make_glb_bytes(100))
+
         response = self._post_without_uploads([_webp_item()])
 
         self.assertEqual(response.data["skipped"], 1)
@@ -542,6 +619,7 @@ class CatalogImportWebpTests(APITestCase):
         self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())
 
     def test_missing_gallery_object_skips_the_row(self) -> None:
+        self._put("models/MDL-000900/preview.glb", make_glb_bytes(100))
         self._put("models/MDL-000900/thumbnail.jpg", _image_bytes("JPEG", (200, 40, 40)))
 
         response = self._post_without_uploads([_webp_item()])
@@ -618,14 +696,16 @@ class PipelineCatalogImportTests(CatalogImportTestBase):
         self.assertNotIn("warnings", response.data["results"][0])
         product = Product.objects.get(sku="FUR-CHR-000123")
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
-        # The pipeline's JPEG thumbnail is served as WebP.
+        # The uploader's files are used where they are, under their own names.
         self.assertRegex(
-            product.thumbnail, r"models/FUR-CHR-000123/previewthumb_FUR-CHR-000123-[0-9a-f]{12}\.webp$"
+            product.thumbnail,
+            r"models/FUR-CHR-000123/previewthumb_FUR-CHR-000123\.jpg\?v=[0-9a-f]{12}$",
         )
         self.assertRegex(
-            product.preview_model, r"models/FUR-CHR-000123/preview-[0-9a-f]{32}\.glb$"
+            product.preview_model,
+            r"models/FUR-CHR-000123/preview_FUR-CHR-000123\.glb\?v=[0-9a-f]{12}$",
         )
-        self.assertFalse(default_storage.exists("models/FUR-CHR-000123/preview_FUR-CHR-000123.glb"))
+        self.assertTrue(default_storage.exists("models/FUR-CHR-000123/preview_FUR-CHR-000123.glb"))
         package = ProductFile.objects.get(product=product, is_preview=False)
         self.assertEqual(package.storage_path, "models/FUR-CHR-000123/FUR-CHR-000123.zip")
         self.assertEqual(package.file_name, "FUR-CHR-000123.zip")
@@ -744,3 +824,53 @@ class PipelineCatalogImportTests(CatalogImportTestBase):
 
         detail = self.client.get(reverse("products:product-detail", kwargs={"slug": product.slug}))
         self.assertEqual(detail.data["formats"], ["fbx", "max"])
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CleanupImportCopiesCommandTests(CatalogImportTestBase):
+    """cleanup_import_copies removes only the copies nothing points at."""
+
+    ORPHAN_WEBP = "models/FUR-CHR-000555/render_FUR-CHR-000555_01-0123456789ab.webp"
+    ORPHAN_PREVIEW = "models/FUR-CHR-000555/preview-" + "a" * 32 + ".glb"
+    USED_PREVIEW = "models/FUR-CHR-000555/preview-" + "b" * 32 + ".glb"
+    UPLOADER_FILES = (
+        "models/FUR-CHR-000555/preview_FUR-CHR-000555.glb",
+        "models/FUR-CHR-000555/previewthumb_FUR-CHR-000555.jpg",
+        "models/FUR-CHR-000555/render_FUR-CHR-000555_01.jpg",
+    )
+
+    def setUp(self) -> None:
+        super().setUp()
+        for key in (self.ORPHAN_WEBP, self.ORPHAN_PREVIEW, self.USED_PREVIEW, *self.UPLOADER_FILES):
+            if not default_storage.exists(key):
+                default_storage.save(key, ContentFile(b"x"))
+            self.addCleanup(default_storage.delete, key)
+        Product.objects.create(
+            category=self.chairs,
+            name="Legacy Import",
+            slug="legacy-import",
+            sku="FUR-CHR-000555",
+            price=Decimal("10.00"),
+            preview_model=f"http://testserver/media/{self.USED_PREVIEW}",
+        )
+
+    def _run(self, *args: str) -> str:
+        out = StringIO()
+        call_command("cleanup_import_copies", *args, stdout=out)
+        return out.getvalue()
+
+    def test_dry_run_deletes_nothing(self) -> None:
+        output = self._run()
+        self.assertIn(f"would delete {self.ORPHAN_WEBP}", output)
+        self.assertIn(f"would delete {self.ORPHAN_PREVIEW}", output)
+        self.assertNotIn(self.USED_PREVIEW, output)
+        self.assertTrue(default_storage.exists(self.ORPHAN_WEBP))
+        self.assertTrue(default_storage.exists(self.ORPHAN_PREVIEW))
+
+    def test_delete_removes_only_unreferenced_copies(self) -> None:
+        self._run("--delete")
+        self.assertFalse(default_storage.exists(self.ORPHAN_WEBP))
+        self.assertFalse(default_storage.exists(self.ORPHAN_PREVIEW))
+        self.assertTrue(default_storage.exists(self.USED_PREVIEW))
+        for key in self.UPLOADER_FILES:
+            self.assertTrue(default_storage.exists(key), key)
