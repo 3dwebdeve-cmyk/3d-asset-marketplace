@@ -11,6 +11,7 @@ from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
@@ -50,6 +51,7 @@ _IMPORT_IMAGE_MAX_BYTES = 25 * 1024 * 1024
 _IMPORT_COPY_KEY_RE = re.compile(
     r"models/(?P<sku>[^/]+)/(?:.+-[0-9a-f]{12}\.webp|preview-[0-9a-f]{32}\.glb)"
 )
+PREVIEW_NOT_SCANNED_NOTE = "Preview imported without a virus scan (no scanner configured)."
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
@@ -97,6 +99,16 @@ class CatalogImportBatchResult:
     skipped: int
     failed: int
     results: list[CatalogImportRowResult]
+
+    @property
+    def not_scanned_model_ids(self) -> list[str]:
+        """Rows imported without a virus scan, for the audit log."""
+        return [row.model_id for row in self.results if "preview_not_scanned" in row.warnings]
+
+    def audit_metadata(self) -> dict[str, Any]:
+        if not self.not_scanned_model_ids:
+            return {}
+        return {"preview_not_scanned": True, "not_scanned_model_ids": self.not_scanned_model_ids}
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -311,6 +323,7 @@ class CatalogImportService:
                     replace=media_pointers["replace_gallery"],
                 )
                 cls._sync_package(product, media_pointers)
+                cls._sync_scan_note(product, media_pointers["preview_not_scanned"])
         except ProductError as exc:
             return CatalogImportRowResult(
                 model_id=sku,
@@ -330,6 +343,8 @@ class CatalogImportService:
             )
 
         cls._delete_unreferenced_copies(previous_copies)
+        if media_pointers["preview_not_scanned"]:
+            warnings.append("preview_not_scanned")
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -566,7 +581,8 @@ class CatalogImportService:
         The one exception is a file the virus scanner reports as malware.
         """
         source_key = media_pointers["preview_key"]
-        pointers = {**media_pointers, "preview_unchecked": False}
+        # preview_not_scanned: None when the product keeps its current preview (unknown).
+        pointers = {**media_pointers, "preview_unchecked": False, "preview_not_scanned": False}
         if not source_key.lower().endswith(".glb"):
             raise ProductError("invalid_preview_format", field="preview_key")
 
@@ -587,6 +603,7 @@ class CatalogImportService:
                 pointers["preview_key"] = media_relative_path(existing.preview_model)
                 pointers["preview_url"] = existing.preview_model
                 pointers["preview_triangle_count"] = existing.preview_triangle_count
+                pointers["preview_not_scanned"] = None
                 return pointers
             raise ProductError("missing_preview_object", field="preview_key")
 
@@ -599,8 +616,13 @@ class CatalogImportService:
             logger.exception("catalog_import_preview_unreadable model_id=%s", sku)
             raise ProductError("preview_unreadable", field="preview_key") from None
 
+        # A configured scanner is always used. Without one, CATALOG_IMPORT_SCAN_REQUIRED=False
+        # lets the studio's own uploads in unscanned; the structure checks still run.
+        skip_scan = not settings.CATALOG_IMPORT_SCAN_REQUIRED and not settings.PACKAGE_SCAN_HOST
         try:
-            triangles = inspect_product_content(ContentFile(data, name="preview.glb"), ".glb")
+            triangles = inspect_product_content(
+                ContentFile(data, name="preview.glb"), ".glb", scan=not skip_scan
+            )
         except ValidationError as exc:
             scan_code = scan_error_code(exc)
             if scan_code == SCAN_MALWARE_FOUND:
@@ -611,6 +633,9 @@ class CatalogImportService:
                 logger.error("catalog_import_scanner_unavailable model_id=%s", sku)
                 raise ProductError("scanner_unavailable", field="preview_key") from None
             raise ProductError("invalid_preview", field="preview_key") from None
+        if skip_scan:
+            logger.warning("catalog_import_preview_not_scanned model_id=%s", sku)
+            pointers["preview_not_scanned"] = True
 
         polygon_count = item.get("polygon_count")
         if preview_reduction_error(triangles, int(polygon_count) if polygon_count else None):
@@ -886,6 +911,21 @@ class CatalogImportService:
                 for index, url in enumerate(gallery_urls)
             ]
         )
+
+    @staticmethod
+    def _sync_scan_note(product: Product, not_scanned: bool | None) -> None:
+        """Tell reviewers (QA notes in /console) when the preview went in unscanned."""
+        if not_scanned is None:  # the product kept its current preview
+            return
+        notes = product.qa_notes or ""
+        if not_scanned and PREVIEW_NOT_SCANNED_NOTE not in notes:
+            notes = f"{notes}\n{PREVIEW_NOT_SCANNED_NOTE}".strip()
+        elif not not_scanned and PREVIEW_NOT_SCANNED_NOTE in notes:
+            notes = notes.replace(PREVIEW_NOT_SCANNED_NOTE, "").strip()
+        else:
+            return
+        product.qa_notes = notes
+        product.save(update_fields=["qa_notes", "updated_at"])
 
     @classmethod
     def _sync_package(cls, product: Product, media_pointers: dict[str, Any]) -> None:

@@ -169,6 +169,7 @@ holds `preview_unchecked` when that applies.
 |---|---|
 | `subcategory_not_found` | The subcategory does not exist (or is inactive) under the category. The product was placed in the parent category. Create the subcategory in `/console`, then re-import. |
 | `preview_unchecked` | The preview was accepted without the 50% reduction check (see Import gate). Send `polygon_count`. |
+| `preview_not_scanned` | The preview was imported without a virus scan, because `CATALOG_IMPORT_SCAN_REQUIRED` is `False` and no scanner is configured. Expected while that switch is off. |
 
 ## Import gate
 
@@ -197,7 +198,25 @@ Every rejected preview stays in R2 except a `preview_malware` one, which is dele
 | Reason | Meaning |
 |---|---|
 | `preview_malware` | The virus scanner found malware in the preview. The file was deleted. |
-| `scanner_unavailable` | The virus scanner could not be reached or did not finish (`PACKAGE_SCAN_HOST`). The file is kept; import again once the scanner is back. While it is down, no model can be imported. |
+| `scanner_unavailable` | The virus scanner is required but not configured, or a configured scanner (`PACKAGE_SCAN_HOST`) could not be reached or did not finish. The file is kept; import again once the scanner is back. Without a scanner this happens only while `CATALOG_IMPORT_SCAN_REQUIRED` is `True`. |
+
+### Virus scan switch: `CATALOG_IMPORT_SCAN_REQUIRED`
+
+Production requires a virus scan of every upload. The setting `CATALOG_IMPORT_SCAN_REQUIRED`
+(default `True`) decides what the import does with the preview when **no** scanner is configured
+(`PACKAGE_SCAN_HOST` empty):
+
+| Value | No scanner configured | Scanner configured |
+|---|---|---|
+| `True` (default) | Row skipped: `scanner_unavailable` | Scanned |
+| `False` | Imported **unscanned**, with the warning `preview_not_scanned` | Scanned (the switch has no effect) |
+
+With `False` and no scanner, the GLB structure, size and triangle checks still run. The
+audit log entry records `preview_not_scanned`, the product's QA notes in `/console` say
+*"Preview imported without a virus scan (no scanner configured)."*, and the site logs a
+warning at startup. The switch covers the catalog import only (the uploader route and the
+administrator import route); admin console uploads always require the scanner. Set it to
+`False` only until a ClamAV scanner exists.
 
 Image checks can skip a row: `invalid_thumbnail`, `invalid_gallery_image` (not a JPEG/PNG/WebP
 image, over 25 MB or over 20 megapixels), `image_unreadable` (storage error), `missing_thumbnail_object` and

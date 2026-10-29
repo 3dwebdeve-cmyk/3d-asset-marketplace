@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import shutil
 import tempfile
 from decimal import Decimal
 from io import BytesIO, StringIO
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.core.management import call_command
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 from rest_framework import status
@@ -18,6 +20,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
 from categories.models import Category
+from products.catalog_import import PREVIEW_NOT_SCANNED_NOTE, CatalogImportService
 from products.models import Product, ProductFile, ProductImage
 from products.testing import (
     make_glb_bytes,
@@ -874,3 +877,104 @@ class CleanupImportCopiesCommandTests(CatalogImportTestBase):
         self.assertTrue(default_storage.exists(self.USED_PREVIEW))
         for key in self.UPLOADER_FILES:
             self.assertTrue(default_storage.exists(key), key)
+
+
+# Production rules: scanning is required, and Render has no scanner (PACKAGE_SCAN_HOST empty).
+_NO_SCANNER = {"PACKAGE_SCAN_REQUIRED": True, "PACKAGE_SCAN_HOST": ""}
+_SCANNER = {"PACKAGE_SCAN_REQUIRED": True, "PACKAGE_SCAN_HOST": "clamav", "PACKAGE_SCAN_PORT": 3310}
+_CONNECT = "config.upload_security.socket.create_connection"
+
+
+class CatalogImportScanSwitchTests(TestCase):
+    """CATALOG_IMPORT_SCAN_REQUIRED lets uploader previews in unscanned when no scanner exists."""
+
+    PREVIEW_KEY = "models/MDL-000142/preview.glb"
+
+    def setUp(self) -> None:
+        media_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media_root, ignore_errors=True)
+        media_override = override_settings(MEDIA_ROOT=media_root)
+        media_override.enable()
+        self.addCleanup(media_override.disable)
+        parent = Category.objects.create(name="Furniture", slug="furniture")
+        Category.objects.create(name="Chairs", slug="chairs", parent=parent)
+
+    def _import(self, preview: bytes | None = None):
+        item = _happy_item()
+        if preview is not None:
+            default_storage.save(self.PREVIEW_KEY, ContentFile(preview))
+        put_pipeline_objects([item])
+        batch = CatalogImportService.import_batch(
+            import_batch_id="scan-switch",
+            import_source="3dsmax-uploader",
+            items=[item],
+            actor_id="test",
+        )
+        return batch, batch.results[0]
+
+    @override_settings(**_NO_SCANNER)
+    def test_switch_on_without_scanner_rejects_the_preview(self) -> None:
+        _, row = self._import()
+        self.assertEqual((row.action, row.reason), ("skipped", "scanner_unavailable"))
+        self.assertTrue(default_storage.exists(self.PREVIEW_KEY))
+        self.assertFalse(Product.objects.filter(sku="MDL-000142").exists())
+
+    @override_settings(CATALOG_IMPORT_SCAN_REQUIRED=False, **_NO_SCANNER)
+    def test_switch_off_without_scanner_imports_unscanned(self) -> None:
+        with patch(_CONNECT) as connect, self.assertLogs("products.catalog_import", "WARNING") as logs:
+            batch, row = self._import()
+
+        connect.assert_not_called()
+        self.assertEqual(row.action, "created", row)
+        self.assertIn("preview_not_scanned", row.warnings)
+        self.assertTrue(any("catalog_import_preview_not_scanned" in line for line in logs.output))
+        self.assertEqual(batch.audit_metadata()["not_scanned_model_ids"], ["MDL-000142"])
+        product = Product.objects.get(sku="MDL-000142")
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+        self.assertIn(PREVIEW_NOT_SCANNED_NOTE, product.qa_notes)
+        self.assertTrue(default_storage.exists(self.PREVIEW_KEY))
+
+    @override_settings(CATALOG_IMPORT_SCAN_REQUIRED=False, **_SCANNER)
+    def test_switch_off_still_uses_a_configured_scanner(self) -> None:
+        with patch(_CONNECT) as connect:
+            connect.return_value.__enter__.return_value.recv.side_effect = [b"stream: OK\0"]
+            batch, row = self._import()
+        connect.assert_called_once()
+        self.assertEqual(row.action, "created", row)
+        self.assertNotIn("preview_not_scanned", row.warnings)
+        self.assertEqual(batch.audit_metadata(), {})
+        self.assertNotIn(PREVIEW_NOT_SCANNED_NOTE, Product.objects.get(sku="MDL-000142").qa_notes)
+
+    @override_settings(CATALOG_IMPORT_SCAN_REQUIRED=False, **_SCANNER)
+    def test_switch_off_configured_scanner_finds_malware(self) -> None:
+        default_storage.save(self.PREVIEW_KEY, ContentFile(make_glb_bytes(100)))
+        with patch(_CONNECT) as connect:
+            connect.return_value.__enter__.return_value.recv.side_effect = [
+                b"stream: Eicar-Signature FOUND\0"
+            ]
+            _, row = self._import()
+        self.assertEqual((row.action, row.reason), ("skipped", "preview_malware"))
+        self.assertFalse(default_storage.exists(self.PREVIEW_KEY))
+
+    @override_settings(CATALOG_IMPORT_SCAN_REQUIRED=False, **_SCANNER)
+    def test_switch_off_configured_scanner_unreachable(self) -> None:
+        with patch(_CONNECT, side_effect=OSError()):
+            _, row = self._import()
+        self.assertEqual((row.action, row.reason), ("skipped", "scanner_unavailable"))
+        self.assertTrue(default_storage.exists(self.PREVIEW_KEY))
+
+    @override_settings(CATALOG_IMPORT_SCAN_REQUIRED=False, **_NO_SCANNER)
+    def test_switch_off_still_rejects_an_invalid_glb(self) -> None:
+        _, row = self._import(preview=b"glTF not a model")
+        self.assertEqual((row.action, row.reason), ("skipped", "invalid_preview"))
+
+    @override_settings(CATALOG_IMPORT_SCAN_REQUIRED=False, **_NO_SCANNER)
+    def test_scanned_reimport_removes_the_review_note(self) -> None:
+        self._import()
+        self.assertIn(PREVIEW_NOT_SCANNED_NOTE, Product.objects.get(sku="MDL-000142").qa_notes)
+
+        with override_settings(**_SCANNER), patch(_CONNECT) as connect:
+            connect.return_value.__enter__.return_value.recv.side_effect = [b"stream: OK\0"]
+            _, row = self._import()
+        self.assertEqual(row.action, "updated", row)
+        self.assertNotIn(PREVIEW_NOT_SCANNED_NOTE, Product.objects.get(sku="MDL-000142").qa_notes)

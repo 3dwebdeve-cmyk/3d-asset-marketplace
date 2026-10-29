@@ -96,6 +96,15 @@ class AdminPreviewUploadTests(APITestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.preview_triangle_count, 500)
 
+    @override_settings(
+        CATALOG_IMPORT_SCAN_REQUIRED=False, PACKAGE_SCAN_REQUIRED=True, PACKAGE_SCAN_HOST=""
+    )
+    def test_import_scan_switch_does_not_affect_admin_uploads(self) -> None:
+        response = self._upload(500)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Malware scanning is unavailable", str(response.data))
+        self.assertFalse(ProductFile.objects.filter(product=self.product).exists())
+
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class ApprovePreviewGateTests(TestCase):
