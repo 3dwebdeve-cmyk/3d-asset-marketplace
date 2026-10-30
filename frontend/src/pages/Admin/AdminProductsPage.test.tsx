@@ -18,6 +18,7 @@ vi.mock('../../api/productsApi', async () => {
     listAdminProducts: vi.fn(),
     createAdminProduct: vi.fn(),
     bulkDeleteAdminProducts: vi.fn(),
+    listUploaderImports: vi.fn(),
     restoreAdminProduct: vi.fn(),
   }
 })
@@ -124,6 +125,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(productsApi.listAdminProducts).mockResolvedValue(sampleProducts)
   vi.mocked(categoriesApi.listAdminCategories).mockResolvedValue(sampleCategories)
+  vi.mocked(productsApi.listUploaderImports).mockResolvedValue([])
 })
 
 describe('AdminProductsPage', () => {
@@ -276,6 +278,22 @@ describe('AdminProductsPage', () => {
       )
     })
     expect(screen.getByRole('heading', { name: /qa queue/i })).toBeInTheDocument()
+  })
+
+  it('shows why uploaded models did not reach the QA queue', async () => {
+    vi.mocked(productsApi.listUploaderImports).mockResolvedValue([
+      {
+        id: 'log-1',
+        target_id: 'uploader-20261030-001',
+        created_at: '2026-10-30T06:29:55Z',
+        metadata: { created: 2, updated: 0, skipped: 1, failed: 0, skipped_reasons: { 'PRO-000003': 'published_sku' } },
+      },
+    ])
+    renderProductsPage('/console/products?status=pending_review')
+
+    expect(await screen.findByRole('heading', { name: 'Recent uploader imports' })).toBeInTheDocument()
+    expect(screen.getByText(/2 new, 0 updated to QA, 1 not imported/)).toBeInTheDocument()
+    expect(screen.getByText('PRO-000003: already published, left as it is')).toBeInTheDocument()
   })
 
   it('filters by import_batch_id', async () => {

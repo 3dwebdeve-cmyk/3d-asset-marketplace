@@ -52,11 +52,15 @@ _IMPORT_COPY_KEY_RE = re.compile(
     r"models/(?P<sku>[^/]+)/(?:.+-[0-9a-f]{12}\.webp|preview-[0-9a-f]{32}\.glb)"
 )
 PREVIEW_NOT_SCANNED_NOTE = "Preview imported without a virus scan (no scanner configured)."
+# A re-upload sends these back to QA. An archived model (deleted while it had orders)
+# returns too: uploading it again means it should be sold again. A published model is
+# left as it is, so re-sending a batch never takes live models off the store.
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
         Product.Status.PENDING_REVIEW,
         Product.Status.REJECTED,
+        Product.Status.ARCHIVED,
     }
 )
 
@@ -106,9 +110,14 @@ class CatalogImportBatchResult:
         return [row.model_id for row in self.results if "preview_not_scanned" in row.warnings]
 
     def audit_metadata(self) -> dict[str, Any]:
-        if not self.not_scanned_model_ids:
-            return {}
-        return {"preview_not_scanned": True, "not_scanned_model_ids": self.not_scanned_model_ids}
+        metadata: dict[str, Any] = {}
+        if self.not_scanned_model_ids:
+            metadata.update(preview_not_scanned=True, not_scanned_model_ids=self.not_scanned_model_ids)
+        # Why each model did not reach QA, so the admin can see it without the uploader's log.
+        reasons = {row.model_id: row.reason for row in self.results if row.action in ("skipped", "failed")}
+        if reasons:
+            metadata["skipped_reasons"] = reasons
+        return metadata
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -259,12 +268,6 @@ class CatalogImportService:
                     model_id=sku,
                     action="skipped",
                     reason="published_sku",
-                )
-            if existing.status == Product.Status.ARCHIVED:
-                return CatalogImportRowResult(
-                    model_id=sku,
-                    action="skipped",
-                    reason="archived_sku",
                 )
             if existing.status not in _UPSERTABLE_STATUSES:
                 return CatalogImportRowResult(
@@ -740,8 +743,8 @@ class CatalogImportService:
         if existing is None:
             return True
         urls = ProductImage.objects.filter(product=existing).values_list("image_url", flat=True)
-        prefix = f"models/{sku}/"
-        return all((media_relative_path(url) or "").startswith(prefix) for url in urls)
+        prefixes = (f"models/{sku}/", f"{FREE_MODELS_PREFIX}{sku}/")
+        return all((media_relative_path(url) or "").startswith(prefixes) for url in urls)
 
     @staticmethod
     def _import_copies(sku: str, existing: Product | None) -> list[str]:

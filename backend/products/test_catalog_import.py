@@ -18,7 +18,7 @@ from PIL import Image
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Role, User
+from accounts.models import ActivityLog, Role, User
 from categories.models import Category
 from products.catalog_import import PREVIEW_NOT_SCANNED_NOTE, CatalogImportService
 from products.models import Product, ProductFile, ProductImage
@@ -287,7 +287,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(reasons["MDL-000203"], "missing_thumbnail")
         self.assertEqual(Product.objects.filter(sku__startswith="MDL-00020").count(), 0)
 
-    def test_skip_published_and_archived(self) -> None:
+    def test_published_is_skipped_and_archived_returns_to_qa(self) -> None:
         self._authenticate_as_admin()
         Product.objects.create(
             category=self.furniture,
@@ -322,10 +322,14 @@ class CatalogImportAPITests(CatalogImportTestBase):
             ]
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["skipped"], 2)
-        reasons = {row["model_id"]: row["reason"] for row in response.data["results"]}
+        self.assertEqual(response.data["skipped"], 1)
+        self.assertEqual(response.data["updated"], 1, response.data)
+        reasons = {row["model_id"]: row.get("reason") for row in response.data["results"]}
         self.assertEqual(reasons["MDL-000142"], "published_sku")
-        self.assertEqual(reasons["MDL-000300"], "archived_sku")
+        self.assertEqual(Product.objects.get(sku="MDL-000300").status, Product.Status.PENDING_REVIEW)
+        # The admin sees why a model did not reach QA in the activity log.
+        log = ActivityLog.objects.filter(action="catalog_import").latest("created_at")
+        self.assertEqual(log.metadata["skipped_reasons"], {"MDL-000142": "published_sku"})
         self.assertEqual(
             Product.objects.get(sku="MDL-000142").status,
             Product.Status.PUBLISHED,

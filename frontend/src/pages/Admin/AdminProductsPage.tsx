@@ -21,6 +21,7 @@ import { toast } from '../../lib/toast'
 import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION, PRODUCT_RESTORE_CONFIRMATION } from '../../lib/productArchive'
 import { isFreeProduct } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus } from '../../types/product'
+import { UploaderImportsPanel } from './UploaderImportsPanel'
 
 const emptyCreateForm: AdminProductCreatePayload = {
   category_id: '',
@@ -238,6 +239,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
             Existing buyers keep their downloads.
           </p>
         ) : null}
+        {isQaQueue ? <UploaderImportsPanel /> : null}
         {restoreError ? <Alert variant="error" message={restoreError} /> : null}
         {!archived && showCreate ? (
           <form className="admin-create-form" onSubmit={onCreateSubmit} noValidate>
