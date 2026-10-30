@@ -5,6 +5,17 @@ import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera } from './framePreviewCamera'
 
 describe('initial preview camera framing', () => {
+  it('opens models from an elevated three-quarter angle on the opposite side of the old view', () => {
+    const model = fitPreviewScene(new Mesh(new BoxGeometry(1, 2, 3)))
+    const camera = new PerspectiveCamera(42)
+    const center = framePreviewCamera(camera, model, 2)!
+    const direction = camera.position.clone().sub(center).normalize()
+    expect(direction.x).toBeGreaterThan(0)
+    expect(direction.y).toBeGreaterThan(0)
+    expect(direction.z).toBeLessThan(0)
+    expect(direction.x / -direction.z).toBeCloseTo(1.8 / 2.3)
+  })
+
   it.each([
     ['tall vase on desktop', [1, 12, 1], 2],
     ['wide furniture on desktop', [12, 1, 2], 2],
