@@ -346,65 +346,6 @@ class ProductAdminAPITests(APITestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.status, Product.Status.ARCHIVED)
 
-    def test_archived_section_is_separate_from_current_products(self) -> None:
-        self._authenticate_as_admin()
-        archived = Product.objects.create(
-            category=self.category, name="Old House", slug="old-house",
-            price=Decimal("50.00"), status=Product.Status.ARCHIVED,
-            import_batch_id="old-batch",
-        )
-        current = self.client.get(self.list_url)
-        self.assertEqual(current.status_code, status.HTTP_200_OK)
-        self.assertEqual(current.data["count"], 1)
-        self.assertEqual(current.data["results"][0]["id"], str(self.product.pk))
-        # Search must not leak archived products into the main Products section.
-        current = self.client.get(self.list_url, {"search": "Old House"})
-        self.assertEqual(current.data["count"], 0)
-        removed = self.client.get(self.list_url, {
-            "status": "archived", "search": "Old", "import_batch_id": "old-batch",
-        })
-        self.assertEqual(removed.status_code, status.HTTP_200_OK)
-        self.assertEqual(removed.data["count"], 1)
-        self.assertEqual(removed.data["results"][0]["id"], str(archived.pk))
-        # New removals immediately leave the current list and appear in Archived.
-        self.client.delete(self.detail_url)
-        self.assertEqual(self.client.get(self.list_url).data["count"], 0)
-        self.assertEqual(self.client.get(self.list_url, {"status": "archived"}).data["count"], 2)
-
-    def test_remove_from_admin_hides_archived_product_and_blocks_old_admin_links(self) -> None:
-        self._authenticate_as_admin()
-        self.client.delete(self.detail_url)
-        url = reverse("products_admin:admin-product-remove-from-admin", kwargs={"product_id": self.product.pk})
-        self.assertEqual(self.client.delete(url).status_code, status.HTTP_204_NO_CONTENT)
-        self.product.refresh_from_db()
-        self.assertIsNotNone(self.product.admin_removed_at)
-        self.assertEqual(self.product.status, Product.Status.ARCHIVED)
-        for params in ({}, {"status": "archived"}, {"status": "archived", "search": self.product.name}):
-            self.assertEqual(self.client.get(self.list_url, params).data["count"], 0)
-        self.assertEqual(self.client.get(self.detail_url).status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(self.client.patch(self.detail_url, {"name": "Changed"}, format="json").status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(self.client.delete(url).status_code, status.HTTP_404_NOT_FOUND)
-        media_url = reverse("products_admin:admin-product-files", kwargs={"product_id": self.product.pk})
-        self.assertEqual(self.client.post(media_url, {}, format="multipart").status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_remove_from_admin_requires_archived_product(self) -> None:
-        self._authenticate_as_admin()
-        url = reverse("products_admin:admin-product-remove-from-admin", kwargs={"product_id": self.product.pk})
-        for product_status in (Product.Status.DRAFT, Product.Status.PUBLISHED, Product.Status.PENDING_REVIEW):
-            Product.objects.filter(pk=self.product.pk).update(status=product_status)
-            self.assertEqual(self.client.delete(url).status_code, status.HTTP_400_BAD_REQUEST)
-            self.product.refresh_from_db()
-            self.assertIsNone(self.product.admin_removed_at)
-            self.assertEqual(self.product.status, product_status)
-
-    def test_remove_from_admin_requires_administrator(self) -> None:
-        url = reverse("products_admin:admin-product-remove-from-admin", kwargs={"product_id": self.product.pk})
-        self.assertEqual(self.client.delete(url).status_code, status.HTTP_401_UNAUTHORIZED)
-        self.client.force_authenticate(user=self.customer_user)
-        self.assertEqual(self.client.delete(url).status_code, status.HTTP_403_FORBIDDEN)
-        self.product.refresh_from_db()
-        self.assertIsNone(self.product.admin_removed_at)
-
     def test_admin_rejects_discount_above_price(self) -> None:
         self._authenticate_as_admin()
 

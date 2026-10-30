@@ -9,7 +9,6 @@ from accounts.models import Role, User
 from categories.models import Category
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
-from products.services import ProductService
 
 
 class AdminDashboardStatsAPITests(APITestCase):
@@ -96,19 +95,6 @@ class AdminDashboardStatsAPITests(APITestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
         response = self.client.get(self.stats_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_stats_exclude_products_removed_from_admin(self) -> None:
-        self._authenticate_as_admin()
-        removed = Product.objects.create(
-            category=self.furniture, name="Old model", slug="old-model",
-            price=Decimal("10.00"), status=Product.Status.ARCHIVED,
-        )
-        ProductService.remove_from_admin(removed.pk)
-        response = self.client.get(self.stats_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["products"]["total"], 2)
-        self.assertEqual(response.data["products"]["archived"], 0)
-        self.assertEqual(response.data["category_breakdown"][0]["product_count"], 2)
 
     def test_stats_returns_marketplace_counts(self) -> None:
         self._authenticate_as_admin()

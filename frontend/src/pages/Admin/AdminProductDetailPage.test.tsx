@@ -20,7 +20,6 @@ vi.mock('../../api/productsApi', async () => {
     listAdminCategories: vi.fn(),
     updateAdminProduct: vi.fn(),
     archiveAdminProduct: vi.fn(),
-    removeAdminProduct: vi.fn(),
     approveAdminProduct: vi.fn(),
     rejectAdminProduct: vi.fn(),
     requeueAdminProduct: vi.fn(),
@@ -89,7 +88,6 @@ function renderProductDetailPage() {
       <MemoryRouter initialEntries={[`/console/products/${productId}`]}>
         <Routes>
           <Route path="/console/products/:productId" element={<AdminProductDetailPage />} />
-          <Route path="/console/archived" element={<div>Archived products list</div>} />
           <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
@@ -123,33 +121,6 @@ beforeEach(() => {
 })
 
 describe('AdminProductDetailPage', () => {
-  it('explains buyer access before removing the product from the site', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    vi.mocked(productsApi.archiveAdminProduct).mockResolvedValue({ ...sampleProduct, status: 'archived' })
-    renderProductDetailPage()
-    await userEvent.click(await screen.findByRole('button', { name: /^remove from site$/i }))
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Existing buyers will keep it in their dashboards'))
-    await waitFor(() => expect(productsApi.archiveAdminProduct).toHaveBeenCalledWith(productId))
-    expect(await screen.findByText('Admin Dashboard')).toBeInTheDocument()
-  })
-
-  it('labels an archived product as already removed', async () => {
-    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({ ...sampleProduct, status: 'archived' })
-    renderProductDetailPage()
-    expect(await screen.findByRole('button', { name: /^removed from site$/i })).toBeDisabled()
-    expect(screen.getByRole('link', { name: 'Back to archived products' })).toHaveAttribute('href', '/console/archived')
-  })
-
-  it('removes an archived product from its detail page and returns to Archived', async () => {
-    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({ ...sampleProduct, status: 'archived' })
-    vi.mocked(productsApi.removeAdminProduct).mockResolvedValue(undefined)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    renderProductDetailPage()
-    await userEvent.click(await screen.findByRole('button', { name: /^remove from admin$/i }))
-    expect(productsApi.removeAdminProduct).toHaveBeenCalledWith(productId)
-    expect(await screen.findByText('Archived products list')).toBeInTheDocument()
-  })
-
   it('loads product details into the form', async () => {
     renderProductDetailPage()
 
@@ -158,7 +129,6 @@ describe('AdminProductDetailPage', () => {
     })
     expect(screen.getByDisplayValue('oak-chair')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Blender')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^remove from admin$/i })).not.toBeInTheDocument()
     expect(screen.getByText(/images and model files/i)).toBeInTheDocument()
     expect(screen.getByText('USDZ')).toBeInTheDocument()
   })

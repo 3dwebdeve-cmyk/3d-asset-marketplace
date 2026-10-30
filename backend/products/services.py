@@ -123,7 +123,7 @@ class ProductService(ProductMediaService):
                     to_attr="filter_files",
                 )
             )
-            .filter(status=Product.Status.PUBLISHED, category__is_active=True, admin_removed_at__isnull=True)
+            .filter(status=Product.Status.PUBLISHED, category__is_active=True)
             .defer(
                 "description",
                 "preview_model",
@@ -188,12 +188,10 @@ class ProductService(ProductMediaService):
         ordering: str | None = None,
     ) -> QuerySet[Product]:
         # Admin list serializers include nested media; keep prefetch.
-        queryset = cls._base_queryset().filter(admin_removed_at__isnull=True)
+        queryset = cls._base_queryset()
 
         if status is not None:
             queryset = queryset.filter(status=status)
-        else:
-            queryset = queryset.exclude(status=Product.Status.ARCHIVED)
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
         normalized_sku = Product.normalize_sku(sku)
@@ -222,7 +220,6 @@ class ProductService(ProductMediaService):
                 slug=slug.strip(),
                 status=Product.Status.PUBLISHED,
                 category__is_active=True,
-                admin_removed_at__isnull=True,
             )
         except Product.DoesNotExist as exc:
             raise ProductError("Product not found.") from exc
@@ -230,7 +227,7 @@ class ProductService(ProductMediaService):
     @classmethod
     def get_by_id(cls, product_id: UUID) -> Product:
         try:
-            return cls._base_queryset().get(pk=product_id, admin_removed_at__isnull=True)
+            return cls._base_queryset().get(pk=product_id)
         except Product.DoesNotExist as exc:
             raise ProductError("Product not found.") from exc
 
@@ -488,20 +485,6 @@ class ProductService(ProductMediaService):
             product,
             ProductUpdateData(status=Product.Status.ARCHIVED),
         )
-
-    @classmethod
-    @transaction.atomic
-    def remove_from_admin(cls, product_id: UUID) -> None:
-        try:
-            product = Product.objects.select_for_update().get(
-                pk=product_id, admin_removed_at__isnull=True,
-            )
-        except Product.DoesNotExist as exc:
-            raise ProductError("Product not found.") from exc
-        if product.status != Product.Status.ARCHIVED:
-            raise ProductError("Remove the product from the public site before removing it from admin.", field="status")
-        product.admin_removed_at = timezone.now()
-        product.save(update_fields=["admin_removed_at", "updated_at"])
 
     @classmethod
     def _validate_publish_ready(cls, product: Product, *, require_sku: bool = False) -> None:

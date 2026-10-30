@@ -9,7 +9,6 @@ from products.views import (
     AdminProductImageDetailView,
     AdminProductImageUploadView,
     AdminProductListCreateView,
-    AdminProductRemoveFromAdminView,
     AdminProductRejectView,
     AdminProductRequeueView,
     CatalogIngestImportView,
@@ -31,11 +30,6 @@ admin_urlpatterns = [
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),
         name="admin-product-detail",
-    ),
-    path(
-        "<uuid:product_id>/remove-from-admin/",
-        AdminProductRemoveFromAdminView.as_view(),
-        name="admin-product-remove-from-admin",
     ),
     path(
         "<uuid:product_id>/approve/",

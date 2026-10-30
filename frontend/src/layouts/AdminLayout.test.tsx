@@ -34,8 +34,6 @@ function renderAdminLayout(initialEntry = '/console') {
           <Route element={<AdminLayout />}>
             <Route path="/console" element={<div>Admin dashboard content</div>} />
             <Route path="/console/products" element={<div>Admin products content</div>} />
-            <Route path="/console/archived" element={<div>Archived products content</div>} />
-            <Route path="/console/archived/:productId" element={<div>Archived product detail content</div>} />
             <Route
               path="/console/products/:productId"
               element={<div>Admin product detail content</div>}
@@ -66,7 +64,6 @@ describe('AdminLayout', () => {
     expect(screen.getByRole('navigation', { name: /admin sections/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^dashboard$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^products$/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^archived$/i })).toHaveAttribute('href', '/console/archived')
     expect(screen.getByRole('link', { name: /^qa queue$/i })).toHaveAttribute(
       'href',
       '/console/products?status=pending_review',
@@ -78,18 +75,6 @@ describe('AdminLayout', () => {
       expect(screen.getByText('Admin dashboard content')).toBeInTheDocument()
     })
     expect(screen.getByText(adminUser.full_name)).toBeInTheDocument()
-  })
-
-  it('opens Archived and highlights it for archived product details', async () => {
-    const { unmount } = renderAdminLayout()
-    await userEvent.click(screen.getByRole('link', { name: /^archived$/i }))
-    expect(await screen.findByText('Archived products content')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^archived$/i })).toHaveClass('admin-sidebar__link--active')
-    expect(screen.getByRole('link', { name: /^products$/i })).not.toHaveClass('admin-sidebar__link--active')
-    unmount()
-    renderAdminLayout('/console/archived/product-id')
-    expect(await screen.findByText('Archived product detail content')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /^archived$/i })).toHaveClass('admin-sidebar__link--active')
   })
 
   it('highlights the active route and detail pages under the parent section', async () => {

@@ -11,7 +11,6 @@ export interface AdminNavItem {
 export const adminNavItems: AdminNavItem[] = [
   { label: 'Dashboard', to: ADMIN_BASE, end: true, enabled: true },
   { label: 'Products', to: adminPath('products'), enabled: true },
-  { label: 'Archived', to: adminPath('archived'), enabled: true },
   {
     label: 'QA queue',
     to: `${adminPath('products')}?status=pending_review`,
