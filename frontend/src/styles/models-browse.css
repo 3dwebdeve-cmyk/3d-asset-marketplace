@@ -8,7 +8,7 @@
 
 .models-browse .plugins-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0;
+  gap: 12px;
   justify-content: stretch;
 }
 
