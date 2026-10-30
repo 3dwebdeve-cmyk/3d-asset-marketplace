@@ -813,6 +813,8 @@ class ProductService(ProductMediaService):
             },
             Product.Status.ARCHIVED: {
                 Product.Status.DRAFT,
+                # The uploader sends an archived model again: back to QA.
+                Product.Status.PENDING_REVIEW,
             },
         }
         next_statuses = allowed.get(current, set())

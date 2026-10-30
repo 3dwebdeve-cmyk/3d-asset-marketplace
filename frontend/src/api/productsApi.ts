@@ -15,6 +15,7 @@ import type {
   ProductImageUploadPayload,
   PublicProductDetail,
   PublicProductListParams,
+  UploaderImport,
 } from '../types/product'
 
 export async function listPublicProducts(
@@ -96,6 +97,14 @@ export async function bulkDeleteAdminProducts(
     { product_ids: productIds },
   )
   return response.data
+}
+
+/** The uploader's latest imports, with the reason each skipped model did not reach QA. */
+export async function listUploaderImports(): Promise<UploaderImport[]> {
+  const response = await apiClient.get<{ results: UploaderImport[] }>('/api/v1/admin/activity-logs/', {
+    params: { action: 'catalog_ingest_import', page_size: 5 },
+  })
+  return response.data.results
 }
 
 /** A free model's zip: no account needed, the server redirects to the file. */
