@@ -243,15 +243,17 @@ describe('product gallery navigation', () => {
     expect(counter()).toHaveTextContent('3 / 4')
   })
 
-  it('keeps lightbox arrows within images instead of switching media behind the dialog', async () => {
+  it('omits lightbox navigation buttons and keeps keyboard navigation within images', async () => {
     const user = userEvent.setup()
     render(<ProductImageGallery {...defaults} />)
     await user.click(screen.getByRole('button', { name: 'Show image 1 of 2' }))
     await user.click(screen.getByRole('button', { name: 'View larger image of Chair' }))
     const dialog = screen.getByRole('dialog')
+    expect(within(dialog).queryByRole('button', { name: 'Previous image' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Next image' })).not.toBeInTheDocument()
     await user.keyboard('{ArrowLeft}')
     expect(within(dialog).getByAltText('Chair 3D model, image 2')).toBeInTheDocument()
-    await user.click(within(dialog).getByRole('button', { name: 'Next image' }))
+    await user.keyboard('{ArrowRight}')
     expect(within(dialog).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

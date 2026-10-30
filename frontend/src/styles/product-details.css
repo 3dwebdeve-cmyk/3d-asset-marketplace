@@ -811,6 +811,16 @@ button.product-detail-cta__link {
 
 .product-detail-lightbox__close {
   align-self: flex-end;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--bg-card);
+  box-shadow: none;
 }
 
 .product-detail-lightbox__nav {
