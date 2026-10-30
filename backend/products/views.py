@@ -335,7 +335,7 @@ class AdminProductDetailView(APIView):
 class AdminProductBulkDeleteView(APIView):
     """POST /api/admin/products/bulk-delete/ — delete selected products.
 
-    A product someone has ordered is archived instead, so the buyer keeps the download.
+    All selected products are archived; product files and buyer downloads are retained.
     """
 
     permission_classes = [IsAuthenticated, IsAdministrator]

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { listAdminCategories } from '../../api/categoriesApi'
 import {
@@ -17,6 +17,7 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
+import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION } from '../../lib/productArchive'
 import { isFreeProduct } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus } from '../../types/product'
 
@@ -38,12 +39,12 @@ function formatPrice(value: string): string {
   return parsed.toFixed(2)
 }
 
-export function AdminProductsPage() {
+export function AdminProductsPage({ archived = false }: { archived?: boolean }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const statusFilter = searchParams.get('status')?.trim() ?? ''
+  const statusFilter = archived ? 'archived' : searchParams.get('status')?.trim() ?? ''
   const importBatchFilter = searchParams.get('import_batch_id')?.trim() ?? ''
   const [batchInput, setBatchInput] = useState(importBatchFilter)
   const [showCreate, setShowCreate] = useState(false)
@@ -90,15 +91,15 @@ export function AdminProductsPage() {
   const deleteMutation = useMutation({
     mutationFn: (productIds: string[]) => bulkDeleteAdminProducts(productIds),
     onSuccess: async (result) => {
-      const parts = [
-        result.deleted.length ? `${result.deleted.length} deleted` : '',
-        result.archived.length
-          ? `${result.archived.length} archived (customers own them, so their downloads keep working)`
-          : '',
-      ].filter(Boolean)
-      toast.success(parts.join(', ') || 'Nothing to delete')
+      if (result.archived.length) {
+        toast.success(`${result.archived.length} moved to Archived. Existing buyers keep their downloads.`)
+      }
+      if (result.not_found.length) toast.error(`${result.not_found.length} products were not found.`)
       setSelectedIds(new Set())
       await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+      await queryClient.invalidateQueries({ predicate: (query) =>
+        typeof query.queryKey[0] === 'string' && /^public-(models|products|product)(-|$)/.test(query.queryKey[0]),
+      })
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, 'Could not delete the selected products.'))
@@ -109,11 +110,8 @@ export function AdminProductsPage() {
     if (ids.length === 0) {
       return
     }
-    const label = ids.length === 1 ? 'this product' : `these ${ids.length} products`
     if (
-      window.confirm(
-        `Delete ${label} permanently? Any a customer already owns are archived instead, so their downloads keep working.`,
-      )
+      window.confirm(ids.length === 1 ? PRODUCT_ARCHIVE_CONFIRMATION : PRODUCTS_ARCHIVE_CONFIRMATION)
     ) {
       deleteMutation.mutate(ids)
     }
@@ -176,6 +174,12 @@ export function AdminProductsPage() {
   const allVisibleSelected =
     visibleProducts.length > 0 && visibleSelectedIds.length === visibleProducts.length
 
+  if (!archived && statusFilter === 'archived') {
+    const params = new URLSearchParams(searchParams)
+    params.delete('status')
+    return <Navigate to={`/console/archived${params.size ? `?${params}` : ''}`} replace />
+  }
+
   return (
     <main className="dashboard-page">
       <section
@@ -183,37 +187,46 @@ export function AdminProductsPage() {
         aria-labelledby="admin-products-title"
       >
         <p className="admin-page__eyebrow">Administrator</p>
-        <h1 id="admin-products-title">{isQaQueue ? 'QA queue' : 'Products'}</h1>
+        <h1 id="admin-products-title">
+          {archived ? 'Archived products' : isQaQueue ? 'QA queue' : 'Products'}
+        </h1>
         <p className="home-page__subtitle">
-          {isQaQueue
-            ? 'Review imported products pending approve or reject.'
-            : 'Create and manage marketplace 3D assets.'}
+          {archived
+            ? 'Products removed from the website. Existing buyers keep their purchases and downloads.'
+            : isQaQueue
+              ? 'Review imported products pending approve or reject.'
+              : 'Create and manage marketplace 3D assets.'}
         </p>
 
         <div className="dashboard-card__actions">
-          <Button type="button" onClick={() => setShowCreate((value) => !value)}>
-            {showCreate ? 'Hide create form' : 'Create product'}
-          </Button>
-          {isQaQueue ? (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => updateFilters({ status: '' })}
-            >
-              All products
-            </Button>
+          {archived ? (
+            <Link className="home-page__cta home-page__cta--secondary" to="/console/products">Back to products</Link>
           ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => updateFilters({ status: 'pending_review' })}
-            >
-              QA queue
-            </Button>
+            <>
+              <Button type="button" onClick={() => setShowCreate((value) => !value)}>
+                {showCreate ? 'Hide create form' : 'Create product'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => updateFilters({ status: isQaQueue ? '' : 'pending_review' })}
+              >
+                {isQaQueue ? 'All products' : 'QA queue'}
+              </Button>
+              <Link className="home-page__cta home-page__cta--secondary" to="/console/archived">
+                View archived products
+              </Link>
+            </>
           )}
         </div>
 
-        {showCreate ? (
+        {!archived ? (
+          <p className="home-page__subtitle">
+            Delete moves products to Archived and removes them from the website.
+            Existing buyers keep their downloads.
+          </p>
+        ) : null}
+        {!archived && showCreate ? (
           <form className="admin-create-form" onSubmit={onCreateSubmit} noValidate>
             {createError ? <Alert variant="error" message={createError} /> : null}
             <FormField id="create-category" label="Category">
@@ -322,19 +335,20 @@ export function AdminProductsPage() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <select
-            className="ui-input"
-            aria-label="Filter by status"
-            value={statusFilter}
-            onChange={(event) => updateFilters({ status: event.target.value })}
-          >
-            <option value="">All statuses</option>
-            <option value="draft">Draft</option>
-            <option value="pending_review">Pending review</option>
-            <option value="published">Published</option>
-            <option value="rejected">Rejected</option>
-            <option value="archived">Archived</option>
-          </select>
+          {!archived ? (
+            <select
+              className="ui-input"
+              aria-label="Filter by status"
+              value={statusFilter}
+              onChange={(event) => updateFilters({ status: event.target.value })}
+            >
+              <option value="">All current statuses</option>
+              <option value="draft">Draft</option>
+              <option value="pending_review">Pending review</option>
+              <option value="published">Published</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          ) : null}
           <form className="admin-filters" onSubmit={onBatchFilterSubmit}>
             <Input
               aria-label="Filter by import batch ID"
@@ -363,7 +377,7 @@ export function AdminProductsPage() {
           />
         ) : (
           <div className="admin-table-wrap">
-            <div className="dashboard-card__actions">
+            {!archived ? <div className="dashboard-card__actions">
               <Button
                 type="button"
                 variant="secondary"
@@ -373,11 +387,11 @@ export function AdminProductsPage() {
               >
                 Delete selected ({visibleSelectedIds.length})
               </Button>
-            </div>
+            </div> : null}
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th scope="col">
+                  {!archived ? <th scope="col">
                     <input
                       type="checkbox"
                       aria-label="Select all products on this page"
@@ -390,7 +404,7 @@ export function AdminProductsPage() {
                         )
                       }
                     />
-                  </th>
+                  </th> : null}
                   <th scope="col">Name</th>
                   <th scope="col">SKU</th>
                   <th scope="col">Status</th>
@@ -402,14 +416,14 @@ export function AdminProductsPage() {
               <tbody>
                 {visibleProducts.map((product) => (
                   <tr key={product.id}>
-                    <td>
+                    {!archived ? <td>
                       <input
                         type="checkbox"
                         aria-label={`Select ${product.name}`}
                         checked={selectedIds.has(product.id)}
                         onChange={() => toggleSelected(product.id)}
                       />
-                    </td>
+                    </td> : null}
                     <td>{product.name}</td>
                     <td>{product.sku ?? '—'}</td>
                     <td>{product.status}</td>
@@ -420,11 +434,11 @@ export function AdminProductsPage() {
                     <td>
                       <Link
                         className="auth-link"
-                        to={`/console/products/${product.id}`}
+                        to={`/console/${archived ? 'archived' : 'products'}/${product.id}`}
                       >
                         Manage
                       </Link>{' '}
-                      <Button
+                      {!archived ? <Button
                         type="button"
                         variant="secondary"
                         disabled={deleteMutation.isPending}
@@ -432,14 +446,14 @@ export function AdminProductsPage() {
                         aria-label={`Delete ${product.name}`}
                       >
                         Delete
-                      </Button>
+                      </Button> : null}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {productsQuery.data?.results.length === 0 ? (
-              <p className="home-page__subtitle">No products match your filters.</p>
+              <p className="home-page__subtitle">{archived ? 'No archived products match your filters.' : 'No products match your filters.'}</p>
             ) : null}
           </div>
         )}

@@ -108,7 +108,8 @@ function renderProductsPage(initialEntry = '/console/products') {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
-          <Route path="/console/products" element={<AdminProductsPage />} />
+          <Route path="/console/products" element={<AdminProductsPage key="products" />} />
+          <Route path="/console/archived" element={<AdminProductsPage key="archived" archived />} />
           <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
@@ -125,12 +126,53 @@ beforeEach(() => {
 })
 
 describe('AdminProductsPage', () => {
+  it('moves a deleted row into Archived and hides deletion controls there', async () => {
+    const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(productsApi.bulkDeleteAdminProducts).mockImplementation(async () => {
+      vi.mocked(productsApi.listAdminProducts).mockImplementation(async (params) =>
+        params?.status === 'archived'
+          ? { ...sampleProducts, results: [archivedProduct] }
+          : { ...sampleProducts, count: 0, results: [] },
+      )
+      return { deleted: [], archived: [productId], not_found: [] }
+    })
+    renderProductsPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete Oak Chair' }))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('move it to Archived'))
+    await waitFor(() => expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument())
+    await userEvent.click(screen.getByRole('link', { name: 'View archived products' }))
+    expect(await screen.findByRole('heading', { name: 'Archived products' })).toBeInTheDocument()
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Manage' })).toHaveAttribute('href', `/console/archived/${productId}`)
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /create product/i })).not.toBeInTheDocument()
+  })
+
+  it('restricts archive search and batch filters to archived products', async () => {
+    renderProductsPage('/console/archived?status=published&import_batch_id=batch-1')
+    await userEvent.type(screen.getByLabelText('Search products'), 'chair')
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'archived', search: 'chair', import_batch_id: 'batch-1' }),
+    ))
+    expect(screen.queryByRole('combobox', { name: 'Filter by status' })).not.toBeInTheDocument()
+  })
+
+  it('redirects old archived bookmarks to the Archived section', async () => {
+    renderProductsPage('/console/products?status=archived&import_batch_id=batch-2')
+    expect(await screen.findByRole('heading', { name: 'Archived products' })).toBeInTheDocument()
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'archived', import_batch_id: 'batch-2' }),
+    ))
+  })
+
   it('deletes the selected products after confirmation', async () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     vi.mocked(productsApi.bulkDeleteAdminProducts).mockResolvedValue({
-      deleted: [productId],
-      archived: [],
+      deleted: [],
+      archived: [productId],
       not_found: [],
     })
     renderProductsPage()
