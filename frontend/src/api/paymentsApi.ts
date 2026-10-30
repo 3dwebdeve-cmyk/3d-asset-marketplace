@@ -4,17 +4,20 @@ import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
 import type {
   AdminPaymentDetail,
   AdminPaymentListParams,
+  CheckoutItem,
   CheckoutSessionResponse,
   ConfirmCheckoutResponse,
   PaginatedAdminPayments,
 } from '../types/payment'
 
+/** Without `items` the whole cart is bought; with it, only those cart lines. */
 export async function createCheckoutSession(
   acceptedLegal: Record<string, string> = currentAcceptedLegalPayload(),
+  items?: CheckoutItem[],
 ): Promise<CheckoutSessionResponse> {
   const { data } = await apiClient.post<CheckoutSessionResponse>(
     '/api/v1/payments/checkout/',
-    { accepted_legal: acceptedLegal },
+    items ? { accepted_legal: acceptedLegal, items } : { accepted_legal: acceptedLegal },
     { headers: { 'Idempotency-Key': newId() } },
   )
   return data

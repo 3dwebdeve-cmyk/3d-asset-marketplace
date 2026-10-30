@@ -17,7 +17,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from categories.models import Category
-from config.media import media_relative_path, private_object_exists
+from config.media import FREE_MODELS_PREFIX, media_relative_path, package_object_exists
 from config.storages import build_public_media_url, get_public_storage
 from config.upload_security import (
     SCAN_MALWARE_FOUND,
@@ -201,6 +201,12 @@ class CatalogImportService:
         import_source: str,
         warnings: list[str],
     ) -> CatalogImportRowResult:
+        # models/<sku>/ is a paid model (zip in the private bucket); free-models/<sku>/ is
+        # a free one with every file, zip included, in the public bucket.
+        prefix = str(item.get("r2_key_prefix") or "").strip()
+        if prefix.startswith(FREE_MODELS_PREFIX):
+            item = {**item, "price": "0", "discount_price": None}
+
         raw_model_id = str(item.get("model_id") or "").strip()
         display_id = raw_model_id.upper() if raw_model_id else ""
 
@@ -234,7 +240,7 @@ class CatalogImportService:
 
         media = item.get("media") or {}
         try:
-            media_pointers = cls._build_media_pointers(sku, media)
+            media_pointers = cls._build_media_pointers(sku, media, prefix=prefix)
         except ProductError as exc:
             return CatalogImportRowResult(
                 model_id=sku,
@@ -269,7 +275,7 @@ class CatalogImportService:
 
         # Catch a typo or failed upload now rather than at approval.
         package_key = media_pointers["package_key"]
-        if package_key is not None and not private_object_exists(package_key):
+        if package_key is not None and not package_object_exists(package_key):
             return CatalogImportRowResult(
                 model_id=sku,
                 action="skipped",
@@ -422,9 +428,8 @@ class CatalogImportService:
         if not checksum or not _GLB_CHECKSUM_RE.fullmatch(checksum):
             return "missing_glb_checksum"
 
-        expected_prefix = f"models/{sku}/"
         r2_prefix = str(item.get("r2_key_prefix") or "").strip()
-        if r2_prefix != expected_prefix:
+        if r2_prefix not in (f"models/{sku}/", f"{FREE_MODELS_PREFIX}{sku}/"):
             return "invalid_r2_prefix"
 
         preview_key = str(media.get("preview_key") or "").strip()
@@ -501,11 +506,11 @@ class CatalogImportService:
         return child
 
     @classmethod
-    def _normalize_object_key(cls, raw_key: str, *, sku: str) -> str:
+    def _normalize_object_key(cls, raw_key: str, *, sku: str, prefix: str = "") -> str:
         relative = media_relative_path(raw_key.strip())
         if relative is None:
             raise ProductError("invalid_object_key", field="object_key")
-        expected_prefix = f"models/{sku}/"
+        expected_prefix = prefix or f"models/{sku}/"
         if not relative.startswith(expected_prefix):
             raise ProductError("invalid_object_key", field="object_key")
         if relative.endswith("/") or relative == expected_prefix.rstrip("/"):
@@ -517,14 +522,19 @@ class CatalogImportService:
         cls,
         sku: str,
         media: dict[str, Any],
+        *,
+        prefix: str = "",
     ) -> dict[str, Any]:
+        prefix = prefix or f"models/{sku}/"
         thumbnail_key = cls._normalize_object_key(
             str(media.get("thumbnail_key") or ""),
             sku=sku,
+            prefix=prefix,
         )
         preview_key = cls._normalize_object_key(
             str(media.get("preview_key") or ""),
             sku=sku,
+            prefix=prefix,
         )
         if _is_zip_key(thumbnail_key) or _is_zip_key(preview_key):
             raise ProductError("invalid_object_key", field="object_key")
@@ -532,14 +542,14 @@ class CatalogImportService:
         package_key_raw = str(media.get("package_key") or "").strip()
         package_key: str | None = None
         if package_key_raw:
-            package_key = cls._normalize_object_key(package_key_raw, sku=sku)
-            # Only these two names are packages; storage keeps every .zip private.
-            if package_key not in (f"models/{sku}/package.zip", f"models/{sku}/{sku}.zip"):
+            package_key = cls._normalize_object_key(package_key_raw, sku=sku, prefix=prefix)
+            # Only these two names are packages; a paid model's .zip is always private.
+            if package_key not in (f"{prefix}package.zip", f"{prefix}{sku}.zip"):
                 raise ProductError("invalid_object_key", field="package_key")
 
         gallery_keys: list[str] = []
         for raw in media.get("gallery_keys") or []:
-            key = cls._normalize_object_key(str(raw or ""), sku=sku)
+            key = cls._normalize_object_key(str(raw or ""), sku=sku, prefix=prefix)
             if _is_zip_key(key):
                 raise ProductError("invalid_object_key", field="object_key")
             gallery_keys.append(key)

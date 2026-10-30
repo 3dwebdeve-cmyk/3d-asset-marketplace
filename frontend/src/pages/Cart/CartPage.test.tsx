@@ -103,7 +103,16 @@ describe('CartPage', () => {
     expect(screen.getByText(/standard license/i)).toBeInTheDocument()
     expect(screen.getAllByText('$59.98').length).toBeGreaterThan(0)
     expect(screen.queryByLabelText(/coupon code/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^checkout$/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Checkout selected (1)' })).toBeEnabled()
+  })
+
+  it('buys only the ticked items: unticking the last one disables checkout', async () => {
+    const user = userEvent.setup()
+    renderCartPage()
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Buy Oak Chair' }))
+
+    expect(screen.getByRole('button', { name: 'Checkout selected (0)' })).toBeDisabled()
   })
 
   it('starts checkout and redirects to the returned checkout URL', async () => {
@@ -122,11 +131,14 @@ describe('CartPage', () => {
     renderCartPage()
     await screen.findByRole('link', { name: /oak chair/i })
 
-    await user.click(screen.getByRole('button', { name: /^checkout$/i }))
+    await user.click(screen.getByRole('button', { name: 'Checkout selected (1)' }))
 
     await waitFor(() => {
       expect(paymentsApi.createCheckoutSession).toHaveBeenCalledTimes(1)
     })
+    expect(vi.mocked(paymentsApi.createCheckoutSession).mock.calls[0][1]).toEqual([
+      { product_type: 'product', product_id: productId },
+    ])
     await waitFor(() => {
       expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_test_123')
     })

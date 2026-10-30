@@ -1,12 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as cartApi from '../../api/cartApi'
 import * as downloadsApi from '../../api/downloadsApi'
-import * as productsApi from '../../api/productsApi'
 import { useAuthStore } from '../../store/authStore'
 import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
 import { CommerceCtaGroup } from './CommerceCtaGroup'
@@ -18,36 +16,21 @@ vi.mock('../../api/cartApi', async () => {
 
 vi.mock('../../api/downloadsApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/downloadsApi')>('../../api/downloadsApi')
-  return { ...actual, listDownloadEntitlements: vi.fn(), downloadCatalogFileByUrl: vi.fn() }
+  return { ...actual, listDownloadEntitlements: vi.fn() }
 })
-
-vi.mock('../../api/productsApi', async () => {
-  const actual = await vi.importActual<typeof import('../../api/productsApi')>('../../api/productsApi')
-  return { ...actual, claimFreeProduct: vi.fn() }
-})
-
-const FREE_ID = 'free-product-id'
 
 function renderFreeCta() {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
       <MemoryRouter initialEntries={['/products/free-lamp']}>
-        <Routes>
-          <Route
-            path="/products/free-lamp"
-            element={
-              <CommerceCtaGroup
-                productType="product"
-                productId={FREE_ID}
-                productName="Free Lamp"
-                productSlug="free-lamp"
-                variant="buybox"
-                isFree
-              />
-            }
-          />
-          <Route path="/dashboard/downloads" element={<div>My downloads</div>} />
-        </Routes>
+        <CommerceCtaGroup
+          productType="product"
+          productId="free-product-id"
+          productName="Free Lamp"
+          productSlug="free-lamp"
+          variant="buybox"
+          isFree
+        />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -66,50 +49,21 @@ beforeEach(() => {
     items: [],
   })
   vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([])
-  vi.mocked(productsApi.claimFreeProduct).mockReset()
 })
 
 describe('free models', () => {
-  it('offer one Download button, no Buy Now or cart, and download without checkout', async () => {
-    const user = userEvent.setup()
-    useAuthStore.setState({ accessToken: 'access-token', user: testUser, isAuthenticated: true })
-    vi.mocked(productsApi.claimFreeProduct).mockResolvedValue({
-      order_id: 'order-id',
-      product_id: FREE_ID,
-      created: true,
-    })
-    vi.mocked(downloadsApi.downloadCatalogFileByUrl).mockResolvedValue()
-    const file = {
-      id: 'file-id',
-      file_name: 'FREE-000001.zip',
-      file_format: 'zip',
-      file_size: 10,
-      version: '1.0',
-      download_url: '/api/v1/downloads/products/free-product-id/files/file-id/download/',
+  it.each([
+    ['visitors', false],
+    ['signed-in customers', true],
+  ])('give %s a direct download link, with no Buy Now or cart', async (_who, signedIn) => {
+    if (signedIn) {
+      useAuthStore.setState({ accessToken: 'access-token', user: testUser, isAuthenticated: true })
     }
-    vi.mocked(downloadsApi.listDownloadEntitlements)
-      .mockResolvedValueOnce([])
-      .mockResolvedValue([
-        { product_type: 'product', product_id: FREE_ID, title: 'Free Lamp', slug: 'free-lamp', files: [file] },
-      ])
     renderFreeCta()
 
-    const download = await screen.findByRole('button', { name: 'Download free' })
+    const download = await screen.findByRole('link', { name: 'Download free' })
+    expect(download).toHaveAttribute('href', expect.stringMatching(/\/api\/v1\/products\/free-lamp\/free-download\/$/))
     expect(screen.queryByRole('button', { name: /buy now/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
-
-    await user.click(download)
-
-    await waitFor(() => expect(productsApi.claimFreeProduct).toHaveBeenCalledWith('free-lamp'))
-    expect(await screen.findByText('My downloads')).toBeInTheDocument()
-    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(file.download_url, 'FREE-000001.zip')
-  })
-
-  it('ask visitors to sign in to download', async () => {
-    renderFreeCta()
-
-    expect(await screen.findByText('Sign in to download')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /buy now/i })).not.toBeInTheDocument()
-    expect(productsApi.claimFreeProduct).not.toHaveBeenCalled()
   })
 })

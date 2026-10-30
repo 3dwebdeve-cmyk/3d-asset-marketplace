@@ -1,3 +1,11 @@
+import type { CartProductType } from './cart'
+
+/** A cart line to buy: checkout pays for these only. */
+export interface CheckoutItem {
+  product_type: CartProductType
+  product_id: string
+}
+
 export interface CheckoutSessionResponse {
   checkout_url: string
   order_id: string

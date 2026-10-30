@@ -310,36 +310,36 @@ class OrderService:
 
     @classmethod
     @transaction.atomic
-    def create_from_cart(cls, user: User, *, reuse_pending: bool = False) -> Order:
+    def create_from_cart(
+        cls, user: User, *, reuse_pending: bool = False, selected=None
+    ) -> Order:
         """Snapshot the user's cart into a PENDING order for checkout.
 
         Only available cart lines are included (mirrors CartService totals).
+        `selected`, a set of (product_type, product_id), limits the order to those lines;
+        the rest stay in the cart.
         """
         from cart.services import CartService
 
-        CartService.lock_cart(user)
+        from orders.entitlements import owned_catalog_keys
+
+        cart = CartService.lock_cart(user)
+        # Owned since it was added (another tab, an earlier checkout, a free claim):
+        # drop it from the cart so it is never charged twice and never blocks checkout.
+        owned = owned_catalog_keys(user, list(cart.items.values_list("product_type", "product_id")))
+        for product_type, product_id in owned:
+            cart.items.filter(product_type=product_type, product_id=product_id).delete()
         envelope = CartService.get_cart_envelope(user)
         available_items = [
             item
             for item in envelope.items
             if (snapshot := envelope.snapshots.get((item.product_type, item.product_id)))
             and snapshot.get("is_available")
+            and (selected is None or (item.product_type, item.product_id) in selected)
         ]
         if not available_items:
             raise OrderError("Your cart is empty.", field="items")
-
-        from orders.entitlements import owned_catalog_keys
-
-        # Bought since it was added to the cart (another tab, an earlier checkout): never charge twice.
-        owned = owned_catalog_keys(user, [(item.product_type, item.product_id) for item in available_items])
-        if owned:
-            names = sorted(
-                str(envelope.snapshots[key].get("name") or "an item") for key in owned
-            )
-            raise OrderError(
-                f"You already own {', '.join(names)}. Remove it from your cart to continue.",
-                field="items",
-            )
+        totals = CartService._compute_totals(available_items, envelope.snapshots)
 
         resolved_items = [
             (
@@ -374,7 +374,7 @@ class OrderService:
             candidates = Order.objects.filter(
                 user=user, order_status=Order.OrderStatus.PENDING,
                 payment_status=Order.PaymentStatus.PENDING,
-                total_amount=envelope.totals.total, currency=envelope.totals.currency,
+                total_amount=totals.total, currency=totals.currency,
             ).filter(
                 Q(
                     checkout_attempt__status__in=['prepared', 'ready', 'review'],
@@ -390,8 +390,8 @@ class OrderService:
 
         order = cls._create_order_with_unique_invoice(
             user=user,
-            total_amount=envelope.totals.total,
-            currency=envelope.totals.currency,
+            total_amount=totals.total,
+            currency=totals.currency,
         )
         OrderItem.objects.bulk_create(
             [
@@ -416,52 +416,6 @@ class OrderService:
         )
 
         return cls.get(order.pk)
-
-    @classmethod
-    @transaction.atomic
-    def claim_free_product(cls, user: User, product: Product) -> tuple[Order, bool]:
-        """Add a free model to the customer's library: a paid order of 0, no checkout.
-
-        Returns (order, created). Claiming a model the customer already owns returns
-        the existing order, so the Downloads page lists it once.
-        """
-        if product.status != Product.Status.PUBLISHED or not product.is_free:
-            raise OrderError("This model is not a free download.", field="product_id")
-
-        # Serialize claims per customer, so a double click creates one order.
-        User.objects.select_for_update().filter(pk=user.pk).exists()
-        existing = (
-            OrderItem.objects.select_related("order")
-            .filter(
-                order__user=user,
-                order__order_status=Order.OrderStatus.PAID,
-                order__payment_status=Order.PaymentStatus.PAID,
-                product_type=OrderItem.ProductType.PRODUCT,
-                product_id=product.pk,
-            )
-            .first()
-        )
-        if existing is not None:
-            return existing.order, False
-
-        order = cls._create_order_with_unique_invoice(
-            user=user,
-            total_amount=Decimal("0.00"),
-            currency=product.currency,
-        )
-        OrderItem.objects.create(
-            order=order,
-            product_type=OrderItem.ProductType.PRODUCT,
-            product_id=product.pk,
-            title=product.name,
-            slug=product.slug,
-            quantity=1,
-            purchase_price=Decimal("0.00"),
-        )
-        order.order_status = Order.OrderStatus.PAID
-        order.payment_status = Order.PaymentStatus.PAID
-        order.save(update_fields=["order_status", "payment_status", "updated_at"])
-        return order, True
 
     @classmethod
     def _create_order_with_unique_invoice(

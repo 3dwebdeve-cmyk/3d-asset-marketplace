@@ -5,6 +5,21 @@
   margin-top: 1.5rem;
 }
 
+.cart-page__line {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.cart-page__line > input {
+  margin-top: 1.4rem;
+}
+
+.cart-page__line:not(:last-child) .cart-line-item {
+  border-bottom: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent);
+}
+
 .cart-page__footer {
   margin-top: 2rem;
   padding-top: 1.5rem;

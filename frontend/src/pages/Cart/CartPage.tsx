@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { Link } from 'react-router-dom'
 
@@ -27,6 +28,18 @@ export function CartPage() {
     refetch,
   } = useCart()
   const { startCheckout, isRedirecting } = useCheckout()
+  // Every available line is bought unless the customer unticks it.
+  const [unticked, setUnticked] = useState<ReadonlySet<string>>(() => new Set())
+  const selected = (cart?.items ?? []).filter(
+    (item) => item.catalog?.is_available && !unticked.has(item.id),
+  )
+  const selectedTotal = selected.reduce((sum, item) => sum + Number(item.line_total ?? 0), 0)
+  const toggle = (itemId: string) =>
+    setUnticked((current) => {
+      const next = new Set(current)
+      if (!next.delete(itemId)) next.add(itemId)
+      return next
+    })
 
   const isEmpty = cart?.item_count === 0
   const showTopActions = !isLoading && !isEmpty
@@ -94,15 +107,23 @@ export function CartPage() {
           <>
             <div className="cart-page__items">
               {cart?.items.map((item) => (
-                <CartLineItem
-                  key={item.id}
-                  item={item}
-                  currency={cart.currency}
-                  isUpdating={isPending}
-                  isRemoving={isPending}
-                  onUpdateQuantity={updateQuantity}
-                  onRemove={remove}
-                />
+                <div key={item.id} className="cart-page__line">
+                  <input
+                    type="checkbox"
+                    aria-label={`Buy ${item.catalog?.name ?? 'this item'}`}
+                    checked={Boolean(item.catalog?.is_available) && !unticked.has(item.id)}
+                    disabled={!item.catalog?.is_available}
+                    onChange={() => toggle(item.id)}
+                  />
+                  <CartLineItem
+                    item={item}
+                    currency={cart.currency}
+                    isUpdating={isPending}
+                    isRemoving={isPending}
+                    onUpdateQuantity={updateQuantity}
+                    onRemove={remove}
+                  />
+                </div>
               ))}
             </div>
 
@@ -114,9 +135,9 @@ export function CartPage() {
                 </strong>
               </div>
               <div className="cart-summary cart-summary--page cart-summary--total">
-                <span>Total</span>
+                <span>Selected total</span>
                 <strong>
-                  {formatMoney(cart?.total ?? '0.00', cart?.currency ?? 'USD')}
+                  {formatMoney(selectedTotal.toFixed(2), cart?.currency ?? 'USD')}
                 </strong>
               </div>
               <p className="cart-summary__note">
@@ -137,9 +158,14 @@ export function CartPage() {
                 type="button"
                 className="cart-checkout-button"
                 isLoading={isRedirecting}
-                onClick={() => startCheckout()}
+                disabled={selected.length === 0}
+                onClick={() =>
+                  startCheckout(
+                    selected.map((item) => ({ product_type: item.product_type, product_id: item.product_id })),
+                  )
+                }
               >
-                Checkout
+                Checkout selected ({selected.length})
               </Button>
             </footer>
           </>

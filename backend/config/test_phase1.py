@@ -199,7 +199,7 @@ class PublishRegressionTests(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.currency, 'USD')
 
-    @patch('products.services.private_object_exists', return_value=True)
+    @patch('products.services.package_object_exists', return_value=True)
     def test_publish_with_existing_package_and_preview_goes_through_review(self, exists):
         ProductFile.objects.create(product=self.product, file_name='model.zip', file_format='zip',
                                    storage_path='products/files/model.zip', file_size=10)
@@ -212,7 +212,7 @@ class PublishRegressionTests(TestCase):
         published = ProductService.approve_product(submitted, reviewer=None)
         self.assertEqual(published.status, 'published')
 
-    @patch('products.services.private_object_exists', return_value=False)
+    @patch('products.services.package_object_exists', return_value=False)
     def test_missing_storage_object_does_not_publish(self, exists):
         ProductFile.objects.create(product=self.product, file_name='model.zip', file_format='zip',
                                    storage_path='products/files/missing.zip', file_size=10)
