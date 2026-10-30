@@ -794,7 +794,7 @@ button.product-detail-cta__link {
   max-width: 100%;
   max-height: calc(100vh - 7rem);
   object-fit: contain;
-  border-radius: 0.5rem;
+  border-radius: 0;
   background: var(--bg-card);
 }
 
