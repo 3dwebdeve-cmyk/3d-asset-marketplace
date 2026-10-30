@@ -6,7 +6,7 @@ import * as THREE from 'three'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
-import { framePreviewCamera } from './framePreviewCamera'
+import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
 import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, type HdriEnvironmentId } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
@@ -363,7 +363,7 @@ function ModelViewerCanvas({
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
       <Canvas
         className="model-viewer__canvas"
-        camera={{ position: [0, 0.9, 2.3], fov: 42, near: 0.1, far: 200 }}
+        camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           // Commerce tone mapping compresses highlights while preserving

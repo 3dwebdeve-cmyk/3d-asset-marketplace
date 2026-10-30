@@ -1,5 +1,8 @@
 import * as THREE from 'three'
 
+// Elevated three-quarter view from the opposite side of the old rear-facing view.
+export const PREVIEW_CAMERA_POSITION: [number, number, number] = [1.8, 1.2, -2.3]
+
 /** Fit the model inside 55% of the viewport, leaving room for its shadow and controls. */
 export function framePreviewCamera(
   camera: THREE.PerspectiveCamera,
@@ -15,7 +18,7 @@ export function framePreviewCamera(
   camera.aspect = aspect
   camera.zoom = 1
   const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov) / 2
-  const direction = new THREE.Vector3(0, 0.9, 2.3).normalize()
+  const direction = new THREE.Vector3(...PREVIEW_CAMERA_POSITION).normalize()
   const right = new THREE.Vector3().crossVectors(camera.up, direction).normalize()
   const up = new THREE.Vector3().crossVectors(direction, right)
   const verticalLimit = Math.tan(verticalHalfFov) * 0.55
