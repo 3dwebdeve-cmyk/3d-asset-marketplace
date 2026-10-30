@@ -998,14 +998,7 @@
   aspect-ratio: 16 / 10;
   min-height: 160px;
   height: auto;
-  background: #f3f4f6;
-}
-
-.product-card--marketplace .product-card__image {
-  display: block;
-  object-fit: contain;
-  padding: 1.5rem;
-  box-sizing: border-box;
+  background: var(--border);
 }
 
 .product-card--marketplace .product-card__media-link {
