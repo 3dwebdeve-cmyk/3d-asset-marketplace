@@ -441,6 +441,22 @@
   outline-offset: 2px;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .product-detail-gallery__rail .product-detail-gallery__thumb {
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1), border-color 200ms ease;
+  }
+
+  .product-detail-gallery__rail .product-detail-gallery__thumb:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .product-detail-gallery__rail .product-detail-gallery__thumb:hover {
+    transform: scale(1.035);
+  }
+}
+
 .product-detail-gallery__thumb:focus-visible {
   outline: 2px solid #1687ff;
   outline-offset: 2px;
