@@ -1,12 +1,16 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Object3D, Scene, Texture } from 'three'
+import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Texture, Vector3 } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const viewerMocks = vi.hoisted(() => {
   return {
     scene: null as import('three').Object3D | null,
     renderScene: null as import('three').Scene | null,
+    camera: null as import('three').PerspectiveCamera | null,
+    size: { width: 900, height: 450 },
+    controls: null as { target: import('three').Vector3; update: () => void; saveState: () => void } | null,
+    invalidate: vi.fn(),
     clearGltfCache: vi.fn(),
     visible: true,
     webglAvailable: true,
@@ -28,8 +32,20 @@ vi.mock('@react-three/fiber', () => ({
       {children}
     </div>
   ),
-  useThree: (selector?: (state: { scene: import('three').Scene }) => unknown) => {
-    const state = { scene: viewerMocks.renderScene ?? new Scene() }
+  useThree: (selector?: (state: {
+    scene: import('three').Scene
+    camera: import('three').PerspectiveCamera
+    size: { width: number; height: number }
+    controls: typeof viewerMocks.controls
+    invalidate: () => void
+  }) => unknown) => {
+    const state = {
+      scene: viewerMocks.renderScene ?? new Scene(),
+      camera: viewerMocks.camera!,
+      size: viewerMocks.size,
+      controls: viewerMocks.controls,
+      invalidate: viewerMocks.invalidate,
+    }
     return selector ? selector(state) : state
   },
 }))
@@ -91,8 +107,13 @@ import { ModelViewer } from './ModelViewer'
 describe('ModelViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     viewerMocks.scene = new Object3D()
     viewerMocks.renderScene = new Scene()
+    viewerMocks.camera = new PerspectiveCamera(42, 2, 0.1, 200)
+    viewerMocks.camera.position.set(0, 0.9, 2.3)
+    viewerMocks.size = { width: 900, height: 450 }
+    viewerMocks.controls = { target: new Vector3(3, 4, 5), update: vi.fn(), saveState: vi.fn() }
     viewerMocks.visible = true
     viewerMocks.webglAvailable = true
     viewerMocks.pixelRatio = 1.25
@@ -102,6 +123,29 @@ describe('ModelViewer', () => {
         ok: true,
       }),
     )
+  })
+
+  it('fits loaded models on entry and resize while keeping user zoom across lighting changes', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 12, 1))
+    const { rerender } = render(<ModelViewer modelUrl="https://cdn.example.com/vase.glb" ariaLabel="Vase" />)
+    await screen.findByTestId('viewer-environment')
+    const initialDistance = viewerMocks.camera!.position.length()
+    expect(initialDistance).toBeGreaterThan(3.5)
+    expect(viewerMocks.controls!.target.length()).toBeCloseTo(0)
+    expect(viewerMocks.controls!.update).toHaveBeenCalled()
+    // Simulate the user zooming in. Changing lighting must preserve their view.
+    viewerMocks.camera!.position.multiplyScalar(0.75)
+    const userDistance = viewerMocks.camera!.position.length()
+    await userEvent.click(screen.getByRole('radio', { name: 'Natural' }))
+    await waitFor(() => expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true'))
+    expect(viewerMocks.camera!.position.length()).toBeCloseTo(userDistance)
+    viewerMocks.size = { width: 300, height: 500 }
+    rerender(<ModelViewer modelUrl="https://cdn.example.com/vase.glb" ariaLabel="Vase" />)
+    expect(viewerMocks.camera!.position.length()).toBeCloseTo(initialDistance)
+    expect(viewerMocks.invalidate).toHaveBeenCalled()
+    viewerMocks.camera!.position.multiplyScalar(0.5)
+    rerender(<ModelViewer modelUrl="https://cdn.example.com/another-vase.glb" ariaLabel="Another vase" />)
+    expect(viewerMocks.camera!.position.length()).toBeCloseTo(initialDistance)
   })
 
   it('mounts a canvas region for a safe preview model URL', () => {

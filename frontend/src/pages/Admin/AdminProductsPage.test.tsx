@@ -18,6 +18,7 @@ vi.mock('../../api/productsApi', async () => {
     listAdminProducts: vi.fn(),
     createAdminProduct: vi.fn(),
     bulkDeleteAdminProducts: vi.fn(),
+    restoreAdminProduct: vi.fn(),
   }
 })
 
@@ -126,6 +127,48 @@ beforeEach(() => {
 })
 
 describe('AdminProductsPage', () => {
+  it('restores an archived row into Products as a Draft', async () => {
+    const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
+    const draftProduct = { ...archivedProduct, status: 'draft' as const }
+    vi.mocked(productsApi.listAdminProducts).mockResolvedValue({ ...sampleProducts, results: [archivedProduct] })
+    vi.mocked(productsApi.restoreAdminProduct).mockImplementation(async () => {
+      vi.mocked(productsApi.listAdminProducts).mockImplementation(async (params) =>
+        params?.status === 'archived'
+          ? { ...sampleProducts, count: 0, results: [] }
+          : { ...sampleProducts, results: [draftProduct] },
+      )
+      return draftProduct
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore to Products' }))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('as a Draft'))
+    expect(productsApi.restoreAdminProduct).toHaveBeenCalledWith(productId)
+    await waitFor(() => expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument())
+    await userEvent.click(screen.getByRole('link', { name: 'Back to products' }))
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByText('draft')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Restore to Products' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the product archived when restoration is cancelled', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore to Products' }))
+    expect(productsApi.restoreAdminProduct).not.toHaveBeenCalled()
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+  })
+
+  it('reports a failed restore without removing the archived row', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(productsApi.restoreAdminProduct).mockRejectedValue(new Error('Failed'))
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore to Products' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not restore product. Please try again.')
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore to Products' })).toBeEnabled()
+  })
+
   it('moves a deleted row into Archived and hides deletion controls there', async () => {
     const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
     vi.spyOn(window, 'confirm').mockReturnValue(true)

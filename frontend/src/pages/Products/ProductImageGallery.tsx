@@ -4,6 +4,7 @@ import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
 import { isSafePreviewVideoUrl } from '../../components/viewer/isSafePreviewVideoUrl'
 import type { ProductImage } from '../../types/product'
+import { ProductImagePreview } from './ProductImagePreview'
 
 interface GalleryImage {
   id: string
@@ -468,10 +469,10 @@ export function ProductImageGallery({
             aria-controls={`${galleryId}-lightbox`}
             aria-expanded={lightboxOpen}
           >
-            <img
+            <ProductImagePreview
+              key={activeImage.src}
               src={activeImage.src}
               alt={activeImage.alt}
-              className="product-detail-stage__image"
               onError={() => markFailed(activeImage.id)}
             />
           </button>

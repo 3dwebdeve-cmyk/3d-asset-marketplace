@@ -8,6 +8,7 @@ import {
   bulkDeleteAdminProducts,
   createAdminProduct,
   listAdminProducts,
+  restoreAdminProduct,
 } from '../../api/productsApi'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
@@ -17,7 +18,7 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
-import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION } from '../../lib/productArchive'
+import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION, PRODUCT_RESTORE_CONFIRMATION } from '../../lib/productArchive'
 import { isFreeProduct } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus } from '../../types/product'
 
@@ -50,6 +51,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<AdminProductCreatePayload>(emptyCreateForm)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   const productsQuery = useQuery({
@@ -104,6 +106,16 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
     onError: (error) => {
       toast.error(getApiErrorMessage(error, 'Could not delete the selected products.'))
     },
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: (productId: string) => restoreAdminProduct(productId),
+    onSuccess: async () => {
+      setRestoreError(null)
+      toast.success('Product restored to Products as a Draft. Review it before publishing.')
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+    },
+    onError: (error) => setRestoreError(getApiErrorMessage(error, 'Could not restore product. Please try again.')),
   })
 
   const confirmDelete = (ids: string[]) => {
@@ -192,7 +204,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
         </h1>
         <p className="home-page__subtitle">
           {archived
-            ? 'Products removed from the website. Existing buyers keep their purchases and downloads.'
+            ? 'Products removed from the website. Restore to Products brings them back as Drafts for review. Existing buyers keep their purchases and downloads.'
             : isQaQueue
               ? 'Review imported products pending approve or reject.'
               : 'Create and manage marketplace 3D assets.'}
@@ -226,6 +238,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
             Existing buyers keep their downloads.
           </p>
         ) : null}
+        {restoreError ? <Alert variant="error" message={restoreError} /> : null}
         {!archived && showCreate ? (
           <form className="admin-create-form" onSubmit={onCreateSubmit} noValidate>
             {createError ? <Alert variant="error" message={createError} /> : null}
@@ -438,6 +451,22 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                       >
                         Manage
                       </Link>{' '}
+                      {archived ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={restoreMutation.isPending}
+                          isLoading={restoreMutation.isPending && restoreMutation.variables === product.id}
+                          onClick={() => {
+                            if (window.confirm(PRODUCT_RESTORE_CONFIRMATION)) {
+                              setRestoreError(null)
+                              restoreMutation.mutate(product.id)
+                            }
+                          }}
+                        >
+                          Restore to Products
+                        </Button>
+                      ) : null}
                       {!archived ? <Button
                         type="button"
                         variant="secondary"

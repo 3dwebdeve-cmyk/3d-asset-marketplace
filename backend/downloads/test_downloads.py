@@ -297,6 +297,19 @@ class DownloadAPITests(APITestCase):
         self.client.force_authenticate(user=self.other_customer)
         self.assertEqual(self.client.get(download_url).status_code, status.HTTP_404_NOT_FOUND)
 
+        self.client.force_authenticate(user=self.admin)
+        restore_url = reverse("products_admin:admin-product-restore", kwargs={"product_id": self.product.pk})
+        self.assertEqual(self.client.post(restore_url, {}, format="json").status_code, status.HTTP_200_OK)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.DRAFT)
+        self.client.force_authenticate(user=self.customer)
+        self.assertEqual(self.client.get(public_url).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.get(order_url).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get(self.entitlements_url).data[0]["title"], self.product.name)
+        response = self.client.get(download_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(b"PK", b"".join(response.streaming_content))
+
     def test_paid_owner_can_download_plugin_file(self) -> None:
         plugin_file = self._upload_plugin_file()
         self.create_paid_order(

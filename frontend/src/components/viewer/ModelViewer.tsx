@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
+import { framePreviewCamera } from './framePreviewCamera'
 import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, type HdriEnvironmentId } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
@@ -107,6 +108,26 @@ function PreviewModel({
   const shadowMapSize = useAdaptiveShadowMapSize()
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
   const fitted = useMemo(() => fitPreviewScene(scene), [scene])
+  const camera = useThree((state) => state.camera)
+  const size = useThree((state) => state.size)
+  const controls = useThree((state) => state.controls)
+  const invalidate = useThree((state) => state.invalidate)
+
+  useLayoutEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera) || size.width <= 0 || size.height <= 0) return
+    const center = framePreviewCamera(camera, fitted, size.width / size.height)
+    if (!center) return
+    const orbit = controls as {
+      target?: THREE.Vector3
+      update?: () => void
+      saveState?: () => void
+    } | null
+    orbit?.target?.copy(center)
+    orbit?.update?.()
+    orbit?.saveState?.()
+    invalidate()
+  }, [camera, controls, fitted, size.width, size.height, invalidate])
+
   const groundAlphaMap = useMemo(() => {
     if (typeof document === 'undefined') {
       return null
