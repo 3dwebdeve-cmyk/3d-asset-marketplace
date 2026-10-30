@@ -13,7 +13,6 @@ import type {
   ProductFileUploadPayload,
   ProductImage,
   ProductImageUploadPayload,
-  FreeProductClaim,
   PublicProductDetail,
   PublicProductListParams,
 } from '../types/product'
@@ -94,12 +93,9 @@ export async function bulkDeleteAdminProducts(
   return response.data
 }
 
-/** Add a free model to the signed-in customer's Downloads, without checkout. */
-export async function claimFreeProduct(slug: string): Promise<FreeProductClaim> {
-  const response = await apiClient.post<FreeProductClaim>(
-    `/api/v1/products/${encodeURIComponent(slug)}/claim-free/`,
-  )
-  return response.data
+/** A free model's zip: no account needed, the server redirects to the file. */
+export function freeDownloadUrl(slug: string): string {
+  return `${apiClient.defaults.baseURL ?? ''}/api/v1/products/${encodeURIComponent(slug)}/free-download/`
 }
 
 export async function rejectAdminProduct(

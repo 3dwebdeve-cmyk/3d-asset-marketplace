@@ -44,7 +44,7 @@ def put_pipeline_images(items: list[dict]) -> None:
         for image_key in (str(k or "") for k in image_keys):
             extension = "." + image_key.rsplit(".", 1)[-1].lower() if "." in image_key else ""
             if (
-                image_key.startswith("models/")
+                image_key.startswith(("models/", "free-models/"))
                 and ".." not in image_key
                 and extension in _IMAGE_FORMATS
                 and not default_storage.exists(image_key)

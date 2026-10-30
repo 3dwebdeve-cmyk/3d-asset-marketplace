@@ -88,12 +88,6 @@ export interface AdminProductBulkDeleteResult {
   not_found: string[]
 }
 
-export interface FreeProductClaim {
-  order_id: string
-  product_id: string
-  created: boolean
-}
-
 /** A free model (price 0) is downloaded without checkout. */
 export function isFreeProduct(product: { is_free?: boolean; price: string }): boolean {
   return product.is_free ?? Number(product.price) === 0

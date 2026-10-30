@@ -318,8 +318,11 @@ class CartService:
                 "name": product.category.name,
                 "slug": product.category.slug,
             },
+            # A model made free after it was added is downloaded, not checked out.
             "is_available": (
-                product.status == Product.Status.PUBLISHED and product.category.is_active
+                product.status == Product.Status.PUBLISHED
+                and product.category.is_active
+                and not product.is_free
             ),
         }
 

@@ -10,7 +10,7 @@ from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from categories.models import Category
-from config.media import private_object_exists
+from config.media import is_free_model_path, package_object_exists
 from config.currency import (
     MINIMUM_CHECKOUT_AMOUNTS,
     normalize_currency,
@@ -611,11 +611,14 @@ class ProductService(ProductMediaService):
             errors["files"] = [
                 "At least one sellable package file is required before publish."
             ]
-        elif not any(private_object_exists(row.storage_path) for row in sellable_files):
+        elif not any(package_object_exists(row.storage_path) for row in sellable_files):
             errors["files"] = [
                 "Sellable package object is missing from private storage. "
                 "Upload or migrate the package before publish."
             ]
+        elif product.price and any(is_free_model_path(row.storage_path) for row in sellable_files):
+            # Anyone can fetch a zip in the public free-models/ folder, so it cannot be sold.
+            errors["price"] = ["This model's zip is in the free-models folder: publish it as free."]
 
         if not (product.preview_model or "").strip():
             errors["preview_model"] = ["Preview model is required before publish."]

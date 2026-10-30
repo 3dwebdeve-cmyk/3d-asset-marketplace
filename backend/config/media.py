@@ -41,6 +41,8 @@ PUBLIC_MEDIA_PREFIXES = (
 BATCH_PUBLIC_PREFIX = "models/"
 BATCH_PRIVATE_FILENAMES = frozenset({"package.zip"})
 BATCH_PRIVATE_SUFFIXES = (".zip",)
+# Free models live under free-models/{Model_ID}/ in the public bucket, zip included.
+FREE_MODELS_PREFIX = "free-models/"
 
 
 def media_relative_path(storage_path: str) -> str | None:
@@ -83,9 +85,14 @@ def is_batch_private_object(relative: str) -> bool:
     return name in BATCH_PRIVATE_FILENAMES or name.endswith(BATCH_PRIVATE_SUFFIXES)
 
 
+def is_free_model_path(storage_path: str) -> bool:
+    relative = media_relative_path(storage_path)
+    return relative is not None and relative.startswith(FREE_MODELS_PREFIX)
+
+
 def is_public_media_path(relative: str) -> bool:
     normalized = relative.replace("\\", "/")
-    if any(normalized.startswith(prefix) for prefix in PUBLIC_MEDIA_PREFIXES):
+    if any(normalized.startswith(prefix) for prefix in (*PUBLIC_MEDIA_PREFIXES, FREE_MODELS_PREFIX)):
         return True
     return normalized.startswith(BATCH_PUBLIC_PREFIX) and not is_batch_private_object(
         normalized
@@ -155,6 +162,17 @@ def private_object_exists(storage_path: str) -> bool:
     if private_r2_object_exists(relative):
         return True
     return local_object_exists(relative)
+
+
+def package_object_exists(storage_path: str) -> bool:
+    """A package key exists: free models' zips in the public bucket, the rest private."""
+    if not is_free_model_path(storage_path):
+        return private_object_exists(storage_path)
+    relative = media_relative_path(storage_path)
+    try:
+        return bool(call_with_storage_retries(lambda: get_public_storage().exists(relative)))
+    except (OSError, SuspiciousFileOperation, ValueError, BotoCoreError, ClientError):
+        return False
 
 
 def resolve_private_download(
