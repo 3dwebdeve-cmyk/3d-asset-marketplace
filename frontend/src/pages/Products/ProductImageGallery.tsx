@@ -645,28 +645,10 @@ export function ProductImageGallery({
               onClick={closeLightbox}
               aria-label="Close image viewer"
             >
-              Close
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
             </button>
-            {galleryImages.length > 1 ? (
-              <>
-                <button
-                  type="button"
-                  className="product-detail-lightbox__nav product-detail-lightbox__nav--prev"
-                  onClick={() => stepLightbox(-1)}
-                  aria-label="Previous image"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  className="product-detail-lightbox__nav product-detail-lightbox__nav--next"
-                  onClick={() => stepLightbox(1)}
-                  aria-label="Next image"
-                >
-                  Next
-                </button>
-              </>
-            ) : null}
             <ZoomableImage
               key={activeImage.src}
               src={activeImage.src}
