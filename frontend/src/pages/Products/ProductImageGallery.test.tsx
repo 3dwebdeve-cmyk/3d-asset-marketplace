@@ -43,6 +43,21 @@ function animationFrames() {
 }
 
 describe('product gallery navigation', () => {
+  it('matches backgrounds only for image previews and removes them on return to the 3D viewer', async () => {
+    render(<ProductImageGallery {...defaults} />)
+    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Show image 1 of 2' }))
+    const image = within(stage()).getByAltText('Chair 3D model, image 1')
+    Object.defineProperties(image, { naturalWidth: { value: 500 }, naturalHeight: { value: 500 } })
+    fireEvent.load(image)
+    expect(stage().querySelectorAll('.product-detail-stage__image-edge')).toHaveLength(2)
+    await userEvent.click(screen.getByRole('button', { name: 'Show 3D preview' }))
+    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('model-preview')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Show preview video' }))
+    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
+  })
+
   it('smoothly scrolls overflowing thumbnails with the vertical mouse wheel', () => {
     const advance = animationFrames()
     render(<ProductImageGallery {...defaults} />)
