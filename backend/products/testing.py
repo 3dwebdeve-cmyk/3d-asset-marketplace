@@ -57,7 +57,7 @@ def put_pipeline_uploads(items: list[dict], *, triangles: int = 100) -> None:
     for item in items:
         key = str((item.get("media") or {}).get("preview_key") or "")
         name = PurePosixPath(key).name.lower()
-        # preview-<hex>.glb is the importer's own secured copy, never a pipeline upload.
+        # preview-<hex>.glb is a copy older imports made, never a pipeline upload.
         if (
             name.endswith(".glb")
             and not name.startswith("preview-")

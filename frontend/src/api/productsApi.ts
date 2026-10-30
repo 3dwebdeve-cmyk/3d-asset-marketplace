@@ -1,6 +1,8 @@
 import { apiClient } from './client'
 import type {
   AdminProduct,
+  AdminProductApprovePayload,
+  AdminProductBulkDeleteResult,
   AdminProductCreatePayload,
   AdminProductListParams,
   AdminProductRejectPayload,
@@ -11,6 +13,7 @@ import type {
   ProductFileUploadPayload,
   ProductImage,
   ProductImageUploadPayload,
+  FreeProductClaim,
   PublicProductDetail,
   PublicProductListParams,
 } from '../types/product'
@@ -68,9 +71,33 @@ export async function archiveAdminProduct(productId: string): Promise<AdminProdu
   return response.data
 }
 
-export async function approveAdminProduct(productId: string): Promise<AdminProduct> {
+/** Approve and publish. `pricing` sets the price at the same time: free (price 0) or paid. */
+export async function approveAdminProduct(
+  productId: string,
+  pricing?: AdminProductApprovePayload,
+): Promise<AdminProduct> {
   const response = await apiClient.post<AdminProduct>(
     `/api/v1/admin/products/${productId}/approve/`,
+    pricing ?? {},
+  )
+  return response.data
+}
+
+/** Delete products; ones a customer has ordered are archived instead, so their downloads keep working. */
+export async function bulkDeleteAdminProducts(
+  productIds: string[],
+): Promise<AdminProductBulkDeleteResult> {
+  const response = await apiClient.post<AdminProductBulkDeleteResult>(
+    '/api/v1/admin/products/bulk-delete/',
+    { product_ids: productIds },
+  )
+  return response.data
+}
+
+/** Add a free model to the signed-in customer's Downloads, without checkout. */
+export async function claimFreeProduct(slug: string): Promise<FreeProductClaim> {
+  const response = await apiClient.post<FreeProductClaim>(
+    `/api/v1/products/${encodeURIComponent(slug)}/claim-free/`,
   )
   return response.data
 }

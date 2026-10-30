@@ -4,9 +4,15 @@ interface ProductCtaGroupProps {
   productId: string
   productName: string
   productSlug: string
+  isFree?: boolean
 }
 
-export function ProductCtaGroup({ productId, productName, productSlug }: ProductCtaGroupProps) {
+export function ProductCtaGroup({
+  productId,
+  productName,
+  productSlug,
+  isFree = false,
+}: ProductCtaGroupProps) {
   return (
     <CommerceCtaGroup
       productType="product"
@@ -16,6 +22,7 @@ export function ProductCtaGroup({ productId, productName, productSlug }: Product
       variant="buybox"
       showShare={false}
       useStandardGuestLabels
+      isFree={isFree}
     />
   )
 }

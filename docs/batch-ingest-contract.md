@@ -47,16 +47,24 @@ Upload the zip **before** calling the import: the import checks it is there.
   (`invalid_object_key`). A `.zip` is also rejected as a thumbnail, preview or gallery key.
 - When `package_file_name` is not sent, the buyer's download is named after the package
   key, so a pipeline package downloads as `<Model_ID>.zip`.
-- The import moves the preview to an unguessable name and deletes the original. The
-  preview must be a reduced model; see `PREVIEW_PIPELINE.md`.
-- Thumbnail and gallery images are served as WebP. Upload `.webp` to have them used as-is;
-  a `.jpg` or `.png` (25 MB, 20 megapixels at most) is converted to
-  `<name>-<12 hex>.webp` next to the original, and the product points to the WebP copy.
-  The name changes when the image changes, so browsers never show a stale copy; a
-  re-import with a new thumbnail deletes the previous WebP copy. The thumbnail and every
-  gallery image must already be in the public bucket when you import: a row whose image is
-  missing is skipped, so a product never goes in with a broken image. A re-import may leave
-  the thumbnail out and keep the one the product already has.
+- **The import never creates, renames or deletes a file in R2.** It checks the uploaded
+  files where they are, and the product points straight at them: `models/<ID>/` holds only
+  the uploader's files. The one exception is a preview the virus scanner reports as
+  malware, which is deleted (`preview_malware`).
+- The preview must be a reduced model; see `PREVIEW_PIPELINE.md`. A rejected preview stays
+  in place; the next upload replaces it.
+- Thumbnail and gallery images (JPEG, PNG or WebP; 25 MB and 20 megapixels at most) are
+  used as uploaded. The file names never change, so each URL carries the first 12 hex
+  characters of the file's SHA-256 (`…/previewthumb_<ID>.jpg?v=1a2b3c4d5e6f`): a re-uploaded
+  file gets a new URL and browsers never show a stale copy. The preview URL works the same way.
+- The thumbnail and every gallery image must already be in the public bucket when you
+  import: a row whose image is missing is skipped, so a product never goes in with a broken
+  image. A re-import may leave the thumbnail out and keep the one the product already has.
+- A re-import replaces the gallery when it is empty or every image in it came from an
+  earlier import (`models/<ID>/`). A gallery an administrator added to is left alone.
+- Older imports made copies (`<name>-<12 hex>.webp`, `preview-<32 hex>.glb`). A re-import
+  deletes the copies its product no longer uses; `python manage.py cleanup_import_copies`
+  (dry run by default, `--delete` to act) removes any that nothing points at.
 
 ## Uploader API key
 
@@ -161,6 +169,7 @@ holds `preview_unchecked` when that applies.
 |---|---|
 | `subcategory_not_found` | The subcategory does not exist (or is inactive) under the category. The product was placed in the parent category. Create the subcategory in `/console`, then re-import. |
 | `preview_unchecked` | The preview was accepted without the 50% reduction check (see Import gate). Send `polygon_count`. |
+| `preview_not_scanned` | The preview was imported without a virus scan, because `CATALOG_IMPORT_SCAN_REQUIRED` is `False` and no scanner is configured. Expected while that switch is off. |
 
 ## Import gate
 
@@ -182,7 +191,32 @@ anything else is changed, so the uploaded preview stays in place for a retry. Up
 and import again.
 
 Preview checks can also skip a row: `invalid_preview_format`, `missing_preview_object`,
-`invalid_preview`, `preview_too_large`, `preview_not_reduced`, `preview_unreadable`.
+`invalid_preview`, `preview_too_large`, `preview_not_reduced`, `preview_unreadable`,
+`preview_malware` and `scanner_unavailable`. The preview is checked before the images.
+Every rejected preview stays in R2 except a `preview_malware` one, which is deleted.
+
+| Reason | Meaning |
+|---|---|
+| `preview_malware` | The virus scanner found malware in the preview. The file was deleted. |
+| `scanner_unavailable` | The virus scanner is required but not configured, or a configured scanner (`PACKAGE_SCAN_HOST`) could not be reached or did not finish. The file is kept; import again once the scanner is back. Without a scanner this happens only while `CATALOG_IMPORT_SCAN_REQUIRED` is `True`. |
+
+### Virus scan switch: `CATALOG_IMPORT_SCAN_REQUIRED`
+
+Production requires a virus scan of every upload. The setting `CATALOG_IMPORT_SCAN_REQUIRED`
+(default `True`) decides what the import does with the preview when **no** scanner is configured
+(`PACKAGE_SCAN_HOST` empty):
+
+| Value | No scanner configured | Scanner configured |
+|---|---|---|
+| `True` (default) | Row skipped: `scanner_unavailable` | Scanned |
+| `False` | Imported **unscanned**, with the warning `preview_not_scanned` | Scanned (the switch has no effect) |
+
+With `False` and no scanner, the GLB structure, size and triangle checks still run. The
+audit log entry records `preview_not_scanned`, the product's QA notes in `/console` say
+*"Preview imported without a virus scan (no scanner configured)."*, and the site logs a
+warning at startup. The switch covers the catalog import only (the uploader route and the
+administrator import route); admin console uploads always require the scanner. Set it to
+`False` only until a ClamAV scanner exists.
 
 Image checks can skip a row: `invalid_thumbnail`, `invalid_gallery_image` (not a JPEG/PNG/WebP
 image, over 25 MB or over 20 megapixels), `image_unreadable` (storage error), `missing_thumbnail_object` and

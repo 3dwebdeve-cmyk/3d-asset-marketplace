@@ -4,7 +4,11 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { listAdminCategories } from '../../api/categoriesApi'
-import { createAdminProduct, listAdminProducts } from '../../api/productsApi'
+import {
+  bulkDeleteAdminProducts,
+  createAdminProduct,
+  listAdminProducts,
+} from '../../api/productsApi'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -13,6 +17,7 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
+import { isFreeProduct } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus } from '../../types/product'
 
 const emptyCreateForm: AdminProductCreatePayload = {
@@ -44,6 +49,7 @@ export function AdminProductsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<AdminProductCreatePayload>(emptyCreateForm)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   const productsQuery = useQuery({
     queryKey: [
@@ -80,6 +86,50 @@ export function AdminProductsPage() {
       setCreateError(getApiErrorMessage(error, 'Could not create product.'))
     },
   })
+
+  const deleteMutation = useMutation({
+    mutationFn: (productIds: string[]) => bulkDeleteAdminProducts(productIds),
+    onSuccess: async (result) => {
+      const parts = [
+        result.deleted.length ? `${result.deleted.length} deleted` : '',
+        result.archived.length
+          ? `${result.archived.length} archived (customers own them, so their downloads keep working)`
+          : '',
+      ].filter(Boolean)
+      toast.success(parts.join(', ') || 'Nothing to delete')
+      setSelectedIds(new Set())
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, 'Could not delete the selected products.'))
+    },
+  })
+
+  const confirmDelete = (ids: string[]) => {
+    if (ids.length === 0) {
+      return
+    }
+    const label = ids.length === 1 ? 'this product' : `these ${ids.length} products`
+    if (
+      window.confirm(
+        `Delete ${label} permanently? Any a customer already owns are archived instead, so their downloads keep working.`,
+      )
+    ) {
+      deleteMutation.mutate(ids)
+    }
+  }
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   const updateFilters = (next: { status?: string; import_batch_id?: string }) => {
     const params = new URLSearchParams(searchParams)
@@ -118,6 +168,13 @@ export function AdminProductsPage() {
 
   const categoryOptions = categoriesQuery.data?.results ?? []
   const isQaQueue = statusFilter === 'pending_review'
+  const visibleProducts = productsQuery.data?.results ?? []
+  // Only rows on screen can be selected; a filter change drops hidden ones from the count.
+  const visibleSelectedIds = visibleProducts
+    .map((product) => product.id)
+    .filter((id) => selectedIds.has(id))
+  const allVisibleSelected =
+    visibleProducts.length > 0 && visibleSelectedIds.length === visibleProducts.length
 
   return (
     <main className="dashboard-page">
@@ -306,9 +363,34 @@ export function AdminProductsPage() {
           />
         ) : (
           <div className="admin-table-wrap">
+            <div className="dashboard-card__actions">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={visibleSelectedIds.length === 0}
+                isLoading={deleteMutation.isPending}
+                onClick={() => confirmDelete(visibleSelectedIds)}
+              >
+                Delete selected ({visibleSelectedIds.length})
+              </Button>
+            </div>
             <table className="admin-table">
               <thead>
                 <tr>
+                  <th scope="col">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all products on this page"
+                      checked={allVisibleSelected}
+                      onChange={() =>
+                        setSelectedIds(
+                          allVisibleSelected
+                            ? new Set()
+                            : new Set(visibleProducts.map((product) => product.id)),
+                        )
+                      }
+                    />
+                  </th>
                   <th scope="col">Name</th>
                   <th scope="col">SKU</th>
                   <th scope="col">Status</th>
@@ -318,14 +400,22 @@ export function AdminProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {productsQuery.data?.results.map((product) => (
+                {visibleProducts.map((product) => (
                   <tr key={product.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${product.name}`}
+                        checked={selectedIds.has(product.id)}
+                        onChange={() => toggleSelected(product.id)}
+                      />
+                    </td>
                     <td>{product.name}</td>
                     <td>{product.sku ?? '—'}</td>
                     <td>{product.status}</td>
                     <td>{product.import_batch_id || '—'}</td>
                     <td>
-                      {product.currency} {product.price}
+                      {isFreeProduct(product) ? 'Free' : `${product.currency} ${product.price}`}
                     </td>
                     <td>
                       <Link
@@ -333,7 +423,16 @@ export function AdminProductsPage() {
                         to={`/console/products/${product.id}`}
                       >
                         Manage
-                      </Link>
+                      </Link>{' '}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => confirmDelete([product.id])}
+                        aria-label={`Delete ${product.name}`}
+                      >
+                        Delete
+                      </Button>
                     </td>
                   </tr>
                 ))}

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,6 +20,7 @@ vi.mock('../../api/productsApi', async () => {
     listAdminCategories: vi.fn(),
     updateAdminProduct: vi.fn(),
     archiveAdminProduct: vi.fn(),
+    bulkDeleteAdminProducts: vi.fn(),
     approveAdminProduct: vi.fn(),
     rejectAdminProduct: vi.fn(),
     requeueAdminProduct: vi.fn(),
@@ -133,6 +134,37 @@ describe('AdminProductDetailPage', () => {
     expect(screen.getByText('USDZ')).toBeInTheDocument()
   })
 
+  it('saves a product as free: price 0 and no discount', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue({ ...sampleProduct, price: '0.00' })
+
+    renderProductDetailPage()
+
+    const pricing = await screen.findByRole('group', { name: /^pricing$/i })
+    expect(screen.getByLabelText(/^price$/i)).toBeInTheDocument()
+    await user.click(within(pricing).getByLabelText(/^free/i))
+    expect(screen.queryByLabelText(/^price$/i)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(productsApi.updateAdminProduct).toHaveBeenCalledWith(
+        productId,
+        expect.objectContaining({ price: '0.00', discount_price: null }),
+      )
+    })
+  })
+
+  it('needs a price to save a paid product', async () => {
+    const user = userEvent.setup()
+    renderProductDetailPage()
+
+    await user.clear(await screen.findByLabelText(/^price$/i))
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(screen.getByText(/enter a price above 0, or choose free/i)).toBeInTheDocument()
+    expect(productsApi.updateAdminProduct).not.toHaveBeenCalled()
+  })
+
   it('saves product updates', async () => {
     const user = userEvent.setup()
     vi.mocked(productsApi.updateAdminProduct).mockResolvedValue({
@@ -172,7 +204,10 @@ describe('AdminProductDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /import qa/i })).toBeInTheDocument()
     })
-    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
+    const qaPricing = screen.getByRole('group', { name: /pricing when published/i })
+    expect(within(qaPricing).getByLabelText(/^free/i)).toBeInTheDocument()
+    expect(within(qaPricing).getByLabelText(/^paid/i)).toBeChecked()
+    expect(screen.getByRole('button', { name: /approve & publish/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^requeue$/i })).not.toBeInTheDocument()
   })
@@ -270,13 +305,59 @@ describe('AdminProductDetailPage', () => {
     renderProductDetailPage()
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /approve & publish at usd 29\.99/i })).toBeInTheDocument()
     })
 
-    await user.click(screen.getByRole('button', { name: /^approve$/i }))
+    await user.clear(screen.getByLabelText(/price \(usd\)/i))
+    await user.type(screen.getByLabelText(/price \(usd\)/i), '45')
+    await user.click(screen.getByRole('button', { name: /approve & publish/i }))
 
     await waitFor(() => {
-      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId)
+      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, {
+        pricing: 'paid',
+        price: '45.00',
+      })
     })
+  })
+
+  it('publishes a product as a free download when Free is chosen', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      status: 'pending_review',
+    })
+    vi.mocked(productsApi.approveAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      price: '0.00',
+      is_free: true,
+      status: 'published',
+    })
+
+    renderProductDetailPage()
+
+    const qaPricing = await screen.findByRole('group', { name: /pricing when published/i })
+    await user.click(within(qaPricing).getByLabelText(/^free/i))
+    expect(screen.queryByLabelText(/price \(usd\)/i)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /approve & publish as free/i }))
+
+    await waitFor(() => {
+      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, { pricing: 'free' })
+    })
+  })
+
+  it('refuses a paid approval without a price', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      status: 'pending_review',
+    })
+
+    renderProductDetailPage()
+
+    await user.clear(await screen.findByLabelText(/price \(usd\)/i))
+    await user.click(screen.getByRole('button', { name: /approve & publish/i }))
+
+    expect(screen.getByText(/enter a price above 0/i)).toBeInTheDocument()
+    expect(productsApi.approveAdminProduct).not.toHaveBeenCalled()
   })
 })
