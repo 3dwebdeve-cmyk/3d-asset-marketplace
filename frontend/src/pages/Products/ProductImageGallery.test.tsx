@@ -23,6 +23,58 @@ const previous = () => screen.getByRole('button', { name: 'Previous preview' })
 const counter = () => screen.getByRole('status')
 
 describe('product gallery navigation', () => {
+  it('smoothly scrolls overflowing thumbnails with the vertical mouse wheel', () => {
+    render(<ProductImageGallery {...defaults} />)
+    const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+    Object.defineProperties(strip, {
+      scrollWidth: { value: 1000 }, clientWidth: { value: 300 },
+    })
+    const scrollBy = vi.fn()
+    strip.scrollBy = scrollBy
+
+    expect(fireEvent.wheel(strip, { deltaY: 100 })).toBe(false)
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: 100, behavior: 'smooth' })
+    strip.scrollLeft = 200
+    fireEvent.wheel(strip, { deltaY: -3, deltaMode: 1 })
+    expect(scrollBy).toHaveBeenLastCalledWith({ left: -48, behavior: 'smooth' })
+    expect(counter()).toHaveTextContent('1 / 4')
+  })
+
+  it('leaves wheel scrolling to the page at the strip edges, without overflow, and during zoom', () => {
+    render(<ProductImageGallery {...defaults} />)
+    const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+    Object.defineProperties(strip, {
+      scrollWidth: { configurable: true, value: 1000 }, clientWidth: { value: 300 },
+    })
+    const scrollBy = vi.fn()
+    strip.scrollBy = scrollBy
+    expect(fireEvent.wheel(strip, { deltaY: -100 })).toBe(true)
+    strip.scrollLeft = 700
+    expect(fireEvent.wheel(strip, { deltaY: 100 })).toBe(true)
+    strip.scrollLeft = 200
+    expect(fireEvent.wheel(strip, { deltaY: 100, ctrlKey: true })).toBe(true)
+    expect(fireEvent.wheel(strip, { deltaX: 100, deltaY: 10 })).toBe(true)
+    Object.defineProperty(strip, 'scrollWidth', { value: 300 })
+    expect(fireEvent.wheel(strip, { deltaY: 100 })).toBe(true)
+    expect(scrollBy).not.toHaveBeenCalled()
+  })
+
+  it('respects reduced motion when scrolling thumbnails', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
+    try {
+      render(<ProductImageGallery {...defaults} />)
+      const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+      Object.defineProperties(strip, {
+        scrollWidth: { value: 1000 }, clientWidth: { value: 300 },
+      })
+      strip.scrollBy = vi.fn()
+      fireEvent.wheel(strip, { deltaY: 1, deltaMode: 2 })
+      expect(strip.scrollBy).toHaveBeenCalledWith({ left: 300, behavior: 'auto' })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('cycles through model, video and renders in both directions, and returns using the 3D thumbnail', async () => {
     const user = userEvent.setup()
     render(<ProductImageGallery {...defaults} />)
