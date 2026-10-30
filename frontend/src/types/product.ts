@@ -93,6 +93,21 @@ export function isFreeProduct(product: { is_free?: boolean; price: string }): bo
   return product.is_free ?? Number(product.price) === 0
 }
 
+/** One call from the uploader, from the activity log. */
+export interface UploaderImport {
+  id: string
+  target_id: string
+  created_at: string
+  metadata: {
+    created?: number
+    updated?: number
+    skipped?: number
+    failed?: number
+    /** Model ID → why it did not reach QA. */
+    skipped_reasons?: Record<string, string>
+  }
+}
+
 export interface AdminProductCreatePayload {
   category_id: string
   name: string

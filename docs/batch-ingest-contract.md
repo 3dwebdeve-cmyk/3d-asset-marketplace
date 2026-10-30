@@ -246,8 +246,13 @@ large batches will time out.
 ## Re-import
 
 - Re-importing the same Model ID updates the product (`pending_review` again).
-- A published product is skipped (`published_sku`). To replace its files, set it to Draft
-  in `/console`, re-upload and re-import, then approve it again.
+- A published product is skipped (`published_sku`), so re-sending a batch never takes live
+  models off the store. To replace its files, set it to Draft in `/console`, re-upload and
+  re-import, then approve it again.
+- An archived product (deleted in `/console` while it had orders) goes back to
+  `pending_review` when it is re-imported; its buyers keep their downloads.
+- Every skipped or failed model is recorded with its reason in the activity log
+  (`skipped_reasons`), and the `/console` QA queue lists the latest imports with those reasons.
 - An existing gallery is kept; the import only fills an empty gallery.
 - The existing package is kept unless the batch provides a new `package_key`.
 - `package_formats` is replaced by the value in the batch.
