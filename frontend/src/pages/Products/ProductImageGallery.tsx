@@ -248,6 +248,31 @@ export function ProductImageGallery({
   const hasThumbnails = galleryImages.length > 0 ||
     (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo))
 
+  useEffect(() => {
+    const strip = thumbnailsRef.current
+    if (!strip) return
+
+    const onWheel = (event: WheelEvent) => {
+      // Leave browser zoom and native horizontal trackpad gestures alone.
+      if (event.ctrlKey || event.metaKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+      const maxScroll = strip.scrollWidth - strip.clientWidth
+      if (maxScroll <= 0 || !event.cancelable) return
+
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? strip.clientWidth : 1)
+      if ((delta < 0 && strip.scrollLeft <= 0) || (delta > 0 && strip.scrollLeft >= maxScroll - 1)) return
+
+      event.preventDefault()
+      strip.scrollBy({
+        left: delta,
+        behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      })
+    }
+
+    // A non-passive listener is required to prevent vertical page scrolling.
+    strip.addEventListener('wheel', onWheel, { passive: false })
+    return () => strip.removeEventListener('wheel', onWheel)
+  }, [hasThumbnails])
+
   // Move only the thumbnail strip, never the page, when the selected preview changes.
   const revealSelectedThumbnail = useCallback(() => {
     const strip = thumbnailsRef.current
