@@ -415,7 +415,43 @@ class OwnedItemTests(APITestCase):
         self.assertIn("already own", str(response.data))
         self.assertFalse(CartItem.objects.filter(product_id=self.published_product.pk).exists())
 
-    def test_checkout_refuses_an_item_bought_after_it_was_added(self) -> None:
+    def test_checkout_drops_an_item_bought_after_it_was_added(self) -> None:
+        from orders.services import OrderService
+
+        self.authenticate()
+        for product in (self.published_product, self.discounted_product):
+            self.client.post(
+                self.cart_url,
+                {"product_type": "product", "product_id": str(product.pk)},
+                format="json",
+            )
+        self.give_customer(self.published_product)
+
+        order = OrderService.create_from_cart(self.customer)
+
+        self.assertEqual([item.product_id for item in order.items.all()], [self.discounted_product.pk])
+        self.assertFalse(CartItem.objects.filter(product_id=self.published_product.pk).exists())
+
+    def test_checkout_buys_only_the_selected_items(self) -> None:
+        from orders.services import OrderService
+
+        self.authenticate()
+        for product in (self.published_product, self.discounted_product):
+            self.client.post(
+                self.cart_url,
+                {"product_type": "product", "product_id": str(product.pk)},
+                format="json",
+            )
+
+        order = OrderService.create_from_cart(
+            self.customer, selected={("product", self.discounted_product.pk)}
+        )
+
+        self.assertEqual([item.product_id for item in order.items.all()], [self.discounted_product.pk])
+        self.assertEqual(order.total_amount, self.discounted_product.discount_price)
+        self.assertEqual(CartItem.objects.filter(cart__user=self.customer).count(), 2)
+
+    def test_checkout_skips_a_model_made_free_after_it_was_added(self) -> None:
         from orders.services import OrderError, OrderService
 
         self.authenticate()
@@ -424,11 +460,11 @@ class OwnedItemTests(APITestCase):
             {"product_type": "product", "product_id": str(self.published_product.pk)},
             format="json",
         )
-        self.give_customer(self.published_product)
+        Product.objects.filter(pk=self.published_product.pk).update(price=0, discount_price=None)
 
         with self.assertRaises(OrderError) as ctx:
             OrderService.create_from_cart(self.customer)
-        self.assertIn("You already own Oak Chair", ctx.exception.message)
+        self.assertEqual(ctx.exception.message, "Your cart is empty.")
 
     def test_a_refunded_item_can_be_bought_again(self) -> None:
         from orders.models import Order

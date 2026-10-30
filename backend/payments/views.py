@@ -47,11 +47,26 @@ def _accepted_legal_from_request(request: Request):
     return None
 
 
+def _selected_items_from_request(request: Request):
+    """Optional `items: [{product_type, product_id}]`: buy only these cart lines."""
+    data = request.data
+    raw = data.get("items") if isinstance(data, dict) else None
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or not raw:
+        raise ValidationError({"items": ["Select at least one item to buy."]})
+    try:
+        return {(str(row["product_type"]), UUID(str(row["product_id"]))) for row in raw}
+    except (KeyError, TypeError, ValueError):
+        raise ValidationError({"items": ["Each item needs a product_type and product_id."]}) from None
+
+
 class CreateCheckoutSessionView(APIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
 
     def post(self, request: Request) -> Response:
+        selected = _selected_items_from_request(request)
         try:
             accepted_legal = _accepted_legal_from_request(request)
 
@@ -60,6 +75,7 @@ class CreateCheckoutSessionView(APIView):
                     result = CheckoutService.create_checkout_session(
                         request.user,
                         accepted_legal=accepted_legal,
+                        selected=selected,
                     )
                 except CheckoutError as exc:
                     return _checkout_error_body(exc), status.HTTP_400_BAD_REQUEST

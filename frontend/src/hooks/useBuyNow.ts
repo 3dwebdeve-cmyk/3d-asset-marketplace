@@ -30,7 +30,10 @@ export function useBuyNow() {
         })
       }
       await queryClient.invalidateQueries({ queryKey: ['cart'] })
-      return createCheckoutSession(currentAcceptedLegalPayload())
+      // Buy Now pays for this model only; the rest of the cart stays for later.
+      return createCheckoutSession(currentAcceptedLegalPayload(), [
+        { product_type: productType, product_id: productId },
+      ])
     },
     onSuccess: (data) => {
       rememberCheckoutOrderId(data.order_id)

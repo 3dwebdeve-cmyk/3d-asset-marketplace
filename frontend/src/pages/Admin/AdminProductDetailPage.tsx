@@ -69,7 +69,9 @@ export function AdminProductDetailPage() {
     }
     setHydratedProductId(product.id)
     setApprovePrice(Number(product.price) > 0 ? product.price : '')
-    setApprovePricing(isFreeProduct(product) ? 'free' : 'paid')
+    // The uploader's folder decides: free-models/ is free, models/ is paid (enter a price).
+    const fromFreeFolder = product.files.some((file) => file.storage_path.startsWith('free-models/'))
+    setApprovePricing(fromFreeFolder || (isFreeProduct(product) && !product.import_batch_id) ? 'free' : 'paid')
     setFormPricing(isFreeProduct(product) ? 'free' : 'paid')
     setForm({
       category_id: product.category.id,

@@ -36,6 +36,12 @@ The uploader exe uploads the files to R2 under `models/<ID>/`, then calls the im
 
 Upload the zip **before** calling the import: the import checks it is there.
 
+**Free models** go under `free-models/<ID>/` in the **public** bucket, zip included, with
+`r2_key_prefix: "free-models/<ID>/"` and every media key under that prefix. They import
+at price 0 (any `price` sent is ignored), QA publishes them as free, and they cannot be
+published paid. Anyone can download them, without an account, through
+`GET /api/v1/products/<slug>/free-download/`, which redirects to the zip.
+
 ## Storage layout
 
 - Public objects: `models/<Model_ID>/` (thumbnail, gallery images, preview `.glb`).
