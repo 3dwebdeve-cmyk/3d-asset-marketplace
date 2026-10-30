@@ -83,7 +83,7 @@ export async function approveAdminProduct(
   return response.data
 }
 
-/** Delete products; ones a customer has ordered are archived instead, so their downloads keep working. */
+/** Move products to Archived, retaining model files and existing buyers' downloads. */
 export async function bulkDeleteAdminProducts(
   productIds: string[],
 ): Promise<AdminProductBulkDeleteResult> {

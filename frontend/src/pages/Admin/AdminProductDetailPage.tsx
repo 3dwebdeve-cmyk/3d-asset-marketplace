@@ -21,6 +21,7 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
+import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCT_ARCHIVE_SUCCESS } from '../../lib/productArchive'
 import type {
   AdminProductApprovePayload,
   AdminProductUpdatePayload,
@@ -104,6 +105,9 @@ export function AdminProductDetailPage() {
   const invalidateProduct = async () => {
     await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
     await queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId] })
+    await queryClient.invalidateQueries({ predicate: (query) =>
+      typeof query.queryKey[0] === 'string' && /^public-(models|products|product)(-|$)/.test(query.queryKey[0]),
+    })
   }
 
   const saveMutation = useMutation({
@@ -123,9 +127,9 @@ export function AdminProductDetailPage() {
   const archiveMutation = useMutation({
     mutationFn: () => archiveAdminProduct(productId),
     onSuccess: async () => {
-      toast.success('Product archived')
+      toast.success(PRODUCT_ARCHIVE_SUCCESS)
       await invalidateProduct()
-      navigate('/console', { replace: true })
+      navigate('/console/archived', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not archive product.'))
@@ -135,12 +139,12 @@ export function AdminProductDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: () => bulkDeleteAdminProducts([productId]),
     onSuccess: async (result) => {
-      toast.success(
-        result.archived.length
-          ? 'A customer owns this model, so it was archived (hidden) instead of deleted.'
-          : 'Product deleted',
-      )
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+      if (!result.archived.includes(productId)) {
+        setFormError('Product was not found. Refresh the product list and try again.')
+        return
+      }
+      toast.success(PRODUCT_ARCHIVE_SUCCESS)
+      await invalidateProduct()
       navigate('/console/products', { replace: true })
     },
     onError: (error) => {
@@ -250,8 +254,8 @@ export function AdminProductDetailPage() {
         <h1 id="admin-product-detail-title">Manage product</h1>
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/console/products">
-            Back to products
+          <Link className="home-page__cta home-page__cta--secondary" to={product?.status === 'archived' ? '/console/archived' : '/console/products'}>
+            {product?.status === 'archived' ? 'Back to archived products' : 'Back to products'}
           </Link>
           <Link
             className="home-page__cta home-page__cta--secondary"
@@ -666,17 +670,19 @@ export function AdminProductDetailPage() {
                   type="button"
                   variant="secondary"
                   isLoading={archiveMutation.isPending}
-                  onClick={() => window.confirm('Archive this product? It will be hidden from the storefront.') && archiveMutation.mutate()}
+                  disabled={product.status === 'archived' || deleteMutation.isPending}
+                  onClick={() => window.confirm(PRODUCT_ARCHIVE_CONFIRMATION) && archiveMutation.mutate()}
                 >
-                  Archive
+                  {product.status === 'archived' ? 'Archived' : 'Archive'}
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   isLoading={deleteMutation.isPending}
+                  disabled={product.status === 'archived' || archiveMutation.isPending}
                   onClick={() =>
                     window.confirm(
-                      'Delete this product permanently? If a customer already owns it, it is archived instead so their download keeps working.',
+                      PRODUCT_ARCHIVE_CONFIRMATION,
                     ) && deleteMutation.mutate()
                   }
                 >
