@@ -43,6 +43,22 @@ function animationFrames() {
 }
 
 describe('product gallery navigation', () => {
+  it('requests fullscreen for only the viewer, excluding gallery controls and overlays', async () => {
+    render(<ProductImageGallery {...defaults} showStageChrome stageOverlays={<button>Wishlist</button>} />)
+    const viewer = screen.getByTestId('model-preview').parentElement!
+    const requestFullscreen = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(viewer, 'requestFullscreen', { value: requestFullscreen })
+
+    await userEvent.click(screen.getByRole('button', { name: 'View 3D model in fullscreen' }))
+
+    expect(requestFullscreen).toHaveBeenCalledOnce()
+    expect(viewer).toContainElement(screen.getByTestId('model-preview'))
+    expect(viewer).not.toContainElement(next())
+    expect(viewer).not.toContainElement(previous())
+    expect(viewer).not.toContainElement(counter())
+    expect(viewer).not.toContainElement(screen.getByRole('button', { name: 'Wishlist' }))
+  })
+
   it('matches backgrounds only for image previews and removes them on return to the 3D viewer', async () => {
     render(<ProductImageGallery {...defaults} />)
     expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
