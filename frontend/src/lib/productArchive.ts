@@ -6,3 +6,6 @@ export const PRODUCTS_ARCHIVE_CONFIRMATION =
 
 export const PRODUCT_ARCHIVE_SUCCESS =
   'Product moved to Archived and removed from the website. Existing buyers keep their downloads.'
+
+export const PRODUCT_RESTORE_CONFIRMATION =
+  'Restore this product to Products as a Draft? It will stay hidden from the website until you review and publish it. Existing buyers keep their purchases and downloads.'

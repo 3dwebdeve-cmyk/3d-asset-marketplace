@@ -236,6 +236,44 @@ class AdminBulkDeleteTests(APITestCase):
         self.assertTrue(default_storage.exists(console_key))
         self.assertTrue(default_storage.exists(uploader_key))
 
+    def test_restore_returns_archived_product_to_products_as_draft(self) -> None:
+        product = self._product("Accidentally Archived", status=Product.Status.ARCHIVED)
+        self._authenticate_as_admin()
+        restore_url = reverse("products_admin:admin-product-restore", kwargs={"product_id": product.pk})
+        # Restoration cannot be used to publish or change price via request payload.
+        response = self.client.post(restore_url, {"status": "published", "price": "0.00"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.DRAFT)
+        self.assertEqual(product.price, Decimal("10.00"))
+        list_url = reverse("products_admin:admin-products")
+        self.assertEqual(self.client.get(list_url).data["results"][0]["id"], str(product.pk))
+        self.assertEqual(self.client.get(list_url, {"status": "archived"}).data["count"], 0)
+        self.assertEqual(self.client.get(reverse("products:product-list")).data["count"], 0)
+        public_url = reverse("products:product-detail", kwargs={"slug": product.slug})
+        self.assertEqual(self.client.get(public_url).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.post(restore_url, {}, format="json").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_restore_rejects_non_archived_and_missing_products(self) -> None:
+        self._authenticate_as_admin()
+        for product_status in (Product.Status.PUBLISHED, Product.Status.PENDING_REVIEW, Product.Status.DRAFT, Product.Status.REJECTED):
+            product = self._product(f"Status {product_status}", status=product_status)
+            url = reverse("products_admin:admin-product-restore", kwargs={"product_id": product.pk})
+            self.assertEqual(self.client.post(url, {}, format="json").status_code, status.HTTP_400_BAD_REQUEST)
+            product.refresh_from_db()
+            self.assertEqual(product.status, product_status)
+        missing = reverse("products_admin:admin-product-restore", kwargs={"product_id": "00000000-0000-0000-0000-000000000000"})
+        self.assertEqual(self.client.post(missing, {}, format="json").status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_restore_requires_administrator(self) -> None:
+        product = self._product("Archived Guard", status=Product.Status.ARCHIVED)
+        url = reverse("products_admin:admin-product-restore", kwargs={"product_id": product.pk})
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, status.HTTP_401_UNAUTHORIZED)
+        self._authenticate_as_customer()
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, status.HTTP_403_FORBIDDEN)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ARCHIVED)
+
     def test_bulk_delete_requires_administrator(self) -> None:
         product = self._product("Guarded Chair")
         self._authenticate_as_customer()

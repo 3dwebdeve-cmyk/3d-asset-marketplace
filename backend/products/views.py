@@ -343,6 +343,26 @@ class AdminProductDetailView(APIView):
         )
 
 
+class AdminProductRestoreView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request, product_id: UUID) -> Response:
+        try:
+            product = ProductService.get_by_id(product_id)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+        try:
+            restored = ProductService.restore_product(product)
+        except ProductError as exc:
+            return _product_error_response(exc)
+        log_admin_action(
+            action="product_restore", actor_id=str(request.user.pk), target_id=str(restored.pk),
+        )
+        return Response(ProductAdminSerializer(restored).data, status=status.HTTP_200_OK)
+
+
 class AdminProductBulkDeleteView(APIView):
     """POST /api/admin/products/bulk-delete/ — delete selected products.
 
