@@ -134,9 +134,8 @@
   width: 44px;
   height: 44px;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--bg-card);
+  border: 0;
+  background: transparent;
   color: var(--text-main);
   font-size: 2rem;
   line-height: 1;
@@ -206,6 +205,27 @@
 
 .model-viewer-shell {
   width: 100%;
+}
+
+.product-detail-stage__viewer:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  padding: 0;
+  overflow: hidden;
+}
+
+.product-detail-stage__viewer:fullscreen .model-viewer-shell,
+.product-detail-stage__viewer:fullscreen .model-viewer,
+.product-detail-stage__viewer:fullscreen .model-viewer__canvas {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+.product-detail-stage__viewer:fullscreen .model-viewer__controls,
+.product-detail-stage__viewer:fullscreen .model-viewer__hint {
+  display: none;
 }
 
 .model-viewer {
@@ -760,7 +780,17 @@ button.product-detail-cta__link {
   max-height: 100%;
 }
 
+.product-detail-lightbox__zoom {
+  display: grid;
+  place-items: center;
+  max-width: 100%;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
 .product-detail-lightbox__image {
+  display: block;
   max-width: 100%;
   max-height: calc(100vh - 7rem);
   object-fit: contain;
@@ -770,6 +800,7 @@ button.product-detail-cta__link {
 
 .product-detail-lightbox__close,
 .product-detail-lightbox__nav {
+  z-index: 2;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-card);

@@ -26,7 +26,6 @@ export function ProductCard({ product }: ProductCardProps) {
     : Number(product.price)
   const formattedPrice = isFree ? 'Free' : formatCardPrice(displayPrice)
   const formattedOriginal = formatCardPrice(Number(product.price))
-  const categoryLabel = product.category?.name?.trim() ?? ''
   const detailPath = `/products/${product.slug}`
 
   return (
@@ -70,10 +69,6 @@ export function ProductCard({ product }: ProductCardProps) {
           productName={product.name}
           variant="icon"
         />
-
-        {categoryLabel ? (
-          <span className="product-card__badge-category">{categoryLabel}</span>
-        ) : null}
 
         {hasDiscount ? <span className="product-card__badge-discount">Sale</span> : null}
       </div>

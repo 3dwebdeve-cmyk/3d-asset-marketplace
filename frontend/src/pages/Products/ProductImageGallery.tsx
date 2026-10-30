@@ -5,6 +5,7 @@ import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewMode
 import { isSafePreviewVideoUrl } from '../../components/viewer/isSafePreviewVideoUrl'
 import type { ProductImage } from '../../types/product'
 import { ProductImagePreview } from './ProductImagePreview'
+import { ZoomableImage } from './ZoomableImage'
 
 interface GalleryImage {
   id: string
@@ -67,6 +68,7 @@ export function ProductImageGallery({
   stageOverlays,
 }: ProductImageGalleryProps) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const viewerRef = useRef<HTMLDivElement>(null)
   const thumbnailRailRef = useRef<HTMLElement>(null)
   const thumbnailsRef = useRef<HTMLUListElement>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
@@ -399,7 +401,7 @@ export function ProductImageGallery({
         }}
       >
         {showModelStage ? (
-          <div className="product-detail-stage__viewer">
+          <div className="product-detail-stage__viewer" ref={viewerRef}>
             <LazyModelViewer
               modelUrl={previewModelUrl.trim()}
               ariaLabel={`Interactive 3D preview of ${productName}`}
@@ -508,7 +510,7 @@ export function ProductImageGallery({
             className="product-detail-stage__fullscreen"
             aria-label="View 3D model in fullscreen"
             title="Fullscreen"
-            onClick={() => void stageRef.current?.requestFullscreen()}
+            onClick={() => void viewerRef.current?.requestFullscreen()}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5" />
@@ -665,10 +667,10 @@ export function ProductImageGallery({
                 </button>
               </>
             ) : null}
-            <img
+            <ZoomableImage
+              key={activeImage.src}
               src={activeImage.src}
               alt={activeImage.alt}
-              className="product-detail-lightbox__image"
             />
             <p className="product-detail-lightbox__counter">
               {safeIndex + 1} / {galleryImages.length}
