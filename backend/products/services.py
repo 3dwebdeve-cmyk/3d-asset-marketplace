@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID
@@ -23,9 +22,6 @@ from products.media_service import (  # noqa: F401 - re-exported for existing im
     preview_reduction_error,
 )
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
-from products.storage import ProductMediaStorageService
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -201,6 +197,8 @@ class ProductService(ProductMediaService):
 
         if status is not None:
             queryset = queryset.filter(status=status)
+        else:
+            queryset = queryset.exclude(status=Product.Status.ARCHIVED)
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
         normalized_sku = Product.normalize_sku(sku)
@@ -497,12 +495,19 @@ class ProductService(ProductMediaService):
 
     @classmethod
     @transaction.atomic
-    def delete_or_archive(cls, product: Product) -> str:
-        """Delete a model nobody has ordered; archive one that was ordered.
+    def restore_product(cls, product: Product) -> Product:
+        product = Product.objects.select_for_update().get(pk=product.pk)
+        if product.status != Product.Status.ARCHIVED:
+            raise ProductError("Only archived products can be restored.", field="status")
+        return cls.update_product(product, ProductUpdateData(status=Product.Status.DRAFT))
 
-        An order line keeps the buyer's download working, so a model someone owns is
-        only hidden (archived). Returns "deleted" or "archived". Files the uploader put
-        under models/<sku>/ stay in storage; media uploaded in /console is removed.
+    @classmethod
+    @transaction.atomic
+    def delete_or_archive(cls, product: Product) -> str:
+        """Move every selected model to Archived, retaining its records and files.
+
+        The legacy bulk-delete endpoint and response shape remain compatible;
+        all successful removals now return "archived", including unsold products.
         """
         from cart.models import CartItem
         from orders.models import OrderItem
@@ -510,40 +515,11 @@ class ProductService(ProductMediaService):
 
         product = Product.objects.select_for_update().get(pk=product.pk)
         product_type = OrderItem.ProductType.PRODUCT
-        if OrderItem.objects.filter(product_type=product_type, product_id=product.pk).exists():
-            if product.status != Product.Status.ARCHIVED:
-                cls.archive_product(product)
-            return "archived"
-
-        media = [
-            (product.thumbnail, ProductMediaStorageService.IMAGE_PREFIX),
-            (product.preview_model, ProductMediaStorageService.PREVIEW_PREFIX),
-            *(
-                (url, ProductMediaStorageService.IMAGE_PREFIX)
-                for url in product.images.values_list("image_url", flat=True)
-            ),
-            *(
-                (path, ProductMediaStorageService.FILE_PREFIX)
-                for path in product.files.values_list("storage_path", flat=True)
-            ),
-            *(
-                (path, ProductMediaStorageService.PREVIEW_PREFIX)
-                for path in product.files.values_list("storage_path", flat=True)
-            ),
-        ]
+        if product.status != Product.Status.ARCHIVED:
+            cls.archive_product(product)
         CartItem.objects.filter(product_type=product_type, product_id=product.pk).delete()
         WishlistItem.objects.filter(product_type=product_type, product_id=product.pk).delete()
-        product.delete()
-
-        def remove_media() -> None:
-            for url, prefix in media:
-                try:
-                    ProductMediaStorageService.delete_if_managed(url, prefix=prefix)
-                except Exception:  # a storage hiccup must not undo the delete
-                    logger.exception("product_delete_media_failed prefix=%s", prefix)
-
-        transaction.on_commit(remove_media)
-        return "deleted"
+        return "archived"
 
     @classmethod
     def _apply_approval_pricing(

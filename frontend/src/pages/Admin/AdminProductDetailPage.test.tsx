@@ -89,6 +89,8 @@ function renderProductDetailPage() {
       <MemoryRouter initialEntries={[`/console/products/${productId}`]}>
         <Routes>
           <Route path="/console/products/:productId" element={<AdminProductDetailPage />} />
+          <Route path="/console/products" element={<div>Products list</div>} />
+          <Route path="/console/archived" element={<div>Archived products list</div>} />
           <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
@@ -122,6 +124,24 @@ beforeEach(() => {
 })
 
 describe('AdminProductDetailPage', () => {
+  it('moves a deleted product to Archived after explaining retained buyer downloads', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(productsApi.bulkDeleteAdminProducts).mockResolvedValue({ deleted: [], archived: [productId], not_found: [] })
+    renderProductDetailPage()
+    await userEvent.click(await screen.findByRole('button', { name: /^delete$/i }))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('move it to Archived'))
+    expect(productsApi.bulkDeleteAdminProducts).toHaveBeenCalledWith([productId])
+    expect(await screen.findByText('Products list')).toBeInTheDocument()
+  })
+
+  it('does not offer another deletion for an archived product', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({ ...sampleProduct, status: 'archived' })
+    renderProductDetailPage()
+    expect(await screen.findByRole('button', { name: /^delete$/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^archived$/i })).toBeDisabled()
+    expect(screen.getByRole('link', { name: 'Back to archived products' })).toHaveAttribute('href', '/console/archived')
+  })
+
   it('loads product details into the form', async () => {
     renderProductDetailPage()
 

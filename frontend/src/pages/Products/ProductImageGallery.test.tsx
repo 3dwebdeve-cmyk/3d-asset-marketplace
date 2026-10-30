@@ -22,7 +22,137 @@ const next = () => screen.getByRole('button', { name: 'Next preview' })
 const previous = () => screen.getByRole('button', { name: 'Previous preview' })
 const counter = () => screen.getByRole('status')
 
+function animationFrames() {
+  let now = performance.now()
+  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  let id = 0
+  const pending = new Map<number, FrameRequestCallback>()
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    pending.set(++id, callback)
+    return id
+  })
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frame) => { pending.delete(frame) })
+  return (milliseconds: number) => {
+    for (let elapsed = 0; elapsed < milliseconds; elapsed += 16) {
+      now += 16
+      const callbacks = [...pending.values()]
+      pending.clear()
+      callbacks.forEach((callback) => callback(now))
+    }
+  }
+}
+
 describe('product gallery navigation', () => {
+  it('matches backgrounds only for image previews and removes them on return to the 3D viewer', async () => {
+    render(<ProductImageGallery {...defaults} />)
+    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Show image 1 of 2' }))
+    const image = within(stage()).getByAltText('Chair 3D model, image 1')
+    Object.defineProperties(image, { naturalWidth: { value: 500 }, naturalHeight: { value: 500 } })
+    fireEvent.load(image)
+    expect(stage().querySelectorAll('.product-detail-stage__image-edge')).toHaveLength(2)
+    await userEvent.click(screen.getByRole('button', { name: 'Show 3D preview' }))
+    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('model-preview')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Show preview video' }))
+    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
+  })
+
+  it('smoothly scrolls overflowing thumbnails with the vertical mouse wheel', () => {
+    const advance = animationFrames()
+    render(<ProductImageGallery {...defaults} />)
+    const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+    Object.defineProperties(strip, {
+      scrollWidth: { value: 1000 }, clientWidth: { value: 300 },
+    })
+    expect(fireEvent.wheel(strip, { deltaY: 100 })).toBe(false)
+    advance(32)
+    expect(strip.scrollLeft).toBeGreaterThan(0)
+    expect(strip.scrollLeft).toBeLessThan(100)
+    fireEvent.wheel(strip, { deltaY: 100 })
+    advance(500)
+    expect(strip.scrollLeft).toBe(200)
+    strip.scrollLeft = 200
+    fireEvent.wheel(strip, { deltaY: -3, deltaMode: 1 })
+    advance(500)
+    expect(strip.scrollLeft).toBe(152)
+    expect(counter()).toHaveTextContent('1 / 4')
+  })
+
+  it('scrolls thumbnails when the wheel is over the gallery heading or navigation', () => {
+    const advance = animationFrames()
+    render(<ProductImageGallery {...defaults} />)
+    const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+    Object.defineProperties(strip, {
+      scrollWidth: { value: 1000 }, clientWidth: { value: 300 },
+    })
+    expect(fireEvent.wheel(screen.getByRole('heading', { name: 'Gallery' }), { deltaY: 100 })).toBe(false)
+    advance(500)
+    expect(strip.scrollLeft).toBe(100)
+    strip.scrollLeft = 200
+    expect(fireEvent.wheel(screen.getByRole('button', { name: 'Previous gallery item' }), { deltaY: -100 })).toBe(false)
+    advance(500)
+    expect(strip.scrollLeft).toBe(100)
+    expect(counter()).toHaveTextContent('1 / 4')
+  })
+
+  it('stops easing for direct interaction and clamps scrolling at the last thumbnail', () => {
+    const advance = animationFrames()
+    const { unmount } = render(<ProductImageGallery {...defaults} />)
+    const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+    Object.defineProperties(strip, {
+      scrollWidth: { value: 1000 }, clientWidth: { value: 300 },
+    })
+    fireEvent.wheel(strip, { deltaY: 100 })
+    advance(32)
+    fireEvent.pointerDown(strip)
+    const stoppedAt = strip.scrollLeft
+    advance(500)
+    expect(strip.scrollLeft).toBe(stoppedAt)
+    fireEvent.wheel(strip, { deltaY: 2000 })
+    advance(500)
+    expect(strip.scrollLeft).toBe(700)
+    fireEvent.wheel(strip, { deltaY: -100 })
+    unmount()
+    const unmountedAt = strip.scrollLeft
+    advance(500)
+    expect(strip.scrollLeft).toBe(unmountedAt)
+  })
+
+  it('leaves wheel scrolling to the page at the strip edges, without overflow, and during zoom', () => {
+    render(<ProductImageGallery {...defaults} />)
+    const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+    Object.defineProperties(strip, {
+      scrollWidth: { configurable: true, value: 1000 }, clientWidth: { value: 300 },
+    })
+    const scrollBy = vi.fn()
+    strip.scrollBy = scrollBy
+    expect(fireEvent.wheel(strip, { deltaY: -100 })).toBe(true)
+    strip.scrollLeft = 700
+    expect(fireEvent.wheel(strip, { deltaY: 100 })).toBe(true)
+    strip.scrollLeft = 200
+    expect(fireEvent.wheel(strip, { deltaY: 100, ctrlKey: true })).toBe(true)
+    expect(fireEvent.wheel(strip, { deltaX: 100, deltaY: 10 })).toBe(true)
+    Object.defineProperty(strip, 'scrollWidth', { value: 300 })
+    expect(fireEvent.wheel(strip, { deltaY: 100 })).toBe(true)
+    expect(scrollBy).not.toHaveBeenCalled()
+  })
+
+  it('respects reduced motion when scrolling thumbnails', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }))
+    try {
+      render(<ProductImageGallery {...defaults} />)
+      const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
+      Object.defineProperties(strip, {
+        scrollWidth: { value: 1000 }, clientWidth: { value: 300 },
+      })
+      fireEvent.wheel(strip, { deltaY: 1, deltaMode: 2 })
+      expect(strip.scrollLeft).toBe(300)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('cycles through model, video and renders in both directions, and returns using the 3D thumbnail', async () => {
     const user = userEvent.setup()
     render(<ProductImageGallery {...defaults} />)

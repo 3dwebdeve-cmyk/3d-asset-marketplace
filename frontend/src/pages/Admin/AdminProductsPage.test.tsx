@@ -19,6 +19,7 @@ vi.mock('../../api/productsApi', async () => {
     createAdminProduct: vi.fn(),
     bulkDeleteAdminProducts: vi.fn(),
     listUploaderImports: vi.fn(),
+    restoreAdminProduct: vi.fn(),
   }
 })
 
@@ -109,7 +110,8 @@ function renderProductsPage(initialEntry = '/console/products') {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
-          <Route path="/console/products" element={<AdminProductsPage />} />
+          <Route path="/console/products" element={<AdminProductsPage key="products" />} />
+          <Route path="/console/archived" element={<AdminProductsPage key="archived" archived />} />
           <Route path="/console" element={<div>Admin Dashboard</div>} />
         </Routes>
       </MemoryRouter>
@@ -127,12 +129,95 @@ beforeEach(() => {
 })
 
 describe('AdminProductsPage', () => {
+  it('restores an archived row into Products as a Draft', async () => {
+    const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
+    const draftProduct = { ...archivedProduct, status: 'draft' as const }
+    vi.mocked(productsApi.listAdminProducts).mockResolvedValue({ ...sampleProducts, results: [archivedProduct] })
+    vi.mocked(productsApi.restoreAdminProduct).mockImplementation(async () => {
+      vi.mocked(productsApi.listAdminProducts).mockImplementation(async (params) =>
+        params?.status === 'archived'
+          ? { ...sampleProducts, count: 0, results: [] }
+          : { ...sampleProducts, results: [draftProduct] },
+      )
+      return draftProduct
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore to Products' }))
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('as a Draft'))
+    expect(productsApi.restoreAdminProduct).toHaveBeenCalledWith(productId)
+    await waitFor(() => expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument())
+    await userEvent.click(screen.getByRole('link', { name: 'Back to products' }))
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByText('draft')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Restore to Products' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the product archived when restoration is cancelled', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore to Products' }))
+    expect(productsApi.restoreAdminProduct).not.toHaveBeenCalled()
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+  })
+
+  it('reports a failed restore without removing the archived row', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(productsApi.restoreAdminProduct).mockRejectedValue(new Error('Failed'))
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Restore to Products' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not restore product. Please try again.')
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore to Products' })).toBeEnabled()
+  })
+
+  it('moves a deleted row into Archived and hides deletion controls there', async () => {
+    const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(productsApi.bulkDeleteAdminProducts).mockImplementation(async () => {
+      vi.mocked(productsApi.listAdminProducts).mockImplementation(async (params) =>
+        params?.status === 'archived'
+          ? { ...sampleProducts, results: [archivedProduct] }
+          : { ...sampleProducts, count: 0, results: [] },
+      )
+      return { deleted: [], archived: [productId], not_found: [] }
+    })
+    renderProductsPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete Oak Chair' }))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('move it to Archived'))
+    await waitFor(() => expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument())
+    await userEvent.click(screen.getByRole('link', { name: 'View archived products' }))
+    expect(await screen.findByRole('heading', { name: 'Archived products' })).toBeInTheDocument()
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Manage' })).toHaveAttribute('href', `/console/archived/${productId}`)
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /create product/i })).not.toBeInTheDocument()
+  })
+
+  it('restricts archive search and batch filters to archived products', async () => {
+    renderProductsPage('/console/archived?status=published&import_batch_id=batch-1')
+    await userEvent.type(screen.getByLabelText('Search products'), 'chair')
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'archived', search: 'chair', import_batch_id: 'batch-1' }),
+    ))
+    expect(screen.queryByRole('combobox', { name: 'Filter by status' })).not.toBeInTheDocument()
+  })
+
+  it('redirects old archived bookmarks to the Archived section', async () => {
+    renderProductsPage('/console/products?status=archived&import_batch_id=batch-2')
+    expect(await screen.findByRole('heading', { name: 'Archived products' })).toBeInTheDocument()
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'archived', import_batch_id: 'batch-2' }),
+    ))
+  })
+
   it('deletes the selected products after confirmation', async () => {
     const user = userEvent.setup()
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     vi.mocked(productsApi.bulkDeleteAdminProducts).mockResolvedValue({
-      deleted: [productId],
-      archived: [],
+      deleted: [],
+      archived: [productId],
       not_found: [],
     })
     renderProductsPage()

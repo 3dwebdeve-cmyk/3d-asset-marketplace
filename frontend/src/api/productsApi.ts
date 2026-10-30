@@ -71,6 +71,11 @@ export async function archiveAdminProduct(productId: string): Promise<AdminProdu
   return response.data
 }
 
+export async function restoreAdminProduct(productId: string): Promise<AdminProduct> {
+  const response = await apiClient.post<AdminProduct>(`/api/v1/admin/products/${productId}/restore/`, {})
+  return response.data
+}
+
 /** Approve and publish. `pricing` sets the price at the same time: free (price 0) or paid. */
 export async function approveAdminProduct(
   productId: string,
@@ -83,7 +88,7 @@ export async function approveAdminProduct(
   return response.data
 }
 
-/** Delete products; ones a customer has ordered are archived instead, so their downloads keep working. */
+/** Move products to Archived, retaining model files and existing buyers' downloads. */
 export async function bulkDeleteAdminProducts(
   productIds: string[],
 ): Promise<AdminProductBulkDeleteResult> {

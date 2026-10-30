@@ -4,6 +4,7 @@ import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
 import { isSafePreviewVideoUrl } from '../../components/viewer/isSafePreviewVideoUrl'
 import type { ProductImage } from '../../types/product'
+import { ProductImagePreview } from './ProductImagePreview'
 
 interface GalleryImage {
   id: string
@@ -66,6 +67,7 @@ export function ProductImageGallery({
   stageOverlays,
 }: ProductImageGalleryProps) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const thumbnailRailRef = useRef<HTMLElement>(null)
   const thumbnailsRef = useRef<HTMLUListElement>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const swiped = useRef(false)
@@ -248,6 +250,69 @@ export function ProductImageGallery({
   const hasThumbnails = galleryImages.length > 0 ||
     (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo))
 
+  useEffect(() => {
+    const rail = thumbnailRailRef.current
+    const strip = thumbnailsRef.current
+    if (!rail || !strip) return
+
+    let frame: number | null = null
+    let target = strip.scrollLeft
+    let start = target
+    let startedAt = 0
+    let direction = 0
+    const stop = () => {
+      if (frame !== null) cancelAnimationFrame(frame)
+      frame = null
+      target = strip.scrollLeft
+    }
+    const animate = (now: number) => {
+      target = Math.min(target, Math.max(0, strip.scrollWidth - strip.clientWidth))
+      const progress = Math.min(1, (now - startedAt) / 380)
+      // Ease out like a gently settling carousel, without overshooting an edge.
+      strip.scrollLeft = start + (target - start) * (1 - Math.pow(1 - progress, 3))
+      frame = progress < 1 ? requestAnimationFrame(animate) : null
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      // Leave browser zoom and native horizontal trackpad gestures alone.
+      if (event.ctrlKey || event.metaKey) return
+      if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
+        stop()
+        return
+      }
+      const maxScroll = strip.scrollWidth - strip.clientWidth
+      if (maxScroll <= 0 || !event.cancelable) return
+
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? strip.clientWidth : 1)
+      if ((delta < 0 && strip.scrollLeft <= 0) || (delta > 0 && strip.scrollLeft >= maxScroll - 1)) return
+
+      event.preventDefault()
+      if (frame === null || Math.sign(delta) !== direction) target = strip.scrollLeft
+      target = Math.max(0, Math.min(maxScroll, target + delta))
+      direction = Math.sign(delta)
+      if (frame !== null) cancelAnimationFrame(frame)
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        strip.scrollLeft = target
+        frame = null
+        return
+      }
+      start = strip.scrollLeft
+      startedAt = performance.now()
+      frame = requestAnimationFrame(animate)
+    }
+
+    // A non-passive listener is required to prevent vertical page scrolling.
+    rail.addEventListener('wheel', onWheel, { passive: false })
+    rail.addEventListener('pointerdown', stop)
+    rail.addEventListener('touchstart', stop, { passive: true })
+    return () => {
+      stop()
+      rail.removeEventListener('wheel', onWheel)
+      rail.removeEventListener('pointerdown', stop)
+      rail.removeEventListener('touchstart', stop)
+    }
+  }, [hasThumbnails, stagePosition])
+
   // Move only the thumbnail strip, never the page, when the selected preview changes.
   const revealSelectedThumbnail = useCallback(() => {
     const strip = thumbnailsRef.current
@@ -404,10 +469,10 @@ export function ProductImageGallery({
             aria-controls={`${galleryId}-lightbox`}
             aria-expanded={lightboxOpen}
           >
-            <img
+            <ProductImagePreview
+              key={activeImage.src}
               src={activeImage.src}
               alt={activeImage.alt}
-              className="product-detail-stage__image"
               onError={() => markFailed(activeImage.id)}
             />
           </button>
@@ -453,7 +518,7 @@ export function ProductImageGallery({
       </div>
 
       {hasThumbnails ? (
-        <section className="product-detail-gallery__rail" aria-label="Gallery thumbnails">
+        <section ref={thumbnailRailRef} className="product-detail-gallery__rail" aria-label="Gallery thumbnails">
           <div className="product-detail-gallery__rail-header">
             <h3 className="product-detail-gallery__rail-title">Gallery</h3>
             <span className="product-detail-gallery__rail-counter" aria-hidden="true">
