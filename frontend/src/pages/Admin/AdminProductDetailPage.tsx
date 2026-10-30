@@ -9,6 +9,7 @@ import {
   archiveAdminProduct,
   getAdminProduct,
   rejectAdminProduct,
+  removeAdminProduct,
   requeueAdminProduct,
   updateAdminProduct,
 } from '../../api/productsApi'
@@ -20,6 +21,10 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
+import {
+  ADMIN_PRODUCT_REMOVAL_CONFIRMATION, ADMIN_PRODUCT_REMOVAL_SUCCESS,
+  PRODUCT_REMOVAL_CONFIRMATION, PRODUCT_REMOVAL_SUCCESS,
+} from '../../lib/productRemoval'
 import type {
   AdminProductUpdatePayload,
   ProductLicenseType,
@@ -112,13 +117,27 @@ export function AdminProductDetailPage() {
   const archiveMutation = useMutation({
     mutationFn: () => archiveAdminProduct(productId),
     onSuccess: async () => {
-      toast.success('Product archived')
+      toast.success(PRODUCT_REMOVAL_SUCCESS)
       await invalidateProduct()
+      await queryClient.invalidateQueries({ predicate: (query) =>
+        typeof query.queryKey[0] === 'string' && /^public-(models|products|product)-/.test(query.queryKey[0]),
+      })
       navigate('/console', { replace: true })
     },
     onError: (error) => {
-      setFormError(getApiErrorMessage(error, 'Could not archive product.'))
+      setFormError(getApiErrorMessage(error, 'Could not remove product from site.'))
     },
+  })
+
+  const adminRemovalMutation = useMutation({
+    mutationFn: () => removeAdminProduct(productId),
+    onSuccess: async () => {
+      toast.success(ADMIN_PRODUCT_REMOVAL_SUCCESS)
+      // Leave the removed detail page before refreshing its now-hidden record.
+      navigate('/console/archived', { replace: true })
+      await queryClient.invalidateQueries({ queryKey: ['admin'] })
+    },
+    onError: (error) => setFormError(getApiErrorMessage(error, 'Could not remove product from admin.')),
   })
 
   const approveMutation = useMutation({
@@ -195,8 +214,8 @@ export function AdminProductDetailPage() {
         <h1 id="admin-product-detail-title">Manage product</h1>
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/console/products">
-            Back to products
+          <Link className="home-page__cta home-page__cta--secondary" to={product?.status === 'archived' ? '/console/archived' : '/console/products'}>
+            {product?.status === 'archived' ? 'Back to archived products' : 'Back to products'}
           </Link>
           <Link
             className="home-page__cta home-page__cta--secondary"
@@ -557,18 +576,34 @@ export function AdminProductDetailPage() {
                 </label>
               </div>
               <div className="dashboard-card__actions">
-                <Button type="submit" isLoading={saveMutation.isPending}>
+                <Button type="submit" isLoading={saveMutation.isPending} disabled={adminRemovalMutation.isPending}>
                   Save changes
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   isLoading={archiveMutation.isPending}
-                  onClick={() => window.confirm('Archive this product? It will be hidden from the storefront.') && archiveMutation.mutate()}
+                  disabled={product.status === 'archived'}
+                  onClick={() => window.confirm(PRODUCT_REMOVAL_CONFIRMATION) && archiveMutation.mutate()}
                 >
-                  Archive
+                  {product.status === 'archived' ? 'Removed from site' : 'Remove from site'}
                 </Button>
+                {product.status === 'archived' ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    isLoading={adminRemovalMutation.isPending}
+                    disabled={saveMutation.isPending}
+                    onClick={() => window.confirm(ADMIN_PRODUCT_REMOVAL_CONFIRMATION) && adminRemovalMutation.mutate()}
+                  >
+                    Remove from admin
+                  </Button>
+                ) : null}
               </div>
+              <p className="home-page__subtitle">
+                Removed products are archived. Existing buyers keep access in their dashboards
+                and can still download their files.
+              </p>
             </form>
 
             <ProductMediaSection productId={productId} product={product} />

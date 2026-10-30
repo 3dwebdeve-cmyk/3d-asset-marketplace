@@ -116,7 +116,7 @@ class DashboardStatsService:
             total=Count("id"),
             active=Count("id", filter=Q(is_active=True)),
         )
-        product_counts = Product.objects.aggregate(
+        product_counts = Product.objects.filter(admin_removed_at__isnull=True).aggregate(
             total=Count("id"),
             published=Count("id", filter=Q(status=Product.Status.PUBLISHED)),
             draft=Count("id", filter=Q(status=Product.Status.DRAFT)),
@@ -144,10 +144,10 @@ class DashboardStatsService:
             for row in (
                 Category.objects.filter(is_active=True)
                 .annotate(
-                    product_count=Count("products", distinct=True),
+                    product_count=Count("products", filter=Q(products__admin_removed_at__isnull=True), distinct=True),
                     published_product_count=Count(
                         "products",
-                        filter=Q(products__status=Product.Status.PUBLISHED),
+                        filter=Q(products__status=Product.Status.PUBLISHED, products__admin_removed_at__isnull=True),
                         distinct=True,
                     ),
                 )

@@ -14,7 +14,7 @@ from accounts.models import Role, User
 from categories.models import Category
 from downloads.models import DownloadHistory
 from orders.models import Order
-from orders.services import OrderCreateData, OrderItemCreateData, OrderService
+from orders.services import OrderCreateData, OrderError, OrderItemCreateData, OrderService
 from plugins.models import Plugin, PluginCategory, PluginFile
 from products.models import Product, ProductFile
 from config.media import media_relative_path
@@ -281,6 +281,67 @@ class DownloadAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content)
         self.assertIn(b"PK", content)
+
+    def test_remove_from_site_preserves_customer_purchase_and_download(self) -> None:
+        product_file = self._upload_product_file()
+        order = self.create_paid_order(self.customer)
+        self.client.force_authenticate(user=self.admin)
+        removal_url = reverse(
+            "products_admin:admin-product-detail", kwargs={"product_id": self.product.pk},
+        )
+        response = self.client.delete(removal_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.ARCHIVED)
+        self.assertTrue(ProductFile.objects.filter(pk=product_file.pk).exists())
+        # Repeating removal must never delete the record or its packages.
+        self.assertEqual(self.client.delete(removal_url).status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=self.customer)
+        detail_url = reverse("products:product-detail", kwargs={"slug": self.product.slug})
+        self.assertEqual(self.client.get(detail_url).status_code, status.HTTP_404_NOT_FOUND)
+        catalog = self.client.get(reverse("products:product-list"), {"search": self.product.name})
+        self.assertEqual(catalog.status_code, status.HTTP_200_OK)
+        self.assertEqual(catalog.data["count"], 0)
+        order_url = reverse("orders:order-detail", kwargs={"order_id": order.pk})
+        self.assertEqual(self.client.get(order_url).status_code, status.HTTP_200_OK)
+        entitlements = self.client.get(self.entitlements_url)
+        self.assertEqual(entitlements.status_code, status.HTTP_200_OK)
+        entry = next(item for item in entitlements.data if str(item["product_id"]) == str(self.product.pk))
+        self.assertEqual(entry["title"], self.product.name)
+        response = self.client.get(entry["files"][0]["download_url"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(b"PK", b"".join(response.streaming_content))
+
+        self.client.force_authenticate(user=self.other_customer)
+        self.assertEqual(self.client.get(self.entitlements_url).data, [])
+        self.assertEqual(self.client.get(entry["files"][0]["download_url"]).status_code, status.HTTP_404_NOT_FOUND)
+        with self.assertRaisesMessage(OrderError, "Product is not available for purchase."):
+            OrderService.create(OrderCreateData(
+                user_id=self.other_customer.pk,
+                items=(OrderItemCreateData(product_type="product", product_id=self.product.pk, quantity=1),),
+                currency="USD",
+            ))
+
+        # Removing the archive from admin must still preserve the same purchase and file.
+        self.client.force_authenticate(user=self.admin)
+        admin_removal_url = reverse(
+            "products_admin:admin-product-remove-from-admin", kwargs={"product_id": self.product.pk},
+        )
+        self.assertEqual(self.client.delete(admin_removal_url).status_code, status.HTTP_204_NO_CONTENT)
+        self.product.refresh_from_db()
+        self.assertIsNotNone(self.product.admin_removed_at)
+        self.assertTrue(ProductFile.objects.filter(pk=product_file.pk).exists())
+        self.client.force_authenticate(user=self.customer)
+        self.assertEqual(self.client.get(order_url).status_code, status.HTTP_200_OK)
+        entitlements = self.client.get(self.entitlements_url)
+        self.assertEqual(len(entitlements.data), 1)
+        self.assertEqual(entitlements.data[0]["title"], self.product.name)
+        response = self.client.get(entitlements.data[0]["files"][0]["download_url"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(b"PK", b"".join(response.streaming_content))
+        self.client.force_authenticate(user=self.other_customer)
+        self.assertEqual(self.client.get(entry["files"][0]["download_url"]).status_code, status.HTTP_404_NOT_FOUND)
 
     def test_refunded_order_cannot_download(self) -> None:
         product_file = self._upload_product_file()

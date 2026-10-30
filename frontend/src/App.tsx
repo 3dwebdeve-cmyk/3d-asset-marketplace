@@ -382,7 +382,9 @@ function AppRoutes() {
                 path={`${ADMIN_BASE}/categories/:categoryId`}
                 element={<AdminCategoryDetailPage />}
               />
-              <Route path={`${ADMIN_BASE}/products`} element={<AdminProductsPage />} />
+              <Route path={`${ADMIN_BASE}/products`} element={<AdminProductsPage key="products" />} />
+              <Route path={`${ADMIN_BASE}/archived`} element={<AdminProductsPage key="archived" archived />} />
+              <Route path={`${ADMIN_BASE}/archived/:productId`} element={<AdminProductDetailPage />} />
               <Route
                 path={`${ADMIN_BASE}/products/:productId`}
                 element={<AdminProductDetailPage />}

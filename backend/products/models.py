@@ -114,6 +114,8 @@ class Product(models.Model):
         default=Status.DRAFT,
         db_index=True,
     )
+    # Hide from the admin catalog without removing customers' purchase records/files.
+    admin_removed_at = models.DateTimeField(null=True, blank=True, editable=False, db_index=True)
     # QA review metadata (admin-only; never auto-set by import/bridge).
     reject_reason = models.TextField(blank=True, default="")
     qa_notes = models.TextField(blank=True, default="")

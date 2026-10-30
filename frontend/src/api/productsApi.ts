@@ -68,6 +68,10 @@ export async function archiveAdminProduct(productId: string): Promise<AdminProdu
   return response.data
 }
 
+export async function removeAdminProduct(productId: string): Promise<void> {
+  await apiClient.delete(`/api/v1/admin/products/${productId}/remove-from-admin/`)
+}
+
 export async function approveAdminProduct(productId: string): Promise<AdminProduct> {
   const response = await apiClient.post<AdminProduct>(
     `/api/v1/admin/products/${productId}/approve/`,

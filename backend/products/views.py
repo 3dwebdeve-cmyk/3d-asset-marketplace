@@ -302,6 +302,27 @@ class AdminProductDetailView(APIView):
         )
 
 
+class AdminProductRemoveFromAdminView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+
+    def delete(self, request: Request, product_id: UUID) -> Response:
+        try:
+            ProductService.get_by_id(product_id)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+        try:
+            ProductService.remove_from_admin(product_id)
+        except ProductError as exc:
+            return _product_error_response(exc)
+        log_admin_action(
+            action="product_remove_from_admin",
+            actor_id=str(request.user.pk),
+            target_id=str(product_id),
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class AdminProductImageUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
     throttle_classes = [AdminProductWriteRateThrottle, AdminUploadRateThrottle]
