@@ -12,6 +12,7 @@ from products.views import (
     AdminProductListCreateView,
     AdminProductRejectView,
     AdminProductRequeueView,
+    AdminProductRestoreView,
     CatalogIngestImportView,
     ProductClaimFreeView,
     ProductDetailView,
@@ -34,6 +35,11 @@ admin_urlpatterns = [
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),
         name="admin-product-detail",
+    ),
+    path(
+        "<uuid:product_id>/restore/",
+        AdminProductRestoreView.as_view(),
+        name="admin-product-restore",
     ),
     path(
         "<uuid:product_id>/approve/",

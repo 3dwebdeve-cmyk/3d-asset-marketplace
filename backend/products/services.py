@@ -495,6 +495,14 @@ class ProductService(ProductMediaService):
 
     @classmethod
     @transaction.atomic
+    def restore_product(cls, product: Product) -> Product:
+        product = Product.objects.select_for_update().get(pk=product.pk)
+        if product.status != Product.Status.ARCHIVED:
+            raise ProductError("Only archived products can be restored.", field="status")
+        return cls.update_product(product, ProductUpdateData(status=Product.Status.DRAFT))
+
+    @classmethod
+    @transaction.atomic
     def delete_or_archive(cls, product: Product) -> str:
         """Move every selected model to Archived, retaining its records and files.
 
