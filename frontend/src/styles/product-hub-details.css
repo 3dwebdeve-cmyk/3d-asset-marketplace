@@ -1263,8 +1263,8 @@
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--text-main) 72%, transparent);
-  color: #fff;
+  background: #e5e7eb;
+  color: #374151;
   font-size: 1.05rem;
   cursor: pointer;
   text-decoration: none;
@@ -1275,13 +1275,15 @@
 .product-hub-detail .product-detail-stage__overlay-btn:focus-visible,
 .product-hub-detail .product-detail-stage__overlays .product-card__wishlist:hover,
 .product-hub-detail .product-detail-stage__overlays .product-card__wishlist:focus-visible {
-  background: color-mix(in srgb, var(--action-color) 90%, transparent);
-  outline: none;
+  background: #d1d5db;
+  outline: 2px solid var(--action-color);
+  outline-offset: 2px;
 }
 
 .product-hub-detail .product-detail-stage__overlay-btn--active,
 .product-hub-detail .product-detail-stage__overlays .product-card__wishlist--active {
   background: color-mix(in srgb, var(--action-color) 95%, transparent);
+  color: #fff;
 }
 
 .product-hub-detail .product-detail-stage__overlays .product-card__wishlist-icon {
