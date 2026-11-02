@@ -654,7 +654,31 @@ export function ProductImageGallery({
               src={activeImage.src}
               alt={activeImage.alt}
             />
-            <p className="product-detail-lightbox__counter">
+            {galleryImages.length > 1 ? (
+              <>
+                <button
+                  type="button"
+                  className="product-detail-lightbox__nav product-detail-lightbox__nav--prev"
+                  onClick={() => stepLightbox(-1)}
+                  aria-label="Previous image"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m14 6-6 6 6 6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="product-detail-lightbox__nav product-detail-lightbox__nav--next"
+                  onClick={() => stepLightbox(1)}
+                  aria-label="Next image"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m10 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </>
+            ) : null}
+            <p className="product-detail-lightbox__counter" role="status" aria-live="polite" aria-atomic="true">
               {safeIndex + 1} / {galleryImages.length}
             </p>
           </div>
