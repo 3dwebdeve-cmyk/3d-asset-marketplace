@@ -97,7 +97,7 @@ export function AuthLoginPanel({
       <div className="auth-card__header">
         <h1 id={titleId}>Welcome back</h1>
         <p className="auth-card__subtitle">
-          Sign in to access your 3D assets, project briefs, and licenses.
+          Sign in to access your interactive 3D files, project briefs, and licenses.
         </p>
       </div>
 
