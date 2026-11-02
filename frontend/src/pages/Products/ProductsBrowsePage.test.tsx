@@ -293,10 +293,10 @@ describe('ProductsBrowsePage', () => {
   it('gives the home page its own title, description, canonical address and structured data', async () => {
     renderProductsBrowsePage()
 
-    await waitFor(() => expect(document.title).toBe('Download Furniture & Interior 3D Models | AssetHive3D'))
+    await waitFor(() => expect(document.title).toBe('Furniture 3D Models & 3D Viewer | AssetHive3D'))
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
       'content',
-      expect.stringContaining('production-ready 3D models of furniture, interiors, lighting and plants'),
+      expect.stringContaining('3D content for furniture, interiors, lighting and plants'),
     )
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', expect.stringMatching(/\/$/))
     const data = [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((node) =>

@@ -10,7 +10,7 @@ import { useAuthUiStore } from '../../store/authUiStore'
 export function LoginPage() {
   useDocumentSeo({
     title: 'Sign in | AssetHive 3D',
-    description: 'Sign in to your AssetHive 3D account to manage orders, downloads and your wishlist.',
+    description: 'Sign in to your AssetHive3D account to manage interactive 3D files, orders, downloads and your wishlist.',
     robots: 'noindex, nofollow',
   })
 

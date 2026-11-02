@@ -19,6 +19,8 @@ export const HOME_SEO: StaticPageSeo = {
   description: HOME_DESCRIPTION,
   keywords: [
     '3D models',
+    '3D viewer',
+    '3D content',
     '3D assets',
     'download 3D models',
     'game-ready 3D models',
