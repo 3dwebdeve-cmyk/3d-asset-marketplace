@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
+import { AdminIcon, navIconFor, type AdminIconName } from '../components/admin/AdminIcon'
 import { Button } from '../components/ui/Button'
 import { ErrorState } from '../components/ui/ErrorState'
 import { Spinner } from '../components/ui/Spinner'
@@ -10,6 +11,11 @@ import { useAdminSession } from '../hooks/useAdminSession'
 import { useDocumentSeo } from '../hooks/useDocumentSeo'
 import { useNotFoundChrome } from '../hooks/useNotFoundChrome'
 import '../styles/admin-layout.css'
+
+const systemItems: { label: string; icon: AdminIconName }[] = [
+  { label: 'Settings', icon: 'settings' },
+  { label: 'Help & Docs', icon: 'help' },
+]
 
 export function AdminLayout() {
   const navId = useId()
@@ -28,6 +34,15 @@ export function AdminLayout() {
   useEffect(() => {
     setIsMobileNavOpen(false)
   }, [location.pathname])
+
+  const currentLabel =
+    adminNavItems.find((item) => {
+      const [itemPath, itemQuery] = item.to.split('?')
+      if (itemQuery) return false
+      return item.end
+        ? location.pathname === itemPath
+        : location.pathname === itemPath || location.pathname.startsWith(`${itemPath}/`)
+    })?.label ?? 'Dashboard'
 
   if (isLoading) {
     return <Spinner fullPage label="Verifying administrator access..." />
@@ -73,9 +88,19 @@ export function AdminLayout() {
         aria-label="Admin navigation"
       >
         <div className="admin-sidebar__brand">
-          <p className="admin-sidebar__eyebrow">Administrator</p>
-          <p className="admin-sidebar__title">Control panel</p>
+          <span className="admin-sidebar__logo-plate">
+            <img
+              src="/images/AssetHive%203D.svg"
+              alt="AssetHive3D"
+              className="admin-sidebar__logo"
+              width={176}
+              height={30}
+            />
+          </span>
+          <p className="admin-sidebar__title">Admin Panel</p>
         </div>
+
+        <p className="admin-sidebar__group-label">Main</p>
 
         <nav id={navId} className="admin-sidebar__nav" aria-label="Admin sections">
           <ul className="admin-sidebar__list">
@@ -112,14 +137,16 @@ export function AdminLayout() {
                       className={`admin-sidebar__link${isActive ? ' admin-sidebar__link--active' : ''}`}
                       onClick={() => setIsMobileNavOpen(false)}
                     >
-                      {item.label}
+                      <AdminIcon name={navIconFor(item.label)} />
+                      <span className="admin-sidebar__label">{item.label}</span>
                     </NavLink>
                   ) : (
                     <span
                       className="admin-sidebar__link admin-sidebar__link--disabled"
                       aria-disabled="true"
                     >
-                      {item.label}
+                      <AdminIcon name={navIconFor(item.label)} />
+                      <span className="admin-sidebar__label">{item.label}</span>
                       {item.comingSoon ? (
                         <span className="admin-sidebar__badge">Soon</span>
                       ) : null}
@@ -130,6 +157,24 @@ export function AdminLayout() {
             })}
           </ul>
         </nav>
+
+        <div className="admin-sidebar__system">
+          <p className="admin-sidebar__group-label">System</p>
+          <ul className="admin-sidebar__list">
+            {systemItems.map((item) => (
+              <li key={item.label}>
+                <span
+                  className="admin-sidebar__link admin-sidebar__link--disabled"
+                  aria-disabled="true"
+                >
+                  <AdminIcon name={item.icon} />
+                  <span className="admin-sidebar__label">{item.label}</span>
+                  <span className="admin-sidebar__badge">Soon</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </aside>
 
       <div className="admin-layout__main">
@@ -144,14 +189,49 @@ export function AdminLayout() {
             >
               Menu
             </button>
-            <p className="admin-header__title">Admin panel</p>
+            <p className="admin-header__breadcrumb" aria-label="Breadcrumb">
+              <AdminIcon name="home" size={16} />
+              <span className="admin-header__crumb">Admin</span>
+              <span className="admin-header__crumb-sep" aria-hidden="true">
+                /
+              </span>
+              <span className="admin-header__title">{currentLabel}</span>
+            </p>
+          </div>
+
+          <div className="admin-header__search">
+            <AdminIcon name="search" size={16} />
+            <input
+              type="search"
+              className="admin-header__search-input"
+              placeholder="Search products, users, orders..."
+              aria-label="Search (coming soon)"
+              disabled
+            />
+            <kbd className="admin-header__kbd">Ctrl K</kbd>
           </div>
 
           <div className="admin-header__actions">
+            <button
+              type="button"
+              className="admin-header__icon-button"
+              aria-label="Notifications (coming soon)"
+              disabled
+            >
+              <AdminIcon name="bell" size={18} />
+            </button>
             {user?.full_name ? (
-              <span className="admin-header__user" aria-label="Signed in administrator">
-                {user.full_name}
-              </span>
+              <div className="admin-header__profile">
+                <span className="admin-header__avatar" aria-hidden="true">
+                  {user.full_name.trim().charAt(0).toUpperCase()}
+                </span>
+                <span className="admin-header__profile-text">
+                  <span className="admin-header__user" aria-label="Signed in administrator">
+                    {user.full_name}
+                  </span>
+                  <span className="admin-header__role">{user.role}</span>
+                </span>
+              </div>
             ) : null}
             <Button
               variant="secondary"
