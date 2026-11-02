@@ -65,13 +65,13 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Keep overhead illumination gentle so white surfaces retain shading.
-              These lights belong only to the studio preset. */}
-          <ambientLight intensity={0.18 * lightMultiplier} />
-          <hemisphereLight args={['#ffffff', '#c4cad3', 0.3 * lightMultiplier]} />
-          <directionalLight position={[5.2, 9.5, 4.2]} intensity={0.85 * lightMultiplier} />
-          <directionalLight position={[-3.5, 2.5, -4]} intensity={0.45 * lightMultiplier} />
-          <directionalLight position={[1.5, 3.5, 6]} intensity={0.35 * lightMultiplier} />
+          {/* Balanced front/side fill keeps dark panel details visible. Keep
+              exposure unchanged so light materials retain their highlights. */}
+          <ambientLight intensity={0.3 * lightMultiplier} />
+          <hemisphereLight args={['#ffffff', '#e1e3e6', 0.6 * lightMultiplier]} />
+          <directionalLight position={[4, 5, 5]} intensity={1.4 * lightMultiplier} />
+          <directionalLight position={[-4, 2.5, 4]} intensity={0.9 * lightMultiplier} />
+          <directionalLight position={[1, 4, -5]} intensity={0.65 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
@@ -87,6 +87,7 @@ function SceneLights({
             files={environmentFile}
             background={showBackground}
             environmentIntensity={environmentIntensity}
+            environmentRotation={environmentId === 'studio' ? [0, Math.PI / 4, 0] : [0, 0, 0]}
             backgroundBlurriness={showBackground ? backgroundBlur : 0}
           />
         </Suspense>
