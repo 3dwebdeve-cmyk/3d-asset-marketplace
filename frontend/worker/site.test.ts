@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { HOME_SEO } from '../src/lib/seoPages'
 import worker, { type WorkerEnv } from './index'
 
 const BACKEND_ORIGIN = 'https://api.example.test'
@@ -156,7 +157,14 @@ describe('server-rendered page head', () => {
     const response = await worker.fetch(new Request('https://shop.example/'), createEnv())
     const html = await response.text()
 
-    expect(html).toContain('<title>Download Furniture &amp; Interior 3D Models | AssetHive3D</title>')
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    expect(response.status).toBe(200)
+    expect(document.head.querySelectorAll('title')).toHaveLength(1)
+    expect(document.title).toBe(HOME_SEO.title)
+    expect(document.head.querySelector('meta[name="description"]')?.getAttribute('content')).toBe(HOME_SEO.description)
+    expect(document.head.querySelector('meta[property="og:title"]')?.getAttribute('content')).toBe(HOME_SEO.title)
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://shop.example/')
+    expect(html).not.toContain('content="Default"')
     expect(upstream).not.toHaveBeenCalled()
   })
 
