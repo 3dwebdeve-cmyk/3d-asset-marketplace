@@ -838,18 +838,20 @@ button.product-detail-cta__link {
   width: 44px;
   height: 44px;
   padding: 0;
-  background: #fff;
-  color: #172018;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+  border: 0;
+  background: transparent;
+  color: #fff;
+  box-shadow: none;
 }
 
 .product-detail-lightbox__nav svg {
   width: 24px;
   height: 24px;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 70%));
 }
 
 .product-detail-lightbox__nav:hover {
-  background: #e9eee9;
+  background: transparent;
 }
 
 .product-detail-lightbox__nav:focus-visible {
