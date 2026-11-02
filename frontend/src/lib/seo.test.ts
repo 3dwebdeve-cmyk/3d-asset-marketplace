@@ -91,10 +91,9 @@ describe('text helpers', () => {
 })
 
 describe('titles', () => {
-  it('keeps the home title and description inside what search results show', () => {
-    expect(HOME_TITLE).toBe('Furniture 3D Models & 3D Viewer | AssetHive3D')
-    expect(HOME_TITLE.length).toBeLessThanOrEqual(60)
-    expect(HOME_DESCRIPTION.length).toBeLessThanOrEqual(160)
+  it('uses the requested homepage title and description', () => {
+    expect(HOME_TITLE).toBe('AssetHive3D | Buy, Sell & Download 3D Models and Blender Plugins')
+    expect(HOME_DESCRIPTION).toBe('Discover high-quality 3D models for visualization, architecture, interiors, and game development. Download free & premium production-ready 3D assets, PBR textures, and workflow plugins.')
   })
 
   it('adds the brand and never runs far past a result-friendly length', () => {

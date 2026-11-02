@@ -10,6 +10,7 @@ import * as productsApi from '../../api/productsApi'
 import * as wishlistApi from '../../api/wishlistApi'
 import { createTestQueryClient, resetAuthStore, testUser } from '../../test/test-utils'
 import { useAuthStore } from '../../store/authStore'
+import { HOME_SEO } from '../../lib/seoPages'
 import { ProductsBrowsePage } from './ProductsBrowsePage'
 
 vi.mock('../../api/productsApi', async () => {
@@ -293,10 +294,15 @@ describe('ProductsBrowsePage', () => {
   it('gives the home page its own title, description, canonical address and structured data', async () => {
     renderProductsBrowsePage()
 
-    await waitFor(() => expect(document.title).toBe('Furniture 3D Models & 3D Viewer | AssetHive3D'))
+    await waitFor(() => expect(document.title).toBe('AssetHive3D | Buy, Sell & Download 3D Models and Blender Plugins'))
+    expect(document.querySelector('meta[name="title"]')).toHaveAttribute('content', HOME_SEO.title)
+    expect(document.querySelector('meta[name="keywords"]')).toHaveAttribute('content', HOME_SEO.keywords!.join(', '))
+    expect(document.querySelector('meta[property="og:title"]')).toHaveAttribute('content', HOME_SEO.ogTitle)
+    expect(document.querySelector('meta[property="og:description"]')).toHaveAttribute('content', HOME_SEO.ogDescription)
+    expect(document.querySelector('meta[property="og:image"]')?.getAttribute('content')).toMatch(/\/static\/og-banner\.jpg$/)
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
       'content',
-      expect.stringContaining('3D content for furniture, interiors, lighting and plants'),
+      expect.stringContaining('Discover high-quality 3D models for visualization, architecture, interiors, and game development'),
     )
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', expect.stringMatching(/\/$/))
     const data = [...document.querySelectorAll('script[type="application/ld+json"]')].flatMap((node) =>
