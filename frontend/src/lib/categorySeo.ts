@@ -184,5 +184,6 @@ export const ALL_MODELS_SEO = {
     'Browse 3D models for furniture, interiors, lighting, plants and product visualization. ' + BUY_LINE,
   intro:
     'Browse production-ready 3D models by category, software and format. ' +
-    'Start with furniture and interior pieces, or explore household objects, lighting, plants and product models.',
+    'Start with furniture and interior pieces, or explore household objects, lighting, plants and product models. ' +
+    'Compare polygon counts to find low poly assets that suit your scene and check each model in the 3D viewer.',
 } as const

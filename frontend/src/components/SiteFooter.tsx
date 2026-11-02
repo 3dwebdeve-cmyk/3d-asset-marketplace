@@ -25,6 +25,9 @@ export function SiteFooter() {
             <Link className="site-footer__link" to="/3d-models">
               3D Models
             </Link>
+            <Link className="site-footer__link" to="/3d-models?max_price=0">
+              Download free 3D models
+            </Link>
             <Link className="site-footer__link" to="/plugins">
               Blender & Unreal Plugins
             </Link>
@@ -50,7 +53,10 @@ export function SiteFooter() {
               Plant 3D Models
             </Link>
             <Link className="site-footer__link" to="/categories">
-              All Categories
+              3D model categories
+            </Link>
+            <Link className="site-footer__link" to="/3d-models?search=robot">
+              Robot 3D models
             </Link>
           </div>
           <div className="site-footer__col">
