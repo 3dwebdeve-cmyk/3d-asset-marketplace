@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
-import { AdminIcon, navIconFor, type AdminIconName } from '../components/admin/AdminIcon'
+import { AdminIcon, navIconFor } from '../components/admin/AdminIcon'
 import { Button } from '../components/ui/Button'
 import { ErrorState } from '../components/ui/ErrorState'
 import { Spinner } from '../components/ui/Spinner'
@@ -11,11 +11,6 @@ import { useAdminSession } from '../hooks/useAdminSession'
 import { useDocumentSeo } from '../hooks/useDocumentSeo'
 import { useNotFoundChrome } from '../hooks/useNotFoundChrome'
 import '../styles/admin-layout.css'
-
-const systemItems: { label: string; icon: AdminIconName }[] = [
-  { label: 'Settings', icon: 'settings' },
-  { label: 'Help & Docs', icon: 'help' },
-]
 
 export function AdminLayout() {
   const navId = useId()
@@ -158,23 +153,6 @@ export function AdminLayout() {
           </ul>
         </nav>
 
-        <div className="admin-sidebar__system">
-          <p className="admin-sidebar__group-label">System</p>
-          <ul className="admin-sidebar__list">
-            {systemItems.map((item) => (
-              <li key={item.label}>
-                <span
-                  className="admin-sidebar__link admin-sidebar__link--disabled"
-                  aria-disabled="true"
-                >
-                  <AdminIcon name={item.icon} />
-                  <span className="admin-sidebar__label">{item.label}</span>
-                  <span className="admin-sidebar__badge">Soon</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
       </aside>
 
       <div className="admin-layout__main">
