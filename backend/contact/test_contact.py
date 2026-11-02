@@ -54,6 +54,19 @@ class ContactSubmissionAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(len(mail.outbox), 0)
 
+    @override_settings(CONTACT_ADMIN_RECIPIENTS="3dwebdeve@gmail.com")
+    def test_enquiry_is_delivered_to_site_inbox(self) -> None:
+        response = self.client.post(self.url, self.valid_payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, ["3dwebdeve@gmail.com"])
+        self.assertIn(self.valid_payload["name"], email.body)
+        self.assertIn(self.valid_payload["email"], email.body)
+        self.assertIn(self.valid_payload["subject"], email.subject)
+        self.assertIn(self.valid_payload["message"], email.body)
+
     def test_honeypot_filled_returns_200_without_email(self) -> None:
         payload = {**self.valid_payload, "website": "https://spam.example"}
         response = self.client.post(self.url, payload, format="json")
