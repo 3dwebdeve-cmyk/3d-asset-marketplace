@@ -729,3 +729,55 @@
   background-color: #2a2a30;
   border-color: #3a3a42;
 }
+
+/* ---------- White surfaces -> grey, so light text stays readable ---------- */
+
+.admin-layout :is(.ui-input, .ui-state, .admin-format-badge, .admin-media-upload, .admin-media-item) {
+  background: #2a2a30;
+  color: #ffffff;
+  border-color: #3a3a42;
+}
+
+.admin-layout .admin-media-upload--active {
+  background: rgb(239 43 43 / 14%);
+  border-color: var(--admin-red);
+}
+
+.admin-layout :is(.admin-media-upload__label, .admin-media-item__title, .admin-format-badge) {
+  color: #ffffff;
+}
+
+.admin-layout :is(.admin-media-item__meta, .admin-media-panel__hint) {
+  color: #b4b4bc;
+}
+
+.admin-layout .admin-media-thumb {
+  background: #2a2a30;
+  border-color: #3a3a42;
+}
+
+/* Checkbox/radio cards (label.ui-input) */
+.admin-layout label.ui-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-layout :is(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--admin-red);
+}
+
+/* Secondary buttons: grey with white text instead of a pale tint */
+.admin-layout .ui-button--secondary {
+  background: #2a2a30;
+  border-color: #3a3a42;
+  color: #ffffff;
+}
+
+.admin-layout .ui-button--secondary:hover:not(:disabled) {
+  border-color: var(--accent-border);
+}
+
+.admin-layout fieldset {
+  border-color: #3a3a42;
+}
