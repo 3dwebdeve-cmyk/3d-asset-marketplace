@@ -17,6 +17,8 @@ export interface UseDocumentSeoOptions {
   /** Social preview image, root-relative or absolute. Defaults to the site banner. */
   image?: string
   imageAlt?: string
+  ogTitle?: string
+  ogDescription?: string
   /** Open Graph type. Use "product" for individual listings. */
   ogType?: 'website' | 'product'
   /** schema.org structured data. `@context` and the canonical `url` are added automatically. */
@@ -114,6 +116,8 @@ export function useDocumentSeo({
   keywords,
   image,
   imageAlt,
+  ogTitle,
+  ogDescription,
   canonicalPath,
   type,
   jsonLd,
@@ -139,6 +143,7 @@ export function useDocumentSeo({
       })
     }
     const pageTitle = title ?? previousTitle
+    upsertHeadTag(metaTarget('name', 'title'), pageTitle, cleanups)
 
     if (description !== undefined) {
       upsertHeadTag(metaTarget('name', 'description'), description, cleanups)
@@ -152,7 +157,7 @@ export function useDocumentSeo({
 
     upsertHeadTag(metaTarget('property', 'og:site_name'), SITE_NAME, cleanups)
     upsertHeadTag(metaTarget('property', 'og:type'), ogType, cleanups)
-    upsertHeadTag(metaTarget('property', 'og:title'), pageTitle, cleanups)
+    upsertHeadTag(metaTarget('property', 'og:title'), ogTitle ?? pageTitle, cleanups)
     upsertHeadTag(metaTarget('property', 'og:url'), canonicalUrl, cleanups)
     upsertHeadTag(metaTarget('property', 'og:image'), imageUrl, cleanups)
     const alt = defaultImage ? DEFAULT_SOCIAL_IMAGE_ALT : imageAlt ?? pageTitle
@@ -162,8 +167,8 @@ export function useDocumentSeo({
       if (defaultImage) upsertHeadTag(metaTarget('property', key), value, cleanups)
       else removeMeta(`meta[property="${key}"]`, cleanups)
     }
-    if (description !== undefined) {
-      upsertHeadTag(metaTarget('property', 'og:description'), description, cleanups)
+    if (ogDescription !== undefined || description !== undefined) {
+      upsertHeadTag(metaTarget('property', 'og:description'), ogDescription ?? description!, cleanups)
     }
 
     upsertHeadTag(metaTarget('name', 'twitter:card'), 'summary_large_image', cleanups)
@@ -198,6 +203,8 @@ export function useDocumentSeo({
     keywordsContent,
     imageUrl,
     imageAlt,
+    ogTitle,
+    ogDescription,
     defaultImage,
     ogType,
     canonicalUrl,
