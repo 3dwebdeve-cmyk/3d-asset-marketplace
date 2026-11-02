@@ -441,7 +441,7 @@
 .models-browse .product-card {
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 0.35rem;
+  border-radius: 0;
   overflow: hidden;
   box-shadow: none;
 }

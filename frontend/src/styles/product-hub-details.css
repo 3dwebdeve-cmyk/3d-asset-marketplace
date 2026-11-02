@@ -154,7 +154,7 @@
 
 .product-hub-detail .product-detail-stage {
   border: 1px solid var(--hub-border);
-  border-radius: var(--hub-radius);
+  border-radius: 0;
   background: var(--pure-black);
   box-shadow: var(--hub-card-shadow);
   min-height: 530px;
@@ -537,7 +537,7 @@
   display: grid;
   grid-template-columns: minmax(110px, 42%) minmax(0, 1fr);
   min-height: 116px;
-  border-radius: 0.7rem;
+  border-radius: 0;
 }
 
 .product-hub-detail__lower-grid .product-detail-related .product-card__media {
