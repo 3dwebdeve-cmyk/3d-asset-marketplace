@@ -9,7 +9,8 @@ import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
 import { useAllCategories } from '../../hooks/useAllCategories'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { HOME_DESCRIPTION, HOME_TITLE, buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
+import { buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
+import { HOME_SEO } from '../../lib/seoPages'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
@@ -395,8 +396,7 @@ export function ProductsBrowsePage() {
   useAutoScrollRail(pluginsRailRef, !isCatalogMode && !pluginsLoading && plugins.length > 1)
 
   useDocumentSeo({
-    title: HOME_TITLE,
-    description: HOME_DESCRIPTION,
+    ...HOME_SEO,
     canonicalPath: '/',
     jsonLd: [buildOrganizationJsonLd(), buildWebSiteJsonLd()],
   })

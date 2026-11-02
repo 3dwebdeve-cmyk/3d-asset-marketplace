@@ -27,6 +27,8 @@ export interface PageSeo {
   /** Absolute social image URL. Defaults to the site banner. */
   image?: string
   imageAlt?: string
+  ogTitle?: string
+  ogDescription?: string
   canonicalPath?: string
   robots?: string
   structuredData?: Record<string, unknown>
@@ -47,7 +49,7 @@ const HTML_ESCAPES: Readonly<Record<string, string>> = {
 // Tags the browser-side hook also manages. They are removed from the shell and rendered again.
 const HEAD_TAGS_TO_REPLACE: readonly RegExp[] = [
   /<title>[\s\S]*?<\/title>\s*/gi,
-  /<meta\s+(?:name|property)="(?:description|keywords|robots|og:[a-z_:]+|twitter:[a-z_:]+)"[^>]*>\s*/gi,
+  /<meta\s+(?:name|property)="(?:title|description|keywords|robots|og:[a-z_:]+|twitter:[a-z_:]+)"[^>]*>\s*/gi,
   /<link\s+rel="canonical"[^>]*>\s*/gi,
   /<script\s+type="application\/ld\+json"\s+id="seo-structured-data"[\s\S]*?<\/script>\s*/gi,
 ]
@@ -80,6 +82,8 @@ export function getStaticPageSeo(path: string, origin = ''): PageSeo | undefined
     keywords: page.keywords,
     image: page.image && origin ? new URL(page.image, `${origin}/`).toString() : page.image,
     imageAlt: page.imageAlt,
+    ogTitle: page.ogTitle,
+    ogDescription: page.ogDescription,
     ogType: 'website',
     status: 200,
     structuredData: path === '/' ? {
@@ -194,13 +198,14 @@ export function renderSeoHead(
   const image = new URL(seo.image ?? DEFAULT_SOCIAL_IMAGE, `${page.origin}/`).toString()
   const tags = [
     `<title>${escapeHtml(seo.title)}</title>`,
+    metaTag('name', 'title', seo.title),
     metaTag('name', 'description', seo.description),
     ...(seo.robots ? [metaTag('name', 'robots', seo.robots)] : []),
     ...(seo.keywords?.length ? [metaTag('name', 'keywords', seo.keywords.join(', '))] : []),
     metaTag('property', 'og:site_name', SITE_NAME),
     metaTag('property', 'og:type', seo.ogType),
-    metaTag('property', 'og:title', seo.title),
-    metaTag('property', 'og:description', seo.description),
+    metaTag('property', 'og:title', seo.ogTitle ?? seo.title),
+    metaTag('property', 'og:description', seo.ogDescription ?? seo.description),
     metaTag('property', 'og:url', canonical),
     metaTag('property', 'og:locale', 'en_US'),
     metaTag('property', 'og:image', image),

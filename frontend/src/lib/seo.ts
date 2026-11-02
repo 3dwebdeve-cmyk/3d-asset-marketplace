@@ -8,10 +8,10 @@ export const DEFAULT_SOCIAL_IMAGE = DEFAULT_OG_IMAGE_PATH
 export const DEFAULT_SOCIAL_IMAGE_ALT = 'Sofa, armchair and coffee table in a modern interior, with the AssetHive3D name'
 export const LOGO_PATH = '/images/AssetHive%203D.svg'
 
-export const HOME_TITLE = `Furniture 3D Models & 3D Viewer | ${SITE_NAME}`
+export const HOME_TITLE = `${SITE_NAME} | Buy, Sell & Download 3D Models and Blender Plugins`
 export const HOME_DESCRIPTION =
-  'Explore 3D content for furniture, interiors, lighting and plants. ' +
-  'Preview 3D models in our 3D viewer, check formats and licenses, and download your assets.'
+  'Discover high-quality 3D models for visualization, architecture, interiors, and game development. ' +
+  'Download free & premium production-ready 3D assets, PBR textures, and workflow plugins.'
 
 const TITLE_LIMIT = 60
 const DESCRIPTION_LIMIT = 160
