@@ -11,7 +11,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { formatMoney } from '../../lib/format'
 import { useAuthStore } from '../../store/authStore'
 
-const CATEGORIES_PER_PAGE = 7
+const CATEGORIES_PER_PAGE = 10
 
 function greeting(date = new Date()) {
   const hour = date.getHours()

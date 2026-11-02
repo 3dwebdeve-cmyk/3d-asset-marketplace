@@ -673,3 +673,59 @@
     font-size: 1.5rem;
   }
 }
+
+/* ---------- Form fields: grey surface, white text ---------- */
+
+.admin-layout
+  :is(
+    input:where(:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='hidden'])),
+    select,
+    textarea
+  ) {
+  background-color: #2a2a30;
+  color: #ffffff;
+  border: 1px solid #3a3a42;
+  border-radius: 10px;
+  caret-color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.admin-layout :is(input, textarea)::placeholder {
+  color: #a1a1aa;
+  -webkit-text-fill-color: #a1a1aa;
+}
+
+.admin-layout :is(input, select, textarea):focus {
+  border-color: var(--admin-red);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgb(239 43 43 / 25%);
+}
+
+.admin-layout :is(input, select, textarea):disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.admin-layout select option {
+  background-color: #2a2a30;
+  color: #ffffff;
+}
+
+.admin-layout input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #2a2a30 inset;
+  -webkit-text-fill-color: #ffffff;
+}
+
+/* Search boxes already sit inside a grey wrapper, so keep their inner input flat. */
+.admin-layout .admin-header__search-input,
+.admin-layout .admin-dashboard__search input {
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.admin-layout .admin-header__search,
+.admin-layout .admin-dashboard__search {
+  background-color: #2a2a30;
+  border-color: #3a3a42;
+}
