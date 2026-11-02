@@ -827,6 +827,28 @@ button.product-detail-cta__link {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: #fff;
+  color: #172018;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+}
+
+.product-detail-lightbox__nav svg {
+  width: 24px;
+  height: 24px;
+}
+
+.product-detail-lightbox__nav:hover {
+  background: #e9eee9;
+}
+
+.product-detail-lightbox__nav:focus-visible {
+  outline: 3px solid var(--action-color);
+  outline-offset: 3px;
 }
 
 .product-detail-lightbox__nav--prev {
@@ -924,11 +946,6 @@ button.product-detail-cta__link {
 }
 
 @media (max-width: 639px) {
-  .product-detail-lightbox__nav {
-    position: static;
-    transform: none;
-  }
-
   .product-detail-lightbox__content {
     width: 100%;
   }
