@@ -1,11 +1,22 @@
 import uuid
 from decimal import Decimal
 
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.utils.text import slugify
 
 from config.validators import validate_storage_path
+
+PLUGIN_ID_PATTERN = r"^PLG-[A-Z]{3}-\d{6}$"
+PLUGIN_ID_VALIDATOR = RegexValidator(
+    regex=PLUGIN_ID_PATTERN,
+    message="Plugin ID must look like PLG-ABC-000001.",
+)
+PLUGIN_CATEGORY_CODE_VALIDATOR = RegexValidator(
+    regex=r"^[A-Z]{3}$",
+    message="Category code must be three uppercase letters.",
+)
 
 
 def _build_unique_slug(
@@ -36,6 +47,15 @@ class PluginCategory(models.Model):
     slug = models.SlugField(max_length=255, unique=True)
     description = models.TextField(blank=True)
     image = models.URLField(blank=True)
+    # Three-letter code used in plugin IDs (PLG-<CODE>-000001); blank until assigned.
+    code = models.CharField(
+        max_length=3,
+        unique=True,
+        null=True,
+        blank=True,
+        validators=[PLUGIN_CATEGORY_CODE_VALIDATOR],
+        help_text="Three uppercase letters used in plugin IDs, e.g. ANI.",
+    )
     is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -65,7 +85,9 @@ class PluginCategory(models.Model):
 class Plugin(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
+        PENDING_REVIEW = "pending_review", "Pending review"
         PUBLISHED = "published", "Published"
+        REJECTED = "rejected", "Rejected"
         ARCHIVED = "archived", "Archived"
 
     class LicenseType(models.TextChoices):
@@ -81,9 +103,21 @@ class Plugin(models.Model):
     )
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
+    # External Plugin_ID from the uploader; unique when set. Hand-made plugins stay null.
+    plugin_id = models.CharField(
+        max_length=16,
+        unique=True,
+        null=True,
+        blank=True,
+        validators=[PLUGIN_ID_VALIDATOR],
+        help_text="Stable external Plugin_ID (e.g. PLG-ANI-000001). Used for batch upsert.",
+    )
+    import_batch_id = models.CharField(max_length=64, blank=True, default="")
+    import_source = models.CharField(max_length=64, blank=True, default="")
+    manifest = models.JSONField(default=dict, blank=True)
     description = models.TextField(blank=True)
     short_description = models.CharField(max_length=500, blank=True)
-    price = models.DecimalField(
+    price =models.DecimalField(
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal("0.00"))],
@@ -126,6 +160,17 @@ class Plugin(models.Model):
         default=Status.DRAFT,
         db_index=True,
     )
+    # Review metadata (admin-only; never set by the importer).
+    reject_reason = models.TextField(blank=True, default="")
+    qa_notes = models.TextField(blank=True, default="")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_plugins",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -133,6 +178,7 @@ class Plugin(models.Model):
         db_table = "plugins"
         ordering = ["-created_at"]
         indexes = [
+            models.Index(fields=["import_batch_id"]),
             models.Index(fields=["slug"]),
             models.Index(fields=["name"]),
             models.Index(fields=["category", "status"]),
