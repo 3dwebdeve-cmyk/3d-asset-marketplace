@@ -164,7 +164,7 @@ describe('ModelViewer', () => {
     expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
     expect(viewerMocks.renderScene!.background).toHaveProperty('getHexString')
     expect((viewerMocks.renderScene!.background as import('three').Color).getHexString()).toBe(
-      'f3f4f6',
+      'ffffff',
     )
   })
 
@@ -183,9 +183,11 @@ describe('ModelViewer', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
         'data-files',
-        '/hdri/studio_small_08_1k.hdr',
+        '/hdri/studio_small_09_1k.exr',
       )
-      // Studio uses HDRI for lighting only (solid light-grey backdrop), so blurriness is 0.
+      // Studio keeps the EXR's dark areas out of the white backdrop; lighting stays active.
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '1.1')
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
         'data-background-blurriness',
         '0',
@@ -234,7 +236,7 @@ describe('ModelViewer', () => {
     await user.click(screen.getByRole('radio', { name: 'Studio' }))
     await waitFor(() => {
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-        'data-files', '/hdri/studio_small_08_1k.hdr',
+        'data-files', '/hdri/studio_small_09_1k.exr',
       )
     })
     expect(container.querySelectorAll('directionallight')).toHaveLength(3)
@@ -258,7 +260,7 @@ describe('ModelViewer', () => {
       expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
       expect(
         (viewerMocks.renderScene!.background as import('three').Color).getHexString(),
-      ).toBe('f3f4f6')
+      ).toBe('ffffff')
     })
   })
 
