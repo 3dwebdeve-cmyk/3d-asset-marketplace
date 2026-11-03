@@ -68,7 +68,7 @@ describe('product gallery navigation', () => {
     const image = within(stage()).getByAltText('Chair 3D model, image 1')
     Object.defineProperties(image, { naturalWidth: { value: 500 }, naturalHeight: { value: 500 } })
     fireEvent.load(image)
-    expect(stage().querySelector('.product-detail-stage__image-backdrop')).toHaveAttribute('src', images[0].image_url)
+    expect(stage().querySelectorAll('.product-detail-stage__image-edge')).toHaveLength(2)
     await userEvent.click(screen.getByRole('button', { name: 'Show 3D preview' }))
     expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-preview')).toBeInTheDocument()
