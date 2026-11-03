@@ -481,25 +481,9 @@ export function ProductImageGallery({
         )}
 
         {totalCount > 1 ? (
-          <>
-            <button
-              type="button"
-              className="product-detail-stage__nav product-detail-stage__nav--prev"
-              aria-label="Previous preview"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => { event.stopPropagation(); showPrevious() }}
-            ><span aria-hidden="true">‹</span></button>
-            <button
-              type="button"
-              className="product-detail-stage__nav product-detail-stage__nav--next"
-              aria-label="Next preview"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => { event.stopPropagation(); showNext() }}
-            ><span aria-hidden="true">›</span></button>
-            <span className="product-detail-stage__counter" role="status" aria-live="polite" aria-atomic="true">
-              <span className="product-detail-stage__counter-label">Preview </span>{stagePosition} / {totalCount}
-            </span>
-          </>
+          <span className="product-detail-stage__counter" role="status" aria-live="polite" aria-atomic="true">
+            <span className="product-detail-stage__counter-label">Preview </span>{stagePosition} / {totalCount}
+          </span>
         ) : null}
         {showStageChrome && stageOverlays ? (
           <div className="product-detail-stage__overlays">{stageOverlays}</div>
