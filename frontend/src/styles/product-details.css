@@ -97,34 +97,31 @@
   z-index: 1;
 }
 
-.product-detail-stage__main .product-detail-stage__image-preview--matched .product-detail-stage__image {
+.product-detail-stage__main .product-detail-stage__image-preview .product-detail-stage__image {
   background: transparent;
 }
 
-.product-detail-stage__image-edge {
+.product-detail-stage__image-backdrop {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: -32px;
+  width: calc(100% + 64px);
+  height: calc(100% + 64px);
+  max-width: none;
+  object-fit: cover;
+  filter: blur(24px);
   pointer-events: none;
+  user-select: none;
 }
 
-.product-detail-stage__image-edge--left,
-.product-detail-stage__image-edge--right {
-  width: 50%;
-}
-
-.product-detail-stage__image-edge--right {
-  left: 50%;
-}
-
-.product-detail-stage__image-edge--top,
-.product-detail-stage__image-edge--bottom {
-  height: 50%;
-}
-
-.product-detail-stage__image-edge--bottom {
-  top: 50%;
+.product-detail-stage__image-preview--matched > .product-detail-stage__image {
+  /* Size the feather to the contained image, including portrait and wide renders. */
+  mask-image:
+    linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent),
+    linear-gradient(to bottom, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  mask-size: var(--preview-image-width) var(--preview-image-height);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-composite: intersect;
 }
 
 .product-detail-stage__counter {
