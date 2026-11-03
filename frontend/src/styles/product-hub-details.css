@@ -436,7 +436,7 @@
 
 /* Full product-page composition from the approved reference. */
 .product-hub-detail.product-detail-page {
-  padding: 2rem clamp(3rem, 12vw, 14rem) 3.5rem;
+  padding: 2rem var(--site-gutter) 3.5rem;
 }
 
 .product-hub-detail__header {
