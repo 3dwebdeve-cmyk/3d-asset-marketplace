@@ -183,7 +183,7 @@ describe('ModelViewer', () => {
     await waitFor(() => {
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
         'data-files',
-        '/hdri/studio_small_09_4k.exr',
+        '/hdri/studio_small_09_1k.exr',
       )
       // Studio keeps the EXR's dark areas out of the white backdrop; lighting stays active.
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
@@ -236,7 +236,7 @@ describe('ModelViewer', () => {
     await user.click(screen.getByRole('radio', { name: 'Studio' }))
     await waitFor(() => {
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-        'data-files', '/hdri/studio_small_09_4k.exr',
+        'data-files', '/hdri/studio_small_09_1k.exr',
       )
     })
     expect(container.querySelectorAll('directionallight')).toHaveLength(3)
