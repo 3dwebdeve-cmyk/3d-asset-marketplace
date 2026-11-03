@@ -18,10 +18,10 @@ export const HDRI_ENVIRONMENTS: readonly HdriEnvironmentOption[] = [
   {
     id: 'studio',
     label: 'Studio',
-    hdrPath: '/hdri/studio_small_08_1k.hdr',
+    hdrPath: '/hdri/studio_small_09_4k.exr',
     environmentIntensity: 1.1,
     lightMultiplier: 1,
-    // Lighting only — visible HDRI reads gray; white solid + white ground stay seamless.
+    // Use the EXR for lighting/reflections; a white backdrop hides its dark studio areas.
     background: false,
     backgroundBlur: 0.65,
     showGround: true,

@@ -224,7 +224,7 @@
   height: 100vh;
   border: 0;
   border-radius: 0;
-  background: #f3f4f6;
+  background: #fff;
 }
 
 .product-hub-detail .product-detail-stage:fullscreen .product-detail-stage__viewer,
@@ -459,7 +459,7 @@
 .product-hub-detail .product-detail-stage__viewer,
 .product-hub-detail .product-detail-stage__viewer .model-viewer,
 .product-hub-detail .product-detail-stage__viewer .model-viewer-shell {
-  background: #f3f4f6;
+  background: #fff;
 }
 
 .product-hub-detail__lower-grid {
