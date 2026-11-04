@@ -154,7 +154,7 @@
 
 .product-hub-detail .product-detail-stage {
   border: 1px solid var(--hub-border);
-  border-radius: 0;
+  border-radius: 8px;
   background: var(--pure-black);
   box-shadow: var(--hub-card-shadow);
   min-height: 600px;
@@ -1245,7 +1245,7 @@
 .product-hub-detail .product-detail-stage__overlays {
   position: absolute;
   top: 0.85rem;
-  right: 0.85rem;
+  left: 0.85rem;
   z-index: 4;
   display: flex;
   flex-direction: column;
