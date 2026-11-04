@@ -41,6 +41,9 @@ PUBLIC_MEDIA_PREFIXES = (
 BATCH_PUBLIC_PREFIX = "models/"
 BATCH_PRIVATE_FILENAMES = frozenset({"package.zip"})
 BATCH_PRIVATE_SUFFIXES = (".zip",)
+# Only these file types are ever public under models/. Anything else there (.rar, .7z, .fbx,
+# .blend...) is a paid file and stays private even if an import path put it there.
+BATCH_PUBLIC_SUFFIXES = (".glb", ".gltf", ".webp", ".jpg", ".jpeg", ".png")
 # Free models live under free-models/{Model_ID}/ in the public bucket, zip included.
 FREE_MODELS_PREFIX = "free-models/"
 
@@ -94,8 +97,10 @@ def is_public_media_path(relative: str) -> bool:
     normalized = relative.replace("\\", "/")
     if any(normalized.startswith(prefix) for prefix in (*PUBLIC_MEDIA_PREFIXES, FREE_MODELS_PREFIX)):
         return True
-    return normalized.startswith(BATCH_PUBLIC_PREFIX) and not is_batch_private_object(
-        normalized
+    return (
+        normalized.startswith(BATCH_PUBLIC_PREFIX)
+        and not is_batch_private_object(normalized)
+        and normalized.lower().endswith(BATCH_PUBLIC_SUFFIXES)
     )
 
 

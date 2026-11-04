@@ -18,10 +18,12 @@ from urllib.parse import quote, urlencode
 
 from django.conf import settings
 from django.core import signing
+from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import AdminRecoveryCode, User
+from config.locking import advisory_lock
 
 TOTP_DIGITS = 6
 TOTP_PERIOD = 30
@@ -29,6 +31,10 @@ TOTP_PERIOD = 30
 TOTP_DRIFT_STEPS = 1
 RECOVERY_CODE_COUNT = 10
 MFA_TOKEN_MAX_AGE = 300
+# Enrolling needs more than the password: a code emailed to the administrator.
+ENROLLMENT_CODE_LENGTH = 8
+ENROLLMENT_CODE_TTL = 900
+ENROLLMENT_CODE_ATTEMPTS = 5
 ISSUER = "3D Asset Marketplace"
 _TOKEN_SALT = "accounts.admin_mfa"
 _RECOVERY_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
@@ -157,6 +163,56 @@ def user_from_mfa_token(token: str) -> User:
     return user
 
 
+# ----- Emailed enrollment code ----------------------------------------------------------
+# Without this, anyone holding an un-enrolled administrator's password could enroll their
+# own authenticator app and sign in. The code proves control of the administrator's mailbox.
+
+
+def _enrollment_key(user: User, part: str) -> str:
+    return f"mfa-enroll:{part}:{user.pk}"
+
+
+def _enrollment_hash(user: User, code: str) -> str:
+    normalized = "".join(ch for ch in str(code or "").upper() if ch.isalnum())
+    key = str(getattr(settings, "MFA_SECRET_KEY", "") or settings.SECRET_KEY).encode()
+    return hmac.new(key, f"enroll:{user.pk}:{normalized}".encode(), hashlib.sha256).hexdigest()
+
+
+def issue_enrollment_code(user: User) -> str:
+    """Create a fresh single-use code (replacing any earlier one). Only its hash is kept."""
+    code = "".join(secrets.choice(_RECOVERY_ALPHABET) for _ in range(ENROLLMENT_CODE_LENGTH))
+    with advisory_lock(_enrollment_key(user, "code")):
+        cache.set(_enrollment_key(user, "code"), _enrollment_hash(user, code), ENROLLMENT_CODE_TTL)
+        cache.set(_enrollment_key(user, "attempts"), 0, ENROLLMENT_CODE_TTL)
+        cache.delete(_enrollment_key(user, "ok"))
+    return code
+
+
+def verify_enrollment_code(user: User, code: str) -> None:
+    """Accept the emailed code once. Five wrong tries burn it."""
+    expired = MfaError(
+        "Your setup code expired. Enter your email and password again to get a new one."
+    )
+    with advisory_lock(_enrollment_key(user, "code")):
+        expected = cache.get(_enrollment_key(user, "code"))
+        if not expected:
+            raise expired
+        attempts = int(cache.get(_enrollment_key(user, "attempts")) or 0)
+        if attempts >= ENROLLMENT_CODE_ATTEMPTS:
+            cache.delete(_enrollment_key(user, "code"))
+            raise expired
+        if hmac.compare_digest(str(expected), _enrollment_hash(user, code)):
+            cache.delete(_enrollment_key(user, "code"))
+            cache.set(_enrollment_key(user, "ok"), "1", ENROLLMENT_CODE_TTL)
+            return
+        cache.set(_enrollment_key(user, "attempts"), attempts + 1, ENROLLMENT_CODE_TTL)
+    raise MfaError("That setup code is not valid. Check the email we sent you.")
+
+
+def enrollment_code_verified(user: User) -> bool:
+    return bool(cache.get(_enrollment_key(user, "ok")))
+
+
 # ----- Enrollment and verification ----------------------------------------------------
 
 
@@ -180,6 +236,8 @@ def confirm_enrollment(user: User, code: str) -> list[str]:
         locked = User.objects.select_for_update().get(pk=user.pk)
         if is_enrolled(locked):
             raise MfaError("Two-factor sign-in is already set up for this account.")
+        if not enrollment_code_verified(locked):
+            raise MfaError("Enter the setup code from your email first.")
         if not locked.mfa_pending_nonce:
             raise MfaError("Start the setup again.")
         counter = match_totp(

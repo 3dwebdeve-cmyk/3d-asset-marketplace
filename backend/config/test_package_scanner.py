@@ -22,7 +22,7 @@ class ScannerStartupTests(SimpleTestCase):
             "DJANGO_ADMIN_ALLOWED_IPS": "", "JWT_REFRESH_COOKIE_SECURE": "True",
             "FRONTEND_BASE_URL": "https://shop.example.test", "ALLOW_LOCALHOST_FRONTEND": "False",
             "EMAIL_BACKEND": "django.core.mail.backends.locmem.EmailBackend",
-            "BREVO_API_KEY": "", "SENTRY_DSN": "",
+            "BREVO_API_KEY": "", "SENTRY_DSN": "", "BEHIND_TRUSTED_NGINX": "True",
         })
         result = subprocess.run(
             [sys.executable, "-c",

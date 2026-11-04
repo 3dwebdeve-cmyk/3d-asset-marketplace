@@ -108,6 +108,22 @@ def _load_user(user_id: str, task: str):
     retry_jitter=True,
     max_retries=5,
     queue="email",
+    name="accounts.send_registration_notice",
+)
+def send_registration_notice_task(self, email: str) -> None:
+    from accounts.services import RegistrationService
+
+    RegistrationService.deliver_existing_account_notice(email)
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+    max_retries=5,
+    queue="email",
     name="accounts.send_new_device_sign_in",
 )
 def send_new_device_sign_in_task(self, user_id: str, user_agent: str = "") -> None:

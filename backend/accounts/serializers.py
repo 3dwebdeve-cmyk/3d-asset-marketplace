@@ -106,6 +106,10 @@ class AdminMfaStartSerializer(serializers.Serializer):
     mfa_token = serializers.CharField(write_only=True, max_length=1024, trim_whitespace=True)
 
 
+class AdminMfaSetupSerializer(AdminMfaStartSerializer):
+    enrollment_code = serializers.CharField(write_only=True, max_length=16)
+
+
 class AdminMfaConfirmSerializer(AdminMfaStartSerializer):
     code = serializers.CharField(write_only=True, max_length=16)
     remember_me = serializers.BooleanField(required=False, default=True)
