@@ -172,6 +172,7 @@ class AdminPluginCategoryListCreateView(APIView):
                     name=data["name"],
                     description=data.get("description", ""),
                     image=data.get("image", ""),
+                    code=data.get("code", ""),
                 )
             )
         except PluginError as exc:
@@ -212,6 +213,7 @@ class AdminPluginCategoryDetailView(APIView):
                     slug=data.get("slug"),
                     description=data.get("description"),
                     image=data.get("image"),
+                    code=data.get("code"),
                     is_active=data.get("is_active"),
                 ),
             )

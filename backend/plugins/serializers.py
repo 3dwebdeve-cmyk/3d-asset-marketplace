@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import re
+
 from rest_framework import serializers
 
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
@@ -19,6 +21,7 @@ class PluginCategorySerializer(serializers.ModelSerializer):
             "slug",
             "description",
             "image",
+            "code",
             "is_active",
             "created_at",
             "updated_at",
@@ -26,10 +29,22 @@ class PluginCategorySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+def _validate_category_code(value: str) -> str:
+    """Three letters used in plugin IDs (PLG-ANI-000001). Blank means no code."""
+    normalized = value.strip().upper()
+    if normalized and not re.fullmatch(r"[A-Z]{3}", normalized):
+        raise serializers.ValidationError("Category code must be three letters, such as ANI.")
+    return normalized
+
+
 class PluginCategoryCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, trim_whitespace=True)
     description = serializers.CharField(required=False, allow_blank=True, default="")
     image = serializers.URLField(required=False, allow_blank=True, default="")
+    code = serializers.CharField(required=False, allow_blank=True, default="", max_length=3)
+
+    def validate_code(self, value: str) -> str:
+        return _validate_category_code(value)
 
     def validate_name(self, value: str) -> str:
         if len(value.strip()) < 2:
@@ -42,7 +57,11 @@ class PluginCategoryUpdateSerializer(serializers.Serializer):
     slug = serializers.SlugField(max_length=255, required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     image = serializers.URLField(required=False, allow_blank=True)
+    code = serializers.CharField(required=False, allow_blank=True, max_length=3)
     is_active = serializers.BooleanField(required=False)
+
+    def validate_code(self, value: str) -> str:
+        return _validate_category_code(value)
 
     def validate_name(self, value: str) -> str:
         if len(value.strip()) < 2:
@@ -168,6 +187,13 @@ class PluginAdminSerializer(serializers.ModelSerializer):
             "review_count",
             "total_downloads",
             "status",
+            "plugin_id",
+            "import_batch_id",
+            "import_source",
+            "manifest",
+            "reject_reason",
+            "qa_notes",
+            "reviewed_at",
             "category",
             "category_id",
             "images",
@@ -183,6 +209,13 @@ class PluginAdminSerializer(serializers.ModelSerializer):
             "average_rating",
             "review_count",
             "total_downloads",
+            "plugin_id",
+            "import_batch_id",
+            "import_source",
+            "manifest",
+            "reject_reason",
+            "qa_notes",
+            "reviewed_at",
             "created_at",
             "updated_at",
         )

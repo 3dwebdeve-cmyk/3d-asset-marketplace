@@ -6,6 +6,9 @@ from django.core.management.base import BaseCommand, CommandError
 
 from accounts.api_keys import (
     DEFAULT_SERVICE_EMAIL,
+    PLUGIN_SERVICE_EMAIL,
+    SCOPE_MODELS,
+    SCOPES,
     CatalogApiKeyError,
     CatalogApiKeyService,
 )
@@ -27,9 +30,18 @@ class Command(BaseCommand):
         create = sub.add_parser("create", help="Create a key and print it once.")
         create.add_argument("--name", required=True, help="Where the key is used, e.g. office-pc.")
         create.add_argument(
+            "--scope",
+            choices=SCOPES,
+            default=SCOPE_MODELS,
+            help="What the key may import: models (default) or plugins.",
+        )
+        create.add_argument(
             "--service-email",
-            default=DEFAULT_SERVICE_EMAIL,
-            help=f"Service user email (default {DEFAULT_SERVICE_EMAIL}).",
+            default=None,
+            help=(
+                f"Service user email (default {DEFAULT_SERVICE_EMAIL} for models, "
+                f"{PLUGIN_SERVICE_EMAIL} for plugins)."
+            ),
         )
 
         sub.add_parser("list", help="List keys: prefix, name, status, last used.")
@@ -41,7 +53,7 @@ class Command(BaseCommand):
         action = options["action"]
         try:
             if action == "create":
-                self._create(options["name"], options["service_email"])
+                self._create(options["name"], options["service_email"], options["scope"])
             elif action == "list":
                 self._list()
             else:
@@ -49,17 +61,17 @@ class Command(BaseCommand):
         except CatalogApiKeyError as exc:
             raise CommandError(exc.message) from exc
 
-    def _create(self, name: str, service_email: str) -> None:
-        issued = CatalogApiKeyService.create_key(name=name, service_email=service_email)
+    def _create(self, name: str, service_email: str | None, scope: str) -> None:
+        issued = CatalogApiKeyService.create_key(name=name, service_email=service_email, scope=scope)
         api_key = issued.api_key
         log_admin_action(
             action="catalog_api_key_create",
             actor_id="manage.py",
             target_id=str(api_key.pk),
-            metadata={"key_prefix": api_key.key_prefix, "name": api_key.name},
+            metadata={"key_prefix": api_key.key_prefix, "name": api_key.name, "scope": api_key.scope},
         )
         self.stdout.write(
-            self.style.SUCCESS(f"Created key {api_key.key_prefix} ({api_key.name}).")
+            self.style.SUCCESS(f"Created {api_key.scope} key {api_key.key_prefix} ({api_key.name}).")
         )
         self.stdout.write("Copy it now; it is not stored and cannot be shown again:")
         self.stdout.write(issued.key)
@@ -74,7 +86,7 @@ class Command(BaseCommand):
             status = "active" if api_key.is_active and api_key.revoked_at is None else "revoked"
             last_used = api_key.last_used_at.isoformat() if api_key.last_used_at else "never"
             self.stdout.write(
-                f"{api_key.key_prefix}  {status:<8}  last_used={last_used}  "
+                f"{api_key.key_prefix}  {status:<8}  scope={api_key.scope:<7}  last_used={last_used}  "
                 f"name={api_key.name}  user={api_key.user.email}"
             )
 
