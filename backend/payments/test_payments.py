@@ -219,9 +219,16 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(Order.objects.count(), 1)
         mock_session_create.assert_called_once()
 
+    @patch("payments.checkout_service.stripe.checkout.Session.retrieve")
     @patch("payments.checkout_service.stripe.checkout.Session.create")
-    def test_idempotency_key_does_not_replay_a_stale_price(self, mock_session_create) -> None:
+    def test_idempotency_key_does_not_replay_a_stale_price(
+        self, mock_session_create, mock_retrieve
+    ) -> None:
         mock_session_create.side_effect = [_fake_session("cs_idem_old"), _fake_session("cs_idem_new")]
+        # The second checkout looks up the first session before replacing it; no network in CI.
+        mock_retrieve.return_value = _FakeStripeObject(
+            {"id": "cs_idem_old", "status": "expired", "payment_status": "unpaid"}
+        )
         self._authenticate()
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk, quantity=1)
 
