@@ -696,8 +696,6 @@ class CatalogImportService:
         try:
             if not storage.exists(key):
                 raise ProductError(missing, field="media")
-            if key.lower().endswith(".webp"):
-                return key
             if storage.size(key) > _IMPORT_IMAGE_MAX_BYTES:
                 raise ProductError(reason, field="media")
             with storage.open(key, "rb") as handle:
@@ -710,6 +708,10 @@ class CatalogImportService:
             webp = convert_image_bytes_to_webp(data)
         except ValidationError:
             raise ProductError(reason, field="media") from None
+        if key.lower().endswith(".webp"):
+            # Already WebP: keep the uploaded object, now that it has been decoded and
+            # confirmed to be a real image (a file merely named .webp could be anything).
+            return key
 
         target = f"{posixpath.splitext(key)[0]}-{hashlib.sha256(webp).hexdigest()[:12]}.webp"
         try:

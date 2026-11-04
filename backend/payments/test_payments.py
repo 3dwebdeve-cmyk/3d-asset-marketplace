@@ -219,6 +219,24 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(Order.objects.count(), 1)
         mock_session_create.assert_called_once()
 
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    def test_idempotency_key_does_not_replay_a_stale_price(self, mock_session_create) -> None:
+        mock_session_create.side_effect = [_fake_session("cs_idem_old"), _fake_session("cs_idem_new")]
+        self._authenticate()
+        self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk, quantity=1)
+
+        headers = {"HTTP_IDEMPOTENCY_KEY": "checkout-retry-2"}
+        first = self.client.post(self.checkout_url, **headers)
+        type(self.product).objects.filter(pk=self.product.pk).update(
+            price=self.product.price + 10
+        )
+        second = self.client.post(self.checkout_url, **headers)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(first.data["order_id"], second.data["order_id"])
+        self.assertEqual(mock_session_create.call_count, 2)
+
     @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
     @patch("payments.checkout_service.stripe.checkout.Session.create")
     def test_checkout_requires_legal_acceptance(self, mock_session_create) -> None:

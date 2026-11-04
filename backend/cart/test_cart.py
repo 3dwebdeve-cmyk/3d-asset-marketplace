@@ -430,6 +430,25 @@ class OwnedItemTests(APITestCase):
             OrderService.create_from_cart(self.customer)
         self.assertIn("You already own Oak Chair", ctx.exception.message)
 
+    def test_checkout_refuses_a_cart_whose_item_currency_changed(self) -> None:
+        from orders.models import Order
+        from orders.services import OrderError, OrderService
+
+        self.authenticate()
+        for product in (self.published_product, self.discounted_product):
+            self.client.post(
+                self.cart_url,
+                {"product_type": "product", "product_id": str(product.pk)},
+                format="json",
+            )
+        # An administrator switches one product's currency while it sits in the cart.
+        Product.objects.filter(pk=self.discounted_product.pk).update(currency="INR")
+
+        with self.assertRaises(OrderError) as ctx:
+            OrderService.create_from_cart(self.customer)
+        self.assertIn("currency changed", ctx.exception.message)
+        self.assertFalse(Order.objects.filter(user=self.customer).exists())
+
     def test_a_refunded_item_can_be_bought_again(self) -> None:
         from orders.models import Order
 

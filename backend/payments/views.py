@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 import stripe
@@ -47,6 +48,22 @@ def _accepted_legal_from_request(request: Request):
     return None
 
 
+def _cart_fingerprint(user) -> str:
+    """Hash of the cart's lines, prices and currency, so a replayed checkout key cannot
+    return a session that was priced before the cart or the catalog changed."""
+    from cart.services import CartService
+
+    envelope = CartService.get_cart_envelope(user)
+    parts = [str(envelope.totals.total), str(envelope.totals.currency)]
+    for item in sorted(envelope.items, key=lambda row: (row.product_type, str(row.product_id))):
+        snapshot = envelope.snapshots.get((item.product_type, item.product_id)) or {}
+        parts.append(
+            f"{item.product_type}:{item.product_id}:{item.quantity}:"
+            f"{snapshot.get('effective_price')}:{snapshot.get('is_available')}"
+        )
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+
+
 class CreateCheckoutSessionView(APIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
@@ -68,7 +85,11 @@ class CreateCheckoutSessionView(APIView):
             idem_key = idempotency_key_from_request(request)
             if idem_key:
                 body, code = get_or_set(
-                    build_cache_key("checkout", request.user.pk, idem_key),
+                    build_cache_key(
+                        "checkout",
+                        request.user.pk,
+                        f"{idem_key}:{_cart_fingerprint(request.user)}",
+                    ),
                     _produce,
                     ttl=30 * 60,
                 )

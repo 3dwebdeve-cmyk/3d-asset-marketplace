@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
@@ -25,6 +27,7 @@ from accounts.permissions import IsAdministrator
 from accounts.serializers import (
     ActivityLogSerializer,
     AdminMfaConfirmSerializer,
+    AdminMfaSetupSerializer,
     AdminMfaStartSerializer,
     AdminMfaVerifySerializer,
     AdminRecoveryCodesSerializer,
@@ -57,7 +60,12 @@ from accounts.services import (
     ProfileService,
 )
 from accounts import login_guard, mfa, sessions
-from accounts.security_notices import notify_admin_sign_in, notify_mfa_enabled, register_sign_in
+from accounts.security_notices import (
+    deliver_mfa_enrollment_code,
+    notify_admin_sign_in,
+    notify_mfa_enabled,
+    register_sign_in,
+)
 from accounts.tokens import admin_session_expired, admin_session_max_seconds
 from django.db import transaction
 from accounts.throttles import (
@@ -116,6 +124,9 @@ def _issue_auth_response(
         max_age_seconds=admin_session_max_seconds() if is_admin else None,
     )
     return response
+
+
+logger = logging.getLogger(__name__)
 
 
 def _mfa_error(message: str, code: str = "mfa_invalid") -> Response:
@@ -235,6 +246,15 @@ class GoogleLoginView(APIView):
         return response
 
 
+def _send_enrollment_code(user) -> None:
+    """Email the one-time code an un-enrolled administrator needs to start setup."""
+    code = mfa.issue_enrollment_code(user)
+    try:
+        deliver_mfa_enrollment_code(user, code)
+    except Exception:
+        logger.exception("mfa_enrollment_code_email_failed")
+
+
 class AdminLoginView(APIView):
     """Password step of administrator sign-in.
 
@@ -267,16 +287,22 @@ class AdminLoginView(APIView):
                 login_guard.record_failure(credentials.email, client_ip)
             raise AuthenticationFailed(exc.message) from exc
 
-        login_guard.reset(credentials.email, client_ip)
         if getattr(settings, "ADMIN_MFA_REQUIRED", True):
+            # The password alone proves little: leave the failure counters alone so wrong
+            # authenticator codes cannot be reset by re-entering the password. They are
+            # cleared only after a correct code (AdminMfaVerifyView / AdminMfaConfirmView).
+            enrolled = mfa.is_enrolled(user)
+            if not enrolled:
+                _send_enrollment_code(user)
             return Response(
                 {
                     "mfa_required": True,
-                    "setup_required": not mfa.is_enrolled(user),
+                    "setup_required": not enrolled,
                     "mfa_token": mfa.issue_mfa_token(user),
                 },
                 status=status.HTTP_200_OK,
             )
+        login_guard.reset(credentials.email, client_ip)
         return _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
@@ -300,13 +326,18 @@ class AdminMfaSetupView(_AdminMfaStepView):
     """Start authenticator setup for an administrator who has none yet."""
 
     def post(self, request: Request) -> Response:
-        serializer = AdminMfaStartSerializer(data=request.data)
+        serializer = AdminMfaSetupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
             user = self._pending_admin(serializer.validated_data["mfa_token"])
-            secret, uri = mfa.start_enrollment(user)
         except mfa.MfaError as exc:
             return _mfa_error(str(exc), "mfa_expired")
+        try:
+            mfa.verify_enrollment_code(user, serializer.validated_data["enrollment_code"])
+            secret, uri = mfa.start_enrollment(user)
+        except mfa.MfaError as exc:
+            log_auth_failure(scope="admin_mfa_enrollment_code", email=user.email)
+            return _mfa_error(str(exc))
         return Response({"secret": secret, "otpauth_uri": uri}, status=status.HTTP_200_OK)
 
 
@@ -394,9 +425,15 @@ class AdminRecoveryCodesView(APIView):
     def post(self, request: Request) -> Response:
         serializer = AdminRecoveryCodesSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # A stolen access token must not be able to guess authenticator codes forever.
+        client_ip = ChangePasswordRateThrottle().get_ident(request)
+        if login_guard.is_locked(request.user.email, client_ip):
+            return _login_locked_response()
         try:
             mfa.verify_second_factor(request.user, code=serializer.validated_data["code"])
         except mfa.MfaError as exc:
+            login_guard.record_failure(request.user.email, client_ip)
+            log_auth_failure(scope="admin_recovery_codes", email=request.user.email)
             return _mfa_error(str(exc))
         log_admin_action(
             action="mfa_recovery_codes_replaced",
@@ -583,6 +620,10 @@ class ChangePasswordView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
+        # A stolen access token must not be able to guess the current password forever.
+        client_ip = ChangePasswordRateThrottle().get_ident(request)
+        if login_guard.is_locked(request.user.email, client_ip):
+            return _login_locked_response()
         try:
             AuthenticationService.change_password(
                 request.user,
@@ -596,6 +637,8 @@ class ChangePasswordView(APIView):
                     status=status.HTTP_403_FORBIDDEN,
                 )
             if "Current password" in exc.message:
+                login_guard.record_failure(request.user.email, client_ip)
+                log_auth_failure(scope="change_password", email=request.user.email)
                 return Response(
                     {"current_password": [exc.message]},
                     status=status.HTTP_400_BAD_REQUEST,

@@ -17,6 +17,7 @@ BASE_ENV = {
     "ALLOW_LOCALHOST_FRONTEND": "False",
     "EMAIL_BACKEND": "django.core.mail.backends.locmem.EmailBackend",
     "BREVO_API_KEY": "", "SENTRY_DSN": "",
+    "BEHIND_TRUSTED_NGINX": "True",
 }
 
 

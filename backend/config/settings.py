@@ -361,6 +361,19 @@ if EDGE_SHARED_SECRET and len(EDGE_SHARED_SECRET) < 32:
     raise ImproperlyConfigured("EDGE_SHARED_SECRET must be at least 32 characters.")
 if EDGE_REQUIRE and not EDGE_SHARED_SECRET:
     raise ImproperlyConfigured("EDGE_REQUIRE needs EDGE_SHARED_SECRET.")
+# The admin and uploader IP locks read X-Real-IP. Without the edge secret, a visitor can send
+# that header themselves, so staging and production must either verify the edge or sit behind
+# an nginx that overwrites it (docker-compose with nginx: set BEHIND_TRUSTED_NGINX=True).
+BEHIND_TRUSTED_NGINX = config("BEHIND_TRUSTED_NGINX", cast=bool, default=False)
+if (
+    DEPLOYMENT_PROFILE in {"staging", "production"}
+    and not EDGE_SHARED_SECRET
+    and not BEHIND_TRUSTED_NGINX
+):
+    raise ImproperlyConfigured(
+        "Set EDGE_SHARED_SECRET (Cloudflare Worker setup) or BEHIND_TRUSTED_NGINX=True; "
+        "otherwise the administrator IP lock trusts a client-supplied X-Real-IP header."
+    )
 
 # SPA /console/ API lock: when set, only these IPs/CIDRs may hit
 # /api/v1/auth/admin/* and /api/v1/admin/*. Empty = open (local). Use office/VPN egress.
