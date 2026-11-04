@@ -14,7 +14,9 @@ import type {
   PluginFile,
   PluginFileUploadPayload,
   PluginImage,
+  PluginApprovePayload,
   PluginImageUploadPayload,
+  PluginRejectPayload,
   PublicPluginCategoryListParams,
   PublicPluginDetail,
   PublicPluginListParams,
@@ -70,6 +72,33 @@ export async function updateAdminPlugin(
     `/api/v1/admin/plugins/${pluginId}/`,
     payload,
   )
+  return response.data
+}
+
+export async function approveAdminPlugin(
+  pluginId: string,
+  payload: PluginApprovePayload,
+): Promise<AdminPlugin> {
+  const response = await apiClient.post<AdminPlugin>(
+    `/api/v1/admin/plugins/${pluginId}/approve/`,
+    payload,
+  )
+  return response.data
+}
+
+export async function rejectAdminPlugin(
+  pluginId: string,
+  payload: PluginRejectPayload,
+): Promise<AdminPlugin> {
+  const response = await apiClient.post<AdminPlugin>(
+    `/api/v1/admin/plugins/${pluginId}/reject/`,
+    payload,
+  )
+  return response.data
+}
+
+export async function requeueAdminPlugin(pluginId: string): Promise<AdminPlugin> {
+  const response = await apiClient.post<AdminPlugin>(`/api/v1/admin/plugins/${pluginId}/requeue/`, {})
   return response.data
 }
 

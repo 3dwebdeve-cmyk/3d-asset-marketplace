@@ -1,0 +1,6 @@
+{
+  "api_base_url": "https://threed-asset-marketplace.onrender.com",
+  "r2_endpoint_url": "https://<account-id>.r2.cloudflarestorage.com",
+  "r2_private_bucket": "<private bucket name>",
+  "r2_public_bucket": "<public bucket name>"
+}

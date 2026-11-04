@@ -49,6 +49,7 @@ export function AdminPluginCategoryDetailPage() {
       slug: category.slug,
       description: category.description,
       image: category.image,
+      code: category.code ?? '',
       is_active: category.is_active,
     })
   }, [categoryId, categoryQuery.data, hydratedCategoryId])
@@ -86,8 +87,13 @@ export function AdminPluginCategoryDetailPage() {
       setFormError('Category data is still loading. Try again in a moment.')
       return
     }
+    const code = (form.code ?? '').trim()
     const error =
-      (form.name ?? '').trim().length < 2 ? 'Name must be at least 2 characters.' : null
+      (form.name ?? '').trim().length < 2
+        ? 'Name must be at least 2 characters.'
+        : code !== '' && !/^[A-Za-z]{3}$/.test(code)
+          ? 'The code must be three letters, such as ANI, or left empty.'
+          : null
     setFormError(error)
     if (error) return
     const payload: PluginCategoryUpdatePayload = {
@@ -138,6 +144,9 @@ export function AdminPluginCategoryDetailPage() {
               </FormField>
               <FormField id="detail-plugin-category-description" label="Description">
                 <Input id="detail-plugin-category-description" value={form.description ?? ''} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+              </FormField>
+              <FormField id="detail-plugin-category-code" label="Code (three letters, used in plugin IDs)">
+                <Input id="detail-plugin-category-code" maxLength={3} value={form.code ?? ''} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} />
               </FormField>
               <FormField id="detail-plugin-category-image" label="Image URL">
                 <Input id="detail-plugin-category-image" type="url" value={form.image ?? ''} onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))} />

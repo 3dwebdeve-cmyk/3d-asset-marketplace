@@ -1,5 +1,6 @@
 import hashlib
 
+from config.admin_lock import request_client_ip
 from rest_framework.throttling import SimpleRateThrottle, UserRateThrottle
 
 
@@ -8,7 +9,14 @@ class IPRateThrottle(SimpleRateThrottle):
 
     Unlike ``AnonRateThrottle``, authenticated requests are not exempt, so an
     attacker cannot skip auth limits by sending their own valid Bearer token.
+
+    The IP is the same edge-verified one the account lockout uses (``request_client_ip``),
+    not DRF's default, which trusts ``X-Forwarded-For``: a client could forge that header
+    to get a fresh bucket on every request.
     """
+
+    def get_ident(self, request):
+        return request_client_ip(request)
 
     def get_cache_key(self, request, view):
         return self.cache_format % {

@@ -44,6 +44,10 @@ BATCH_PRIVATE_SUFFIXES = (".zip",)
 # Only these file types are ever public under models/. Anything else there (.rar, .7z, .fbx,
 # .blend...) is a paid file and stays private even if an import path put it there.
 BATCH_PUBLIC_SUFFIXES = (".glb", ".gltf", ".webp", ".jpg", ".jpeg", ".png")
+# Plugin uploads live under plugins/{Plugin_ID}/: the thumbnail is public, the zip is private.
+# Only image types are public there; everything else under plugins/ stays private.
+PLUGIN_PUBLIC_PREFIX = "plugins/"
+PLUGIN_PUBLIC_SUFFIXES = (".webp", ".jpg", ".jpeg", ".png")
 # Free models live under free-models/{Model_ID}/ in the public bucket, zip included.
 FREE_MODELS_PREFIX = "free-models/"
 
@@ -101,6 +105,9 @@ def is_public_media_path(relative: str) -> bool:
         normalized.startswith(BATCH_PUBLIC_PREFIX)
         and not is_batch_private_object(normalized)
         and normalized.lower().endswith(BATCH_PUBLIC_SUFFIXES)
+    ) or (
+        normalized.startswith(PLUGIN_PUBLIC_PREFIX)
+        and normalized.lower().endswith(PLUGIN_PUBLIC_SUFFIXES)
     )
 
 

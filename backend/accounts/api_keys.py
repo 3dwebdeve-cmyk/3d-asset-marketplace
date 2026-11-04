@@ -23,6 +23,10 @@ from accounts.models import CatalogApiKey, Role, User
 
 CATALOG_UPLOADER_ROLE = "Catalog Uploader"
 DEFAULT_SERVICE_EMAIL = "catalog-uploader@service.invalid"
+PLUGIN_SERVICE_EMAIL = "plugin-uploader@service.invalid"
+SCOPE_MODELS = "models"
+SCOPE_PLUGINS = "plugins"
+SCOPES = (SCOPE_MODELS, SCOPE_PLUGINS)
 _PREFIX_BYTES = 4  # 8 hex characters
 _SECRET_BYTES = 32
 
@@ -86,10 +90,20 @@ class CatalogApiKeyService:
 
     @classmethod
     @transaction.atomic
-    def create_key(cls, *, name: str, service_email: str = DEFAULT_SERVICE_EMAIL) -> IssuedCatalogApiKey:
+    def create_key(
+        cls,
+        *,
+        name: str,
+        service_email: str | None = None,
+        scope: str = SCOPE_MODELS,
+    ) -> IssuedCatalogApiKey:
         name = name.strip()
         if not name:
             raise CatalogApiKeyError("A key name is required.")
+        if scope not in SCOPES:
+            raise CatalogApiKeyError(f"Scope must be one of: {', '.join(SCOPES)}.")
+        if service_email is None:
+            service_email = PLUGIN_SERVICE_EMAIL if scope == SCOPE_PLUGINS else DEFAULT_SERVICE_EMAIL
         user = cls.get_or_create_service_user(service_email)
         prefix = secrets.token_hex(_PREFIX_BYTES)
         while CatalogApiKey.objects.filter(key_prefix=prefix).exists():
@@ -100,6 +114,7 @@ class CatalogApiKeyService:
             key_prefix=prefix,
             key_hash=hash_key(key),
             user=user,
+            scope=scope,
         )
         return IssuedCatalogApiKey(api_key=api_key, key=key)
 

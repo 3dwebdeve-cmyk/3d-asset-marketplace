@@ -100,3 +100,31 @@ class RegistrationNoticeTests(APITestCase):
         hasher.assert_called_once()
         self.assertEqual([m.subject for m in mail.outbox], ["Account registration attempt"])
         self.assertEqual(User.objects.filter(email="already@example.com").count(), 1)
+
+
+class LoginThrottleSpoofingTests(APITestCase):
+    """A forged X-Forwarded-For must not give a fresh login bucket on every request."""
+
+    def setUp(self) -> None:
+        cache.clear()
+        User.objects.create_user(
+            email="spoof-throttle@example.com",
+            full_name="Spoof Throttle",
+            password=PASSWORD,
+            role=Role.objects.get(role_name="Customer"),
+            email_verified=True,
+        )
+        self.url = reverse("accounts:login")
+
+    def test_rotating_forwarded_for_still_hits_the_login_limit(self) -> None:
+        statuses = []
+        for i in range(10):
+            response = self.client.post(
+                self.url,
+                {"email": "spoof-throttle@example.com", "password": f"wrong-{i}"},
+                format="json",
+                HTTP_X_FORWARDED_FOR=f"203.0.113.{i + 1}",
+            )
+            statuses.append(response.status_code)
+        self.assertIn(status.HTTP_429_TOO_MANY_REQUESTS, statuses)
+        self.assertLess(statuses.index(status.HTTP_429_TOO_MANY_REQUESTS), 7)
