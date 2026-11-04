@@ -108,12 +108,15 @@ class CheckoutService:
         user: User,
         *,
         accepted_legal=None,
+        selected=None,
     ) -> dict[str, str]:
         with session_advisory_lock(f"checkout-user:{user.pk}"):
-            return cls._create_checkout_session_locked(user, accepted_legal=accepted_legal)
+            return cls._create_checkout_session_locked(
+                user, accepted_legal=accepted_legal, selected=selected
+            )
 
     @classmethod
-    def _create_checkout_session_locked(cls, user, *, accepted_legal=None):
+    def _create_checkout_session_locked(cls, user, *, accepted_legal=None, selected=None):
         cls._require_legal_acceptance(user, accepted_legal=accepted_legal)
 
         simulate = e2e_stripe_simulate_enabled()
@@ -132,7 +135,7 @@ class CheckoutService:
         # crash after remote creation can then retry the exact same operation.
         with transaction.atomic():
             try:
-                order = OrderService.create_from_cart(user, reuse_pending=True)
+                order = OrderService.create_from_cart(user, reuse_pending=True, selected=selected)
             except OrderError as exc:
                 raise CheckoutError(exc.message, field=exc.field) from exc
 

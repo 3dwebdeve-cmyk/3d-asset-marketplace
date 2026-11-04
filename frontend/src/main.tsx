@@ -8,6 +8,7 @@ import App from './App.tsx'
 import { Toaster } from './components/ui/Toaster'
 import { initFrontendSentry, reactRootErrorHandlers } from './lib/sentry'
 import { LegalVersionBootstrap } from './components/LegalVersionBootstrap'
+import { StartupPreloader } from './components/ui/Preloader'
 
 initFrontendSentry()
 
@@ -26,8 +27,10 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!, reactRootErrorHandlers()).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <LegalVersionBootstrap><App /></LegalVersionBootstrap>
-      <Toaster />
+      <StartupPreloader>
+        <LegalVersionBootstrap><App /></LegalVersionBootstrap>
+        <Toaster />
+      </StartupPreloader>
     </QueryClientProvider>
   </StrictMode>,
 )

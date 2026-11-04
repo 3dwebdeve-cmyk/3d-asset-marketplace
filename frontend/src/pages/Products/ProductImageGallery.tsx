@@ -4,6 +4,8 @@ import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
 import { isSafePreviewVideoUrl } from '../../components/viewer/isSafePreviewVideoUrl'
 import type { ProductImage } from '../../types/product'
+import { ProductImagePreview } from './ProductImagePreview'
+import { ZoomableImage } from './ZoomableImage'
 
 interface GalleryImage {
   id: string
@@ -66,6 +68,9 @@ export function ProductImageGallery({
   stageOverlays,
 }: ProductImageGalleryProps) {
   const stageRef = useRef<HTMLDivElement>(null)
+  const viewerRef = useRef<HTMLDivElement>(null)
+  const thumbnailRailRef = useRef<HTMLElement>(null)
+  const thumbnailsRef = useRef<HTMLUListElement>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const swiped = useRef(false)
   const galleryId = useId()
@@ -244,6 +249,106 @@ export function ProductImageGallery({
     ? (hasSafePreviewModel ? 2 : 1)
     : (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + safeIndex + 1
 
+  const hasThumbnails = galleryImages.length > 0 ||
+    (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo))
+
+  useEffect(() => {
+    const rail = thumbnailRailRef.current
+    const strip = thumbnailsRef.current
+    if (!rail || !strip) return
+
+    let frame: number | null = null
+    let target = strip.scrollLeft
+    let start = target
+    let startedAt = 0
+    let direction = 0
+    const stop = () => {
+      if (frame !== null) cancelAnimationFrame(frame)
+      frame = null
+      target = strip.scrollLeft
+    }
+    const animate = (now: number) => {
+      target = Math.min(target, Math.max(0, strip.scrollWidth - strip.clientWidth))
+      const progress = Math.min(1, (now - startedAt) / 380)
+      // Ease out like a gently settling carousel, without overshooting an edge.
+      strip.scrollLeft = start + (target - start) * (1 - Math.pow(1 - progress, 3))
+      frame = progress < 1 ? requestAnimationFrame(animate) : null
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      // Leave browser zoom and native horizontal trackpad gestures alone.
+      if (event.ctrlKey || event.metaKey) return
+      if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
+        stop()
+        return
+      }
+      const maxScroll = strip.scrollWidth - strip.clientWidth
+      if (maxScroll <= 0 || !event.cancelable) return
+
+      const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? strip.clientWidth : 1)
+      if ((delta < 0 && strip.scrollLeft <= 0) || (delta > 0 && strip.scrollLeft >= maxScroll - 1)) return
+
+      event.preventDefault()
+      if (frame === null || Math.sign(delta) !== direction) target = strip.scrollLeft
+      target = Math.max(0, Math.min(maxScroll, target + delta))
+      direction = Math.sign(delta)
+      if (frame !== null) cancelAnimationFrame(frame)
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        strip.scrollLeft = target
+        frame = null
+        return
+      }
+      start = strip.scrollLeft
+      startedAt = performance.now()
+      frame = requestAnimationFrame(animate)
+    }
+
+    // A non-passive listener is required to prevent vertical page scrolling.
+    rail.addEventListener('wheel', onWheel, { passive: false })
+    rail.addEventListener('pointerdown', stop)
+    rail.addEventListener('touchstart', stop, { passive: true })
+    return () => {
+      stop()
+      rail.removeEventListener('wheel', onWheel)
+      rail.removeEventListener('pointerdown', stop)
+      rail.removeEventListener('touchstart', stop)
+    }
+  }, [hasThumbnails, stagePosition])
+
+  // Move only the thumbnail strip, never the page, when the selected preview changes.
+  const revealSelectedThumbnail = useCallback(() => {
+    const strip = thumbnailsRef.current
+    const selected = strip?.querySelector<HTMLButtonElement>('[aria-current="true"]')
+    if (!strip || !selected) return
+    const stripBounds = strip.getBoundingClientRect()
+    const selectedBounds = selected.getBoundingClientRect()
+    const inset = 4 // Keep the active outline inside the scroll viewport.
+    let offset = 0
+    if (selectedBounds.left < stripBounds.left + inset) {
+      offset = selectedBounds.left - stripBounds.left - inset
+    } else if (selectedBounds.right > stripBounds.right - inset) {
+      offset = selectedBounds.right - stripBounds.right + inset
+    }
+    if (offset) {
+      strip.scrollTo?.({
+        left: strip.scrollLeft + offset,
+        behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    revealSelectedThumbnail()
+  }, [stagePosition, galleryImages, imgErrorIds, showPreviewModeThumbs, revealSelectedThumbnail])
+
+  useEffect(() => {
+    const strip = thumbnailsRef.current
+    if (!strip || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(revealSelectedThumbnail)
+    observer.observe(strip)
+    return () => observer.disconnect()
+  }, [hasThumbnails, revealSelectedThumbnail])
+
   useEffect(() => {
     if (!lightboxOpen) {
       return
@@ -296,7 +401,7 @@ export function ProductImageGallery({
         }}
       >
         {showModelStage ? (
-          <div className="product-detail-stage__viewer">
+          <div className="product-detail-stage__viewer" ref={viewerRef}>
             <LazyModelViewer
               modelUrl={previewModelUrl.trim()}
               ariaLabel={`Interactive 3D preview of ${productName}`}
@@ -366,35 +471,19 @@ export function ProductImageGallery({
             aria-controls={`${galleryId}-lightbox`}
             aria-expanded={lightboxOpen}
           >
-            <img
+            <ProductImagePreview
+              key={activeImage.src}
               src={activeImage.src}
               alt={activeImage.alt}
-              className="product-detail-stage__image"
               onError={() => markFailed(activeImage.id)}
             />
           </button>
         )}
 
         {totalCount > 1 ? (
-          <>
-            <button
-              type="button"
-              className="product-detail-stage__nav product-detail-stage__nav--prev"
-              aria-label="Previous preview"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => { event.stopPropagation(); showPrevious() }}
-            ><span aria-hidden="true">‹</span></button>
-            <button
-              type="button"
-              className="product-detail-stage__nav product-detail-stage__nav--next"
-              aria-label="Next preview"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => { event.stopPropagation(); showNext() }}
-            ><span aria-hidden="true">›</span></button>
-            <span className="product-detail-stage__counter" role="status" aria-live="polite" aria-atomic="true">
-              <span className="product-detail-stage__counter-label">Preview </span>{stagePosition} / {totalCount}
-            </span>
-          </>
+          <span className="product-detail-stage__counter" role="status" aria-live="polite" aria-atomic="true">
+            <span className="product-detail-stage__counter-label">Preview </span>{stagePosition} / {totalCount}
+          </span>
         ) : null}
         {showStageChrome && stageOverlays ? (
           <div className="product-detail-stage__overlays">{stageOverlays}</div>
@@ -405,7 +494,7 @@ export function ProductImageGallery({
             className="product-detail-stage__fullscreen"
             aria-label="View 3D model in fullscreen"
             title="Fullscreen"
-            onClick={() => void stageRef.current?.requestFullscreen()}
+            onClick={() => void viewerRef.current?.requestFullscreen()}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8.5 4H4v4.5M15.5 4H20v4.5M20 15.5V20h-4.5M8.5 20H4v-4.5" />
@@ -414,9 +503,31 @@ export function ProductImageGallery({
         ) : null}
       </div>
 
-      {galleryImages.length > 0 ||
-      (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo)) ? (
-        <ul className="product-detail-gallery__thumbs" aria-label="Product image thumbnails">
+      {hasThumbnails ? (
+        <section ref={thumbnailRailRef} className="product-detail-gallery__rail" aria-label="Gallery thumbnails">
+          <div className="product-detail-gallery__rail-header">
+            <h3 className="product-detail-gallery__rail-title">Gallery</h3>
+            <span className="product-detail-gallery__rail-counter" aria-hidden="true">
+              {stagePosition} / {totalCount}
+            </span>
+          </div>
+          <div className="product-detail-gallery__rail-controls">
+            <button
+              type="button"
+              className="product-detail-gallery__rail-nav"
+              aria-label="Previous gallery item"
+              aria-controls={`${galleryId}-thumbnails`}
+              disabled={totalCount <= 1}
+              onClick={showPrevious}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
+            </button>
+        <ul
+          ref={thumbnailsRef}
+          id={`${galleryId}-thumbnails`}
+          className="product-detail-gallery__thumbs"
+          aria-label="Product image thumbnails"
+        >
           {showPreviewModeThumbs && hasSafePreviewModel ? (
             <li>
               <button
@@ -428,7 +539,12 @@ export function ProductImageGallery({
                 aria-label="Show 3D preview"
                 aria-current={showModelStage ? 'true' : undefined}
               >
-                <span className="product-detail-gallery__thumb-3d">3D</span>
+                <span className="product-detail-gallery__thumb-3d">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10 9-5M12 12 3 7m9 5v10" />
+                  </svg>
+                  <span>3D</span>
+                </span>
               </button>
             </li>
           ) : null}
@@ -443,7 +559,10 @@ export function ProductImageGallery({
                 aria-label="Show preview video"
                 aria-current={showVideoStage ? 'true' : undefined}
               >
-                <span className="product-detail-gallery__thumb-3d">Video</span>
+                <span className="product-detail-gallery__thumb-3d">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg>
+                  <span>Video</span>
+                </span>
               </button>
             </li>
           ) : null}
@@ -475,6 +594,18 @@ export function ProductImageGallery({
             )
           })}
         </ul>
+            <button
+              type="button"
+              className="product-detail-gallery__rail-nav"
+              aria-label="Next gallery item"
+              aria-controls={`${galleryId}-thumbnails`}
+              disabled={totalCount <= 1}
+              onClick={showNext}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg>
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {lightboxOpen && activeImage && !activeFailed ? (
@@ -498,8 +629,15 @@ export function ProductImageGallery({
               onClick={closeLightbox}
               aria-label="Close image viewer"
             >
-              Close
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
             </button>
+            <ZoomableImage
+              key={activeImage.src}
+              src={activeImage.src}
+              alt={activeImage.alt}
+            />
             {galleryImages.length > 1 ? (
               <>
                 <button
@@ -508,7 +646,9 @@ export function ProductImageGallery({
                   onClick={() => stepLightbox(-1)}
                   aria-label="Previous image"
                 >
-                  Previous
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m14 6-6 6 6 6" />
+                  </svg>
                 </button>
                 <button
                   type="button"
@@ -516,16 +656,13 @@ export function ProductImageGallery({
                   onClick={() => stepLightbox(1)}
                   aria-label="Next image"
                 >
-                  Next
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m10 6 6 6-6 6" />
+                  </svg>
                 </button>
               </>
             ) : null}
-            <img
-              src={activeImage.src}
-              alt={activeImage.alt}
-              className="product-detail-lightbox__image"
-            />
-            <p className="product-detail-lightbox__counter">
+            <p className="product-detail-lightbox__counter" role="status" aria-live="polite" aria-atomic="true">
               {safeIndex + 1} / {galleryImages.length}
             </p>
           </div>

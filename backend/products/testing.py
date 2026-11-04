@@ -44,7 +44,7 @@ def put_pipeline_images(items: list[dict]) -> None:
         for image_key in (str(k or "") for k in image_keys):
             extension = "." + image_key.rsplit(".", 1)[-1].lower() if "." in image_key else ""
             if (
-                image_key.startswith("models/")
+                image_key.startswith(("models/", "free-models/"))
                 and ".." not in image_key
                 and extension in _IMAGE_FORMATS
                 and not default_storage.exists(image_key)
@@ -57,7 +57,7 @@ def put_pipeline_uploads(items: list[dict], *, triangles: int = 100) -> None:
     for item in items:
         key = str((item.get("media") or {}).get("preview_key") or "")
         name = PurePosixPath(key).name.lower()
-        # preview-<hex>.glb is the importer's own secured copy, never a pipeline upload.
+        # preview-<hex>.glb is a copy older imports made, never a pipeline upload.
         if (
             name.endswith(".glb")
             and not name.startswith("preview-")

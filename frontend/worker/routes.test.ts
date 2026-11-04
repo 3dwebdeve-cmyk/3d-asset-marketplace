@@ -55,6 +55,8 @@ describe('known page addresses', () => {
     '/admin',
     '/admin/products/anything',
     '/console/orders/42',
+    '/console/archived',
+    '/console/archived/42',
     '/dashboard/orders/7',
   ])('knows %s', (path) => {
     expect(isKnownAppPath(path)).toBe(true)
@@ -66,6 +68,7 @@ describe('known page addresses', () => {
     '/products/desk-lamp/extra',
     '/reset-password/only-one-part',
     '/console/unknown',
+    '/console/archived/42/extra',
     '/wp-login.php.bak/',
   ])('does not know %s', (path) => {
     expect(isKnownAppPath(path)).toBe(false)
@@ -104,7 +107,7 @@ describe('unknown addresses', () => {
   })
 
   it('leave known private pages to the app', async () => {
-    for (const path of ['/cart', '/dashboard/orders', '/console/login']) {
+    for (const path of ['/cart', '/dashboard/orders', '/console/login', '/console/archived', '/console/archived/42']) {
       const response = await worker.fetch(new Request(`https://shop.example${path}`), createEnv())
       expect(response.status, path).toBe(200)
     }

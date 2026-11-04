@@ -229,6 +229,11 @@ class CartService:
                     "Product is not available for purchase.",
                     field="product_id",
                 )
+            if product.is_free:
+                raise CartError(
+                    "This model is free. Use Download on its page; it needs no checkout.",
+                    field="product_id",
+                )
             effective_price = cls._effective_price(product.discount_price, product.price)
             return effective_price, product.currency
 
@@ -313,8 +318,11 @@ class CartService:
                 "name": product.category.name,
                 "slug": product.category.slug,
             },
+            # A model made free after it was added is downloaded, not checked out.
             "is_available": (
-                product.status == Product.Status.PUBLISHED and product.category.is_active
+                product.status == Product.Status.PUBLISHED
+                and product.category.is_active
+                and not product.is_free
             ),
         }
 

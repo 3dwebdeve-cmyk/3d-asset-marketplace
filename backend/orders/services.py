@@ -310,23 +310,36 @@ class OrderService:
 
     @classmethod
     @transaction.atomic
-    def create_from_cart(cls, user: User, *, reuse_pending: bool = False) -> Order:
+    def create_from_cart(
+        cls, user: User, *, reuse_pending: bool = False, selected=None
+    ) -> Order:
         """Snapshot the user's cart into a PENDING order for checkout.
 
         Only available cart lines are included (mirrors CartService totals).
+        `selected`, a set of (product_type, product_id), limits the order to those lines;
+        the rest stay in the cart.
         """
         from cart.services import CartService
 
-        CartService.lock_cart(user)
+        from orders.entitlements import owned_catalog_keys
+
+        cart = CartService.lock_cart(user)
+        # Owned since it was added (another tab, an earlier checkout, a free claim):
+        # drop it from the cart so it is never charged twice and never blocks checkout.
+        owned = owned_catalog_keys(user, list(cart.items.values_list("product_type", "product_id")))
+        for product_type, product_id in owned:
+            cart.items.filter(product_type=product_type, product_id=product_id).delete()
         envelope = CartService.get_cart_envelope(user)
         available_items = [
             item
             for item in envelope.items
             if (snapshot := envelope.snapshots.get((item.product_type, item.product_id)))
             and snapshot.get("is_available")
+            and (selected is None or (item.product_type, item.product_id) in selected)
         ]
         if not available_items:
             raise OrderError("Your cart is empty.", field="items")
+        totals = CartService._compute_totals(available_items, envelope.snapshots)
 
         # An administrator can change a catalog currency after items are in the cart. Never
         # charge one currency's price in another: every line must match the order currency.
@@ -334,25 +347,12 @@ class OrderService:
             str(envelope.snapshots[(item.product_type, item.product_id)].get("name") or "an item")
             for item in available_items
             if str(envelope.snapshots[(item.product_type, item.product_id)].get("currency") or "")
-            != envelope.totals.currency
+            != totals.currency
         )
         if mismatched:
             raise OrderError(
                 f"The currency changed for {', '.join(mismatched)}. "
                 "Remove it from your cart and add it again.",
-                field="items",
-            )
-
-        from orders.entitlements import owned_catalog_keys
-
-        # Bought since it was added to the cart (another tab, an earlier checkout): never charge twice.
-        owned = owned_catalog_keys(user, [(item.product_type, item.product_id) for item in available_items])
-        if owned:
-            names = sorted(
-                str(envelope.snapshots[key].get("name") or "an item") for key in owned
-            )
-            raise OrderError(
-                f"You already own {', '.join(names)}. Remove it from your cart to continue.",
                 field="items",
             )
 
@@ -389,7 +389,7 @@ class OrderService:
             candidates = Order.objects.filter(
                 user=user, order_status=Order.OrderStatus.PENDING,
                 payment_status=Order.PaymentStatus.PENDING,
-                total_amount=envelope.totals.total, currency=envelope.totals.currency,
+                total_amount=totals.total, currency=totals.currency,
             ).filter(
                 Q(
                     checkout_attempt__status__in=['prepared', 'ready', 'review'],
@@ -405,8 +405,8 @@ class OrderService:
 
         order = cls._create_order_with_unique_invoice(
             user=user,
-            total_amount=envelope.totals.total,
-            currency=envelope.totals.currency,
+            total_amount=totals.total,
+            currency=totals.currency,
         )
         OrderItem.objects.bulk_create(
             [

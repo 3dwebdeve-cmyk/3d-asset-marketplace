@@ -43,19 +43,25 @@ npx @gltf-transform/cli inspect preview.glb
 
 Compare the triangle count in the inspect output with the source model's polygon count.
 
-## Batch imports: the predictable name is removed
+## Batch imports: the preview is used where it is
 
 The pipeline uploads `models/<Model_ID>/preview_<Model_ID>.glb` (3ds Max uploader) or
-`models/<Model_ID>/preview.glb` (older bridge). Anyone can guess these names for any SKU,
-including products that are not released yet. During import the app:
+`models/<Model_ID>/preview.glb` (older bridge). During import the app reads, scans and
+measures the preview **in place**, and the product points straight at that file, with
+`?v=<12 hex of its SHA-256>` added so a re-uploaded preview is never served stale. The import
+never copies, renames or deletes it.
 
-1. Reads, scans and measures the preview.
-2. Copies it to `models/<Model_ID>/preview-<32 random hex>.glb` and points the product there.
-3. Deletes the uploaded file, and on a re-import also the product's previous random copy.
+A rejected preview (`invalid_preview`, `preview_too_large`, `preview_not_reduced`,
+`scanner_unavailable`) stays in R2; the row is skipped with that reason, and the next upload
+replaces the file. Only a preview the virus scanner reports as malware is deleted
+(`preview_malware`).
 
-A rejected preview (`invalid_preview`, `preview_too_large`, `preview_not_reduced`) is deleted
-too, so it never stays public under the guessable name. The row is skipped with that reason;
-upload a corrected preview and import again.
+**Trade-off:** these names can be guessed for any SKU. A draft's preview is reachable before
+the product is released, and a rejected full-detail preview (`preview_not_reduced`) stays
+public until it is replaced. Keep previews reduced at export time.
+
+Older imports moved previews to `preview-<32 hex>.glb`. A re-import deletes the product's old
+copy; `python manage.py cleanup_import_copies --delete` removes any left over.
 
 A re-import without a new preview upload keeps the product's current preview.
 

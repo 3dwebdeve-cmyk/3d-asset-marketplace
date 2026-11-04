@@ -21,6 +21,7 @@ import { discountPercent } from '../../lib/pricing'
 import { NOINDEX_CATEGORY_SLUGS, categoryPath } from '../../lib/categorySeo'
 import { buildBreadcrumbJsonLd, buildProductJsonLd } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
+import { isFreeProduct } from '../../types/product'
 import type { ProductLicenseType, PublicProductDetail } from '../../types/product'
 import { ProductCard } from './ProductCard'
 import { ProductCtaGroup } from './ProductCtaGroup'
@@ -67,7 +68,8 @@ function ProductDetailSkeleton() {
 }
 
 function ProductDetailContent({ product }: { product: PublicProductDetail }) {
-  const hasDiscount = Boolean(
+  const isFree = isFreeProduct(product)
+  const hasDiscount = !isFree && Boolean(
     product.discount_price && Number(product.discount_price) < Number(product.price),
   )
   const salePercent =
@@ -173,7 +175,9 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             <div className="product-hub-detail__purchase-row">
               <div className="product-hub-detail__purchase-info">
                 <div className="product-detail-purchase__price">
-                  {hasDiscount && product.discount_price ? (
+                  {isFree ? (
+                    <span className="product-detail-purchase__price-current">Free</span>
+                  ) : hasDiscount && product.discount_price ? (
                     <>
                       <span className="product-detail-purchase__price-current">
                         {formatMoney(product.discount_price, product.currency)}
@@ -208,6 +212,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
                 productId={product.id}
                 productName={product.name}
                 productSlug={product.slug}
+                isFree={isFree}
               />
             </div>
 

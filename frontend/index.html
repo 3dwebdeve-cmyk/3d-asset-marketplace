@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="stylesheet" href="/src/styles/preloader.css" />
+  <link rel="preload" href="/images/assethive-preloader.webp" as="image" media="(prefers-reduced-motion: no-preference)" />
   <!-- Use PNG favicons for browsers and search engines; keep these URLs stable. -->
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
@@ -16,37 +17,61 @@
        before the JavaScript has rendered anything, so the text never re-flows when the font swaps in. -->
   <link rel="preload" href="/fonts/poppins-latin-400.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/poppins-latin-600.woff2" as="font" type="font/woff2" crossorigin />
-  <title>Download Furniture &amp; Interior 3D Models | AssetHive3D</title>
+  <title>AssetHive3D | Buy, Sell &amp; Download 3D Models and Blender Plugins</title>
+  <meta name="title" content="AssetHive3D | Buy, Sell &amp; Download 3D Models and Blender Plugins" />
+  <meta name="keywords" content="3d models, buy 3d models, free 3d models, furniture 3d model, interior 3d assets, blender plugins, architectural 3d models, low poly 3d models, pbr models" />
+  <link rel="canonical" href="__SITE_URL__/" />
   <meta name="description"
-    content="Download production-ready 3D models of furniture, interiors, lighting and plants. Preview every model in 3D, buy securely and get a license with each order." />
+    content="Discover high-quality 3D models for visualization, architecture, interiors, and game development. Download free &amp; premium production-ready 3D assets, PBR textures, and workflow plugins." />
 
   <!-- The Worker renders page-specific previews before JavaScript runs. -->
+  <meta property="og:url" content="__SITE_URL__/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="AssetHive3D" />
   <meta property="og:locale" content="en_US" />
-  <meta property="og:title" content="Download Furniture &amp; Interior 3D Models | AssetHive3D" />
+  <meta property="og:title" content="AssetHive3D - Marketplace for Production-Ready 3D Models" />
   <meta property="og:description"
-    content="Download production-ready 3D models of furniture, interiors, lighting and plants. Preview every model in 3D, buy securely and get a license with each order." />
-  <meta property="og:image" content="__SITE_URL__/og-default.jpg" />
+    content="Download production-ready 3D models of furniture, interiors, architecture, and plugins for Blender and Unreal Engine." />
+  <meta property="og:image" content="__SITE_URL__/static/og-banner.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="Sofa, armchair and coffee table in a modern interior, with the AssetHive3D name" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Download Furniture &amp; Interior 3D Models | AssetHive3D" />
+  <meta name="twitter:title" content="AssetHive3D | Buy, Sell &amp; Download 3D Models and Blender Plugins" />
   <meta name="twitter:description"
-    content="Download production-ready 3D models of furniture, interiors, lighting and plants. Preview every model in 3D, buy securely and get a license with each order." />
-  <meta name="twitter:image" content="__SITE_URL__/og-default.jpg" />
+    content="Discover high-quality 3D models for visualization, architecture, interiors, and game development. Download free &amp; premium production-ready 3D assets, PBR textures, and workflow plugins." />
+  <meta name="twitter:image" content="__SITE_URL__/static/og-banner.jpg" />
   <meta name="twitter:image:alt" content="Sofa, armchair and coffee table in a modern interior, with the AssetHive3D name" />
 </head>
 
 <body>
+  <noscript><style>.site-preloader { display: none; }</style></noscript>
   <div id="root">
-    <div class="site-preloader" role="status" aria-live="polite" aria-busy="true">
-      <iframe class="site-preloader__animation"
-        src="https://lottie.host/embed/488013ff-0d7b-45d3-856c-641ecf29dbb1/VKkkAlq0FN.lottie"
-        title="Blue animated icon" loading="eager" tabindex="-1" aria-hidden="true"></iframe>
-      <p class="site-preloader__label">Loading marketplace...</p>
-    </div>
+    <main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title">
+      <h1 id="page-summary-title">Furniture &amp; interior 3D models for visualization and design</h1>
+      <p>Discover high-quality 3D models for visualization, architecture, interiors, and game development. Download free &amp; premium production-ready 3D assets, PBR textures, and workflow plugins.</p>
+      <nav aria-label="Marketplace pages">
+        <ul>
+          <li><a href="/">AssetHive3D home</a></li>
+          <li><a href="/3d-models">3D models</a></li>
+          <li><a href="/categories">3D model categories</a></li>
+          <li><a href="/3d-models?max_price=0">Download free 3D models</a></li>
+          <li><a href="/3d-models?search=robot">Robot 3D models</a></li>
+          <li><a href="/plugins">Plugins and tools</a></li>
+          <li><a href="/custom-projects">Custom 3D projects</a></li>
+          <li><a href="/about">About AssetHive3D</a></li>
+          <li><a href="/contact">Contact and enquiries</a></li>
+        </ul>
+      </nav>
+    </main>
+    <section class="site-preloader" role="status" aria-label="Loading AssetHive3D" aria-live="polite" aria-busy="true">
+      <div class="site-preloader__stage" aria-hidden="true">
+        <img src="/images/assethive-preloader-still.webp" alt="" width="500" height="500" />
+      </div>
+      <h2 class="site-preloader__title">AssetHive<span>3D</span></h2>
+      <p class="site-preloader__label">Preparing your creative space</p>
+      <div class="site-preloader__track" aria-hidden="true"></div>
+    </section>
   </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

@@ -12,19 +12,21 @@ export interface StaticPageSeo {
   keywords?: string[]
   image?: string
   imageAlt?: string
+  ogTitle?: string
+  ogDescription?: string
 }
 
 export const HOME_SEO: StaticPageSeo = {
   title: HOME_TITLE,
   description: HOME_DESCRIPTION,
+  ogTitle: 'AssetHive3D - Marketplace for Production-Ready 3D Models',
+  ogDescription: 'Download production-ready 3D models of furniture, interiors, architecture, and plugins for Blender and Unreal Engine.',
+  image: '/static/og-banner.jpg',
+  imageAlt: 'Sofa, armchair and coffee table in a modern interior, with the AssetHive3D name',
   keywords: [
-    '3D models',
-    '3D assets',
-    'download 3D models',
-    'game-ready 3D models',
-    'Blender models',
-    'Maya models',
-    '3D plugins',
+    '3d models', 'buy 3d models', 'free 3d models', 'furniture 3d model',
+    'interior 3d assets', 'blender plugins', 'architectural 3d models',
+    'low poly 3d models', 'pbr models',
   ],
 }
 

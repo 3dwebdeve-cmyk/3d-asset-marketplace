@@ -25,7 +25,9 @@ test.describe('marketplace checkout commerce', () => {
     await expect(page.getByRole('heading', { name: 'Your cart' })).toBeVisible()
     await expect(page.getByText('E2E Checkout Chair')).toBeVisible()
 
-    await page.getByRole('button', { name: /^Checkout$/ }).click()
+    // Every cart line is ticked by default; checkout buys the ticked ones.
+    await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Chair' })).toBeChecked()
+    await page.getByRole('button', { name: /^Checkout selected \(\d+\)$/ }).click()
 
     await expect(page).toHaveURL(/\/checkout\/success\?order_id=/, { timeout: 60_000 })
     await expect(page.getByRole('heading', { name: 'Payment successful' })).toBeVisible({

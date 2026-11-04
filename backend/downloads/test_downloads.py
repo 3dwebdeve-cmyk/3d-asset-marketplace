@@ -265,6 +265,51 @@ class DownloadAPITests(APITestCase):
         content = b"".join(response.streaming_content)
         self.assertIn(b"PK", content)
 
+    def test_deleted_product_moves_to_archive_without_losing_buyer_downloads(self) -> None:
+        product_file = self._upload_product_file()
+        order = self.create_paid_order(self.customer)
+        self.client.force_authenticate(user=self.admin)
+        removal = self.client.post(
+            reverse("products_admin:admin-product-bulk-delete"),
+            {"product_ids": [str(self.product.pk)]}, format="json",
+        )
+        self.assertEqual(removal.status_code, status.HTTP_200_OK)
+        self.assertEqual(removal.data["archived"], [str(self.product.pk)])
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.ARCHIVED)
+        archived = self.client.get(reverse("products_admin:admin-products"), {"status": "archived"})
+        self.assertEqual(archived.data["count"], 1)
+
+        self.client.force_authenticate(user=self.customer)
+        public_url = reverse("products:product-detail", kwargs={"slug": self.product.slug})
+        self.assertEqual(self.client.get(public_url).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.get(reverse("products:product-list")).data["count"], 0)
+        order_url = reverse("orders:order-detail", kwargs={"order_id": order.pk})
+        self.assertEqual(self.client.get(order_url).status_code, status.HTTP_200_OK)
+        entitlements = self.client.get(self.entitlements_url)
+        self.assertEqual(entitlements.status_code, status.HTTP_200_OK)
+        self.assertEqual(entitlements.data[0]["title"], self.product.name)
+        self.assertEqual(str(entitlements.data[0]["files"][0]["id"]), str(product_file.pk))
+        download_url = entitlements.data[0]["files"][0]["download_url"]
+        response = self.client.get(download_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(b"PK", b"".join(response.streaming_content))
+        self.client.force_authenticate(user=self.other_customer)
+        self.assertEqual(self.client.get(download_url).status_code, status.HTTP_404_NOT_FOUND)
+
+        self.client.force_authenticate(user=self.admin)
+        restore_url = reverse("products_admin:admin-product-restore", kwargs={"product_id": self.product.pk})
+        self.assertEqual(self.client.post(restore_url, {}, format="json").status_code, status.HTTP_200_OK)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.DRAFT)
+        self.client.force_authenticate(user=self.customer)
+        self.assertEqual(self.client.get(public_url).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.client.get(order_url).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get(self.entitlements_url).data[0]["title"], self.product.name)
+        response = self.client.get(download_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(b"PK", b"".join(response.streaming_content))
+
     def test_paid_owner_can_download_plugin_file(self) -> None:
         plugin_file = self._upload_plugin_file()
         self.create_paid_order(

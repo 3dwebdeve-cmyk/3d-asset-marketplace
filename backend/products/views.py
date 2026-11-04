@@ -1,6 +1,8 @@
 import logging
 from uuid import UUID
 
+from django.http import HttpResponse, HttpResponseRedirect
+
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -17,8 +19,16 @@ from accounts.throttles import (
     AdminUploadRateThrottle,
     CatalogIngestRateThrottle,
     CatalogSearchRateThrottle,
+    DownloadRateThrottle,
 )
 from config.api_helpers import domain_error_response, parse_uuid
+from config.media import (
+    PrivateFileNotFound,
+    is_free_model_path,
+    media_relative_path,
+    resolve_private_download,
+)
+from config.storages import build_public_media_url
 from config.http_cache import PublicCatalogCacheMixin
 from products.catalog_import import CatalogImportService
 from products.models import Product
@@ -26,6 +36,8 @@ from products.pagination import ProductPagination
 from products.serializers import (
     CatalogImportEnvelopeSerializer,
     ProductAdminSerializer,
+    ProductApproveSerializer,
+    ProductBulkDeleteSerializer,
     ProductCreateSerializer,
     ProductDetailPublicSerializer,
     ProductFileAdminSerializer,
@@ -122,6 +134,35 @@ class ProductDetailView(PublicCatalogCacheMixin, APIView):
 
         serializer = ProductDetailPublicSerializer(product)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProductFreeDownloadView(APIView):
+    """GET /api/v1/products/<slug>/free-download/ — a free model's zip, no account needed.
+
+    Redirects to the file: the public free-models/ object, or a short-lived signed
+    link when the zip is in the private bucket.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [DownloadRateThrottle]
+
+    def get(self, request: Request, slug: str) -> HttpResponse:
+        try:
+            product = ProductService.get_public_by_slug(slug)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+        package = product.files.filter(is_preview=False).order_by("-created_at").first()
+        if not product.is_free or package is None:
+            raise NotFound("This model is not a free download.")
+        if is_free_model_path(package.storage_path):
+            return HttpResponseRedirect(
+                build_public_media_url(media_relative_path(package.storage_path))
+            )
+        try:
+            result = resolve_private_download(package.storage_path, file_name=package.file_name)
+        except PrivateFileNotFound:
+            raise NotFound("File not found.") from None
+        return HttpResponseRedirect(result["download_url"]) if isinstance(result, dict) else result
 
 
 class AdminProductListCreateView(APIView):
@@ -302,6 +343,58 @@ class AdminProductDetailView(APIView):
         )
 
 
+class AdminProductRestoreView(APIView):
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request, product_id: UUID) -> Response:
+        try:
+            product = ProductService.get_by_id(product_id)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+        try:
+            restored = ProductService.restore_product(product)
+        except ProductError as exc:
+            return _product_error_response(exc)
+        log_admin_action(
+            action="product_restore", actor_id=str(request.user.pk), target_id=str(restored.pk),
+        )
+        return Response(ProductAdminSerializer(restored).data, status=status.HTTP_200_OK)
+
+
+class AdminProductBulkDeleteView(APIView):
+    """POST /api/admin/products/bulk-delete/ — delete selected products.
+
+    All selected products are archived; product files and buyer downloads are retained.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request) -> Response:
+        serializer = ProductBulkDeleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        result: dict[str, list[str]] = {"deleted": [], "archived": [], "not_found": []}
+        for product_id in dict.fromkeys(serializer.validated_data["product_ids"]):
+            try:
+                product = ProductService.get_by_id(product_id)
+            except ProductError:
+                result["not_found"].append(str(product_id))
+                continue
+            outcome = ProductService.delete_or_archive(product)
+            result[outcome].append(str(product_id))
+            log_admin_action(
+                action=f"product_{'delete' if outcome == 'deleted' else 'archive'}",
+                actor_id=str(request.user.pk),
+                target_id=str(product_id),
+                metadata={"name": product.name, "sku": product.sku or ""},
+            )
+        return Response(result, status=status.HTTP_200_OK)
+
+
 class AdminProductImageUploadView(APIView):
     permission_classes = [IsAuthenticated, IsAdministrator]
     throttle_classes = [AdminProductWriteRateThrottle, AdminUploadRateThrottle]
@@ -445,6 +538,7 @@ class AdminCatalogImportView(APIView):
             action="catalog_import",
             actor_id=str(request.user.pk),
             target_id=data["import_batch_id"],
+            metadata=batch.audit_metadata() or None,
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)
 
@@ -477,7 +571,7 @@ class CatalogIngestImportView(APIView):
         key_prefix = request.auth.key_prefix
         logger.info(
             "catalog_ingest key_prefix=%s batch_id=%s items=%s created=%s updated=%s "
-            "skipped=%s failed=%s",
+            "skipped=%s failed=%s preview_not_scanned=%s",
             key_prefix,
             data["import_batch_id"],
             len(data["items"]),
@@ -485,6 +579,7 @@ class CatalogIngestImportView(APIView):
             batch.updated,
             batch.skipped,
             batch.failed,
+            "true" if batch.not_scanned_model_ids else "false",
         )
         log_admin_action(
             action="catalog_ingest_import",
@@ -496,6 +591,7 @@ class CatalogIngestImportView(APIView):
                 "updated": batch.updated,
                 "skipped": batch.skipped,
                 "failed": batch.failed,
+                **batch.audit_metadata(),
             },
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)
@@ -514,8 +610,17 @@ class AdminProductApproveView(APIView):
         except ProductError as exc:
             raise NotFound(exc.message) from exc
 
+        serializer = ProductApproveSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        pricing = serializer.validated_data.get("pricing")
+
         try:
-            updated = ProductService.approve_product(product, reviewer=request.user)
+            updated = ProductService.approve_product(
+                product,
+                reviewer=request.user,
+                pricing=pricing,
+                price=serializer.validated_data.get("price"),
+            )
         except ProductError as exc:
             return _product_error_response(exc)
 
@@ -523,6 +628,7 @@ class AdminProductApproveView(APIView):
             action="product_approve",
             actor_id=str(request.user.pk),
             target_id=str(updated.pk),
+            metadata={"pricing": pricing, "price": str(updated.price)} if pricing else None,
         )
         return Response(
             ProductAdminSerializer(updated).data,

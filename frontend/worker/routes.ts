@@ -51,6 +51,8 @@ export const APP_ROUTE_PATTERNS: readonly string[] = [
   '/console/categories/:categoryId',
   '/console/products',
   '/console/products/:productId',
+  '/console/archived',
+  '/console/archived/:productId',
   '/console/plugins',
   '/console/plugins/:pluginId',
   '/console/plugin-categories',

@@ -169,10 +169,27 @@ jobs:
             'E2E_STRIPE_SIMULATE=True' \
             'SENTRY_DSN=' > .env
 
+      - name: Validate Compose config and pull PostgreSQL with retries
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml config --quiet
+          # Docker Hub can return transient 502s. Retry only the image pull,
+          # before any migrations or application containers are started.
+          for attempt in 1 2 3 4; do
+            if docker compose -f docker-compose.yml -f docker-compose.e2e.yml pull postgres; then
+              break
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "::error::PostgreSQL image pull failed after 4 attempts"
+              exit 1
+            fi
+            delay=$((attempt * 10))
+            echo "::warning::PostgreSQL image pull failed (attempt $attempt/4); retrying in ${delay}s"
+            sleep "$delay"
+          done
+
       - name: Build and start Compose stack
         run: |
           set -o pipefail
-          docker compose -f docker-compose.yml -f docker-compose.e2e.yml config --quiet
           if ! docker compose \
             -f docker-compose.yml \
             -f docker-compose.e2e.yml \

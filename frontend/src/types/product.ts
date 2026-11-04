@@ -44,6 +44,8 @@ export interface AdminProduct {
   price: string
   currency: string
   discount_price: string | null
+  /** Price 0: downloaded for free, without checkout. */
+  is_free?: boolean
   thumbnail: string
   preview_model: string
   preview_video: string
@@ -73,6 +75,37 @@ export interface AdminProduct {
 export interface AdminProductRejectPayload {
   reason: string
   qa_notes?: string
+}
+
+export interface AdminProductApprovePayload {
+  pricing: 'free' | 'paid'
+  price?: string
+}
+
+export interface AdminProductBulkDeleteResult {
+  deleted: string[]
+  archived: string[]
+  not_found: string[]
+}
+
+/** A free model (price 0) is downloaded without checkout. */
+export function isFreeProduct(product: { is_free?: boolean; price: string }): boolean {
+  return product.is_free ?? Number(product.price) === 0
+}
+
+/** One call from the uploader, from the activity log. */
+export interface UploaderImport {
+  id: string
+  target_id: string
+  created_at: string
+  metadata: {
+    created?: number
+    updated?: number
+    skipped?: number
+    failed?: number
+    /** Model ID → why it did not reach QA. */
+    skipped_reasons?: Record<string, string>
+  }
 }
 
 export interface AdminProductCreatePayload {
@@ -172,6 +205,8 @@ export interface PublicProduct {
   price: string
   currency: string
   discount_price: string | null
+  /** Price 0: downloaded for free, without checkout. */
+  is_free?: boolean
   thumbnail: string
   software_used: string
   formats?: string[]
@@ -201,6 +236,8 @@ export interface PublicProductDetail {
   price: string
   currency: string
   discount_price: string | null
+  /** Price 0: downloaded for free, without checkout. */
+  is_free?: boolean
   thumbnail: string
   preview_model: string
   preview_video: string

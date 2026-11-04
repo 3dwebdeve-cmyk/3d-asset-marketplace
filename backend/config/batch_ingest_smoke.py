@@ -436,7 +436,7 @@ def _write_package_bytes(storage_path: str) -> None:
 
 
 def _write_preview_bytes(storage_path: str) -> None:
-    """Stand-in for the pipeline's preview upload; the import moves it to a random key."""
+    """Stand-in for the pipeline's preview upload; the import checks it in place."""
     document = json.dumps({"asset": {"version": "2.0"}}).encode()
     document += b" " * (-len(document) % 4)
     glb = struct.pack("<4sIIII", b"glTF", 2, 20 + len(document), len(document), 0x4E4F534A)
@@ -450,7 +450,7 @@ _IMAGE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP
 
 
 def _write_image_bytes(storage_path: str) -> None:
-    """Stand-in for the pipeline's thumbnail/gallery upload; the import serves it as WebP."""
+    """Stand-in for the pipeline's thumbnail/gallery upload; the import checks it in place."""
     image_format = _IMAGE_FORMATS.get(Path(storage_path).suffix.lower())
     storage = get_public_storage()
     if image_format is None or storage.exists(storage_path):

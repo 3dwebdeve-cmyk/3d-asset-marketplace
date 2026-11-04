@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
+import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
 import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, type HdriEnvironmentId } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
@@ -18,7 +19,7 @@ export interface ModelViewerProps {
   className?: string
 }
 
-const VIEWER_BACKGROUND_COLOR = '#f3f4f6'
+const VIEWER_BACKGROUND_COLOR = '#ffffff'
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   const scene = useThree((state) => state.scene)
@@ -64,13 +65,13 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Keep overhead illumination gentle so white surfaces retain shading.
-              These lights belong only to the studio preset. */}
-          <ambientLight intensity={0.18 * lightMultiplier} />
-          <hemisphereLight args={['#ffffff', '#c4cad3', 0.3 * lightMultiplier]} />
-          <directionalLight position={[5.2, 9.5, 4.2]} intensity={0.85 * lightMultiplier} />
-          <directionalLight position={[-3.5, 2.5, -4]} intensity={0.45 * lightMultiplier} />
-          <directionalLight position={[1.5, 3.5, 6]} intensity={0.35 * lightMultiplier} />
+          {/* Balanced front/side fill keeps dark panel details visible. Keep
+              exposure unchanged so light materials retain their highlights. */}
+          <ambientLight intensity={0.3 * lightMultiplier} />
+          <hemisphereLight args={['#ffffff', '#e1e3e6', 0.6 * lightMultiplier]} />
+          <directionalLight position={[4, 5, 5]} intensity={1.4 * lightMultiplier} />
+          <directionalLight position={[-4, 2.5, 4]} intensity={0.9 * lightMultiplier} />
+          <directionalLight position={[1, 4, -5]} intensity={0.65 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
@@ -86,6 +87,7 @@ function SceneLights({
             files={environmentFile}
             background={showBackground}
             environmentIntensity={environmentIntensity}
+            environmentRotation={environmentId === 'studio' ? [0, Math.PI / 4, 0] : [0, 0, 0]}
             backgroundBlurriness={showBackground ? backgroundBlur : 0}
           />
         </Suspense>
@@ -107,6 +109,26 @@ function PreviewModel({
   const shadowMapSize = useAdaptiveShadowMapSize()
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
   const fitted = useMemo(() => fitPreviewScene(scene), [scene])
+  const camera = useThree((state) => state.camera)
+  const size = useThree((state) => state.size)
+  const controls = useThree((state) => state.controls)
+  const invalidate = useThree((state) => state.invalidate)
+
+  useLayoutEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera) || size.width <= 0 || size.height <= 0) return
+    const center = framePreviewCamera(camera, fitted, size.width / size.height)
+    if (!center) return
+    const orbit = controls as {
+      target?: THREE.Vector3
+      update?: () => void
+      saveState?: () => void
+    } | null
+    orbit?.target?.copy(center)
+    orbit?.update?.()
+    orbit?.saveState?.()
+    invalidate()
+  }, [camera, controls, fitted, size.width, size.height, invalidate])
+
   const groundAlphaMap = useMemo(() => {
     if (typeof document === 'undefined') {
       return null
@@ -188,7 +210,7 @@ function PreviewModel({
       {showGround && ground ? (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
           <planeGeometry args={[ground.width, ground.depth]} />
-          {/* Match the ground plane to the light-grey studio backdrop. */}
+          {/* Match the ground plane to the white studio backdrop. */}
           <meshBasicMaterial
             color={VIEWER_BACKGROUND_COLOR}
             transparent={Boolean(groundAlphaMap)}
@@ -342,7 +364,7 @@ function ModelViewerCanvas({
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
       <Canvas
         className="model-viewer__canvas"
-        camera={{ position: [0, 0.9, 2.3], fov: 42, near: 0.1, far: 200 }}
+        camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
           // Commerce tone mapping compresses highlights while preserving

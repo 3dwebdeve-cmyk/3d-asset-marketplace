@@ -91,6 +91,7 @@ class ProductListPublicSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "is_free",
             "thumbnail",
             "software_used",
             "formats",
@@ -124,6 +125,7 @@ class ProductDetailPublicSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "is_free",
             "thumbnail",
             "preview_model",
             "preview_video",
@@ -177,6 +179,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "is_free",
             "thumbnail",
             "preview_model",
             "preview_video",
@@ -218,6 +221,24 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
+
+
+class ProductApproveSerializer(serializers.Serializer):
+    """Optional pricing chosen at approval: free (price 0) or paid at ``price``."""
+
+    pricing = serializers.ChoiceField(choices=("free", "paid"), required=False)
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+
+    def validate(self, attrs: dict) -> dict:
+        if attrs.get("pricing") == "paid" and attrs.get("price") is None:
+            raise serializers.ValidationError({"price": "Enter the price for a paid model."})
+        return attrs
+
+
+class ProductBulkDeleteSerializer(serializers.Serializer):
+    product_ids = serializers.ListField(
+        child=serializers.UUIDField(), allow_empty=False, max_length=100
+    )
 
 
 class ProductRejectSerializer(serializers.Serializer):

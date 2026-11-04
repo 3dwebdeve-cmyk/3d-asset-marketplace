@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-/** Center + uniform-scale a GLB so it fills the fixed studio camera framing. */
+/** Center and uniformly scale a GLB for consistent camera framing and orbit controls. */
 export function fitPreviewScene(source: THREE.Object3D, targetSize = 1.8): THREE.Group {
   const root = new THREE.Group()
   const clone = source.clone(true)

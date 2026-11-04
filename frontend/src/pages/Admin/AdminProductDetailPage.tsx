@@ -7,6 +7,7 @@ import { listAdminCategories } from '../../api/categoriesApi'
 import {
   approveAdminProduct,
   archiveAdminProduct,
+  bulkDeleteAdminProducts,
   getAdminProduct,
   rejectAdminProduct,
   requeueAdminProduct,
@@ -20,11 +21,16 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
+import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCT_ARCHIVE_SUCCESS } from '../../lib/productArchive'
 import type {
+  AdminProductApprovePayload,
   AdminProductUpdatePayload,
   ProductLicenseType,
   ProductStatus,
 } from '../../types/product'
+import { isFreeProduct } from '../../types/product'
+import { PricingChoice } from './PricingChoice'
+import type { PricingMode } from './PricingChoice'
 import { ProductMediaSection } from './ProductMediaSection'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 
@@ -37,6 +43,9 @@ export function AdminProductDetailPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [qaNotes, setQaNotes] = useState('')
   const [qaError, setQaError] = useState<string | null>(null)
+  const [approvePrice, setApprovePrice] = useState('')
+  const [approvePricing, setApprovePricing] = useState<PricingMode>('paid')
+  const [formPricing, setFormPricing] = useState<PricingMode>('paid')
 
   const productQuery = useQuery({
     queryKey: ['admin', 'products', productId],
@@ -59,6 +68,11 @@ export function AdminProductDetailPage() {
       return
     }
     setHydratedProductId(product.id)
+    setApprovePrice(Number(product.price) > 0 ? product.price : '')
+    // The uploader's folder decides: free-models/ is free, models/ is paid (enter a price).
+    const fromFreeFolder = product.files.some((file) => file.storage_path.startsWith('free-models/'))
+    setApprovePricing(fromFreeFolder || (isFreeProduct(product) && !product.import_batch_id) ? 'free' : 'paid')
+    setFormPricing(isFreeProduct(product) ? 'free' : 'paid')
     setForm({
       category_id: product.category.id,
       name: product.name,
@@ -93,6 +107,9 @@ export function AdminProductDetailPage() {
   const invalidateProduct = async () => {
     await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
     await queryClient.invalidateQueries({ queryKey: ['admin', 'products', productId] })
+    await queryClient.invalidateQueries({ predicate: (query) =>
+      typeof query.queryKey[0] === 'string' && /^public-(models|products|product)(-|$)/.test(query.queryKey[0]),
+    })
   }
 
   const saveMutation = useMutation({
@@ -112,19 +129,39 @@ export function AdminProductDetailPage() {
   const archiveMutation = useMutation({
     mutationFn: () => archiveAdminProduct(productId),
     onSuccess: async () => {
-      toast.success('Product archived')
+      toast.success(PRODUCT_ARCHIVE_SUCCESS)
       await invalidateProduct()
-      navigate('/console', { replace: true })
+      navigate('/console/archived', { replace: true })
     },
     onError: (error) => {
       setFormError(getApiErrorMessage(error, 'Could not archive product.'))
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: () => bulkDeleteAdminProducts([productId]),
+    onSuccess: async (result) => {
+      if (!result.archived.includes(productId)) {
+        setFormError('Product was not found. Refresh the product list and try again.')
+        return
+      }
+      toast.success(PRODUCT_ARCHIVE_SUCCESS)
+      await invalidateProduct()
+      navigate('/console/products', { replace: true })
+    },
+    onError: (error) => {
+      setFormError(getApiErrorMessage(error, 'Could not delete product.'))
+    },
+  })
+
   const approveMutation = useMutation({
-    mutationFn: () => approveAdminProduct(productId),
-    onSuccess: async () => {
-      toast.success('Product approved and published')
+    mutationFn: (pricing: AdminProductApprovePayload) => approveAdminProduct(productId, pricing),
+    onSuccess: async (_product, pricing) => {
+      toast.success(
+        pricing.pricing === 'free'
+          ? 'Published as a free download'
+          : 'Product approved and published',
+      )
       setQaError(null)
       await invalidateProduct()
     },
@@ -166,9 +203,33 @@ export function AdminProductDetailPage() {
   const qaPending =
     approveMutation.isPending || rejectMutation.isPending || requeueMutation.isPending
 
+  const onApprove = () => {
+    if (approvePricing === 'free') {
+      setQaError(null)
+      approveMutation.mutate({ pricing: 'free' })
+      return
+    }
+    const price = Number.parseFloat(approvePrice)
+    if (!Number.isFinite(price) || price <= 0) {
+      setQaError('Enter a price above 0, or choose Free.')
+      return
+    }
+    setQaError(null)
+    approveMutation.mutate({ pricing: 'paid', price: price.toFixed(2) })
+  }
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
+    if (formPricing === 'free') {
+      saveMutation.mutate({ ...form, price: '0.00', discount_price: null })
+      return
+    }
+    const price = Number.parseFloat(String(form.price ?? ''))
+    if (!Number.isFinite(price) || price <= 0) {
+      setFormError('Enter a price above 0, or choose Free.')
+      return
+    }
     saveMutation.mutate(form)
   }
 
@@ -195,8 +256,8 @@ export function AdminProductDetailPage() {
         <h1 id="admin-product-detail-title">Manage product</h1>
 
         <div className="dashboard-card__actions">
-          <Link className="home-page__cta home-page__cta--secondary" to="/console/products">
-            Back to products
+          <Link className="home-page__cta home-page__cta--secondary" to={product?.status === 'archived' ? '/console/archived' : '/console/products'}>
+            {product?.status === 'archived' ? 'Back to archived products' : 'Back to products'}
           </Link>
           <Link
             className="home-page__cta home-page__cta--secondary"
@@ -228,9 +289,48 @@ export function AdminProductDetailPage() {
                 {product.status === 'pending_review' ? (
                   <>
                     <p className="home-page__subtitle">
-                      This product is pending review. Approve publishes it; reject requires a
-                      reason.
+                      This product is pending review. Choose Free or Paid (with its price),
+                      then approve to publish it. Reject requires a reason.
                     </p>
+                    {product.qa_notes ? (
+                      <p className="home-page__subtitle">QA notes: {product.qa_notes}</p>
+                    ) : null}
+                    <PricingChoice
+                      idPrefix="qa"
+                      legend="Pricing when published"
+                      value={approvePricing}
+                      onChange={setApprovePricing}
+                      disabled={qaPending}
+                    />
+                    {approvePricing === 'paid' ? (
+                      <FormField id="qa-price" label={`Price (${product.currency})`}>
+                        <Input
+                          id="qa-price"
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={approvePrice}
+                          onChange={(event) => setApprovePrice(event.target.value)}
+                          disabled={qaPending}
+                        />
+                      </FormField>
+                    ) : null}
+                    <div className="dashboard-card__actions">
+                      <Button
+                        type="button"
+                        isLoading={approveMutation.isPending}
+                        disabled={qaPending}
+                        onClick={onApprove}
+                      >
+                        {approvePricing === 'free'
+                          ? 'Approve & publish as free'
+                          : `Approve & publish${
+                              Number.parseFloat(approvePrice) > 0
+                                ? ` at ${product.currency} ${Number.parseFloat(approvePrice).toFixed(2)}`
+                                : ''
+                            }`}
+                      </Button>
+                    </div>
                     {product.reject_reason ? (
                       <p className="home-page__subtitle">
                         Prior reject reason: {product.reject_reason}
@@ -256,17 +356,6 @@ export function AdminProductDetailPage() {
                       />
                     </FormField>
                     <div className="dashboard-card__actions">
-                      <Button
-                        type="button"
-                        isLoading={approveMutation.isPending}
-                        disabled={qaPending}
-                        onClick={() => {
-                          setQaError(null)
-                          approveMutation.mutate()
-                        }}
-                      >
-                        Approve
-                      </Button>
                       <Button
                         type="button"
                         variant="secondary"
@@ -418,33 +507,52 @@ export function AdminProductDetailPage() {
                   }
                 />
               </FormField>
-              <FormField id="detail-price" label="Price">
-                <Input
-                  id="detail-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.price ?? ''}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, price: event.target.value }))
+              <PricingChoice
+                idPrefix="detail"
+                value={formPricing}
+                onChange={(mode) => {
+                  setFormPricing(mode)
+                  // Switching a free model to Paid starts from an empty price, not 0.00.
+                  if (mode === 'paid' && Number(form.price) === 0) {
+                    setForm((current) => ({ ...current, price: '' }))
                   }
-                />
-              </FormField>
-              <FormField id="detail-discount-price" label="Discount price">
-                <Input
-                  id="detail-discount-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.discount_price ?? ''}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      discount_price: event.target.value || null,
-                    }))
-                  }
-                />
-              </FormField>
+                }}
+              />
+              {formPricing === 'paid' ? (
+                <>
+                  <FormField id="detail-price" label="Price">
+                    <Input
+                      id="detail-price"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={form.price ?? ''}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, price: event.target.value }))
+                      }
+                    />
+                  </FormField>
+                  <FormField id="detail-discount-price" label="Discount price">
+                    <Input
+                      id="detail-discount-price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.discount_price ?? ''}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          discount_price: event.target.value || null,
+                        }))
+                      }
+                    />
+                  </FormField>
+                </>
+              ) : (
+                <p className="home-page__subtitle">
+                  Free: customers download it without payment. Saving sets the price to 0.
+                </p>
+              )}
               <FormField id="detail-currency" label="Currency">
                 <Input
                   id="detail-currency"
@@ -564,9 +672,23 @@ export function AdminProductDetailPage() {
                   type="button"
                   variant="secondary"
                   isLoading={archiveMutation.isPending}
-                  onClick={() => window.confirm('Archive this product? It will be hidden from the storefront.') && archiveMutation.mutate()}
+                  disabled={product.status === 'archived' || deleteMutation.isPending}
+                  onClick={() => window.confirm(PRODUCT_ARCHIVE_CONFIRMATION) && archiveMutation.mutate()}
                 >
-                  Archive
+                  {product.status === 'archived' ? 'Archived' : 'Archive'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  isLoading={deleteMutation.isPending}
+                  disabled={product.status === 'archived' || archiveMutation.isPending}
+                  onClick={() =>
+                    window.confirm(
+                      PRODUCT_ARCHIVE_CONFIRMATION,
+                    ) && deleteMutation.mutate()
+                  }
+                >
+                  Delete
                 </Button>
               </div>
             </form>

@@ -7,13 +7,30 @@ from pathlib import PurePosixPath
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
+# ValidationError codes, so callers can tell an infected file from a scanner outage.
+SCAN_MALWARE_FOUND = "malware_found"
+SCAN_UNAVAILABLE = "scanner_unavailable"
+
+
+def _scan_error(message, code):
+    return ValidationError({"file": ValidationError(message, code=code)})
+
+
+def scan_error_code(error):
+    """SCAN_MALWARE_FOUND, SCAN_UNAVAILABLE or None for any other ValidationError."""
+    for errors in getattr(error, "error_dict", {}).values():
+        for item in errors:
+            if item.code in (SCAN_MALWARE_FOUND, SCAN_UNAVAILABLE):
+                return item.code
+    return None
+
 
 def scan_upload(uploaded):
     required = getattr(settings, "PACKAGE_SCAN_REQUIRED", False)
     host = getattr(settings, "PACKAGE_SCAN_HOST", "")
     if not host:
         if required:
-            raise ValidationError({"file": "Malware scanning is unavailable. Upload rejected."})
+            raise _scan_error("Malware scanning is unavailable. Upload rejected.", SCAN_UNAVAILABLE)
         return
     try:
         uploaded.seek(0)
@@ -28,10 +45,16 @@ def scan_upload(uploaded):
                 if not chunk:
                     break
                 response += chunk
-            if response.rstrip(b"\0\n") != b"stream: OK":
-                raise ValidationError({"file": "Malware scan did not approve this file."})
+            verdict = response.rstrip(b"\0\n")
+            if verdict != b"stream: OK":
+                # "stream: <signature> FOUND" is malware; anything else (an ERROR reply,
+                # an empty one) means the scan did not complete.
+                code = SCAN_MALWARE_FOUND if verdict.endswith(b" FOUND") else SCAN_UNAVAILABLE
+                raise _scan_error("Malware scan did not approve this file.", code)
     except OSError as exc:
-        raise ValidationError({"file": "Malware scanning is unavailable. Upload rejected."}) from exc
+        raise _scan_error(
+            "Malware scanning is unavailable. Upload rejected.", SCAN_UNAVAILABLE
+        ) from exc
     finally:
         uploaded.seek(0)
 
@@ -56,8 +79,12 @@ def gltf_triangle_count(document):
     return total
 
 
-def inspect_product_content(uploaded, extension):
-    """Validate content against its extension. Returns the triangle count for glTF."""
+def inspect_product_content(uploaded, extension, *, scan=True):
+    """Validate content against its extension. Returns the triangle count for glTF.
+
+    ``scan=False`` runs every structure check but skips the virus scan; only the catalog
+    import uses it, when CATALOG_IMPORT_SCAN_REQUIRED is off and no scanner is configured.
+    """
     from plugins.upload_rules import _validate_zip_metadata, validate_plugin_file_upload
 
     triangles = None
@@ -108,7 +135,8 @@ def inspect_product_content(uploaded, extension):
             text = uploaded.read().decode("utf-8")
             if not any(line.strip().startswith("v ") for line in text.splitlines()):
                 raise ValueError()
-        scan_upload(uploaded)
+        if scan:
+            scan_upload(uploaded)
     except (ValueError, TypeError, KeyError, IndexError, AttributeError, UnicodeError, struct.error, RecursionError) as exc:
         raise ValidationError({"file": "File content is invalid or does not match its format."}) from exc
     finally:

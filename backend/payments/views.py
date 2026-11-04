@@ -48,13 +48,14 @@ def _accepted_legal_from_request(request: Request):
     return None
 
 
-def _cart_fingerprint(user) -> str:
+def _cart_fingerprint(user, selected=None) -> str:
     """Hash of the cart's lines, prices and currency, so a replayed checkout key cannot
     return a session that was priced before the cart or the catalog changed."""
     from cart.services import CartService
 
     envelope = CartService.get_cart_envelope(user)
     parts = [str(envelope.totals.total), str(envelope.totals.currency)]
+    parts.extend(sorted(f"{kind}:{pk}" for kind, pk in selected or ()))
     for item in sorted(envelope.items, key=lambda row: (row.product_type, str(row.product_id))):
         snapshot = envelope.snapshots.get((item.product_type, item.product_id)) or {}
         parts.append(
@@ -64,11 +65,26 @@ def _cart_fingerprint(user) -> str:
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
 
 
+def _selected_items_from_request(request: Request):
+    """Optional `items: [{product_type, product_id}]`: buy only these cart lines."""
+    data = request.data
+    raw = data.get("items") if isinstance(data, dict) else None
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or not raw:
+        raise ValidationError({"items": ["Select at least one item to buy."]})
+    try:
+        return {(str(row["product_type"]), UUID(str(row["product_id"]))) for row in raw}
+    except (KeyError, TypeError, ValueError):
+        raise ValidationError({"items": ["Each item needs a product_type and product_id."]}) from None
+
+
 class CreateCheckoutSessionView(APIView):
     permission_classes = [IsAuthenticated, IsEmailVerified]
     throttle_classes = [PaymentCheckoutRateThrottle, PaymentCheckoutDailyRateThrottle]
 
     def post(self, request: Request) -> Response:
+        selected = _selected_items_from_request(request)
         try:
             accepted_legal = _accepted_legal_from_request(request)
 
@@ -77,6 +93,7 @@ class CreateCheckoutSessionView(APIView):
                     result = CheckoutService.create_checkout_session(
                         request.user,
                         accepted_legal=accepted_legal,
+                        selected=selected,
                     )
                 except CheckoutError as exc:
                     return _checkout_error_body(exc), status.HTTP_400_BAD_REQUEST
@@ -88,7 +105,7 @@ class CreateCheckoutSessionView(APIView):
                     build_cache_key(
                         "checkout",
                         request.user.pk,
-                        f"{idem_key}:{_cart_fingerprint(request.user)}",
+                        f"{idem_key}:{_cart_fingerprint(request.user, selected)}",
                     ),
                     _produce,
                     ttl=30 * 60,

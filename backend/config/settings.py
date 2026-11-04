@@ -246,6 +246,11 @@ PACKAGE_SCAN_REQUIRED = DEPLOYMENT_PROFILE in {"staging", "production"}
 PACKAGE_SCAN_HOST = config("PACKAGE_SCAN_HOST", default="").strip()
 PACKAGE_SCAN_PORT = config("PACKAGE_SCAN_PORT", default=3310, cast=int)
 PACKAGE_SCAN_SIGNATURE_MAX_AGE_DAYS = config("PACKAGE_SCAN_SIGNATURE_MAX_AGE_DAYS", default=3, cast=int)
+# The Model Uploader's imports (/api/v1/catalog-ingest/): True = scan the preview like any
+# upload (fail closed). False = scan only when a scanner is configured; with no scanner the
+# preview is imported unscanned and the row gets the warning "preview_not_scanned".
+# Admin console uploads are not affected. Set False only until a ClamAV scanner exists.
+CATALOG_IMPORT_SCAN_REQUIRED = config("CATALOG_IMPORT_SCAN_REQUIRED", cast=bool, default=True)
 # A missing scanner must disable package uploads, not prevent migrations or the
 # rest of the application from starting. scan_upload remains fail-closed, and
 # check_package_scanner is the explicit operational readiness check.
@@ -786,12 +791,12 @@ PROJECT_MESSAGE_ADMIN_RECIPIENTS = config(
     "PROJECT_MESSAGE_ADMIN_RECIPIENTS",
     default="",
 )
-# Comma-separated inboxes for public contact form submissions (falls back to
-# PROJECT_MESSAGE_ADMIN_RECIPIENTS, then active Administrator users).
+# Comma-separated inboxes for public contact form submissions.
+# Keep the enquiry inbox available when deployment supplies an empty value.
 CONTACT_ADMIN_RECIPIENTS = config(
     "CONTACT_ADMIN_RECIPIENTS",
-    default="",
-)
+    default="3dwebdeve@gmail.com",
+).strip() or "3dwebdeve@gmail.com"
 # Comma-separated inboxes for the daily health report (config/ops_report.py), sent by the daily
 # maintenance loop. Empty = every active Administrator.
 OPS_REPORT_RECIPIENTS = config("OPS_REPORT_RECIPIENTS", default="")

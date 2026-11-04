@@ -9,8 +9,12 @@ from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from categories.models import Category
-from config.media import private_object_exists
-from config.currency import normalize_currency, validate_catalog_prices
+from config.media import is_free_model_path, package_object_exists
+from config.currency import (
+    MINIMUM_CHECKOUT_AMOUNTS,
+    normalize_currency,
+    validate_catalog_prices,
+)
 from products.errors import ProductError
 from products.media_service import (  # noqa: F401 - re-exported for existing imports
     PREVIEW_MAX_POLYGON_SHARE,
@@ -18,6 +22,7 @@ from products.media_service import (  # noqa: F401 - re-exported for existing im
     preview_reduction_error,
 )
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
+
 
 @dataclass(frozen=True)
 class ProductCreateData:
@@ -192,6 +197,8 @@ class ProductService(ProductMediaService):
 
         if status is not None:
             queryset = queryset.filter(status=status)
+        else:
+            queryset = queryset.exclude(status=Product.Status.ARCHIVED)
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
         normalized_sku = Product.normalize_sku(sku)
@@ -487,6 +494,60 @@ class ProductService(ProductMediaService):
         )
 
     @classmethod
+    @transaction.atomic
+    def restore_product(cls, product: Product) -> Product:
+        product = Product.objects.select_for_update().get(pk=product.pk)
+        if product.status != Product.Status.ARCHIVED:
+            raise ProductError("Only archived products can be restored.", field="status")
+        return cls.update_product(product, ProductUpdateData(status=Product.Status.DRAFT))
+
+    @classmethod
+    @transaction.atomic
+    def delete_or_archive(cls, product: Product) -> str:
+        """Move every selected model to Archived, retaining its records and files.
+
+        The legacy bulk-delete endpoint and response shape remain compatible;
+        all successful removals now return "archived", including unsold products.
+        """
+        from cart.models import CartItem
+        from orders.models import OrderItem
+        from wishlist.models import WishlistItem
+
+        product = Product.objects.select_for_update().get(pk=product.pk)
+        product_type = OrderItem.ProductType.PRODUCT
+        if product.status != Product.Status.ARCHIVED:
+            cls.archive_product(product)
+        CartItem.objects.filter(product_type=product_type, product_id=product.pk).delete()
+        WishlistItem.objects.filter(product_type=product_type, product_id=product.pk).delete()
+        return "archived"
+
+    @classmethod
+    def _apply_approval_pricing(
+        cls, product: Product, pricing: str | None, price: Decimal | None
+    ) -> list[str]:
+        """Set the price chosen at approval; returns the fields to save."""
+        if pricing is None:
+            return []
+        if pricing == "free":
+            product.price = Decimal("0.00")
+            product.discount_price = None
+            return ["price", "discount_price"]
+        if pricing != "paid":
+            raise ProductError("Pricing must be 'free' or 'paid'.", field="pricing")
+        minimum = MINIMUM_CHECKOUT_AMOUNTS.get(normalize_currency(product.currency))
+        if price is None or price <= 0:
+            raise ProductError("Enter a price above 0 for a paid model.", field="price")
+        if minimum is not None and price < minimum:
+            raise ProductError(
+                f"The lowest price checkout accepts is {minimum} {product.currency}.",
+                field="price",
+            )
+        product.price = price
+        if product.discount_price is not None and product.discount_price >= price:
+            product.discount_price = None
+        return ["price", "discount_price"]
+
+    @classmethod
     def _validate_publish_ready(cls, product: Product, *, require_sku: bool = False) -> None:
         """Conservative publish gates for the QA approve path (Feature 16 Phase 8).
 
@@ -526,11 +587,14 @@ class ProductService(ProductMediaService):
             errors["files"] = [
                 "At least one sellable package file is required before publish."
             ]
-        elif not any(private_object_exists(row.storage_path) for row in sellable_files):
+        elif not any(package_object_exists(row.storage_path) for row in sellable_files):
             errors["files"] = [
                 "Sellable package object is missing from private storage. "
                 "Upload or migrate the package before publish."
             ]
+        elif product.price and any(is_free_model_path(row.storage_path) for row in sellable_files):
+            # Anyone can fetch a zip in the public free-models/ folder, so it cannot be sold.
+            errors["price"] = ["This model's zip is in the free-models folder: publish it as free."]
 
         if not (product.preview_model or "").strip():
             errors["preview_model"] = ["Preview model is required before publish."]
@@ -553,14 +617,26 @@ class ProductService(ProductMediaService):
 
     @classmethod
     @transaction.atomic
-    def approve_product(cls, product: Product, *, reviewer) -> Product:
-        """pending_review → published with publish gates. Clears reject_reason."""
+    def approve_product(
+        cls,
+        product: Product,
+        *,
+        reviewer,
+        pricing: str | None = None,
+        price: Decimal | None = None,
+    ) -> Product:
+        """pending_review → published with publish gates. Clears reject_reason.
+
+        ``pricing`` sets the price on approval: "free" makes the model a free download
+        (price 0), "paid" sets ``price``. Without it the current price is kept.
+        """
         product = Product.objects.select_for_update().get(pk=product.pk)
         if product.status != Product.Status.PENDING_REVIEW:
             raise ProductError(
                 f"Cannot approve product with status '{product.status}'.",
                 field="status",
             )
+        price_fields = cls._apply_approval_pricing(product, pricing, price)
         cls._validate_status_transition(product.status, Product.Status.PUBLISHED)
         cls._validate_publish_ready(product, require_sku=True)
 
@@ -575,6 +651,7 @@ class ProductService(ProductMediaService):
                 "reviewed_at",
                 "reviewed_by",
                 "reject_reason",
+                *price_fields,
                 "updated_at",
             ]
         )
@@ -736,6 +813,8 @@ class ProductService(ProductMediaService):
             },
             Product.Status.ARCHIVED: {
                 Product.Status.DRAFT,
+                # The uploader sends an archived model again: back to QA.
+                Product.Status.PENDING_REVIEW,
             },
         }
         next_statuses = allowed.get(current, set())

@@ -6,6 +6,7 @@ import {
   listAdminProducts,
   rejectAdminProduct,
   requeueAdminProduct,
+  restoreAdminProduct,
 } from './productsApi'
 import type { AdminProduct } from '../types/product'
 
@@ -28,6 +29,13 @@ beforeEach(() => {
 })
 
 describe('productsApi QA helpers', () => {
+  it('restores an archived product through the admin restore endpoint', async () => {
+    const restored = { ...sampleProduct, status: 'draft' }
+    vi.mocked(apiClient.post).mockResolvedValue({ data: restored })
+    expect(await restoreAdminProduct(productId)).toEqual(restored)
+    expect(apiClient.post).toHaveBeenCalledWith(`/api/v1/admin/products/${productId}/restore/`, {})
+  })
+
   it('lists admin products with import_batch_id and status filters', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({
       data: { count: 0, next: null, previous: null, results: [] },
@@ -55,6 +63,18 @@ describe('productsApi QA helpers', () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(
       `/api/v1/admin/products/${productId}/approve/`,
+      {},
+    )
+  })
+
+  it('approves with the price chosen in QA', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: sampleProduct })
+
+    await approveAdminProduct(productId, { pricing: 'free' })
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      `/api/v1/admin/products/${productId}/approve/`,
+      { pricing: 'free' },
     )
   })
 

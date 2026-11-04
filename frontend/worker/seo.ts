@@ -27,6 +27,8 @@ export interface PageSeo {
   /** Absolute social image URL. Defaults to the site banner. */
   image?: string
   imageAlt?: string
+  ogTitle?: string
+  ogDescription?: string
   canonicalPath?: string
   robots?: string
   structuredData?: Record<string, unknown>
@@ -47,7 +49,7 @@ const HTML_ESCAPES: Readonly<Record<string, string>> = {
 // Tags the browser-side hook also manages. They are removed from the shell and rendered again.
 const HEAD_TAGS_TO_REPLACE: readonly RegExp[] = [
   /<title>[\s\S]*?<\/title>\s*/gi,
-  /<meta\s+(?:name|property)="(?:description|keywords|robots|og:[a-z_:]+|twitter:[a-z_:]+)"[^>]*>\s*/gi,
+  /<meta\s+(?:name|property)="(?:title|description|keywords|robots|og:[a-z_:]+|twitter:[a-z_:]+)"[^>]*>\s*/gi,
   /<link\s+rel="canonical"[^>]*>\s*/gi,
   /<script\s+type="application\/ld\+json"\s+id="seo-structured-data"[\s\S]*?<\/script>\s*/gi,
 ]
@@ -80,6 +82,8 @@ export function getStaticPageSeo(path: string, origin = ''): PageSeo | undefined
     keywords: page.keywords,
     image: page.image && origin ? new URL(page.image, `${origin}/`).toString() : page.image,
     imageAlt: page.imageAlt,
+    ogTitle: page.ogTitle,
+    ogDescription: page.ogDescription,
     ogType: 'website',
     status: 200,
     structuredData: path === '/' ? {
@@ -155,11 +159,19 @@ function metaTag(attribute: 'name' | 'property', key: string, content: string): 
  */
 function renderPageSummary(html: string, seo: PageSeo, path: string): string {
   const links = [
-    ['/', 'AssetHive3D home'], ['/3d-models', '3D models'], ['/categories', 'Model categories'],
+    ['/', 'AssetHive3D home'], ['/3d-models', '3D models'], ['/categories', '3D model categories'],
+    ['/3d-models?max_price=0', 'Download free 3D models'], ['/3d-models?search=robot', 'Robot 3D models'],
     ['/plugins', 'Plugins and tools'], ['/custom-projects', 'Custom 3D projects'],
     ['/about', 'About AssetHive3D'], ['/contact', 'Contact and enquiries'],
   ]
-  const content = `<main aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p><nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  const content = `<main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p><nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  // The static shell also contains the preloader. Replace only our summary slot,
+  // so page content never depends on #root being otherwise empty.
+  const summarySlot = /<main\b[^>]*\bid=["']page-summary["'][^>]*>[\s\S]*?<\/main>/i
+  if (summarySlot.test(html)) {
+    return html.replace(summarySlot, () => content)
+  }
+  // Older/empty shells still work, while unrelated rendered app content is preserved.
   return html.replace(/(<div\s+id=["']root["']\s*>)\s*(<\/div>)/i, (_match, open: string, close: string) => `${open}${content}${close}`)
 }
 
@@ -186,13 +198,14 @@ export function renderSeoHead(
   const image = new URL(seo.image ?? DEFAULT_SOCIAL_IMAGE, `${page.origin}/`).toString()
   const tags = [
     `<title>${escapeHtml(seo.title)}</title>`,
+    metaTag('name', 'title', seo.title),
     metaTag('name', 'description', seo.description),
     ...(seo.robots ? [metaTag('name', 'robots', seo.robots)] : []),
     ...(seo.keywords?.length ? [metaTag('name', 'keywords', seo.keywords.join(', '))] : []),
     metaTag('property', 'og:site_name', SITE_NAME),
     metaTag('property', 'og:type', seo.ogType),
-    metaTag('property', 'og:title', seo.title),
-    metaTag('property', 'og:description', seo.description),
+    metaTag('property', 'og:title', seo.ogTitle ?? seo.title),
+    metaTag('property', 'og:description', seo.ogDescription ?? seo.description),
     metaTag('property', 'og:url', canonical),
     metaTag('property', 'og:locale', 'en_US'),
     metaTag('property', 'og:image', image),

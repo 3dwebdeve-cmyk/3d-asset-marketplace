@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 
+import { freeDownloadUrl } from '../../api/productsApi'
 import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { AddToCartButton } from '../cart/AddToCartButton'
 import { Button } from '../ui/Button'
@@ -21,6 +22,8 @@ export interface CommerceCtaGroupProps {
   showCheckoutNote?: boolean
   showShare?: boolean
   useStandardGuestLabels?: boolean
+  /** Free model: one Download button for everyone, no account, cart or checkout. */
+  isFree?: boolean
 }
 
 export function CommerceCtaGroup({
@@ -33,6 +36,7 @@ export function CommerceCtaGroup({
   showCheckoutNote = false,
   showShare = true,
   useStandardGuestLabels = false,
+  isFree = false,
 }: CommerceCtaGroupProps) {
   const location = useLocation()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -45,6 +49,8 @@ export function CommerceCtaGroup({
   const pathSegment = productType === 'product' ? 'products' : 'plugins'
   const itemLabel = productType === 'product' ? 'Product' : 'Plugin'
   const isBuybox = variant === 'buybox'
+  // Free models skip the cart and Stripe: the Download link fetches the zip at once.
+  const showCart = !owned && !isFree
 
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/${pathSegment}/${productSlug}`
@@ -61,7 +67,18 @@ export function CommerceCtaGroup({
     window.prompt(`Copy this ${itemLabel.toLowerCase()} link:`, shareUrl)
   }
 
-  const buyButton = owned ? (
+  const buyButton = isFree ? (
+    <a
+      href={freeDownloadUrl(productSlug)}
+      className={
+        isBuybox
+          ? 'ui-button ui-button--primary product-detail-cta__full product-detail-cta__link'
+          : 'ui-button ui-button--primary product-detail-cta__buy product-detail-cta__link'
+      }
+    >
+      Download free
+    </a>
+  ) : owned ? (
     <Link
       to="/dashboard/downloads"
       className={
@@ -125,7 +142,7 @@ export function CommerceCtaGroup({
       <div className="product-detail-cta product-detail-cta--buybox">
         <div className="product-detail-cta__actions">
           {buyButton}
-          {owned ? null : (
+          {!showCart ? null : (
             <AddToCartButton
               productType={productType}
               productId={productId}
@@ -147,7 +164,7 @@ export function CommerceCtaGroup({
       {owned ? <p className="product-detail-cta__owned">You already own this {itemLabel.toLowerCase()}.</p> : null}
 
       <div className="product-detail-cta__secondary">
-        {owned ? null : (
+        {!showCart ? null : (
           <AddToCartButton
             productType={productType}
             productId={productId}
@@ -167,7 +184,7 @@ export function CommerceCtaGroup({
         {shareControl}
       </div>
 
-      {showCheckoutNote ? (
+      {showCheckoutNote && !isFree ? (
         <p className="product-detail-cta__note">
           Buy now adds this item to your cart and opens Stripe checkout. Package downloads unlock
           after payment. No package files are exposed on this page.

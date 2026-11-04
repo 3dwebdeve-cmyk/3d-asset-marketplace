@@ -22,6 +22,7 @@
       "!/_webp/*",
       "!/fonts/*",
       "!/images/*",
+      "!/static/*",
       "!/hdri/*",
       "!/fixtures/*",
       "!/banner image/*",
