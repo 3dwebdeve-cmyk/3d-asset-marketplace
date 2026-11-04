@@ -113,6 +113,22 @@ def _deliver(user: User, *, event_type: str, subject: str, body: str) -> None:
     MailLogService.mark_sent(log_id)
 
 
+def deliver_mfa_enrollment_code(user: User, code: str) -> None:
+    _deliver(
+        user,
+        event_type="mfa_enrollment_code",
+        subject="Your administrator two-factor setup code",
+        body=(
+            "Someone entered your password on the administrator sign-in page of "
+            "3D Asset Marketplace and asked to set up two-factor sign-in.\n\n"
+            f"Setup code: {code}\n\n"
+            "The code works once and expires in 15 minutes.\n"
+            "If this was not you, do not use the code. Change your password now:\n"
+            f"{frontend_base_url()}/forgot-password\n"
+        ),
+    )
+
+
 def _when() -> str:
     return timezone.now().strftime("%Y-%m-%d %H:%M UTC")
 

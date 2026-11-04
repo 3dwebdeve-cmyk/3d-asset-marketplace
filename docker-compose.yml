@@ -93,6 +93,8 @@ services:
       DJANGO_ADMIN_ALLOWED_IPS: ${DJANGO_ADMIN_ALLOWED_IPS:-}
       # Company/VPN CIDRs for /api/v1/auth/admin/ + /api/v1/admin/ (empty = open locally).
       ADMIN_CONSOLE_ALLOWED_IPS: ${ADMIN_CONSOLE_ALLOWED_IPS:-}
+      # nginx in front overwrites X-Real-IP; without nginx set EDGE_SHARED_SECRET instead.
+      BEHIND_TRUSTED_NGINX: ${BEHIND_TRUSTED_NGINX:-True}
       # Terminate TLS at a reverse proxy / Cloudflare in real prod.
       # See docs/PRODUCTION_CHECKLIST.md for full prod env + rollback policy.
       SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-True}

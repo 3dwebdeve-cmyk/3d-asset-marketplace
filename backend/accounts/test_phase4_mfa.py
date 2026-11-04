@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import re
 import time
 from io import StringIO
 from unittest.mock import MagicMock, patch
@@ -84,9 +85,24 @@ class AdminMfaFlowTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         return response.data
 
+    def _enrollment_code(self) -> str:
+        messages = [m for m in mail.outbox if m.subject == "Your administrator two-factor setup code"]
+        self.assertTrue(messages, "no setup code email was sent")
+        return re.search(r"Setup code: (\S+)", messages[-1].body).group(1)
+
+    def _setup(self, token: str, enrollment_code: str | None = None):
+        return self.client.post(
+            reverse("accounts:admin-mfa-setup"),
+            {
+                "mfa_token": token,
+                "enrollment_code": self._enrollment_code() if enrollment_code is None else enrollment_code,
+            },
+            format="json",
+        )
+
     def _enroll(self) -> tuple[str, list[str]]:
         token = self._login()["mfa_token"]
-        setup = self.client.post(reverse("accounts:admin-mfa-setup"), {"mfa_token": token}, format="json")
+        setup = self._setup(token)
         self.assertEqual(setup.status_code, status.HTTP_200_OK, setup.data)
         secret = setup.data["secret"]
         confirm = self.client.post(
@@ -163,10 +179,73 @@ class AdminMfaFlowTests(APITestCase):
         )
         response = self.client.post(
             reverse("accounts:admin-mfa-setup"),
-            {"mfa_token": mfa.issue_mfa_token(customer)},
+            {"mfa_token": mfa.issue_mfa_token(customer), "enrollment_code": "ABCDEFGH"},
             format="json",
         )
         self.assertEqual(response.data["code"], "mfa_expired")
+
+    def test_unenrolled_login_emails_a_setup_code_enrolled_login_does_not(self) -> None:
+        self._login()
+        self.assertEqual(
+            [m.subject for m in mail.outbox].count("Your administrator two-factor setup code"), 1
+        )
+        self._enroll()
+        before = len(mail.outbox)
+        self._login()
+        self.assertNotIn(
+            "Your administrator two-factor setup code", [m.subject for m in mail.outbox[before:]]
+        )
+
+    def test_password_alone_cannot_start_or_finish_enrollment(self) -> None:
+        token = self._login()["mfa_token"]
+        missing = self.client.post(reverse("accounts:admin-mfa-setup"), {"mfa_token": token}, format="json")
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+        wrong = self._setup(token, "WRONG123")
+        self.assertEqual(wrong.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn("secret", wrong.data)
+        self.assertEqual(wrong.data["code"], "mfa_invalid")
+        confirm = self.client.post(
+            reverse("accounts:admin-mfa-confirm"),
+            {"mfa_token": token, "code": "123456"},
+            format="json",
+        )
+        self.assertEqual(confirm.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(mfa.is_enrolled(User.objects.get(pk=self.admin.pk)))
+
+    def test_setup_code_is_single_use_and_burns_after_five_wrong_tries(self) -> None:
+        token = self._login()["mfa_token"]
+        code = self._enrollment_code()
+        self.assertEqual(self._setup(token, code).status_code, status.HTTP_200_OK)
+        self.assertEqual(self._setup(token, code).status_code, status.HTTP_400_BAD_REQUEST)
+
+        token = self._login()["mfa_token"]
+        code = self._enrollment_code()
+        with patch("rest_framework.throttling.SimpleRateThrottle.allow_request", return_value=True):
+            for _ in range(mfa.ENROLLMENT_CODE_ATTEMPTS):
+                self.assertEqual(self._setup(token, "WRONG123").status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertEqual(self._setup(token, code).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_new_login_replaces_the_setup_code(self) -> None:
+        token = self._login()["mfa_token"]
+        first = self._enrollment_code()
+        token = self._login()["mfa_token"]
+        self.assertNotEqual(first, self._enrollment_code())
+        self.assertEqual(self._setup(token, first).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_re_entering_the_password_does_not_reset_wrong_code_counts(self) -> None:
+        self._enroll()
+        cache.clear()
+        login = {"email": self.admin.email, "password": PASSWORD}
+        with patch("rest_framework.throttling.SimpleRateThrottle.allow_request", return_value=True):
+            token = self.client.post(reverse("accounts:admin-login"), login, format="json").data["mfa_token"]
+            for _ in range(5):
+                self.assertEqual(self._verify(token, code="000000").status_code, 400)
+            # Same password step again: the failures must stay on the books.
+            token = self.client.post(reverse("accounts:admin-login"), login, format="json").data["mfa_token"]
+            for _ in range(5):
+                self.assertEqual(self._verify(token, code="000000").status_code, 400)
+            locked = self._verify(token, code="000000")
+        self.assertEqual(locked.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_wrong_codes_lock_the_account(self) -> None:
         self._enroll()
@@ -283,6 +362,21 @@ class SettingsGuardTests(SimpleTestCase):
     def test_development_allows_admin_mfa_off(self) -> None:
         result = import_settings(ADMIN_MFA_REQUIRED="False")
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_production_refuses_a_forgeable_real_ip_header(self) -> None:
+        result = import_settings(
+            DEPLOYMENT_PROFILE="production", EDGE_SHARED_SECRET="", BEHIND_TRUSTED_NGINX="False"
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("EDGE_SHARED_SECRET", result.stderr)
+
+    def test_production_with_edge_secret_does_not_hit_the_real_ip_guard(self) -> None:
+        result = import_settings(
+            DEPLOYMENT_PROFILE="production",
+            EDGE_SHARED_SECRET="x" * 40,
+            BEHIND_TRUSTED_NGINX="False",
+        )
+        self.assertNotIn("client-supplied X-Real-IP", result.stderr)
 
     def test_production_refuses_django_admin(self) -> None:
         result = import_settings(

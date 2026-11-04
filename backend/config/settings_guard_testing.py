@@ -25,6 +25,7 @@ SAFE_BASE_ENV = {
     "BREVO_API_KEY": "",
     "SENTRY_DSN": "",
     "E2E_STRIPE_SIMULATE": "False",
+    "BEHIND_TRUSTED_NGINX": "True",
 }
 
 

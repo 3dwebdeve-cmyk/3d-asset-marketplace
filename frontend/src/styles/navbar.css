@@ -478,6 +478,10 @@
   min-height: 2rem;
 }
 
+.navbar__cart-button--desktop {
+  margin-inline-end: 8px;
+}
+
 .navbar__primary-links {
   display: flex;
   flex-wrap: nowrap;

@@ -211,6 +211,10 @@ describe('AdminLoginPage', () => {
     renderAdminLogin()
     await submitPassword(user)
 
+    await user.type(await screen.findByLabelText(/setup code from your email/i), 'ABCD2345')
+    await user.click(screen.getByRole('button', { name: /continue/i }))
+    expect(authApi.adminMfaSetup).toHaveBeenCalledWith('mfa-token', 'ABCD2345')
+
     expect(await screen.findByText('JBSW Y3DP EHPK 3PXP')).toBeInTheDocument()
     await user.type(screen.getByLabelText(/6-digit code/i), '123456')
     await user.click(screen.getByRole('button', { name: /turn on two-factor sign-in/i }))

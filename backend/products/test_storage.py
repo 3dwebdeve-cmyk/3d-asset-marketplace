@@ -69,6 +69,9 @@ class MediaPathTests(SimpleTestCase):
         self.assertTrue(is_public_media_path("models/MDL-000142/preview.glb"))
         self.assertTrue(is_public_media_path("models/MDL-000142/gallery/01.jpg"))
         self.assertFalse(is_public_media_path("models/MDL-000142/package.zip"))
+        for private_name in ("pack.rar", "pack.7z", "model.fbx", "scene.blend", "notes.html", "icon.svg"):
+            with self.subTest(private_name=private_name):
+                self.assertFalse(is_public_media_path(f"models/MDL-000142/{private_name}"))
         self.assertFalse(is_public_media_path("products/files/a.zip"))
         self.assertTrue(is_public_media_path("products/images/x.png"))
 

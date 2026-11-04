@@ -104,6 +104,8 @@ jobs:
           DJANGO_ADMIN_ALLOWED_IPS: 127.0.0.1/32
           FRONTEND_BASE_URL: https://ci.example.invalid
           ALLOW_CONSOLE_EMAIL: "True"
+          # Staging profile refuses to start without an edge secret or a trusted proxy.
+          BEHIND_TRUSTED_NGINX: "True"
         run: |
           python manage.py migrate --noinput
           python scripts/provision_runtime_role.py
