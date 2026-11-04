@@ -530,7 +530,6 @@ export function Navbar() {
                           )}
                           <div className="navbar__account-menu-identity">
                             <strong>{user?.full_name || firstName}</strong>
-                            <span>{user?.email}</span>
                           </div>
                         </div>
                         <div className="navbar__account-menu-links">
