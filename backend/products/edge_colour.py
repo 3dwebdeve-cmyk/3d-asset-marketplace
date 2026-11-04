@@ -7,6 +7,7 @@ find that colour.
 
 from __future__ import annotations
 
+import urllib.parse
 import urllib.request
 from io import BytesIO
 
@@ -57,9 +58,11 @@ def sample_side_colours(data: bytes) -> SideColours | None:
 
 
 def fetch_side_colours(url: str) -> SideColours | None:
-    """Download a public image and sample it. Best-effort: any failure returns None."""
+    """Download a public https image and sample it. Best-effort: any failure returns None."""
+    if urllib.parse.urlsplit(url).scheme != "https":
+        return None
     try:
-        with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT_SECONDS) as response:  # nosec B310 - https checked above
             data = response.read(FETCH_MAX_BYTES + 1)
     except (OSError, ValueError):
         return None
