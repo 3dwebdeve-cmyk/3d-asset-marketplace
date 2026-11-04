@@ -57,8 +57,8 @@ describe('product gallery navigation', () => {
     expect(viewer).not.toContainElement(previous())
     expect(viewer).not.toContainElement(counter())
     expect(viewer).not.toContainElement(screen.getByRole('button', { name: 'Wishlist' }))
-    expect(screen.queryByRole('button', { name: 'Next preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Previous preview' })).not.toBeInTheDocument()
+    expect(viewer).not.toContainElement(screen.getByRole('button', { name: 'Next preview' }))
+    expect(viewer).not.toContainElement(screen.getByRole('button', { name: 'Previous preview' }))
   })
 
   it('matches backgrounds only for image previews and removes them on return to the 3D viewer', async () => {
