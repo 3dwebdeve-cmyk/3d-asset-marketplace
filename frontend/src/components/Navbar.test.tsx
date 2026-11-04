@@ -330,7 +330,7 @@ describe('Navbar', () => {
     renderNavbar()
 
     const firstName = testUser.full_name.trim().split(/\s+/)[0]
-    expect(screen.getByText(firstName)).toBeInTheDocument()
+    expect(screen.queryByText(firstName)).not.toBeInTheDocument()
     expect(screen.getByTestId('customer-account-trigger')).toHaveAccessibleName(firstName)
     expect(document.querySelector('.navbar__account-avatar')).toHaveAttribute(
       'src',
