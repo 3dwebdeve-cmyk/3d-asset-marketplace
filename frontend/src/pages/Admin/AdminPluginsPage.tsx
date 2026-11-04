@@ -226,7 +226,9 @@ export function AdminPluginsPage() {
           >
             <option value="">All statuses</option>
             <option value="draft">Draft</option>
+            <option value="pending_review">Pending review</option>
             <option value="published">Published</option>
+            <option value="rejected">Rejected</option>
             <option value="archived">Archived</option>
           </select>
           <select
@@ -270,7 +272,7 @@ export function AdminPluginsPage() {
                   {pluginsQuery.data?.results.map((plugin) => (
                     <tr key={plugin.id}>
                       <td>{plugin.name}</td><td>{plugin.category.name}</td><td>{plugin.version}</td>
-                      <td>{plugin.currency} {plugin.price}</td><td>{plugin.status}</td>
+                      <td>{plugin.currency} {plugin.price}</td><td>{plugin.status.replace('_', ' ')}</td>
                       <td><Link className="auth-link" to={`/console/plugins/${plugin.id}`}>Manage</Link></td>
                     </tr>
                   ))}

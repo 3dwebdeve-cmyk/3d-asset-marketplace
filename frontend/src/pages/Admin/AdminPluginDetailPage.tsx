@@ -23,6 +23,7 @@ import type {
   PluginStatus,
 } from '../../types/plugin'
 import { PluginMediaSection } from './PluginMediaSection'
+import { PluginReviewPanel } from './PluginReviewPanel'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 
 function validatePlugin(form: AdminPluginUpdatePayload): string | null {
@@ -167,6 +168,7 @@ export function AdminPluginDetailPage() {
           />
         ) : plugin && formReady ? (
           <>
+            <PluginReviewPanel plugin={plugin} />
             <form className="admin-create-form" onSubmit={onSubmit} noValidate>
               {formError ? <Alert variant="error" message={formError} /> : null}
               <FormField id="detail-plugin-category" label="Category">
