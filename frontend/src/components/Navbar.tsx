@@ -519,10 +519,6 @@ export function Navbar() {
                       ) : (
                         <span className="navbar__account-avatar" aria-hidden="true" />
                       )}
-                      <span className="navbar__account-name">{firstName}</span>
-                      <span className="navbar__account-caret" aria-hidden="true">
-                        ▾
-                      </span>
                     </button>
                     {accountOpen ? (
                       <div className="navbar__account-menu" role="menu">
