@@ -4,13 +4,14 @@ import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
 import { isSafePreviewVideoUrl } from '../../components/viewer/isSafePreviewVideoUrl'
 import type { ProductImage } from '../../types/product'
-import { ProductImagePreview } from './ProductImagePreview'
+import { ProductImagePreview, type SideColours } from './ProductImagePreview'
 import { ZoomableImage } from './ZoomableImage'
 
 interface GalleryImage {
   id: string
   src: string
   alt: string
+  sideColours: SideColours | null
 }
 
 type StageViewMode = 'model' | 'image' | 'video'
@@ -44,6 +45,7 @@ function buildGalleryImages(
       id: image.id,
       src: image.image_url,
       alt: `${productName} 3D model, image ${index + 1}`,
+      sideColours: image.edge_colors ?? null,
     }))
 
   if (fromApi.length > 0) {
@@ -51,7 +53,7 @@ function buildGalleryImages(
   }
 
   if (thumbnail.trim()) {
-    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model` }]
+    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model`, sideColours: null }]
   }
 
   return []
@@ -475,6 +477,7 @@ export function ProductImageGallery({
               key={activeImage.src}
               src={activeImage.src}
               alt={activeImage.alt}
+              sideColours={activeImage.sideColours}
               onError={() => markFailed(activeImage.id)}
             />
           </button>
