@@ -62,4 +62,29 @@ describe('product image background matching', () => {
     fireEvent.error(screen.getByRole('img', { name: 'Product render' }))
     expect(onError).toHaveBeenCalledOnce()
   })
+
+  it('fills the sides with the stored colours without stretching the edge', () => {
+    const { container } = render(
+      <ProductImagePreview
+        src="/stored.jpg"
+        alt="Product render"
+        sideColours={{ left: '#102030', right: '#405060' }}
+        onError={vi.fn()}
+      />,
+    )
+    loadImage(400, 800, 900, 500)
+    const left = container.querySelector('.product-detail-stage__image-edge--left') as HTMLElement
+    const right = container.querySelector('.product-detail-stage__image-edge--right') as HTMLElement
+    expect(left.style.backgroundColor).toBe('rgb(16, 32, 48)')
+    expect(right.style.backgroundColor).toBe('rgb(64, 80, 96)')
+    expect(container.querySelector('svg')).not.toBeInTheDocument()
+  })
+
+  it('keeps the edge stretch for images stored without colours', () => {
+    const { container } = render(
+      <ProductImagePreview src="/old.jpg" alt="Product render" sideColours={null} onError={vi.fn()} />,
+    )
+    loadImage(400, 800, 900, 500)
+    expect(container.querySelectorAll('svg')).toHaveLength(2)
+  })
 })

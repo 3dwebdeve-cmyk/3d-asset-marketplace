@@ -921,6 +921,10 @@ class CatalogImportScanSwitchTests(TestCase):
         media_override = override_settings(MEDIA_ROOT=media_root)
         media_override.enable()
         self.addCleanup(media_override.disable)
+        # Gallery colour fetches open sockets too; these tests count scanner connections.
+        colour_patch = patch("products.catalog_import.fetch_side_colours", return_value=None)
+        colour_patch.start()
+        self.addCleanup(colour_patch.stop)
         parent = Category.objects.create(name="Furniture", slug="furniture")
         Category.objects.create(name="Chairs", slug="chairs", parent=parent)
 
