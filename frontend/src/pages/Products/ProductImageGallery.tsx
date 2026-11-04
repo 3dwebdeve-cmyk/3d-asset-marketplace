@@ -481,6 +481,26 @@ export function ProductImageGallery({
         )}
 
         {totalCount > 1 ? (
+          <>
+            <button
+              type="button"
+              className="product-detail-stage__nav product-detail-stage__nav--prev"
+              aria-label="Previous preview"
+              onClick={showPrevious}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7" /></svg>
+            </button>
+            <button
+              type="button"
+              className="product-detail-stage__nav product-detail-stage__nav--next"
+              aria-label="Next preview"
+              onClick={showNext}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5 7 7-7 7" /></svg>
+            </button>
+          </>
+        ) : null}
+        {totalCount > 1 ? (
           <span className="product-detail-stage__counter" role="status" aria-live="polite" aria-atomic="true">
             <span className="product-detail-stage__counter-label">Preview </span>{stagePosition} / {totalCount}
           </span>
