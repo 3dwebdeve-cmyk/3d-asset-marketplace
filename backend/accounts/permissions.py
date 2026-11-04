@@ -38,15 +38,21 @@ class IsEmailVerified(BasePermission):
 
 
 class HasCatalogApiKey(BasePermission):
-    """Allow only a request authenticated by a catalog uploader API key."""
+    """Allow only a request authenticated by an uploader API key of the view's scope.
+
+    A view sets ``ingest_scope`` ("models" by default, or "plugins"); a key issued for the
+    other scope is refused.
+    """
 
     message = "A catalog uploader API key is required."
 
     def has_permission(self, request, view) -> bool:
-        from accounts.api_keys import is_catalog_uploader
+        from accounts.api_keys import SCOPE_MODELS, is_catalog_uploader
         from accounts.models import CatalogApiKey
 
-        return isinstance(request.auth, CatalogApiKey) and is_catalog_uploader(request.user)
+        if not (isinstance(request.auth, CatalogApiKey) and is_catalog_uploader(request.user)):
+            return False
+        return request.auth.scope == getattr(view, "ingest_scope", SCOPE_MODELS)
 
 
 class CatalogIngestIPAllowed(BasePermission):

@@ -28,6 +28,7 @@ class PluginCategoryCreateData:
     name: str
     description: str = ""
     image: str = ""
+    code: str = ""
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class PluginCategoryUpdateData:
     slug: str | None = None
     description: str | None = None
     image: str | None = None
+    code: str | None = None
     is_active: bool | None = None
 
 
@@ -122,15 +124,30 @@ class PluginCategoryService:
         except PluginCategory.DoesNotExist as exc:
             raise PluginError("Plugin category not found.") from exc
 
+    @staticmethod
+    def _check_code_free(code: str, *, exclude_id: UUID | None = None) -> None:
+        taken = PluginCategory.objects.filter(code=code)
+        if exclude_id is not None:
+            taken = taken.exclude(pk=exclude_id)
+        if taken.exists():
+            raise PluginError(
+                f"Category code {code} is already used by another category.",
+                field="code",
+            )
+
     @classmethod
     @transaction.atomic
     def create_category(cls, data: PluginCategoryCreateData) -> PluginCategory:
         name = cls._normalize_name(data.name)
+        code = data.code.strip().upper() or None
+        if code:
+            cls._check_code_free(code)
         return PluginCategory.objects.create(
             name=name,
             slug=PluginCategory.build_slug(name),
             description=data.description.strip(),
             image=data.image.strip(),
+            code=code,
         )
 
     @classmethod
@@ -165,6 +182,20 @@ class PluginCategoryService:
         if data.image is not None:
             category.image = data.image.strip()
             update_fields.append("image")
+        if data.code is not None:
+            # Blank clears the code. A code cannot change once the category has plugins,
+            # because their IDs (PLG-<CODE>-...) were made from it.
+            code = data.code.strip().upper() or None
+            if code != category.code:
+                if category.code and category.plugins.exists():
+                    raise PluginError(
+                        "This category already has plugins with IDs; its code cannot change.",
+                        field="code",
+                    )
+                if code:
+                    cls._check_code_free(code, exclude_id=category.pk)
+                category.code = code
+                update_fields.append("code")
         if data.is_active is not None:
             if not data.is_active and category.plugins.exclude(
                 status=Plugin.Status.ARCHIVED

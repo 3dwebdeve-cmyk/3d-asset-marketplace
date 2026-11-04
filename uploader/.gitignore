@@ -1,0 +1,8 @@
+settings.local.json
+*.key
+dist/
+build/
+.build-venv/
+*.spec
+__pycache__/
+*.xlsx
