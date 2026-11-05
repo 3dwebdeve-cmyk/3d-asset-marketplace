@@ -8,7 +8,7 @@ const product = {
   pbr_ready: true, game_ready: true, preview_model: '',
   formats: ['blend', 'fbx', 'zip'],
   files: [{ file_format: 'zip', file_size: 2048, is_preview: false }],
-} as PublicProductDetail
+} as unknown as PublicProductDetail
 
 describe('verified model specifications', () => {
   it('uses package contents for model formats and reports the actual download size', () => {

@@ -18,7 +18,19 @@ import { NOINDEX_CATEGORY_SLUGS } from '../src/lib/categorySeo'
 import { buildCustomProjectsJsonLd } from '../src/lib/customProjectSeo'
 import { HOME_HEADING } from '../src/lib/homeContent'
 /** Head content for one HTML response. Mirrors what useDocumentSeo sets in the browser. */
+export interface ModelSummary {
+  name: string
+  slug: string
+  price?: string
+  thumbnail?: string
+  short_description?: string
+}
+
 export interface PageSeo {
+  heading?: string
+  modelsHeading?: string
+  freeModels?: ModelSummary[]
+  pagination?: { current: number; previous?: string; next?: string }
   title: string
   description: string
   keywords?: string[]
@@ -31,7 +43,7 @@ export interface PageSeo {
   canonicalPath?: string
   robots?: string
   structuredData?: Record<string, unknown>
-  models?: { name: string; slug: string }[]
+  models?: ModelSummary[]
   status: number
 }
 
@@ -119,7 +131,7 @@ export function getProductPageSeo(product: PublicProductDetail, siteOrigin: stri
     imageAlt: product.name,
     canonicalPath: product.slug ? `/products/${product.slug}` : undefined,
     robots: NOINDEX_CATEGORY_SLUGS.has(product.category.slug) ? 'noindex, follow' : undefined,
-    structuredData: buildProductJsonLd(product, `/products/${product.slug}`, siteOrigin),
+    structuredData: { '@graph': [buildProductJsonLd(product, `/products/${product.slug}`, siteOrigin)] },
     status: 200,
   }
 }
@@ -157,15 +169,22 @@ function metaTag(attribute: 'name' | 'property', key: string, content: string): 
 /** A useful first response for every visitor, including clients without JavaScript.
  * React replaces this summary when the application loads; no bot-specific content is served.
  */
-function renderPageSummary(html: string, seo: PageSeo, path: string): string {
+function renderPageSummary(html: string, seo: PageSeo, path: string, origin: string): string {
   const links = [
     ['/', 'AssetHive3D home'], ['/3d-models', '3D models'], ['/categories', '3D model categories'],
     ['/free-3d-models', 'Download free 3D models'], ['/3d-models?search=robot', 'Robot 3D models'],
     ['/plugins', 'Plugins and tools'], ['/custom-projects', 'Custom 3D projects'],
     ['/about', 'About AssetHive3D'], ['/contact', 'Contact and enquiries'],
   ]
-  const models = seo.models?.length ? `<section aria-label="Free 3D models"><h2>Available free models</h2><ul>${seo.models.map((model) => `<li><a href="/products/${encodeURIComponent(model.slug)}">${escapeHtml(model.name)}</a></li>`).join('')}</ul></section>` : ''
-  const content = `<main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p>${models}<nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  const renderModels = (models: ModelSummary[] | undefined, heading: string) => models?.length
+    ? `<section aria-label="${escapeHtml(heading)}"><h2>${escapeHtml(heading)}</h2><ul>${models.map((model) => {
+      const image = absoluteUrl(model.thumbnail ?? '', origin)
+      const safeImage = image && /^https?:\/\//i.test(image)
+      return `<li><a href="/products/${encodeURIComponent(model.slug)}">${escapeHtml(model.name)}</a>${safeImage ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(model.name)}" loading="lazy" />` : ''}${model.short_description ? `<p>${escapeHtml(model.short_description)}</p>` : ''}</li>`
+    }).join('')}</ul></section>` : ''
+  const models = renderModels(seo.models, seo.modelsHeading ?? '3D models') + renderModels(seo.freeModels, 'Free 3D Models')
+  const pagination = seo.pagination ? `<nav aria-label="Catalog pagination">${seo.pagination.previous ? `<a href="${escapeHtml(seo.pagination.previous)}">Previous page</a>` : ''}${seo.pagination.next ? `<a href="${escapeHtml(seo.pagination.next)}">Next page</a>` : ''}</nav>` : ''
+  const content = `<main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.heading ?? seo.title)}</h1><p>${escapeHtml(seo.description)}</p>${models}${pagination}<nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
   // The static shell also contains the preloader. Replace only our summary slot,
   // so page content never depends on #root being otherwise empty.
   const summarySlot = /<main\b[^>]*\bid=["']page-summary["'][^>]*>[\s\S]*?<\/main>/i
@@ -232,7 +251,7 @@ export function renderSeoHead(
   }
 
   const indented = tags.map((tag) => `    ${tag}`).join('\n')
-  return renderPageSummary(`${shell.slice(0, headEnd)}${indented}\n  ${shell.slice(headEnd)}`, seo, page.path)
+  return renderPageSummary(`${shell.slice(0, headEnd)}${indented}\n  ${shell.slice(headEnd)}`, seo, page.path, page.origin)
 }
 
 /** Adds the absolute sitemap location to robots.txt, which must use a full URL. */

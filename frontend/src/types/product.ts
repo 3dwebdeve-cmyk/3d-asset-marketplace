@@ -228,6 +228,7 @@ export interface PublicProductFile {
 }
 
 export interface PublicProductDetail {
+  formats?: string[]
   id: string
   name: string
   slug: string
@@ -267,6 +268,7 @@ export interface PaginatedPublicProducts {
 }
 
 export interface PublicProductListParams {
+  is_free?: boolean
   page?: number
   page_size?: number
   category_id?: string
