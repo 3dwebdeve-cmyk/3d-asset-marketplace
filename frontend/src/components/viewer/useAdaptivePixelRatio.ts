@@ -4,7 +4,7 @@ const MOBILE_MAX_DPR = 1.25
 const DESKTOP_MAX_DPR = 1.75
 
 /** Mobile / coarse-pointer viewports get lower GPU budgets (DPR + shadows). */
-export function isMobileViewport(): boolean {
+function isMobileViewport(): boolean {
   if (typeof window === 'undefined') {
     return false
   }

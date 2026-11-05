@@ -2,7 +2,6 @@ import type { PublicProductDetail } from '../types/product'
 
 /** One spelling of the brand everywhere search engines read it. */
 export const SITE_NAME = 'AssetHive3D'
-export const SITE_TAGLINE = 'Furniture & Interior 3D Models'
 export const DEFAULT_OG_IMAGE_PATH = '/og-default.jpg'
 export const DEFAULT_SOCIAL_IMAGE = DEFAULT_OG_IMAGE_PATH
 export const DEFAULT_SOCIAL_IMAGE_ALT = 'Sofa, armchair and coffee table in a modern interior, with the AssetHive3D name'

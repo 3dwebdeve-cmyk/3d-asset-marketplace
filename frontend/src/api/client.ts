@@ -19,7 +19,7 @@ const SESSION_EXPIRED_TOAST_ID = 'session-expired'
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 
 /** Canonical REST API version prefix. */
-export const API_PREFIX = '/api/v1'
+const API_PREFIX = '/api/v1'
 
 interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
