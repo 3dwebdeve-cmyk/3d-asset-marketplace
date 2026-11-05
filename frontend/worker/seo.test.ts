@@ -130,7 +130,7 @@ describe('renderSeoHead', () => {
       /<script type="application\/ld\+json" id="seo-structured-data" data-seo-ssr>([\s\S]*?)<\/script>/,
     )
     expect(match).not.toBeNull()
-    const data = JSON.parse(match![1])
+    const data = JSON.parse(match![1])['@graph'].find((item: Record<string, unknown>) => item['@type'] === 'Product')
     expect(data['@type']).toBe('Product')
     expect(data.url).toBe('https://shop.example/products/desk-lamp')
     expect(data.name).toBe('Lamp </script><script>alert(1)</script>')

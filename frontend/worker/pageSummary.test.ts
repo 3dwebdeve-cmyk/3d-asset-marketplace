@@ -48,6 +48,25 @@ function expectReadableSummary(doc: Document) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('page content in the real preloader shell', () => {
+  it('exposes free model links before JavaScript loads and omits paid models', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [
+      { name: 'Free Chair', slug: 'free-chair', price: '0.00' },
+      { name: 'Paid Chair', slug: 'paid-chair', price: '12.00' },
+    ] })))
+    const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
+    const doc = parse(await response.text())
+    expect(response.status).toBe(200)
+    expect(doc.querySelector('a[href="/products/free-chair"]')?.textContent).toBe('Free Chair')
+    expect(doc.querySelector('a[href="/products/paid-chair"]')).toBeNull()
+    expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(`${origin}/free-3d-models`)
+  })
+
+  it('keeps an empty free collection out of search results', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [] })))
+    const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
+    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow')
+  })
+
   it('includes a useful static fallback and releases visitors without JavaScript from the loader', () => {
     const doc = parse(shell)
     const summary = expectReadableSummary(doc)
@@ -65,7 +84,7 @@ describe('page content in the real preloader shell', () => {
     expect(response.status).toBe(200)
     expect(summary.querySelector('h1')?.textContent).toBe(path === '/' ? HOME_HEADING : seo.title)
     expect(summary.querySelector('p')?.textContent).toBe(seo.description)
-    expect(upstream).not.toHaveBeenCalled()
+    expect(upstream).toHaveBeenCalledTimes(path === '/' ? 2 : 0)
   })
 
   it('replaces the fallback with the public product content before any client script runs', async () => {
@@ -107,9 +126,9 @@ describe('page content in the real preloader shell', () => {
     }
     const doc = parse(renderSeoHead(shell, seo, { origin, path: `/products/${product.slug}` }))
     const summary = expectReadableSummary(doc)
-    expect(summary.querySelector('h1')?.textContent).toBe(seo.title)
+    expect(summary.querySelector('h1')?.textContent).toBe(seo.heading ?? seo.title)
     expect(summary.querySelector('p')?.textContent).toBe(seo.description)
-    expect(summary.querySelector('script, img')).toBeNull()
+    expect(summary.querySelector('script, [onerror]')).toBeNull()
     expect(doc.querySelector('script:not([src]):not([type="application/ld+json"])')).toBeNull()
   })
 })

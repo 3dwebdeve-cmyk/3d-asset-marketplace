@@ -33,6 +33,18 @@
   text-underline-offset: 3px;
 }
 
+.site-page-summary img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.site-page-summary section li {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
 .site-preloader {
   position: fixed;
   inset: 0;

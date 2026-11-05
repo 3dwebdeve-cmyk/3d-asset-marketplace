@@ -58,6 +58,7 @@ export function buildProductTitle(name: string, categoryName?: string): string {
 }
 
 export interface ProductDescriptionExtras {
+  isFree?: boolean
   categoryName?: string
   polygonCount?: number | null
   licenseType?: string
@@ -80,7 +81,7 @@ export function buildProductDescription(
   ].filter(Boolean)
   const license = extras.licenseType ? ` ${capitalize(extras.licenseType)} license.` : ''
   return truncateText(
-    `${name}: ${facts.join(', ')}. Preview in 3D, secure checkout and instant download.${license}`,
+    `${name}: ${facts.join(', ')}. ${extras.isFree ? 'Preview in 3D and download for free.' : 'Preview in 3D, secure checkout and instant download.'}${license}`,
     DESCRIPTION_LIMIT,
   )
 }
