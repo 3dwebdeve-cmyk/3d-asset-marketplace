@@ -28,6 +28,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
             "display_order",
             "is_primary",
             "edge_colors",
+            "aspect_ratio",
             "created_at",
         )
         read_only_fields = fields

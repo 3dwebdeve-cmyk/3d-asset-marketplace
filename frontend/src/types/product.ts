@@ -14,6 +14,7 @@ export interface ProductImage {
   display_order: number
   is_primary: boolean
   edge_colors?: { left: string; right: string } | null
+  aspect_ratio?: number | null
   created_at: string
 }
 

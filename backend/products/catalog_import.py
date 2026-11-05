@@ -25,7 +25,7 @@ from config.upload_security import (
     inspect_product_content,
     scan_error_code,
 )
-from products.edge_colour import fetch_side_colours
+from products.edge_colour import edge_fields, fetch_side_colours
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 from products.services import (
     ProductCreateData,
@@ -917,15 +917,13 @@ class CatalogImportService:
         images = []
         for index, url in enumerate(gallery_urls):
             # Best-effort: an image that cannot be fetched is stored without colours.
-            side_colours = fetch_side_colours(url) or ("", "")
             images.append(
                 ProductImage(
                     product=product,
                     image_url=url,
                     display_order=index,
                     is_primary=index == 0,
-                    edge_left_color=side_colours[0],
-                    edge_right_color=side_colours[1],
+                    **edge_fields(fetch_side_colours(url)),
                 )
             )
         ProductImage.objects.bulk_create(images)
