@@ -84,7 +84,10 @@
   outline-offset: 3px;
 }
 
-/* Fixed neutral backdrop behind every render, so the empty sides never blend with the photo. */
+/*
+ * Neutral backdrop behind every render. A render with stored edge colours overrides it inline
+ * with one light colour made from those edges, so the render's own boundary stands out.
+ */
 .product-detail-stage__image-preview {
   border-radius: 0;
   position: relative;
@@ -100,24 +103,6 @@
   position: relative;
   z-index: 1;
   flex: 0 1 auto;
-}
-
-/*
- * With a stored aspect ratio the render is only as wide as its height allows, so the two
- * side fills take up exactly the empty space beside it. They share that space equally, which
- * keeps the render centred. A wide render leaves no space, so its fills collapse to nothing.
- */
-.product-detail-stage__image-preview--sided > .product-detail-stage__image {
-  width: auto;
-  max-width: 100%;
-}
-
-/* Stored side colours fade from the render's edge out to the backdrop. Colour comes inline. */
-.product-detail-stage__image-edge {
-  flex: 1 1 0;
-  min-width: 0;
-  align-self: stretch;
-  pointer-events: none;
 }
 
 .product-detail-stage__counter {
