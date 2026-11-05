@@ -165,7 +165,8 @@
 }
 
 .product-hub-detail .product-detail-stage__image {
-  background: var(--pure-black);
+  /* Transparent so the image preview's neutral backdrop and stored side colours show beside the render. */
+  background: transparent;
   height: 720px;
   min-height: 720px;
 }
@@ -449,7 +450,6 @@
 
 .product-hub-detail .product-detail-stage,
 .product-hub-detail .product-detail-stage__main,
-.product-hub-detail .product-detail-stage__image,
 .product-hub-detail .product-detail-stage__viewer,
 .product-hub-detail .product-detail-stage__viewer .model-viewer,
 .product-hub-detail .product-detail-stage__video-wrap {

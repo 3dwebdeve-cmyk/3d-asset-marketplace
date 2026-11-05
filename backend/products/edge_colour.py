@@ -24,6 +24,7 @@ SIDE_MUTE = 0.6
 # Stop downloading an image for colour sampling past this size.
 FETCH_MAX_BYTES = 25 * 1024 * 1024
 FETCH_TIMEOUT_SECONDS = 10
+FETCH_USER_AGENT = "Mozilla/5.0 (compatible; AssetHive3D/1.0; +https://assethive3d.com)"
 
 class SideSample(NamedTuple):
     left: str
@@ -67,8 +68,11 @@ def fetch_side_colours(url: str) -> SideSample | None:
     """Download a public https image and sample it. Best-effort: any failure returns None."""
     if urllib.parse.urlsplit(url).scheme != "https":
         return None
+    # Cloudflare-hosted buckets (r2.dev) answer 403 to urllib's default "Python-urllib" agent,
+    # which left every sampled image with no colours, so identify ourselves explicitly.
+    request = urllib.request.Request(url, headers={"User-Agent": FETCH_USER_AGENT})
     try:
-        with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT_SECONDS) as response:  # nosec B310 - https checked above
+        with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:  # nosec B310 - https checked above
             data = response.read(FETCH_MAX_BYTES + 1)
     except (OSError, ValueError):
         return None
