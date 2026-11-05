@@ -65,6 +65,8 @@ export function ProductImagePreview({ src, alt, onError }: ProductImagePreviewPr
         ref={imageRef}
         src={src}
         alt={alt}
+        decoding="async"
+        fetchPriority="high"
         className="product-detail-stage__image"
         onLoad={updateEdges}
         onError={onError}

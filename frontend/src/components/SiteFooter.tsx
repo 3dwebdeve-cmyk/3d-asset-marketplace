@@ -25,7 +25,7 @@ export function SiteFooter() {
             <Link className="site-footer__link" to="/3d-models">
               3D Models
             </Link>
-            <Link className="site-footer__link" to="/3d-models?max_price=0">
+            <Link className="site-footer__link" to="/free-3d-models">
               Download free 3D models
             </Link>
             <Link className="site-footer__link" to="/plugins">

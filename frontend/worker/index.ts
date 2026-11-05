@@ -24,6 +24,10 @@ import {
   toStoredCopy,
 } from './edgeCache'
 import { isKnownAppPath } from './routes'
+import { applyCatalogSeo, catalogApiUrl, modelSummaries } from './catalogSeo'
+import { hasCatalogFilters, readCatalogPage } from '../src/lib/modelCatalogSeo'
+import { FREE_MODELS_COPY } from '../src/lib/freeModelsSeo'
+import { ALL_MODELS_SEO } from '../src/lib/categorySeo'
 
 interface AssetsBinding {
   fetch(request: Request): Promise<Response>
@@ -174,6 +178,7 @@ async function fetchCatalogJson(url: URL, env: WorkerEnv): Promise<CatalogFetchR
     return { kind: 'unavailable' }
   }
 
+  if (!response) return { kind: 'unavailable' }
   if (response.status === 404) {
     return { kind: 'missing' }
   }
@@ -232,9 +237,32 @@ async function resolvePageSeo(
   path: string,
   env: WorkerEnv,
   siteOrigin: string,
+  params: URLSearchParams,
 ): Promise<PageSeo | undefined> {
   const staticSeo = getStaticPageSeo(path, siteOrigin)
   if (staticSeo) {
+    if (path === '/free-3d-models' || path === '/3d-models') {
+      staticSeo.heading = path === '/free-3d-models' ? FREE_MODELS_COPY.h1 : ALL_MODELS_SEO.h1
+      staticSeo.modelsHeading = path === '/free-3d-models' ? 'Available free models' : '3D models'
+      const backend = optionalBackendOrigin(env.BACKEND_ORIGIN)
+      if (backend) {
+        if (hasCatalogFilters(params)) return applyCatalogSeo(staticSeo, null, path, params, siteOrigin)
+        const result = await fetchCatalogJson(catalogApiUrl(backend, path, params), env)
+        if (result.kind === 'missing' && readCatalogPage(params) > 1) return getNotFoundPageSeo('Page')
+        return applyCatalogSeo(staticSeo, result.kind === 'ok' ? result.body : null, path, params, siteOrigin)
+      }
+    }
+    if (path === '/') {
+      const backend = optionalBackendOrigin(env.BACKEND_ORIGIN)
+      if (backend) {
+        const recent = new URL('/api/v1/products/?page=1&page_size=6&ordering=-created_at', backend)
+        const free = new URL(recent)
+        free.searchParams.set('is_free', 'true')
+        const [products, freeProducts] = await Promise.all([fetchCatalogJson(recent, env), fetchCatalogJson(free, env)])
+        if (products.kind === 'ok') staticSeo.models = modelSummaries(products.body)
+        if (freeProducts.kind === 'ok') staticSeo.freeModels = modelSummaries(freeProducts.body, true)
+      }
+    }
     return staticSeo
   }
 
@@ -255,14 +283,14 @@ async function resolvePageSeo(
       const category = body.results.find((item) => item.slug === slug)
       if (category) {
         const copy = getCategorySeo(slug, category.name)
-        const productsUrl = new URL('/api/v1/products/', backend)
-        productsUrl.searchParams.set('category_id', category.id)
-        productsUrl.searchParams.set('page_size', '1')
+        const productsUrl = catalogApiUrl(backend, categoryPath(slug), params, category.id)
         const products = await fetchCatalogJson(productsUrl, env)
+        if (products.kind === 'missing' && readCatalogPage(params) > 1) return getNotFoundPageSeo('Page')
         const listing = products.kind === 'ok' ? products.body as { results?: unknown[] } : null
         const empty = Array.isArray(listing?.results) && listing.results.length === 0
-        return {
+        return applyCatalogSeo({
           title: buildCategoryTitle(copy), description: copy.description, ogType: 'website', status: 200,
+          heading: copy.h1,
           canonicalPath: categoryPath(slug),
           robots: !copy.indexable || empty ? 'noindex, follow' : undefined,
           structuredData: {
@@ -273,7 +301,7 @@ async function resolvePageSeo(
               { '@type': 'ListItem', position: 3, name: copy.h1, item: `${siteOrigin}${categoryPath(slug)}` },
             ],
           },
-        }
+        }, products.kind === 'ok' ? products.body : null, categoryPath(slug), params, siteOrigin)
       }
       if (!body.next) {
         return { title: 'Category not found | AssetHive3D', description: 'The requested category could not be found.', ogType: 'website', status: 404, robots: 'noindex, nofollow' }
@@ -303,6 +331,15 @@ function isHtmlResponse(response: Response): boolean {
 
 async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
   const siteOrigin = resolveSiteOrigin(env, url)
+  // Keep existing free-model bookmarks while consolidating them on the dedicated collection.
+  if ((request.method === 'GET' || request.method === 'HEAD') && normalizePath(url.pathname) === '/3d-models' &&
+    url.searchParams.get('max_price') === '0' && (!url.searchParams.has('min_price') || url.searchParams.get('min_price') === '0')) {
+    const target = new URL(url)
+    target.pathname = '/free-3d-models'
+    target.searchParams.delete('max_price')
+    target.searchParams.delete('min_price')
+    return withSecurityHeaders(new Response(null, { status: 301, headers: { Location: target.toString() } }))
+  }
 
   const assetResponse = await env.ASSETS.fetch(request)
 
@@ -317,7 +354,7 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
   }
 
   const path = normalizePath(url.pathname)
-  const seo = await resolvePageSeo(path, env, siteOrigin)
+  const seo = await resolvePageSeo(path, env, siteOrigin, url.searchParams)
   const headers = new Headers(assetResponse.headers)
   // The banner is otherwise only found after the JavaScript has run. The Link header lets the browser
   // start on it as soon as the page's headers arrive, with the same srcset the <img> will use.
@@ -328,7 +365,7 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
   if (!seo) {
     return withSecurityHeaders(new Response(assetResponse.body, { status: assetResponse.status, headers }))
   }
-  if ((path === '/3d-models' || path.startsWith('/3d-models/') || path === '/plugins') && url.searchParams.get('search')?.trim()) {
+  if ((path === '/3d-models' || path.startsWith('/3d-models/') || path === '/plugins' || path === '/free-3d-models') && url.searchParams.get('search')?.trim()) {
     seo.robots = 'noindex, follow'
   }
 

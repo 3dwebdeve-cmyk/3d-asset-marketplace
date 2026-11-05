@@ -28,7 +28,7 @@ describe('category metadata in the first HTML response', () => {
     expect(html).toContain('Furniture 3D models for interior design')
     expect(html).toContain('href="https://shop.example/3d-models/furniture"')
     expect(html).toContain('"@type":"BreadcrumbList"')
-    expect(response.headers.get('X-Robots-Tag')).toBeNull()
+    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow')
   })
 
   it('looks through paginated categories without following external URLs', async () => {

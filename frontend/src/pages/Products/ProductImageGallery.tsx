@@ -24,6 +24,7 @@ interface ProductImageGalleryProps {
   showStageChrome?: boolean
   showPreviewModeThumbs?: boolean
   stageOverlays?: ReactNode
+  preferImagePreview?: boolean
 }
 
 function buildGalleryImages(
@@ -66,6 +67,7 @@ export function ProductImageGallery({
   showStageChrome = false,
   showPreviewModeThumbs = false,
   stageOverlays,
+  preferImagePreview = false,
 }: ProductImageGalleryProps) {
   const stageRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
@@ -80,7 +82,7 @@ export function ProductImageGallery({
   // Warm the preview GLB in the HTTP cache without pulling Three.js into this chunk.
   useEffect(() => {
     const url = previewModelUrl.trim()
-    if (!isSafePreviewModelUrl(url) || typeof fetch !== 'function') {
+    if (preferImagePreview || !isSafePreviewModelUrl(url) || typeof fetch !== 'function') {
       return
     }
     const controller = new AbortController()
@@ -93,7 +95,7 @@ export function ProductImageGallery({
       // Preload is best-effort; the viewer will surface real load errors.
     })
     return () => controller.abort()
-  }, [previewModelUrl])
+  }, [previewModelUrl, preferImagePreview])
 
   const galleryImages = useMemo(
     () => buildGalleryImages(productName, thumbnail, images),
@@ -101,6 +103,7 @@ export function ProductImageGallery({
   )
 
   const [viewMode, setViewMode] = useState<StageViewMode>(() => {
+    if (preferImagePreview && galleryImages.length > 0) return 'image'
     if (hasSafePreviewModel) return 'model'
     if (hasSafePreviewVideo) return 'video'
     return 'image'
@@ -110,14 +113,16 @@ export function ProductImageGallery({
   const [imgErrorIds, setImgErrorIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
-    if (hasSafePreviewModel) {
+    if (preferImagePreview && galleryImages.length > 0) {
+      setViewMode('image')
+    } else if (hasSafePreviewModel) {
       setViewMode('model')
     } else if (hasSafePreviewVideo) {
       setViewMode('video')
     } else {
       setViewMode('image')
     }
-  }, [hasSafePreviewModel, hasSafePreviewVideo, previewModelUrl, previewVideoUrl])
+  }, [hasSafePreviewModel, hasSafePreviewVideo, previewModelUrl, previewVideoUrl, preferImagePreview, galleryImages.length])
 
   const safeIndex = galleryImages.length === 0 ? 0 : Math.min(activeIndex, galleryImages.length - 1)
   const activeImage = galleryImages[safeIndex] ?? null

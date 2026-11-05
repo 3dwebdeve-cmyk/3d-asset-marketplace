@@ -17,7 +17,6 @@ import type { PublicProductDetail } from '../src/types/product'
 import { NOINDEX_CATEGORY_SLUGS } from '../src/lib/categorySeo'
 import { buildCustomProjectsJsonLd } from '../src/lib/customProjectSeo'
 import { HOME_HEADING } from '../src/lib/homeContent'
-
 /** Head content for one HTML response. Mirrors what useDocumentSeo sets in the browser. */
 export interface PageSeo {
   title: string
@@ -32,6 +31,7 @@ export interface PageSeo {
   canonicalPath?: string
   robots?: string
   structuredData?: Record<string, unknown>
+  models?: { name: string; slug: string }[]
   status: number
 }
 
@@ -160,11 +160,12 @@ function metaTag(attribute: 'name' | 'property', key: string, content: string): 
 function renderPageSummary(html: string, seo: PageSeo, path: string): string {
   const links = [
     ['/', 'AssetHive3D home'], ['/3d-models', '3D models'], ['/categories', '3D model categories'],
-    ['/3d-models?max_price=0', 'Download free 3D models'], ['/3d-models?search=robot', 'Robot 3D models'],
+    ['/free-3d-models', 'Download free 3D models'], ['/3d-models?search=robot', 'Robot 3D models'],
     ['/plugins', 'Plugins and tools'], ['/custom-projects', 'Custom 3D projects'],
     ['/about', 'About AssetHive3D'], ['/contact', 'Contact and enquiries'],
   ]
-  const content = `<main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p><nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
+  const models = seo.models?.length ? `<section aria-label="Free 3D models"><h2>Available free models</h2><ul>${seo.models.map((model) => `<li><a href="/products/${encodeURIComponent(model.slug)}">${escapeHtml(model.name)}</a></li>`).join('')}</ul></section>` : ''
+  const content = `<main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.title)}</h1><p>${escapeHtml(seo.description)}</p>${models}<nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
   // The static shell also contains the preloader. Replace only our summary slot,
   // so page content never depends on #root being otherwise empty.
   const summarySlot = /<main\b[^>]*\bid=["']page-summary["'][^>]*>[\s\S]*?<\/main>/i
