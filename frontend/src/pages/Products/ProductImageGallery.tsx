@@ -12,7 +12,6 @@ interface GalleryImage {
   src: string
   alt: string
   sideColours: SideColours | null
-  aspectRatio: number | null
 }
 
 type StageViewMode = 'model' | 'image' | 'video'
@@ -48,7 +47,6 @@ function buildGalleryImages(
       src: image.image_url,
       alt: `${productName} 3D model, image ${index + 1}`,
       sideColours: image.edge_colors ?? null,
-      aspectRatio: image.aspect_ratio ?? null,
     }))
 
   if (fromApi.length > 0) {
@@ -56,7 +54,7 @@ function buildGalleryImages(
   }
 
   if (thumbnail.trim()) {
-    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model`, sideColours: null, aspectRatio: null }]
+    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model`, sideColours: null }]
   }
 
   return []
@@ -485,7 +483,6 @@ export function ProductImageGallery({
               src={activeImage.src}
               alt={activeImage.alt}
               sideColours={activeImage.sideColours}
-              aspectRatio={activeImage.aspectRatio}
               onError={() => markFailed(activeImage.id)}
             />
           </button>
