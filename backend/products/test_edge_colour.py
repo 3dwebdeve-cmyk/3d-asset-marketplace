@@ -1,9 +1,10 @@
 from io import BytesIO
+from unittest import mock
 
 from django.test import SimpleTestCase
 from PIL import Image, ImageDraw
 
-from products.edge_colour import sample_side_colours
+from products.edge_colour import FETCH_USER_AGENT, fetch_side_colours, sample_side_colours
 from products.models import ProductImage
 from products.serializers import ProductImageSerializer
 
@@ -51,6 +52,32 @@ class SampleSideColoursTests(SimpleTestCase):
     def test_unreadable_bytes_return_none(self) -> None:
         assert sample_side_colours(b"not an image") is None
         assert sample_side_colours(b"") is None
+
+
+class FetchSideColoursTests(SimpleTestCase):
+    def test_download_sends_an_explicit_user_agent(self) -> None:
+        # Cloudflare r2.dev refuses urllib's default agent with a 403.
+        seen = {}
+
+        class _Response(BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def fake_urlopen(request, timeout):
+            seen["agent"] = request.get_header("User-agent")
+            return _Response(_png(200, 400, lambda canvas, width, height: None))
+
+        with mock.patch("products.edge_colour.urllib.request.urlopen", fake_urlopen):
+            sample = fetch_side_colours("https://pub-x.r2.dev/render.png")
+
+        assert seen["agent"] == FETCH_USER_AGENT
+        assert sample is not None and sample.aspect_ratio == 0.5
+
+    def test_non_https_urls_are_not_fetched(self) -> None:
+        assert fetch_side_colours("http://example.com/render.png") is None
 
 
 class ProductImageEdgeColoursSerializerTests(SimpleTestCase):
