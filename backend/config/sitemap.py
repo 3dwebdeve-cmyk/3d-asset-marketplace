@@ -17,13 +17,13 @@ from django.http import HttpRequest, HttpResponse, HttpResponseNotAllowed
 from plugins.models import Plugin
 from products.models import Product
 
-CACHE_KEY = "sitemap:v1"
+CACHE_KEY = "sitemap:v2"
 CACHE_SECONDS = 60 * 60
 # The protocol allows 50,000 addresses per file; stay well inside that.
 MAX_URLS = 45_000
 
 # Pages that always exist. Account, cart, checkout and admin pages are deliberately absent.
-STATIC_PATHS = ("/", "/3d-models", "/plugins", "/categories", "/custom-projects", "/about", "/contact")
+STATIC_PATHS = ("/", "/free-3d-models", "/3d-models", "/plugins", "/categories", "/custom-projects", "/about", "/contact")
 
 
 def _excluded(setting_name: str, default: tuple[str, ...]) -> set[str]:

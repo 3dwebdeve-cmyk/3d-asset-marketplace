@@ -1,11 +1,8 @@
 import type { PublicProductDetail } from '../../types/product'
+import { productSpecifications } from '../../lib/productSpecifications'
 
 interface ProductSpecsProps {
   product: PublicProductDetail
-}
-
-function yesNo(value: boolean): string {
-  return value ? 'Yes' : 'No'
 }
 
 function SpecIcon({ name }: { name: string }) {
@@ -84,14 +81,7 @@ function SpecIcon({ name }: { name: string }) {
 }
 
 export function ProductSpecs({ product }: ProductSpecsProps) {
-  const rows: Array<{ label: string; value: string }> = [
-    { label: 'Category', value: product.category.name },
-    { label: 'Viewer', value: product.preview_model ? 'Browser 3D' : 'Image preview' },
-    { label: 'Rigged', value: yesNo(product.rigged) },
-    { label: 'Animated', value: yesNo(product.animated) },
-    { label: 'PBR materials', value: yesNo(product.pbr_ready) },
-    { label: 'Type', value: product.preview_model ? 'Interactive preview' : '3D asset' },
-  ]
+  const rows = productSpecifications(product)
 
   return (
     <section className="product-detail-specs" aria-labelledby="product-specs-heading">
@@ -102,7 +92,7 @@ export function ProductSpecs({ product }: ProductSpecsProps) {
             <circle cx="12" cy="12" r="3" />
           </svg>
         </span>
-        Preview specifications
+        Model specifications
       </h2>
       <dl className="product-detail-specs__table">
         {rows.map((row) => (

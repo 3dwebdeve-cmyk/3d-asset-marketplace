@@ -13,19 +13,20 @@ export function RatingDisplay({
 }: RatingDisplayProps) {
   const rating = Number(averageRating)
   const hasRating = !Number.isNaN(rating) && rating > 0
+  if (!hasRating) return null
   const countLabel = reviewCount > 0 ? ` (${reviewCount.toLocaleString()})` : ''
 
   if (variant === 'detail') {
     return (
       <span className={className ?? 'product-detail-purchase__rating'}>
-        {hasRating ? `${rating.toFixed(1)} rating${countLabel}` : 'New'}
+        {`${rating.toFixed(1)} rating${countLabel}`}
       </span>
     )
   }
 
   return (
     <span className={className ?? 'product-card__rating'}>
-      ⭐ {hasRating ? `${rating.toFixed(1)}${countLabel}` : 'New'}
+      ⭐ {`${rating.toFixed(1)}${countLabel}`}
     </span>
   )
 }

@@ -150,8 +150,8 @@ describe('server-rendered page head', () => {
     expect(upstream).not.toHaveBeenCalled()
   })
 
-  it('adds static page tags to the home page without a backend call', async () => {
-    const upstream = vi.fn()
+  it('adds homepage metadata alongside the catalog preview', async () => {
+    const upstream = vi.fn().mockImplementation(async () => Response.json({ results: [] }))
     vi.stubGlobal('fetch', upstream)
 
     const response = await worker.fetch(new Request('https://shop.example/'), createEnv())
@@ -169,7 +169,7 @@ describe('server-rendered page head', () => {
     expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute('content')).toBe('https://shop.example/static/og-banner.jpg')
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://shop.example/')
     expect(html).not.toContain('content="Default"')
-    expect(upstream).not.toHaveBeenCalled()
+    expect(upstream).toHaveBeenCalledTimes(2)
   })
 
   it('uses SITE_URL for canonical URLs when it is configured', async () => {
