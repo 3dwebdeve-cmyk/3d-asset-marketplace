@@ -25,6 +25,7 @@ from config.upload_security import (
     inspect_product_content,
     scan_error_code,
 )
+from products.edge_colour import edge_fields, fetch_side_colours
 from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
 from products.services import (
     ProductCreateData,
@@ -913,17 +914,19 @@ class CatalogImportService:
         if not gallery_urls or not replace:
             return
         ProductImage.objects.filter(product=product).delete()
-        ProductImage.objects.bulk_create(
-            [
+        images = []
+        for index, url in enumerate(gallery_urls):
+            # Best-effort: an image that cannot be fetched is stored without colours.
+            images.append(
                 ProductImage(
                     product=product,
                     image_url=url,
                     display_order=index,
                     is_primary=index == 0,
+                    **edge_fields(fetch_side_colours(url)),
                 )
-                for index, url in enumerate(gallery_urls)
-            ]
-        )
+            )
+        ProductImage.objects.bulk_create(images)
 
     @staticmethod
     def _sync_scan_note(product: Product, not_scanned: bool | None) -> None:

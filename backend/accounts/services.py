@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -86,6 +87,9 @@ class RegistrationService:
         if User.objects.filter(email=email).exists():
             # Same response shape as a new account, so the endpoint cannot be used to
             # discover which emails are registered. The owner gets a notice instead.
+            # The notice is queued (like the verification email) and the password is hashed
+            # anyway, so the response time does not reveal which branch ran.
+            make_password(data.password)
             cls._notify_existing_account(email)
             return User(
                 id=uuid4(),
@@ -119,6 +123,13 @@ class RegistrationService:
 
     @staticmethod
     def _notify_existing_account(email: str) -> None:
+        from accounts.tasks import send_registration_notice_task
+        from config.celery_utils import enqueue_after_commit
+
+        enqueue_after_commit(send_registration_notice_task, email)
+
+    @staticmethod
+    def deliver_existing_account_notice(email: str) -> None:
         try:
             send_text_mail(
                 subject="Account registration attempt",

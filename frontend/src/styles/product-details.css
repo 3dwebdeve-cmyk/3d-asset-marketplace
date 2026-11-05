@@ -76,7 +76,7 @@
   height: min(64vh, 540px);
   object-fit: contain;
   display: block;
-  background: color-mix(in srgb, var(--bg-primary) 70%, var(--bg-card));
+  background: transparent;
 }
 
 .product-detail-stage:focus-visible {
@@ -84,48 +84,25 @@
   outline-offset: 3px;
 }
 
+/*
+ * Neutral backdrop behind every render. A render with stored edge colours overrides it inline
+ * with one light colour made from those edges, so the render's own boundary stands out.
+ */
 .product-detail-stage__image-preview {
   border-radius: 0;
   position: relative;
+  display: flex;
+  justify-content: center;
   width: 100%;
   overflow: hidden;
   isolation: isolate;
-  background: #2b2b2b;
+  background: linear-gradient(rgb(209, 209, 209), rgb(233, 233, 233));
 }
 
 .product-detail-stage__image-preview > .product-detail-stage__image {
   position: relative;
   z-index: 1;
-}
-
-.product-detail-stage__main .product-detail-stage__image-preview--matched .product-detail-stage__image {
-  background: transparent;
-}
-
-.product-detail-stage__image-edge {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.product-detail-stage__image-edge--left,
-.product-detail-stage__image-edge--right {
-  width: 50%;
-}
-
-.product-detail-stage__image-edge--right {
-  left: 50%;
-}
-
-.product-detail-stage__image-edge--top,
-.product-detail-stage__image-edge--bottom {
-  height: 50%;
-}
-
-.product-detail-stage__image-edge--bottom {
-  top: 50%;
+  flex: 0 1 auto;
 }
 
 .product-detail-stage__counter {

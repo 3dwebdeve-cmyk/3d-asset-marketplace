@@ -34,7 +34,7 @@ interface LegalDocumentPageProps {
   kind: LegalKind
 }
 
-export function LegalDocumentPage({ kind }: LegalDocumentPageProps) {
+function LegalDocumentPage({ kind }: LegalDocumentPageProps) {
   const copy = COPY[kind]
 
   useDocumentSeo({

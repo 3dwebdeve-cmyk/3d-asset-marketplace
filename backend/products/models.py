@@ -184,6 +184,11 @@ class ProductImage(models.Model):
     image_url = models.URLField()
     display_order = models.PositiveIntegerField(default=0)
     is_primary = models.BooleanField(default=False)
+    # Hex colours for the empty sides beside the render; blank until sampled.
+    edge_left_color = models.CharField(max_length=7, blank=True, default="")
+    edge_right_color = models.CharField(max_length=7, blank=True, default="")
+    # Width divided by height of the render; null until sampled.
+    aspect_ratio = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -31,7 +31,7 @@ export const HOME_SEO: StaticPageSeo = {
   ],
 }
 
-export const MODELS_SEO: StaticPageSeo = {
+const MODELS_SEO: StaticPageSeo = {
   title: buildPageTitle(ALL_MODELS_SEO.title),
   description: ALL_MODELS_SEO.description,
   keywords: ['3D models', 'download 3D models', 'game 3D models', 'Blender models', 'Maya models'],
@@ -73,12 +73,12 @@ export const CUSTOM_PROJECTS_SEO: StaticPageSeo = {
   imageAlt: 'Custom 3D project services from AssetHive3D',
 }
 
-export const TERMS_SEO: StaticPageSeo = {
+const TERMS_SEO: StaticPageSeo = {
   title: `Terms of Service | ${SITE_NAME}`,
   description: `Terms of Service for buying 3D models, plugins, and custom project work on ${SITE_NAME}.`,
 }
 
-export const PRIVACY_SEO: StaticPageSeo = {
+const PRIVACY_SEO: StaticPageSeo = {
   title: `Privacy Policy | ${SITE_NAME}`,
   description: `How ${SITE_NAME} collects, uses, and protects account and order information.`,
 }

@@ -18,6 +18,8 @@ class ProductCategorySerializer(serializers.ModelSerializer):
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
+    edge_colors = serializers.SerializerMethodField()
+
     class Meta:
         model = ProductImage
         fields = (
@@ -25,9 +27,16 @@ class ProductImageSerializer(serializers.ModelSerializer):
             "image_url",
             "display_order",
             "is_primary",
+            "edge_colors",
+            "aspect_ratio",
             "created_at",
         )
         read_only_fields = fields
+
+    def get_edge_colors(self, image: ProductImage) -> dict[str, str] | None:
+        if not image.edge_left_color or not image.edge_right_color:
+            return None
+        return {"left": image.edge_left_color, "right": image.edge_right_color}
 
 
 class ProductFilePublicSerializer(serializers.ModelSerializer):

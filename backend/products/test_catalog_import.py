@@ -607,6 +607,27 @@ class CatalogImportImageTests(APITestCase):
         self.assertEqual(response.data["results"][0]["reason"], "invalid_thumbnail")
         self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())
 
+    def test_a_file_named_webp_must_really_be_an_image(self) -> None:
+        self._put("models/MDL-000900/thumbnail.webp", b"<html><script>alert(1)</script></html>")
+
+        item = _webp_item()
+        item["media"].update(thumbnail_key="models/MDL-000900/thumbnail.webp", gallery_keys=[])
+        response = self._post_batch([item])
+
+        self.assertEqual(response.data["skipped"], 1, response.data)
+        self.assertEqual(response.data["results"][0]["reason"], "invalid_thumbnail")
+        self.assertFalse(Product.objects.filter(sku="MDL-000900").exists())
+
+    def test_a_real_webp_is_kept_as_uploaded(self) -> None:
+        self._put("models/MDL-000900/thumbnail.webp", _image_bytes("WEBP", (40, 40, 200)))
+
+        item = _webp_item()
+        item["media"].update(thumbnail_key="models/MDL-000900/thumbnail.webp", gallery_keys=[])
+        response = self._post_batch([item])
+
+        self.assertEqual(response.data["created"], 1, response.data)
+        self.assertIn("/thumbnail.webp", Product.objects.get(sku="MDL-000900").thumbnail)
+
     def _post_without_uploads(self, items: list[dict], *, batch_id: str = "2026-09-03-run-01"):
         # Images and preview are left to each test; the package is always there.
         put_pipeline_packages(items)
@@ -900,6 +921,10 @@ class CatalogImportScanSwitchTests(TestCase):
         media_override = override_settings(MEDIA_ROOT=media_root)
         media_override.enable()
         self.addCleanup(media_override.disable)
+        # Gallery colour fetches open sockets too; these tests count scanner connections.
+        colour_patch = patch("products.catalog_import.fetch_side_colours", return_value=None)
+        colour_patch.start()
+        self.addCleanup(colour_patch.stop)
         parent = Category.objects.create(name="Furniture", slug="furniture")
         Category.objects.create(name="Chairs", slug="chairs", parent=parent)
 

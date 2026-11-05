@@ -19,7 +19,7 @@ import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type { PluginCategoryCreatePayload } from '../../types/plugin'
 
-const emptyForm: PluginCategoryCreatePayload = { name: '', description: '', image: '' }
+const emptyForm: PluginCategoryCreatePayload = { name: '', description: '', image: '', code: '' }
 
 export function AdminPluginCategoriesPage() {
   const navigate = useNavigate()
@@ -108,6 +108,16 @@ export function AdminPluginCategoriesPage() {
                 }
               />
             </FormField>
+            <FormField id="plugin-category-code" label="Code (three letters, used in plugin IDs, e.g. ANI)">
+              <Input
+                id="plugin-category-code"
+                maxLength={3}
+                value={form.code ?? ''}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))
+                }
+              />
+            </FormField>
             <FormField id="plugin-category-image" label="Image URL">
               <Input
                 id="plugin-category-image"
@@ -154,12 +164,13 @@ export function AdminPluginCategoriesPage() {
             <>
               <div className="admin-table-wrap">
                 <table className="admin-table">
-                  <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Name</th><th>Slug</th><th>Code</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody>
                     {categoriesQuery.data?.results.map((category) => (
                       <tr key={category.id}>
                         <td>{category.name}</td>
                         <td>{category.slug}</td>
+                        <td>{category.code || '—'}</td>
                         <td>{category.is_active ? 'Active' : 'Inactive'}</td>
                         <td>
                           <Link className="auth-link" to={`/console/plugin-categories/${category.id}`}>

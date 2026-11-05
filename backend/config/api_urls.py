@@ -25,6 +25,7 @@ urlpatterns = [
     path("products/", include("products.urls")),
     path("admin/products/", include("products.admin_urls")),
     # Uploader exe (API key). Outside admin/: no admin IP lock or Cloudflare Access.
+    path("catalog-ingest/plugins/", include("plugins.ingest_urls")),
     path("catalog-ingest/", include("products.ingest_urls")),
     path("plugins/", include("plugins.urls")),
     path("plugin-categories/", include("plugins.category_urls")),

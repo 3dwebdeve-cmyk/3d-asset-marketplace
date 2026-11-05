@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
 import { adminMfaConfirm, adminMfaSetup, adminMfaVerify } from '../../api/authApi'
@@ -38,15 +38,14 @@ function downloadCodes(codes: string[]): void {
 
 export function AdminMfaStep({ pending, onComplete, onRestart }: AdminMfaStepProps) {
   const [code, setCode] = useState('')
+  const [emailCode, setEmailCode] = useState('')
   const [useRecovery, setUseRecovery] = useState(false)
   const [issued, setIssued] = useState<AdminMfaConfirmResponse | null>(null)
 
-  const setupQuery = useQuery({
-    queryKey: ['auth', 'admin', 'mfa-setup', pending.mfaToken],
-    queryFn: () => adminMfaSetup(pending.mfaToken),
-    enabled: pending.setupRequired,
-    retry: false,
-    staleTime: Infinity,
+  // Setup starts only after the code emailed to the administrator is accepted.
+  const setupMutation = useMutation({
+    mutationFn: () => adminMfaSetup(pending.mfaToken, emailCode.trim()),
+    onError: (error) => handleError(error),
   })
 
   const handleError = (error: unknown) => {
@@ -114,7 +113,56 @@ export function AdminMfaStep({ pending, onComplete, onRestart }: AdminMfaStepPro
     )
   }
 
-  if (pending.setupRequired) {
+  if (pending.setupRequired && !setupMutation.data) {
+    const onEmailCodeSubmit = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      if (emailCode.trim()) {
+        setupMutation.mutate()
+      }
+    }
+
+    return (
+      <section className="auth-card" aria-labelledby="mfa-email-title">
+        <header className="auth-card__header">
+          <p className="auth-card__eyebrow">Administrator access</p>
+          <h1 id="mfa-email-title">Check your email</h1>
+          <p className="auth-card__subtitle">
+            We sent a setup code to your administrator email address. Enter it to start setting
+            up two-factor sign-in. The code works once and expires in 15 minutes.
+          </p>
+        </header>
+
+        {setupMutation.isError ? (
+          <Alert
+            variant="error"
+            message={getApiErrorMessage(setupMutation.error, EXPIRED_MESSAGE)}
+          />
+        ) : null}
+
+        <form className="auth-form" onSubmit={onEmailCodeSubmit} noValidate>
+          <FormField id="mfa-email-code" label="Setup code from your email">
+            <Input
+              id="mfa-email-code"
+              autoComplete="one-time-code"
+              autoCapitalize="characters"
+              maxLength={16}
+              value={emailCode}
+              onChange={(event) => setEmailCode(event.target.value)}
+            />
+          </FormField>
+          <Button type="submit" isLoading={setupMutation.isPending}>
+            Continue
+          </Button>
+          <Button variant="secondary" onClick={() => onRestart()}>
+            Cancel
+          </Button>
+        </form>
+      </section>
+    )
+  }
+
+  if (pending.setupRequired && setupMutation.data) {
+    const setupData = setupMutation.data
     return (
       <section className="auth-card" aria-labelledby="mfa-setup-title">
         <header className="auth-card__header">
@@ -126,33 +174,20 @@ export function AdminMfaStep({ pending, onComplete, onRestart }: AdminMfaStepPro
           </p>
         </header>
 
-        {setupQuery.isError ? (
-          <Alert
-            variant="error"
-            message={getApiErrorMessage(setupQuery.error, EXPIRED_MESSAGE)}
-          />
-        ) : null}
-
-        {setupQuery.data ? (
-          <div className="auth-card__setup">
-            <p className="auth-card__hint">
-              1. In your authenticator app, add an account and enter this setup key:
-            </p>
-            <p className="auth-card__setup-key">
-              <code>{groupKey(setupQuery.data.secret)}</code>
-            </p>
-            <p className="auth-card__hint">
-              On a phone, you can{' '}
-              <a href={setupQuery.data.otpauth_uri}>open it in your authenticator app</a>{' '}
-              instead.
-            </p>
-            <p className="auth-card__hint">2. Enter the 6-digit code the app shows.</p>
-          </div>
-        ) : (
-          <p className="auth-card__hint" role="status">
-            {setupQuery.isError ? null : 'Preparing your setup key…'}
+        <div className="auth-card__setup">
+          <p className="auth-card__hint">
+            1. In your authenticator app, add an account and enter this setup key:
           </p>
-        )}
+          <p className="auth-card__setup-key">
+            <code>{groupKey(setupData.secret)}</code>
+          </p>
+          <p className="auth-card__hint">
+            On a phone, you can{' '}
+            <a href={setupData.otpauth_uri}>open it in your authenticator app</a>{' '}
+            instead.
+          </p>
+          <p className="auth-card__hint">2. Enter the 6-digit code the app shows.</p>
+        </div>
 
         {submitError ? <Alert variant="error" message={submitError} /> : null}
 
@@ -167,7 +202,7 @@ export function AdminMfaStep({ pending, onComplete, onRestart }: AdminMfaStepPro
               onChange={(event) => setCode(event.target.value)}
             />
           </FormField>
-          <Button type="submit" isLoading={confirmMutation.isPending} disabled={!setupQuery.data}>
+          <Button type="submit" isLoading={confirmMutation.isPending}>
             Turn on two-factor sign-in
           </Button>
           <Button variant="secondary" onClick={() => onRestart()}>

@@ -264,6 +264,8 @@ class CatalogApiKey(models.Model):
     key_prefix = models.CharField(max_length=16, unique=True)
     key_hash = models.CharField(max_length=64)
     user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="catalog_api_keys")
+    # What the key may import: model uploads or plugin uploads, never both.
+    scope = models.CharField(max_length=16, default="models", db_index=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_used_at = models.DateTimeField(null=True, blank=True)

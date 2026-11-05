@@ -53,9 +53,13 @@ export async function adminLoginUser(payload: LoginPayload): Promise<AdminLoginR
   return response.data
 }
 
-export async function adminMfaSetup(mfaToken: string): Promise<AdminMfaSetupResponse> {
+export async function adminMfaSetup(
+  mfaToken: string,
+  enrollmentCode: string,
+): Promise<AdminMfaSetupResponse> {
   const response = await apiClient.post<AdminMfaSetupResponse>('/api/v1/auth/admin/mfa/setup/', {
     mfa_token: mfaToken,
+    enrollment_code: enrollmentCode,
   })
   return response.data
 }

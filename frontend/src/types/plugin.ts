@@ -1,4 +1,4 @@
-export type PluginStatus = 'draft' | 'published' | 'archived'
+export type PluginStatus = 'draft' | 'pending_review' | 'published' | 'rejected' | 'archived'
 export type PluginLicenseType = 'standard' | 'extended' | 'commercial'
 export type PluginOrdering = 'name' | '-name' | 'price' | '-price' | 'created_at' | '-created_at'
 
@@ -69,6 +69,8 @@ export interface PluginCategory {
   slug: string
   description: string
   image: string
+  // Three letters used in plugin IDs (PLG-ANI-000001); null until set.
+  code?: string | null
   is_active: boolean
   created_at: string
   updated_at: string
@@ -111,6 +113,14 @@ export interface AdminPlugin {
   review_count: number
   total_downloads: number
   status: PluginStatus
+  // Review fields. The API always sends them; they are optional so older test fixtures still type-check.
+  plugin_id?: string | null
+  import_batch_id?: string
+  import_source?: string
+  manifest?: Record<string, unknown>
+  reject_reason?: string
+  qa_notes?: string
+  reviewed_at?: string | null
   category: PluginCategory
   images: PluginImage[]
   files: PluginFile[]
@@ -191,6 +201,7 @@ export interface PluginCategoryCreatePayload {
   name: string
   description?: string
   image?: string
+  code?: string
 }
 
 export interface PluginCategoryUpdatePayload {
@@ -198,6 +209,7 @@ export interface PluginCategoryUpdatePayload {
   slug?: string
   description?: string
   image?: string
+  code?: string
   is_active?: boolean
 }
 
@@ -225,4 +237,16 @@ export interface PluginFileUploadPayload {
   file: File
   version?: string
   is_primary?: boolean
+}
+
+export interface PluginApprovePayload {
+  price: string
+  currency?: string
+  discount_price?: string | null
+  qa_notes?: string
+}
+
+export interface PluginRejectPayload {
+  reason: string
+  qa_notes?: string
 }

@@ -1,5 +1,10 @@
 from django.urls import path
 
+from plugins.review_views import (
+    AdminPluginApproveView,
+    AdminPluginRejectView,
+    AdminPluginRequeueView,
+)
 from plugins.views import (
     AdminPluginCategoryDetailView,
     AdminPluginCategoryListCreateView,
@@ -37,6 +42,21 @@ admin_urlpatterns = [
         "<uuid:plugin_id>/",
         AdminPluginDetailView.as_view(),
         name="admin-plugin-detail",
+    ),
+    path(
+        "<uuid:plugin_id>/approve/",
+        AdminPluginApproveView.as_view(),
+        name="admin-plugin-approve",
+    ),
+    path(
+        "<uuid:plugin_id>/reject/",
+        AdminPluginRejectView.as_view(),
+        name="admin-plugin-reject",
+    ),
+    path(
+        "<uuid:plugin_id>/requeue/",
+        AdminPluginRequeueView.as_view(),
+        name="admin-plugin-requeue",
     ),
     path(
         "<uuid:plugin_id>/images/",

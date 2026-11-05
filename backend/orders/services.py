@@ -341,6 +341,21 @@ class OrderService:
             raise OrderError("Your cart is empty.", field="items")
         totals = CartService._compute_totals(available_items, envelope.snapshots)
 
+        # An administrator can change a catalog currency after items are in the cart. Never
+        # charge one currency's price in another: every line must match the order currency.
+        mismatched = sorted(
+            str(envelope.snapshots[(item.product_type, item.product_id)].get("name") or "an item")
+            for item in available_items
+            if str(envelope.snapshots[(item.product_type, item.product_id)].get("currency") or "")
+            != totals.currency
+        )
+        if mismatched:
+            raise OrderError(
+                f"The currency changed for {', '.join(mismatched)}. "
+                "Remove it from your cart and add it again.",
+                field="items",
+            )
+
         resolved_items = [
             (
                 item.product_type,

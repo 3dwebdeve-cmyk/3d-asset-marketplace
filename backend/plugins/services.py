@@ -7,6 +7,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
+from django.utils import timezone
 
 from config.media import private_object_exists
 from config.currency import normalize_currency, validate_catalog_prices
@@ -27,6 +28,7 @@ class PluginCategoryCreateData:
     name: str
     description: str = ""
     image: str = ""
+    code: str = ""
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class PluginCategoryUpdateData:
     slug: str | None = None
     description: str | None = None
     image: str | None = None
+    code: str | None = None
     is_active: bool | None = None
 
 
@@ -121,15 +124,30 @@ class PluginCategoryService:
         except PluginCategory.DoesNotExist as exc:
             raise PluginError("Plugin category not found.") from exc
 
+    @staticmethod
+    def _check_code_free(code: str, *, exclude_id: UUID | None = None) -> None:
+        taken = PluginCategory.objects.filter(code=code)
+        if exclude_id is not None:
+            taken = taken.exclude(pk=exclude_id)
+        if taken.exists():
+            raise PluginError(
+                f"Category code {code} is already used by another category.",
+                field="code",
+            )
+
     @classmethod
     @transaction.atomic
     def create_category(cls, data: PluginCategoryCreateData) -> PluginCategory:
         name = cls._normalize_name(data.name)
+        code = data.code.strip().upper() or None
+        if code:
+            cls._check_code_free(code)
         return PluginCategory.objects.create(
             name=name,
             slug=PluginCategory.build_slug(name),
             description=data.description.strip(),
             image=data.image.strip(),
+            code=code,
         )
 
     @classmethod
@@ -164,6 +182,20 @@ class PluginCategoryService:
         if data.image is not None:
             category.image = data.image.strip()
             update_fields.append("image")
+        if data.code is not None:
+            # Blank clears the code. A code cannot change once the category has plugins,
+            # because their IDs (PLG-<CODE>-...) were made from it.
+            code = data.code.strip().upper() or None
+            if code != category.code:
+                if category.code and category.plugins.exists():
+                    raise PluginError(
+                        "This category already has plugins with IDs; its code cannot change.",
+                        field="code",
+                    )
+                if code:
+                    cls._check_code_free(code, exclude_id=category.pk)
+                category.code = code
+                update_fields.append("code")
         if data.is_active is not None:
             if not data.is_active and category.plugins.exclude(
                 status=Plugin.Status.ARCHIVED
@@ -193,6 +225,11 @@ class PluginCategoryService:
 
 
 class PluginService:
+    # Reached only through the importer and the review queue, never by a plain edit.
+    REVIEW_ONLY_STATUSES = frozenset(
+        {Plugin.Status.PENDING_REVIEW, Plugin.Status.REJECTED}
+    )
+
     @classmethod
     def _base_queryset(cls) -> QuerySet[Plugin]:
         return Plugin.objects.select_related("category").prefetch_related(
@@ -315,6 +352,11 @@ class PluginService:
                 "Create as draft, upload a package file, then publish.",
                 field="status",
             )
+        if status in cls.REVIEW_ONLY_STATUSES:
+            raise PluginError(
+                "Review statuses are set by the importer and the review queue.",
+                field="status",
+            )
         currency = cls._normalize_currency(data.currency)
         cls._validate_currency_prices(currency, data.price, data.discount_price)
         plugin = Plugin.objects.create(
@@ -390,6 +432,8 @@ class PluginService:
             update_fields.append("license_type")
         if data.status is not None:
             new_status = cls._normalize_status(data.status)
+            if new_status != plugin.status:
+                cls._validate_direct_status_change(plugin, new_status)
             plugin.status = new_status
             update_fields.append("status")
         cls._validate_currency_prices(plugin.currency, plugin.price, plugin.discount_price)
@@ -580,6 +624,149 @@ class PluginService:
                 "Upload the package before publish.",
                 field="files",
             )
+
+    @classmethod
+    def _validate_direct_status_change(cls, plugin: Plugin, new_status: str) -> None:
+        if new_status in cls.REVIEW_ONLY_STATUSES:
+            raise PluginError(
+                "Use the review queue to reject or requeue a plugin.",
+                field="status",
+            )
+        # Imported plugins publish through approve so the reviewer and price are recorded.
+        in_review_flow = (
+            plugin.status in cls.REVIEW_ONLY_STATUSES or plugin.import_batch_id
+        )
+        if new_status == Plugin.Status.PUBLISHED and in_review_flow:
+            raise PluginError(
+                "Publish through the review queue so the reviewer is recorded.",
+                field="status",
+            )
+
+    @classmethod
+    def _validate_approve_ready(cls, plugin: Plugin) -> None:
+        """Publish gates for the review queue: identity, category, content, package."""
+        errors: dict[str, str] = {}
+        if not plugin.plugin_id:
+            errors["plugin_id"] = "Plugin ID is required before publish."
+        if len((plugin.name or "").strip()) < 2:
+            errors["name"] = "Name must be at least 2 characters."
+        if not PluginCategory.objects.filter(
+            pk=plugin.category_id, is_active=True
+        ).exists():
+            errors["category"] = "Category not found or inactive."
+        if not (plugin.description or "").strip():
+            errors["description"] = "Description is required before publish."
+        if not (plugin.thumbnail or "").strip():
+            errors["thumbnail"] = "Thumbnail is required before publish."
+        try:
+            cls._validate_publish_ready(plugin)
+        except PluginError as exc:
+            errors["files"] = exc.message
+        if errors:
+            raise PluginError(
+                "Plugin is not ready to publish: "
+                + "; ".join(f"{key}: {value}" for key, value in errors.items()),
+                field=next(iter(errors)),
+            )
+
+    @classmethod
+    @transaction.atomic
+    def approve_plugin(
+        cls,
+        plugin: Plugin,
+        *,
+        reviewer,
+        price: Decimal,
+        currency: str | None = None,
+        discount_price: Decimal | None = None,
+        qa_notes: str | None = None,
+    ) -> Plugin:
+        """pending_review -> published. The reviewer sets the price; 0.00 means free."""
+        plugin = Plugin.objects.select_for_update().get(pk=plugin.pk)
+        if plugin.status != Plugin.Status.PENDING_REVIEW:
+            raise PluginError(
+                f"Cannot approve plugin with status '{plugin.status}'.",
+                field="status",
+            )
+        if currency:
+            plugin.currency = cls._normalize_currency(currency)
+        cls._validate_pricing(price, discount_price)
+        cls._validate_currency_prices(plugin.currency, price, discount_price)
+        plugin.price = price
+        plugin.discount_price = discount_price
+        cls._validate_approve_ready(plugin)
+
+        plugin.status = Plugin.Status.PUBLISHED
+        plugin.reviewed_at = timezone.now()
+        plugin.reviewed_by = reviewer
+        # Clear prior rejection text on approve; qa_notes retained for audit.
+        plugin.reject_reason = ""
+        update_fields = [
+            "status",
+            "price",
+            "discount_price",
+            "currency",
+            "reviewed_at",
+            "reviewed_by",
+            "reject_reason",
+            "updated_at",
+        ]
+        if qa_notes is not None:
+            plugin.qa_notes = qa_notes.strip()
+            update_fields.append("qa_notes")
+        plugin.save(update_fields=update_fields)
+        return cls.get_by_id(plugin.pk)
+
+    @classmethod
+    @transaction.atomic
+    def reject_plugin(
+        cls,
+        plugin: Plugin,
+        *,
+        reviewer,
+        reason: str,
+        qa_notes: str | None = None,
+    ) -> Plugin:
+        """pending_review -> rejected. Stores the reason and review metadata."""
+        plugin = Plugin.objects.select_for_update().get(pk=plugin.pk)
+        if plugin.status != Plugin.Status.PENDING_REVIEW:
+            raise PluginError(
+                f"Cannot reject plugin with status '{plugin.status}'.",
+                field="status",
+            )
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise PluginError("Reject reason is required.", field="reason")
+        plugin.status = Plugin.Status.REJECTED
+        plugin.reject_reason = normalized_reason
+        plugin.reviewed_at = timezone.now()
+        plugin.reviewed_by = reviewer
+        update_fields = [
+            "status",
+            "reject_reason",
+            "reviewed_at",
+            "reviewed_by",
+            "updated_at",
+        ]
+        if qa_notes is not None:
+            plugin.qa_notes = qa_notes.strip()
+            update_fields.append("qa_notes")
+        plugin.save(update_fields=update_fields)
+        return cls.get_by_id(plugin.pk)
+
+    @classmethod
+    @transaction.atomic
+    def requeue_plugin(cls, plugin: Plugin) -> Plugin:
+        """rejected -> pending_review. Keeps reject_reason until the next decision."""
+        plugin = Plugin.objects.select_for_update().get(pk=plugin.pk)
+        if plugin.status != Plugin.Status.REJECTED:
+            raise PluginError(
+                f"Cannot requeue plugin with status '{plugin.status}'.",
+                field="status",
+            )
+        plugin.status = Plugin.Status.PENDING_REVIEW
+        plugin.save(update_fields=["status", "updated_at"])
+        return cls.get_by_id(plugin.pk)
 
     @staticmethod
     def _resolve_ordering(ordering: str | None) -> str:
