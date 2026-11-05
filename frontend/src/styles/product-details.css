@@ -90,6 +90,7 @@
   width: 100%;
   overflow: hidden;
   isolation: isolate;
+  background: #2b2b2b;
 }
 
 .product-detail-stage__image-preview > .product-detail-stage__image {
@@ -130,13 +131,12 @@
 .product-detail-stage__counter {
   position: absolute;
   z-index: 5;
-  left: 50%;
-  bottom: 0.85rem;
-  transform: translateX(-50%);
-  padding: 0.3rem 0.65rem;
-  border-radius: 1rem;
-  background: var(--bg-card);
-  color: var(--text-main);
+  top: 0.85rem;
+  right: 0.85rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 0.4rem;
+  background: rgb(0 0 0 / 32%);
+  color: #fff;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
