@@ -1252,6 +1252,10 @@
   gap: 0.5rem;
 }
 
+.product-hub-detail .product-detail-stage__counter ~ .product-detail-stage__overlays {
+  top: 3rem;
+}
+
 .product-hub-detail .product-detail-stage__overlay-btn,
 .product-hub-detail .product-detail-stage__overlays .product-card__wishlist {
   position: static;
