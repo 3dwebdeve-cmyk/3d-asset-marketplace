@@ -38,6 +38,8 @@ export function ProductImagePreview({ src, alt, sideColours, aspectRatio, onErro
       <img
         src={src}
         alt={alt}
+        decoding="async"
+        fetchPriority="high"
         className="product-detail-stage__image"
         style={sides ? { aspectRatio: sides.aspectRatio } : undefined}
         onError={onError}

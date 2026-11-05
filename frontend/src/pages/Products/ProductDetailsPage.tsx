@@ -129,6 +129,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             previewVideoUrl={product.preview_video}
             showPreviewModeThumbs
             showStageChrome
+            preferImagePreview
             stageOverlays={
               <>
                 <WishlistToggle
@@ -308,6 +309,7 @@ export function ProductDetailsPage() {
           categoryName: seoProduct.category.name,
           polygonCount: seoProduct.polygon_count,
           licenseType: seoProduct.license_type,
+          isFree: isFreeProduct(seoProduct),
         })
         : 'Loading product details from the marketplace catalog.',
     canonicalPath: seoPath,
