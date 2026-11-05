@@ -6,7 +6,7 @@ export interface CategoryTreeNode {
 }
 
 // The internal demo category stays out of customer-facing navigation.
-export function isDemoCategory(category: Pick<CategoryPublic, 'slug' | 'name'>): boolean {
+function isDemoCategory(category: Pick<CategoryPublic, 'slug' | 'name'>): boolean {
   return category.slug === 'demo-assets' || category.name.trim().toLowerCase() === 'demo assets'
 }
 
