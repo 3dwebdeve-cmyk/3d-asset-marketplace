@@ -10,6 +10,7 @@ from __future__ import annotations
 import urllib.parse
 import urllib.request
 from io import BytesIO
+from typing import NamedTuple
 
 from PIL import Image, ImageStat, UnidentifiedImageError
 
@@ -24,7 +25,11 @@ SIDE_MUTE = 0.6
 FETCH_MAX_BYTES = 25 * 1024 * 1024
 FETCH_TIMEOUT_SECONDS = 10
 
-SideColours = tuple[str, str]
+class SideSample(NamedTuple):
+    left: str
+    right: str
+    # Width divided by height, so the page can size the render before the file downloads.
+    aspect_ratio: float
 
 
 def _mute(channel: float, luminance: float) -> int:
@@ -39,14 +44,15 @@ def _to_muted_hex(rgb: tuple[float, float, float]) -> str:
     )
 
 
-def sample_side_colours(data: bytes) -> SideColours | None:
-    """Return the muted left and right side colours as hex strings, or None if unreadable."""
+def sample_side_colours(data: bytes) -> SideSample | None:
+    """Return the muted side colours and aspect ratio of an image, or None if unreadable."""
     try:
         with Image.open(BytesIO(data)) as source:
             image = source.convert("RGB")
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
         return None
 
+    aspect_ratio = image.width / image.height
     image.thumbnail((SAMPLE_MAX_SIZE, SAMPLE_MAX_SIZE))
     width, height = image.size
     band_width = max(1, round(width * SAMPLE_BAND_WIDTH))
@@ -54,10 +60,10 @@ def sample_side_colours(data: bytes) -> SideColours | None:
 
     left = ImageStat.Stat(image.crop((0, 0, band_width, band_height))).mean[:3]
     right = ImageStat.Stat(image.crop((width - band_width, 0, width, band_height))).mean[:3]
-    return _to_muted_hex(tuple(left)), _to_muted_hex(tuple(right))
+    return SideSample(_to_muted_hex(tuple(left)), _to_muted_hex(tuple(right)), round(aspect_ratio, 4))
 
 
-def fetch_side_colours(url: str) -> SideColours | None:
+def fetch_side_colours(url: str) -> SideSample | None:
     """Download a public https image and sample it. Best-effort: any failure returns None."""
     if urllib.parse.urlsplit(url).scheme != "https":
         return None
@@ -69,3 +75,14 @@ def fetch_side_colours(url: str) -> SideColours | None:
     if len(data) > FETCH_MAX_BYTES:
         return None
     return sample_side_colours(data)
+
+
+def edge_fields(sample: SideSample | None) -> dict[str, str | float | None]:
+    """Model fields for a stored image. Blank colours and no aspect ratio when sampling failed."""
+    if sample is None:
+        return {"edge_left_color": "", "edge_right_color": "", "aspect_ratio": None}
+    return {
+        "edge_left_color": sample.left,
+        "edge_right_color": sample.right,
+        "aspect_ratio": sample.aspect_ratio,
+    }

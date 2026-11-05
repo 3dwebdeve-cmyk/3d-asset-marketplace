@@ -8,7 +8,7 @@ from uuid import UUID
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 
-from products.edge_colour import sample_side_colours
+from products.edge_colour import edge_fields, sample_side_colours
 from products.errors import ProductError
 from products.models import Product, ProductFile, ProductImage
 from products.storage import ProductMediaStorageService
@@ -50,7 +50,7 @@ class ProductMediaService:
     ) -> ProductImage:
         validated = validate_product_image_upload(uploaded)
         validated.file.seek(0)
-        side_colours = sample_side_colours(validated.file.read()) or ("", "")
+        side_sample = sample_side_colours(validated.file.read())
         validated.file.seek(0)
         image_url = ProductMediaStorageService.save_image(
             str(product.pk),
@@ -68,8 +68,7 @@ class ProductMediaService:
             image_url=image_url,
             display_order=display_order,
             is_primary=is_primary,
-            edge_left_color=side_colours[0],
-            edge_right_color=side_colours[1],
+            **edge_fields(side_sample),
         )
 
         if is_primary or not product.thumbnail:
