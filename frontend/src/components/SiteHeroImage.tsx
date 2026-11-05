@@ -2,9 +2,7 @@ import '../styles/mobile-hero.css'
 import { HERO_IMAGE_SIZES, SITE_HERO_IMAGE_SRC, heroSrcSet } from '../lib/heroBanners'
 
 export {
-  SITE_HERO_IMAGE_SRC,
   PLUGINS_HERO_IMAGE_SRC,
-  MODELS_HERO_IMAGE_SRC,
   CUSTOM_PROJECTS_HERO_IMAGE_SRC,
   CONTACT_HERO_IMAGE_SRC,
   ABOUT_HERO_IMAGE_SRC,

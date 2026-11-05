@@ -9,7 +9,6 @@ from decimal import Decimal
 from io import BytesIO
 from xml.sax.saxutils import escape as xml_escape
 
-from django.core.exceptions import ObjectDoesNotExist
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet

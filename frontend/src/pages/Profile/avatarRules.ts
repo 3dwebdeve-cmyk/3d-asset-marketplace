@@ -8,7 +8,7 @@ export const AVATAR_ALLOWED_MIME_TYPES = [
   'image/webp',
 ] as const
 
-export function getFileExtension(filename: string): string {
+function getFileExtension(filename: string): string {
   const index = filename.lastIndexOf('.')
   if (index < 0) {
     return ''
