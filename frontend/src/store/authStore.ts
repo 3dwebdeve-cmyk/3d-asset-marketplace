@@ -102,3 +102,19 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 )
+
+// Another tab signed out (or lost its session): the saved hint flips to false. End this tab's
+// session too, or its in-memory token keeps showing the old account.
+window.addEventListener('storage', (event) => {
+  if (event.key !== 'auth-storage' || !event.newValue) {
+    return
+  }
+  try {
+    const saved = JSON.parse(event.newValue) as { state?: Partial<PersistedAuthState> }
+    if (saved.state?.sessionHint === false && useAuthStore.getState().isAuthenticated) {
+      useAuthStore.getState().clearSession()
+    }
+  } catch {
+    // An unreadable value says nothing about the session: leave it as it is.
+  }
+})
