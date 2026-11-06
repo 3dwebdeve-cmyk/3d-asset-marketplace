@@ -28,9 +28,6 @@ import type {
   ProductLicenseType,
   ProductStatus,
 } from '../../types/product'
-import { isFreeProduct } from '../../types/product'
-import { PricingChoice } from './PricingChoice'
-import type { PricingMode } from './PricingChoice'
 import { ProductMediaSection } from './ProductMediaSection'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 
@@ -44,8 +41,6 @@ export function AdminProductDetailPage() {
   const [qaNotes, setQaNotes] = useState('')
   const [qaError, setQaError] = useState<string | null>(null)
   const [approvePrice, setApprovePrice] = useState('')
-  const [approvePricing, setApprovePricing] = useState<PricingMode>('paid')
-  const [formPricing, setFormPricing] = useState<PricingMode>('paid')
 
   const productQuery = useQuery({
     queryKey: ['admin', 'products', productId],
@@ -69,10 +64,6 @@ export function AdminProductDetailPage() {
     }
     setHydratedProductId(product.id)
     setApprovePrice(Number(product.price) > 0 ? product.price : '')
-    // The uploader's folder decides: free-models/ is free, models/ is paid (enter a price).
-    const fromFreeFolder = product.files.some((file) => file.storage_path.startsWith('free-models/'))
-    setApprovePricing(fromFreeFolder || (isFreeProduct(product) && !product.import_batch_id) ? 'free' : 'paid')
-    setFormPricing(isFreeProduct(product) ? 'free' : 'paid')
     setForm({
       category_id: product.category.id,
       name: product.name,
@@ -156,12 +147,8 @@ export function AdminProductDetailPage() {
 
   const approveMutation = useMutation({
     mutationFn: (pricing: AdminProductApprovePayload) => approveAdminProduct(productId, pricing),
-    onSuccess: async (_product, pricing) => {
-      toast.success(
-        pricing.pricing === 'free'
-          ? 'Published as a free download'
-          : 'Product approved and published',
-      )
+    onSuccess: async () => {
+      toast.success('Product approved and published')
       setQaError(null)
       await invalidateProduct()
     },
@@ -204,14 +191,9 @@ export function AdminProductDetailPage() {
     approveMutation.isPending || rejectMutation.isPending || requeueMutation.isPending
 
   const onApprove = () => {
-    if (approvePricing === 'free') {
-      setQaError(null)
-      approveMutation.mutate({ pricing: 'free' })
-      return
-    }
     const price = Number.parseFloat(approvePrice)
     if (!Number.isFinite(price) || price <= 0) {
-      setQaError('Enter a price above 0, or choose Free.')
+      setQaError('Enter a price above 0.')
       return
     }
     setQaError(null)
@@ -221,13 +203,9 @@ export function AdminProductDetailPage() {
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
-    if (formPricing === 'free') {
-      saveMutation.mutate({ ...form, price: '0.00', discount_price: null })
-      return
-    }
     const price = Number.parseFloat(String(form.price ?? ''))
     if (!Number.isFinite(price) || price <= 0) {
-      setFormError('Enter a price above 0, or choose Free.')
+      setFormError('Enter a price above 0.')
       return
     }
     saveMutation.mutate(form)
@@ -295,14 +273,7 @@ export function AdminProductDetailPage() {
                     {product.qa_notes ? (
                       <p className="home-page__subtitle">QA notes: {product.qa_notes}</p>
                     ) : null}
-                    <PricingChoice
-                      idPrefix="qa"
-                      legend="Pricing when published"
-                      value={approvePricing}
-                      onChange={setApprovePricing}
-                      disabled={qaPending}
-                    />
-                    {approvePricing === 'paid' ? (
+                    {(
                       <FormField id="qa-price" label={`Price (${product.currency})`}>
                         <Input
                           id="qa-price"
@@ -314,7 +285,7 @@ export function AdminProductDetailPage() {
                           disabled={qaPending}
                         />
                       </FormField>
-                    ) : null}
+                    )}
                     <div className="dashboard-card__actions">
                       <Button
                         type="button"
@@ -322,9 +293,7 @@ export function AdminProductDetailPage() {
                         disabled={qaPending}
                         onClick={onApprove}
                       >
-                        {approvePricing === 'free'
-                          ? 'Approve & publish as free'
-                          : `Approve & publish${
+                        {`Approve & publish${
                               Number.parseFloat(approvePrice) > 0
                                 ? ` at ${product.currency} ${Number.parseFloat(approvePrice).toFixed(2)}`
                                 : ''
@@ -507,18 +476,7 @@ export function AdminProductDetailPage() {
                   }
                 />
               </FormField>
-              <PricingChoice
-                idPrefix="detail"
-                value={formPricing}
-                onChange={(mode) => {
-                  setFormPricing(mode)
-                  // Switching a free model to Paid starts from an empty price, not 0.00.
-                  if (mode === 'paid' && Number(form.price) === 0) {
-                    setForm((current) => ({ ...current, price: '' }))
-                  }
-                }}
-              />
-              {formPricing === 'paid' ? (
+              {(
                 <>
                   <FormField id="detail-price" label="Price">
                     <Input
@@ -536,7 +494,7 @@ export function AdminProductDetailPage() {
                     <Input
                       id="detail-discount-price"
                       type="number"
-                      min="0"
+                      min="0.01"
                       step="0.01"
                       value={form.discount_price ?? ''}
                       onChange={(event) =>
@@ -548,10 +506,6 @@ export function AdminProductDetailPage() {
                     />
                   </FormField>
                 </>
-              ) : (
-                <p className="home-page__subtitle">
-                  Free: customers download it without payment. Saving sets the price to 0.
-                </p>
               )}
               <FormField id="detail-currency" label="Currency">
                 <Input

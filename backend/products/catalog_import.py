@@ -17,7 +17,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from categories.models import Category
-from config.media import FREE_MODELS_PREFIX, media_relative_path, package_object_exists
+from config.media import media_relative_path, package_object_exists
 from config.storages import build_public_media_url, get_public_storage
 from config.upload_security import (
     SCAN_MALWARE_FOUND,
@@ -211,12 +211,7 @@ class CatalogImportService:
         import_source: str,
         warnings: list[str],
     ) -> CatalogImportRowResult:
-        # models/<sku>/ is a paid model (zip in the private bucket); free-models/<sku>/ is
-        # a free one with every file, zip included, in the public bucket.
         prefix = str(item.get("r2_key_prefix") or "").strip()
-        if prefix.startswith(FREE_MODELS_PREFIX):
-            item = {**item, "price": "0", "discount_price": None}
-
         raw_model_id = str(item.get("model_id") or "").strip()
         display_id = raw_model_id.upper() if raw_model_id else ""
 
@@ -433,7 +428,7 @@ class CatalogImportService:
             return "missing_glb_checksum"
 
         r2_prefix = str(item.get("r2_key_prefix") or "").strip()
-        if r2_prefix not in (f"models/{sku}/", f"{FREE_MODELS_PREFIX}{sku}/"):
+        if r2_prefix not in (f"models/{sku}/",):
             return "invalid_r2_prefix"
 
         preview_key = str(media.get("preview_key") or "").strip()

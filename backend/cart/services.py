@@ -229,9 +229,9 @@ class CartService:
                     "Product is not available for purchase.",
                     field="product_id",
                 )
-            if product.is_free:
+            if product.price <= 0:
                 raise CartError(
-                    "This model is free. Use Download on its page; it needs no checkout.",
+                    "This model is not available for purchase.",
                     field="product_id",
                 )
             effective_price = cls._effective_price(product.discount_price, product.price)
@@ -322,7 +322,7 @@ class CartService:
             "is_available": (
                 product.status == Product.Status.PUBLISHED
                 and product.category.is_active
-                and not product.is_free
+                and product.price > 0
             ),
         }
 

@@ -20,7 +20,6 @@ export const APP_ROUTE_PATTERNS: readonly string[] = [
   '/Products',
   '/products/:slug',
   '/Products/:slug',
-  '/free-3d-models',
   '/3d-models',
   '/3d-models/:categorySlug',
   '/3D-models',
