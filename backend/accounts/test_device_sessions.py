@@ -167,21 +167,36 @@ class AdministratorSessionsAreNotLimitedTests(APITestCase):
             email_verified=True,
         )
 
+    def _sign_in(self) -> APIClient:
+        client = APIClient()
+        response = client.post(
+            reverse("accounts:admin-login"),
+            {"email": self.admin.email, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
+        return client
+
     def test_many_admin_devices_stay_signed_in(self) -> None:
-        clients = []
-        for _ in range(4):
-            client = APIClient()
-            response = client.post(
-                reverse("accounts:admin-login"),
-                {"email": self.admin.email, "password": self.password},
-                format="json",
-            )
-            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-            client.credentials(HTTP_AUTHORIZATION=f"Bearer {response.data['access']}")
-            clients.append(client)
+        clients = [self._sign_in() for _ in range(4)]
 
         for client in clients:
             self.assertEqual(
                 client.get(reverse("accounts:admin-me")).status_code, status.HTTP_200_OK
             )
-        self.assertFalse(UserSession.objects.filter(user=self.admin).exists())
+        active = UserSession.objects.filter(user=self.admin, revoked_at__isnull=True)
+        self.assertEqual(active.count(), 4)
+
+    def test_signing_out_ends_the_admin_access_token_at_once(self) -> None:
+        client = self._sign_in()
+        other_device = self._sign_in()
+        admin_me = reverse("accounts:admin-me")
+        self.assertEqual(client.get(admin_me).status_code, status.HTTP_200_OK)
+
+        logout = client.post(reverse("accounts:logout"), {}, format="json")
+
+        self.assertEqual(logout.status_code, status.HTTP_204_NO_CONTENT)
+        # The token is still inside its 30 minutes, but the session behind it has ended.
+        self.assertEqual(client.get(admin_me).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(other_device.get(admin_me).status_code, status.HTTP_200_OK)

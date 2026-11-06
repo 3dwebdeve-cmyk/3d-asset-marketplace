@@ -3,7 +3,8 @@
 Each customer sign-in creates a ``UserSession`` whose id rides on the JWTs as ``sid``.
 Signing in on a new device past ``MAX_CUSTOMER_SESSIONS`` ends the least recently used
 session. Access and refresh both check the session, so an ended device stops at once.
-Administrator sign-ins get no session and are never limited.
+Administrator sign-ins get a session too, so signing out ends their access token at once,
+but they are never limited.
 """
 
 from __future__ import annotations
@@ -35,8 +36,10 @@ def _client_ip(request: HttpRequest | None) -> str | None:
 
 
 @transaction.atomic
-def start_session(user: User, request: HttpRequest | None = None) -> UserSession:
-    """Open a session for this device and end the oldest ones past the limit."""
+def start_session(
+    user: User, request: HttpRequest | None = None, *, limited: bool = True
+) -> UserSession:
+    """Open a session for this device and, when ``limited``, end the oldest past the limit."""
     from accounts.security_notices import device_hash_for_request, _user_agent
 
     # Serialise sign-ins for one account so two at once cannot both slip under the limit.
@@ -56,10 +59,14 @@ def start_session(user: User, request: HttpRequest | None = None) -> UserSession
         user_agent=_user_agent(request) if request is not None else "",
         ip_address=_client_ip(request),
     )
-    stale = list(
-        active.exclude(pk=session.pk)
-        .order_by("-last_used_at", "-created_at")
-        .values_list("pk", flat=True)[max_sessions() - 1 :]
+    stale = (
+        list(
+            active.exclude(pk=session.pk)
+            .order_by("-last_used_at", "-created_at")
+            .values_list("pk", flat=True)[max_sessions() - 1 :]
+        )
+        if limited
+        else []
     )
     if stale:
         UserSession.objects.filter(pk__in=stale).update(

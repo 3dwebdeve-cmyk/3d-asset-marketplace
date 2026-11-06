@@ -103,12 +103,10 @@ def _issue_auth_response(
 ) -> Response:
     """Return access + user in JSON; refresh only via httpOnly cookie.
 
-    Customer sign-ins open a device session (``accounts.sessions``); administrators do not.
+    Every sign-in opens a device session (``accounts.sessions``); only customers are limited.
     """
     is_admin = AuthenticationService.is_administrator(user)
-    session_id = None
-    if not is_admin:
-        session_id = sessions.start_session(user, request).pk
+    session_id = sessions.start_session(user, request, limited=not is_admin).pk
     tokens = AuthenticationService.build_tokens(user, mfa=mfa_passed, session_id=session_id)
     response = Response(
         {
@@ -563,7 +561,7 @@ class CookieTokenRefreshView(APIView):
             ):
                 raise TokenError("Administrator session expired")
 
-            session_id = None if is_admin else old_refresh.payload.get("sid")
+            session_id = old_refresh.payload.get("sid")
             if session_id and not sessions.is_active(session_id, user):
                 return _session_ended_response(session_id)
 
@@ -575,9 +573,9 @@ class CookieTokenRefreshView(APIView):
                 if not user.is_active or refresh_tv != user.token_version:
                     raise TokenError("Token is invalid or expired")
                 old_refresh.blacklist()
-                if not is_admin and not session_id:
-                    # Signed in before device sessions existed: join the device limit now.
-                    session_id = sessions.start_session(user, request).pk
+                if not session_id:
+                    # Signed in before device sessions existed: open one now.
+                    session_id = sessions.start_session(user, request, limited=not is_admin).pk
                 tokens = AuthenticationService.build_tokens(
                     user,
                     auth_time=int(auth_time) if auth_time is not None else None,

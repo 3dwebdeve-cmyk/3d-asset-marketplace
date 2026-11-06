@@ -43,6 +43,23 @@ describe('auth store session hint', () => {
     expect(useAuthStore.getState().rememberSession).toBe(false)
   })
 
+  it('signs this tab out when another tab signs out', () => {
+    useAuthStore.getState().setSession({ access: 'a', user: testUser })
+    const savedByOtherTab = (sessionHint: boolean) =>
+      new StorageEvent('storage', {
+        key: 'auth-storage',
+        newValue: JSON.stringify({ state: { rememberSession: true, sessionHint }, version: 1 }),
+      })
+
+    window.dispatchEvent(savedByOtherTab(true))
+    expect(useAuthStore.getState().isAuthenticated).toBe(true)
+
+    window.dispatchEvent(savedByOtherTab(false))
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(useAuthStore.getState().user).toBeNull()
+  })
+
   it('keeps a saved "no session" hint as it is', async () => {
     localStorage.setItem(
       'auth-storage',
