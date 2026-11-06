@@ -470,29 +470,6 @@
 }
 
 
-@media(min-width:1500px) {
-  .admin-layout:has(.admin-products-page) {
-  grid-template-columns:192px minmax(0,1fr)
-}
-
-.admin-layout:has(.admin-products-page) .admin-sidebar {
-  padding:14px 10px;
-  background:#080809
-}
-
-.admin-layout:has(.admin-products-page) .admin-sidebar__logo {
-  width:125px
-}
-
-.admin-layout:has(.admin-products-page) .admin-sidebar__link {
-  font-size:12px;
-  padding:9px 10px
-}
-
-
-}
-
-
 @media(max-width:1250px) {
   .products-summary__card {
   padding:15px 12px;
