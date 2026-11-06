@@ -10,6 +10,8 @@ import {
   listAdminProducts,
   restoreAdminProduct,
 } from '../../api/productsApi'
+import { AdminIcon } from '../../components/admin/AdminIcon'
+import '../../styles/admin-products.css'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -46,6 +48,17 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
+  const [folderSearch, setFolderSearch] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [showAllCategories, setShowAllCategories] = useState(false)
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  const pageSize = Number(searchParams.get('page_size')) || 10
+  const setPagination = (nextPage: number, size = pageSize) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('page', String(nextPage))
+    params.set('page_size', String(size))
+    setSearchParams(params)
+  }
   const statusFilter = archived ? 'archived' : searchParams.get('status')?.trim() ?? ''
   const importBatchFilter = searchParams.get('import_batch_id')?.trim() ?? ''
   const [batchInput, setBatchInput] = useState(importBatchFilter)
@@ -59,14 +72,16 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
     queryKey: [
       'admin',
       'products',
-      { search, status: statusFilter, import_batch_id: importBatchFilter },
+      { search, status: statusFilter, import_batch_id: importBatchFilter, categoryId, page, pageSize },
     ],
     queryFn: () =>
       listAdminProducts({
         search: search || undefined,
         status: (statusFilter || undefined) as ProductStatus | undefined,
         import_batch_id: importBatchFilter || undefined,
-        page_size: 50,
+        category_id: categoryId || undefined,
+        page,
+        page_size: pageSize,
         ordering: '-created_at',
       }),
   })
@@ -74,6 +89,31 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
   const categoriesQuery = useQuery({
     queryKey: ['admin', 'categories', 'product-form'],
     queryFn: () => listAdminCategories({ is_active: true, page_size: 100 }),
+  })
+
+  const summaryQuery = useQuery({
+    queryKey: ['admin', 'products', 'summary'],
+    queryFn: async () => {
+      const [total, published, draft, archivedProducts] = await Promise.all([
+        listAdminProducts({ page_size: 1 }),
+        listAdminProducts({ status: 'published', page_size: 1 }),
+        listAdminProducts({ status: 'draft', page_size: 1 }),
+        listAdminProducts({ status: 'archived', page_size: 1 }),
+      ])
+      return { total: total.count, published: published.count, draft: draft.count, archived: archivedProducts.count }
+    },
+  })
+
+  const folderCountsQuery = useQuery({
+    queryKey: ['admin', 'products', 'folder-counts', archived, categoriesQuery.data?.results.map(category => category.id)],
+    enabled: !!categoriesQuery.data,
+    staleTime: 60_000,
+    queryFn: async () => Object.fromEntries(await Promise.all(
+      (categoriesQuery.data?.results ?? []).map(async category => {
+        const products = await listAdminProducts({ category_id: category.id, status: archived ? 'archived' : undefined, page_size: 1 })
+        return [category.id, products.count] as const
+      }),
+    )),
   })
 
   const createMutation = useMutation({
@@ -159,6 +199,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
         params.delete('import_batch_id')
       }
     }
+    params.delete('page')
     setSearchParams(params)
   }
 
@@ -194,12 +235,14 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
   }
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page admin-products-page">
       <section
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="admin-products-title"
       >
-        <p className="admin-page__eyebrow">Administrator</p>
+        <header className="products-heading">
+        <span className="products-heading__icon"><AdminIcon name="box" size={32} /></span>
+        <div>
         <h1 id="admin-products-title">
           {archived ? 'Archived products' : isQaQueue ? 'QA queue' : 'Products'}
         </h1>
@@ -211,20 +254,21 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
               : 'Create and manage marketplace 3D assets.'}
         </p>
 
-        <div className="dashboard-card__actions">
+        </div>
+        <div className="dashboard-card__actions products-heading__actions">
           {archived ? (
             <Link className="home-page__cta home-page__cta--secondary" to="/console/products">Back to products</Link>
           ) : (
             <>
               <Button type="button" onClick={() => setShowCreate((value) => !value)}>
-                {showCreate ? 'Hide create form' : 'Create product'}
+                <AdminIcon name="plus-circle" size={16} /> {showCreate ? 'Hide create form' : 'Create product'}
               </Button>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => updateFilters({ status: isQaQueue ? '' : 'pending_review' })}
               >
-                {isQaQueue ? 'All products' : 'QA queue'}
+                <AdminIcon name="check-square" size={16} /> {isQaQueue ? 'All products' : 'QA queue'}
               </Button>
               <Link className="home-page__cta home-page__cta--secondary" to="/console/archived">
                 View archived products
@@ -233,12 +277,21 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
           )}
         </div>
 
-        {!archived ? (
-          <p className="home-page__subtitle">
-            Delete moves products to Archived and removes them from the website.
-            Existing buyers keep their downloads.
-          </p>
-        ) : null}
+        </header>
+        <div className="products-summary">
+          {([
+            ['box', summaryQuery.data?.total, 'Total products', 'red'],
+            ['check-circle', summaryQuery.data?.published, 'Published', 'green'],
+            ['clock', summaryQuery.data?.draft, 'Draft', 'amber'],
+            ['archive', summaryQuery.data?.archived, 'Archived', 'red'],
+            ['layers', categoriesQuery.data?.count, 'Categories', 'red'],
+          ] as const).map(([icon, count, label, tone]) => (
+            <div className={`products-summary__card products-summary__card--${tone}`} key={label}>
+              <span className="products-summary__icon"><AdminIcon name={icon} size={28} /></span>
+              <div><strong>{count ?? '\u2014'}</strong><span>{label}</span></div>
+            </div>
+          ))}
+        </div>
         {isQaQueue ? <UploaderImportsPanel /> : null}
         {restoreError ? <Alert variant="error" message={restoreError} /> : null}
         {!archived && showCreate ? (
@@ -343,12 +396,24 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
           </form>
         ) : null}
 
-        <div className="admin-filters">
+        <div className="products-workspace">
+          <aside className="products-folders" aria-label="Product folders">
+            <div className="products-folders__heading"><h2><AdminIcon name="folder" /> Folders <span className="products-count">{categoriesQuery.data?.count ?? 0}</span></h2><Link to="/console/categories" aria-label="Open categories" className="products-add-folder">+</Link></div>
+            <label className="products-folder-search"><AdminIcon name="search" size={17} /><Input aria-label="Search folders" placeholder="Search folder..." value={folderSearch} onChange={(event) => setFolderSearch(event.target.value)} /></label>
+            <button type="button" className={`products-folder ${!categoryId ? 'is-active' : ''}`} onClick={() => { setCategoryId(''); setPagination(1) }}><AdminIcon name="box" size={18} /><span>All Products</span><span className="products-folder__count">{summaryQuery.data?.total ?? '\u2014'}</span></button>
+            {categoryOptions.filter((category) => category.name.toLowerCase().includes(folderSearch.toLowerCase())).slice(0, showAllCategories ? undefined : 10).map((category) => (
+              <button type="button" key={category.id} className={`products-folder ${categoryId === category.id ? 'is-active' : ''}`} onClick={() => { setCategoryId(category.id); setPagination(1) }}><AdminIcon name="folder" size={18} /><span>{category.name}</span><span className="products-folder__count">{folderCountsQuery.data?.[category.id] ?? "\u2014"}</span></button>
+            ))}
+            {categoriesQuery.isError ? <p role="alert">Could not load folders.</p> : null}
+            <button type="button" className="products-show-folders" onClick={() => setShowAllCategories(!showAllCategories)}>{showAllCategories ? 'Show fewer categories' : 'Show all categories'}<AdminIcon name="chevron-down" size={16} /></button>
+          </aside>
+          <div className="products-workspace__main">
+        <div className="admin-filters products-filters">
           <Input
             aria-label="Search products"
             placeholder="Search name, SKU, or description"
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => { setSearch(event.target.value); setPagination(1) }}
           />
           {!archived ? (
             <select
@@ -373,7 +438,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
               autoComplete="off"
             />
             <Button type="submit" variant="secondary">
-              Filter batch
+              <AdminIcon name="filter" size={16} /> Filter batch
             </Button>
           </form>
         </div>
@@ -391,7 +456,8 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
             }
           />
         ) : (
-          <div className="admin-table-wrap">
+          <div className="admin-table-wrap products-table-panel">
+            <div className="products-table-heading"><h2>{archived ? 'Archived products' : 'Products'} <span className="products-count">{productsQuery.data?.count ?? 0}</span></h2>
             {!archived ? <div className="dashboard-card__actions">
               <Button
                 type="button"
@@ -403,6 +469,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                 Delete selected ({visibleSelectedIds.length})
               </Button>
             </div> : null}
+            </div>
             <table className="admin-table">
               <thead>
                 <tr>
@@ -420,7 +487,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                       }
                     />
                   </th> : null}
-                  <th scope="col">Name</th>
+                  <th scope="col">Product</th>
                   <th scope="col">SKU</th>
                   <th scope="col">Status</th>
                   <th scope="col">Import batch</th>
@@ -439,19 +506,19 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                         onChange={() => toggleSelected(product.id)}
                       />
                     </td> : null}
-                    <td>{product.name}</td>
-                    <td>{product.sku ?? '—'}</td>
-                    <td>{product.status}</td>
+                    <td><span className="products-product"><span className="products-thumbnail">{product.thumbnail ? <img src={product.thumbnail} alt="" loading="lazy" /> : <AdminIcon name="box" size={24} />}</span><span>{product.name}</span></span></td>
+                    <td><span className="products-sku">{product.sku ?? "\u2014"}</span></td>
+                    <td><span className={`products-status products-status--${product.status}`}>{product.status === 'published' ? <AdminIcon name="check" size={14} /> : null}{product.status.replace(/_/g, ' ')}</span></td>
                     <td>{product.import_batch_id || '—'}</td>
                     <td>
                       {isFreeProduct(product) ? 'Free' : `${product.currency} ${product.price}`}
                     </td>
                     <td>
                       <Link
-                        className="auth-link"
+                        className="auth-link products-manage"
                         to={`/console/${archived ? 'archived' : 'products'}/${product.id}`}
                       >
-                        Manage
+                        <AdminIcon name="settings" size={15} /> Manage
                       </Link>{' '}
                       {archived ? (
                         <Button
@@ -476,7 +543,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                         onClick={() => confirmDelete([product.id])}
                         aria-label={`Delete ${product.name}`}
                       >
-                        Delete
+                        <AdminIcon name="trash" size={15} /> Delete
                       </Button> : null}
                     </td>
                   </tr>
@@ -486,8 +553,15 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
             {productsQuery.data?.results.length === 0 ? (
               <p className="home-page__subtitle">{archived ? 'No archived products match your filters.' : 'No products match your filters.'}</p>
             ) : null}
+            <div className="products-pagination">
+              <span>Showing {visibleProducts.length ? (page - 1) * pageSize + 1 : 0}&ndash;{Math.min(page * pageSize, productsQuery.data?.count ?? 0)} of {productsQuery.data?.count ?? 0} products</span>
+              <div><label>Rows per page <select aria-label="Rows per page" value={pageSize} onChange={(event) => setPagination(1, Number(event.target.value))}>{[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+              <button type="button" aria-label="Previous page" disabled={page <= 1} onClick={() => setPagination(page - 1)}>&lsaquo;</button><span className="products-pagination__current">{page}</span><button type="button" aria-label="Next page" disabled={!productsQuery.data?.next} onClick={() => setPagination(page + 1)}>&rsaquo;</button></div>
+            </div>
           </div>
         )}
+          </div>
+        </div>
       </section>
     </main>
   )

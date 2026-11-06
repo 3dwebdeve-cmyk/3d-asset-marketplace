@@ -129,6 +129,18 @@ beforeEach(() => {
 })
 
 describe('AdminProductsPage', () => {
+  it('filters products by folder and changes rows per page', async () => {
+    renderProductsPage()
+    await userEvent.click(await screen.findByRole('button', { name: /^Furniture/ }))
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+      expect.objectContaining({ category_id: categoryId, page: 1, page_size: 10 }),
+    ))
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Rows per page' }), '25')
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+      expect.objectContaining({ category_id: categoryId, page: 1, page_size: 25 }),
+    ))
+  })
+
   it('restores an archived row into Products as a Draft', async () => {
     const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
     const draftProduct = { ...archivedProduct, status: 'draft' as const }
@@ -198,7 +210,7 @@ describe('AdminProductsPage', () => {
   it('restricts archive search and batch filters to archived products', async () => {
     renderProductsPage('/console/archived?status=published&import_batch_id=batch-1')
     await userEvent.type(screen.getByLabelText('Search products'), 'chair')
-    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenLastCalledWith(
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'archived', search: 'chair', import_batch_id: 'batch-1' }),
     ))
     expect(screen.queryByRole('combobox', { name: 'Filter by status' })).not.toBeInTheDocument()
@@ -207,7 +219,7 @@ describe('AdminProductsPage', () => {
   it('redirects old archived bookmarks to the Archived section', async () => {
     renderProductsPage('/console/products?status=archived&import_batch_id=batch-2')
     expect(await screen.findByRole('heading', { name: 'Archived products' })).toBeInTheDocument()
-    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenLastCalledWith(
+    await waitFor(() => expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'archived', import_batch_id: 'batch-2' }),
     ))
   })
@@ -261,7 +273,7 @@ describe('AdminProductsPage', () => {
       expect(screen.getByText('Oak Chair')).toBeInTheDocument()
     })
     expect(screen.getByText('MDL-000142')).toBeInTheDocument()
-    expect(screen.getByText('pending_review')).toBeInTheDocument()
+    expect(screen.getByText('pending review')).toBeInTheDocument()
     expect(screen.getByText('2026-09-03-run-01')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /manage/i })).toHaveAttribute(
       'href',

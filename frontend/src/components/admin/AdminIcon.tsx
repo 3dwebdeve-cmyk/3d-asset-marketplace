@@ -1,4 +1,10 @@
 export type AdminIconName =
+  | 'plus-circle'
+  | 'filter'
+  | 'folder'
+  | 'clock'
+  | 'check'
+  | 'trash'
   | 'home'
   | 'box'
   | 'archive'
@@ -23,6 +29,12 @@ export type AdminIconName =
   | 'check-circle'
 
 const PATHS: Record<AdminIconName, string[]> = {
+  'plus-circle': ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 8v8', 'M8 12h8'],
+  filter: ['M3 4h18l-7 8v7l-4 2v-9L3 4Z'],
+  folder: ['M3 7V5h6l2 2h10v13H3V7Z'],
+  clock: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 7v5l4 2'],
+  check: ['m4 12 5 5L20 6'],
+  trash: ['M3 6h18', 'M9 6V3h6v3', 'M5 6l1 15h12l1-15', 'M10 10v7', 'M14 10v7'],
   home: ['M3 11.5 12 4l9 7.5', 'M5 10v10h5v-6h4v6h5V10'],
   box: ['M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z', 'M4 7.5 12 12l8-4.5', 'M12 12v9'],
   archive: ['M4 4h16v5H4z', 'M5 9v11h14V9', 'M10 13h4'],
