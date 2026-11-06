@@ -26,7 +26,6 @@ import {
 import { isKnownAppPath } from './routes'
 import { applyCatalogSeo, catalogApiUrl, modelSummaries } from './catalogSeo'
 import { hasCatalogFilters, readCatalogPage } from '../src/lib/modelCatalogSeo'
-import { FREE_MODELS_COPY } from '../src/lib/freeModelsSeo'
 import { ALL_MODELS_SEO } from '../src/lib/categorySeo'
 
 interface AssetsBinding {
@@ -241,9 +240,9 @@ async function resolvePageSeo(
 ): Promise<PageSeo | undefined> {
   const staticSeo = getStaticPageSeo(path, siteOrigin)
   if (staticSeo) {
-    if (path === '/free-3d-models' || path === '/3d-models') {
-      staticSeo.heading = path === '/free-3d-models' ? FREE_MODELS_COPY.h1 : ALL_MODELS_SEO.h1
-      staticSeo.modelsHeading = path === '/free-3d-models' ? 'Available free models' : '3D models'
+    if (path === '/3d-models') {
+      staticSeo.heading = ALL_MODELS_SEO.h1
+      staticSeo.modelsHeading = '3D models'
       const backend = optionalBackendOrigin(env.BACKEND_ORIGIN)
       if (backend) {
         if (hasCatalogFilters(params)) return applyCatalogSeo(staticSeo, null, path, params, siteOrigin)
@@ -256,11 +255,8 @@ async function resolvePageSeo(
       const backend = optionalBackendOrigin(env.BACKEND_ORIGIN)
       if (backend) {
         const recent = new URL('/api/v1/products/?page=1&page_size=6&ordering=-created_at', backend)
-        const free = new URL(recent)
-        free.searchParams.set('is_free', 'true')
-        const [products, freeProducts] = await Promise.all([fetchCatalogJson(recent, env), fetchCatalogJson(free, env)])
+        const products = await fetchCatalogJson(recent, env)
         if (products.kind === 'ok') staticSeo.models = modelSummaries(products.body)
-        if (freeProducts.kind === 'ok') staticSeo.freeModels = modelSummaries(freeProducts.body, true)
       }
     }
     return staticSeo
@@ -331,15 +327,6 @@ function isHtmlResponse(response: Response): boolean {
 
 async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promise<Response> {
   const siteOrigin = resolveSiteOrigin(env, url)
-  // Keep existing free-model bookmarks while consolidating them on the dedicated collection.
-  if ((request.method === 'GET' || request.method === 'HEAD') && normalizePath(url.pathname) === '/3d-models' &&
-    url.searchParams.get('max_price') === '0' && (!url.searchParams.has('min_price') || url.searchParams.get('min_price') === '0')) {
-    const target = new URL(url)
-    target.pathname = '/free-3d-models'
-    target.searchParams.delete('max_price')
-    target.searchParams.delete('min_price')
-    return withSecurityHeaders(new Response(null, { status: 301, headers: { Location: target.toString() } }))
-  }
 
   const assetResponse = await env.ASSETS.fetch(request)
 
@@ -365,7 +352,7 @@ async function handleSitePath(request: Request, env: WorkerEnv, url: URL): Promi
   if (!seo) {
     return withSecurityHeaders(new Response(assetResponse.body, { status: assetResponse.status, headers }))
   }
-  if ((path === '/3d-models' || path.startsWith('/3d-models/') || path === '/plugins' || path === '/free-3d-models') && url.searchParams.get('search')?.trim()) {
+  if ((path === '/3d-models' || path.startsWith('/3d-models/') || path === '/plugins') && url.searchParams.get('search')?.trim()) {
     seo.robots = 'noindex, follow'
   }
 

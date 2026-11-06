@@ -46,8 +46,6 @@ export interface AdminProduct {
   price: string
   currency: string
   discount_price: string | null
-  /** Price 0: downloaded for free, without checkout. */
-  is_free?: boolean
   thumbnail: string
   preview_model: string
   preview_video: string
@@ -80,7 +78,7 @@ export interface AdminProductRejectPayload {
 }
 
 export interface AdminProductApprovePayload {
-  pricing: 'free' | 'paid'
+  pricing: 'paid'
   price?: string
 }
 
@@ -90,10 +88,6 @@ export interface AdminProductBulkDeleteResult {
   not_found: string[]
 }
 
-/** A free model (price 0) is downloaded without checkout. */
-export function isFreeProduct(product: { is_free?: boolean; price: string }): boolean {
-  return product.is_free ?? Number(product.price) === 0
-}
 
 /** One call from the uploader, from the activity log. */
 export interface UploaderImport {
@@ -207,8 +201,6 @@ export interface PublicProduct {
   price: string
   currency: string
   discount_price: string | null
-  /** Price 0: downloaded for free, without checkout. */
-  is_free?: boolean
   thumbnail: string
   software_used: string
   formats?: string[]
@@ -239,8 +231,6 @@ export interface PublicProductDetail {
   price: string
   currency: string
   discount_price: string | null
-  /** Price 0: downloaded for free, without checkout. */
-  is_free?: boolean
   thumbnail: string
   preview_model: string
   preview_video: string
@@ -270,7 +260,6 @@ export interface PaginatedPublicProducts {
 }
 
 export interface PublicProductListParams {
-  is_free?: boolean
   page?: number
   page_size?: number
   category_id?: string

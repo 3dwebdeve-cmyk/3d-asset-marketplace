@@ -23,7 +23,7 @@ CACHE_SECONDS = 60 * 60
 MAX_URLS = 45_000
 
 # Pages that always exist. Account, cart, checkout and admin pages are deliberately absent.
-STATIC_PATHS = ("/", "/free-3d-models", "/3d-models", "/plugins", "/categories", "/custom-projects", "/about", "/contact")
+STATIC_PATHS = ("/", "/3d-models", "/plugins", "/categories", "/custom-projects", "/about", "/contact")
 
 
 def _excluded(setting_name: str, default: tuple[str, ...]) -> set[str]:
@@ -45,7 +45,7 @@ def build_sitemap_xml() -> str:
     skip_plugin_categories = _excluded("SITEMAP_EXCLUDED_PLUGIN_CATEGORY_SLUGS", ("demo-tools",))
 
     products = list(
-        Product.objects.filter(status=Product.Status.PUBLISHED, category__is_active=True)
+        Product.objects.filter(status=Product.Status.PUBLISHED, category__is_active=True, price__gt=0)
         .exclude(category__slug__in=skip_categories)
         .order_by("-updated_at")
         .values("slug", "updated_at", "category__slug")[:MAX_URLS]

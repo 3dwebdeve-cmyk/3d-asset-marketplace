@@ -461,13 +461,6 @@ export function Navbar() {
                 {isMarketplaceHome ? '3D Model' : '3D Models'}
               </Link>
               <Link
-                className={`navbar__link${currentPath === '/free-3d-models' ? ' navbar__link--active' : ''}`}
-                to="/free-3d-models"
-                aria-current={currentPath === '/free-3d-models' ? 'page' : undefined}
-              >
-                Free 3D Models
-              </Link>
-              <Link
                 className={`navbar__link${isPluginsRoute ? ' navbar__link--active' : ''}`}
                 to="/plugins"
                 aria-current={isPluginsRoute ? 'page' : undefined}
@@ -758,9 +751,6 @@ export function Navbar() {
                   </Link>
                   <Link className="navbar__drawer-sublink" to="/3d-models" onClick={closeMobileNav}>
                     3D model
-                  </Link>
-                  <Link className="navbar__drawer-sublink" to="/free-3d-models" onClick={closeMobileNav}>
-                    Free 3D Models
                   </Link>
                   <Link className="navbar__drawer-sublink" to="/plugins" onClick={closeMobileNav}>
                     Plugin

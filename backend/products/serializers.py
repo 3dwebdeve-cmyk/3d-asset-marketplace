@@ -100,7 +100,6 @@ class ProductListPublicSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
-            "is_free",
             "thumbnail",
             "software_used",
             "formats",
@@ -134,7 +133,6 @@ class ProductDetailPublicSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
-            "is_free",
             "thumbnail",
             "preview_model",
             "preview_video",
@@ -188,7 +186,6 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
-            "is_free",
             "thumbnail",
             "preview_model",
             "preview_video",
@@ -233,9 +230,9 @@ class ProductAdminSerializer(serializers.ModelSerializer):
 
 
 class ProductApproveSerializer(serializers.Serializer):
-    """Optional pricing chosen at approval: free (price 0) or paid at ``price``."""
+    """Optional pricing chosen at approval: paid at ``price``."""
 
-    pricing = serializers.ChoiceField(choices=("free", "paid"), required=False)
+    pricing = serializers.ChoiceField(choices=("paid",), required=False)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
     def validate(self, attrs: dict) -> dict:
@@ -274,12 +271,12 @@ class ProductCreateSerializer(serializers.Serializer):
         default="",
         max_length=500,
     )
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
     currency = serializers.CharField(required=False, default="USD", max_length=3)
     discount_price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
-        min_value=Decimal("0"),
+        min_value=Decimal("0.01"),
         required=False,
         allow_null=True,
     )
@@ -369,14 +366,14 @@ class ProductUpdateSerializer(serializers.Serializer):
     price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
-        min_value=Decimal("0"),
+        min_value=Decimal("0.01"),
         required=False,
     )
     currency = serializers.CharField(required=False, max_length=3)
     discount_price = serializers.DecimalField(
         max_digits=10,
         decimal_places=2,
-        min_value=Decimal("0"),
+        min_value=Decimal("0.01"),
         required=False,
         allow_null=True,
     )
