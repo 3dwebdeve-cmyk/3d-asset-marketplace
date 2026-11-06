@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { AdminIcon } from '../../components/admin/AdminIcon'
+import '../../styles/admin-reviews.css'
 
 import {
   deleteAdminReview,
@@ -31,6 +33,7 @@ export function AdminReviewsPage() {
   const [productType, setProductType] = useState('')
   const [hiddenFilter, setHiddenFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [oldestFirst, setOldestFirst] = useState(false)
   const debouncedSearch = useDebouncedValue(search)
 
   const reviewsQuery = useQuery({
@@ -42,6 +45,7 @@ export function AdminReviewsPage() {
         productType,
         hiddenFilter,
         page,
+        oldestFirst,
       },
     ],
     queryFn: () =>
@@ -56,7 +60,7 @@ export function AdminReviewsPage() {
               : undefined,
         page,
         page_size: 20,
-        ordering: '-created_at',
+        ordering: oldestFirst ? 'created_at' : '-created_at',
       }),
   })
 
@@ -87,15 +91,16 @@ export function AdminReviewsPage() {
   const count = reviewsQuery.data?.count ?? 0
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page admin-reviews-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="admin-reviews-title">
-        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-reviews-title">Reviews</h1>
         <p className="home-page__subtitle">
           Moderate customer ratings. Hidden reviews are removed from public averages.
         </p>
 
         <div className="admin-filters">
+          <div className="reviews-search">
+          <AdminIcon name="search" size={18} />
           <Input
             value={search}
             onChange={(event) => {
@@ -105,6 +110,7 @@ export function AdminReviewsPage() {
             placeholder="Search review text, name, or email"
             aria-label="Search reviews"
           />
+          </div>
           <select
             className="auth-input"
             value={productType}
@@ -153,7 +159,11 @@ export function AdminReviewsPage() {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
+                    <th aria-sort={oldestFirst ? 'ascending' : 'descending'}>
+                      <button className="reviews-date-sort" onClick={() => { setOldestFirst(!oldestFirst); setPage(1) }}>
+                        Date <span aria-hidden="true">↑↓</span>
+                      </button>
+                    </th>
                     <th>Author</th>
                     <th>Item</th>
                     <th>Rating</th>
@@ -181,7 +191,18 @@ export function AdminReviewsPage() {
                           </Link>
                           <div className="home-page__subtitle">{review.product_type}</div>
                         </td>
-                        <td>{review.rating === null ? '—' : `${review.rating} / 5`}</td>
+                        <td>
+                          {review.rating !== null && (
+                            <div className="reviews-stars" aria-hidden="true">
+                              {Array.from({ length: 5 }, (_, index) => (
+                                <span key={index} className={index < (review.rating ?? 0) ? 'is-filled' : ''}>
+                                  <AdminIcon name="star" size={16} />
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {review.rating === null ? '—' : `${review.rating} / 5`}
+                        </td>
                         <td>{excerpt(review.review_text)}</td>
                         <td>
                           <span
@@ -193,7 +214,7 @@ export function AdminReviewsPage() {
                           </span>
                         </td>
                         <td>
-                          <div className="dashboard-card__actions">
+                          <div className="reviews-actions">
                             <Button
                               variant="secondary"
                               disabled={hideMutation.isPending || deleteMutation.isPending}
@@ -204,6 +225,7 @@ export function AdminReviewsPage() {
                                 })
                               }
                             >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m3 3 18 18M10 5a10 10 0 0 1 11 7 14 14 0 0 1-4 5M6 6a14 14 0 0 0-4 6c4 8 12 9 17 5M10 10a3 3 0 0 0 4 4" /></svg>
                               {review.is_hidden ? 'Unhide' : 'Hide'}
                             </Button>
                             <Button
@@ -219,7 +241,7 @@ export function AdminReviewsPage() {
                                 }
                               }}
                             >
-                              Delete
+                              <AdminIcon name="trash" size={16} /> Delete
                             </Button>
                           </div>
                         </td>
@@ -228,14 +250,17 @@ export function AdminReviewsPage() {
                   })}
                 </tbody>
               </table>
-            </div>
-
+            <div className="reviews-footer">
+              <span>Showing {(page - 1) * 20 + 1}–{Math.min((page - 1) * 20 + results.length, count)} of {count} {count === 1 ? 'review' : 'reviews'}</span>
+              {count <= 20 && <nav className="reviews-single-pagination" aria-label="Review pagination"><button disabled aria-label="Previous page">‹</button><button aria-current="page" aria-label="Page 1">1</button><button disabled aria-label="Next page">›</button></nav>}
             <Pagination
               page={page}
               totalPages={Math.ceil(count / 20)}
               onPageChange={setPage}
               ariaLabel="Review pagination"
             />
+            </div>
+            </div>
           </>
         )}
       </section>
