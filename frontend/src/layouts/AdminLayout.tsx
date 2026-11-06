@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 
 import { AdminIcon, navIconFor } from '../components/admin/AdminIcon'
 import { Button } from '../components/ui/Button'
@@ -126,15 +126,15 @@ export function AdminLayout() {
               return (
                 <li key={item.to}>
                   {item.enabled ? (
-                    <NavLink
+                    <Link
                       to={item.to}
-                      end={item.end}
+                      aria-current={isActive ? 'page' : undefined}
                       className={`admin-sidebar__link${isActive ? ' admin-sidebar__link--active' : ''}`}
                       onClick={() => setIsMobileNavOpen(false)}
                     >
                       <AdminIcon name={navIconFor(item.label)} />
                       <span className="admin-sidebar__label">{item.label}</span>
-                    </NavLink>
+                    </Link>
                   ) : (
                     <span
                       className="admin-sidebar__link admin-sidebar__link--disabled"
