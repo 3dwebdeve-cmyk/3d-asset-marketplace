@@ -739,7 +739,7 @@ class CatalogImportService:
         if existing is None:
             return True
         urls = ProductImage.objects.filter(product=existing).values_list("image_url", flat=True)
-        prefixes = (f"models/{sku}/", f"{FREE_MODELS_PREFIX}{sku}/")
+        prefixes = (f"models/{sku}/",)
         return all((media_relative_path(url) or "").startswith(prefixes) for url in urls)
 
     @staticmethod
