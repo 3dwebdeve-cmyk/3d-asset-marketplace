@@ -14,6 +14,8 @@ import { HOME_SEO } from '../../lib/seoPages'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { useAuthStore } from '../../store/authStore'
 import type { CategoryPublic } from '../../types/category'
+import { isFreeProduct } from '../../types/product'
+import { FREE_MODELS_PATH } from '../../lib/freeModelsSeo'
 import { PluginCard } from '../Plugins/PluginCard'
 import { ProductCard } from './ProductCard'
 import '../../styles/home.css'
@@ -375,6 +377,13 @@ export function ProductsBrowsePage() {
     enabled: !isCatalogMode,
   })
 
+  const freeModelsQuery = useQuery({
+    queryKey: ['public-products-free-preview'],
+    queryFn: () => listPublicProducts({ is_free: true, page: 1, page_size: HUB_PREVIEW_SIZE, ordering: '-created_at' }),
+    staleTime: 60 * 1000,
+    enabled: !isCatalogMode,
+  })
+  const freeModels = (freeModelsQuery.data?.results ?? []).filter(isFreeProduct)
 
   const filteredProducts = useMemo(
     () => productsData?.results ?? [],
@@ -479,6 +488,21 @@ export function ProductsBrowsePage() {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="browse-rail-section" aria-labelledby="free-models-heading">
+          <div className="browse-rail-section__header">
+            <h2 id="free-models-heading" className="browse-rail-section__title">Free 3D Models</h2>
+            <Link className="browse-rail-section__view-all" to={FREE_MODELS_PATH}>Browse free models →</Link>
+          </div>
+          <p>Explore free assets and check each model’s formats, software compatibility and license before downloading.</p>
+          {freeModelsQuery.isLoading ? <p role="status">Loading free models…</p> : freeModels.length ? (
+            <div className="browse-rail browse-rail--cards" aria-label="Free 3D Models">
+              {freeModels.map((product) => (
+                <div key={product.id} className="browse-rail__item"><ProductCard product={product} /></div>
+              ))}
+            </div>
+          ) : <p>{freeModelsQuery.isError ? 'Free models could not be loaded. Open the collection to try again.' : 'New free models will appear here when published.'}</p>}
         </section>
 
         <section className="browse-rail-section browse-rail-section--plugins" aria-labelledby="explore-plugins-heading">

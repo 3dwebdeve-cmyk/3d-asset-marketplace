@@ -169,7 +169,7 @@ describe('server-rendered page head', () => {
     expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute('content')).toBe('https://shop.example/static/og-banner.jpg')
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://shop.example/')
     expect(html).not.toContain('content="Default"')
-    expect(upstream).toHaveBeenCalledTimes(1)
+    expect(upstream).toHaveBeenCalledTimes(2)
   })
 
   it('uses SITE_URL for canonical URLs when it is configured', async () => {

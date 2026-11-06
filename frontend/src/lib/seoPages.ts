@@ -1,3 +1,4 @@
+import { FREE_MODELS_COPY, FREE_MODELS_PATH } from './freeModelsSeo'
 import { HOME_TITLE, HOME_DESCRIPTION, SITE_NAME, buildPageTitle } from './seo'
 import { ALL_MODELS_SEO } from './categorySeo'
 
@@ -86,6 +87,7 @@ const PRIVACY_SEO: StaticPageSeo = {
 export const STATIC_PAGE_SEO: Readonly<Record<string, StaticPageSeo>> = {
   '/': HOME_SEO,
   '/3d-models': MODELS_SEO,
+  [FREE_MODELS_PATH]: { title: buildPageTitle(FREE_MODELS_COPY.title), description: FREE_MODELS_COPY.description },
   '/plugins': PLUGINS_SEO,
   '/categories': CATEGORIES_SEO,
   '/about': ABOUT_SEO,

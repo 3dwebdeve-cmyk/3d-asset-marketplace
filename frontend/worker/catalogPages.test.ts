@@ -13,7 +13,12 @@ const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html
 afterEach(() => vi.unstubAllGlobals())
 
 describe('crawlable model collections', () => {
-  it.each(['/3d-models', '/3d-models/furniture'])(
+  it('redirects the old free filter URL to the dedicated collection', async () => {
+    const response = await worker.fetch(new Request(`${origin}/3d-models?max_price=0&formats=blend&page=2`), env)
+    expect(response.status).toBe(301)
+    expect(response.headers.get('Location')).toBe(`${origin}/free-3d-models?formats=blend&page=2`)
+  })
+  it.each(['/3d-models', '/free-3d-models', '/3d-models/furniture'])(
     'renders actual models, images, schema and page links for %s', async (path) => {
       const fetcher = vi.fn(async (url: URL) => Response.json(url.pathname === '/api/v1/categories/'
         ? { results: [{ id: 'cat-1', name: 'Furniture', slug: 'furniture' }], next: null }
@@ -32,6 +37,7 @@ describe('crawlable model collections', () => {
       const request = fetcher.mock.calls.map(([url]) => url).find((url) => url.pathname === '/api/v1/products/')!
       expect(request.searchParams.get('page_size')).toBe('12')
       expect(request.searchParams.get('page')).toBe('2')
+      if (path === '/free-3d-models') expect(request.searchParams.get('is_free')).toBe('true')
       if (path.endsWith('/furniture')) expect(request.searchParams.get('category_id')).toBe('cat-1')
     },
   )
@@ -52,11 +58,11 @@ describe('crawlable model collections', () => {
     expect(doc.querySelector('a[href="/products/oak-chair"]')).toBeNull()
   })
 
-  it('shows public model previews without a free collection on the homepage', async () => {
+  it('shows public model previews and a separate free collection on the homepage', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ results: [chair], next: null })))
     const doc = parse(await (await worker.fetch(new Request(`${origin}/`), env)).text())
     expect(doc.querySelector('section[aria-label="3D models"] a')?.getAttribute('href')).toBe('/products/oak-chair')
-    expect(doc.querySelector('section[aria-label="Free 3D Models"]')).toBeNull()
+    expect(doc.querySelector('section[aria-label="Free 3D Models"] a')?.getAttribute('href')).toBe('/products/oak-chair')
   })
 
   it('escapes model content and rejects unsafe image URLs', async () => {
