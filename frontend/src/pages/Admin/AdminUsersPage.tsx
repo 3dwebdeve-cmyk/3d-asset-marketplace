@@ -4,6 +4,10 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { createAdminUser, listAdminUsers } from '../../api/authApi'
+import { AdminIcon } from '../../components/admin/AdminIcon'
+import { Pagination } from '../../components/ui/Pagination'
+import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import '../../styles/admin-users.css'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
@@ -29,17 +33,22 @@ export function AdminUsersPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search)
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<AdminUserCreatePayload>(emptyCreateForm)
   const [createError, setCreateError] = useState<string | null>(null)
 
   const usersQuery = useQuery({
-    queryKey: ['admin', 'users', { search, role: roleFilter }],
+    queryKey: ['admin', 'users', { search: debouncedSearch, role: roleFilter, statusFilter, page }],
     queryFn: () =>
       listAdminUsers({
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         role: roleFilter || undefined,
-        page_size: 50,
+        is_active: statusFilter === '' ? undefined : statusFilter === 'active',
+        page,
+        page_size: 10,
       }),
   })
 
@@ -65,17 +74,10 @@ export function AdminUsersPage() {
   }
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page admin-users-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="admin-users-title">
-        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="admin-users-title">Users</h1>
         <p className="home-page__subtitle">Create, review, and manage platform accounts.</p>
-
-        <div className="dashboard-card__actions">
-          <Button type="button" onClick={() => setShowCreate((value) => !value)}>
-            {showCreate ? 'Hide create form' : 'Create user'}
-          </Button>
-        </div>
 
         {showCreate ? (
           <form className="admin-create-form" onSubmit={onCreateSubmit} noValidate>
@@ -156,20 +158,28 @@ export function AdminUsersPage() {
         <div className="admin-filters">
           <Input
             aria-label="Search users"
-            placeholder="Search name or email"
+            placeholder="Search by name or email..."
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => { setSearch(event.target.value); setPage(1) }}
           />
           <select
             className="ui-input"
             aria-label="Filter by role"
             value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
+            onChange={(event) => { setRoleFilter(event.target.value); setPage(1) }}
           >
             <option value="">All roles</option>
             <option value="Customer">Customer</option>
             <option value="Administrator">Administrator</option>
           </select>
+          <select className="ui-input" aria-label="Filter by status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1) }}>
+            <option value="">All status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <Button type="button" onClick={() => setShowCreate((value) => !value)}>
+            <AdminIcon name="plus-circle" size={16} /> {showCreate ? 'Hide create form' : 'Create user'}
+          </Button>
         </div>
 
         {usersQuery.isLoading ? (
@@ -189,7 +199,7 @@ export function AdminUsersPage() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th scope="col">Name</th>
+                  <th scope="col">User</th>
                   <th scope="col">Email</th>
                   <th scope="col">Role</th>
                   <th scope="col">Verified</th>
@@ -200,13 +210,13 @@ export function AdminUsersPage() {
               <tbody>
                 {usersQuery.data?.results.map((user) => (
                   <tr key={user.id}>
-                    <td>{user.full_name}</td>
+                    <td><span className="users-name"><span className={`users-avatar users-avatar--${user.role === 'Administrator' ? 'admin' : user.role === 'Customer' ? 'customer' : 'other'}`}>{(user.full_name || user.email).trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>{user.full_name}</span></td>
                     <td>{user.email}</td>
-                    <td>{user.role}</td>
-                    <td>{user.email_verified ? 'Yes' : 'No'}</td>
-                    <td>{user.is_active ? 'Active' : 'Inactive'}</td>
+                    <td><span className={`users-role users-role--${user.role === 'Administrator' ? 'admin' : user.role === 'Customer' ? 'customer' : 'other'}`}>{user.role}</span></td>
+                    <td><span className={`users-verified${user.email_verified ? ' users-verified--yes' : ''}`}>{user.email_verified ? 'Yes' : 'No'}</span></td>
+                    <td><span className={`users-status${user.is_active ? ' users-status--active' : ''}`}>{user.is_active ? 'Active' : 'Inactive'}</span></td>
                     <td>
-                      <Link className="auth-link" to={`/console/users/${user.id}`}>
+                      <Link className="users-manage" to={`/console/users/${user.id}`}>
                         Manage
                       </Link>
                     </td>
@@ -217,6 +227,10 @@ export function AdminUsersPage() {
             {usersQuery.data?.results.length === 0 ? (
               <p className="home-page__subtitle">No users match your filters.</p>
             ) : null}
+            <footer className="users-pagination">
+              <span>Showing {usersQuery.data?.count ? (page - 1) * 10 + 1 : 0}-{Math.min((page - 1) * 10 + (usersQuery.data?.results.length ?? 0), usersQuery.data?.count ?? 0)} of {usersQuery.data?.count ?? 0} users</span>
+              <Pagination page={page} totalPages={Math.ceil((usersQuery.data?.count ?? 0) / 10)} onPageChange={setPage} ariaLabel="User pagination" />
+            </footer>
           </div>
         )}
       </section>

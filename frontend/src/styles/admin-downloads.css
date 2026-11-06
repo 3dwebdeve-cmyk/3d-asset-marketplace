@@ -1,0 +1,36 @@
+﻿.admin-downloads-page { background: radial-gradient(ellipse at 85% 95%, #2b0a142b, transparent 40%), #09090c; }
+.admin-layout .admin-downloads-page > .dashboard-card { padding: 24px; border: 1px solid #303037; border-radius: 13px; background: radial-gradient(ellipse at 100% 0, #3a101d70, transparent 37%), #111115; }
+.downloads-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.downloads-breadcrumb { display: flex; align-items: center; gap: 13px; margin-bottom: 30px; color: #d5d5df; font-size: 13px; }
+.downloads-breadcrumb a { display: inline-flex; color: inherit; }
+.downloads-breadcrumb strong { color: #ff4a55; }
+.downloads-heading { display: flex; align-items: center; gap: 20px; margin-bottom: 34px; }
+.downloads-heading__icon { display: grid; place-items: center; flex: none; width: 62px; height: 62px; border-radius: 14px; color: #ffe3e4; background: linear-gradient(135deg, #831c29, #42151d); }
+.admin-layout .admin-downloads-page .downloads-heading h1 { margin: 0 0 6px; font-size: 36px; line-height: 1.15; }
+.downloads-heading .home-page__subtitle { margin: 0; color: #cbcad3; font-size: 15px; }
+.admin-layout .admin-downloads-page .admin-filters { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 24px; }
+.admin-layout .admin-downloads-page .admin-filters .ui-input { width: 100%; min-width: 0; height: 46px; border: 1px solid #4b4b55; border-radius: 9px; background: #202025; color: #f4f4f6; font-size: 14px; }
+.downloads-search { position: relative; }
+.downloads-search svg { position: absolute; top: 50%; left: 16px; transform: translateY(-50%); color: #d3d3dd; pointer-events: none; }
+.admin-layout .admin-downloads-page .downloads-search input { padding-left: 48px; }
+.admin-layout .admin-downloads-page .admin-table-wrap { overflow-x: auto; border: 1px solid #393940; border-radius: 9px; }
+.admin-layout .admin-downloads-page .admin-table { width: 100%; min-width: 880px; margin: 0; border-collapse: collapse; font-size: 13px; }
+.admin-layout .admin-downloads-page .admin-table th { padding: 15px 20px; text-align: left; color: #f5f5f6; background: #1c1c20; }
+.admin-layout .admin-downloads-page .admin-table td { padding: 12px 20px; border-bottom: 1px solid #35353b; color: #f1f1f3; background: transparent; white-space: nowrap; }
+.admin-downloads-page .admin-table .home-page__subtitle { margin: 2px 0 0; color: #c6c5cf; font-size: 12px; }
+.downloads-customer { font-weight: 700; }
+.downloads-view { padding: 7px 15px; border: 1px solid #e8323c; border-radius: 8px; background: #411d24; color: #fff; cursor: pointer; }
+.downloads-view:hover { background: #71232d; }
+.downloads-pagination { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 25px; color: #c9c9d2; font-size: 13px; }
+.downloads-pagination .ui-pagination-wrap { width: auto; margin: 0; }
+.downloads-pagination .ui-pagination { gap: 5px; padding: 0; border: 0; background: transparent; }
+.downloads-pagination .ui-pagination__pages { gap: 5px; padding: 0; background: transparent; }
+.downloads-pagination .ui-pagination__nav-btn, .downloads-pagination .ui-pagination__page { width: 36px; min-width: 36px; height: 36px; border: 1px solid #34343c; border-radius: 9px; background: #202026; color: white; }
+.downloads-pagination .ui-pagination__page--active { background: #7a1c27; border-color: #ed3643; }
+.downloads-dialog-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: #000b; }
+.downloads-dialog { width: min(100%, 480px); padding: 24px; border: 1px solid #5a3036; border-radius: 12px; background: #18181e; color: white; }
+.downloads-dialog h2 { margin: 0 0 18px; }
+.downloads-dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 12px 20px; overflow-wrap: anywhere; }
+.downloads-dialog dt { color: #b8b8c2; }
+.downloads-dialog dd { margin: 0; }
+@media (max-width: 650px) { .admin-layout .admin-downloads-page > .dashboard-card { padding: 16px; } .admin-layout .admin-downloads-page .downloads-heading h1 { font-size: 27px; } .admin-layout .admin-downloads-page .admin-filters { grid-template-columns: 1fr; gap: 10px; } .downloads-pagination { flex-wrap: wrap; } }
