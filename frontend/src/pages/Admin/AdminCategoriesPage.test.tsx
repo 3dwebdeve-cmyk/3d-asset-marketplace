@@ -60,6 +60,43 @@ beforeEach(() => {
 })
 
 describe('AdminCategoriesPage', () => {
+  it('paginates categories and resets the page when searching', async () => {
+    vi.mocked(categoriesApi.listAdminCategories).mockImplementation(async (params) => ({
+      ...sampleCategories,
+      count: 18,
+      next: null,
+      results: params?.page === 2
+        ? [{ ...sampleCategories.results[0], name: 'Electronics' }]
+        : sampleCategories.results,
+    }))
+    const user = userEvent.setup()
+    renderCategoriesPage()
+    await screen.findByText('Furniture')
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    await screen.findByText('Electronics')
+    expect(categoriesApi.listAdminCategories).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2, page_size: 10 }),
+    )
+    await user.type(screen.getByLabelText('Search categories'), 'chair')
+    await waitFor(() => expect(categoriesApi.listAdminCategories).toHaveBeenCalledWith(
+      expect.objectContaining({ search: 'chair', page: 1 }),
+    ))
+    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled()
+  })
+
+  it('switches views and opens hierarchy links', async () => {
+    const user = userEvent.setup()
+    renderCategoriesPage()
+    await screen.findByText('Furniture')
+    await user.click(screen.getByRole('button', { name: 'Grid view' }))
+    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Manage hierarchy' }))
+    expect(screen.getByRole('region', { name: 'Category hierarchy' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Furniture' })).toHaveAttribute(
+      'href', `/console/categories/${sampleCategories.results[0].id}`,
+    )
+  })
+
   it('renders category list', async () => {
     renderCategoriesPage()
 
