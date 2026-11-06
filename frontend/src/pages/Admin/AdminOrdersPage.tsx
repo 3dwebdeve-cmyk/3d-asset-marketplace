@@ -4,6 +4,9 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { listAdminUsers } from '../../api/authApi'
+import { getAdminAnalytics } from '../../api/analyticsApi'
+import { AdminIcon } from '../../components/admin/AdminIcon'
+import '../../styles/admin-orders.css'
 import {
   createAdminOrder,
   listAdminOrders,
@@ -108,8 +111,23 @@ export function AdminOrdersPage() {
           | undefined,
         ordering,
         page,
-        page_size: 20,
+        page_size: 10,
       }),
+  })
+  const totalsQuery = useQuery({
+    queryKey: ['admin', 'orders', 'summary'],
+    queryFn: async () => {
+      const [all, pending, paid] = await Promise.all([
+        listAdminOrders({ page_size: 1 }),
+        listAdminOrders({ order_status: 'pending', page_size: 1 }),
+        listAdminOrders({ order_status: 'paid', page_size: 1 }),
+      ])
+      return { all: all.count, pending: pending.count, paid: paid.count }
+    },
+  })
+  const analyticsQuery = useQuery({
+    queryKey: ['admin', 'orders', 'revenue-summary'],
+    queryFn: () => getAdminAnalytics(),
   })
   const customersQuery = useQuery({
     queryKey: ['admin', 'users', 'customers-options'],
@@ -167,17 +185,23 @@ export function AdminOrdersPage() {
     productsQuery.isError || pluginsQuery.isError || customersQuery.isError
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page admin-orders-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="orders-title">
-        <p className="admin-page__eyebrow">Administrator</p>
-        <h1 id="orders-title">Orders</h1>
-        <p className="home-page__subtitle">
-          Review marketplace orders, inspect line items, and create manual orders.
-        </p>
-        <div className="dashboard-card__actions">
+        <header className="orders-heading">
+          <div>
+            <h1 id="orders-title">Orders</h1>
+            <p className="home-page__subtitle">Review and manage customer orders, track payments, and update order status.</p>
+          </div>
           <Button type="button" onClick={() => setShowCreate((value) => !value)}>
+            <AdminIcon name="plus-circle" size={18} />
             {showCreate ? 'Hide create form' : 'Create order for customer'}
           </Button>
+        </header>
+        <div className="orders-summary" aria-label="Order summary">
+          <div className="orders-stat"><span className="orders-stat__icon"><AdminIcon name="cart" size={27} /></span><div><span>Total orders</span><strong>{totalsQuery.data?.all ?? '?'}</strong></div></div>
+          <div className="orders-stat"><span className="orders-stat__icon orders-stat__icon--amber"><AdminIcon name="clock" size={27} /></span><div><span>Pending orders</span><strong>{totalsQuery.data?.pending ?? '?'}</strong></div></div>
+          <div className="orders-stat"><span className="orders-stat__icon orders-stat__icon--green"><AdminIcon name="check" size={27} /></span><div><span>Paid orders</span><strong>{totalsQuery.data?.paid ?? '?'}</strong></div></div>
+          <div className="orders-stat"><span className="orders-stat__icon"><AdminIcon name="database" size={27} /></span><div><span>Revenue (reporting period)</span><strong>{analyticsQuery.data ? formatMoneyPlain(analyticsQuery.data.summary.revenue, analyticsQuery.data.currency) : '?'}</strong>{analyticsQuery.data ? <small>{analyticsQuery.data.filters.start_date} ? {analyticsQuery.data.filters.end_date}</small> : null}</div></div>
         </div>
 
         {showCreate ? (
@@ -419,17 +443,16 @@ export function AdminOrdersPage() {
                     <tr key={order.id}>
                       <td>{order.invoice_number}</td>
                       <td>
-                        <div>{order.customer.full_name}</div>
-                        <div className="home-page__subtitle">{order.customer.email}</div>
+                        <div className="orders-customer"><span className="orders-customer__icon"><AdminIcon name="user" size={16} /></span><div><strong>{order.customer.full_name}</strong><span>{order.customer.email}</span></div></div>
                       </td>
                       <td>{formatMoneyPlain(order.total_amount, order.currency)}</td>
-                      <td>{ORDER_STATUS_LABELS[order.order_status]}</td>
-                      <td>{ORDER_PAYMENT_STATUS_LABELS[order.payment_status]}</td>
+                      <td><span className={`orders-status orders-status--${order.order_status}`}><AdminIcon name={order.order_status === 'paid' ? 'check' : 'clock'} size={14} />{ORDER_STATUS_LABELS[order.order_status]}</span></td>
+                      <td><span className={`orders-status orders-status--${order.payment_status}`}><AdminIcon name={order.payment_status === 'paid' ? 'check' : 'clock'} size={14} />{ORDER_PAYMENT_STATUS_LABELS[order.payment_status]}</span></td>
                       <td>{order.item_count}</td>
                       <td>{formatLocaleDateTime(order.created_at)}</td>
                       <td>
-                        <Link className="auth-link" to={`/console/orders/${order.id}`}>
-                          Manage
+                        <Link className="orders-manage" to={`/console/orders/${order.id}`}>
+                          <AdminIcon name="settings" size={15} /> Manage
                         </Link>
                       </td>
                     </tr>
@@ -440,12 +463,10 @@ export function AdminOrdersPage() {
                 <p className="home-page__subtitle">No orders match your filters.</p>
               ) : null}
             </div>
-            <Pagination
-              page={page}
-              totalPages={Math.ceil((ordersQuery.data?.count ?? 0) / 20)}
-              onPageChange={setPage}
-              ariaLabel="Order pagination"
-            />
+            <div className="orders-pagination">
+              <span>Showing {ordersQuery.data?.count ? (page - 1) * 10 + 1 : 0}?{Math.min((page - 1) * 10 + (ordersQuery.data?.results.length ?? 0), ordersQuery.data?.count ?? 0)} of {ordersQuery.data?.count ?? 0} orders</span>
+              <Pagination page={page} totalPages={Math.ceil((ordersQuery.data?.count ?? 0) / 10)} onPageChange={setPage} ariaLabel="Order pagination" />
+            </div>
           </>
         )}
       </section>

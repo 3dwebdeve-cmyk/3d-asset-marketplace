@@ -1,0 +1,30 @@
+﻿.admin-payments-page { background: #09090c; }
+.admin-layout .admin-payments-page h1 { margin: 0 0 7px; font-size: 36px; line-height: 1.2; }
+.admin-payments-page > .dashboard-card > .home-page__subtitle { margin: 0 0 30px; color: #d0d0d7; font-size: 15px; }
+.admin-layout .admin-payments-page .admin-filters { display: grid; grid-template-columns: minmax(230px, 2.35fr) repeat(4, minmax(125px, 1fr)); gap: 14px; margin-bottom: 30px; }
+.admin-layout .admin-payments-page .admin-filters .ui-input { width: 100%; min-width: 0; min-height: 46px; border: 1px solid #41414b; border-radius: 9px; background: #202027; color: #f5f5f7; font-size: 13px; }
+.payments-search { position: relative; min-width: 0; }
+.payments-search > svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #d3d3dc; pointer-events: none; }
+.admin-layout .admin-payments-page .payments-search .ui-input { padding-left: 43px; }
+.admin-layout .admin-payments-page .admin-table-wrap { overflow-x: auto; border: 1px solid #303039; border-radius: 11px; background: #0e0e12; }
+.admin-layout .admin-payments-page .admin-table { width: 100%; min-width: 1050px; margin: 0; border-collapse: collapse; font-size: 13px; }
+.admin-layout .admin-payments-page .admin-table th { padding: 16px 18px; text-align: left; color: #f5f5f7; background: #1a1a20; white-space: nowrap; }
+.admin-layout .admin-payments-page .admin-table td { padding: 13px 18px; border-bottom: 1px solid #24242a; color: #eeeeef; white-space: nowrap; background: transparent; }
+.payments-invoice { color: #ff3543; font-weight: 600; text-decoration: none; }
+.payments-invoice:hover { text-decoration: underline; }
+.payments-status { display: inline-flex; align-items: center; padding: 6px 11px; border-radius: 9px; background: #3c3421; color: #ffdd89; font-size: 12px; font-weight: 600; }
+.payments-status--succeeded { background: #124a30; color: #c9f9db; }
+.payments-status--expired, .payments-status--failed, .payments-status--disputed { background: #541d25; color: #ffd5d8; }
+.payments-status--refunded { background: #333039; color: #e6dce2; }
+.payments-session { display: inline-block; max-width: 185px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 6px 10px; border-radius: 9px; background: #222229; color: #eeeef2; font-family: inherit; }
+.payments-view { display: inline-flex; padding: 7px 15px; border: 1px solid #41414b; border-radius: 8px; background: #23232b; color: #ff3543; font-weight: 600; text-decoration: none; }
+.payments-view:hover { background: #383840; }
+.admin-payments-page .admin-table-wrap > .home-page__subtitle { padding: 16px 18px; }
+.payments-pagination { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 17px 18px; background: #17171d; color: #f1f1f4; font-size: 13px; }
+.payments-pagination .ui-pagination-wrap { width: auto; margin: 0; }
+.payments-pagination .ui-pagination { gap: 5px; padding: 0; border: 0; background: transparent; }
+.payments-pagination .ui-pagination__pages { gap: 5px; padding: 0; background: transparent; }
+.payments-pagination .ui-pagination__nav-btn, .payments-pagination .ui-pagination__page { width: 36px; min-width: 36px; height: 36px; border: 0; border-radius: 9px; background: #24242b; color: white; }
+.payments-pagination .ui-pagination__page--active { background: #f12b3b; }
+@media (max-width: 1100px) { .admin-layout .admin-payments-page .admin-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .payments-search { grid-column: 1 / -1; } }
+@media (max-width: 600px) { .admin-layout .admin-payments-page .admin-filters { grid-template-columns: 1fr; gap: 10px; } .payments-search { grid-column: auto; } .payments-pagination { align-items: flex-start; flex-direction: column; } }

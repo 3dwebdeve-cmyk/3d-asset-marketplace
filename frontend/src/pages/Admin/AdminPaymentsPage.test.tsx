@@ -124,6 +124,22 @@ describe('AdminPaymentsPage', () => {
     })
   })
 
+  it('uses ten-row pages and returns to page one after filtering', async () => {
+    const user = userEvent.setup()
+    vi.mocked(paymentsApi.listAdminPayments).mockResolvedValue({
+      count: 21, next: null, previous: null, results: [payment],
+    })
+    renderPaymentsPage()
+    await user.click(await screen.findByRole('button', { name: 'Next page' }))
+    await waitFor(() => expect(paymentsApi.listAdminPayments).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2, page_size: 10 }),
+    ))
+    await user.selectOptions(screen.getByLabelText(/filter by payment status/i), 'paid')
+    await waitFor(() => expect(paymentsApi.listAdminPayments).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'paid', page: 1, page_size: 10 }),
+    ))
+  })
+
   it('applies status filter when changed', async () => {
     const user = userEvent.setup()
     renderPaymentsPage()
