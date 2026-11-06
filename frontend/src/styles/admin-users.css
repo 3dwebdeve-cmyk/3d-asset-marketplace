@@ -1,0 +1,32 @@
+﻿.admin-users-page { background: #09090c; }
+.admin-layout .admin-users-page h1 { margin: 0 0 5px; font-size: 32px; line-height: 1.2; }
+.admin-users-page > .dashboard-card > .home-page__subtitle { margin: 0 0 26px; font-size: 14px; color: #c9c9d2; }
+.admin-layout .admin-users-page .admin-filters { display: grid; grid-template-columns: minmax(200px, 3fr) minmax(130px, 1.1fr) minmax(130px, 1fr) auto; gap: 14px; margin-bottom: 22px; }
+.admin-layout .admin-users-page .admin-filters .ui-input { width: 100%; min-width: 0; min-height: 43px; border: 1px solid #33333c; border-radius: 9px; background: #202027; color: #f3f3f6; font-size: 13px; }
+.admin-layout .admin-users-page .admin-filters .ui-button { width: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; white-space: nowrap; border-radius: 9px; background: #f21d2a; font-size: 13px; }
+.admin-users-page .admin-create-form { margin-bottom: 24px; padding: 20px; border: 1px solid #33333c; border-radius: 12px; background: #121217; }
+.admin-layout .admin-users-page .admin-table-wrap { overflow-x: auto; border: 1px solid #303039; border-radius: 10px; background: #101014; }
+.admin-layout .admin-users-page .admin-table { width: 100%; min-width: 780px; margin: 0; border-collapse: collapse; font-size: 13px; }
+.admin-layout .admin-users-page .admin-table th { text-align: left; padding: 13px 16px; color: #f0f0f3; background: #1d1d23; white-space: nowrap; }
+.admin-layout .admin-users-page .admin-table td { padding: 9px 16px; border-bottom: 1px solid #24242a; color: #eeeef1; white-space: nowrap; background: transparent; }
+.users-name { display: flex; align-items: center; gap: 12px; }
+.users-avatar { display: inline-grid; place-items: center; flex: none; width: 31px; height: 31px; border-radius: 50%; background: #8a32a3; color: white; font-size: 11px; font-weight: 700; }
+.users-avatar--admin { background: #cb2634; }
+.users-avatar--customer { background: #3263cf; }
+.users-role, .users-status { display: inline-flex; padding: 5px 11px; border-radius: 18px; background: #303039; color: #e2e2e7; font-size: 12px; }
+.users-role--admin { background: #4b181e; color: #ff9aa3; }
+.users-role--customer { background: #142f45; color: #83d7ff; }
+.users-status--active { background: #123b2c; color: #55e7a4; }
+.users-verified { display: inline-flex; align-items: center; gap: 8px; }
+.users-verified::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #898991; }
+.users-verified--yes::before { background: #13cf83; }
+.users-manage { display: inline-block; padding: 6px 12px; border-radius: 8px; background: #292930; color: #f2f2f5; text-decoration: none; font-size: 12px; }
+.users-manage:hover { background: #41414a; }
+.users-pagination { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 16px; color: #e1e1e6; font-size: 13px; }
+.users-pagination .ui-pagination-wrap { width: auto; margin: 0; }
+.users-pagination .ui-pagination { gap: 5px; padding: 0; border: 0; background: transparent; }
+.users-pagination .ui-pagination__pages { gap: 5px; padding: 0; background: transparent; }
+.users-pagination .ui-pagination__nav-btn, .users-pagination .ui-pagination__page { width: 34px; min-width: 34px; height: 34px; border: 0; border-radius: 8px; background: #24242b; color: white; }
+.users-pagination .ui-pagination__page--active { background: #ef202d; color: white; }
+@media (max-width: 900px) { .admin-layout .admin-users-page .admin-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .admin-layout .admin-users-page .admin-filters { grid-template-columns: 1fr; gap: 10px; } .users-pagination { align-items: flex-start; flex-direction: column; } }

@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 
 import { listAdminPayments } from '../../api/paymentsApi'
 import { Button } from '../../components/ui/Button'
+import { AdminIcon } from '../../components/admin/AdminIcon'
+import '../../styles/admin-payments.css'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Input } from '../../components/ui/Input'
 import { Pagination } from '../../components/ui/Pagination'
@@ -57,7 +59,7 @@ export function AdminPaymentsPage() {
         created_before: createdBefore || undefined,
         ordering,
         page,
-        page_size: 20,
+        page_size: 10,
       }),
   })
 
@@ -65,19 +67,18 @@ export function AdminPaymentsPage() {
   const results = paymentsQuery.data?.results ?? []
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page admin-payments-page">
       <section
         className="dashboard-card dashboard-card--wide"
         aria-labelledby="payments-title"
       >
-        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="payments-title">Payments</h1>
         <p className="home-page__subtitle">
           Review Stripe checkout payments, amounts, statuses, and linked orders.
         </p>
 
         <div className="admin-filters">
-          <Input
+          <div className="payments-search"><AdminIcon name="search" size={19} /><Input
             aria-label="Search payments"
             placeholder="Search invoice number or customer email"
             value={search}
@@ -85,7 +86,7 @@ export function AdminPaymentsPage() {
               setSearch(event.target.value)
               resetPage()
             }}
-          />
+          /></div>
           <select
             className="ui-input"
             aria-label="Filter by payment status"
@@ -173,20 +174,21 @@ export function AdminPaymentsPage() {
                       <td>{formatLocaleDateTime(payment.created_at)}</td>
                       <td>{payment.customer_email}</td>
                       <td>
-                        <Link className="auth-link" to={`/console/orders/${payment.order_id}`}>
+                        <Link className="payments-invoice" to={`/console/orders/${payment.order_id}`}>
                           {payment.invoice_number}
                         </Link>
                       </td>
                       <td>{formatMoneyPlain(payment.amount, payment.currency)}</td>
                       <td>
-                        {PAYMENT_STATUS_LABELS[payment.status as PaymentStatus] ??
-                          payment.status}
+                        <span className={`payments-status payments-status--${payment.status}`}>
+                          {PAYMENT_STATUS_LABELS[payment.status as PaymentStatus] ?? payment.status}
+                        </span>
                       </td>
                       <td>
-                        <code>{payment.stripe_checkout_session_id}</code>
+                        <code className="payments-session" title={payment.stripe_checkout_session_id}>{payment.stripe_checkout_session_id}</code>
                       </td>
                       <td>
-                        <Link className="auth-link" to={`/console/payments/${payment.id}`}>
+                        <Link className="payments-view" to={`/console/payments/${payment.id}`}>
                           View
                         </Link>
                       </td>
@@ -199,13 +201,11 @@ export function AdminPaymentsPage() {
                   No payments match your filters.
                 </p>
               ) : null}
+              <footer className="payments-pagination">
+                <span>Showing {results.length ? (page - 1) * 10 + 1 : 0}-{Math.min((page - 1) * 10 + results.length, paymentsQuery.data?.count ?? 0)} of {paymentsQuery.data?.count ?? 0} payments</span>
+                <Pagination page={page} totalPages={Math.ceil((paymentsQuery.data?.count ?? 0) / 10)} onPageChange={setPage} ariaLabel="Payment pagination" />
+              </footer>
             </div>
-            <Pagination
-              page={page}
-              totalPages={Math.ceil((paymentsQuery.data?.count ?? 0) / 20)}
-              onPageChange={setPage}
-              ariaLabel="Payment pagination"
-            />
           </>
         )}
       </section>
