@@ -14,7 +14,6 @@ from products.views import (
     AdminProductRequeueView,
     AdminProductRestoreView,
     CatalogIngestImportView,
-    ProductFreeDownloadView,
     ProductDetailView,
     ProductListView,
 )
@@ -24,7 +23,6 @@ app_name = "products"
 public_urlpatterns = [
     path("", ProductListView.as_view(), name="product-list"),
     path("<slug:slug>/", ProductDetailView.as_view(), name="product-detail"),
-    path("<slug:slug>/free-download/", ProductFreeDownloadView.as_view(), name="product-free-download"),
 ]
 
 admin_urlpatterns = [
