@@ -48,23 +48,22 @@ function expectReadableSummary(doc: Document) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('page content in the real preloader shell', () => {
-  it('exposes free model links before JavaScript loads and omits paid models', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [
-      { name: 'Free Chair', slug: 'free-chair', price: '0.00' },
-      { name: 'Paid Chair', slug: 'paid-chair', price: '12.00' },
-    ] })))
+  it('returns 404 for the retired free model collection without fetching catalog data', async () => {
+    const upstream = vi.fn()
+    vi.stubGlobal('fetch', upstream)
     const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
     const doc = parse(await response.text())
-    expect(response.status).toBe(200)
-    expect(doc.querySelector('a[href="/products/free-chair"]')?.textContent).toBe('Free Chair')
-    expect(doc.querySelector('a[href="/products/paid-chair"]')).toBeNull()
-    expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(`${origin}/free-3d-models`)
+    expect(response.status).toBe(404)
+    expect(upstream).not.toHaveBeenCalled()
+    expect(doc.querySelector('a[href="/free-3d-models"]')).toBeNull()
+    expect(doc.querySelector('a[href="/products/free-chair"]')).toBeNull()
   })
 
-  it('keeps an empty free collection out of search results', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [] })))
+  it('marks the retired free collection as noindex in response headers and HTML', async () => {
     const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
-    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow')
+    const doc = parse(await response.text())
+    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, nofollow')
+    expect(doc.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, nofollow')
   })
 
   it('includes a useful static fallback and releases visitors without JavaScript from the loader', () => {
@@ -84,7 +83,7 @@ describe('page content in the real preloader shell', () => {
     expect(response.status).toBe(200)
     expect(summary.querySelector('h1')?.textContent).toBe(path === '/' ? HOME_HEADING : seo.title)
     expect(summary.querySelector('p')?.textContent).toBe(seo.description)
-    expect(upstream).toHaveBeenCalledTimes(path === '/' ? 2 : 0)
+    expect(upstream).toHaveBeenCalledTimes(path === '/' ? 1 : 0)
   })
 
   it('replaces the fallback with the public product content before any client script runs', async () => {
