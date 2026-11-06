@@ -60,6 +60,15 @@ beforeEach(() => {
 })
 
 describe('AdminLayout', () => {
+  it('marks only QA queue as the current page when reviewing products', async () => {
+    renderAdminLayout('/console/products?status=pending_review')
+
+    expect(await screen.findByText('Admin products content')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^qa queue$/i })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: /^products$/i })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: /^products$/i })).not.toHaveClass('admin-sidebar__link--active')
+  })
+
   it('renders sidebar navigation and page content', async () => {
     renderAdminLayout()
 
