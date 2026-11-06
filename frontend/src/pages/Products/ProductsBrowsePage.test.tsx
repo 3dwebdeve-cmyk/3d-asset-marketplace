@@ -189,16 +189,14 @@ beforeEach(() => {
 })
 
 describe('ProductsBrowsePage', () => {
-  it('shows genuine free models in a collection linked from the homepage', async () => {
+  it('omits the separate free collection while keeping free products in the model rail', async () => {
     const free = { ...samplePublicProducts.results[0], id: 'free-chair', name: 'Free Chair', slug: 'free-chair', price: '0.00', discount_price: null }
-    vi.mocked(productsApi.listPublicProducts).mockImplementation(async (params) => params?.is_free
-      ? { ...samplePublicProducts, results: [free] }
-      : samplePublicProducts)
+    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({ ...samplePublicProducts, results: [free] })
     renderProductsBrowsePage()
-    const section = await screen.findByRole('heading', { name: 'Free 3D Models' })
-    expect(section).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'Free Chair' })).toHaveAttribute('href', '/products/free-chair')
-    expect(screen.getByRole('link', { name: /browse free models/i })).toHaveAttribute('href', '/free-3d-models')
+    expect(screen.queryByRole('heading', { name: 'Free 3D Models' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /browse free models/i })).not.toBeInTheDocument()
+    expect(productsApi.listPublicProducts).not.toHaveBeenCalledWith(expect.objectContaining({ is_free: true }))
   })
   it('starts the model carousel after loading finishes when product cards are available', async () => {
     // The rail is only eligible to scroll once the product cards have loaded.

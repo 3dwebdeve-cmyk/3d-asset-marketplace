@@ -58,11 +58,11 @@ describe('crawlable model collections', () => {
     expect(doc.querySelector('a[href="/products/oak-chair"]')).toBeNull()
   })
 
-  it('shows public model previews and a separate free collection on the homepage', async () => {
+  it('shows public model previews without a separate free collection on the homepage', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ results: [chair], next: null })))
     const doc = parse(await (await worker.fetch(new Request(`${origin}/`), env)).text())
     expect(doc.querySelector('section[aria-label="3D models"] a')?.getAttribute('href')).toBe('/products/oak-chair')
-    expect(doc.querySelector('section[aria-label="Free 3D Models"] a')?.getAttribute('href')).toBe('/products/oak-chair')
+    expect(doc.querySelector('section[aria-label="Free 3D Models"]')).toBeNull()
   })
 
   it('escapes model content and rejects unsafe image URLs', async () => {

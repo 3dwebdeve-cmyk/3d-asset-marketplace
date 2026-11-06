@@ -256,11 +256,8 @@ async function resolvePageSeo(
       const backend = optionalBackendOrigin(env.BACKEND_ORIGIN)
       if (backend) {
         const recent = new URL('/api/v1/products/?page=1&page_size=6&ordering=-created_at', backend)
-        const free = new URL(recent)
-        free.searchParams.set('is_free', 'true')
-        const [products, freeProducts] = await Promise.all([fetchCatalogJson(recent, env), fetchCatalogJson(free, env)])
+        const products = await fetchCatalogJson(recent, env)
         if (products.kind === 'ok') staticSeo.models = modelSummaries(products.body)
-        if (freeProducts.kind === 'ok') staticSeo.freeModels = modelSummaries(freeProducts.body, true)
       }
     }
     return staticSeo

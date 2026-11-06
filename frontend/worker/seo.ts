@@ -29,7 +29,6 @@ export interface ModelSummary {
 export interface PageSeo {
   heading?: string
   modelsHeading?: string
-  freeModels?: ModelSummary[]
   pagination?: { current: number; previous?: string; next?: string }
   title: string
   description: string
@@ -182,7 +181,7 @@ function renderPageSummary(html: string, seo: PageSeo, path: string, origin: str
       const safeImage = image && /^https?:\/\//i.test(image)
       return `<li><a href="/products/${encodeURIComponent(model.slug)}">${escapeHtml(model.name)}</a>${safeImage ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(model.name)}" loading="lazy" />` : ''}${model.short_description ? `<p>${escapeHtml(model.short_description)}</p>` : ''}</li>`
     }).join('')}</ul></section>` : ''
-  const models = renderModels(seo.models, seo.modelsHeading ?? '3D models') + renderModels(seo.freeModels, 'Free 3D Models')
+  const models = renderModels(seo.models, seo.modelsHeading ?? '3D models')
   const pagination = seo.pagination ? `<nav aria-label="Catalog pagination">${seo.pagination.previous ? `<a href="${escapeHtml(seo.pagination.previous)}">Previous page</a>` : ''}${seo.pagination.next ? `<a href="${escapeHtml(seo.pagination.next)}">Next page</a>` : ''}</nav>` : ''
   const content = `<main id="page-summary" class="site-page-summary" aria-labelledby="page-summary-title"><h1 id="page-summary-title">${escapeHtml(path === '/' ? HOME_HEADING : seo.heading ?? seo.title)}</h1><p>${escapeHtml(seo.description)}</p>${models}${pagination}<nav aria-label="Marketplace pages"><ul>${links.map(([path, label]) => `<li><a href="${path}">${label}</a></li>`).join('')}</ul></nav></main>`
   // The static shell also contains the preloader. Replace only our summary slot,

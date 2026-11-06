@@ -84,7 +84,7 @@ describe('page content in the real preloader shell', () => {
     expect(response.status).toBe(200)
     expect(summary.querySelector('h1')?.textContent).toBe(path === '/' ? HOME_HEADING : seo.title)
     expect(summary.querySelector('p')?.textContent).toBe(seo.description)
-    expect(upstream).toHaveBeenCalledTimes(path === '/' ? 2 : 0)
+    expect(upstream).toHaveBeenCalledTimes(path === '/' ? 1 : 0)
   })
 
   it('replaces the fallback with the public product content before any client script runs', async () => {
