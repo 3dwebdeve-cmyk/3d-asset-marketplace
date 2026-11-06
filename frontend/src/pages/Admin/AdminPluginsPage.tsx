@@ -8,12 +8,13 @@ import {
   listAllAdminPluginCategories,
   listAdminPlugins,
 } from '../../api/pluginsApi'
+import { AdminIcon } from '../../components/admin/AdminIcon'
+import '../../styles/admin-plugins.css'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
-import { Pagination } from '../../components/ui/Pagination'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
@@ -53,6 +54,7 @@ export function AdminPluginsPage() {
   const [categoryId, setCategoryId] = useState('')
   const [ordering, setOrdering] = useState<PluginOrdering>('-created_at')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] = useState<AdminPluginCreatePayload>(emptyCreateForm)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -62,7 +64,7 @@ export function AdminPluginsPage() {
     queryKey: [
       'admin',
       'plugins',
-      { search: debouncedSearch, status, categoryId, ordering, page },
+      { search: debouncedSearch, status, categoryId, ordering, page, pageSize },
     ],
     queryFn: () =>
       listAdminPlugins({
@@ -71,13 +73,25 @@ export function AdminPluginsPage() {
         category_id: categoryId || undefined,
         ordering,
         page,
-        page_size: 20,
+        page_size: pageSize,
       }),
   })
   const categoriesQuery = useQuery({
     queryKey: ['admin', 'plugin-categories', 'options'],
     queryFn: listAllAdminPluginCategories,
   })
+  const summaryQuery = useQuery({
+    queryKey: ['admin', 'plugins', 'summary'],
+    queryFn: async () => {
+      const [total, active, archived] = await Promise.all([
+        listAdminPlugins({ page_size: 1 }),
+        listAdminPlugins({ status: 'published', page_size: 1 }),
+        listAdminPlugins({ status: 'archived', page_size: 1 }),
+      ])
+      return { total: total.count, active: active.count, archived: archived.count }
+    },
+  })
+
   const createMutation = useMutation({
     mutationFn: createAdminPlugin,
     onSuccess: async () => {
@@ -108,17 +122,34 @@ export function AdminPluginsPage() {
   const activeCategories = categories.filter((category) => category.is_active)
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page admin-plugins-page">
       <section className="dashboard-card dashboard-card--wide" aria-labelledby="plugins-title">
-        <p className="admin-page__eyebrow">Administrator</p>
-        <h1 id="plugins-title">Plugins</h1>
-        <p className="home-page__subtitle">Create and manage downloadable plugin products.</p>
-        <div className="dashboard-card__actions">
+        <header className="plugins-heading">
+          <svg className="plugins-heading__waves" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true">
+            {Array.from({ length: 20 }, (_, i) => <path key={i} d={`M 0 ${180 + i * 3} C 400 ${30 + i * 5}, 650 ${340 - i * 9}, 1200 ${-180 + i * 18}`} />)}
+          </svg>
+          <span className="plugins-heading__icon"><AdminIcon name="puzzle" size={44} /></span>
+          <div><h1 id="plugins-title">Plugins</h1><p className="home-page__subtitle">Create and manage downloadable plugin products.</p></div>
+        </header>
+        <div className="plugins-summary">
+          {([
+            ['box', summaryQuery.data?.total, 'Total plugins', 'red'],
+            ['layers', categoriesQuery.data?.length, 'Categories', 'red'],
+            ['check', summaryQuery.data?.active, 'Active', 'green'],
+            ['archive', summaryQuery.data?.archived, 'Archived', 'red'],
+          ] as const).map(([icon, count, label, tone]) => (
+            <div key={label} className={`plugins-stat plugins-stat--${tone}`}>
+              <span className="plugins-stat__icon"><AdminIcon name={icon} size={34} /></span>
+              <div><strong>{count ?? '\u2014'}</strong><span>{label}</span></div>
+            </div>
+          ))}
+        </div>
+        <div className="dashboard-card__actions plugins-actions">
           <Button type="button" onClick={() => setShowCreate((value) => !value)}>
-            {showCreate ? 'Hide create form' : 'Create plugin'}
+            <span aria-hidden="true" className="plugins-plus">+</span> {showCreate ? 'Hide create form' : 'Create plugin'}
           </Button>
           <Link className="home-page__cta home-page__cta--secondary" to="/console/plugin-categories">
-            Manage plugin categories
+            <AdminIcon name="layers" size={20} /> Manage plugin categories
           </Link>
         </div>
 
@@ -211,13 +242,15 @@ export function AdminPluginsPage() {
           </form>
         ) : null}
 
-        <div className="admin-filters">
+        <div className="admin-filters plugins-filters">
+          <label className="plugins-search"><AdminIcon name="search" size={22} />
           <Input
             aria-label="Search plugins"
             placeholder="Search name, description, or compatibility"
             value={search}
             onChange={(event) => { setSearch(event.target.value); resetPage() }}
           />
+          </label>
           <select
             className="ui-input"
             aria-label="Filter by status"
@@ -264,16 +297,19 @@ export function AdminPluginsPage() {
             action={<Button variant="secondary" onClick={() => pluginsQuery.refetch()}>Retry</Button>}
           />
         ) : (
-          <>
+          <div className="plugins-table-panel">
             <div className="admin-table-wrap">
               <table className="admin-table">
-                <thead><tr><th>Name</th><th>Category</th><th>Version</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Plugin</th><th>Category</th><th>Version</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                   {pluginsQuery.data?.results.map((plugin) => (
                     <tr key={plugin.id}>
-                      <td>{plugin.name}</td><td>{plugin.category.name}</td><td>{plugin.version}</td>
-                      <td>{plugin.currency} {plugin.price}</td><td>{plugin.status.replace('_', ' ')}</td>
-                      <td><Link className="auth-link" to={`/console/plugins/${plugin.id}`}>Manage</Link></td>
+                      <td><div className="plugins-product"><span className="plugins-product__icon">{plugin.thumbnail ? <img src={plugin.thumbnail} alt="" loading="lazy" /> : <AdminIcon name="box" size={32} />}</span><div><strong>{plugin.name}</strong><p>{plugin.short_description}</p></div></div></td>
+                      <td><span className="plugins-category">{plugin.category.name}</span></td><td>{plugin.version}</td>
+                      <td>{plugin.currency} {plugin.price}</td><td><span className={`plugins-status plugins-status--${plugin.status}`}><AdminIcon name={plugin.status === 'published' ? 'check' : plugin.status === 'archived' ? 'archive' : 'clock'} size={16} />{plugin.status.replace('_', ' ')}</span></td>
+                      <td><div className="plugins-row-actions"><Link className="plugins-manage" to={`/console/plugins/${plugin.id}`}><AdminIcon name="settings" size={19} />Manage</Link>
+                        <details className="plugins-more"><summary aria-label={`More actions for ${plugin.name}`}><span aria-hidden="true">&#8942;</span></summary><div className="plugins-more__menu"><Link to={`/console/plugins/${plugin.id}`}>Edit plugin</Link><button type="button" onClick={(event) => { setCategoryId(plugin.category.id); resetPage(); event.currentTarget.closest('details')?.removeAttribute('open') }}>Show this category</button></div></details>
+                      </div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -282,13 +318,12 @@ export function AdminPluginsPage() {
                 <p className="home-page__subtitle">No plugins match your filters.</p>
               ) : null}
             </div>
-            <Pagination
-              page={page}
-              totalPages={Math.ceil((pluginsQuery.data?.count ?? 0) / 20)}
-              onPageChange={setPage}
-              ariaLabel="Plugin pagination"
-            />
-          </>
+            <nav className="plugins-pagination" aria-label="Plugin pagination">
+              <span>Showing {pluginsQuery.data?.results.length ? (page - 1) * pageSize + 1 : 0}&ndash;{Math.min(page * pageSize, pluginsQuery.data?.count ?? 0)} of {pluginsQuery.data?.count ?? 0} plugins</span>
+              <div><label>Rows per page<select aria-label="Rows per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); resetPage() }}>{[10, 20, 50].map(size => <option key={size} value={size}>{size}</option>)}</select></label>
+              <button type="button" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage(page - 1)}>&lsaquo;</button><span className="plugins-pagination__current" aria-current="page">{page}</span><button type="button" aria-label="Next page" disabled={!pluginsQuery.data?.next} onClick={() => setPage(page + 1)}>&rsaquo;</button></div>
+            </nav>
+          </div>
         )}
       </section>
     </main>
