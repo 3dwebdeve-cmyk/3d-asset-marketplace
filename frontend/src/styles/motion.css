@@ -52,10 +52,6 @@
       transition-duration: 120ms;
     }
 
-    .app-shell .browse-category-grid:has(.browse-category-card:hover) .browse-category-card:not(:hover) {
-      filter: brightness(0.72) saturate(0.85);
-    }
-
     .app-shell .browse-category-card:hover .browse-category-card__image { transform: scale(1.04); }
     .app-shell .browse-category-card:hover .browse-category-card__icon-badge { transform: none; }
   }
