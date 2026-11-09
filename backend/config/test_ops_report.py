@@ -5,17 +5,58 @@ from __future__ import annotations
 from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
+from unittest.mock import MagicMock, patch
 
 from django.core import mail
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
 from accounts.models import Role, User
-from config.ops_report import build_daily_report, send_daily_report
+from config.ops_report import DailyReport, _capacity_section, _render_metric, _render_usage_section, build_daily_report, send_daily_report
 from mail_log.models import BackgroundJob, OutboundEmailLog
 from orders.models import Order
 from payments.models import CheckoutAttempt, Payment
+
+
+class UsageReportTests(SimpleTestCase):
+    @override_settings(OPS_DB_WARNING_MB=100)
+    def test_database_size_and_warning(self):
+        cursor = MagicMock()
+        cursor.fetchone.return_value = (101 * 1024 * 1024,)
+        with patch("config.ops_report.connection") as db:
+            db.vendor = "postgresql"
+            db.cursor.return_value.__enter__.return_value = cursor
+            report = DailyReport()
+            _capacity_section(report, None)
+        self.assertIn("Database size: 101.00 MiB", report.body)
+        self.assertIn("reached its configured warning", report.body)
+
+    @override_settings(RENDER_METRICS_API_KEY="", RENDER_METRICS_SERVICE_ID="")
+    def test_unconfigured_render_metrics_are_explicit(self):
+        report = DailyReport()
+        _render_usage_section(report, None)
+        self.assertIn("CPU and memory: unavailable", report.body)
+
+    @override_settings(RENDER_METRICS_API_KEY="secret", RENDER_METRICS_SERVICE_ID="srv-example")
+    def test_metric_failure_does_not_hide_other_metric(self):
+        report = DailyReport()
+        with patch("config.ops_report._render_metric", side_effect=[OSError(), ["300 MB (sample now)"]]):
+            _render_usage_section(report, None)
+        self.assertIn("CPU: unavailable", report.body)
+        self.assertIn("Memory: 300 MB", report.body)
+        self.assertNotIn("secret", report.body)
+
+    def test_render_metric_reads_latest_sample(self):
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = (
+            b'[{"unit":"MB","values":[{"timestamp":"2026-01-01T00:00:00Z","value":5},'
+            b'{"timestamp":"2026-01-01T00:05:00Z","value":9}]}]'
+        )
+        with patch("config.ops_report.urlopen", return_value=response) as request:
+            self.assertEqual(_render_metric("memory", "secret", "srv-example"),
+                             ["9 MB (sample 2026-01-01T00:05:00Z)"])
+        self.assertEqual(request.call_args.kwargs["timeout"], 5)
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")

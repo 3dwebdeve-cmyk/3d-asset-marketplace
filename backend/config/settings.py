@@ -194,6 +194,9 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 MIN_DISK_FREE_MB = config("MIN_DISK_FREE_MB", default=1024, cast=int)
 MAX_DB_SIZE_MB = config("MAX_DB_SIZE_MB", default=10240, cast=int)
+OPS_DB_WARNING_MB = config("OPS_DB_WARNING_MB", default=0, cast=int)
+RENDER_METRICS_API_KEY = config("RENDER_METRICS_API_KEY", default="").strip()
+RENDER_METRICS_SERVICE_ID = config("RENDER_METRICS_SERVICE_ID", default="").strip()
 PUBLIC_API_BASE_URL = config("PUBLIC_API_BASE_URL", default="http://127.0.0.1:8000")
 
 # Cloudflare R2 (Feature 14). All values required before named S3 backends activate.
