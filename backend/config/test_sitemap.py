@@ -83,6 +83,7 @@ class SitemapTests(TestCase):
     def test_lists_a_category_only_once_it_has_something_to_show(self):
         locs = _locs(self.client.get(URL))
         self.assertIn("https://assethive3d.com/3d-models/furniture", locs)
+        self.assertNotIn("https://assethive3d.com/free-3d-models", locs)
         self.assertNotIn("https://assethive3d.com/3d-models/lights", locs)  # empty
         self.assertNotIn("https://assethive3d.com/3d-models/old", locs)  # inactive
         self.assertNotIn("https://assethive3d.com/3d-models/demo-assets", locs)  # placeholder

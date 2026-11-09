@@ -171,7 +171,7 @@ function metaTag(attribute: 'name' | 'property', key: string, content: string): 
 function renderPageSummary(html: string, seo: PageSeo, path: string, origin: string): string {
   const links = [
     ['/', 'AssetHive3D home'], ['/3d-models', '3D models'], ['/categories', '3D model categories'],
-    ['/free-3d-models', 'Download free 3D models'], ['/3d-models?search=robot', 'Robot 3D models'],
+    ['/3d-models?search=robot', 'Robot 3D models'],
     ['/plugins', 'Plugins and tools'], ['/custom-projects', 'Custom 3D projects'],
     ['/about', 'About AssetHive3D'], ['/contact', 'Contact and enquiries'],
   ]

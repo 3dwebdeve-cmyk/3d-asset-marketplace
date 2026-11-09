@@ -48,22 +48,22 @@ function expectReadableSummary(doc: Document) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('page content in the real preloader shell', () => {
-  it('exposes free model links before JavaScript loads and omits paid models', async () => {
+  it('exposes both free and paid model links in the unified catalog before JavaScript loads', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [
       { name: 'Free Chair', slug: 'free-chair', price: '0.00' },
       { name: 'Paid Chair', slug: 'paid-chair', price: '12.00' },
     ] })))
-    const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
+    const response = await worker.fetch(new Request(`${origin}/3d-models`), env())
     const doc = parse(await response.text())
     expect(response.status).toBe(200)
     expect(doc.querySelector('a[href="/products/free-chair"]')?.textContent).toBe('Free Chair')
-    expect(doc.querySelector('a[href="/products/paid-chair"]')).toBeNull()
-    expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(`${origin}/free-3d-models`)
+    expect(doc.querySelector('a[href="/products/paid-chair"]')?.textContent).toBe('Paid Chair')
+    expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(`${origin}/3d-models`)
   })
 
-  it('keeps an empty free collection out of search results', async () => {
+  it('keeps an empty model catalog out of search results', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [] })))
-    const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
+    const response = await worker.fetch(new Request(`${origin}/3d-models`), env())
     expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow')
   })
 
