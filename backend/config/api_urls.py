@@ -7,6 +7,8 @@ from config.openapi import GatedSpectacularAPIView, GatedSpectacularSwaggerView
 from config.security_reports import CspReportView
 from config.sitemap import sitemap_view
 from orders.views import LicenseVerifyView
+from accounts.admin_search import AdminSearchView
+from accounts.notifications import AdminNotificationsView
 
 urlpatterns = [
     path("healthz/", HealthzView.as_view(), name="healthz"),
@@ -19,6 +21,8 @@ urlpatterns = [
         name="swagger-ui",
     ),
     path("auth/", include("accounts.urls")),
+    path("admin/search/", AdminSearchView.as_view(), name="admin-search"),
+    path("admin/notifications/", AdminNotificationsView.as_view(), name="admin-notifications"),
     path("admin/activity-logs/", include("accounts.admin_activity_urls")),
     path("categories/", include("categories.urls")),
     path("admin/categories/", include("categories.admin_urls")),

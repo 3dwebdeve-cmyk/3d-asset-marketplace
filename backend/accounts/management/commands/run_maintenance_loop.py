@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 def maintenance_tasks() -> list[tuple[str, tuple, dict]]:
     tasks: list[tuple[str, tuple, dict]] = [
+        ("send_review_reminders", (), {}),
         ("prune_expired_records", (), {"execute": True}),
         ("manage_background_jobs", ("prune",), {"older_than_days": 30, "execute": True}),
         ("check_payment_reconciliation", (), {}),
