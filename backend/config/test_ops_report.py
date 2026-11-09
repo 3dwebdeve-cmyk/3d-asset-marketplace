@@ -49,14 +49,28 @@ class UsageReportTests(SimpleTestCase):
 
     def test_render_metric_reads_latest_sample(self):
         response = MagicMock()
-        response.__enter__.return_value.read.return_value = (
+        response.status = 200
+        response.read.return_value = (
             b'[{"unit":"MB","values":[{"timestamp":"2026-01-01T00:00:00Z","value":5},'
             b'{"timestamp":"2026-01-01T00:05:00Z","value":9}]}]'
         )
-        with patch("config.ops_report.urlopen", return_value=response) as request:
+        with patch("config.ops_report.HTTPSConnection") as factory:
+            conn = factory.return_value
+            conn.getresponse.return_value = response
             self.assertEqual(_render_metric("memory", "secret", "srv-example"),
                              ["9 MB (sample 2026-01-01T00:05:00Z)"])
-        self.assertEqual(request.call_args.kwargs["timeout"], 5)
+        factory.assert_called_once_with("api.render.com", timeout=5)
+        conn.close.assert_called_once()
+
+    def test_render_metric_rejects_unknown_endpoint_and_redirects(self):
+        with self.assertRaises(ValueError):
+            _render_metric("../../unknown", "secret", "srv-example")
+        with patch("config.ops_report.HTTPSConnection") as factory:
+            conn = factory.return_value
+            conn.getresponse.return_value.status = 302
+            with self.assertRaises(ValueError):
+                _render_metric("cpu", "secret", "srv-example")
+            conn.close.assert_called_once()
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")

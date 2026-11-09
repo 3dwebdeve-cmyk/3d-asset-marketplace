@@ -15,8 +15,8 @@ import logging
 import json
 import math
 import re
+from http.client import HTTPSConnection
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.db.models import Count, Sum
@@ -184,13 +184,19 @@ def _capacity_section(report: DailyReport, since) -> None:
 
 
 def _render_metric(metric: str, api_key: str, service_id: str) -> list[str]:
+    if metric not in {"cpu", "memory"}:
+        raise ValueError("Unsupported Render metric")
     query = urlencode({"resource": service_id, "resolutionSeconds": 300})
-    request = Request(
-        f"https://api.render.com/v1/metrics/{metric}?{query}",
-        headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
-    )
-    with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed Render API host
+    conn = HTTPSConnection("api.render.com", timeout=5)
+    try:
+        conn.request("GET", f"/v1/metrics/{metric}?{query}",
+                     headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"})
+        response = conn.getresponse()
+        if response.status != 200:
+            raise ValueError("Render metrics request failed")
         payload = json.loads(response.read(1_000_001))
+    finally:
+        conn.close()
     if not isinstance(payload, list):
         raise ValueError("Invalid metrics response")
     lines = []
