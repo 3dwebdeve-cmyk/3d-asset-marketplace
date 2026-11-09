@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 
 import { getAdminAnalytics } from '../../api/analyticsApi'
 import { Button } from '../../components/ui/Button'
+import { AdminIcon } from '../../components/admin/AdminIcon'
+import '../../styles/admin-analytics.css'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
@@ -102,12 +104,11 @@ export function AdminAnalyticsPage() {
   }, [data])
 
   return (
-    <main className="dashboard-page">
+    <main className="dashboard-page admin-analytics-page">
       <section
         className="dashboard-card dashboard-card--wide admin-dashboard"
         aria-labelledby="analytics-title"
       >
-        <p className="admin-page__eyebrow">Administrator</p>
         <h1 id="analytics-title">Analytics</h1>
         <p className="home-page__subtitle">
           Order-based revenue, top catalog performers, and payment gateway totals.
@@ -164,6 +165,7 @@ export function AdminAnalyticsPage() {
 
             <div className="admin-stats-grid" aria-label="Order summary">
               <article className="admin-stat-card">
+                <span className="analytics-stat-icon analytics-stat-icon--database"><AdminIcon name="database" size={26} /></span>
                 <h2 className="admin-stat-card__label">Revenue</h2>
                 <p className="admin-stat-card__value">
                   {formatMoney(data.summary.revenue, currency)}
@@ -173,6 +175,7 @@ export function AdminAnalyticsPage() {
                 </p>
               </article>
               <article className="admin-stat-card">
+                <span className="analytics-stat-icon analytics-stat-icon--cart"><AdminIcon name="cart" size={26} /></span>
                 <h2 className="admin-stat-card__label">Orders</h2>
                 <p className="admin-stat-card__value">{data.summary.order_count}</p>
                 <p className="admin-stat-card__meta">
@@ -182,6 +185,7 @@ export function AdminAnalyticsPage() {
                 </p>
               </article>
               <article className="admin-stat-card">
+                <span className="analytics-stat-icon analytics-stat-icon--box"><AdminIcon name="box" size={26} /></span>
                 <h2 className="admin-stat-card__label">Avg. order value</h2>
                 <p className="admin-stat-card__value">
                   {formatMoney(data.summary.average_order_value, currency)}
@@ -189,6 +193,7 @@ export function AdminAnalyticsPage() {
                 <p className="admin-stat-card__meta">Paid orders only</p>
               </article>
               <article className="admin-stat-card">
+                <span className="analytics-stat-icon analytics-stat-icon--card"><AdminIcon name="card" size={26} /></span>
                 <h2 className="admin-stat-card__label">Gateway payments</h2>
                 <p className="admin-stat-card__value">
                   {data.gateway_breakdown.reduce(
@@ -209,7 +214,18 @@ export function AdminAnalyticsPage() {
               className="admin-dashboard__section"
               aria-labelledby="revenue-by-period-title"
             >
+              <span className="analytics-section-icon"><AdminIcon name="chart" size={23} /></span>
               <h2 id="revenue-by-period-title">Revenue by period</h2>
+              <div className="analytics-chart" aria-label="Monthly revenue chart">
+                {data.revenue_by_period.length ? (
+                  <div className="analytics-chart__bars" aria-hidden="true">
+                    {data.revenue_by_period.map((row) => {
+                      const maximum = Math.max(...data.revenue_by_period.map((item) => Number(item.revenue) || 0), 1)
+                      return <div className="analytics-chart__column" key={row.period}><span className="analytics-chart__amount">{formatMoney(row.revenue, currency)}</span><span className="analytics-chart__bar" style={{ height: `${Math.max((Number(row.revenue) || 0) / maximum * 100, 2)}%` }} /><span className="analytics-chart__period">{formatPeriod(row.period)}</span></div>
+                    })}
+                  </div>
+                ) : <div className="analytics-chart__empty" aria-hidden="true"><AdminIcon name="chart" size={28} /></div>}
+              </div>
               {data.revenue_by_period.length ? (
                 <div className="admin-table-wrap">
                   <table className="admin-table">
@@ -242,6 +258,7 @@ export function AdminAnalyticsPage() {
               className="admin-dashboard__section"
               aria-labelledby="top-products-title"
             >
+              <span className="analytics-section-icon"><AdminIcon name="box" size={23} /></span>
               <h2 id="top-products-title">Top products</h2>
               <TopItemsTable
                 items={data.top_products}
@@ -254,6 +271,7 @@ export function AdminAnalyticsPage() {
               className="admin-dashboard__section"
               aria-labelledby="top-plugins-title"
             >
+              <span className="analytics-section-icon"><AdminIcon name="puzzle" size={23} /></span>
               <h2 id="top-plugins-title">Top plugins</h2>
               <TopItemsTable
                 items={data.top_plugins}
@@ -266,6 +284,7 @@ export function AdminAnalyticsPage() {
               className="admin-dashboard__section"
               aria-labelledby="gateway-breakdown-title"
             >
+              <span className="analytics-section-icon"><AdminIcon name="layers" size={23} /></span>
               <h2 id="gateway-breakdown-title">Gateway breakdown</h2>
               {data.gateway_breakdown.length ? (
                 <div className="admin-table-wrap">
