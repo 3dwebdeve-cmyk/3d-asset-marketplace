@@ -76,7 +76,7 @@ export async function restoreAdminProduct(productId: string): Promise<AdminProdu
   return response.data
 }
 
-/** Approve and publish. `pricing` sets the price at the same time: paid. */
+/** Approve and publish. `pricing` sets the price at the same time: free (price 0) or paid. */
 export async function approveAdminProduct(
   productId: string,
   pricing?: AdminProductApprovePayload,
@@ -107,6 +107,10 @@ export async function listUploaderImports(): Promise<UploaderImport[]> {
   return response.data.results
 }
 
+/** A free model's zip: no account needed, the server redirects to the file. */
+export function freeDownloadUrl(slug: string): string {
+  return `${apiClient.defaults.baseURL ?? ''}/api/v1/products/${encodeURIComponent(slug)}/free-download/`
+}
 
 export async function rejectAdminProduct(
   productId: string,

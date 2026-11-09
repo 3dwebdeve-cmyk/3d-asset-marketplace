@@ -6,7 +6,7 @@ import { formatDateTime } from '../../lib/format'
 /** What to fix for the common reasons; any other reason is shown as its code. */
 const REASON_HELP: Record<string, string> = {
   published_sku: 'already published, left as it is',
-  invalid_r2_prefix: 'files must be under models/<ID>/',
+  invalid_r2_prefix: 'files must be under models/<ID>/ or free-models/<ID>/',
   qa_not_ready: 'QA status in the uploader is not "Ready for QA"',
   folder_mismatch: 'the uploader could not match the model folder',
   category_unmapped: 'category not found on the website',

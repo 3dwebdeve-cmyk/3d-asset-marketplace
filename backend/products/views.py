@@ -1,6 +1,7 @@
 import logging
 from uuid import UUID
 
+from django.http import HttpResponse, HttpResponseRedirect
 
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
@@ -18,8 +19,16 @@ from accounts.throttles import (
     AdminUploadRateThrottle,
     CatalogIngestRateThrottle,
     CatalogSearchRateThrottle,
+    DownloadRateThrottle,
 )
 from config.api_helpers import domain_error_response, parse_uuid
+from config.media import (
+    PrivateFileNotFound,
+    is_free_model_path,
+    media_relative_path,
+    resolve_private_download,
+)
+from config.storages import build_public_media_url
 from config.http_cache import PublicCatalogCacheMixin
 from products.catalog_import import CatalogImportService
 from products.models import Product
@@ -125,6 +134,35 @@ class ProductDetailView(PublicCatalogCacheMixin, APIView):
 
         serializer = ProductDetailPublicSerializer(product)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProductFreeDownloadView(APIView):
+    """GET /api/v1/products/<slug>/free-download/ — a free model's zip, no account needed.
+
+    Redirects to the file: the public free-models/ object, or a short-lived signed
+    link when the zip is in the private bucket.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [DownloadRateThrottle]
+
+    def get(self, request: Request, slug: str) -> HttpResponse:
+        try:
+            product = ProductService.get_public_by_slug(slug)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+        package = product.files.filter(is_preview=False).order_by("-created_at").first()
+        if not product.is_free or package is None:
+            raise NotFound("This model is not a free download.")
+        if is_free_model_path(package.storage_path):
+            return HttpResponseRedirect(
+                build_public_media_url(media_relative_path(package.storage_path))
+            )
+        try:
+            result = resolve_private_download(package.storage_path, file_name=package.file_name)
+        except PrivateFileNotFound:
+            raise NotFound("File not found.") from None
+        return HttpResponseRedirect(result["download_url"]) if isinstance(result, dict) else result
 
 
 class AdminProductListCreateView(APIView):

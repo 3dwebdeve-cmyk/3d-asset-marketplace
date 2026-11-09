@@ -21,6 +21,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION, PRODUCT_RESTORE_CONFIRMATION } from '../../lib/productArchive'
+import { isFreeProduct } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus } from '../../types/product'
 import { UploaderImportsPanel } from './UploaderImportsPanel'
 
@@ -510,7 +511,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                     <td><span className={`products-status products-status--${product.status}`}>{product.status === 'published' ? <AdminIcon name="check" size={14} /> : null}{product.status.replace(/_/g, ' ')}</span></td>
                     <td>{product.import_batch_id || '—'}</td>
                     <td>
-                      {`${product.currency} ${product.price}`}
+                      {isFreeProduct(product) ? 'Free' : `${product.currency} ${product.price}`}
                     </td>
                     <td>
                       <Link

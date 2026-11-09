@@ -48,22 +48,23 @@ function expectReadableSummary(doc: Document) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('page content in the real preloader shell', () => {
-  it('returns 404 for the retired free model collection without fetching catalog data', async () => {
-    const upstream = vi.fn()
-    vi.stubGlobal('fetch', upstream)
+  it('exposes free model links before JavaScript loads and omits paid models', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [
+      { name: 'Free Chair', slug: 'free-chair', price: '0.00' },
+      { name: 'Paid Chair', slug: 'paid-chair', price: '12.00' },
+    ] })))
     const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
     const doc = parse(await response.text())
-    expect(response.status).toBe(404)
-    expect(upstream).not.toHaveBeenCalled()
-    expect(doc.querySelector('a[href="/free-3d-models"]')).toBeNull()
-    expect(doc.querySelector('a[href="/products/free-chair"]')).toBeNull()
+    expect(response.status).toBe(200)
+    expect(doc.querySelector('a[href="/products/free-chair"]')?.textContent).toBe('Free Chair')
+    expect(doc.querySelector('a[href="/products/paid-chair"]')).toBeNull()
+    expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(`${origin}/free-3d-models`)
   })
 
-  it('marks the retired free collection as noindex in response headers and HTML', async () => {
+  it('keeps an empty free collection out of search results', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ results: [] })))
     const response = await worker.fetch(new Request(`${origin}/free-3d-models`), env())
-    const doc = parse(await response.text())
-    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, nofollow')
-    expect(doc.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, nofollow')
+    expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow')
   })
 
   it('includes a useful static fallback and releases visitors without JavaScript from the loader', () => {

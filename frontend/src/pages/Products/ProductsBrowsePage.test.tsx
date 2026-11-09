@@ -189,11 +189,14 @@ beforeEach(() => {
 })
 
 describe('ProductsBrowsePage', () => {
-  it('does not show the retired free model collection', async () => {
+  it('omits the separate free collection while keeping free products in the model rail', async () => {
+    const free = { ...samplePublicProducts.results[0], id: 'free-chair', name: 'Free Chair', slug: 'free-chair', price: '0.00', discount_price: null }
+    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({ ...samplePublicProducts, results: [free] })
     renderProductsBrowsePage()
-    await screen.findAllByRole('link', { name: 'Cyberpunk Drone 3D' })
+    expect(await screen.findByRole('link', { name: 'Free Chair' })).toHaveAttribute('href', '/products/free-chair')
     expect(screen.queryByRole('heading', { name: 'Free 3D Models' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /browse free models/i })).not.toBeInTheDocument()
+    expect(productsApi.listPublicProducts).not.toHaveBeenCalledWith(expect.objectContaining({ is_free: true }))
   })
   it('starts the model carousel after loading finishes when product cards are available', async () => {
     // The rail is only eligible to scroll once the product cards have loaded.
