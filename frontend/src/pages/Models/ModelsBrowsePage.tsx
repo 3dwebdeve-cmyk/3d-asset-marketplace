@@ -15,6 +15,7 @@ import { activateOnKey } from '../../lib/keyboard'
 import { trackCategoryClick } from '../../lib/trackCategoryClick'
 import { ALL_MODELS_SEO, buildCategoryTitle, categoryPath, getCategorySeo } from '../../lib/categorySeo'
 import { buildBreadcrumbJsonLd, buildItemListJsonLd, buildPageTitle } from '../../lib/seo'
+import { MODEL_PAGE_SIZE, catalogPagePath, hasCatalogFilters, readCatalogPage } from '../../lib/modelCatalogSeo'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import { ProductCard } from '../Products/ProductCard'
@@ -22,7 +23,7 @@ import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
 import '../../styles/models-browse.css'
 
-const PAGE_SIZE = 12
+const PAGE_SIZE = MODEL_PAGE_SIZE
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 
 const FORMAT_OPTIONS = MODEL_FORMAT_FILTERS
@@ -87,7 +88,7 @@ export function ModelsBrowsePage() {
   const [searchInput, setSearchInput] = useState(searchFromUrl)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>(categoryFromUrl)
   const [sortOrdering, setSortOrdering] = useState<SortOption>(sortFromUrl)
-  const [currentPage, setCurrentPage] = useState(1)
+  const currentPage = readCatalogPage(searchParams)
   const [traits, setTraits] = useState<Record<TraitKey, boolean>>({
     rigged: riggedFromUrl,
     animated: animatedFromUrl,
@@ -120,7 +121,6 @@ export function ModelsBrowsePage() {
 
   useEffect(() => {
     setSelectedCategoryId(categoryFromUrl)
-    setCurrentPage(1)
     if (categoryFromUrl) {
       trackCategoryClick(categoryFromUrl)
     }
@@ -136,12 +136,10 @@ export function ModelsBrowsePage() {
 
   useEffect(() => {
     setSearchInput(searchFromUrl)
-    setCurrentPage(1)
   }, [searchFromUrl])
 
   useEffect(() => {
     setSortOrdering(sortFromUrl)
-    setCurrentPage(1)
   }, [sortFromUrl])
 
   useEffect(() => {
@@ -151,7 +149,6 @@ export function ModelsBrowsePage() {
       pbr_ready: pbrReadyFromUrl,
       game_ready: gameReadyFromUrl,
     })
-    setCurrentPage(1)
   }, [riggedFromUrl, animatedFromUrl, pbrReadyFromUrl, gameReadyFromUrl])
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
@@ -164,7 +161,7 @@ export function ModelsBrowsePage() {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(key, value)
     else next.delete(key)
-    setCurrentPage(1)
+    next.delete('page')
     setSearchParams(next, { replace: true })
   }
   const toggleFilter = (key: string, current: string[], value: string) => {
@@ -175,9 +172,8 @@ export function ModelsBrowsePage() {
 
   const handleSortChange = (sort: SortOption) => {
     setSortOrdering(sort)
-    setCurrentPage(1)
-
     const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
     if (sort === '-created_at') {
       nextParams.delete('ordering')
     } else {
@@ -189,9 +185,9 @@ export function ModelsBrowsePage() {
   /** Move to a category's own address (or back to all models), keeping the other filters. */
   const goToCategory = (category: { id: string; slug: string } | null) => {
     setSelectedCategoryId(category?.id ?? '')
-    setCurrentPage(1)
     const next = new URLSearchParams(searchParams)
     next.delete('category')
+    next.delete('page')
     const query = next.toString()
     navigate(`${category ? categoryPath(category.slug) : '/3d-models'}${query ? `?${query}` : ''}`, { replace: true })
   }
@@ -200,7 +196,6 @@ export function ModelsBrowsePage() {
     setSearchInput('')
     setSelectedCategoryId('')
     setSortOrdering('-created_at')
-    setCurrentPage(1)
     setTraits({
       rigged: false,
       animated: false,
@@ -209,6 +204,7 @@ export function ModelsBrowsePage() {
     })
 
     const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('page')
     nextParams.delete('category')
     nextParams.delete('search')
     nextParams.delete('rigged')
@@ -226,6 +222,8 @@ export function ModelsBrowsePage() {
     data: productsData,
     isLoading,
     isError,
+    isFetching,
+    isPlaceholderData,
     refetch,
   } = useQuery({
     queryKey: [
@@ -274,6 +272,11 @@ export function ModelsBrowsePage() {
   const totalCount = filteredProducts.length
   const products = filteredProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+  const pageOutOfRange = currentPage > Math.max(totalPages, 1) && productsData !== undefined &&
+    !isFetching && !isPlaceholderData && !categoryPending && selectedCategoryId === categoryFromUrl &&
+    searchInput.trim() === debouncedSearch && sortOrdering === sortFromUrl &&
+    traits.rigged === riggedFromUrl && traits.animated === animatedFromUrl &&
+    traits.pbr_ready === pbrReadyFromUrl && traits.game_ready === gameReadyFromUrl
   const hasActiveTrait = Object.values(traits).some(Boolean)
   const isFiltered =
     Boolean(searchInput) ||
@@ -305,7 +308,7 @@ export function ModelsBrowsePage() {
     title: categorySeo ? buildCategoryTitle(categorySeo) : buildPageTitle(ALL_MODELS_SEO.title),
     description: seoCopy.description,
     // Filtered and searched views all point back to the clean address of the page.
-    canonicalPath: pagePath,
+    canonicalPath: hasCatalogFilters(searchParams) ? pagePath : catalogPagePath(pagePath, currentPage),
     // Searches, placeholder categories and categories with nothing in them are not worth indexing.
     robots: searchFromUrl || (categorySeo && !categorySeo.indexable) || emptyCategory ? 'noindex, follow' : undefined,
     jsonLd: [
@@ -314,7 +317,7 @@ export function ModelsBrowsePage() {
     ],
   })
 
-  if (categoryNotFound) {
+  if (categoryNotFound || pageOutOfRange) {
     return <NotFoundPage />
   }
 
@@ -583,7 +586,12 @@ export function ModelsBrowsePage() {
               <Pagination
                 page={currentPage}
                 totalPages={totalPages}
-                onPageChange={setCurrentPage}
+                onPageChange={(page) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (page === 1) next.delete('page')
+                  else next.set('page', String(page))
+                  setSearchParams(next)
+                }}
               />
             </>
           )}

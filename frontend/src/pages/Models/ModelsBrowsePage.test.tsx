@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as categoriesApi from '../../api/categoriesApi'
@@ -131,7 +131,8 @@ const sampleCategories = {
 
 function LocationProbe() {
   const location = useLocation()
-  return <div data-testid="location">{location.pathname}{location.search}</div>
+  const navigate = useNavigate()
+  return <><div data-testid="location">{location.pathname}{location.search}</div><button onClick={() => navigate(-1)}>Test back</button><button onClick={() => navigate(1)}>Test forward</button></>
 }
 
 function renderModelsBrowsePage(initialPath = '/3d-models') {
@@ -161,6 +162,56 @@ beforeEach(() => {
     files: [{ id: 'file-1', file_name: 'chair.blend', file_format: 'blend', file_size: 100, version: '1', is_preview: false }],
   })
   vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue(sampleCategories)
+})
+
+describe('model pagination URLs', () => {
+  function mockMultipleModels() {
+    const results = Array.from({ length: 25 }, (_, index) => ({
+      ...samplePublicProducts.results[0], id: `model-${index + 1}`,
+      name: `Model ${index + 1}`, slug: `model-${index + 1}`,
+    }))
+    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({ count: results.length, next: null, previous: null, results })
+  }
+
+  it('opens a direct page link and preserves pagination through browser history', async () => {
+    mockMultipleModels()
+    const user = userEvent.setup()
+    renderModelsBrowsePage('/3d-models?page=2')
+    expect(await screen.findByText('Model 13')).toBeInTheDocument()
+    expect(screen.queryByText('Model 1')).not.toBeInTheDocument()
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', expect.stringContaining('/3d-models?page=2'))
+    await user.click(screen.getByLabelText('Page 3'))
+    expect(screen.getByText('Model 25')).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?page=3')
+    await user.click(screen.getByText('Test back'))
+    expect(await screen.findByText('Model 13')).toBeInTheDocument()
+    await user.click(screen.getByText('Test forward'))
+    expect(await screen.findByText('Model 25')).toBeInTheDocument()
+    await user.click(screen.getByLabelText('Page 1'))
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/3d-models$/)
+  })
+
+  it('resets the page when a filter changes and preserves the filter while paging', async () => {
+    mockMultipleModels()
+    const user = userEvent.setup()
+    renderModelsBrowsePage('/3d-models?page=2')
+    await screen.findByText('Model 13')
+    await user.click(screen.getByRole('checkbox', { name: /blender/i }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?formats=blend')
+    expect(screen.getByText('Model 1')).toBeInTheDocument()
+    await user.click(screen.getByLabelText('Page 2'))
+    expect(screen.getByTestId('location')).toHaveTextContent('/3d-models?formats=blend&page=2')
+    expect(screen.getByText('Model 13')).toBeInTheDocument()
+  })
+
+  it('uses page one for invalid page values and displays not found for a page beyond the results', async () => {
+    mockMultipleModels()
+    const view = renderModelsBrowsePage('/3d-models?page=abc')
+    expect(await screen.findByText('Model 1')).toBeInTheDocument()
+    view.unmount()
+    renderModelsBrowsePage('/3d-models?page=9')
+    expect(await screen.findByRole('heading', { name: /not found/i })).toBeInTheDocument()
+  })
 })
 
 describe('ModelsBrowsePage', () => {
