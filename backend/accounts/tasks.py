@@ -170,3 +170,10 @@ def send_mfa_enabled_task(self, user_id: str) -> None:
     user = _load_user(user_id, "mfa_enabled")
     if user is not None:
         deliver_mfa_enabled(user)
+
+
+@shared_task(name="accounts.send_review_reminders", autoretry_for=(Exception,),
+             retry_backoff=True, retry_backoff_max=600, max_retries=5, queue="email")
+def send_review_reminders_task(notification_ids: list[str]) -> None:
+    from accounts.notifications import deliver_review_reminders
+    deliver_review_reminders(notification_ids)

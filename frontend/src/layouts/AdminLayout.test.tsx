@@ -18,6 +18,11 @@ vi.mock('../api/authApi', async () => {
   }
 })
 
+vi.mock('../api/adminNotificationsApi', () => ({
+  getAdminNotifications: vi.fn().mockResolvedValue({ unread_count: 0, results: [] }),
+  markAdminNotificationsRead: vi.fn().mockResolvedValue(undefined),
+}))
+
 const adminUser = {
   ...testUser,
   role: 'Administrator' as const,

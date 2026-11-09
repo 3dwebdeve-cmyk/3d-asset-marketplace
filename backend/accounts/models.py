@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.utils import timezone
 
 
 class Role(models.Model):
@@ -277,3 +278,25 @@ class CatalogApiKey(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.key_prefix})"
+
+
+class AdminNotification(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_key = models.CharField(max_length=150, unique=True)
+    kind = models.CharField(max_length=32)
+    title = models.CharField(max_length=255)
+    path = models.CharField(max_length=255)
+    product = models.ForeignKey("products.Product", null=True, blank=True, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    read_by = models.ManyToManyField(User, blank=True, related_name="read_admin_notifications")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product"], condition=models.Q(kind="model_review", resolved_at__isnull=True),
+                name="unique_active_model_review_notice",
+            ),
+        ]
