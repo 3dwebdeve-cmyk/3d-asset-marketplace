@@ -128,7 +128,7 @@ class ProductService(ProductMediaService):
                     to_attr="filter_files",
                 )
             )
-            .filter(status=Product.Status.PUBLISHED, category__is_active=True, price__gt=0)
+            .filter(status=Product.Status.PUBLISHED, category__is_active=True)
             .defer(
                 "description",
                 "preview_model",
@@ -225,7 +225,6 @@ class ProductService(ProductMediaService):
         try:
             return cls._base_queryset().get(
                 slug=slug.strip(),
-                price__gt=0,
                 status=Product.Status.PUBLISHED,
                 category__is_active=True,
             )
@@ -529,8 +528,12 @@ class ProductService(ProductMediaService):
         """Set the price chosen at approval; returns the fields to save."""
         if pricing is None:
             return []
+        if pricing == "free":
+            product.price = Decimal("0.00")
+            product.discount_price = None
+            return ["price", "discount_price"]
         if pricing != "paid":
-            raise ProductError("Pricing must be 'paid'.", field="pricing")
+            raise ProductError("Pricing must be 'free' or 'paid'.", field="pricing")
         minimum = MINIMUM_CHECKOUT_AMOUNTS.get(normalize_currency(product.currency))
         if price is None or price <= 0:
             raise ProductError("Enter a price above 0 for a paid model.", field="price")
@@ -571,8 +574,8 @@ class ProductService(ProductMediaService):
         except ProductError as exc:
             errors['price'] = [exc.message]
 
-        if product.price is None or product.price <= Decimal("0.00"):
-            errors["price"] = ["A price above zero is required."]
+        if product.price is None or product.price < Decimal("0.00"):
+            errors["price"] = ["A valid non-negative price is required."]
 
         sellable_files = list(
             ProductFile.objects.filter(
@@ -591,7 +594,7 @@ class ProductService(ProductMediaService):
             ]
         elif product.price and any(is_free_model_path(row.storage_path) for row in sellable_files):
             # Anyone can fetch a zip in the public free-models/ folder, so it cannot be sold.
-            errors["price"] = ["This model's zip is in the free-models folder: move the package to private storage before publishing."]
+            errors["price"] = ["This model's zip is in the free-models folder: publish it as free."]
 
         if not (product.preview_model or "").strip():
             errors["preview_model"] = ["Preview model is required before publish."]
@@ -624,7 +627,8 @@ class ProductService(ProductMediaService):
     ) -> Product:
         """pending_review → published with publish gates. Clears reject_reason.
 
-        ``pricing`` optionally sets a paid price on approval.
+        ``pricing`` sets the price on approval: "free" makes the model a free download
+        (price 0), "paid" sets ``price``. Without it the current price is kept.
         """
         product = Product.objects.select_for_update().get(pk=product.pk)
         if product.status != Product.Status.PENDING_REVIEW:
@@ -739,12 +743,12 @@ class ProductService(ProductMediaService):
 
     @staticmethod
     def _validate_pricing(price: Decimal, discount_price: Decimal | None) -> None:
-        if price <= Decimal("0.00"):
-            raise ProductError("Price must be above zero.", field="price")
+        if price < Decimal("0.00"):
+            raise ProductError("Price cannot be negative.", field="price")
         if discount_price is not None:
-            if discount_price <= Decimal("0.00"):
+            if discount_price < Decimal("0.00"):
                 raise ProductError(
-                    "Discount price must be above zero.",
+                    "Discount price cannot be negative.",
                     field="discount_price",
                 )
             if discount_price > price:

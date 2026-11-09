@@ -1,4 +1,4 @@
-"""Paid-only pricing, retired free downloads, and admin delete."""
+"""Pricing at approval (free or paid), free downloads without an account, and admin delete."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from cart.models import Cart, CartItem
 from orders.models import Order, OrderItem
 from products.models import Product, ProductImage
 from products import test_product_qa
+from products.test_catalog_import import _happy_item
+from products.testing import put_pipeline_uploads
 from wishlist.models import WishlistItem
 
 # The QA tests' helpers are borrowed through the module, so their class is not run twice.
@@ -23,27 +25,125 @@ _QA = test_product_qa.ProductQAWorkflowAPITests.__dict__
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
-class PaidOnlyApprovalTests(APITestCase):
+class FreeAndPaidApprovalTests(APITestCase):
     setUp = _QA["setUp"]
     _authenticate_as_admin = _QA["_authenticate_as_admin"]
+    _authenticate_as_customer = _QA["_authenticate_as_customer"]
     _write_package = _QA["_write_package"]
     _import_happy_product = _QA["_import_happy_product"]
     _approve_url = _QA["_approve_url"]
 
-    def _approve(self, product, payload):
-        return self.client.post(self._approve_url(product.pk), payload, format="json")
+    def _approve(self, product: Product, payload: dict | None = None):
+        return self.client.post(self._approve_url(product.pk), payload or {}, format="json")
 
-    def test_free_pricing_is_rejected(self):
+    def _publish_free(self) -> Product:
         self._authenticate_as_admin()
         product = self._import_happy_product()
         response = self._approve(product, {"pricing": "free"})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.client.credentials()
+        return Product.objects.get(pk=product.pk)
+
+    def test_approve_without_pricing_keeps_the_price(self) -> None:
+        self._authenticate_as_admin()
+        product = self._import_happy_product()
+        response = self._approve(product)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["price"], "29.99")
+        self.assertFalse(response.data["is_free"])
+
+    def test_approve_as_paid_sets_the_price(self) -> None:
+        self._authenticate_as_admin()
+        product = self._import_happy_product()
+        response = self._approve(product, {"pricing": "paid", "price": "49.00"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.PUBLISHED)
+        self.assertEqual(product.price, Decimal("49.00"))
+
+    def test_paid_needs_a_price_above_the_checkout_minimum(self) -> None:
+        self._authenticate_as_admin()
+        product = self._import_happy_product()
+        for payload in ({"pricing": "paid"}, {"pricing": "paid", "price": "0"}, {"pricing": "paid", "price": "0.10"}):
+            with self.subTest(payload=payload):
+                response = self._approve(product, payload)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
 
-    def test_free_download_endpoint_is_removed(self):
-        response = self.client.get("/api/v1/products/any-model/free-download/")
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+    def test_approve_as_free_publishes_at_price_zero(self) -> None:
+        product = self._publish_free()
+        self.assertEqual(product.status, Product.Status.PUBLISHED)
+        self.assertEqual(product.price, Decimal("0.00"))
+        self.assertIsNone(product.discount_price)
+        detail = self.client.get(reverse("products:product-detail", kwargs={"slug": product.slug}))
+        self.assertTrue(detail.data["is_free"])
+
+    def _publish_free_folder_model(self) -> Product:
+        """Import from free-models/<sku>/ (zip in the public bucket) and approve as is."""
+        item = _happy_item(r2_key_prefix="free-models/MDL-000142/")
+        item["media"] = {
+            key: [k.replace("models/", "free-models/", 1) for k in value]
+            if isinstance(value, list)
+            else value.replace("models/", "free-models/", 1) if isinstance(value, str) else value
+            for key, value in item["media"].items()
+        }
+        put_pipeline_uploads([item])
+        self._write_package(item["media"]["package_key"])
+        self._authenticate_as_admin()
+        response = self.client.post(
+            self.import_url,
+            {"import_batch_id": "2026-10-30-free", "import_source": "catalog-bridge", "items": [item]},
+            format="json",
+        )
+        self.assertEqual(response.data["created"], 1, response.data)
+        product = Product.objects.get(sku="MDL-000142")
+        self.assertTrue(product.is_free)
+        self.assertEqual(self._approve(product).status_code, status.HTTP_200_OK)
+        self.client.credentials()
+        return product
+
+    def _free_download(self, product: Product):
+        return self.client.get(reverse("products:product-free-download", kwargs={"slug": product.slug}))
+
+    def test_free_folder_model_imports_free_and_anyone_downloads_it(self) -> None:
+        product = self._publish_free_folder_model()
+
+        response = self._free_download(product)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(response["Location"].endswith("free-models/MDL-000142/package.zip"))
+
+    def test_free_folder_model_cannot_be_published_paid(self) -> None:
+        product = self._publish_free_folder_model()
+        Product.objects.filter(pk=product.pk).update(status=Product.Status.PENDING_REVIEW)
+        self._authenticate_as_admin()
+        response = self._approve(product, {"pricing": "paid", "price": "10.00"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_free_model_with_a_private_zip_downloads_without_sign_in(self) -> None:
+        product = self._publish_free()
+        response = self._free_download(product)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("attachment", response["Content-Disposition"])
+
+    def test_paid_model_has_no_free_download(self) -> None:
+        self._authenticate_as_admin()
+        product = self._import_happy_product()
+        self._approve(product)
+        self.client.credentials()
+        self.assertEqual(self._free_download(product).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_free_model_cannot_go_in_the_cart(self) -> None:
+        product = self._publish_free()
+        self._authenticate_as_customer()
+        response = self.client.post(
+            reverse("cart:cart-detail"),
+            {"product_type": "product", "product_id": str(product.pk)},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(CartItem.objects.filter(product_id=product.pk).exists())
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())

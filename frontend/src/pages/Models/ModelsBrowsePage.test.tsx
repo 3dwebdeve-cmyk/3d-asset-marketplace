@@ -141,6 +141,7 @@ function renderModelsBrowsePage(initialPath = '/3d-models') {
       <MemoryRouter initialEntries={[initialPath]}>
         <LocationProbe />
         <Routes>
+          <Route path="/free-3d-models" element={<ModelsBrowsePage freeOnly />} />
           <Route path="/3d-models" element={<ModelsBrowsePage />} />
           <Route path="/3d-models/:categorySlug" element={<ModelsBrowsePage />} />
         </Routes>
@@ -163,6 +164,18 @@ beforeEach(() => {
 })
 
 describe('ModelsBrowsePage', () => {
+  it('shows free models on their own canonical page and excludes paid models', async () => {
+    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
+      ...samplePublicProducts,
+      count: 2,
+      results: [...samplePublicProducts.results, { ...samplePublicProducts.results[0], id: 'free-chair', name: 'Free Chair', slug: 'free-chair', price: '0.00', discount_price: null }],
+    })
+    renderModelsBrowsePage('/free-3d-models')
+    expect(await screen.findByText('Free Chair')).toBeInTheDocument()
+    expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Free 3D Models' })).toBeInTheDocument()
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', expect.stringMatching(/\/free-3d-models$/))
+  })
 
   it('renders hero title and product list', async () => {
     renderModelsBrowsePage()

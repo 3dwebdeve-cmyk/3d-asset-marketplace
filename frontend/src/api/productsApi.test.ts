@@ -70,11 +70,11 @@ describe('productsApi QA helpers', () => {
   it('approves with the price chosen in QA', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ data: sampleProduct })
 
-    await approveAdminProduct(productId, { pricing: 'paid', price: '10.00' })
+    await approveAdminProduct(productId, { pricing: 'free' })
 
     expect(apiClient.post).toHaveBeenCalledWith(
       `/api/v1/admin/products/${productId}/approve/`,
-      { pricing: 'paid', price: '10.00' },
+      { pricing: 'free' },
     )
   })
 

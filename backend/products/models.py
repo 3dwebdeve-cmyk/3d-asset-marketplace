@@ -144,6 +144,11 @@ class Product(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    @property
+    def is_free(self) -> bool:
+        """A free model (price 0) is downloaded without checkout."""
+        return self.price is not None and self.price == 0
+
     @staticmethod
     def normalize_sku(value: str | None) -> str | None:
         """Uppercase + strip; blank becomes None so unique allows many unset SKUs."""
