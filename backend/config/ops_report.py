@@ -12,9 +12,15 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import Decimal
 import logging
+import json
+import math
+import re
+from http.client import HTTPSConnection
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db.models import Count, Sum
+from django.db import connection
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -153,6 +159,80 @@ def _activity_section(report: DailyReport, since) -> None:
     )
 
 
+def _capacity_section(report: DailyReport, since) -> None:
+    report.lines.append("Database usage (current database)")
+    if connection.vendor != "postgresql":
+        report.lines.append("  Database size: unavailable (PostgreSQL required)")
+        return
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_database_size(current_database())")
+            size = cursor.fetchone()[0]
+        size_mb = size / (1024 * 1024)
+        report.lines.append(f"  Database size: {size_mb:.2f} MiB")
+        limit = settings.OPS_DB_WARNING_MB
+        if limit > 0:
+            report.lines.append(f"  Warning threshold: {limit} MiB")
+            if size_mb >= limit:
+                report.problems.append("Database size has reached its configured warning threshold.")
+        else:
+            report.lines.append("  Warning threshold: not configured")
+    except Exception as exc:  # noqa: BLE001 - still send the rest of the report
+        logger.warning("ops_database_size_failed error=%s", type(exc).__name__)
+        report.lines.append("  Database size: unavailable")
+        report.problems.append("Could not measure database size.")
+
+
+def _render_metric(metric: str, api_key: str, service_id: str) -> list[str]:
+    if metric not in {"cpu", "memory"}:
+        raise ValueError("Unsupported Render metric")
+    query = urlencode({"resource": service_id, "resolutionSeconds": 300})
+    conn = HTTPSConnection("api.render.com", timeout=5)
+    try:
+        conn.request("GET", f"/v1/metrics/{metric}?{query}",
+                     headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"})
+        response = conn.getresponse()
+        if response.status != 200:
+            raise ValueError("Render metrics request failed")
+        payload = json.loads(response.read(1_000_001))
+    finally:
+        conn.close()
+    if not isinstance(payload, list):
+        raise ValueError("Invalid metrics response")
+    lines = []
+    for series in payload[:20]:
+        values = series.get("values", [])
+        valid = [v for v in values if isinstance(v, dict) and isinstance(v.get("timestamp"), str)
+                 and isinstance(v.get("value"), (int, float)) and math.isfinite(v["value"])]
+        if not valid:
+            continue
+        latest = max(valid, key=lambda item: item["timestamp"])
+        unit = str(series.get("unit", ""))[:30]
+        if not re.fullmatch(r"[a-zA-Z0-9%/ ._-]*", unit):
+            unit = ""
+        lines.append(f"{latest['value']:g} {unit} (sample {latest['timestamp']})".strip())
+    return lines
+
+
+def _render_usage_section(report: DailyReport, since) -> None:
+    report.lines.append("Render backend usage (latest available samples, per series)")
+    key, service = settings.RENDER_METRICS_API_KEY, settings.RENDER_METRICS_SERVICE_ID
+    if not key or not re.fullmatch(r"srv-[A-Za-z0-9]+", service):
+        report.lines.append("  CPU and memory: unavailable (Render metrics key or service ID not configured)")
+        return
+    for metric, label in (("cpu", "CPU"), ("memory", "Memory")):
+        try:
+            samples = _render_metric(metric, key, service)
+            if samples:
+                for sample in samples:
+                    report.lines.append(f"  {label}: {sample}")
+            else:
+                report.lines.append(f"  {label}: unavailable (no samples)")
+        except Exception as exc:  # noqa: BLE001 - one unavailable metric must not stop the report
+            logger.warning("render_metric_failed metric=%s error=%s", metric, type(exc).__name__)
+            report.lines.append(f"  {label}: unavailable (check Render metrics access)")
+
+
 def build_daily_report(task_results: dict[str, bool] | None = None) -> DailyReport:
     now = timezone.now()
     since = now - WINDOW
@@ -171,7 +251,7 @@ def build_daily_report(task_results: dict[str, bool] | None = None) -> DailyRepo
                 )
         report.lines.append("")
 
-    for section in (_payments_section, _email_section, _activity_section):
+    for section in (_payments_section, _email_section, _activity_section, _capacity_section, _render_usage_section):
         try:
             section(report, since)
         except Exception as exc:  # noqa: BLE001 - one broken section must not stop the report
