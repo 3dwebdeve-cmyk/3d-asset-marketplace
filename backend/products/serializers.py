@@ -208,6 +208,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "qa_notes",
             "reviewed_at",
             "reviewed_by",
+            "pending_update",
             "category",
             "category_id",
             "images",
@@ -227,6 +228,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "qa_notes",
             "reviewed_at",
             "reviewed_by",
+            "pending_update",
             "created_at",
             "updated_at",
         )

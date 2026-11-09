@@ -802,3 +802,19 @@
 .admin-layout fieldset {
   border-color: #3a3a42;
 }
+
+/* A live model uploaded again: on sale, waiting in the QA queue (product list and page). */
+.admin-layout .admin-live-update-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid #b45309;
+  border-radius: 999px;
+  background: rgb(245 158 11 / 14%);
+  color: #fcd34d;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}

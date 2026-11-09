@@ -10,6 +10,7 @@ import type {
   PaginatedAdminProducts,
   PaginatedPublicProducts,
   ProductFile,
+  ProductFileCheck,
   ProductFileUploadPayload,
   ProductImage,
   ProductImageUploadPayload,
@@ -100,6 +101,12 @@ export async function bulkDeleteAdminProducts(
 }
 
 /** The uploader's latest imports, with the reason each skipped model did not reach QA. */
+/** Checks that every file the product uses (images, preview, downloads) is in storage. */
+export async function getAdminProductFileCheck(productId: string): Promise<ProductFileCheck> {
+  const response = await apiClient.get<ProductFileCheck>(`/api/v1/admin/products/${productId}/file-check/`)
+  return response.data
+}
+
 export async function listUploaderImports(): Promise<UploaderImport[]> {
   const response = await apiClient.get<{ results: UploaderImport[] }>('/api/v1/admin/activity-logs/', {
     params: { action: 'catalog_ingest_import', page_size: 5 },
