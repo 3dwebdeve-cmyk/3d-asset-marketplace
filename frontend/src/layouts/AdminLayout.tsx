@@ -2,6 +2,8 @@ import { useEffect, useId, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 
 import { AdminIcon, navIconFor } from '../components/admin/AdminIcon'
+import { AdminGlobalSearch } from '../components/admin/AdminGlobalSearch'
+import { AdminNotifications } from '../components/admin/AdminNotifications'
 import { Button } from '../components/ui/Button'
 import { ErrorState } from '../components/ui/ErrorState'
 import { Spinner } from '../components/ui/Spinner'
@@ -177,27 +179,10 @@ export function AdminLayout() {
             </p>
           </div>
 
-          <div className="admin-header__search">
-            <AdminIcon name="search" size={16} />
-            <input
-              type="search"
-              className="admin-header__search-input"
-              placeholder="Search products, users, orders..."
-              aria-label="Search (coming soon)"
-              disabled
-            />
-            <kbd className="admin-header__kbd">Ctrl K</kbd>
-          </div>
+          <AdminGlobalSearch />
 
           <div className="admin-header__actions">
-            <button
-              type="button"
-              className="admin-header__icon-button"
-              aria-label="Notifications (coming soon)"
-              disabled
-            >
-              <AdminIcon name="bell" size={18} />
-            </button>
+            <AdminNotifications />
             {user?.full_name ? (
               <div className="admin-header__profile">
                 <span className="admin-header__avatar" aria-hidden="true">

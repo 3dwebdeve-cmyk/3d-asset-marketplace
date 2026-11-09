@@ -195,9 +195,11 @@ class CheckoutService:
                 idempotency_key=f"checkout-attempt-{attempt.idempotency_key}",
             )
         except stripe.error.StripeError as exc:
-            CheckoutAttempt.objects.filter(pk=attempt.pk, status=CheckoutAttempt.Status.PREPARED).update(
-                status=CheckoutAttempt.Status.REVIEW,
-            )
+            with transaction.atomic():
+                attempt = CheckoutAttempt.objects.select_for_update().get(pk=attempt.pk)
+                if attempt.status == CheckoutAttempt.Status.PREPARED:
+                    attempt.status = CheckoutAttempt.Status.REVIEW
+                    attempt.save(update_fields=["status", "updated_at"])
             raise CheckoutError(
                 "Unable to start checkout. Please try again.",
             ) from exc
