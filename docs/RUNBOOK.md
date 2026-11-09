@@ -35,6 +35,14 @@ result of the daily tasks). It needs these on Render → backend → Environment
 |---|---|
 | `RUN_MAINTENANCE_LOOP_IN_WEB` | `true` (runs the daily tasks and sends the report) |
 | `OPS_REPORT_RECIPIENTS` | team inboxes, comma separated. If empty, every active Administrator gets it |
+| `OPS_DB_WARNING_MB` | Optional database size warning threshold in MiB; set it below the capacity of your actual database plan. `0` or unset disables the warning |
+| `RENDER_METRICS_API_KEY` | Optional Render API key with permission to read service metrics; store as a secret in Render, never in source control |
+| `RENDER_METRICS_SERVICE_ID` | Backend web service ID (`srv-...`). Required with the metrics key to include backend CPU and memory samples |
+
+The report measures the current PostgreSQL database size, which may differ from Render's total
+allocated disk usage. CPU and memory come from the Render metrics API and are latest available
+samples for each returned series, not daily averages or billing. Missing configuration, access,
+or samples is shown as unavailable. Check Render's dashboard for plan limits and historical usage.
 
 The first report arrives about 10 minutes after a deploy, then once a day. The subject says
 `all OK` or how many problems need attention; problems are listed at the top. No report for two
