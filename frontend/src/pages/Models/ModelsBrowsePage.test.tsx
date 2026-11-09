@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { MemoryRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as categoriesApi from '../../api/categoriesApi'
@@ -141,7 +141,7 @@ function renderModelsBrowsePage(initialPath = '/3d-models') {
       <MemoryRouter initialEntries={[initialPath]}>
         <LocationProbe />
         <Routes>
-          <Route path="/free-3d-models" element={<ModelsBrowsePage freeOnly />} />
+          <Route path="/free-3d-models" element={<Navigate to="/3d-models" replace />} />
           <Route path="/3d-models" element={<ModelsBrowsePage />} />
           <Route path="/3d-models/:categorySlug" element={<ModelsBrowsePage />} />
         </Routes>
@@ -164,7 +164,7 @@ beforeEach(() => {
 })
 
 describe('ModelsBrowsePage', () => {
-  it('shows free models on their own canonical page and excludes paid models', async () => {
+  it('shows free and paid models together after redirecting the retired free collection', async () => {
     vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
       ...samplePublicProducts,
       count: 2,
@@ -172,9 +172,9 @@ describe('ModelsBrowsePage', () => {
     })
     renderModelsBrowsePage('/free-3d-models')
     expect(await screen.findByText('Free Chair')).toBeInTheDocument()
-    expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'Free 3D Models' })).toBeInTheDocument()
-    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', expect.stringMatching(/\/free-3d-models$/))
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '3D Models for Furniture, Interiors & Visualization' })).toBeInTheDocument()
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', expect.stringMatching(/\/3d-models$/))
   })
 
   it('renders hero title and product list', async () => {

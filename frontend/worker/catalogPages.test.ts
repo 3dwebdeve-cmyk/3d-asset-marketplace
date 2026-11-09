@@ -13,12 +13,12 @@ const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html
 afterEach(() => vi.unstubAllGlobals())
 
 describe('crawlable model collections', () => {
-  it('redirects the old free filter URL to the dedicated collection', async () => {
-    const response = await worker.fetch(new Request(`${origin}/3d-models?max_price=0&formats=blend&page=2`), env)
+  it('redirects the retired free collection to the unified catalog', async () => {
+    const response = await worker.fetch(new Request(`${origin}/free-3d-models?formats=blend&page=2`), env)
     expect(response.status).toBe(301)
-    expect(response.headers.get('Location')).toBe(`${origin}/free-3d-models?formats=blend&page=2`)
+    expect(response.headers.get('Location')).toBe(`${origin}/3d-models?formats=blend&page=2`)
   })
-  it.each(['/3d-models', '/free-3d-models', '/3d-models/furniture'])(
+  it.each(['/3d-models', '/3d-models/furniture'])(
     'renders actual models, images, schema and page links for %s', async (path) => {
       const fetcher = vi.fn(async (url: URL) => Response.json(url.pathname === '/api/v1/categories/'
         ? { results: [{ id: 'cat-1', name: 'Furniture', slug: 'furniture' }], next: null }
@@ -37,7 +37,7 @@ describe('crawlable model collections', () => {
       const request = fetcher.mock.calls.map(([url]) => url).find((url) => url.pathname === '/api/v1/products/')!
       expect(request.searchParams.get('page_size')).toBe('12')
       expect(request.searchParams.get('page')).toBe('2')
-      if (path === '/free-3d-models') expect(request.searchParams.get('is_free')).toBe('true')
+      expect(request.searchParams.has('is_free')).toBe(false)
       if (path.endsWith('/furniture')) expect(request.searchParams.get('category_id')).toBe('cat-1')
     },
   )
@@ -51,7 +51,7 @@ describe('crawlable model collections', () => {
 
   it('keeps filtered collections out of the index without describing unrelated models', async () => {
     vi.stubGlobal('fetch', vi.fn())
-    const response = await worker.fetch(new Request(`${origin}/3d-models?formats=blend&page=2`), env)
+    const response = await worker.fetch(new Request(`${origin}/3d-models?max_price=0&formats=blend&page=2`), env)
     const doc = parse(await response.text())
     expect(response.headers.get('X-Robots-Tag')).toBe('noindex, follow')
     expect(doc.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe(`${origin}/3d-models`)

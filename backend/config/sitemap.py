@@ -23,7 +23,7 @@ CACHE_SECONDS = 60 * 60
 MAX_URLS = 45_000
 
 # Pages that always exist. Account, cart, checkout and admin pages are deliberately absent.
-STATIC_PATHS = ("/", "/free-3d-models", "/3d-models", "/plugins", "/categories", "/custom-projects", "/about", "/contact")
+STATIC_PATHS = ("/", "/3d-models", "/plugins", "/categories", "/custom-projects", "/about", "/contact")
 
 
 def _excluded(setting_name: str, default: tuple[str, ...]) -> set[str]:

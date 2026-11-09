@@ -22,9 +22,6 @@ import '../../styles/plugins-browse.css'
 import '../../styles/products-browse.css'
 import '../../styles/models-browse.css'
 
-import { isFreeProduct } from '../../types/product'
-import { FREE_MODELS_COPY, FREE_MODELS_PATH } from '../../lib/freeModelsSeo'
-
 const PAGE_SIZE = 12
 const PRODUCTS_BANNER_CATEGORY_ID = 'eecb0550-9eeb-41ed-b48d-9da43948650c'
 
@@ -55,7 +52,7 @@ function readTraitFromUrl(searchParams: URLSearchParams, key: TraitKey): boolean
   return raw === '1' || raw === 'true' || raw === 'yes'
 }
 
-export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
+export function ModelsBrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const { categorySlug } = useParams()
@@ -133,7 +130,6 @@ export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
     if (slugFromPath || !legacyCategory || !urlCategory) return
     const next = new URLSearchParams(searchParams)
     next.delete('category')
-    if (freeOnly) next.set('max_price', '0')
     const query = next.toString()
     navigate(`${categoryPath(urlCategory.slug)}${query ? `?${query}` : ''}`, { replace: true })
   }, [slugFromPath, legacyCategory, urlCategory, searchParams, navigate])
@@ -162,8 +158,8 @@ export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
 
   const formats = searchParams.get('formats')?.split(',').filter(Boolean) ?? []
   const licenses = searchParams.get('licenses')?.split(',').filter(Boolean) ?? []
-  const minPrice = freeOnly ? 0 : Math.max(0, Math.min(200, Number(searchParams.get('min_price')) || 0))
-  const maxPrice = freeOnly ? 0 : Math.max(minPrice, Math.min(200, Number(searchParams.get('max_price') ?? 200) || 0))
+  const minPrice = Math.max(0, Math.min(200, Number(searchParams.get('min_price')) || 0))
+  const maxPrice = Math.max(minPrice, Math.min(200, Number(searchParams.get('max_price') ?? 200) || 0))
   const updateFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(key, value)
@@ -222,7 +218,7 @@ export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
     nextParams.delete('ordering')
     for (const key of ['formats', 'licenses', 'min_price', 'max_price']) nextParams.delete(key)
     const query = nextParams.toString()
-    navigate(`${freeOnly ? FREE_MODELS_PATH : '/3d-models'}${query ? `?${query}` : ''}`, { replace: true })
+    navigate(`/3d-models${query ? `?${query}` : ''}`, { replace: true })
   }
 
 
@@ -260,7 +256,7 @@ export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
 
   const priceMatches = (product: NonNullable<typeof productsData>[number]) => {
     const price = Number(product.discount_price ?? product.price)
-    return (!freeOnly || isFreeProduct(product)) && price >= minPrice && (maxPrice === 200 || price <= maxPrice)
+    return price >= minPrice && (maxPrice === 200 || price <= maxPrice)
   }
   const priceFiltered = (productsData ?? []).filter(priceMatches)
   const facets = {
@@ -297,21 +293,21 @@ export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
 
   const categorySeo = selectedCategory ? getCategorySeo(selectedCategory.slug, selectedCategory.name) : null
   const emptyCategory = Boolean(selectedCategory) && productsData !== undefined && productsData.length === 0
-  const seoCopy = freeOnly ? FREE_MODELS_COPY : categorySeo ?? ALL_MODELS_SEO
-  const pagePath = freeOnly ? FREE_MODELS_PATH : selectedCategory ? categoryPath(selectedCategory.slug) : '/3d-models'
+  const seoCopy = categorySeo ?? ALL_MODELS_SEO
+  const pagePath = selectedCategory ? categoryPath(selectedCategory.slug) : '/3d-models'
   const crumbs = [
     { name: 'Home', path: '/' },
     { name: '3D Models', path: '/3d-models' },
-    ...(freeOnly || selectedCategory ? [{ name: seoCopy.h1, path: pagePath }] : []),
+    ...(selectedCategory ? [{ name: seoCopy.h1, path: pagePath }] : []),
   ]
   const listedProducts = products.map((product) => ({ name: product.name, path: `/products/${product.slug}` }))
   useDocumentSeo({
-    title: freeOnly ? buildPageTitle(FREE_MODELS_COPY.title) : categorySeo ? buildCategoryTitle(categorySeo) : buildPageTitle(ALL_MODELS_SEO.title),
+    title: categorySeo ? buildCategoryTitle(categorySeo) : buildPageTitle(ALL_MODELS_SEO.title),
     description: seoCopy.description,
     // Filtered and searched views all point back to the clean address of the page.
     canonicalPath: pagePath,
     // Searches, placeholder categories and categories with nothing in them are not worth indexing.
-    robots: searchFromUrl || (categorySeo && !categorySeo.indexable) || emptyCategory || (freeOnly && productsData !== undefined && totalCount === 0) ? 'noindex, follow' : undefined,
+    robots: searchFromUrl || (categorySeo && !categorySeo.indexable) || emptyCategory ? 'noindex, follow' : undefined,
     jsonLd: [
       buildBreadcrumbJsonLd(crumbs),
       ...(listedProducts.length > 0 ? [buildItemListJsonLd(seoCopy.h1, listedProducts)] : []),
@@ -325,7 +321,7 @@ export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
   // Until the category list arrives, take the category from the address, so the banner and heading
   // are right from the first paint instead of showing "all models" and then switching.
   const heroSlug = selectedCategory?.slug ?? (categoriesData ? '' : slugFromPath)
-  const heroCopy = freeOnly ? FREE_MODELS_COPY : categorySeo ?? (heroSlug
+  const heroCopy = categorySeo ?? (heroSlug
     ? getCategorySeo(heroSlug, heroSlug.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '))
     : ALL_MODELS_SEO)
   const heroTitle = heroCopy.h1
@@ -493,8 +489,8 @@ export function ModelsBrowsePage({ freeOnly = false }: { freeOnly?: boolean }) {
             <legend>Price</legend>
             <div className="model-filters__range">
               <div className="model-filters__track" style={{ background: `linear-gradient(to right, #ddd ${minPrice / 2}%, var(--action-color) ${minPrice / 2}%, var(--action-color) ${maxPrice / 2}%, #ddd ${maxPrice / 2}%)` }} />
-              <input disabled={freeOnly} aria-label="Minimum price" type="range" min="0" max="200" value={minPrice} onChange={(e) => updateFilter('min_price', String(Math.min(Number(e.target.value), maxPrice)))} />
-              <input disabled={freeOnly} aria-label="Maximum price" type="range" min="0" max="200" value={maxPrice} onChange={(e) => updateFilter('max_price', String(Math.max(Number(e.target.value), minPrice)))} />
+              <input aria-label="Minimum price" type="range" min="0" max="200" value={minPrice} onChange={(e) => updateFilter('min_price', String(Math.min(Number(e.target.value), maxPrice)))} />
+              <input aria-label="Maximum price" type="range" min="0" max="200" value={maxPrice} onChange={(e) => updateFilter('max_price', String(Math.max(Number(e.target.value), minPrice)))} />
             </div>
             <div className="model-filters__prices"><span>${minPrice}</span><span>${maxPrice}{maxPrice === 200 ? '+' : ''}</span></div>
           </fieldset>
