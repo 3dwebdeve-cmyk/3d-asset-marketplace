@@ -176,6 +176,9 @@ holds `preview_unchecked` when that applies.
 | `subcategory_not_found` | The subcategory does not exist (or is inactive) under the category. The product was placed in the parent category. Create the subcategory in `/console`, then re-import. |
 | `preview_unchecked` | The preview was accepted without the 50% reduction check (see Import gate). Send `polygon_count`. |
 | `preview_not_scanned` | The preview was imported without a virus scan, because `CATALOG_IMPORT_SCAN_REQUIRED` is `False` and no scanner is configured. Expected while that switch is off. |
+| `console_text_kept` | Re-upload only: the sheet's name, descriptions or price differ from the product's, and the website kept the product's (see Re-import). Change the text in `/console`, not in the sheet. |
+| `price_needed` | Re-upload only: the model moved from `free-models/` to `models/` but still costs 0. Set a price when approving it in the QA queue. |
+| `live_update_in_qa` | The model is live: it stays on sale and waits in the QA queue as an update (see Re-import). Also set when a live model's re-upload was refused. |
 
 ## Import gate
 
@@ -184,6 +187,9 @@ A row is skipped, with a reason, when any of these apply:
 `invalid_export_size`, `invalid_price`, `invalid_currency`, `missing_thumbnail`,
 `qa_not_ready`, `missing_glb_checksum`, `invalid_r2_prefix`, `missing_preview`,
 `category_unmapped`, `invalid_object_key`.
+
+`category_unmapped` applies to new models only: a re-upload keeps the product's category, so
+the sheet's category is not looked up.
 
 `exports_incomplete`: a row passes when **either** rule passes:
 
@@ -246,9 +252,31 @@ large batches will time out.
 ## Re-import
 
 - Re-importing the same Model ID updates the product (`pending_review` again).
-- A published product is skipped (`published_sku`), so re-sending a batch never takes live
-  models off the store. To replace its files, set it to Draft in `/console`, re-upload and
-  re-import, then approve it again.
+- **The administrator owns the text.** The sheet's name, short description, description,
+  category, price, discount, currency, licence, software and feature ticks are used only
+  when the model is first created. After that they are edited in `/console`, and a re-upload
+  updates only the files and what is measured from them: thumbnail, preview, gallery,
+  package, `polygon_count`, `glb_checksum`, `package_formats`, the batch ID. When the sheet's
+  text or price differs, the row carries the warning `console_text_kept`.
+- The Free tick still decides the price on a re-upload: a model sent to `free-models/` becomes
+  free (price 0, no discount), because its files are public. A model moved from `free-models/`
+  back to `models/` keeps price 0 and carries `price_needed`; set the price when approving it.
+- On the first upload, a trailing "Folders in model folder: …" list (written by the Model ID
+  Tool) is removed from the description and short description. For products imported
+  before this change, run `python manage.py strip_folder_listings` (dry run), then
+  `--apply`.
+- **A published (live) model stays on sale.** Its re-upload goes through the same checks and,
+  when they pass, the product points at the new files at once (the uploader has already
+  replaced them in R2), keeps its text and price, stays `published`, and gets
+  `pending_update`. The row reports `"status": "published"` with the warning
+  `live_update_in_qa`. The model then appears in the `/console` QA queue (Pending review)
+  with an "Update to a live model" badge. **Approve** keeps it on sale and clears the flag;
+  **Reject** takes it off the store (`rejected`), and buyers keep their downloads.
+- If the website refuses a live model's re-upload (any skip or failure reason), the model is
+  still flagged for review with the warning `live_update_in_qa` and a QA note
+  ("Re-upload <batch> was refused (<reason>) ..."), because R2 may already serve the refused
+  files. The next re-upload that passes removes that note.
+- `published_sku` is now only returned for a status the import does not handle.
 - An archived product (deleted in `/console` while it had orders) goes back to
   `pending_review` when it is re-imported; its buyers keep their downloads.
 - Every skipped or failed model is recorded with its reason in the activity log

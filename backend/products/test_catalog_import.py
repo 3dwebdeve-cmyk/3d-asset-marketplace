@@ -205,8 +205,11 @@ class CatalogImportAPITests(CatalogImportTestBase):
 
         self.assertEqual(Product.objects.filter(sku="MDL-000142").count(), 1)
         product = Product.objects.get(sku="MDL-000142")
-        self.assertEqual(product.name, "Studio Chair Oak v2")
-        self.assertEqual(product.price, Decimal("34.99"))
+        # A re-upload updates files only: the name and price stay as first imported
+        # (or as an administrator edited them), and the report says so.
+        self.assertEqual(product.name, "Studio Chair Oak")
+        self.assertEqual(product.price, Decimal("29.99"))
+        self.assertIn("console_text_kept", second.data["results"][0]["warnings"])
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
         self.assertEqual(product.import_batch_id, "2026-09-03-run-02")
         self.assertEqual(
@@ -287,16 +290,11 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(reasons["MDL-000203"], "missing_thumbnail")
         self.assertEqual(Product.objects.filter(sku__startswith="MDL-00020").count(), 0)
 
-    def test_published_is_skipped_and_archived_returns_to_qa(self) -> None:
+    def test_published_stays_live_in_qa_and_archived_returns_to_qa(self) -> None:
         self._authenticate_as_admin()
-        Product.objects.create(
-            category=self.furniture,
-            name="Live Chair",
-            slug="live-chair",
-            sku="MDL-000142",
-            price=Decimal("10.00"),
-            status=Product.Status.PUBLISHED,
-        )
+        # A real live model: imported with its files, then published.
+        self.assertEqual(self._post_batch([_happy_item()], batch_id="first").data["created"], 1)
+        Product.objects.filter(sku="MDL-000142").update(name="Live Chair", status=Product.Status.PUBLISHED)
         Product.objects.create(
             category=self.furniture,
             name="Old Chair",
@@ -319,21 +317,35 @@ class CatalogImportAPITests(CatalogImportTestBase):
                         "package_file_size": 100,
                     },
                 ),
+                _happy_item(
+                    model_id="MDL-000301",
+                    category="DoesNotExist",
+                    r2_key_prefix="models/MDL-000301/",
+                    media={
+                        "thumbnail_key": "models/MDL-000301/thumbnail.jpg",
+                        "preview_key": "models/MDL-000301/preview.glb",
+                        "package_key": "models/MDL-000301/package.zip",
+                        "package_file_size": 100,
+                    },
+                ),
             ]
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["skipped"], 1)
-        self.assertEqual(response.data["updated"], 1, response.data)
-        reasons = {row["model_id"]: row.get("reason") for row in response.data["results"]}
-        self.assertEqual(reasons["MDL-000142"], "published_sku")
+        self.assertEqual(response.data["updated"], 2, response.data)
+        rows = {row["model_id"]: row for row in response.data["results"]}
+        # The live model stays on sale with the new files and waits in the QA queue.
+        self.assertEqual(rows["MDL-000142"]["action"], "updated")
+        self.assertEqual(rows["MDL-000142"]["status"], "published")
+        self.assertIn("live_update_in_qa", rows["MDL-000142"]["warnings"])
+        live = Product.objects.get(sku="MDL-000142")
+        self.assertEqual(live.status, Product.Status.PUBLISHED)
+        self.assertTrue(live.pending_update)
+        self.assertEqual(live.name, "Live Chair")
         self.assertEqual(Product.objects.get(sku="MDL-000300").status, Product.Status.PENDING_REVIEW)
         # The admin sees why a model did not reach QA in the activity log.
         log = ActivityLog.objects.filter(action="catalog_import").latest("created_at")
-        self.assertEqual(log.metadata["skipped_reasons"], {"MDL-000142": "published_sku"})
-        self.assertEqual(
-            Product.objects.get(sku="MDL-000142").status,
-            Product.Status.PUBLISHED,
-        )
+        self.assertEqual(log.metadata["skipped_reasons"], {"MDL-000301": "category_unmapped"})
 
     def test_skip_category_unmapped(self) -> None:
         self._authenticate_as_admin()
@@ -431,7 +443,8 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(response.data["updated"], 1)
         product = Product.objects.get(sku="MDL-000142")
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
-        self.assertEqual(product.name, "Studio Chair Oak")
+        # The existing product's name is the administrator's, not the sheet's.
+        self.assertEqual(product.name, "Rejected Chair")
 
     def test_public_serializers_omit_storage_path_for_imported(self) -> None:
         self._authenticate_as_admin()

@@ -195,7 +195,10 @@ class ProductService(ProductMediaService):
         # Admin list serializers include nested media; keep prefetch.
         queryset = cls._base_queryset()
 
-        if status is not None:
+        if status == Product.Status.PENDING_REVIEW:
+            # The QA queue: new models, plus live models uploaded again (still on sale).
+            queryset = queryset.filter(cls.awaiting_review_q())
+        elif status is not None:
             queryset = queryset.filter(status=status)
         else:
             queryset = queryset.exclude(status=Product.Status.ARCHIVED)
@@ -219,6 +222,17 @@ class ProductService(ProductMediaService):
             )
 
         return queryset.order_by(cls._resolve_ordering(ordering))
+
+    @staticmethod
+    def awaiting_review_q() -> Q:
+        """Products a reviewer must look at: pending review, or a live model's update."""
+        return Q(status=Product.Status.PENDING_REVIEW) | Q(
+            status=Product.Status.PUBLISHED, pending_update=True
+        )
+
+    @staticmethod
+    def is_live_update(product: Product) -> bool:
+        return product.status == Product.Status.PUBLISHED and product.pending_update
 
     @classmethod
     def get_public_by_slug(cls, slug: str) -> Product:
@@ -627,11 +641,14 @@ class ProductService(ProductMediaService):
     ) -> Product:
         """pending_review → published with publish gates. Clears reject_reason.
 
+        A live model's update (published + ``pending_update``) is approved the same way: it
+        stays published and the flag is cleared.
+
         ``pricing`` sets the price on approval: "free" makes the model a free download
         (price 0), "paid" sets ``price``. Without it the current price is kept.
         """
         product = Product.objects.select_for_update().get(pk=product.pk)
-        if product.status != Product.Status.PENDING_REVIEW:
+        if product.status != Product.Status.PENDING_REVIEW and not cls.is_live_update(product):
             raise ProductError(
                 f"Cannot approve product with status '{product.status}'.",
                 field="status",
@@ -641,6 +658,7 @@ class ProductService(ProductMediaService):
         cls._validate_publish_ready(product, require_sku=True)
 
         product.status = Product.Status.PUBLISHED
+        product.pending_update = False
         product.reviewed_at = timezone.now()
         product.reviewed_by = reviewer
         # Clear prior rejection text on approve; qa_notes retained for audit.
@@ -648,6 +666,7 @@ class ProductService(ProductMediaService):
         product.save(
             update_fields=[
                 "status",
+                "pending_update",
                 "reviewed_at",
                 "reviewed_by",
                 "reject_reason",
@@ -668,8 +687,14 @@ class ProductService(ProductMediaService):
         reason: str,
         qa_notes: str | None = None,
     ) -> Product:
-        """pending_review → rejected. Stores reject_reason + review metadata."""
-        if product.status != Product.Status.PENDING_REVIEW:
+        """pending_review → rejected. Stores reject_reason + review metadata.
+
+        Rejecting a live model's update takes the model off sale too (published → rejected):
+        its new files are already what the store serves, and they cannot be rolled back.
+        Buyers keep their downloads (downloads follow the paid order, not the status).
+        """
+        live_update = cls.is_live_update(product)
+        if product.status != Product.Status.PENDING_REVIEW and not live_update:
             raise ProductError(
                 f"Cannot reject product with status '{product.status}'.",
                 field="status",
@@ -678,14 +703,18 @@ class ProductService(ProductMediaService):
         if not normalized_reason:
             raise ProductError("Reject reason is required.", field="reason")
 
-        cls._validate_status_transition(product.status, Product.Status.REJECTED)
+        # A live update leaves published directly, which ordinary edits may not do.
+        if not live_update:
+            cls._validate_status_transition(product.status, Product.Status.REJECTED)
 
         product.status = Product.Status.REJECTED
+        product.pending_update = False
         product.reject_reason = normalized_reason
         product.reviewed_at = timezone.now()
         product.reviewed_by = reviewer
         update_fields = [
             "status",
+            "pending_update",
             "reject_reason",
             "reviewed_at",
             "reviewed_by",

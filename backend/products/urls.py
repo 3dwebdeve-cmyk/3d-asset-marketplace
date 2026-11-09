@@ -5,6 +5,7 @@ from products.views import (
     AdminProductApproveView,
     AdminProductBulkDeleteView,
     AdminProductDetailView,
+    AdminProductFileCheckView,
     AdminProductFileDetailView,
     AdminProductFileUploadView,
     AdminProductImageDetailView,
@@ -35,6 +36,11 @@ admin_urlpatterns = [
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),
         name="admin-product-detail",
+    ),
+    path(
+        "<uuid:product_id>/file-check/",
+        AdminProductFileCheckView.as_view(),
+        name="admin-product-file-check",
     ),
     path(
         "<uuid:product_id>/restore/",

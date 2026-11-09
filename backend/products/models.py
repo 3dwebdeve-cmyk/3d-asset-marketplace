@@ -125,6 +125,10 @@ class Product(models.Model):
         blank=True,
         related_name="reviewed_products",
     )
+    # A published model was uploaded again: it stays on sale with the new files and waits in
+    # the QA queue until a reviewer approves (clears this) or rejects it (takes it off sale).
+    # Only meaningful while the status is published.
+    pending_update = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
