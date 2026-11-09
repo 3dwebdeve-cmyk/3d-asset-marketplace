@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +17,7 @@ vi.mock('../../api/productsApi', async () => {
   return {
     ...actual,
     getAdminProduct: vi.fn(),
+    getAdminProductFileCheck: vi.fn(),
     listAdminCategories: vi.fn(),
     updateAdminProduct: vi.fn(),
     archiveAdminProduct: vi.fn(),
@@ -103,6 +104,15 @@ beforeEach(() => {
   resetToastStore()
   vi.clearAllMocks()
   vi.mocked(productsApi.getAdminProduct).mockResolvedValue(sampleProduct)
+  vi.mocked(productsApi.getAdminProductFileCheck).mockResolvedValue({
+    total: 2,
+    missing: 0,
+    unknown: 0,
+    files: [
+      { role: 'thumbnail', label: 'Thumbnail', key: 'models/MDL-000142/thumb.jpg', bucket: 'public', status: 'found' },
+      { role: 'package', label: 'Download (MDL-000142.zip)', key: 'models/MDL-000142/MDL-000142.zip', bucket: 'private', status: 'found' },
+    ],
+  })
   vi.mocked(categoriesApi.listAdminCategories).mockResolvedValue({
     count: 1,
     next: null,
@@ -120,6 +130,106 @@ beforeEach(() => {
         updated_at: '2024-01-01T00:00:00Z',
       },
     ],
+  })
+})
+
+describe('AdminProductDetailPage file check', () => {
+  it('says every file is in storage when nothing is missing', async () => {
+    renderProductDetailPage()
+
+    expect(await screen.findByText('All 2 file(s) this product uses are in storage.')).toBeInTheDocument()
+    expect(productsApi.getAdminProductFileCheck).toHaveBeenCalledWith(productId)
+  })
+
+  it('lists files missing in storage with their R2 path and bucket', async () => {
+    vi.mocked(productsApi.getAdminProductFileCheck).mockResolvedValue({
+      total: 3,
+      missing: 2,
+      unknown: 0,
+      files: [
+        { role: 'thumbnail', label: 'Thumbnail', key: 'models/MDL-000142/thumb.jpg', bucket: 'public', status: 'found' },
+        { role: 'image', label: 'Image 2', key: 'models/MDL-000142/render_02.jpg', bucket: 'public', status: 'missing' },
+        { role: 'package', label: 'Download (MDL-000142.zip)', key: 'models/MDL-000142/MDL-000142.zip', bucket: 'private', status: 'missing' },
+      ],
+    })
+
+    renderProductDetailPage()
+
+    const warning = await screen.findByRole('alert', { name: '2 file(s) missing in storage' })
+    expect(within(warning).getByText('Image 2')).toBeInTheDocument()
+    expect(within(warning).getByText('models/MDL-000142/render_02.jpg')).toBeInTheDocument()
+    expect(within(warning).getByText('private bucket')).toBeInTheDocument()
+    expect(within(warning).queryByText('Thumbnail')).not.toBeInTheDocument()
+  })
+
+  it('checks again on request', async () => {
+    vi.mocked(productsApi.getAdminProductFileCheck).mockResolvedValue({
+      total: 1,
+      missing: 1,
+      unknown: 0,
+      files: [{ role: 'preview', label: '3D preview', key: 'models/MDL-000142/preview.glb', bucket: 'public', status: 'missing' }],
+    })
+    renderProductDetailPage()
+    const warning = await screen.findByRole('alert', { name: '1 file(s) missing in storage' })
+
+    await userEvent.click(within(warning).getByRole('button', { name: 'Check again' }))
+
+    await waitFor(() => expect(productsApi.getAdminProductFileCheck).toHaveBeenCalledTimes(2))
+  })
+
+  it('marks a gallery image that did not load in the browser', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      images: [
+        { id: 'img-1', image_url: 'https://cdn.example.com/a.jpg', display_order: 0, is_primary: true, created_at: '2024-01-01T00:00:00Z' },
+        { id: 'img-2', image_url: 'https://cdn.example.com/b.jpg', display_order: 1, is_primary: false, created_at: '2024-01-01T00:00:00Z' },
+      ],
+    })
+    renderProductDetailPage()
+    const gallery = await screen.findAllByRole('img', { name: 'Product gallery image' })
+
+    fireEvent.error(gallery[0])
+
+    const warning = await screen.findByRole('alert', { name: '1 image(s) did not load' })
+    expect(within(warning).getByText(/Did not load in this browser: Image 2\./)).toBeInTheDocument()
+    expect(screen.getByText('Did not load')).toBeInTheDocument()
+  })
+})
+
+describe('AdminProductDetailPage live model update', () => {
+  const liveUpdateProduct: AdminProduct = { ...sampleProduct, status: 'published', pending_update: true }
+
+  it('approves the update without changing the price', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue(liveUpdateProduct)
+    vi.mocked(productsApi.approveAdminProduct).mockResolvedValue({ ...liveUpdateProduct, pending_update: false })
+    renderProductDetailPage()
+
+    expect(await screen.findByText('Update to a live model')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /pricing when published/i })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve update' }))
+
+    await waitFor(() => expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, {}))
+  })
+
+  it('rejects the update with a reason, taking the model off the store', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue(liveUpdateProduct)
+    vi.mocked(productsApi.rejectAdminProduct).mockResolvedValue({ ...liveUpdateProduct, status: 'rejected', pending_update: false })
+    renderProductDetailPage()
+
+    await userEvent.type(await screen.findByLabelText(/reject reason/i), 'Renders are broken')
+    await userEvent.click(screen.getByRole('button', { name: 'Reject and take off the store' }))
+
+    await waitFor(() =>
+      expect(productsApi.rejectAdminProduct).toHaveBeenCalledWith(productId, { reason: 'Renders are broken' }),
+    )
+  })
+
+  it('shows no review section for a live model without an update', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({ ...sampleProduct, status: 'published' })
+    renderProductDetailPage()
+
+    expect(await screen.findByDisplayValue('Oak Chair')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /import qa/i })).not.toBeInTheDocument()
   })
 })
 

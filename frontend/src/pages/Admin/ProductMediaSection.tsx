@@ -34,11 +34,19 @@ import type { AdminProduct } from '../../types/product'
 interface ProductMediaSectionProps {
   productId: string
   product: AdminProduct
+  /** Images that did not load in this browser (marked in the list). */
+  failedImageIds?: ReadonlySet<string>
+  onImageLoadError?: (imageId: string) => void
 }
 
 const ModelViewer = lazy(() => import('../../components/viewer/ModelViewer'))
 
-export function ProductMediaSection({ productId, product }: ProductMediaSectionProps) {
+export function ProductMediaSection({
+  productId,
+  product,
+  failedImageIds,
+  onImageLoadError,
+}: ProductMediaSectionProps) {
   const queryClient = useQueryClient()
   const imageInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -236,16 +244,20 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
 
         {product.images.length ? (
           <ul className="admin-media-list">
-            {product.images.map((image) => (
-              <li key={image.id} className="admin-media-item">
+            {product.images.map((image) => {
+              const failed = failedImageIds?.has(image.id) ?? false
+              return (
+              <li key={image.id} className={`admin-media-item${failed ? ' admin-media-item--failed' : ''}`}>
                 <img
                   className="admin-media-thumb"
                   src={image.image_url}
                   alt={image.is_primary ? 'Primary product image' : 'Product gallery image'}
+                  onError={() => onImageLoadError?.(image.id)}
                 />
                 <div className="admin-media-item__content">
                   <p className="admin-media-item__title">
                     {image.is_primary ? 'Primary thumbnail' : 'Gallery image'}
+                    {failed ? <span className="admin-media-item__failed">Did not load</span> : null}
                   </p>
                   <p className="admin-media-item__meta">
                     {image.is_primary
@@ -272,7 +284,8 @@ export function ProductMediaSection({ productId, product }: ProductMediaSectionP
                   </div>
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
         ) : (
           <p className="home-page__subtitle">No images uploaded yet.</p>

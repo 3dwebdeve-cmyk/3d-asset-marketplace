@@ -67,11 +67,18 @@ export interface AdminProduct {
   qa_notes: string
   reviewed_at: string | null
   reviewed_by: string | null
+  /** A published model was uploaded again: still on sale, waiting in the QA queue. */
+  pending_update?: boolean
   category: CategoryParent
   images: ProductImage[]
   files: ProductFile[]
   created_at: string
   updated_at: string
+}
+
+/** A live model's re-upload that waits for review (the model stays on sale meanwhile). */
+export function isLiveUpdate(product: Pick<AdminProduct, 'status' | 'pending_update'>): boolean {
+  return product.status === 'published' && Boolean(product.pending_update)
 }
 
 export interface AdminProductRejectPayload {
@@ -80,7 +87,8 @@ export interface AdminProductRejectPayload {
 }
 
 export interface AdminProductApprovePayload {
-  pricing: 'free' | 'paid'
+  /** Leave out to keep the current price (a live model's update). */
+  pricing?: 'free' | 'paid'
   price?: string
 }
 
@@ -108,6 +116,26 @@ export interface UploaderImport {
     /** Model ID → why it did not reach QA. */
     skipped_reasons?: Record<string, string>
   }
+}
+
+/** found: in storage. missing: not there. unknown: storage did not answer. external: another host. */
+export type ProductFileCheckStatus = 'found' | 'missing' | 'unknown' | 'external'
+
+/** One file a product uses, checked against storage (R2 or local media). */
+export interface ProductFileCheckEntry {
+  role: 'thumbnail' | 'preview' | 'preview_video' | 'image' | 'package' | 'preview_file'
+  label: string
+  /** Object key in the bucket, or the full URL for a file on another host. */
+  key: string
+  bucket: 'public' | 'private' | 'external' | 'invalid'
+  status: ProductFileCheckStatus
+}
+
+export interface ProductFileCheck {
+  total: number
+  missing: number
+  unknown: number
+  files: ProductFileCheckEntry[]
 }
 
 export interface AdminProductCreatePayload {

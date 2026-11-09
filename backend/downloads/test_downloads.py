@@ -265,6 +265,28 @@ class DownloadAPITests(APITestCase):
         content = b"".join(response.streaming_content)
         self.assertIn(b"PK", content)
 
+    def test_rejected_live_update_keeps_buyer_downloads(self) -> None:
+        from products.services import ProductService
+
+        product_file = self._upload_product_file()
+        self.create_paid_order(self.customer)
+        Product.objects.filter(pk=self.product.pk).update(pending_update=True)
+
+        ProductService.reject_product(
+            Product.objects.get(pk=self.product.pk), reviewer=self.admin, reason="Broken renders"
+        )
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.status, Product.Status.REJECTED)
+        self.client.force_authenticate(user=self.customer)
+        public_url = reverse("products:product-detail", kwargs={"slug": self.product.slug})
+        self.assertEqual(self.client.get(public_url).status_code, status.HTTP_404_NOT_FOUND)
+        entitlements = self.client.get(self.entitlements_url)
+        self.assertEqual(entitlements.status_code, status.HTTP_200_OK)
+        self.assertEqual(str(entitlements.data[0]["files"][0]["id"]), str(product_file.pk))
+        response = self.client.get(entitlements.data[0]["files"][0]["download_url"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_deleted_product_moves_to_archive_without_losing_buyer_downloads(self) -> None:
         product_file = self._upload_product_file()
         order = self.create_paid_order(self.customer)

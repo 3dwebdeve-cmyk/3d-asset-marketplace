@@ -53,9 +53,32 @@ _IMPORT_COPY_KEY_RE = re.compile(
     r"models/(?P<sku>[^/]+)/(?:.+-[0-9a-f]{12}\.webp|preview-[0-9a-f]{32}\.glb)"
 )
 PREVIEW_NOT_SCANNED_NOTE = "Preview imported without a virus scan (no scanner configured)."
+# The Model ID Tool ends descriptions with its folder list ("Folders in model folder:
+# - BLENDER_FILE - FBX ..."). It describes the pipeline's folders, not the model.
+_FOLDER_LISTING_RE = re.compile(r"\s*Folders in model folder\s*:.*\Z", re.IGNORECASE | re.DOTALL)
+# Row warning: a re-upload kept the text an administrator owns (see _update_product).
+CONSOLE_TEXT_KEPT = "console_text_kept"
+# Row warning: a model moved from free-models/ to models/ and still costs 0; QA sets a price.
+PRICE_NEEDED = "price_needed"
+# Row warning: the model is live; it stays on sale and waits in the QA queue as an update.
+LIVE_UPDATE_IN_QA = "live_update_in_qa"
+# QA note on a live model whose re-upload the website refused. The uploader replaces the
+# files in R2 before it calls the import, so the store may already serve the new files.
+_REFUSED_NOTE_PREFIX = "Re-upload "
+
+
+def strip_folder_listing(text: str) -> str:
+    """Drop the pipeline's trailing "Folders in model folder: ..." list from a description."""
+    return _FOLDER_LISTING_RE.sub("", text or "").strip()
+
+
+def _without_refusal_notes(notes: str) -> str:
+    return "\n".join(
+        line for line in (notes or "").splitlines() if not line.startswith(_REFUSED_NOTE_PREFIX)
+    ).strip()
 # A re-upload sends these back to QA. An archived model (deleted while it had orders)
-# returns too: uploading it again means it should be sold again. A published model is
-# left as it is, so re-sending a batch never takes live models off the store.
+# returns too: uploading it again means it should be sold again. A published model is not
+# in this set: it stays on sale and its update waits in the QA queue (`pending_update`).
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
@@ -197,6 +220,10 @@ class CatalogImportService:
             import_source=import_source,
             warnings=warnings,
         )
+        if row.action in ("skipped", "failed") and cls._flag_refused_live_update(
+            row, import_batch_id=import_batch_id
+        ):
+            warnings.append(LIVE_UPDATE_IN_QA)
         # `warnings` lists every warning; `warning` keeps its single value for older callers.
         if row.warning:
             warnings.append(row.warning)
@@ -214,7 +241,8 @@ class CatalogImportService:
         # models/<sku>/ is a paid model (zip in the private bucket); free-models/<sku>/ is
         # a free one with every file, zip included, in the public bucket.
         prefix = str(item.get("r2_key_prefix") or "").strip()
-        if prefix.startswith(FREE_MODELS_PREFIX):
+        free_upload = prefix.startswith(FREE_MODELS_PREFIX)
+        if free_upload:
             item = {**item, "price": "0", "discount_price": None}
 
         raw_model_id = str(item.get("model_id") or "").strip()
@@ -236,17 +264,36 @@ class CatalogImportService:
                 reason="invalid_model_id",
             )
 
-        category = cls.resolve_category(
-            str(item.get("category") or ""),
-            str(item.get("subcategory") or ""),
-            warnings=warnings,
-        )
-        if category is None:
-            return CatalogImportRowResult(
-                model_id=sku,
-                action="skipped",
-                reason="category_unmapped",
+        try:
+            existing = ProductService.get_by_sku(sku)
+        except ProductError:
+            existing = None
+
+        # A live model uploaded again stays on sale with its new files (the uploader has
+        # already replaced them in R2) and waits in the QA queue as an update.
+        live_update = existing is not None and existing.status == Product.Status.PUBLISHED
+        if existing is not None:
+            if not live_update and existing.status not in _UPSERTABLE_STATUSES:
+                return CatalogImportRowResult(
+                    model_id=sku,
+                    action="skipped",
+                    reason="published_sku",
+                )
+            # The administrator owns an existing model's category, like its text, so the
+            # sheet's category is not needed (and an unknown one does not block a re-upload).
+            category = existing.category
+        else:
+            category = cls.resolve_category(
+                str(item.get("category") or ""),
+                str(item.get("subcategory") or ""),
+                warnings=warnings,
             )
+            if category is None:
+                return CatalogImportRowResult(
+                    model_id=sku,
+                    action="skipped",
+                    reason="category_unmapped",
+                )
 
         media = item.get("media") or {}
         try:
@@ -257,25 +304,6 @@ class CatalogImportService:
                 action="skipped",
                 reason=exc.message if exc.field == "object_key" else "invalid_object_key",
             )
-
-        try:
-            existing = ProductService.get_by_sku(sku)
-        except ProductError:
-            existing = None
-
-        if existing is not None:
-            if existing.status == Product.Status.PUBLISHED:
-                return CatalogImportRowResult(
-                    model_id=sku,
-                    action="skipped",
-                    reason="published_sku",
-                )
-            if existing.status not in _UPSERTABLE_STATUSES:
-                return CatalogImportRowResult(
-                    model_id=sku,
-                    action="skipped",
-                    reason="published_sku",
-                )
 
         # Catch a typo or failed upload now rather than at approval.
         package_key = media_pointers["package_key"]
@@ -300,6 +328,10 @@ class CatalogImportService:
             return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.message)
 
         previous_copies = cls._import_copies(sku, existing)
+        # Worked out before the update, which leaves the administrator's text as it is.
+        text_kept = existing is not None and cls._sheet_text_differs(
+            existing, item, free_upload=free_upload
+        )
 
         try:
             with transaction.atomic():
@@ -318,12 +350,14 @@ class CatalogImportService:
                         existing,
                         item,
                         sku=sku,
-                        category=category,
                         import_batch_id=import_batch_id,
                         import_source=import_source,
                         media_pointers=media_pointers,
+                        free_upload=free_upload,
+                        live_update=live_update,
                     )
                     action = "updated"
+                cls._sync_review_flags(product, live_update=live_update)
                 if product.preview_triangle_count != media_pointers["preview_triangle_count"]:
                     product.preview_triangle_count = media_pointers["preview_triangle_count"]
                     product.save(update_fields=["preview_triangle_count", "updated_at"])
@@ -355,6 +389,12 @@ class CatalogImportService:
         cls._delete_unreferenced_copies(previous_copies)
         if media_pointers["preview_not_scanned"]:
             warnings.append("preview_not_scanned")
+        if text_kept:
+            warnings.append(CONSOLE_TEXT_KEPT)
+        if live_update:
+            warnings.append(LIVE_UPDATE_IN_QA)
+        if action == "updated" and not free_upload and product.price <= 0:
+            warnings.append(PRICE_NEEDED)
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -780,6 +820,32 @@ class CatalogImportService:
         except _STORAGE_ERRORS:
             logger.exception("catalog_import_object_delete_failed key=%s", key)
 
+    @staticmethod
+    def _sheet_description(item: dict[str, Any]) -> str:
+        return strip_folder_listing(str(item.get("description") or ""))
+
+    @staticmethod
+    def _sheet_short_description(item: dict[str, Any]) -> str:
+        return strip_folder_listing(str(item.get("short_description") or ""))[:500]
+
+    @classmethod
+    def _sheet_text_differs(cls, product: Product, item: dict[str, Any], *, free_upload: bool) -> bool:
+        """True when the sheet's text or price differs from the product's, so the
+        uploader's report can say the website kept the administrator's version."""
+        if str(item.get("name") or "").strip() != product.name:
+            return True
+        if cls._sheet_description(item) != (product.description or "").strip():
+            return True
+        if cls._sheet_short_description(item) != (product.short_description or "").strip():
+            return True
+        if free_upload:
+            return False
+        try:
+            sheet_price = Decimal(str(item.get("price")))
+        except (ArithmeticError, ValueError):
+            return False
+        return sheet_price != product.price
+
     @classmethod
     def _create_product(
         cls,
@@ -806,7 +872,6 @@ class CatalogImportService:
         if license_type not in {c.value for c in Product.LicenseType}:
             license_type = Product.LicenseType.STANDARD
 
-        short_description = str(item.get("short_description") or "")[:500]
         polygon_count = item.get("polygon_count")
         if polygon_count is not None:
             polygon_count = int(polygon_count)
@@ -816,8 +881,8 @@ class CatalogImportService:
                 category_id=category.pk,
                 name=str(item.get("name") or "").strip(),
                 price=price,
-                description=str(item.get("description") or ""),
-                short_description=short_description,
+                description=cls._sheet_description(item),
+                short_description=cls._sheet_short_description(item),
                 currency=currency,
                 discount_price=discount,
                 thumbnail=media_pointers["thumbnail_url"],
@@ -848,28 +913,21 @@ class CatalogImportService:
         item: dict[str, Any],
         *,
         sku: str,
-        category: Category,
         import_batch_id: str,
         import_source: str,
         media_pointers: dict[str, Any],
+        free_upload: bool,
+        live_update: bool = False,
     ) -> Product:
-        price = item["price"]
-        if not isinstance(price, Decimal):
-            price = Decimal(str(price))
-        discount = item.get("discount_price")
-        clear_discount = discount is None or discount == ""
-        discount_value: Decimal | None = None
-        if not clear_discount:
-            discount_value = (
-                discount if isinstance(discount, Decimal) else Decimal(str(discount))
-            )
+        """Update a re-uploaded model's files only; the administrator owns its text.
 
-        currency = str(item.get("currency") or "USD").strip().upper() or "USD"
-        license_type = str(item.get("license_type") or Product.LicenseType.STANDARD).strip()
-        if license_type not in {c.value for c in Product.LicenseType}:
-            license_type = Product.LicenseType.STANDARD
-
-        short_description = str(item.get("short_description") or "")[:500]
+        Name, descriptions, category, price, currency, licence, software and the feature
+        ticks are set from the sheet on the first upload and edited in /console after
+        that, so a re-upload never overwrites them. The one exception is a model the
+        uploader marked Free: its files are in the public bucket, so it cannot be sold
+        and the price becomes 0. Back to Pending review, except a live model (``live_update``),
+        which stays published and is flagged for review by ``_sync_review_flags``.
+        """
         polygon_count = item.get("polygon_count")
         clear_polygon = polygon_count is None
         polygon_value: int | None = None if clear_polygon else int(polygon_count)
@@ -877,25 +935,13 @@ class CatalogImportService:
         return ProductService.update_product(
             product,
             ProductUpdateData(
-                category_id=category.pk,
-                name=str(item.get("name") or "").strip(),
-                description=str(item.get("description") or ""),
-                short_description=short_description,
-                price=price,
-                currency=currency,
-                discount_price=discount_value,
-                clear_discount_price=clear_discount,
+                price=Decimal("0") if free_upload else None,
+                clear_discount_price=free_upload,
                 thumbnail=media_pointers["thumbnail_url"],
                 preview_model=media_pointers["preview_url"],
                 polygon_count=polygon_value,
                 clear_polygon_count=clear_polygon,
-                software_used=str(item.get("software_used") or ""),
-                animated=bool(item.get("animated", False)),
-                rigged=bool(item.get("rigged", False)),
-                pbr_ready=bool(item.get("pbr_ready", False)),
-                game_ready=bool(item.get("game_ready", False)),
-                license_type=license_type,
-                status=Product.Status.PENDING_REVIEW,
+                status=None if live_update else Product.Status.PENDING_REVIEW,
                 sku=sku,
                 import_batch_id=import_batch_id,
                 import_source=import_source,
@@ -927,6 +973,45 @@ class CatalogImportService:
                 )
             )
         ProductImage.objects.bulk_create(images)
+
+    @staticmethod
+    def _sync_review_flags(product: Product, *, live_update: bool) -> None:
+        """A live model's update waits for review; any other upload goes through the normal
+        queue. A successful upload also clears an earlier "re-upload refused" note."""
+        notes = _without_refusal_notes(product.qa_notes)
+        if product.pending_update == live_update and notes == (product.qa_notes or "").strip():
+            return
+        product.pending_update = live_update
+        product.qa_notes = notes
+        product.save(update_fields=["pending_update", "qa_notes", "updated_at"])
+
+    @classmethod
+    def _flag_refused_live_update(cls, row: CatalogImportRowResult, *, import_batch_id: str) -> bool:
+        """Put a live model in the QA queue when the website refused its re-upload.
+
+        The uploader sends the files to R2 before it calls the import, so the store may
+        already serve the refused files. Returns True when a live model was flagged.
+        """
+        sku = Product.normalize_sku(row.model_id)
+        if sku is None:
+            return False
+        product = Product.objects.filter(sku=sku, status=Product.Status.PUBLISHED).first()
+        if product is None:
+            return False
+        note = (
+            f"{_REFUSED_NOTE_PREFIX}{import_batch_id} was refused ({row.reason or row.action}); "
+            "the files in R2 may already have changed. Check the files, then approve or reject."
+        )
+        product.qa_notes = f"{_without_refusal_notes(product.qa_notes)}\n{note}".strip()
+        product.pending_update = True
+        product.save(update_fields=["pending_update", "qa_notes", "updated_at"])
+        logger.warning(
+            "catalog_import_live_update_refused model_id=%s batch_id=%s reason=%s",
+            sku,
+            import_batch_id,
+            row.reason,
+        )
+        return True
 
     @staticmethod
     def _sync_scan_note(product: Product, not_scanned: bool | None) -> None:

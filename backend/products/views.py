@@ -31,6 +31,7 @@ from config.media import (
 from config.storages import build_public_media_url
 from config.http_cache import PublicCatalogCacheMixin
 from products.catalog_import import CatalogImportService
+from products.file_check import check_product_files, summarize
 from products.models import Product
 from products.pagination import ProductPagination
 from products.serializers import (
@@ -595,6 +596,32 @@ class CatalogIngestImportView(APIView):
             },
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)
+
+
+class AdminProductFileCheckView(APIView):
+    """GET /api/v1/admin/products/<id>/file-check/ — is every file the product uses in storage?
+
+    Read-only: one existence check per file (thumbnail, preview, images, downloads).
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+
+    def get(self, request: Request, product_id: UUID) -> Response:
+        try:
+            product = ProductService.get_by_id(product_id)
+        except ProductError as exc:
+            raise NotFound(exc.message) from exc
+
+        result = summarize(check_product_files(product))
+        if result["missing"]:
+            logger.info(
+                "product_file_check product_id=%s missing=%s unknown=%s",
+                product.pk,
+                result["missing"],
+                result["unknown"],
+            )
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class AdminProductApproveView(APIView):

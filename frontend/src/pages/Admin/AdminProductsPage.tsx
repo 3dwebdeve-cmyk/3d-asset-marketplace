@@ -21,7 +21,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION, PRODUCT_RESTORE_CONFIRMATION } from '../../lib/productArchive'
-import { isFreeProduct } from '../../types/product'
+import { isFreeProduct, isLiveUpdate } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus } from '../../types/product'
 import { UploaderImportsPanel } from './UploaderImportsPanel'
 
@@ -508,7 +508,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                     </td> : null}
                     <td><span className="products-product"><span className="products-thumbnail">{product.thumbnail ? <img src={product.thumbnail} alt="" loading="lazy" /> : <AdminIcon name="box" size={24} />}</span><span>{product.name}</span></span></td>
                     <td><span className="products-sku">{product.sku ?? "\u2014"}</span></td>
-                    <td><span className={`products-status products-status--${product.status}`}>{product.status === 'published' ? <AdminIcon name="check" size={14} /> : null}{product.status.replace(/_/g, ' ')}</span></td>
+                    <td><span className={`products-status products-status--${product.status}`}>{product.status === 'published' ? <AdminIcon name="check" size={14} /> : null}{product.status.replace(/_/g, ' ')}</span>{isLiveUpdate(product) ? <span className="admin-live-update-badge">Update to a live model</span> : null}</td>
                     <td>{product.import_batch_id || '—'}</td>
                     <td>
                       {isFreeProduct(product) ? 'Free' : `${product.currency} ${product.price}`}
