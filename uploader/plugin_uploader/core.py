@@ -27,6 +27,47 @@ CONTENT_TYPES = {
     ".png": "image/png",
 }
 
+# Website reasons (the row was not imported), in words a person can act on.
+REASONS = {
+    "plugin_id_in_use": "the Plugin ID belongs to another plugin on the website: ask an administrator",
+    "unknown_category": "the category is not on the website, or was turned off there",
+    "category_mismatch": "the Plugin ID does not match the category",
+    "invalid_plugin_id": "invalid Plugin ID",
+    "invalid_object_key": "a file path is not under plugins/<ID>/",
+    "missing_thumbnail_object": "the website cannot find the image in storage: run again",
+    "invalid_thumbnail": "the image is not a real image, or it is too large",
+    "missing_package_object": "the website cannot find the zip in storage: run again",
+    "import_error": "the website hit an error on this row: try again, then tell an administrator",
+    # Older websites only; a re-upload of a published plugin is now accepted as an update.
+    "already_reviewed": "already published on the website",
+}
+
+# Website warnings (the row was still imported, unless it was skipped), in words.
+WARNINGS = {
+    "console_text_kept": (
+        "the website kept the name and description set in /console (the sheet's text is used "
+        "on the first upload only)"
+    ),
+    "live_update_in_qa": (
+        "the plugin is live: it stays on sale with the new files and waits for an administrator "
+        "to review the update"
+    ),
+}
+
+
+def describe_outcome(outcome: dict[str, Any]) -> str:
+    """The report message for one row of the website's answer."""
+    warnings = [WARNINGS.get(str(code), str(code)) for code in outcome.get("warnings") or []]
+    if outcome.get("action") in ("created", "updated"):
+        live = "live_update_in_qa" in (outcome.get("warnings") or [])
+        message = f"{outcome['action']}; " + ("still on sale, update waiting for review." if live else "waiting for review.")
+    else:
+        reason = str(outcome.get("reason") or "")
+        message = REASONS.get(reason, reason) or "Not imported."
+    if warnings:
+        message += " Note: " + "; ".join(warnings) + "."
+    return message
+
 
 class UploaderError(Exception):
     """A problem with the sheet or the files. The message is shown to the operator."""
@@ -334,8 +375,8 @@ def run_batch(
             if plan is None:
                 continue
             if outcome.get("action") in ("created", "updated"):
-                report.set_status(plan.row.row_number, "imported", f"{outcome['action']}; waiting for review.")
+                report.set_status(plan.row.row_number, "imported", describe_outcome(outcome))
                 saved.append((plan.row.row_number, plan.plugin_id))
             else:
-                report.set_status(plan.row.row_number, "skipped", outcome.get("reason") or "Not imported.")
+                report.set_status(plan.row.row_number, "skipped", describe_outcome(outcome))
     return report, saved

@@ -24,6 +24,7 @@ import type {
   PluginOrdering,
   PluginStatus,
 } from '../../types/plugin'
+import { isLivePluginUpdate } from '../../types/plugin'
 
 const emptyCreateForm: AdminPluginCreatePayload = {
   category_id: '',
@@ -306,7 +307,7 @@ export function AdminPluginsPage() {
                     <tr key={plugin.id}>
                       <td><div className="plugins-product"><span className="plugins-product__icon">{plugin.thumbnail ? <img src={plugin.thumbnail} alt="" loading="lazy" /> : <AdminIcon name="box" size={32} />}</span><div><strong>{plugin.name}</strong><p>{plugin.short_description}</p></div></div></td>
                       <td><span className="plugins-category">{plugin.category.name}</span></td><td>{plugin.version}</td>
-                      <td>{plugin.currency} {plugin.price}</td><td><span className={`plugins-status plugins-status--${plugin.status}`}><AdminIcon name={plugin.status === 'published' ? 'check' : plugin.status === 'archived' ? 'archive' : 'clock'} size={16} />{plugin.status.replace('_', ' ')}</span></td>
+                      <td>{plugin.currency} {plugin.price}</td><td><span className={`plugins-status plugins-status--${plugin.status}`}><AdminIcon name={plugin.status === 'published' ? 'check' : plugin.status === 'archived' ? 'archive' : 'clock'} size={16} />{plugin.status.replace('_', ' ')}</span>{isLivePluginUpdate(plugin) ? <span className="admin-live-update-badge">Update to a live plugin</span> : null}</td>
                       <td><div className="plugins-row-actions"><Link className="plugins-manage" to={`/console/plugins/${plugin.id}`}><AdminIcon name="settings" size={19} />Manage</Link>
                         <details className="plugins-more"><summary aria-label={`More actions for ${plugin.name}`}><span aria-hidden="true">&#8942;</span></summary><div className="plugins-more__menu"><Link to={`/console/plugins/${plugin.id}`}>Edit plugin</Link><button type="button" onClick={(event) => { setCategoryId(plugin.category.id); resetPage(); event.currentTarget.closest('details')?.removeAttribute('open') }}>Show this category</button></div></details>
                       </div></td>

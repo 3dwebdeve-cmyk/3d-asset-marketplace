@@ -39,10 +39,12 @@ class _PluginReviewView(APIView):
 
 
 class AdminPluginApproveView(_PluginReviewView):
-    """POST /api/v1/admin/plugins/<id>/approve/ — pending_review → published."""
+    """POST /api/v1/admin/plugins/<id>/approve/ — pending_review → published, or a live
+    plugin's update approved (stays published)."""
 
     def post(self, request: Request, plugin_id: UUID) -> Response:
         plugin = self._get_plugin(plugin_id)
+        live_update = PluginService.is_live_update(plugin)
         serializer = PluginApproveSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -50,7 +52,7 @@ class AdminPluginApproveView(_PluginReviewView):
             updated = PluginService.approve_plugin(
                 plugin,
                 reviewer=request.user,
-                price=data["price"],
+                price=data.get("price"),
                 currency=data.get("currency") or None,
                 discount_price=data.get("discount_price"),
                 qa_notes=data.get("qa_notes"),
@@ -61,16 +63,22 @@ class AdminPluginApproveView(_PluginReviewView):
             action="plugin_approve",
             actor_id=str(request.user.pk),
             target_id=str(updated.pk),
-            metadata={"price": str(updated.price), "plugin_id": updated.plugin_id},
+            metadata={
+                "price": str(updated.price),
+                "plugin_id": updated.plugin_id,
+                "live_update": live_update,
+            },
         )
         return Response(PluginAdminSerializer(updated).data, status=status.HTTP_200_OK)
 
 
 class AdminPluginRejectView(_PluginReviewView):
-    """POST /api/v1/admin/plugins/<id>/reject/ — pending_review → rejected."""
+    """POST /api/v1/admin/plugins/<id>/reject/ — pending_review → rejected, or a live
+    plugin's update rejected (taken off the store)."""
 
     def post(self, request: Request, plugin_id: UUID) -> Response:
         plugin = self._get_plugin(plugin_id)
+        live_update = PluginService.is_live_update(plugin)
         serializer = PluginRejectSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -87,7 +95,7 @@ class AdminPluginRejectView(_PluginReviewView):
             action="plugin_reject",
             actor_id=str(request.user.pk),
             target_id=str(updated.pk),
-            metadata={"plugin_id": updated.plugin_id},
+            metadata={"plugin_id": updated.plugin_id, "live_update": live_update},
         )
         return Response(PluginAdminSerializer(updated).data, status=status.HTTP_200_OK)
 
