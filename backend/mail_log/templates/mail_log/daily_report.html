@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:24px 12px;background:#f3f5f9;color:#172033;font-family:Arial,Helvetica,sans-serif;">
+  <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e2e7ef;border-radius:12px;overflow:hidden;">
+    <div style="padding:24px;background:#17233b;color:#ffffff;">
+      <h1 style="margin:0 0 8px;font-size:24px;">AssetHive3D daily report</h1>
+      <p style="margin:0;color:#dce5f6;font-size:14px;">Report time: {{ report_time }}</p>
+    </div>
+    <div style="padding:24px;">
+      {% if problems %}
+      <h2 style="margin:0 0 10px;color:#a72f28;font-size:19px;">Needs attention</h2>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+        {% for problem in problems %}<tr><td style="padding:12px;border:1px solid #f0d1cd;background:#fff5f3;font-size:14px;line-height:1.5;">{{ problem }}</td></tr>{% endfor %}
+      </table>
+      {% else %}
+      <p style="padding:12px;background:#effaf3;color:#176238;font-weight:bold;">No problems need attention.</p>
+      {% endif %}
+      {% for section in sections %}
+      <h2 style="margin:24px 0 10px;font-size:18px;">{{ section.title }}</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead><tr><th scope="col" style="text-align:left;padding:10px;border:1px solid #dce3ed;background:#f1f4f8;">Item</th><th scope="col" style="text-align:left;padding:10px;border:1px solid #dce3ed;background:#f1f4f8;">Result</th></tr></thead>
+        <tbody>{% for row in section.rows %}<tr><th scope="row" style="text-align:left;padding:10px;border:1px solid #dce3ed;font-weight:normal;">{{ row.label }}</th><td style="padding:10px;border:1px solid #dce3ed;">{{ row.value }}</td></tr>{% endfor %}</tbody>
+      </table>
+      {% endfor %}
+      <p style="margin:24px 0 0;color:#58677c;font-size:12px;">For help with a problem, see docs/RUNBOOK.md in the repository.</p>
+    </div>
+  </div>
+</body>
+</html>
