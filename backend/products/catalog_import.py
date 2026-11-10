@@ -26,7 +26,13 @@ from config.upload_security import (
     scan_error_code,
 )
 from products.edge_colour import edge_fields, fetch_side_colours
-from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
+from products.models import (
+    PRODUCT_SKU_REGEX,
+    Product,
+    ProductFile,
+    ProductImage,
+    ProductPriceChange,
+)
 from products.services import (
     ProductCreateData,
     ProductError,
@@ -58,10 +64,14 @@ PREVIEW_NOT_SCANNED_NOTE = "Preview imported without a virus scan (no scanner co
 _FOLDER_LISTING_RE = re.compile(r"\s*Folders in model folder\s*:.*\Z", re.IGNORECASE | re.DOTALL)
 # Row warning: a re-upload kept the text an administrator owns (see _update_product).
 CONSOLE_TEXT_KEPT = "console_text_kept"
-# Row warning: a model moved from free-models/ to models/ and still costs 0; QA sets a price.
+# Row warning: a model moved from free-models/ to models/ and still costs 0; it gets its
+# price on the Pricing page after QA.
 PRICE_NEEDED = "price_needed"
 # Row warning: the model is live; it stays on sale and waits in the QA queue as an update.
 LIVE_UPDATE_IN_QA = "live_update_in_qa"
+# Row warning: a live free model was uploaded as paid; it left the store and goes through QA
+# and the Pricing page again (its zip is now private, so it cannot stay a free download).
+FREE_TO_PAID_OFF_SALE = "free_to_paid_off_sale"
 # QA note on a live model whose re-upload the website refused. The uploader replaces the
 # files in R2 before it calls the import, so the store may already serve the new files.
 _REFUSED_NOTE_PREFIX = "Re-upload "
@@ -77,12 +87,14 @@ def _without_refusal_notes(notes: str) -> str:
         line for line in (notes or "").splitlines() if not line.startswith(_REFUSED_NOTE_PREFIX)
     ).strip()
 # A re-upload sends these back to QA. An archived model (deleted while it had orders)
-# returns too: uploading it again means it should be sold again. A published model is not
+# returns too: uploading it again means it should be sold again. A model waiting for its
+# price is not on sale yet, so its new files need a new QA check. A published model is not
 # in this set: it stays on sale and its update waits in the QA queue (`pending_update`).
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
         Product.Status.PENDING_REVIEW,
+        Product.Status.AWAITING_PRICE,
         Product.Status.REJECTED,
         Product.Status.ARCHIVED,
     }
@@ -272,8 +284,18 @@ class CatalogImportService:
         # A live model uploaded again stays on sale with its new files (the uploader has
         # already replaced them in R2) and waits in the QA queue as an update.
         live_update = existing is not None and existing.status == Product.Status.PUBLISHED
+        # A live free model (price 0) uploaded again as paid: its zip moves to the private
+        # bucket, and at price 0 the free download would hand that zip to anyone. It leaves
+        # the store and goes through QA and the Pricing page like a new paid model.
+        free_to_paid = live_update and not free_upload and existing.price == 0
+        if free_to_paid:
+            live_update = False
         if existing is not None:
-            if not live_update and existing.status not in _UPSERTABLE_STATUSES:
+            if (
+                not live_update
+                and not free_to_paid
+                and existing.status not in _UPSERTABLE_STATUSES
+            ):
                 return CatalogImportRowResult(
                     model_id=sku,
                     action="skipped",
@@ -395,6 +417,8 @@ class CatalogImportService:
             warnings.append(LIVE_UPDATE_IN_QA)
         if action == "updated" and not free_upload and product.price <= 0:
             warnings.append(PRICE_NEEDED)
+        if free_to_paid:
+            warnings.append(FREE_TO_PAID_OFF_SALE)
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -889,8 +913,6 @@ class CatalogImportService:
                 preview_model=media_pointers["preview_url"],
                 polygon_count=polygon_count,
                 software_used=str(item.get("software_used") or ""),
-                animated=bool(item.get("animated", False)),
-                rigged=bool(item.get("rigged", False)),
                 pbr_ready=bool(item.get("pbr_ready", False)),
                 game_ready=bool(item.get("game_ready", False)),
                 license_type=license_type,
@@ -951,6 +973,7 @@ class CatalogImportService:
                 has_package=media_pointers["has_package"],
                 package_formats=cls.normalize_package_formats(item.get("package_formats")),
             ),
+            price_source=ProductPriceChange.Source.IMPORT,
         )
 
     @classmethod

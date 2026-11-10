@@ -102,8 +102,6 @@ const sampleDetail: PublicProductDetail = {
   polygon_count: 12000,
   vertex_count: 8000,
   software_used: 'Blender',
-  animated: true,
-  rigged: false,
   pbr_ready: true,
   game_ready: true,
   license_type: 'standard',
@@ -685,5 +683,26 @@ describe('ProductDetailsPage', () => {
     expect(
       screen.getAllByRole('heading', { name: /cyberpunk drone 3d/i }).length,
     ).toBe(1)
+  })
+})
+
+describe('ProductDetailsPage sale end', () => {
+  it('shows when a running sale ends, in the visitor time zone', async () => {
+    const ends = '2099-01-31T13:00:00Z'
+    vi.mocked(productsApi.getPublicProduct).mockResolvedValue({ ...sampleDetail, discount_ends_at: ends })
+    renderProductDetails()
+
+    const line = await screen.findByText(/^sale ends /i)
+    expect(line).toHaveTextContent(
+      new Date(ends).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
+    )
+  })
+
+  it('shows no end line for a sale without an end date', async () => {
+    vi.mocked(productsApi.getPublicProduct).mockResolvedValue({ ...sampleDetail, discount_ends_at: null })
+    renderProductDetails()
+
+    await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
+    expect(screen.queryByText(/^sale ends /i)).not.toBeInTheDocument()
   })
 })

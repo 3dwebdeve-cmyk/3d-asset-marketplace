@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 from config.validators import validate_storage_path
@@ -24,6 +25,8 @@ class Product(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
         PENDING_REVIEW = "pending_review", "Pending review"
+        # A paid model passed QA (quality) and waits on the Pricing page for its price.
+        AWAITING_PRICE = "awaiting_price", "Waiting for price"
         PUBLISHED = "published", "Published"
         REJECTED = "rejected", "Rejected"
         ARCHIVED = "archived", "Archived"
@@ -74,6 +77,10 @@ class Product(models.Model):
         blank=True,
         validators=[MinValueValidator(Decimal("0.00"))],
     )
+    # When the sale price stops applying (UTC). Null: the sale runs until removed. Every
+    # price read goes through active_discount_price(), so an ended sale is never charged,
+    # even before the maintenance loop clears these fields.
+    discount_ends_at = models.DateTimeField(null=True, blank=True)
     thumbnail = models.URLField(blank=True)
     preview_model = models.URLField(blank=True)
     # Triangles in the public preview, measured when it was stored. The preview must
@@ -153,6 +160,19 @@ class Product(models.Model):
         """A free model (price 0) is downloaded without checkout."""
         return self.price is not None and self.price == 0
 
+    def active_discount_price(self, now=None) -> Decimal | None:
+        """The sale price while the sale runs, else None. The only way to read a sale price."""
+        if self.discount_price is None:
+            return None
+        if self.discount_ends_at is not None and (now or timezone.now()) >= self.discount_ends_at:
+            return None
+        return self.discount_price
+
+    def effective_price(self, now=None) -> Decimal:
+        """What a buyer pays now: the running sale price, else the normal price."""
+        discount = self.active_discount_price(now)
+        return discount if discount is not None else self.price
+
     @staticmethod
     def normalize_sku(value: str | None) -> str | None:
         """Uppercase + strip; blank becomes None so unique allows many unset SKUs."""
@@ -176,6 +196,52 @@ class Product(models.Model):
             if exclude_id is not None:
                 queryset = queryset.exclude(pk=exclude_id)
         return slug
+
+
+class ProductPriceChange(models.Model):
+    """One change to a model's price, sale price or sale end (who, when, before and after).
+
+    Written by products.price_history.record_price_change; never edited afterwards.
+    """
+
+    class Source(models.TextChoices):
+        ADMIN_EDIT = "admin_edit", "Admin edit"
+        QA_APPROVAL = "qa_approval", "QA approval"
+        PRICING_PAGE = "pricing_page", "Pricing page"
+        IMPORT = "import", "Upload import"
+        SALE_ENDED = "sale_ended", "Sale ended"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="price_changes")
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="product_price_changes",
+    )
+    source = models.CharField(max_length=20, choices=Source.choices)
+    # Groups the rows of one action (for example one Pricing page save); blank otherwise.
+    batch_id = models.CharField(max_length=64, blank=True, default="")
+    currency = models.CharField(max_length=3, default="USD")
+    old_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    new_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    old_discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    new_discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    old_discount_ends_at = models.DateTimeField(null=True, blank=True)
+    new_discount_ends_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "product_price_changes"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["product", "created_at"]),
+            models.Index(fields=["batch_id"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.product_id} {self.old_price}->{self.new_price} ({self.source})"
 
 
 class ProductImage(models.Model):

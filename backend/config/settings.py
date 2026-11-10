@@ -535,6 +535,8 @@ REST_FRAMEWORK = {
         "avatar_upload": "10/hour",
         "admin_category_write": "60/min",
         "admin_product_write": "60/min",
+        # Pricing page list and calculator preview (recalculated as the admin types).
+        "admin_pricing_read": "120/min",
         # Uploader exe: about 5 models per request, each scanned and re-stored.
         "catalog_ingest": "30/min",
         "admin_plugin_write": "60/min",

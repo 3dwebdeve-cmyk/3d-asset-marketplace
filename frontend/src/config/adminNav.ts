@@ -17,6 +17,7 @@ export const adminNavItems: AdminNavItem[] = [
     to: `${adminPath('products')}?status=pending_review`,
     enabled: true,
   },
+  { label: 'Pricing', to: adminPath('pricing'), enabled: true },
   { label: 'Plugins', to: adminPath('plugins'), enabled: true },
   { label: 'Categories', to: adminPath('categories'), enabled: true },
   { label: 'Users', to: adminPath('users'), enabled: true },

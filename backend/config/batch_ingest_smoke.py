@@ -70,8 +70,6 @@ INTAKE_COLUMNS: tuple[str, ...] = (
     "Gallery Image Paths",
     "License Type",
     "Tags",
-    "Rigged",
-    "Animated",
     "PBR Ready",
     "Game Ready",
     "Software Used",
@@ -282,8 +280,6 @@ def _row_to_import_item(
         "short_description": intake.get("Short Description", ""),
         "description": intake.get("Description", ""),
         "license_type": intake.get("License Type", "") or "standard",
-        "rigged": _parse_bool(intake.get("Rigged", "")),
-        "animated": _parse_bool(intake.get("Animated", "")),
         "pbr_ready": _parse_bool(intake.get("PBR Ready", "")),
         "game_ready": _parse_bool(intake.get("Game Ready", "")),
         "software_used": intake.get("Software Used", ""),
@@ -552,7 +548,12 @@ def run_batch_ingest_smoke(*, apply: bool = False) -> BatchIngestSmokeResult:
                 BatchIngestSmokeCheck(
                     name="apply_happy_publish",
                     ok=True,
-                    detail=f"sku={published_sku} status=published",
+                    detail=f"sku={published_sku} status="
+                    + str(
+                        Product.objects.filter(sku=published_sku)
+                        .values_list("status", flat=True)
+                        .first()
+                    ),
                 )
             )
         except BatchIngestSmokeError as exc:

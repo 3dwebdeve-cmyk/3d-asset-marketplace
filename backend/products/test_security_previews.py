@@ -145,7 +145,8 @@ class ApprovePreviewGateTests(TestCase):
 
     def test_reduced_preview_is_approved(self) -> None:
         approved = ProductService.approve_product(self.product, reviewer=self.reviewer)
-        self.assertEqual(approved.status, Product.Status.PUBLISHED)
+        # Paid model: it passed every gate and now waits for its price.
+        self.assertEqual(approved.status, Product.Status.AWAITING_PRICE)
 
     def test_polygon_count_raised_later_is_caught(self) -> None:
         # The preview passed at upload, but the model's count was lowered afterwards.

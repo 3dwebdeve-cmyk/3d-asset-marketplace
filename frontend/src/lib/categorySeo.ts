@@ -116,7 +116,7 @@ const OTHER_CATEGORIES: Record<string, Entry> = {
   character: {
     title: 'Character 3D Models',
     description: 'Character 3D models for games, animation and visualization. ' + BUY_LINE,
-    intro: 'Character models for games, animation and visualization. Filter for rigged or animated assets.',
+    intro: 'Character models for games, animation and visualization.',
   },
   'assets-props': {
     title: 'Props & Assets 3D Models',

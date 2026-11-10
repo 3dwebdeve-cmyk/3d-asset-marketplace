@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -63,8 +63,6 @@ const sampleProducts = {
       polygon_count: null,
       vertex_count: null,
       software_used: '',
-      animated: false,
-      rigged: false,
       pbr_ready: false,
       game_ready: false,
       license_type: 'standard' as const,
@@ -281,6 +279,25 @@ describe('AdminProductsPage', () => {
     )
   })
 
+  it('labels awaiting_price as Waiting for price in the list and offers it as a filter', async () => {
+    vi.mocked(productsApi.listAdminProducts).mockResolvedValue({
+      ...sampleProducts,
+      results: [{ ...sampleProducts.results[0], status: 'awaiting_price' }],
+    } as unknown as typeof sampleProducts)
+    renderProductsPage('/console/products?status=awaiting_price')
+
+    await waitFor(() => {
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'awaiting_price' }),
+      )
+    })
+    const filter = screen.getByLabelText('Filter by status') as HTMLSelectElement
+    expect(within(filter).getByRole('option', { name: 'Waiting for price' })).toHaveValue('awaiting_price')
+    expect(filter.value).toBe('awaiting_price')
+    expect(await screen.findAllByText('Waiting for price')).not.toHaveLength(0)
+    expect(screen.queryByText('awaiting price')).not.toBeInTheDocument()
+  })
+
   it('filters by pending_review from the QA queue URL', async () => {
     renderProductsPage('/console/products?status=pending_review')
 
@@ -353,5 +370,49 @@ describe('AdminProductsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Admin Dashboard')).toBeInTheDocument()
     })
+  })
+})
+
+describe('AdminProductsPage QA sections', () => {
+  it('splits the QA queue into Free and Paid sections with counts and labels', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.listAdminProducts).mockImplementation(async (params) => {
+      if (params?.page_size === 1 && params.kind) {
+        return { ...sampleProducts, count: params.kind === 'free' ? 3 : 5, results: [] }
+      }
+      const kind = params?.kind ?? 'paid'
+      return {
+        ...sampleProducts,
+        results: [{ ...sampleProducts.results[0], status: 'pending_review' as const, upload_kind: kind }],
+      }
+    })
+    renderProductsPage('/console/products?status=pending_review')
+
+    const free = await screen.findByRole('tab', { name: /free models/i })
+    expect(free).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(within(free).getByText('3')).toBeInTheDocument())
+    expect(within(screen.getByRole('tab', { name: /paid models/i })).getByText('5')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'pending_review', kind: 'free', page: 1 }),
+      ),
+    )
+    expect(await screen.findByText('Free', { selector: '.admin-kind-badge' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: /paid models/i }))
+
+    await waitFor(() =>
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'pending_review', kind: 'paid', page: 1 }),
+      ),
+    )
+    expect(await screen.findByText('Paid', { selector: '.admin-kind-badge' })).toBeInTheDocument()
+    expect(screen.getByText(/sends it to the pricing page/i)).toBeInTheDocument()
+  })
+
+  it('shows no sections outside the QA queue', async () => {
+    renderProductsPage('/console/products')
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /free models/i })).not.toBeInTheDocument()
   })
 })

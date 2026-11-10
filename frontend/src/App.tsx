@@ -256,6 +256,11 @@ const AdminAnalyticsPage = lazy(() =>
     default: module.AdminAnalyticsPage,
   })),
 )
+const AdminPricingPage = lazy(() =>
+  import('./pages/Admin/AdminPricingPage').then((module) => ({
+    default: module.AdminPricingPage,
+  })),
+)
 
 const AboutPage = lazy(() =>
   import('./pages/About/AboutPage').then((module) => ({
@@ -385,6 +390,7 @@ function AppRoutes() {
               />
               <Route path={`${ADMIN_BASE}/products`} element={<AdminProductsPage key="products" />} />
               <Route path={`${ADMIN_BASE}/archived`} element={<AdminProductsPage key="archived" archived />} />
+              <Route path={`${ADMIN_BASE}/pricing`} element={<AdminPricingPage />} />
               <Route path={`${ADMIN_BASE}/archived/:productId`} element={<AdminProductDetailPage />} />
               <Route
                 path={`${ADMIN_BASE}/products/:productId`}

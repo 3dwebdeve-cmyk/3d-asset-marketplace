@@ -143,7 +143,9 @@ class CatalogImportCommerceE2ETests(APITestCase):
             format="json",
         )
         self.assertEqual(approve.status_code, status.HTTP_200_OK)
-        self.assertEqual(approve.data["status"], "published")
+        # A paid model waits for its price after QA; the Pricing page then publishes it.
+        self.assertEqual(approve.data["status"], "awaiting_price")
+        Product.objects.filter(pk=product.pk).update(status=Product.Status.PUBLISHED)
 
         self.client.credentials()
         public_after = self.client.get(self.public_list_url)

@@ -818,3 +818,63 @@
   white-space: nowrap;
   vertical-align: middle;
 }
+
+/* QA queue: Free and Paid sections, and the kind label on each row. */
+.admin-layout .admin-qa-sections {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-layout .admin-qa-sections p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.admin-layout .admin-qa-sections__tab {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-layout .admin-qa-sections__tab--active {
+  border-color: var(--admin-red);
+  background: var(--accent-soft);
+  color: var(--text-heading);
+}
+
+.admin-layout .admin-qa-sections__tab:focus-visible {
+  outline: 2px solid var(--admin-red);
+  outline-offset: 2px;
+}
+
+.admin-layout .admin-kind-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.admin-layout .admin-kind-badge--free {
+  border: 1px solid #15803d;
+  background: rgb(34 197 94 / 14%);
+  color: #86efac;
+}
+
+.admin-layout .admin-kind-badge--paid {
+  border: 1px solid #1d4ed8;
+  background: rgb(59 130 246 / 14%);
+  color: #93c5fd;
+}

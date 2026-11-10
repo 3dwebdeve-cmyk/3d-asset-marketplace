@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Prefetch, Q, QuerySet
+from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from categories.models import Category
-from config.media import is_free_model_path, package_object_exists
+from config.media import FREE_MODELS_PREFIX, is_free_model_path, package_object_exists
 from config.currency import (
     MINIMUM_CHECKOUT_AMOUNTS,
     normalize_currency,
@@ -21,7 +22,20 @@ from products.media_service import (  # noqa: F401 - re-exported for existing im
     ProductMediaService,
     preview_reduction_error,
 )
-from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
+from products.models import (
+    PRODUCT_SKU_REGEX,
+    Product,
+    ProductFile,
+    ProductImage,
+    ProductPriceChange,
+)
+from products.price_history import PriceState, record_price_change
+
+# Upload kind (docs/PRICING_PIPELINE.md): a model whose sellable zip is under free-models/
+# is free; any other model is paid.
+UPLOAD_KIND_FREE = "free"
+UPLOAD_KIND_PAID = "paid"
+UPLOAD_KINDS = frozenset({UPLOAD_KIND_FREE, UPLOAD_KIND_PAID})
 
 
 @dataclass(frozen=True)
@@ -39,8 +53,6 @@ class ProductCreateData:
     polygon_count: int | None = None
     vertex_count: int | None = None
     software_used: str = ""
-    animated: bool = False
-    rigged: bool = False
     pbr_ready: bool = False
     game_ready: bool = False
     license_type: str = Product.LicenseType.STANDARD
@@ -66,6 +78,9 @@ class ProductUpdateData:
     currency: str | None = None
     discount_price: Decimal | None = None
     clear_discount_price: bool = False
+    # When the sale ends (time-zone aware, in the future). Clearing the sale price clears it.
+    discount_ends_at: datetime | None = None
+    clear_discount_ends_at: bool = False
     thumbnail: str | None = None
     preview_model: str | None = None
     preview_video: str | None = None
@@ -74,8 +89,6 @@ class ProductUpdateData:
     vertex_count: int | None = None
     clear_vertex_count: bool = False
     software_used: str | None = None
-    animated: bool | None = None
-    rigged: bool | None = None
     pbr_ready: bool | None = None
     game_ready: bool | None = None
     license_type: str | None = None
@@ -112,8 +125,6 @@ class ProductService(ProductMediaService):
         category_id: UUID | None = None,
         search: str | None = None,
         ordering: str | None = None,
-        animated: bool | None = None,
-        rigged: bool | None = None,
         pbr_ready: bool | None = None,
         game_ready: bool | None = None,
     ) -> QuerySet[Product]:
@@ -135,8 +146,6 @@ class ProductService(ProductMediaService):
                 "preview_video",
                 "polygon_count",
                 "vertex_count",
-                "animated",
-                "rigged",
                 "pbr_ready",
                 "game_ready",
                 "sku",
@@ -170,10 +179,6 @@ class ProductService(ProductMediaService):
                 | Q(software_used__icontains=query)
             )
 
-        if animated is not None:
-            queryset = queryset.filter(animated=animated)
-        if rigged is not None:
-            queryset = queryset.filter(rigged=rigged)
         if pbr_ready is not None:
             queryset = queryset.filter(pbr_ready=pbr_ready)
         if game_ready is not None:
@@ -191,6 +196,7 @@ class ProductService(ProductMediaService):
         sku: str | None = None,
         import_batch_id: str | None = None,
         ordering: str | None = None,
+        kind: str | None = None,
     ) -> QuerySet[Product]:
         # Admin list serializers include nested media; keep prefetch.
         queryset = cls._base_queryset()
@@ -202,6 +208,11 @@ class ProductService(ProductMediaService):
             queryset = queryset.filter(status=status)
         else:
             queryset = queryset.exclude(status=Product.Status.ARCHIVED)
+        if kind is not None:
+            if kind not in UPLOAD_KINDS:
+                raise ProductError("Kind must be 'free' or 'paid'.", field="kind")
+            free = cls.free_upload_exists()
+            queryset = queryset.filter(free if kind == UPLOAD_KIND_FREE else ~free)
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
         normalized_sku = Product.normalize_sku(sku)
@@ -224,6 +235,17 @@ class ProductService(ProductMediaService):
         return queryset.order_by(cls._resolve_ordering(ordering))
 
     @staticmethod
+    def free_upload_exists() -> Exists:
+        """SQL form of ``upload_kind == "free"``: a sellable zip under free-models/, stored as
+        a bare key, a /media/ path or a full public URL (as ``is_free_model_path`` reads them)."""
+        return Exists(
+            ProductFile.objects.filter(product_id=OuterRef("pk"), is_preview=False).filter(
+                Q(storage_path__startswith=FREE_MODELS_PREFIX)
+                | Q(storage_path__contains=f"/{FREE_MODELS_PREFIX}")
+            )
+        )
+
+    @staticmethod
     def awaiting_review_q() -> Q:
         """Products a reviewer must look at: pending review, or a live model's update."""
         return Q(status=Product.Status.PENDING_REVIEW) | Q(
@@ -233,6 +255,17 @@ class ProductService(ProductMediaService):
     @staticmethod
     def is_live_update(product: Product) -> bool:
         return product.status == Product.Status.PUBLISHED and product.pending_update
+
+    @staticmethod
+    def upload_kind(product: Product) -> str:
+        """"free" when any sellable file is under free-models/, else "paid".
+
+        Reads ``product.files.all()`` so a prefetched admin list adds no queries.
+        """
+        for product_file in product.files.all():
+            if not product_file.is_preview and is_free_model_path(product_file.storage_path):
+                return UPLOAD_KIND_FREE
+        return UPLOAD_KIND_PAID
 
     @classmethod
     def get_public_by_slug(cls, slug: str) -> Product:
@@ -317,6 +350,10 @@ class ProductService(ProductMediaService):
 
         if status == Product.Status.PUBLISHED:
             raise ProductError('Create as draft, upload a package and preview, then publish.', field='status')
+        if status == Product.Status.AWAITING_PRICE:
+            raise ProductError(
+                "A model waits for its price only after QA approves it.", field="status"
+            )
 
         product = Product.objects.create(
             category=category,
@@ -341,8 +378,6 @@ class ProductService(ProductMediaService):
             polygon_count=data.polygon_count,
             vertex_count=data.vertex_count,
             software_used=data.software_used.strip(),
-            animated=data.animated,
-            rigged=data.rigged,
             pbr_ready=data.pbr_ready,
             game_ready=data.game_ready,
             license_type=license_type,
@@ -352,9 +387,22 @@ class ProductService(ProductMediaService):
 
     @classmethod
     @transaction.atomic
-    def update_product(cls, product: Product, data: ProductUpdateData) -> Product:
+    def update_product(
+        cls,
+        product: Product,
+        data: ProductUpdateData,
+        *,
+        actor=None,
+        price_source: str = ProductPriceChange.Source.ADMIN_EDIT,
+    ) -> Product:
+        """Apply an edit. A change to the price, sale price or sale end writes one
+        ProductPriceChange row (``price_source``, ``actor``) in the same transaction."""
         product = Product.objects.select_for_update().get(pk=product.pk)
+        price_before = PriceState.of(product)
         update_fields: list[str] = ["updated_at"]
+        # A form sends the stored sale end back with every save: unchanged means not sent.
+        if data.discount_ends_at is not None and data.discount_ends_at == product.discount_ends_at:
+            data = replace(data, discount_ends_at=None)
 
         if data.category_id is not None:
             product.category = cls._resolve_category(data.category_id)
@@ -390,6 +438,19 @@ class ProductService(ProductMediaService):
             update_fields.append("short_description")
 
         price = product.price if data.price is None else data.price
+        # A paid model's zip is in the private bucket: making it free would hand that zip to
+        # anyone. Only a re-upload with the Free tick (the import) makes a model free.
+        if (
+            data.price is not None
+            and data.price == 0
+            and product.price != 0
+            and price_source != ProductPriceChange.Source.IMPORT
+            and cls.upload_kind(product) == UPLOAD_KIND_PAID
+        ):
+            raise ProductError(
+                "A paid model cannot be made free here. Upload it again with the Free tick.",
+                field="price",
+            )
         if data.clear_discount_price:
             discount_price: Decimal | None = None
         elif data.discount_price is not None:
@@ -397,14 +458,43 @@ class ProductService(ProductMediaService):
         else:
             discount_price = product.discount_price
 
-        if data.price is not None or data.discount_price is not None or data.clear_discount_price:
+        touches_sale = (
+            data.price is not None
+            or data.discount_price is not None
+            or data.clear_discount_price
+            or data.discount_ends_at is not None
+            or data.clear_discount_ends_at
+        )
+        sale_ended = (
+            product.discount_price is not None
+            and product.discount_ends_at is not None
+            and product.discount_ends_at <= timezone.now()
+        )
+        # An ended sale (not yet cleared by the maintenance loop) is never revived by
+        # resending its price, nor by removing or moving its end date. Starting a sale again
+        # needs a sale price in the request together with a new price or a new end date.
+        restarting = data.discount_price is not None and (
+            data.discount_price != product.discount_price or data.discount_ends_at is not None
+        )
+        if touches_sale and sale_ended and not restarting:
+            discount_price = None
+
+        if touches_sale:
             cls._validate_pricing(price, discount_price)
+            cls._validate_sale_minimum(product.currency, discount_price)
             if data.price is not None:
                 product.price = data.price
                 update_fields.append("price")
-            if data.discount_price is not None or data.clear_discount_price:
+            if discount_price != product.discount_price:
                 product.discount_price = discount_price
                 update_fields.append("discount_price")
+
+        discount_ends_at = cls._resolve_discount_ends_at(
+            product, data, discount_price, price_before.discount_price
+        )
+        if discount_ends_at != product.discount_ends_at:
+            product.discount_ends_at = discount_ends_at
+            update_fields.append("discount_ends_at")
 
         if data.currency is not None:
             product.currency = cls._normalize_currency(data.currency)
@@ -440,7 +530,7 @@ class ProductService(ProductMediaService):
             product.software_used = data.software_used.strip()
             update_fields.append("software_used")
 
-        for field_name in ("animated", "rigged", "pbr_ready", "game_ready"):
+        for field_name in ("pbr_ready", "game_ready"):
             value = getattr(data, field_name)
             if value is not None:
                 setattr(product, field_name, value)
@@ -452,12 +542,40 @@ class ProductService(ProductMediaService):
 
         if data.status is not None:
             new_status = cls._normalize_status(data.status)
-            cls._validate_status_transition(product.status, new_status)
+            # The import takes a live free model that was uploaded as paid off the store and
+            # back to QA (catalog_import, free_to_paid). No other edit may do that.
+            import_takes_off_sale = (
+                price_source == ProductPriceChange.Source.IMPORT
+                and product.status == Product.Status.PUBLISHED
+                and new_status == Product.Status.PENDING_REVIEW
+            )
+            if not import_takes_off_sale:
+                cls._validate_status_transition(product.status, new_status)
             # Publishing goes through the review queue so the reviewer is recorded.
             # Direct edits cannot publish, whatever the product's origin.
             if new_status == Product.Status.PUBLISHED and product.status != Product.Status.PUBLISHED:
                 raise ProductError(
                     "Publish through the review queue so the reviewer is recorded.",
+                    field="status",
+                )
+            # Only a QA approval moves a paid model to Waiting for price.
+            if (
+                new_status == Product.Status.AWAITING_PRICE
+                and product.status != Product.Status.AWAITING_PRICE
+            ):
+                raise ProductError(
+                    "Approve the model in the QA queue to send it to Waiting for price.",
+                    field="status",
+                )
+            # Only a re-upload sends a waiting model back to QA (docs/PRICING_PIPELINE.md);
+            # a stale form must not undo the QA approval.
+            if (
+                product.status == Product.Status.AWAITING_PRICE
+                and new_status == Product.Status.PENDING_REVIEW
+                and price_source != ProductPriceChange.Source.IMPORT
+            ):
+                raise ProductError(
+                    "This model already passed QA. Reject it, or upload it again to re-check it.",
                     field="status",
                 )
             product.status = new_status
@@ -496,8 +614,58 @@ class ProductService(ProductMediaService):
         if product.status == Product.Status.PUBLISHED:
             cls._validate_publish_ready(product)
         product.save(update_fields=list(dict.fromkeys(update_fields)))
+        record_price_change(product, price_before, source=price_source, actor=actor)
         updated = cls.get_by_id(product.pk)
         return updated
+
+    @staticmethod
+    def _resolve_discount_ends_at(
+        product: Product,
+        data: ProductUpdateData,
+        discount_price: Decimal | None,
+        previous_discount_price: Decimal | None,
+    ) -> datetime | None:
+        """The sale end after this edit. ``discount_price`` is the sale price after it.
+
+        A new end must be time-zone aware, in the future, and needs a sale price. Removing
+        the sale price removes its end. A new sale price on a product whose old end has
+        passed must come with a new end (or null), so a sale never starts already ended.
+        """
+        if discount_price is None:
+            if data.discount_ends_at is not None:
+                raise ProductError(
+                    "Set a sale price to give the sale an end date.",
+                    field="discount_ends_at",
+                )
+            return None
+        if data.clear_discount_ends_at:
+            return None
+        if data.discount_ends_at is not None:
+            ends_at = data.discount_ends_at
+            if timezone.is_naive(ends_at):
+                raise ProductError(
+                    "Give the sale end with a time zone.",
+                    field="discount_ends_at",
+                )
+            if ends_at <= timezone.now():
+                raise ProductError(
+                    "The sale end must be in the future.",
+                    field="discount_ends_at",
+                )
+            return ends_at
+        current = product.discount_ends_at
+        if (
+            data.discount_price is not None
+            and data.discount_price != previous_discount_price
+            and current is not None
+            and current <= timezone.now()
+        ):
+            raise ProductError(
+                "This sale's end date has passed. Send a new discount_ends_at, "
+                "or null for a sale with no end.",
+                field="discount_ends_at",
+            )
+        return current
 
     @classmethod
     @transaction.atomic
@@ -536,38 +704,21 @@ class ProductService(ProductMediaService):
         return "archived"
 
     @classmethod
-    def _apply_approval_pricing(
-        cls, product: Product, pricing: str | None, price: Decimal | None
-    ) -> list[str]:
-        """Set the price chosen at approval; returns the fields to save."""
-        if pricing is None:
-            return []
-        if pricing == "free":
-            product.price = Decimal("0.00")
-            product.discount_price = None
-            return ["price", "discount_price"]
-        if pricing != "paid":
-            raise ProductError("Pricing must be 'free' or 'paid'.", field="pricing")
-        minimum = MINIMUM_CHECKOUT_AMOUNTS.get(normalize_currency(product.currency))
-        if price is None or price <= 0:
-            raise ProductError("Enter a price above 0 for a paid model.", field="price")
-        if minimum is not None and price < minimum:
-            raise ProductError(
-                f"The lowest price checkout accepts is {minimum} {product.currency}.",
-                field="price",
-            )
-        product.price = price
-        if product.discount_price is not None and product.discount_price >= price:
-            product.discount_price = None
-        return ["price", "discount_price"]
-
-    @classmethod
-    def _validate_publish_ready(cls, product: Product, *, require_sku: bool = False) -> None:
+    def _validate_publish_ready(
+        cls,
+        product: Product,
+        *,
+        require_sku: bool = False,
+        check_price: bool = True,
+    ) -> None:
         """Conservative publish gates for the QA approve path (Feature 16 Phase 8).
 
         Aligned with docs/batch-ingest-contract.md sellability needs: identity,
         pricing, category, web preview, and at least one paid package file.
         Manual publishing uses the same delivery checks; SKUs remain required for batch approval.
+
+        ``check_price=False`` skips the price checks (price, currency, checkout minimum and
+        the free-models price check): a paid model that passes QA still waits for its price.
         """
         errors: dict[str, list[str]] = {}
 
@@ -583,13 +734,16 @@ class ProductService(ProductMediaService):
         elif not Category.objects.filter(pk=product.category_id, is_active=True).exists():
             errors["category"] = ["Category not found or inactive."]
 
-        try:
-            cls._validate_currency_prices(product.currency, product.price, product.discount_price)
-        except ProductError as exc:
-            errors['price'] = [exc.message]
+        if check_price:
+            try:
+                cls._validate_currency_prices(
+                    product.currency, product.price, product.discount_price
+                )
+            except ProductError as exc:
+                errors['price'] = [exc.message]
 
-        if product.price is None or product.price < Decimal("0.00"):
-            errors["price"] = ["A valid non-negative price is required."]
+            if product.price is None or product.price < Decimal("0.00"):
+                errors["price"] = ["A valid non-negative price is required."]
 
         sellable_files = list(
             ProductFile.objects.filter(
@@ -606,7 +760,11 @@ class ProductService(ProductMediaService):
                 "Sellable package object is missing from private storage. "
                 "Upload or migrate the package before publish."
             ]
-        elif product.price and any(is_free_model_path(row.storage_path) for row in sellable_files):
+        elif (
+            check_price
+            and product.price
+            and any(is_free_model_path(row.storage_path) for row in sellable_files)
+        ):
             # Anyone can fetch a zip in the public free-models/ folder, so it cannot be sold.
             errors["price"] = ["This model's zip is in the free-models folder: publish it as free."]
 
@@ -636,28 +794,57 @@ class ProductService(ProductMediaService):
         product: Product,
         *,
         reviewer,
-        pricing: str | None = None,
-        price: Decimal | None = None,
     ) -> Product:
-        """pending_review → published with publish gates. Clears reject_reason.
+        """QA approval (docs/PRICING_PIPELINE.md, "Statuses"). Clears reject_reason.
 
-        A live model's update (published + ``pending_update``) is approved the same way: it
-        stays published and the flag is cleared.
+        - pending_review, free upload: published, with every publish gate. A price other
+          than 0 becomes 0 and any sale is cleared (price history, source qa_approval).
+        - pending_review, paid upload: awaiting_price. Every publish gate runs except the
+          price checks; the price is set later on the Pricing page.
+        - live update (published + ``pending_update``): stays published, the flag is
+          cleared and the price is kept.
 
-        ``pricing`` sets the price on approval: "free" makes the model a free download
-        (price 0), "paid" sets ``price``. Without it the current price is kept.
+        QA never sets a paid model's price.
         """
         product = Product.objects.select_for_update().get(pk=product.pk)
-        if product.status != Product.Status.PENDING_REVIEW and not cls.is_live_update(product):
+        live_update = cls.is_live_update(product)
+        if product.status != Product.Status.PENDING_REVIEW and not live_update:
             raise ProductError(
                 f"Cannot approve product with status '{product.status}'.",
                 field="status",
             )
-        price_fields = cls._apply_approval_pricing(product, pricing, price)
-        cls._validate_status_transition(product.status, Product.Status.PUBLISHED)
-        cls._validate_publish_ready(product, require_sku=True)
 
-        product.status = Product.Status.PUBLISHED
+        before = PriceState.of(product)
+        price_fields: list[str] = []
+        kind = cls.upload_kind(product)
+        if live_update and kind == UPLOAD_KIND_PAID and product.price == 0:
+            # A live model at price 0 whose zip is now the private, paid one: approving it as
+            # it is would give the paid zip away. It leaves the store and waits for a price.
+            new_status = Product.Status.AWAITING_PRICE
+            cls._validate_publish_ready(product, require_sku=True, check_price=False)
+        elif live_update:
+            new_status = Product.Status.PUBLISHED
+            cls._validate_publish_ready(product, require_sku=True)
+        elif kind == UPLOAD_KIND_FREE:
+            new_status = Product.Status.PUBLISHED
+            # A free model is a free download: price 0 and no sale.
+            if (
+                product.price != 0
+                or product.discount_price is not None
+                or product.discount_ends_at is not None
+            ):
+                product.price = Decimal("0.00")
+                product.discount_price = None
+                product.discount_ends_at = None
+                price_fields = ["price", "discount_price", "discount_ends_at"]
+            cls._validate_status_transition(product.status, new_status)
+            cls._validate_publish_ready(product, require_sku=True)
+        else:
+            new_status = Product.Status.AWAITING_PRICE
+            cls._validate_status_transition(product.status, new_status)
+            cls._validate_publish_ready(product, require_sku=True, check_price=False)
+
+        product.status = new_status
         product.pending_update = False
         product.reviewed_at = timezone.now()
         product.reviewed_by = reviewer
@@ -674,6 +861,12 @@ class ProductService(ProductMediaService):
                 "updated_at",
             ]
         )
+        record_price_change(
+            product,
+            before,
+            source=ProductPriceChange.Source.QA_APPROVAL,
+            actor=reviewer,
+        )
         approved = cls.get_by_id(product.pk)
         return approved
 
@@ -687,14 +880,19 @@ class ProductService(ProductMediaService):
         reason: str,
         qa_notes: str | None = None,
     ) -> Product:
-        """pending_review → rejected. Stores reject_reason + review metadata.
+        """pending_review or awaiting_price → rejected. Stores reject_reason + review metadata.
 
         Rejecting a live model's update takes the model off sale too (published → rejected):
         its new files are already what the store serves, and they cannot be rolled back.
         Buyers keep their downloads (downloads follow the paid order, not the status).
         """
+        # Locked like approve_product, so an approve and a reject cannot both apply.
+        product = Product.objects.select_for_update().get(pk=product.pk)
         live_update = cls.is_live_update(product)
-        if product.status != Product.Status.PENDING_REVIEW and not live_update:
+        if (
+            product.status not in (Product.Status.PENDING_REVIEW, Product.Status.AWAITING_PRICE)
+            and not live_update
+        ):
             raise ProductError(
                 f"Cannot reject product with status '{product.status}'.",
                 field="status",
@@ -780,11 +978,25 @@ class ProductService(ProductMediaService):
                     "Discount price cannot be negative.",
                     field="discount_price",
                 )
-            if discount_price > price:
+            # A sale must save the buyer money (docs/PRICING_PIPELINE.md).
+            if discount_price >= price:
                 raise ProductError(
-                    "Discount price cannot exceed price.",
+                    "The sale price must be lower than the normal price.",
                     field="discount_price",
                 )
+
+    @staticmethod
+    def _validate_sale_minimum(currency: str, discount_price: Decimal | None) -> None:
+        """A sale price is a checkout price: never 0 (a free model is a re-upload, not a
+        sale) and never below what checkout accepts."""
+        if discount_price is None:
+            return
+        minimum = MINIMUM_CHECKOUT_AMOUNTS.get(normalize_currency(currency))
+        if discount_price <= 0 or (minimum is not None and discount_price < minimum):
+            raise ProductError(
+                f"The sale price must be at least {minimum} {currency}.",
+                field="discount_price",
+            )
 
     @staticmethod
     def _normalize_currency(currency: str) -> str:
@@ -828,7 +1040,18 @@ class ProductService(ProductMediaService):
             Product.Status.PENDING_REVIEW: {
                 Product.Status.DRAFT,
                 Product.Status.PUBLISHED,
+                # QA approval of a paid model only (never a direct edit).
+                Product.Status.AWAITING_PRICE,
                 Product.Status.REJECTED,
+                Product.Status.ARCHIVED,
+            },
+            Product.Status.AWAITING_PRICE: {
+                # The Pricing page publish only (Part 2), never a direct edit.
+                Product.Status.PUBLISHED,
+                Product.Status.REJECTED,
+                # The uploader sends the model again: back to QA.
+                Product.Status.PENDING_REVIEW,
+                Product.Status.DRAFT,
                 Product.Status.ARCHIVED,
             },
             Product.Status.PUBLISHED: {

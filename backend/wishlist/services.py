@@ -134,17 +134,15 @@ class WishlistService:
 
     @classmethod
     def _product_snapshot(cls, product: Product) -> dict[str, Any]:
+        sale_price = product.active_discount_price()
         return {
             "name": product.name,
             "slug": product.slug,
             "short_description": product.short_description,
             "thumbnail": product.thumbnail,
             "price": f"{product.price:.2f}",
-            "discount_price": (
-                f"{product.discount_price:.2f}"
-                if product.discount_price is not None
-                else None
-            ),
+            # The running sale price only; an ended sale is not shown.
+            "discount_price": f"{sale_price:.2f}" if sale_price is not None else None,
             "currency": product.currency,
             "license_type": product.license_type,
             "average_rating": f"{product.average_rating:.2f}",

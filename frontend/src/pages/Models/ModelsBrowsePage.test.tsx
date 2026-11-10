@@ -157,7 +157,7 @@ beforeEach(() => {
   vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
     ...samplePublicProducts.results[0],
     description: '', preview_model: '', preview_video: '', polygon_count: null, vertex_count: null,
-    animated: false, rigged: false, pbr_ready: false, game_ready: false,
+    pbr_ready: false, game_ready: false,
     images: [], updated_at: '2026-01-01T00:00:00Z',
     files: [{ id: 'file-1', file_name: 'chair.blend', file_format: 'blend', file_size: 100, version: '1', is_preview: false }],
   })
@@ -502,20 +502,30 @@ describe('ModelsBrowsePage', () => {
     expect(productsApi.getPublicProduct).not.toHaveBeenCalled()
   })
 
-  it('preserves legacy trait URLs while applying a license filter', async () => {
+  it('preserves trait URLs while applying a license filter', async () => {
     const user = userEvent.setup()
-    renderModelsBrowsePage('/3d-models?rigged=1')
+    renderModelsBrowsePage('/3d-models?pbr_ready=1')
 
     await waitFor(() => {
       expect(productsApi.listPublicProducts).toHaveBeenCalledWith(
-        expect.objectContaining({ rigged: true }),
+        expect.objectContaining({ pbr_ready: true }),
       )
     })
 
     await user.click(screen.getByRole('checkbox', { name: /extended license/i }))
 
     await waitFor(() => expect(screen.getByRole('heading', { name: /no 3d models found/i })).toBeInTheDocument())
-    expect(productsApi.listPublicProducts).toHaveBeenLastCalledWith(expect.objectContaining({ rigged: true }))
+    expect(productsApi.listPublicProducts).toHaveBeenLastCalledWith(expect.objectContaining({ pbr_ready: true }))
+  })
+
+  it('ignores the removed rigged and animated filters in old links', async () => {
+    renderModelsBrowsePage('/3d-models?rigged=1&animated=1')
+
+    await waitFor(() => expect(productsApi.listPublicProducts).toHaveBeenCalled())
+    for (const [params] of vi.mocked(productsApi.listPublicProducts).mock.calls) {
+      expect(params).not.toHaveProperty('rigged')
+      expect(params).not.toHaveProperty('animated')
+    }
   })
 
   it('restores price and format filters from the URL and clears them', async () => {

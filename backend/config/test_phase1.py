@@ -209,8 +209,9 @@ class PublishRegressionTests(TestCase):
                 status='published', preview_model='https://example.com/preview.glb'))
         submitted = ProductService.update_product(self.product, ProductUpdateData(
             status='pending_review', sku='PUB-REVIEW-001', preview_model='https://example.com/preview.glb'))
-        published = ProductService.approve_product(submitted, reviewer=None)
-        self.assertEqual(published.status, 'published')
+        approved = ProductService.approve_product(submitted, reviewer=None)
+        # A paid model passes review and waits for its price (the Pricing page publishes it).
+        self.assertEqual(approved.status, 'awaiting_price')
 
     @patch('products.services.package_object_exists', return_value=False)
     def test_missing_storage_object_does_not_publish(self, exists):

@@ -1,4 +1,5 @@
 export type AdminIconName =
+  | 'tag'
   | 'plus-circle'
   | 'filter'
   | 'folder'
@@ -67,6 +68,7 @@ const PATHS: Record<AdminIconName, string[]> = {
   database: ['M12 8c4.4 0 8-1.3 8-3s-3.6-3-8-3-8 1.3-8 3 3.6 3 8 3Z', 'M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5', 'M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'],
   link: ['M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1', 'M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1'],
   'check-circle': ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'm8.5 12.5 2.5 2.5 4.5-5'],
+  tag: ['M3 12.5V4h8.5l9 9-8.5 8.5-9-9Z', 'M7.5 8h.01'],
 }
 
 /** Decorative stroke icon; always hidden from assistive tech. */
@@ -106,6 +108,7 @@ const NAV_ICONS: Record<string, AdminIconName> = {
   Downloads: 'download',
   Analytics: 'chart',
   Security: 'shield',
+  Pricing: 'tag',
 }
 
 export function navIconFor(label: string): AdminIconName {
