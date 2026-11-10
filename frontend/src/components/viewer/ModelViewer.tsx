@@ -67,11 +67,11 @@ function SceneLights({
         <>
           {/* Balanced front/side fill keeps dark panel details visible. Keep
               exposure unchanged so light materials retain their highlights. */}
-          <ambientLight intensity={0.3 * lightMultiplier} />
-          <hemisphereLight args={['#ffffff', '#e1e3e6', 0.6 * lightMultiplier]} />
-          <directionalLight position={[4, 5, 5]} intensity={1.4 * lightMultiplier} />
-          <directionalLight position={[-4, 2.5, 4]} intensity={0.9 * lightMultiplier} />
-          <directionalLight position={[1, 4, -5]} intensity={0.65 * lightMultiplier} />
+          <ambientLight intensity={0.2 * lightMultiplier} />
+          <hemisphereLight args={['#ffffff', '#e1e3e6', 0.4 * lightMultiplier]} />
+          <directionalLight position={[4, 5, 5]} intensity={1.8 * lightMultiplier} />
+          <directionalLight position={[-4, 2.5, 4]} intensity={0.65 * lightMultiplier} />
+          <directionalLight position={[1, 4, -5]} intensity={0.4 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
