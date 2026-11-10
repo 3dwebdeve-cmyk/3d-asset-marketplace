@@ -74,7 +74,6 @@ export function ProductImageGallery({
   const stageRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
   const thumbnailRailRef = useRef<HTMLElement>(null)
-  const pointerOverThumbnails = useRef(false)
   const thumbnailsRef = useRef<HTMLUListElement>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const swiped = useRef(false)
@@ -245,20 +244,6 @@ export function ProductImageGallery({
     setActiveIndex(index)
     setViewMode('image')
   }, [])
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!pointerOverThumbnails.current || lightboxOpen || event.defaultPrevented ||
-        event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
-        (document.activeElement !== document.body && document.activeElement !== document.documentElement) ||
-        totalCount <= 1 || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
-      event.preventDefault()
-      if (event.key === 'ArrowLeft') showPrevious()
-      else showNext()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [lightboxOpen, showNext, showPrevious, totalCount])
 
   // The fullscreen image view stays within images; stage navigation includes all media.
   const stepLightbox = useCallback((direction: number) => {
@@ -527,17 +512,7 @@ export function ProductImageGallery({
       </div>
 
       {hasThumbnails ? (
-        <section ref={thumbnailRailRef} className="product-detail-gallery__rail" aria-label="Gallery thumbnails"
-          onMouseEnter={() => { pointerOverThumbnails.current = true }}
-          onMouseLeave={() => { pointerOverThumbnails.current = false }}
-          onKeyDown={(event) => {
-            if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
-              totalCount <= 1 || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
-            event.preventDefault()
-            event.stopPropagation()
-            if (event.key === 'ArrowLeft') showPrevious()
-            else showNext()
-          }}>
+        <section ref={thumbnailRailRef} className="product-detail-gallery__rail" aria-label="Gallery thumbnails">
           <div className="product-detail-gallery__rail-header">
             <h3 className="product-detail-gallery__rail-title">Gallery</h3>
             <span className="product-detail-gallery__rail-counter" aria-hidden="true">
