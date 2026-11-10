@@ -215,6 +215,14 @@ class ProductAdminSerializer(serializers.ModelSerializer):
     def get_discount_active(self, obj: Product) -> bool:
         return obj.active_discount_price() is not None
 
+    # "free" (zip under free-models/) or "paid"; see docs/PRICING_PIPELINE.md.
+    upload_kind = serializers.SerializerMethodField()
+
+    def get_upload_kind(self, obj: Product) -> str:
+        from products.services import ProductService
+
+        return ProductService.upload_kind(obj)
+
     class Meta:
         model = Product
         fields = (
@@ -256,6 +264,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "reviewed_by",
             "pending_update",
+            "upload_kind",
             "category",
             "category_id",
             "images",
@@ -276,20 +285,30 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "reviewed_by",
             "pending_update",
+            "upload_kind",
             "created_at",
             "updated_at",
         )
 
 
 class ProductApproveSerializer(serializers.Serializer):
-    """Optional pricing chosen at approval: free (price 0) or paid at ``price``."""
+    """QA approval takes no fields: QA never sets a price (docs/PRICING_PIPELINE.md).
 
-    pricing = serializers.ChoiceField(choices=("free", "paid"), required=False)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    A body with ``pricing`` or ``price`` is refused so an old client cannot think it set one.
+    """
+
+    _PRICE_FIELDS = ("pricing", "price")
 
     def validate(self, attrs: dict) -> dict:
-        if attrs.get("pricing") == "paid" and attrs.get("price") is None:
-            raise serializers.ValidationError({"price": "Enter the price for a paid model."})
+        sent = getattr(self, "initial_data", None) or {}
+        if hasattr(sent, "keys"):
+            refused = {
+                name: ["QA approval does not set prices. Set prices on the Pricing page."]
+                for name in self._PRICE_FIELDS
+                if name in sent
+            }
+            if refused:
+                raise serializers.ValidationError(refused)
         return attrs
 
 
@@ -398,9 +417,9 @@ class ProductCreateSerializer(serializers.Serializer):
     def validate(self, attrs: dict) -> dict:
         discount = attrs.get("discount_price")
         price = attrs.get("price")
-        if discount is not None and price is not None and discount > price:
+        if discount is not None and price is not None and discount >= price:
             raise serializers.ValidationError(
-                {"discount_price": ["Discount price cannot exceed price."]}
+                {"discount_price": ["The sale price must be lower than the normal price."]}
             )
         return attrs
 

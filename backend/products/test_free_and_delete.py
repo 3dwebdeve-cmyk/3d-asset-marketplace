@@ -1,4 +1,5 @@
-"""Pricing at approval (free or paid), free downloads without an account, and admin delete."""
+"""QA approval and prices (free uploads publish, paid ones wait for a price), free downloads
+without an account, and admin delete."""
 
 from __future__ import annotations
 
@@ -37,10 +38,15 @@ class FreeAndPaidApprovalTests(APITestCase):
         return self.client.post(self._approve_url(product.pk), payload or {}, format="json")
 
     def _publish_free(self) -> Product:
+        """A free model whose zip is in the private bucket (approved free before QA stopped
+        setting prices). QA can no longer make a paid upload free, so the state is set here."""
         self._authenticate_as_admin()
         product = self._import_happy_product()
-        response = self._approve(product, {"pricing": "free"})
+        response = self._approve(product)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        Product.objects.filter(pk=product.pk).update(
+            status=Product.Status.PUBLISHED, price=Decimal("0.00"), discount_price=None
+        )
         self.client.credentials()
         return Product.objects.get(pk=product.pk)
 
@@ -49,17 +55,19 @@ class FreeAndPaidApprovalTests(APITestCase):
         product = self._import_happy_product()
         response = self._approve(product)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["status"], "awaiting_price")
         self.assertEqual(response.data["price"], "29.99")
         self.assertFalse(response.data["is_free"])
 
-    def test_approve_as_paid_sets_the_price(self) -> None:
+    def test_approve_refuses_a_paid_price(self) -> None:
+        """QA never sets a paid model's price: the Pricing page does."""
         self._authenticate_as_admin()
         product = self._import_happy_product()
         response = self._approve(product, {"pricing": "paid", "price": "49.00"})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         product.refresh_from_db()
-        self.assertEqual(product.status, Product.Status.PUBLISHED)
-        self.assertEqual(product.price, Decimal("49.00"))
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+        self.assertEqual(product.price, Decimal("29.99"))
 
     def test_paid_needs_a_price_above_the_checkout_minimum(self) -> None:
         self._authenticate_as_admin()
@@ -72,7 +80,8 @@ class FreeAndPaidApprovalTests(APITestCase):
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
 
     def test_approve_as_free_publishes_at_price_zero(self) -> None:
-        product = self._publish_free()
+        product = self._publish_free_folder_model()
+        product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PUBLISHED)
         self.assertEqual(product.price, Decimal("0.00"))
         self.assertIsNone(product.discount_price)

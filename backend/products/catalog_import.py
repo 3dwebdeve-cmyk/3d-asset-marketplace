@@ -64,7 +64,8 @@ PREVIEW_NOT_SCANNED_NOTE = "Preview imported without a virus scan (no scanner co
 _FOLDER_LISTING_RE = re.compile(r"\s*Folders in model folder\s*:.*\Z", re.IGNORECASE | re.DOTALL)
 # Row warning: a re-upload kept the text an administrator owns (see _update_product).
 CONSOLE_TEXT_KEPT = "console_text_kept"
-# Row warning: a model moved from free-models/ to models/ and still costs 0; QA sets a price.
+# Row warning: a model moved from free-models/ to models/ and still costs 0; it gets its
+# price on the Pricing page after QA.
 PRICE_NEEDED = "price_needed"
 # Row warning: the model is live; it stays on sale and waits in the QA queue as an update.
 LIVE_UPDATE_IN_QA = "live_update_in_qa"
@@ -83,12 +84,14 @@ def _without_refusal_notes(notes: str) -> str:
         line for line in (notes or "").splitlines() if not line.startswith(_REFUSED_NOTE_PREFIX)
     ).strip()
 # A re-upload sends these back to QA. An archived model (deleted while it had orders)
-# returns too: uploading it again means it should be sold again. A published model is not
+# returns too: uploading it again means it should be sold again. A model waiting for its
+# price is not on sale yet, so its new files need a new QA check. A published model is not
 # in this set: it stays on sale and its update waits in the QA queue (`pending_update`).
 _UPSERTABLE_STATUSES = frozenset(
     {
         Product.Status.DRAFT,
         Product.Status.PENDING_REVIEW,
+        Product.Status.AWAITING_PRICE,
         Product.Status.REJECTED,
         Product.Status.ARCHIVED,
     }

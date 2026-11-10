@@ -552,7 +552,12 @@ def run_batch_ingest_smoke(*, apply: bool = False) -> BatchIngestSmokeResult:
                 BatchIngestSmokeCheck(
                     name="apply_happy_publish",
                     ok=True,
-                    detail=f"sku={published_sku} status=published",
+                    detail=f"sku={published_sku} status="
+                    + str(
+                        Product.objects.filter(sku=published_sku)
+                        .values_list("status", flat=True)
+                        .first()
+                    ),
                 )
             )
         except BatchIngestSmokeError as exc:

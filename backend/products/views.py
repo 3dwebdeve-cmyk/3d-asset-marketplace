@@ -50,6 +50,7 @@ from products.serializers import (
     ProductUpdateSerializer,
 )
 from products.services import (
+    UPLOAD_KINDS,
     ProductCreateData,
     ProductError,
     ProductService,
@@ -71,6 +72,16 @@ def _parse_status_filter(value: str | None) -> str | None:
     allowed = {choice.value for choice in Product.Status}
     if normalized not in allowed:
         raise ValidationError({"status": ["Invalid status filter."]})
+    return normalized
+
+
+def _parse_kind_filter(value: str | None) -> str | None:
+    """Admin ``?kind=free|paid`` (upload kind). Blank means no filter; anything else is 400."""
+    if value is None or value.strip() == "":
+        return None
+    normalized = value.strip().lower()
+    if normalized not in UPLOAD_KINDS:
+        raise ValidationError({"kind": ["Kind must be 'free' or 'paid'."]})
     return normalized
 
 
@@ -182,6 +193,7 @@ class AdminProductListCreateView(APIView):
         sku = request.query_params.get("sku") or None
         import_batch_id = request.query_params.get("import_batch_id") or None
         ordering = request.query_params.get("ordering") or None
+        kind = _parse_kind_filter(request.query_params.get("kind"))
 
         queryset = ProductService.list_admin(
             status=status_filter,
@@ -190,6 +202,7 @@ class AdminProductListCreateView(APIView):
             sku=sku,
             import_batch_id=import_batch_id,
             ordering=ordering,
+            kind=kind,
         )
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
@@ -628,7 +641,10 @@ class AdminProductFileCheckView(APIView):
 
 
 class AdminProductApproveView(APIView):
-    """POST /api/admin/products/<id>/approve/ — pending_review → published."""
+    """POST /api/admin/products/<id>/approve/ — QA approval, empty body.
+
+    Free upload → published; paid upload → awaiting_price; live update stays published.
+    """
 
     permission_classes = [IsAuthenticated, IsAdministrator]
     throttle_classes = [AdminProductWriteRateThrottle]
@@ -642,15 +658,9 @@ class AdminProductApproveView(APIView):
 
         serializer = ProductApproveSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
-        pricing = serializer.validated_data.get("pricing")
 
         try:
-            updated = ProductService.approve_product(
-                product,
-                reviewer=request.user,
-                pricing=pricing,
-                price=serializer.validated_data.get("price"),
-            )
+            updated = ProductService.approve_product(product, reviewer=request.user)
         except ProductError as exc:
             return _product_error_response(exc)
 
@@ -658,7 +668,10 @@ class AdminProductApproveView(APIView):
             action="product_approve",
             actor_id=str(request.user.pk),
             target_id=str(updated.pk),
-            metadata={"pricing": pricing, "price": str(updated.price)} if pricing else None,
+            metadata={
+                "result": updated.status,
+                "upload_kind": ProductService.upload_kind(updated),
+            },
         )
         return Response(
             ProductAdminSerializer(updated).data,

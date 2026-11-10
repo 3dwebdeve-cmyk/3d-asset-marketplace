@@ -165,7 +165,10 @@ class LiveModelUpdateTests(CatalogImportTestBase):
         approve = self.client.post(self._qa_url("approve"), {}, format="json")
         self.assertEqual(approve.status_code, 200, approve.data)
         self.product.refresh_from_db()
-        self.assertEqual(self.product.status, Product.Status.PUBLISHED)
+        # A paid model waits for its price after QA; the Pricing page then publishes it.
+        self.assertEqual(self.product.status, Product.Status.AWAITING_PRICE)
+        Product.objects.filter(pk=self.product.pk).update(status=Product.Status.PUBLISHED)
+        self.product.refresh_from_db()
         self.public_url = reverse("products:product-detail", kwargs={"slug": self.product.slug})
 
     def _qa_url(self, action: str) -> str:

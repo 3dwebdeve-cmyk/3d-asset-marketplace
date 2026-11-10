@@ -334,7 +334,8 @@ class ProductAdminAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.product.refresh_from_db()
-        self.assertEqual(self.product.status, Product.Status.PUBLISHED)
+        # A paid model passes QA and waits for its price; the edited price is kept.
+        self.assertEqual(self.product.status, Product.Status.AWAITING_PRICE)
         self.assertEqual(self.product.price, Decimal("150.00"))
 
     def test_admin_archive_product(self) -> None:
