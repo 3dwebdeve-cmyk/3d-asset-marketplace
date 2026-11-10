@@ -65,12 +65,12 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Neutral white fill and three directional lights illuminate the model from multiple sides. */}
+          {/* Key and fill face the initial camera from opposite sides; rim lights the rear edge. */}
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          <directionalLight position={[4, 5, 5]} intensity={0.8 * lightMultiplier} />
-          <directionalLight position={[-4, 2.5, 4]} intensity={0.3 * lightMultiplier} />
-          <directionalLight position={[1, 4, -5]} intensity={0.25 * lightMultiplier} />
+          <directionalLight position={[5, 5, -1]} intensity={0.75 * lightMultiplier} />
+          <directionalLight position={[-1, 2.5, -5]} intensity={0.5 * lightMultiplier} />
+          <directionalLight position={[-5, 4, 1]} intensity={0.35 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
