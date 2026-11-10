@@ -385,8 +385,8 @@ describe('AdminProductsPage QA sections', () => {
       const kind = params?.kind ?? 'paid'
       return {
         ...sampleProducts,
-        results: [{ ...sampleProducts.results[0], status: 'pending_review', upload_kind: kind }],
-      } as typeof sampleProducts
+        results: [{ ...sampleProducts.results[0], status: 'pending_review' as const, upload_kind: kind }],
+      }
     })
     renderProductsPage('/console/products?status=pending_review')
 
