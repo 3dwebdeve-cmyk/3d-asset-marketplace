@@ -169,6 +169,13 @@ class ProductAdminSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    # "free" (zip under free-models/) or "paid"; see docs/PRICING_PIPELINE.md.
+    upload_kind = serializers.SerializerMethodField()
+
+    def get_upload_kind(self, obj: Product) -> str:
+        from products.services import ProductService
+
+        return ProductService.upload_kind(obj)
 
     class Meta:
         model = Product
@@ -209,6 +216,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "reviewed_by",
             "pending_update",
+            "upload_kind",
             "category",
             "category_id",
             "images",
@@ -229,20 +237,30 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "reviewed_by",
             "pending_update",
+            "upload_kind",
             "created_at",
             "updated_at",
         )
 
 
 class ProductApproveSerializer(serializers.Serializer):
-    """Optional pricing chosen at approval: free (price 0) or paid at ``price``."""
+    """QA approval takes no fields: QA never sets a price (docs/PRICING_PIPELINE.md).
 
-    pricing = serializers.ChoiceField(choices=("free", "paid"), required=False)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    A body with ``pricing`` or ``price`` is refused so an old client cannot think it set one.
+    """
+
+    _PRICE_FIELDS = ("pricing", "price")
 
     def validate(self, attrs: dict) -> dict:
-        if attrs.get("pricing") == "paid" and attrs.get("price") is None:
-            raise serializers.ValidationError({"price": "Enter the price for a paid model."})
+        sent = getattr(self, "initial_data", None) or {}
+        if hasattr(sent, "keys"):
+            refused = {
+                name: ["QA approval does not set prices. Set prices on the Pricing page."]
+                for name in self._PRICE_FIELDS
+                if name in sent
+            }
+            if refused:
+                raise serializers.ValidationError(refused)
         return attrs
 
 

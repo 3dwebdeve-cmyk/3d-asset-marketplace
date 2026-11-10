@@ -19,6 +19,7 @@ from accounts.models import Role, User
 from categories.models import Category
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
+from products.test_catalog_reupload import _free_item
 from products.testing import make_glb_bytes, put_pipeline_images, put_pipeline_uploads
 
 
@@ -83,16 +84,21 @@ class ProductQAWorkflowAPITests(APITestCase):
             archive.writestr("model.glb", b"glTF-binary")
         default_storage.save(storage_path, ContentFile(buffer.getvalue()))
 
-    def _import_happy_product(self, *, with_package_object: bool = True) -> Product:
-        put_pipeline_uploads([_happy_item()])
+    def _import_happy_product(
+        self, *, with_package_object: bool = True, free: bool = False
+    ) -> Product:
+        # ``free``: ticked Free in the uploader (zip under free-models/), so QA approval
+        # publishes it. A paid upload waits for its price after QA (awaiting_price).
+        item = _free_item() if free else _happy_item()
+        put_pipeline_uploads([item])
         # The import checks the package exists, so upload it first, as the pipeline does.
-        self._write_package(_happy_item()["media"]["package_key"])
+        self._write_package(item["media"]["package_key"])
         response = self.client.post(
             self.import_url,
             {
                 "import_batch_id": "2026-09-07-qa-01",
                 "import_source": "catalog-bridge",
-                "items": [_happy_item()],
+                "items": [item],
             },
             format="json",
         )
@@ -124,7 +130,7 @@ class ProductQAWorkflowAPITests(APITestCase):
 
     def test_import_approve_appears_in_public_list(self) -> None:
         self._authenticate_as_admin()
-        product = self._import_happy_product()
+        product = self._import_happy_product(free=True)
 
         approve = self.client.post(self._approve_url(product.pk), {}, format="json")
         self.assertEqual(approve.status_code, status.HTTP_200_OK)
@@ -300,7 +306,7 @@ class ProductQAWorkflowAPITests(APITestCase):
 
     def test_rejected_requeue_then_approve(self) -> None:
         self._authenticate_as_admin()
-        product = self._import_happy_product()
+        product = self._import_happy_product(free=True)
 
         reject = self.client.post(
             self._reject_url(product.pk),
@@ -384,7 +390,8 @@ class ProductQAWorkflowAPITests(APITestCase):
         self.assertIn('reject_reason', patch.data)
         self.assertIn('reviewed_by', patch.data)
         draft.refresh_from_db()
-        self.assertEqual(draft.status, Product.Status.PUBLISHED)
+        # A paid model (zip not under free-models/) passes QA and waits for its price.
+        self.assertEqual(draft.status, Product.Status.AWAITING_PRICE)
 
     def test_public_detail_omits_qa_internals(self) -> None:
         self._authenticate_as_admin()

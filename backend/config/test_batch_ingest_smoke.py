@@ -92,7 +92,8 @@ class BatchIngestSmokeTests(TestCase):
         self.assertTrue(result.applied)
         self.assertEqual(result.published_sku, "MDL-000142")
         product = Product.objects.get(sku="MDL-000142")
-        self.assertEqual(product.status, Product.Status.PUBLISHED)
+        # A paid model passes QA and waits for its price (the Pricing page publishes it).
+        self.assertEqual(product.status, Product.Status.AWAITING_PRICE)
         self.assertEqual(product.import_batch_id, "i3-batch-ingest-smoke")
         self.assertEqual(result.warnings, ())
 

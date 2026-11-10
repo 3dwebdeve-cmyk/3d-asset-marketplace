@@ -137,7 +137,9 @@ class PipelineEndToEndTests(APITestCase):
             format="json",
         )
         self.assertEqual(approve.status_code, status.HTTP_200_OK, approve.data)
-        self.assertEqual(approve.data["status"], "published")
+        # A paid model waits for its price after QA; the Pricing page then publishes it.
+        self.assertEqual(approve.data["status"], "awaiting_price")
+        Product.objects.filter(pk=product.pk).update(status=Product.Status.PUBLISHED)
 
         # 3. It is listed under its subcategory and its parent, with the package formats.
         for category in (self.chairs, self.furniture):
