@@ -1,0 +1,60 @@
+/* Price history panel on the admin product page. */
+.admin-layout .admin-price-history {
+  margin: 1.25rem 0 0;
+  border: 1px solid #303038;
+  border-radius: 12px;
+  background: #141418;
+  color: #d4d4d8;
+}
+
+.admin-layout .admin-price-history__heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.admin-layout .admin-price-history__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-layout .admin-price-history__body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0 1.25rem 1rem;
+  font-size: 0.9rem;
+}
+
+.admin-layout .admin-price-history__body p {
+  margin: 0;
+}
+
+.admin-layout .admin-price-history__scroll {
+  overflow-x: auto;
+}
+
+.admin-layout .admin-price-history__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-layout .admin-price-history__table th,
+.admin-layout .admin-price-history__table td {
+  padding: 0.45rem 0.75rem 0.45rem 0;
+  border-bottom: 1px solid #303038;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.admin-layout .admin-price-history__table th {
+  color: #a1a1aa;
+  font-weight: 600;
+}
