@@ -113,6 +113,12 @@ class AdminProductWriteRateThrottle(UserRateThrottle):
     scope = "admin_product_write"
 
 
+class AdminPricingReadRateThrottle(UserRateThrottle):
+    """Pricing page list and preview: read-only, called often while filtering and typing."""
+
+    scope = "admin_pricing_read"
+
+
 class AdminUploadRateThrottle(UserRateThrottle):
     """Bound costly image/package uploads separately from small admin writes."""
 

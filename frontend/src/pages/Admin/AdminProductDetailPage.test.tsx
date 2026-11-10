@@ -501,9 +501,9 @@ describe('AdminProductDetailPage waiting for price', () => {
 
     renderProductDetailPage()
 
-    expect(
-      await screen.findByText('Waiting for price. Set the price on the Pricing page (coming soon).'),
-    ).toBeInTheDocument()
+    const pricingLink = await screen.findByRole('link', { name: 'Pricing page' })
+    expect(pricingLink).toHaveAttribute('href', '/console/pricing')
+    expect(pricingLink.parentElement).toHaveTextContent('Waiting for price. Set the price on the Pricing page.')
     expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /approve|publish as free/i })).not.toBeInTheDocument()
   })

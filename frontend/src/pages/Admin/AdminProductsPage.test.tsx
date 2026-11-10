@@ -374,3 +374,47 @@ describe('AdminProductsPage', () => {
     })
   })
 })
+
+describe('AdminProductsPage QA sections', () => {
+  it('splits the QA queue into Free and Paid sections with counts and labels', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.listAdminProducts).mockImplementation(async (params) => {
+      if (params?.page_size === 1 && params.kind) {
+        return { ...sampleProducts, count: params.kind === 'free' ? 3 : 5, results: [] }
+      }
+      const kind = params?.kind ?? 'paid'
+      return {
+        ...sampleProducts,
+        results: [{ ...sampleProducts.results[0], status: 'pending_review', upload_kind: kind }],
+      } as typeof sampleProducts
+    })
+    renderProductsPage('/console/products?status=pending_review')
+
+    const free = await screen.findByRole('tab', { name: /free models/i })
+    expect(free).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(within(free).getByText('3')).toBeInTheDocument())
+    expect(within(screen.getByRole('tab', { name: /paid models/i })).getByText('5')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'pending_review', kind: 'free', page: 1 }),
+      ),
+    )
+    expect(await screen.findByText('Free', { selector: '.admin-kind-badge' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: /paid models/i }))
+
+    await waitFor(() =>
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'pending_review', kind: 'paid', page: 1 }),
+      ),
+    )
+    expect(await screen.findByText('Paid', { selector: '.admin-kind-badge' })).toBeInTheDocument()
+    expect(screen.getByText(/sends it to the pricing page/i)).toBeInTheDocument()
+  })
+
+  it('shows no sections outside the QA queue', async () => {
+    renderProductsPage('/console/products')
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /free models/i })).not.toBeInTheDocument()
+  })
+})

@@ -1416,6 +1416,12 @@
   text-decoration: line-through;
 }
 
+.product-hub-detail .product-detail-purchase__sale-ends {
+  margin: 0.25rem 0 0;
+  color: var(--hub-muted);
+  font-size: 0.85rem;
+}
+
 .product-hub-detail .product-detail-badge--sale {
   background: var(--accent-soft);
   color: var(--text-main);

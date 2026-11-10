@@ -433,7 +433,8 @@ export function AdminProductDetailPage() {
                 {product.status === 'awaiting_price' ? (
                   <>
                     <p className="home-page__subtitle">
-                      Waiting for price. Set the price on the Pricing page (coming soon).
+                      Waiting for price. Set the price on the{' '}
+                      <Link to="/console/pricing">Pricing page</Link>.
                     </p>
                     {rejectControls}
                   </>

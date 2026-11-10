@@ -17,7 +17,7 @@ import {
 } from '../../hooks/useDocumentSeo'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { formatMoney } from '../../lib/format'
-import { discountPercent } from '../../lib/pricing'
+import { discountPercent, formatSaleEnd } from '../../lib/pricing'
 import { NOINDEX_CATEGORY_SLUGS, categoryPath } from '../../lib/categorySeo'
 import { buildBreadcrumbJsonLd, buildProductJsonLd } from '../../lib/seo'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
@@ -199,6 +199,11 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
                     </span>
                   )}
                 </div>
+                {hasDiscount && product.discount_ends_at ? (
+                  <p className="product-detail-purchase__sale-ends">
+                    Sale ends {formatSaleEnd(product.discount_ends_at)}
+                  </p>
+                ) : null}
 
                 <p className="product-hub-detail__license">
                   <span className="product-hub-detail__license-check" aria-hidden="true">

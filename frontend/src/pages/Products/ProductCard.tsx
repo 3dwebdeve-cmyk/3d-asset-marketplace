@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
+import { discountPercent } from '../../lib/pricing'
 import { isFreeProduct } from '../../types/product'
 import type { PublicProduct } from '../../types/product'
 
@@ -20,6 +21,9 @@ export function ProductCard({ product }: ProductCardProps) {
   const hasDiscount = !isFree && Boolean(
     product.discount_price && Number(product.discount_price) < Number(product.price),
   )
+
+  const salePercent =
+    hasDiscount && product.discount_price ? discountPercent(product.price, product.discount_price) : null
 
   const displayPrice = hasDiscount
     ? Number(product.discount_price)
@@ -70,7 +74,11 @@ export function ProductCard({ product }: ProductCardProps) {
           variant="icon"
         />
 
-        {hasDiscount ? <span className="product-card__badge-discount">Sale</span> : null}
+        {hasDiscount ? (
+          <span className="product-card__badge-discount">
+            {salePercent !== null ? `-${salePercent}%` : 'Sale'}
+          </span>
+        ) : null}
       </div>
 
       <div className="product-card__body">

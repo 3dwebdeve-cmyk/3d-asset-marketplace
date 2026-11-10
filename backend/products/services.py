@@ -223,13 +223,7 @@ class ProductService(ProductMediaService):
         if kind is not None:
             if kind not in UPLOAD_KINDS:
                 raise ProductError("Kind must be 'free' or 'paid'.", field="kind")
-            free = Exists(
-                ProductFile.objects.filter(
-                    product_id=OuterRef("pk"),
-                    is_preview=False,
-                    storage_path__startswith=FREE_MODELS_PREFIX,
-                )
-            )
+            free = cls.free_upload_exists()
             queryset = queryset.filter(free if kind == UPLOAD_KIND_FREE else ~free)
         if category_id is not None:
             queryset = queryset.filter(category_id=category_id)
@@ -251,6 +245,17 @@ class ProductService(ProductMediaService):
             )
 
         return queryset.order_by(cls._resolve_ordering(ordering))
+
+    @staticmethod
+    def free_upload_exists() -> Exists:
+        """SQL form of ``upload_kind == "free"``: a sellable zip under free-models/, stored as
+        a bare key, a /media/ path or a full public URL (as ``is_free_model_path`` reads them)."""
+        return Exists(
+            ProductFile.objects.filter(product_id=OuterRef("pk"), is_preview=False).filter(
+                Q(storage_path__startswith=FREE_MODELS_PREFIX)
+                | Q(storage_path__contains=f"/{FREE_MODELS_PREFIX}")
+            )
+        )
 
     @staticmethod
     def awaiting_review_q() -> Q:

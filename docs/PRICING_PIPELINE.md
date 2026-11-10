@@ -108,10 +108,140 @@ Inside the same transaction as the change. Nothing is written when nothing chang
 
 `GET /api/v1/admin/products/<id>/price-history/`: the latest 100 rows, newest first, admins only.
 
-## Part 2 (Pricing page API) and Part 3 (screens)
+## Part 2: Pricing page API
 
-Not built yet. See the plan in `MANUAL_STEPS.md`. Fixed decisions: USD only; poly levels Low
-< 10,000, Mid 10,000-100,000, High > 100,000 (from `polygon_count`; none = Unknown); at most 200
-models per action; at most 90% off; over 50% off needs a typed confirmation; the server
-calculates every price; sale end chosen in the admin's local time (IST), stored in UTC; two
-steps (save, then publish with a summary); live models allow sales and normal-price changes.
+Code: `products/pricing.py` (rules and calculation), `pricing_serializers.py`, `pricing_views.py`.
+All routes are under `/api/v1/admin/products/pricing/`, for administrators with the authenticator
+mark only. List and preview use the `admin_pricing_read` limit (120/min); apply and publish use
+`admin_product_write` (60/min). Prices are USD only.
+
+### Tabs and filters: `GET pricing/?tab=waiting|live`
+
+- **waiting**: `awaiting_price` models. **live**: published models with a price above 0.
+- Free uploads never appear in either tab: they have no price or sale.
+- Filters:
+  - `category_id`: a main category, which includes its subcategories.
+  - `subcategory_id`: exactly that category.
+  - `poly=low|mid|high|unknown`.
+  - `search`: name, or model ID.
+  - `import_batch_id`.
+  - `ordering`: `name`, `price`, `polygon_count` or `created_at`, each also with a leading `-`.
+  - `page`, `page_size`.
+- **Poly levels**: Low is fewer than `low_below` polygons (default 10,000). High is more than
+  `high_above` (default 100,000). Mid is between, both ends included. A model with no polygon
+  count is Unknown. The page may send its own `low_below` and `high_above`.
+- **Each row**:
+  - The stored `price`, `discount_price` and `discount_ends_at`.
+  - `discount_active` and `buyer_pays`, from the buyer-price rule.
+  - `poly_tier`, and `category` (`id`, `name`, `parent_id`).
+
+`GET pricing/batches/?tab=` lists the upload batch IDs in that tab, newest first, at most 50.
+
+### Rules: the body of `preview` and `apply`
+
+`product_ids` (1 to 200 IDs; repeats count once) and `rule`, plus the fields that rule needs:
+
+| `rule` | Fields | Result |
+|---|---|---|
+| `set_price` | `price` | The normal price. A running sale stays; it must still be below the new price. |
+| `tier_price` | `tier_prices: {low, mid, high, unknown}` | A price for each poly level. A model whose level has no price gets an error row. |
+| `percent_off` | `percent` (0.01 to 90), `round_99`, `discount_ends_at` | Sale price = price × (100 − percent) / 100, rounded to the cent. |
+| `amount_off` | `amount`, `round_99`, `discount_ends_at` | Sale price = price − amount. |
+| `remove_sale` | none | The sale and its end are removed. |
+
+- **`round_99`**: moves the sale price down to the nearest .99 (8.40 becomes 7.99; 9.00 becomes
+  8.99).
+- **`discount_ends_at`**: ISO 8601 with a time zone, in the future. `null` means the sale has no
+  end.
+- **Stored ended sales**: a sale that has ended counts as no sale and is cleared when the prices
+  are saved.
+
+A row has an `error`, and nothing for it can be saved, when:
+
+- the model is not waiting for a price and not live, or it is a free upload;
+- a price or sale price would be below 0.50;
+- the sale price would not be below the price, or would take more than 90% off;
+- a new normal price would not be above a running sale (remove the sale first);
+- a sale rule is used on a model with no price yet.
+
+### `POST pricing/preview/`
+
+Changes nothing. Returns:
+
+- `rows`: each row has the old and new price, sale price and sale end, `amount_off`,
+  `percent_off`, `buyer_pays`, `poly_tier`, `changed` and `error`.
+- `summary`:
+  - `models`, `changed`, `errors`;
+  - `buyer_pays_before` and `buyer_pays_after`, totals over the rows without errors;
+  - `needs_confirmation`: true when a sale takes more than 50% off.
+- `preview_token`: a hash of the rule, plus each model's current prices and the calculated result.
+
+### `POST pricing/apply/` (Step 1, Save)
+
+Send the same body as the preview, plus `preview_token`, plus `confirm_count` when the preview
+needed confirmation. `confirm_count` is the number of selected models, typed by the admin.
+
+- The rows are locked in ID order, recalculated, and refused with **409** if the token differs:
+  something changed since the preview, or a sale ended.
+- Any row error refuses the whole save (400). The `errors` field is keyed by model ID.
+- Otherwise every changed model is saved in one transaction.
+- One `ProductPriceChange` row is written per changed model, with source `pricing_page`, the admin
+  as actor, and one shared `batch_id`.
+- The audit log gets one `pricing_apply` entry: the batch, the rule and the IDs.
+- Statuses do not change.
+
+Returns `batch_id`, `models`, `changed` and `unchanged`.
+
+### `POST pricing/publish/` (Step 2)
+
+Body: `product_ids` (1 to 200) and `confirm_count`, which must equal the number of models; the
+page shows a summary first. Each model is checked and saved on its own.
+
+- **Published**: an `awaiting_price` model that is a paid upload, has a price of at least 0.50,
+  and passes every publish check (files, preview, category and so on).
+- **Not published**: any other model stays where it is, and its `reason` is returned.
+
+Returns `models`, `published`, `failed`, and `results` (`id`, `name`, `sku`, `published`,
+`reason`). The audit log gets one `pricing_publish` entry.
+
+## Part 3: screens
+
+### QA queue: Free and Paid sections
+
+`/console/products?status=pending_review&kind=free|paid`. The default is Free.
+
+- **Sections**: two tabs with counts, and a Free or Paid label on each row.
+- **Free model**: approving it publishes it as a free download.
+- **Paid model**: approving it ("Approve quality → send to Pricing") moves it to Waiting for price.
+
+### Pricing page: `/console/pricing`
+
+Console menu item "Pricing". Code: `pages/Admin/AdminPricingPage.tsx`, `api/pricingApi.ts`,
+`types/pricing.ts`.
+
+- **Tabs**: "Waiting for price" and "Live models" (`?tab=live`), each with a count.
+- **Filters**: category, subcategory, poly level, search by name or model ID, upload batch, sort,
+  and "Poly level limits" for the Low and High limits.
+- **Table**: tick models on any page, up to 200 in total. Each row shows the price, the running
+  sale and its end, and what the buyer pays.
+- **Calculator**:
+  - "Set the price": one price for all, or a price by poly level.
+  - "Give a sale": % off or $ off, the .99 ending, and an optional end in the admin's local
+    time, sent as UTC.
+  - "Remove the sale".
+- **Calculate preview**: shows the server's rows and totals. Any change to the selection or the
+  rule clears the preview.
+- **Save prices** (Step 1):
+  - Only enabled when no row has an error and something changes.
+  - A sale above 50% off needs the number of models typed in first.
+  - A 409 answer clears the preview and asks for a new one.
+- **Publish selected** (Waiting tab only, Step 2):
+  - A summary first: how many models, their total, and how many have no price yet.
+  - Then the results, with the reason for each model that stayed waiting.
+- Models with a pending re-upload show an "Update in QA" label.
+
+### Shop
+
+- **Product page**: the sale price, the normal price crossed out, the "-N%" badge, and
+  "Sale ends …" in the visitor's own time when the sale has an end.
+- **Product card**: "-N%" instead of "Sale".
