@@ -32,6 +32,7 @@ import { isFreeProduct, isLiveUpdate } from '../../types/product'
 import { PricingChoice } from './PricingChoice'
 import type { PricingMode } from './PricingChoice'
 import { ProductFileCheckPanel } from './ProductFileCheckPanel'
+import { ProductPriceHistoryPanel } from './ProductPriceHistoryPanel'
 import { ProductMediaSection } from './ProductMediaSection'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import '../../styles/admin-product-detail.css'
@@ -468,6 +469,7 @@ export function AdminProductDetailPage() {
             )}
 
             <ProductFileCheckPanel productId={productId} failedImageLabels={failedImageLabels} />
+            <ProductPriceHistoryPanel productId={productId} />
 
             <form className="admin-create-form admin-product-form" onSubmit={onSubmit} noValidate>
               {formError ? <Alert variant="error" message={formError} /> : null}

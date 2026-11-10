@@ -1,5 +1,6 @@
 from django.urls import path
 
+from products.price_history_views import AdminProductPriceHistoryView
 from products.views import (
     AdminCatalogImportView,
     AdminProductApproveView,
@@ -41,6 +42,11 @@ admin_urlpatterns = [
         "<uuid:product_id>/file-check/",
         AdminProductFileCheckView.as_view(),
         name="admin-product-file-check",
+    ),
+    path(
+        "<uuid:product_id>/price-history/",
+        AdminProductPriceHistoryView.as_view(),
+        name="admin-product-price-history",
     ),
     path(
         "<uuid:product_id>/restore/",
