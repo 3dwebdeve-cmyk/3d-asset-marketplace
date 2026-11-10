@@ -1,14 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { DataTexture, FloatType, HalfFloatType, RGBAFormat } from 'three'
 import { EXRLoader } from 'three-stdlib'
 import { EXRExporter } from 'three/addons/exporters/EXRExporter.js'
 
 // Keep the supplied 4K master intact. Browser environment-map convolution needs
 // a smaller texture, especially on software-rendered browsers and mobile GPUs.
-const sourcePath = process.argv[2] ? pathToFileURL(resolve(process.argv[2])) : new URL('../public/hdri/studio_small_09_4k.exr', import.meta.url)
-const outputPath = process.argv[3] ? pathToFileURL(resolve(process.argv[3])) : new URL('../public/hdri/studio_small_09_1k.exr', import.meta.url)
+const sourcePath = new URL('../public/hdri/studio_small_09_4k.exr', import.meta.url)
+const outputPath = new URL('../public/hdri/studio_small_09_1k.exr', import.meta.url)
 const bytes = readFileSync(sourcePath)
 const loader = new EXRLoader().setDataType(FloatType)
 const source = loader.parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
