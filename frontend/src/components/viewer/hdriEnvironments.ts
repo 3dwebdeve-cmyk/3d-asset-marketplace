@@ -21,7 +21,7 @@ export const HDRI_ENVIRONMENTS: readonly HdriEnvironmentOption[] = [
     // Derived from the supplied 4K master; cap runtime resolution so environment
     // convolution does not block startup on mobile GPUs or software rendering.
     hdrPath: '/hdri/studio_small_09_1k.exr',
-    environmentIntensity: 0.8,
+    environmentIntensity: 0.75,
     lightMultiplier: 1,
     // Use the EXR for lighting/reflections; a white backdrop hides its dark studio areas.
     background: false,

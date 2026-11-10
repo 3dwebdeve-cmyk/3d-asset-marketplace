@@ -129,7 +129,6 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             previewVideoUrl={product.preview_video}
             showPreviewModeThumbs
             showStageChrome
-            preferImagePreview
             stageOverlays={
               <>
                 <WishlistToggle
