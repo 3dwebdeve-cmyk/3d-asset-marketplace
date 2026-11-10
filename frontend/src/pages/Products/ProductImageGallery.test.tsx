@@ -43,6 +43,44 @@ function animationFrames() {
 }
 
 describe('product gallery navigation', () => {
+  it('changes the displayed image and selected thumbnail when the side buttons are clicked', async () => {
+    const user = userEvent.setup()
+    render(<ProductImageGallery {...defaults} previewVideoUrl="" />)
+    await user.click(screen.getByRole('button', { name: 'Show image 1 of 2' }))
+    expect(within(stage()).getByAltText('Chair 3D model, image 1')).toHaveAttribute('src', images[0].image_url)
+    await user.click(next())
+    expect(within(stage()).getByAltText('Chair 3D model, image 2')).toHaveAttribute('src', images[1].image_url)
+    expect(screen.getByRole('button', { name: 'Show image 2 of 2' })).toHaveAttribute('aria-current', 'true')
+    await user.click(previous())
+    expect(within(stage()).getByAltText('Chair 3D model, image 1')).toHaveAttribute('src', images[0].image_url)
+    expect(screen.getByRole('button', { name: 'Show image 1 of 2' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('navigates with keyboard arrows while a thumbnail is focused', async () => {
+    const user = userEvent.setup()
+    render(<ProductImageGallery {...defaults} previewVideoUrl="" />)
+    await user.click(screen.getByRole('button', { name: 'Show image 1 of 2' }))
+    await user.keyboard('{ArrowRight}')
+    expect(within(stage()).getByAltText('Chair 3D model, image 2')).toHaveAttribute('src', images[1].image_url)
+    expect(screen.getByRole('button', { name: 'Show image 2 of 2' })).toHaveAttribute('aria-current', 'true')
+    await user.keyboard('{ArrowLeft}')
+    expect(within(stage()).getByAltText('Chair 3D model, image 1')).toHaveAttribute('src', images[0].image_url)
+  })
+
+  it('navigates with keyboard arrows when the pointer is over thumbnails and does not intercept form input', () => {
+    render(<><input aria-label="Search" /><ProductImageGallery {...defaults} previewVideoUrl="" /></>)
+    const rail = screen.getByRole('region', { name: 'Gallery thumbnails' })
+    fireEvent.mouseEnter(rail)
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+    expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
+    screen.getByLabelText('Search').focus()
+    fireEvent.keyDown(screen.getByLabelText('Search'), { key: 'ArrowRight' })
+    expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
+    screen.getByLabelText('Search').blur()
+    fireEvent.mouseLeave(rail)
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' })
+    expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
+  })
   it('requests fullscreen for only the viewer, excluding gallery controls and overlays', async () => {
     render(<ProductImageGallery {...defaults} showStageChrome stageOverlays={<button>Wishlist</button>} />)
     const viewer = screen.getByTestId('model-preview').parentElement!
