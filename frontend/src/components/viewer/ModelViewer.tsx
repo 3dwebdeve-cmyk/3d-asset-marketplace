@@ -19,7 +19,7 @@ export interface ModelViewerProps {
   className?: string
 }
 
-const VIEWER_BACKGROUND_COLOR = '#ffffff'
+const VIEWER_BACKGROUND_COLOR = '#f2f2f2'
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   const scene = useThree((state) => state.scene)
@@ -65,12 +65,12 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Neutral white fill and three directional lights illuminate the model from multiple sides. */}
+          {/* Key and fill face the initial camera from opposite sides; rim lights the rear edge. */}
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          <directionalLight position={[4, 5, 5]} intensity={0.8 * lightMultiplier} />
-          <directionalLight position={[-4, 2.5, 4]} intensity={0.3 * lightMultiplier} />
-          <directionalLight position={[1, 4, -5]} intensity={0.25 * lightMultiplier} />
+          <directionalLight position={[5, 5, -1]} intensity={0.6 * lightMultiplier} />
+          <directionalLight position={[-1, 2.5, -5]} intensity={0.5 * lightMultiplier} />
+          <directionalLight position={[-5, 4, 1]} intensity={0.35 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
@@ -222,7 +222,7 @@ function PreviewModel({
       {showGround && ground ? (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
           <planeGeometry args={[ground.width, ground.depth]} />
-          {/* Match the ground plane to the white studio backdrop. */}
+          {/* Match the ground plane to the studio backdrop. */}
           <meshBasicMaterial
             color={VIEWER_BACKGROUND_COLOR}
             transparent={Boolean(groundAlphaMap)}
@@ -384,7 +384,7 @@ function ModelViewerCanvas({
           // Commerce tone mapping compresses highlights while preserving
           // product colors and the shading in bright fabric/materials.
           gl.toneMapping = THREE.NeutralToneMapping
-          gl.toneMappingExposure = 1
+          gl.toneMappingExposure = 0.9
         }}
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
