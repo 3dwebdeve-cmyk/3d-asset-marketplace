@@ -12,7 +12,6 @@ and any real Stripe call fails the test.
 from __future__ import annotations
 
 import hashlib
-import unittest
 from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
@@ -680,45 +679,36 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         self.assertEqual(self._preview([lamp], rule="percent_off", percent="91").status_code,
                          status.HTTP_400_BAD_REQUEST)
 
-    # ═══ Bugs found by the journey (expected failures until fixed) ══════════════════════
+    # ═══ Findings of the journey, now fixed ═════════════════════════════════════════════
 
-    @unittest.expectedFailure
-    def test_9_refused_save_reports_row_errors_in_an_errors_field(self, *_stripe) -> None:
-        # BUG: docs/PRICING_PIPELINE.md (apply): "Any row error refuses the whole save (400).
-        # The `errors` field is keyed by model ID." The server sends the model-ID map at the top
-        # level instead (domain_error_body returns exc.errors as the whole body), with no
-        # `errors` key and without the general message. products/pricing.py:465-469.
+    def test_9_refused_save_reports_each_row_error_by_model_id(self, *_stripe) -> None:
+        # The API's usual field-error shape: the body maps each refused model ID to its error
+        # (docs/PRICING_PIPELINE.md, apply). Nothing is saved.
         _free, lamp, chair = self._stage_quality_approved()
         preview = self._preview_ok([lamp, chair], rule="tier_price", tier_prices={"low": LAMP_PRICE})
         refused = self._apply([lamp, chair], preview["preview_token"], rule="tier_price",
                               tier_prices={"low": LAMP_PRICE})
         self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("errors", refused.data)
-        self.assertEqual(set(refused.data["errors"]), {str(chair.pk)})
+        self.assertEqual(set(refused.data), {str(chair.pk)})
+        self.assertIn("No price was given", refused.data[str(chair.pk)][0])
+        lamp.refresh_from_db()
+        self.assertNotEqual(lamp.price, Decimal(LAMP_PRICE))
 
-    @unittest.expectedFailure
-    def test_10_sheet_sale_cannot_go_below_the_minimum_or_past_90_percent(self, *_stripe) -> None:
-        # BUG: the uploader sheet's discount_price is stored on the first upload without the
-        # sale rules (catalog_import._gate_item checks only the price; create_product runs
-        # _validate_pricing but not _validate_sale_minimum; QA approve skips price checks; and
-        # pricing._publish_error checks only price >= 0.50). A sheet row price 29.99 /
-        # discount_price 0.10 goes QA approve -> Publish selected -> the store sells it for
-        # 0.10 (99.7% off): below the 0.50 checkout minimum and past the 90% cap, with no
-        # price ever saved on the Pricing page.
+    def test_10_sheet_sale_is_ignored_and_never_reaches_the_store(self, *_stripe) -> None:
+        # Fixed: the upload no longer takes a sale price from the sheet (warning
+        # sheet_sale_ignored), so a 29.99 model with a 0.10 sheet sale is sold at 29.99.
         data = self._upload(
             [_item("JRN-SHEET-SALE", name="Journey Sheet Sale", price="29.99", discount_price="0.10",
                    polygon_count=20_000)],
             batch_id="journey-sheet",
         )
-        if data["created"] == 0:
-            return  # refused at import: the rule holds
+        self.assertEqual(data["created"], 1, data)
+        self.assertIn("sheet_sale_ignored", data["results"][0].get("warnings", []))
         product = self._product("JRN-SHEET-SALE")
+        self.assertIsNone(product.discount_price)
         self._as_admin()
         self.assertEqual(self._approve(product).status_code, status.HTTP_200_OK)
         self._publish([product])
         product.refresh_from_db()
-        if product.status != Product.Status.PUBLISHED:
-            return  # Publish refused it: the rule holds
-        buyer_pays = product.effective_price()
-        self.assertGreaterEqual(buyer_pays, Decimal("0.50"))
-        self.assertLessEqual((product.price - buyer_pays) / product.price, Decimal("0.90"))
+        self.assertEqual(product.status, Product.Status.PUBLISHED)
+        self.assertEqual(product.effective_price(), Decimal("29.99"))
