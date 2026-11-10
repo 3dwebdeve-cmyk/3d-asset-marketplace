@@ -19,8 +19,10 @@ from http.client import HTTPSConnection
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
 from django.db.models import Count, Sum
 from django.db import connection
+from django.template.loader import render_to_string
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,22 @@ class DailyReport:
         parts.append("")
         parts.append("What to do for each problem: docs/RUNBOOK.md in the repository.")
         return "\n".join(parts) + "\n"
+
+    @property
+    def html_body(self) -> str:
+        sections = []
+        report_time = ""
+        for line in self.lines:
+            if line.startswith("Report time: "):
+                report_time = line.removeprefix("Report time: ")
+            elif line and not line.startswith("  "):
+                sections.append({"title": line, "rows": []})
+            elif line.startswith("  ") and sections:
+                label, separator, value = line.strip().partition(": ")
+                sections[-1]["rows"].append({"label": label, "value": value if separator else ""})
+        return render_to_string("mail_log/daily_report.html", {
+            "problems": self.problems, "sections": sections, "report_time": report_time,
+        })
 
 
 def _money(totals: dict[str, Decimal]) -> str:
@@ -121,7 +139,7 @@ def _email_section(report: DailyReport, since) -> None:
     if failed:
         types = (
             OutboundEmailLog.objects.filter(created_at__gte=since, status=OutboundEmailLog.Status.FAILED)
-            .values_list("event_type", flat=True)
+            .order_by().values_list("event_type", flat=True)
             .distinct()
         )
         report.problems.append(
@@ -216,7 +234,13 @@ def _render_metric(metric: str, api_key: str, service_id: str) -> list[str]:
         unit = str(series.get("unit", ""))[:30]
         if not re.fullmatch(r"[a-zA-Z0-9%/ ._-]*", unit):
             unit = ""
-        lines.append(f"{latest['value']:g} {unit} (sample {latest['timestamp']})".strip())
+        value = latest['value']
+        if metric == "memory" and unit.lower() in {"byte", "bytes", "b"}:
+            value, unit = value / (1024 * 1024), "MiB"
+            formatted = f"{value:.2f}"
+        else:
+            formatted = f"{value:g}"
+        lines.append(f"{formatted} {unit} (sample {latest['timestamp']})".strip())
     return lines
 
 
@@ -279,7 +303,6 @@ def report_recipients() -> list[str]:
 
 def send_daily_report(task_results: dict[str, bool] | None = None) -> DailyReport:
     """Build and email the report. Raises when it cannot be sent, so the caller can log it."""
-    from config.mail import send_text_mail
     from mail_log.services import MailLogService
 
     report = build_daily_report(task_results)
@@ -295,7 +318,12 @@ def send_daily_report(task_results: dict[str, bool] | None = None) -> DailyRepor
         subject=report.subject,
     )
     try:
-        send_text_mail(subject=report.subject, body=report.body, recipients=recipients)
+        message = EmailMultiAlternatives(
+            subject=report.subject, body=report.body,
+            from_email=settings.DEFAULT_FROM_EMAIL, to=recipients,
+        )
+        message.attach_alternative(report.html_body, "text/html")
+        message.send(fail_silently=False)
     except Exception as exc:
         MailLogService.mark_failed(log_id, str(exc))
         raise

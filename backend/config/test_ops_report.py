@@ -72,6 +72,21 @@ class UsageReportTests(SimpleTestCase):
                 _render_metric("cpu", "secret", "srv-example")
             conn.close.assert_called_once()
 
+    def test_memory_bytes_are_shown_in_mib(self):
+        response = MagicMock(status=200)
+        response.read.return_value = b'[{"unit":"bytes","values":[{"timestamp":"2026-01-01T00:00:00Z","value":10485760}]}]'
+        with patch("config.ops_report.HTTPSConnection") as factory:
+            factory.return_value.getresponse.return_value = response
+            self.assertEqual(_render_metric("memory", "secret", "srv-example"),
+                             ["10.00 MiB (sample 2026-01-01T00:00:00Z)"])
+
+    def test_html_escapes_content_and_shows_tables(self):
+        report = DailyReport(lines=["Report time: now", "", "Activity", "  Status: <unsafe>"],
+                             problems=["Check <unsafe>"])
+        self.assertIn("<table", report.html_body)
+        self.assertIn("&lt;unsafe&gt;", report.html_body)
+        self.assertNotIn("<unsafe>", report.html_body)
+
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
 class DailyReportTests(TestCase):
@@ -140,6 +155,11 @@ class DailyReportTests(TestCase):
         self.assertIn("1 background job(s) gave up", body)
         self.assertIn("docs/RUNBOOK.md", body)
 
+    def test_failed_email_types_are_not_repeated(self) -> None:
+        for _ in range(2):
+            OutboundEmailLog.objects.create(event_type="admin_sign_in", status=OutboundEmailLog.Status.FAILED)
+        self.assertIn("2 email(s) could not be sent (admin_sign_in)", build_daily_report().body)
+
     def test_many_failed_payments_look_like_card_testing(self) -> None:
         for _ in range(5):
             self.payment(Payment.Status.FAILED)
@@ -162,6 +182,11 @@ class DailyReportTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["ops@example.com", "owner@example.com"])
         self.assertEqual(mail.outbox[0].subject, "AssetHive3D daily report: all OK")
+        self.assertIn("Payments (last 24 hours)", mail.outbox[0].body)
+        html, mimetype = mail.outbox[0].alternatives[0]
+        self.assertEqual(mimetype, "text/html")
+        self.assertIn("<table", html)
+        self.assertIn("Payments (last 24 hours)", html)
         self.assertTrue(
             OutboundEmailLog.objects.filter(event_type="ops_daily_report", status=OutboundEmailLog.Status.SENT).exists()
         )

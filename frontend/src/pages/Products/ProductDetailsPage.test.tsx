@@ -281,11 +281,14 @@ describe('ProductDetailsPage', () => {
     expect(screen.queryByText(/^geometry$/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /close/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show 3d preview/i })).toBeInTheDocument()
-    expect(screen.queryByTestId('lazy-model-viewer')).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /show 3d preview/i }))
     expect(
       screen.getByRole('group', { name: /interactive 3d preview of cyberpunk drone 3d/i }),
     ).toBeInTheDocument()
+    expect(screen.getByTestId('lazy-model-viewer')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /show image 1 of 2/i }))
+    expect(screen.queryByTestId('lazy-model-viewer')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /view larger image of cyberpunk drone 3d/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /show 3d preview/i }))
     expect(screen.getByTestId('lazy-model-viewer')).toBeInTheDocument()
     expect(document.title).toContain('Cyberpunk Drone 3D')
 
