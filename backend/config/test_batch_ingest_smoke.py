@@ -49,7 +49,10 @@ class BatchIngestSmokeTests(TestCase):
                 msg=by_name[f"headers_intake_{scenario}"].detail,
             )
         self.assertEqual(len(REPORT_COLUMNS), 25)
-        self.assertEqual(len(INTAKE_COLUMNS), 15)
+        self.assertEqual(len(INTAKE_COLUMNS), 13)
+        # The website no longer uses Rigged or Animated (removed 2026-11-10).
+        self.assertNotIn("Rigged", INTAKE_COLUMNS)
+        self.assertNotIn("Animated", INTAKE_COLUMNS)
         self.assertIn("Thumbnail Path", INTAKE_COLUMNS)
         self.assertIn("Gallery Image Paths", INTAKE_COLUMNS)
         self.assertIn("Tags", INTAKE_COLUMNS)

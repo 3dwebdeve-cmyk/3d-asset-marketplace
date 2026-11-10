@@ -913,8 +913,6 @@ class CatalogImportService:
                 preview_model=media_pointers["preview_url"],
                 polygon_count=polygon_count,
                 software_used=str(item.get("software_used") or ""),
-                animated=bool(item.get("animated", False)),
-                rigged=bool(item.get("rigged", False)),
                 pbr_ready=bool(item.get("pbr_ready", False)),
                 game_ready=bool(item.get("game_ready", False)),
                 license_type=license_type,

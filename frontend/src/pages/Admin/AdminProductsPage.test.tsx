@@ -63,8 +63,6 @@ const sampleProducts = {
       polygon_count: null,
       vertex_count: null,
       software_used: '',
-      animated: false,
-      rigged: false,
       pbr_ready: false,
       game_ready: false,
       license_type: 'standard' as const,

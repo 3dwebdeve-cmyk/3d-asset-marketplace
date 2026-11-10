@@ -103,8 +103,6 @@ export function AdminProductDetailPage() {
       polygon_count: product.polygon_count,
       vertex_count: product.vertex_count,
       software_used: product.software_used,
-      animated: product.animated,
-      rigged: product.rigged,
       pbr_ready: product.pbr_ready,
       game_ready: product.game_ready,
       license_type: product.license_type,
@@ -745,32 +743,6 @@ export function AdminProductDetailPage() {
                   </FormField>
                   <fieldset className="admin-product-form__full admin-product-form__flags">
                     <legend className="form-field__label">Model features</legend>
-                    <label className="ui-input">
-                      <input
-                        type="checkbox"
-                        checked={form.animated ?? false}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            animated: event.target.checked,
-                          }))
-                        }
-                      />{' '}
-                      Animated
-                    </label>
-                    <label className="ui-input">
-                      <input
-                        type="checkbox"
-                        checked={form.rigged ?? false}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            rigged: event.target.checked,
-                          }))
-                        }
-                      />{' '}
-                      Rigged
-                    </label>
                     <label className="ui-input">
                       <input
                         type="checkbox"

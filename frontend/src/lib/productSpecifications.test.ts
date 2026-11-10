@@ -4,7 +4,7 @@ import { productSpecifications } from './productSpecifications'
 
 const product = {
   category: { name: 'Furniture' }, software_used: 'Blender 4.2', license_type: 'standard',
-  polygon_count: 12000, vertex_count: null, rigged: false, animated: false,
+  polygon_count: 12000, vertex_count: null,
   pbr_ready: true, game_ready: true, preview_model: '',
   formats: ['blend', 'fbx', 'zip'],
   files: [{ file_format: 'zip', file_size: 2048, is_preview: false }],

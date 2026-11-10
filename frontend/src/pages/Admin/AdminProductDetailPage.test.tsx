@@ -64,8 +64,6 @@ const sampleProduct: AdminProduct = {
   polygon_count: null,
   vertex_count: null,
   software_used: 'Blender',
-  animated: false,
-  rigged: false,
   pbr_ready: true,
   game_ready: false,
   license_type: 'standard',

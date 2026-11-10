@@ -53,8 +53,6 @@ class ProductCreateData:
     polygon_count: int | None = None
     vertex_count: int | None = None
     software_used: str = ""
-    animated: bool = False
-    rigged: bool = False
     pbr_ready: bool = False
     game_ready: bool = False
     license_type: str = Product.LicenseType.STANDARD
@@ -91,8 +89,6 @@ class ProductUpdateData:
     vertex_count: int | None = None
     clear_vertex_count: bool = False
     software_used: str | None = None
-    animated: bool | None = None
-    rigged: bool | None = None
     pbr_ready: bool | None = None
     game_ready: bool | None = None
     license_type: str | None = None
@@ -129,8 +125,6 @@ class ProductService(ProductMediaService):
         category_id: UUID | None = None,
         search: str | None = None,
         ordering: str | None = None,
-        animated: bool | None = None,
-        rigged: bool | None = None,
         pbr_ready: bool | None = None,
         game_ready: bool | None = None,
     ) -> QuerySet[Product]:
@@ -152,8 +146,6 @@ class ProductService(ProductMediaService):
                 "preview_video",
                 "polygon_count",
                 "vertex_count",
-                "animated",
-                "rigged",
                 "pbr_ready",
                 "game_ready",
                 "sku",
@@ -187,10 +179,6 @@ class ProductService(ProductMediaService):
                 | Q(software_used__icontains=query)
             )
 
-        if animated is not None:
-            queryset = queryset.filter(animated=animated)
-        if rigged is not None:
-            queryset = queryset.filter(rigged=rigged)
         if pbr_ready is not None:
             queryset = queryset.filter(pbr_ready=pbr_ready)
         if game_ready is not None:
@@ -390,8 +378,6 @@ class ProductService(ProductMediaService):
             polygon_count=data.polygon_count,
             vertex_count=data.vertex_count,
             software_used=data.software_used.strip(),
-            animated=data.animated,
-            rigged=data.rigged,
             pbr_ready=data.pbr_ready,
             game_ready=data.game_ready,
             license_type=license_type,
@@ -544,7 +530,7 @@ class ProductService(ProductMediaService):
             product.software_used = data.software_used.strip()
             update_fields.append("software_used")
 
-        for field_name in ("animated", "rigged", "pbr_ready", "game_ready"):
+        for field_name in ("pbr_ready", "game_ready"):
             value = getattr(data, field_name)
             if value is not None:
                 setattr(product, field_name, value)

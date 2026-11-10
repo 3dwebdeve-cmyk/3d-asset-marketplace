@@ -61,7 +61,7 @@ class CatalogReuploadTests(CatalogImportTestBase):
             category=lamps,
             license_type=Product.LicenseType.EXTENDED,
             software_used="Blender",
-            rigged=True,
+            pbr_ready=True,
         )
 
         row = self._reupload(
@@ -72,7 +72,8 @@ class CatalogReuploadTests(CatalogImportTestBase):
                 price="99.00",
                 license_type="editorial",
                 software_used="Maya",
-                rigged=False,
+                pbr_ready=False,
+                rigged=True,
                 animated=True,
                 glb_checksum=_NEW_CHECKSUM,
                 polygon_count=20000,
@@ -89,8 +90,7 @@ class CatalogReuploadTests(CatalogImportTestBase):
         self.assertEqual(product.category_id, lamps.pk)
         self.assertEqual(product.license_type, Product.LicenseType.EXTENDED)
         self.assertEqual(product.software_used, "Blender")
-        self.assertTrue(product.rigged)
-        self.assertFalse(product.animated)
+        self.assertTrue(product.pbr_ready)
         # The files and what is measured from them follow the upload, and QA looks again.
         self.assertEqual(product.glb_checksum, _NEW_CHECKSUM)
         self.assertEqual(product.polygon_count, 20000)

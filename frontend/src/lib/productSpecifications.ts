@@ -19,7 +19,6 @@ export function productSpecifications(product: PublicProductDetail): { label: st
     }
   }
   for (const [label, value] of [
-    ['Rigged', product.rigged], ['Animated', product.animated],
     ['PBR materials', product.pbr_ready], ['Game ready', product.game_ready],
   ] as const) {
     if (typeof value === 'boolean') rows.push({ label, value: value ? 'Yes' : 'No' })

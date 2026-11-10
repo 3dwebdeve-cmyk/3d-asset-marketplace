@@ -181,8 +181,6 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
             "polygon_count",
             "vertex_count",
             "software_used",
-            "animated",
-            "rigged",
             "pbr_ready",
             "game_ready",
             "license_type",
@@ -250,8 +248,6 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "polygon_count",
             "vertex_count",
             "software_used",
-            "animated",
-            "rigged",
             "pbr_ready",
             "game_ready",
             "license_type",
@@ -362,8 +358,6 @@ class ProductCreateSerializer(serializers.Serializer):
         default="",
         max_length=255,
     )
-    animated = serializers.BooleanField(required=False, default=False)
-    rigged = serializers.BooleanField(required=False, default=False)
     pbr_ready = serializers.BooleanField(required=False, default=False)
     game_ready = serializers.BooleanField(required=False, default=False)
     license_type = serializers.ChoiceField(
@@ -478,8 +472,6 @@ class ProductUpdateSerializer(serializers.Serializer):
     polygon_count = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     vertex_count = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     software_used = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    animated = serializers.BooleanField(required=False)
-    rigged = serializers.BooleanField(required=False)
     pbr_ready = serializers.BooleanField(required=False)
     game_ready = serializers.BooleanField(required=False)
     license_type = serializers.ChoiceField(
@@ -655,6 +647,8 @@ class CatalogImportItemSerializer(serializers.Serializer):
         required=False,
         default=Product.LicenseType.STANDARD,
     )
+    # Older Model Uploader builds still send these sheet columns. They are accepted so
+    # those builds keep working, and ignored: the website no longer uses them.
     rigged = serializers.BooleanField(required=False, default=False)
     animated = serializers.BooleanField(required=False, default=False)
     pbr_ready = serializers.BooleanField(required=False, default=False)

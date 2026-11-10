@@ -168,27 +168,36 @@ class ProductPublicAPITests(APITestCase):
         self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
         self.assertEqual(response.data["results"][0]["software_used"], "Blender 4.x")
 
-    def test_list_filters_by_rigged(self) -> None:
-        self.published.rigged = True
-        self.published.save(update_fields=["rigged", "updated_at"])
+    def test_list_filters_by_pbr_ready(self) -> None:
+        self.published.pbr_ready = True
+        self.published.save(update_fields=["pbr_ready", "updated_at"])
         Product.objects.create(
             category=self.category,
             name="Static Prop",
             slug="static-prop",
             price=Decimal("15.00"),
-            rigged=False,
+            pbr_ready=False,
             status=Product.Status.PUBLISHED,
         )
 
-        response = self.client.get(self.list_url, {"rigged": "1"})
+        response = self.client.get(self.list_url, {"pbr_ready": "1"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["slug"], "oak-chair")
 
     def test_list_ignores_invalid_bool_filter(self) -> None:
-        response = self.client.get(self.list_url, {"rigged": "maybe"})
+        response = self.client.get(self.list_url, {"pbr_ready": "maybe"})
 
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+
+    def test_rigged_and_animated_are_gone_from_the_shop(self) -> None:
+        # Removed 2026-11-10: not sent, and old links with the filters list everything.
+        detail = self.client.get(self.detail_url)
+        self.assertNotIn("rigged", detail.data)
+        self.assertNotIn("animated", detail.data)
+        response = self.client.get(self.list_url, {"rigged": "1", "animated": "1"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 1)
 

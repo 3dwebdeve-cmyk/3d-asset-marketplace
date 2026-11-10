@@ -36,13 +36,6 @@ function SpecIcon({ name }: { name: string }) {
       </svg>
     )
   }
-  if (name === 'Rigged') {
-    return (
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#06b6d4" strokeWidth="1.8" aria-hidden="true">
-        <path d="M18 11V6a2 2 0 0 0-4 0v4M14 10V4a2 2 0 0 0-4 0v7M10 10.5V6a2 2 0 0 0-4 0v8M6 14a6 6 0 0 0 12 0v-3" />
-      </svg>
-    )
-  }
   if (name === 'Textures') {
     return (
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#06b6d4" strokeWidth="1.8" aria-hidden="true">

@@ -102,8 +102,6 @@ const sampleDetail: PublicProductDetail = {
   polygon_count: 12000,
   vertex_count: 8000,
   software_used: 'Blender',
-  animated: true,
-  rigged: false,
   pbr_ready: true,
   game_ready: true,
   license_type: 'standard',

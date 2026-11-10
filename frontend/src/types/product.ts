@@ -67,8 +67,6 @@ export interface AdminProduct {
   polygon_count: number | null
   vertex_count: number | null
   software_used: string
-  animated: boolean
-  rigged: boolean
   pbr_ready: boolean
   game_ready: boolean
   license_type: ProductLicenseType
@@ -159,8 +157,6 @@ export interface AdminProductCreatePayload {
   polygon_count?: number | null
   vertex_count?: number | null
   software_used?: string
-  animated?: boolean
-  rigged?: boolean
   pbr_ready?: boolean
   game_ready?: boolean
   license_type?: ProductLicenseType
@@ -191,8 +187,6 @@ export interface AdminProductUpdatePayload {
   polygon_count?: number | null
   vertex_count?: number | null
   software_used?: string
-  animated?: boolean
-  rigged?: boolean
   pbr_ready?: boolean
   game_ready?: boolean
   license_type?: ProductLicenseType
@@ -290,8 +284,6 @@ export interface PublicProductDetail {
   polygon_count: number | null
   vertex_count: number | null
   software_used: string
-  animated: boolean
-  rigged: boolean
   pbr_ready: boolean
   game_ready: boolean
   license_type: ProductLicenseType
@@ -319,8 +311,6 @@ export interface PublicProductListParams {
   category_id?: string
   search?: string
   ordering?: string
-  animated?: boolean
-  rigged?: boolean
   pbr_ready?: boolean
   game_ready?: boolean
 }

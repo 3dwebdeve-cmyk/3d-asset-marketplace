@@ -115,8 +115,6 @@ class ProductListView(PublicCatalogCacheMixin, APIView):
         )
         search = request.query_params.get("search") or None
         ordering = request.query_params.get("ordering") or None
-        animated = _parse_bool_filter(request.query_params.get("animated"))
-        rigged = _parse_bool_filter(request.query_params.get("rigged"))
         pbr_ready = _parse_bool_filter(request.query_params.get("pbr_ready"))
         game_ready = _parse_bool_filter(request.query_params.get("game_ready"))
 
@@ -125,8 +123,6 @@ class ProductListView(PublicCatalogCacheMixin, APIView):
             category_id=category_id,
             search=search,
             ordering=ordering,
-            animated=animated,
-            rigged=rigged,
             pbr_ready=pbr_ready,
             game_ready=game_ready,
         )
@@ -230,8 +226,6 @@ class AdminProductListCreateView(APIView):
                     polygon_count=data.get("polygon_count"),
                     vertex_count=data.get("vertex_count"),
                     software_used=data.get("software_used", ""),
-                    animated=data.get("animated", False),
-                    rigged=data.get("rigged", False),
                     pbr_ready=data.get("pbr_ready", False),
                     game_ready=data.get("game_ready", False),
                     license_type=data.get("license_type", Product.LicenseType.STANDARD),
@@ -308,8 +302,6 @@ class AdminProductDetailView(APIView):
                     vertex_count=data.get("vertex_count"),
                     clear_vertex_count=data.get("clear_vertex_count", False),
                     software_used=data.get("software_used"),
-                    animated=data.get("animated"),
-                    rigged=data.get("rigged"),
                     pbr_ready=data.get("pbr_ready"),
                     game_ready=data.get("game_ready"),
                     license_type=data.get("license_type"),

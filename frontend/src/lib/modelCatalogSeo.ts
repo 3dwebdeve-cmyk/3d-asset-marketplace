@@ -18,6 +18,6 @@ export function catalogPagePath(path: string, page: number, params = new URLSear
 /** Collection pages are indexable; ad-hoc searches, filters and sorts are not. */
 export function hasCatalogFilters(params: URLSearchParams): boolean {
   return ['search', 'category', 'formats', 'licenses', 'min_price', 'max_price',
-    'animated', 'rigged', 'pbr_ready', 'game_ready'].some((key) => Boolean(params.get(key)?.trim())) ||
+    'pbr_ready', 'game_ready'].some((key) => Boolean(params.get(key)?.trim())) ||
     Boolean(params.get('ordering')?.trim() && params.get('ordering') !== '-created_at')
 }

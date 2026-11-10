@@ -317,7 +317,10 @@ Used by the older bridge. Columns, in this order:
 ## B. Intake sheet (`phase1-intake.csv`)
 
 `Model_ID`, `Price`, `Currency`, `Discount Price`, `Short Description`, `Description`,
-`Thumbnail Path`, `Gallery Image Paths`, `License Type`, `Tags`, `Rigged`, `Animated`,
-`PBR Ready`, `Game Ready`, `Software Used`
+`Thumbnail Path`, `Gallery Image Paths`, `License Type`, `Tags`, `PBR Ready`, `Game Ready`,
+`Software Used`
+
+`Rigged` and `Animated` were removed on 2026-11-10: the website no longer uses them. An import that still
+sends `rigged` or `animated` is accepted, and the values are ignored.
 
 Booleans accept `TRUE`, `1`, `YES` and `Y`. Gallery paths are separated by `|` or `;`.
