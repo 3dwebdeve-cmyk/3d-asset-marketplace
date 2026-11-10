@@ -285,6 +285,8 @@ class AdminProductDetailView(APIView):
                     currency=data.get("currency"),
                     discount_price=data.get("discount_price"),
                     clear_discount_price=data.get("clear_discount_price", False),
+                    discount_ends_at=data.get("discount_ends_at"),
+                    clear_discount_ends_at=data.get("clear_discount_ends_at", False),
                     thumbnail=data.get("thumbnail"),
                     preview_model=data.get("preview_model"),
                     preview_video=data.get("preview_video"),
@@ -308,6 +310,7 @@ class AdminProductDetailView(APIView):
                     has_preview=data.get("has_preview"),
                     has_package=data.get("has_package"),
                 ),
+                actor=request.user,
             )
         except ProductError as exc:
             return _product_error_response(exc)

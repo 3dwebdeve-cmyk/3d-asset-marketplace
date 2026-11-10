@@ -67,7 +67,9 @@ while a sale runs (`null` otherwise). Admin API: the stored `discount_price` and
 `discount_ends_at`, plus `discount_active` (bool).
 
 Admin `PATCH` accepts `discount_ends_at` (ISO 8601 with time zone, or `null`). It must be in the
-future and needs a sale price. Clearing `discount_price` also clears `discount_ends_at`.
+future and needs a sale price. Clearing `discount_price` also clears `discount_ends_at`. A time
+without a zone is refused (400). A new sale price on a model whose stored sale end has passed
+must come with a new `discount_ends_at` (or `null`), so a sale never starts already ended.
 
 The maintenance loop runs `end_expired_discounts`, which clears ended sales (history source
 `sale_ended`). It is only housekeeping: an ended sale is already ignored by the rule above.
