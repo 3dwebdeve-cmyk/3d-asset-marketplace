@@ -67,6 +67,14 @@ CONSOLE_TEXT_KEPT = "console_text_kept"
 # Row warning: a model moved from free-models/ to models/ and still costs 0; it gets its
 # price on the Pricing page after QA.
 PRICE_NEEDED = "price_needed"
+# Row warning: the sheet had a Discount Price. Sales are set on the Pricing page (or the product
+# form), where the sale rules run, so the import never creates one (docs/PRICING_PIPELINE.md).
+SHEET_SALE_IGNORED = "sheet_sale_ignored"
+
+
+def _sheet_sale_given(item: dict[str, Any]) -> bool:
+    discount = item.get("discount_price")
+    return discount is not None and str(discount).strip() != ""
 # Row warning: the model is live; it stays on sale and waits in the QA queue as an update.
 LIVE_UPDATE_IN_QA = "live_update_in_qa"
 # Row warning: a live free model was uploaded as paid; it left the store and goes through QA
@@ -419,6 +427,8 @@ class CatalogImportService:
             warnings.append(PRICE_NEEDED)
         if free_to_paid:
             warnings.append(FREE_TO_PAID_OFF_SALE)
+        if action == "created" and not free_upload and _sheet_sale_given(item):
+            warnings.append(SHEET_SALE_IGNORED)
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -884,12 +894,10 @@ class CatalogImportService:
         price = item["price"]
         if not isinstance(price, Decimal):
             price = Decimal(str(price))
-        discount = item.get("discount_price")
-        if discount is not None and discount != "":
-            if not isinstance(discount, Decimal):
-                discount = Decimal(str(discount))
-        else:
-            discount = None
+        # The sheet's Discount Price is not used: a sale is set on the Pricing page, where the
+        # sale rules (minimum 0.50, below the price, at most 90% off) run. Row warning
+        # sheet_sale_ignored tells the uploader.
+        discount = None
 
         currency = str(item.get("currency") or "USD").strip().upper() or "USD"
         license_type = str(item.get("license_type") or Product.LicenseType.STANDARD).strip()

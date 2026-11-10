@@ -547,6 +547,16 @@ def _publish_error(product: Product) -> str:
         return "Free models are published from QA."
     if product.price < MINIMUM_PRICE:
         return f"Set a price of at least {MINIMUM_PRICE} {CURRENCY} first."
+    # A running sale must follow the same rules as one saved on this page (older data, or a
+    # sale from before the rules existed, must not reach the store).
+    sale = product.active_discount_price()
+    if sale is not None:
+        share = (product.price - sale) / product.price
+        if sale < MINIMUM_PRICE or sale >= product.price or share > MAX_DISCOUNT_SHARE:
+            return (
+                f"Its sale price {sale:.2f} is not allowed (at least {MINIMUM_PRICE}, below the "
+                "price, at most 90% off). Remove the sale or change it first."
+            )
     try:
         ProductService._validate_publish_ready(product, require_sku=True)
     except ProductError as exc:

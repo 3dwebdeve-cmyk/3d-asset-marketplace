@@ -349,6 +349,7 @@ class ProductService(ProductMediaService):
         category = cls._resolve_category(data.category_id)
         cls._validate_pricing(data.price, data.discount_price)
         currency = cls._normalize_currency(data.currency)
+        cls._validate_sale_minimum(currency, data.discount_price)
         cls._validate_currency_prices(currency, data.price, data.discount_price)
         license_type = cls._normalize_license(data.license_type)
         status = cls._normalize_status(data.status)
