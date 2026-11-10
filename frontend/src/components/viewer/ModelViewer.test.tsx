@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Texture, Vector3 } from 'three'
+import { useFrame } from '@react-three/fiber'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const viewerMocks = vi.hoisted(() => {
@@ -19,6 +20,7 @@ const viewerMocks = vi.hoisted(() => {
 })
 
 vi.mock('@react-three/fiber', () => ({
+  useFrame: vi.fn(),
   Canvas: ({
     children,
     frameloop,
@@ -51,9 +53,7 @@ vi.mock('@react-three/fiber', () => ({
 }))
 
 vi.mock('@react-three/drei', () => ({
-  OrbitControls: ({ autoRotate, autoRotateSpeed }: { autoRotate?: boolean; autoRotateSpeed?: number }) => (
-    <div data-testid="orbit-controls" data-auto-rotate={String(autoRotate)} data-speed={autoRotateSpeed} />
-  ),
+  OrbitControls: () => null,
   Environment: ({
     files,
     backgroundBlurriness,
@@ -127,23 +127,27 @@ describe('ModelViewer', () => {
     )
   })
 
-  it('rotates slowly and lets the visitor pause and resume rotation', async () => {
-    const user = userEvent.setup()
-    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
-    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'true')
-    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-speed', '0.6')
-    await user.click(screen.getByRole('button', { name: 'Pause rotation' }))
-    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'false')
-    await user.click(screen.getByRole('button', { name: 'Start rotation' }))
-    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'true')
+  it('smoothly grows the model to its fitted size after loading', () => {
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    const group = container.querySelector('group')!
+    const setScalar = vi.fn()
+    Object.defineProperty(group, 'scale', { value: { setScalar }, configurable: true })
+    const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
+    act(() => { for (let i = 0; i < 15; i += 1) frame({} as never, 0.05, undefined) })
+    expect(setScalar.mock.calls[0][0]).toBeGreaterThan(0.85)
+    expect(setScalar.mock.calls.at(-1)![0]).toBeCloseTo(1)
   })
 
-  it('starts paused for visitors who prefer reduced motion', () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+  it('skips the entrance animation when reduced motion is preferred', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
     try {
-      render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
-      expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'false')
-      expect(screen.getByRole('button', { name: 'Start rotation' })).toBeInTheDocument()
+      const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+      const group = container.querySelector('group')!
+      const setScalar = vi.fn()
+      Object.defineProperty(group, 'scale', { value: { setScalar }, configurable: true })
+      const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
+      act(() => frame({} as never, 0.05, undefined))
+      expect(setScalar).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
     }
@@ -374,7 +378,6 @@ describe('ModelViewer', () => {
     )
 
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'never')
-    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'false')
   })
 
   it('does not dispose shared GLTF resources on unmount', () => {
