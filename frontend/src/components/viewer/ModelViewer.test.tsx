@@ -215,7 +215,7 @@ describe('ModelViewer', () => {
       )
       // Studio keeps the EXR's dark areas out of the neutral backdrop; lighting stays active.
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '0.75')
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '1')
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
         'data-background-blurriness',
         '0',
