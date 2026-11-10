@@ -51,7 +51,9 @@ vi.mock('@react-three/fiber', () => ({
 }))
 
 vi.mock('@react-three/drei', () => ({
-  OrbitControls: () => null,
+  OrbitControls: ({ autoRotate, autoRotateSpeed }: { autoRotate?: boolean; autoRotateSpeed?: number }) => (
+    <div data-testid="orbit-controls" data-auto-rotate={String(autoRotate)} data-speed={autoRotateSpeed} />
+  ),
   Environment: ({
     files,
     backgroundBlurriness,
@@ -123,6 +125,28 @@ describe('ModelViewer', () => {
         ok: true,
       }),
     )
+  })
+
+  it('rotates slowly and lets the visitor pause and resume rotation', async () => {
+    const user = userEvent.setup()
+    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'true')
+    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-speed', '0.6')
+    await user.click(screen.getByRole('button', { name: 'Pause rotation' }))
+    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'false')
+    await user.click(screen.getByRole('button', { name: 'Start rotation' }))
+    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'true')
+  })
+
+  it('starts paused for visitors who prefer reduced motion', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    try {
+      render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+      expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'false')
+      expect(screen.getByRole('button', { name: 'Start rotation' })).toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('fits loaded models on entry and resize while keeping user zoom across lighting changes', async () => {
@@ -350,6 +374,7 @@ describe('ModelViewer', () => {
     )
 
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'never')
+    expect(screen.getByTestId('orbit-controls')).toHaveAttribute('data-auto-rotate', 'false')
   })
 
   it('does not dispose shared GLTF resources on unmount', () => {

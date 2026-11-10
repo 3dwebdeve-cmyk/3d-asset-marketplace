@@ -302,11 +302,15 @@ function ModelViewerCanvas({
   ariaLabel,
   visible,
   pixelRatio,
+  autoRotate,
+  onToggleRotation,
 }: {
   modelUrl: string
   ariaLabel: string
   visible: boolean
   pixelRatio: number
+  autoRotate: boolean
+  onToggleRotation: () => void
 }) {
   const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
   const [environmentStatus, setEnvironmentStatus] = useState<{
@@ -396,6 +400,8 @@ function ModelViewerCanvas({
         </Suspense>
         <OrbitControls
           makeDefault
+          autoRotate={visible && autoRotate}
+          autoRotateSpeed={0.6}
           enableDamping
           dampingFactor={0.08}
           minDistance={0.5}
@@ -404,6 +410,9 @@ function ModelViewerCanvas({
         />
       </Canvas>
       <div className="model-viewer__controls" role="group" aria-label="Viewer controls">
+        <button type="button" className="model-viewer__chip" onClick={onToggleRotation}>
+          {autoRotate ? 'Pause rotation' : 'Start rotation'}
+        </button>
         <div className="model-viewer__environment" role="radiogroup" aria-label="Lighting setup">
           {HDRI_ENVIRONMENTS.map((option) => (
             <button
@@ -440,11 +449,15 @@ function StableModelViewerCanvas({
   ariaLabel,
   visible,
   pixelRatio,
+  autoRotate,
+  onToggleRotation,
 }: {
   modelUrl: string
   ariaLabel: string
   visible: boolean
   pixelRatio: number
+  autoRotate: boolean
+  onToggleRotation: () => void
 }) {
   return (
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
@@ -464,6 +477,8 @@ function StableModelViewerCanvas({
         </Suspense>
         <OrbitControls
           makeDefault
+          autoRotate={visible && autoRotate}
+          autoRotateSpeed={0.6}
           enableDamping
           dampingFactor={0.08}
           minDistance={0.5}
@@ -471,12 +486,28 @@ function StableModelViewerCanvas({
           maxPolarAngle={Math.PI * 0.92}
         />
       </Canvas>
+      <div className="model-viewer__controls" role="group" aria-label="Viewer controls">
+        <button type="button" className="model-viewer__chip" onClick={onToggleRotation}>
+          {autoRotate ? 'Pause rotation' : 'Start rotation'}
+        </button>
+      </div>
       <ViewerProgressOverlay />
     </div>
   )
 }
 
 export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps) {
+  const [autoRotate, setAutoRotate] = useState(
+    () => !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false),
+  )
+  useEffect(() => {
+    const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setAutoRotate(false)
+    }
+    preference?.addEventListener?.('change', onChange)
+    return () => preference?.removeEventListener?.('change', onChange)
+  }, [])
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
   const pixelRatio = useAdaptivePixelRatio()
@@ -519,6 +550,8 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
               ariaLabel={ariaLabel}
               visible={visible}
               pixelRatio={pixelRatio}
+              autoRotate={autoRotate}
+              onToggleRotation={() => setAutoRotate((value) => !value)}
             />
           </ErrorBoundary>
         }
@@ -528,6 +561,8 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
           ariaLabel={ariaLabel}
           visible={visible}
           pixelRatio={pixelRatio}
+          autoRotate={autoRotate}
+          onToggleRotation={() => setAutoRotate((value) => !value)}
         />
       </ErrorBoundary>
     </div>
