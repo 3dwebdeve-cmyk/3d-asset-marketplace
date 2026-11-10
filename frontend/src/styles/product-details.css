@@ -84,10 +84,7 @@
   outline-offset: 3px;
 }
 
-/*
- * Neutral backdrop behind every render. A render with stored edge colours overrides it inline
- * with one light colour made from those edges, so the render's own boundary stands out.
- */
+/* Neutral fallback while the blurred top-corner extensions load. */
 .product-detail-stage__image-preview {
   border-radius: 0;
   position: relative;
@@ -97,6 +94,28 @@
   overflow: hidden;
   isolation: isolate;
   background: linear-gradient(rgb(209, 209, 209), rgb(233, 233, 233));
+}
+
+.product-detail-stage__corner {
+  position: absolute;
+  top: -36px;
+  bottom: -36px;
+  width: calc(50% + 36px);
+  background-repeat: no-repeat;
+  /* Stretch just the outer 4% and top 20% of each image into the side area. */
+  background-size: 2500% 500%;
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.product-detail-stage__corner--left {
+  left: -36px;
+  background-position: left top;
+}
+
+.product-detail-stage__corner--right {
+  right: -36px;
+  background-position: right top;
 }
 
 .product-detail-stage__image-preview > .product-detail-stage__image {
