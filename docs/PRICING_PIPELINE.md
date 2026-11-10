@@ -78,7 +78,9 @@ Admin `PATCH` accepts `discount_ends_at` (ISO 8601 with time zone, or `null`). I
 future and needs a sale price. Clearing `discount_price` also clears `discount_ends_at`. A time
 without a zone is refused (400). A new sale price on a model whose stored sale end has passed
 must come with a new `discount_ends_at` (or `null`), so a sale never starts already ended.
-A sale price is lower than the normal price and at least the checkout minimum (0.50 USD).
+A sale price is lower than the normal price and at least the checkout minimum (0.50 USD). The same
+rules apply when an admin creates a model. The upload import never takes a sale price from the
+sheet (row warning `sheet_sale_ignored`): sales are set on the Pricing page or in the product form.
 
 An **ended sale is never revived** by an edit: resending its price, removing its end
 (`discount_ends_at: null`) or sending its old end clears it instead. Starting it again needs a
@@ -183,7 +185,8 @@ needed confirmation. `confirm_count` is the number of selected models, typed by 
 
 - The rows are locked in ID order, recalculated, and refused with **409** if the token differs:
   something changed since the preview, or a sale ended.
-- Any row error refuses the whole save (400). The `errors` field is keyed by model ID.
+- Any row error refuses the whole save (400). The response body maps each model ID to a list with
+  its error (the API's usual field-error shape).
 - Otherwise every changed model is saved in one transaction.
 - One `ProductPriceChange` row is written per changed model, with source `pricing_page`, the admin
   as actor, and one shared `batch_id`.
@@ -198,7 +201,8 @@ Body: `product_ids` (1 to 200) and `confirm_count`, which must equal the number 
 page shows a summary first. Each model is checked and saved on its own.
 
 - **Published**: an `awaiting_price` model that is a paid upload, has a price of at least 0.50,
-  and passes every publish check (files, preview, category and so on).
+  has no running sale that breaks the sale rules, and passes every publish check (files, preview,
+  category and so on).
 - **Not published**: any other model stays where it is, and its `reason` is returned.
 
 Returns `models`, `published`, `failed`, and `results` (`id`, `name`, `sku`, `published`,
