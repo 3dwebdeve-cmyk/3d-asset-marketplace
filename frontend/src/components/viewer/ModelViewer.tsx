@@ -65,13 +65,12 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Balanced front/side fill keeps dark panel details visible. Keep
-              exposure unchanged so light materials retain their highlights. */}
-          <ambientLight intensity={0.2 * lightMultiplier} />
-          <hemisphereLight args={['#ffffff', '#e1e3e6', 0.4 * lightMultiplier]} />
-          <directionalLight position={[4, 5, 5]} intensity={1.8 * lightMultiplier} />
-          <directionalLight position={[-4, 2.5, 4]} intensity={0.65 * lightMultiplier} />
-          <directionalLight position={[1, 4, -5]} intensity={0.4 * lightMultiplier} />
+          {/* Neutral white fill and three directional lights illuminate the model from multiple sides. */}
+          <ambientLight intensity={0.1 * lightMultiplier} />
+          <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
+          <directionalLight position={[4, 5, 5]} intensity={0.8 * lightMultiplier} />
+          <directionalLight position={[-4, 2.5, 4]} intensity={0.3 * lightMultiplier} />
+          <directionalLight position={[1, 4, -5]} intensity={0.25 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
@@ -239,7 +238,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-spread`}
             position={[0, ground.y + 0.001, 0]}
-            opacity={0.22}
+            opacity={0.18}
             scale={ground.shadowScaleSpread}
             blur={3.2}
             far={4.0}
@@ -251,7 +250,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-mid`}
             position={[0, ground.y + 0.002, 0]}
-            opacity={0.25}
+            opacity={0.20}
             scale={ground.shadowScaleMid}
             blur={2.4}
             far={2.8}
@@ -263,7 +262,7 @@ function PreviewModel({
           <ContactShadows
             key={`${url}-core`}
             position={[0, ground.y + 0.003, 0]}
-            opacity={0.29}
+            opacity={0.25}
             scale={ground.shadowScaleCore}
             blur={1.6}
             far={1.8}
