@@ -124,7 +124,7 @@ class MaintenanceLoopTests(SimpleTestCase):
         # The daily report hears about every task, including the failed one.
         report.assert_called_once_with(results)
 
-        self.assertEqual(called, ["send_review_reminders", "prune_expired_records", "manage_background_jobs", "check_payment_reconciliation"])
+        self.assertEqual(called, ["send_review_reminders", "prune_expired_records", "manage_background_jobs", "check_payment_reconciliation", "end_expired_discounts"])
         self.assertEqual(results["manage_background_jobs"], False)
         self.assertTrue(results["prune_expired_records"])
         self.assertTrue(results["check_payment_reconciliation"])

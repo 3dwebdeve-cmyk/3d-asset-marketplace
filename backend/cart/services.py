@@ -1,7 +1,8 @@
 """
 Cart pricing policy (v1):
-- Display and subtotal use live catalog effective prices:
-  effective_price = discount_price if set else price.
+- Display and subtotal use live catalog effective prices. Models use the one rule,
+  Product.effective_price() (the running sale price, else price; an ended sale is
+  ignored). Plugins: discount_price if set else price.
 - Prices are NOT snapshotted in the cart; checkout snapshots purchase_price
   on OrderItem via OrderService.create() / OrderService.create_from_cart().
 - Unavailable catalog lines remain in the cart but are excluded from subtotal.
@@ -16,6 +17,7 @@ from uuid import UUID
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from cart.models import Cart, CartItem
 from plugins.models import Plugin
 from products.models import Product
@@ -234,8 +236,7 @@ class CartService:
                     "This model is free. Use Download on its page; it needs no checkout.",
                     field="product_id",
                 )
-            effective_price = cls._effective_price(product.discount_price, product.price)
-            return effective_price, product.currency
+            return product.effective_price(), product.currency
 
         try:
             plugin = Plugin.objects.select_related("category").get(pk=product_id)
@@ -283,10 +284,12 @@ class CartService:
         snapshots: dict[tuple[str, UUID], dict[str, Any] | None] = {}
 
         if product_ids:
+            # One clock reading for the whole cart, so every line agrees on which sales run.
+            now = timezone.now()
             products = Product.objects.select_related("category").filter(pk__in=product_ids)
             for product in products:
                 snapshots[(CartItem.ProductType.PRODUCT, product.id)] = (
-                    cls._product_snapshot(product)
+                    cls._product_snapshot(product, now=now)
                 )
 
         if plugin_ids:
@@ -299,18 +302,17 @@ class CartService:
         return snapshots
 
     @classmethod
-    def _product_snapshot(cls, product: Product) -> dict[str, Any]:
-        effective_price = cls._effective_price(product.discount_price, product.price)
+    def _product_snapshot(cls, product: Product, *, now=None) -> dict[str, Any]:
+        now = now or timezone.now()
+        sale_price = product.active_discount_price(now)
+        effective_price = product.effective_price(now)
         return {
             "name": product.name,
             "slug": product.slug,
             "thumbnail": product.thumbnail,
             "price": f"{product.price:.2f}",
-            "discount_price": (
-                f"{product.discount_price:.2f}"
-                if product.discount_price is not None
-                else None
-            ),
+            # The running sale price only; an ended sale is not shown or charged.
+            "discount_price": f"{sale_price:.2f}" if sale_price is not None else None,
             "effective_price": f"{effective_price:.2f}",
             "currency": product.currency,
             "category": {

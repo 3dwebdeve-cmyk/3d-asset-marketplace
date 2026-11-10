@@ -26,7 +26,13 @@ from config.upload_security import (
     scan_error_code,
 )
 from products.edge_colour import edge_fields, fetch_side_colours
-from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
+from products.models import (
+    PRODUCT_SKU_REGEX,
+    Product,
+    ProductFile,
+    ProductImage,
+    ProductPriceChange,
+)
 from products.services import (
     ProductCreateData,
     ProductError,
@@ -951,6 +957,7 @@ class CatalogImportService:
                 has_package=media_pointers["has_package"],
                 package_formats=cls.normalize_package_formats(item.get("package_formats")),
             ),
+            price_source=ProductPriceChange.Source.IMPORT,
         )
 
     @classmethod

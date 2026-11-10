@@ -579,11 +579,8 @@ class OrderService:
                     "Product is not available for purchase.",
                     field=f"{field_prefix}.product_id",
                 )
-            purchase_price = (
-                product.discount_price
-                if product.discount_price is not None
-                else product.price
-            )
+            # The one buyer-price rule: an ended sale is never charged.
+            purchase_price = product.effective_price()
             return purchase_price, product.currency, product.name, product.slug
 
         try:

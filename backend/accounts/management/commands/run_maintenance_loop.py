@@ -24,6 +24,8 @@ def maintenance_tasks() -> list[tuple[str, tuple, dict]]:
         ("prune_expired_records", (), {"execute": True}),
         ("manage_background_jobs", ("prune",), {"older_than_days": 30, "execute": True}),
         ("check_payment_reconciliation", (), {}),
+        # Housekeeping: ended sales are already ignored at checkout.
+        ("end_expired_discounts", (), {}),
     ]
     # Only against a live Stripe account: a test account holds old sandbox payments that
     # would raise false alarms every day.
@@ -75,7 +77,7 @@ def send_report_once_a_day(results: dict[str, bool]) -> None:
 class Command(BaseCommand):
     help = (
         "Run daily maintenance forever: prune old records, check payments, reconcile with Stripe, "
-        "then email the daily health report."
+        "clear ended sales, then email the daily health report."
     )
 
     def add_arguments(self, parser):

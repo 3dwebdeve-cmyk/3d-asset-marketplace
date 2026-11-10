@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -21,7 +22,14 @@ from products.media_service import (  # noqa: F401 - re-exported for existing im
     ProductMediaService,
     preview_reduction_error,
 )
-from products.models import PRODUCT_SKU_REGEX, Product, ProductFile, ProductImage
+from products.models import (
+    PRODUCT_SKU_REGEX,
+    Product,
+    ProductFile,
+    ProductImage,
+    ProductPriceChange,
+)
+from products.price_history import PriceState, record_price_change
 
 
 @dataclass(frozen=True)
@@ -66,6 +74,9 @@ class ProductUpdateData:
     currency: str | None = None
     discount_price: Decimal | None = None
     clear_discount_price: bool = False
+    # When the sale ends (time-zone aware, in the future). Clearing the sale price clears it.
+    discount_ends_at: datetime | None = None
+    clear_discount_ends_at: bool = False
     thumbnail: str | None = None
     preview_model: str | None = None
     preview_video: str | None = None
@@ -352,8 +363,18 @@ class ProductService(ProductMediaService):
 
     @classmethod
     @transaction.atomic
-    def update_product(cls, product: Product, data: ProductUpdateData) -> Product:
+    def update_product(
+        cls,
+        product: Product,
+        data: ProductUpdateData,
+        *,
+        actor=None,
+        price_source: str = ProductPriceChange.Source.ADMIN_EDIT,
+    ) -> Product:
+        """Apply an edit. A change to the price, sale price or sale end writes one
+        ProductPriceChange row (``price_source``, ``actor``) in the same transaction."""
         product = Product.objects.select_for_update().get(pk=product.pk)
+        price_before = PriceState.of(product)
         update_fields: list[str] = ["updated_at"]
 
         if data.category_id is not None:
@@ -405,6 +426,13 @@ class ProductService(ProductMediaService):
             if data.discount_price is not None or data.clear_discount_price:
                 product.discount_price = discount_price
                 update_fields.append("discount_price")
+
+        discount_ends_at = cls._resolve_discount_ends_at(
+            product, data, discount_price, price_before.discount_price
+        )
+        if discount_ends_at != product.discount_ends_at:
+            product.discount_ends_at = discount_ends_at
+            update_fields.append("discount_ends_at")
 
         if data.currency is not None:
             product.currency = cls._normalize_currency(data.currency)
@@ -496,8 +524,58 @@ class ProductService(ProductMediaService):
         if product.status == Product.Status.PUBLISHED:
             cls._validate_publish_ready(product)
         product.save(update_fields=list(dict.fromkeys(update_fields)))
+        record_price_change(product, price_before, source=price_source, actor=actor)
         updated = cls.get_by_id(product.pk)
         return updated
+
+    @staticmethod
+    def _resolve_discount_ends_at(
+        product: Product,
+        data: ProductUpdateData,
+        discount_price: Decimal | None,
+        previous_discount_price: Decimal | None,
+    ) -> datetime | None:
+        """The sale end after this edit. ``discount_price`` is the sale price after it.
+
+        A new end must be time-zone aware, in the future, and needs a sale price. Removing
+        the sale price removes its end. A new sale price on a product whose old end has
+        passed must come with a new end (or null), so a sale never starts already ended.
+        """
+        if discount_price is None:
+            if data.discount_ends_at is not None:
+                raise ProductError(
+                    "Set a sale price to give the sale an end date.",
+                    field="discount_ends_at",
+                )
+            return None
+        if data.clear_discount_ends_at:
+            return None
+        if data.discount_ends_at is not None:
+            ends_at = data.discount_ends_at
+            if timezone.is_naive(ends_at):
+                raise ProductError(
+                    "Give the sale end with a time zone.",
+                    field="discount_ends_at",
+                )
+            if ends_at <= timezone.now():
+                raise ProductError(
+                    "The sale end must be in the future.",
+                    field="discount_ends_at",
+                )
+            return ends_at
+        current = product.discount_ends_at
+        if (
+            data.discount_price is not None
+            and data.discount_price != previous_discount_price
+            and current is not None
+            and current <= timezone.now()
+        ):
+            raise ProductError(
+                "This sale's end date has passed. Send a new discount_ends_at, "
+                "or null for a sale with no end.",
+                field="discount_ends_at",
+            )
+        return current
 
     @classmethod
     @transaction.atomic

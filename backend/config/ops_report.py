@@ -149,9 +149,15 @@ def _email_section(report: DailyReport, since) -> None:
 def _activity_section(report: DailyReport, since) -> None:
     from accounts.models import User
     from payments.models import StripeWebhookEvent
+    from products.models import ProductPriceChange
 
     report.lines.append("Activity (last 24 hours)")
     report.lines.append(f"  New accounts: {User.objects.filter(created_at__gte=since).count()}")
+    # Information only (the maintenance loop clearing ended sales), never a problem.
+    sales_ended = ProductPriceChange.objects.filter(
+        source=ProductPriceChange.Source.SALE_ENDED, created_at__gte=since
+    ).count()
+    report.lines.append(f"  Sales ended: {sales_ended}")
     last_webhook = StripeWebhookEvent.objects.order_by("-received_at").values_list("received_at", flat=True).first()
     report.lines.append(
         "  Last Stripe event received: "
