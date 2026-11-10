@@ -571,11 +571,16 @@ describe('AdminProductDetailPage sale end', () => {
     // The displayed value, read back as local time, is the same instant.
     expect(new Date(input.value).toISOString()).toBe(end.toISOString())
 
+    // A changed end is sent back as ISO UTC (an unchanged one is not resent).
+    const later = new Date(end.getTime() + 24 * 60 * 60 * 1000)
+    const pad = (value: number) => String(value).padStart(2, '0')
+    const laterLocal = `${later.getFullYear()}-${pad(later.getMonth() + 1)}-${pad(later.getDate())}T${pad(later.getHours())}:${pad(later.getMinutes())}`
+    fireEvent.change(input, { target: { value: laterLocal } })
     await user.click(screen.getByRole('button', { name: /save changes/i }))
     await waitFor(() => {
       expect(productsApi.updateAdminProduct).toHaveBeenCalledWith(
         productId,
-        expect.objectContaining({ discount_ends_at: end.toISOString() }),
+        expect.objectContaining({ discount_ends_at: new Date(laterLocal).toISOString() }),
       )
     })
   })
@@ -633,5 +638,81 @@ describe('AdminProductDetailPage sale end', () => {
     renderProductDetailPage()
 
     expect(await screen.findByText('Sale ended')).toBeInTheDocument()
+  })
+})
+
+describe('AdminProductDetailPage pricing safeguards (security review)', () => {
+  const livePaid: AdminProduct = {
+    ...sampleProduct,
+    status: 'published',
+    upload_kind: 'paid',
+    price: '40.00',
+  }
+
+  it('does not offer Free for a paid upload', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue(livePaid)
+    renderProductDetailPage()
+
+    expect(await screen.findByText(/paid upload\. to make it free, upload it again/i)).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /^pricing$/i })).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^price$/i)).toBeInTheDocument()
+  })
+
+  it('loads an ended sale as no sale, so saving clears it instead of restarting it', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...livePaid,
+      discount_price: '30.00',
+      discount_ends_at: '2020-01-01T00:00:00Z',
+      discount_active: false,
+    })
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(livePaid)
+    renderProductDetailPage()
+
+    expect(await screen.findByText('Sale ended')).toBeInTheDocument()
+    expect(screen.getByLabelText(/discount price/i)).toHaveValue(null)
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(productsApi.updateAdminProduct).toHaveBeenCalledWith(
+        productId,
+        expect.objectContaining({ discount_price: null, discount_ends_at: null }),
+      )
+    })
+  })
+
+  it('does not resend an unchanged sale end or an unchanged status', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...livePaid,
+      discount_price: '30.00',
+      discount_ends_at: '2099-01-01T10:30:45Z',
+      discount_active: true,
+    })
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(livePaid)
+    renderProductDetailPage()
+
+    await screen.findByDisplayValue('Oak Chair')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(productsApi.updateAdminProduct).toHaveBeenCalled())
+    const payload = vi.mocked(productsApi.updateAdminProduct).mock.calls[0][1]
+    expect(payload).not.toHaveProperty('discount_ends_at')
+    expect(payload).not.toHaveProperty('status')
+    expect(payload).toMatchObject({ discount_price: '30.00' })
+  })
+
+  it('does not send the form status back after the model moved on (for example after QA approve)', async () => {
+    const user = userEvent.setup()
+    const pending: AdminProduct = { ...sampleProduct, status: 'pending_review', upload_kind: 'paid' }
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue(pending)
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(pending)
+    renderProductDetailPage()
+
+    await screen.findByDisplayValue('Oak Chair')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(productsApi.updateAdminProduct).toHaveBeenCalled())
+    expect(vi.mocked(productsApi.updateAdminProduct).mock.calls[0][1]).not.toHaveProperty('status')
   })
 })

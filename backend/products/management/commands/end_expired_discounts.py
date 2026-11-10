@@ -42,12 +42,17 @@ class Command(BaseCommand):
             self.stdout.write(f"expired_sales={len(rows)} dry_run=True")
             return
 
-        ended = 0
+        ended = failed = 0
         for pk, *_rest in list(expired):
-            if self._end_sale(pk, now):
-                ended += 1
-        logger.info("expired_sales_ended count=%s", ended)
-        self.stdout.write(f"expired_sales_ended={ended}")
+            try:
+                if self._end_sale(pk, now):
+                    ended += 1
+            except Exception:
+                # One bad row must not stop the others; the log has the traceback.
+                failed += 1
+                logger.exception("expired_sale_end_failed product_id=%s", pk)
+        logger.info("expired_sales_ended count=%s failed=%s", ended, failed)
+        self.stdout.write(f"expired_sales_ended={ended} failed={failed}")
 
     @staticmethod
     def _end_sale(pk, now) -> bool:

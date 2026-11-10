@@ -2,8 +2,21 @@
 
 import django.db.models.deletion
 import uuid
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import migrations, models
+from django.db.models import F, Q
+
+
+def clear_sales_that_save_nothing(apps, schema_editor):
+    """From now on a sale price must be below the normal price and at least the checkout
+    minimum (0.50). Older rows that break this would make every later price edit fail, and a
+    0.00 sale would put a free line into a paid checkout, so they are cleared once here."""
+    Product = apps.get_model("products", "Product")
+    Product.objects.filter(discount_price__isnull=False).filter(
+        Q(discount_price__gte=F("price")) | Q(discount_price__lt=Decimal("0.50"))
+    ).update(discount_price=None)
 
 
 class Migration(migrations.Migration):
@@ -47,4 +60,5 @@ class Migration(migrations.Migration):
                 'indexes': [models.Index(fields=['product', 'created_at'], name='product_pri_product_c43d82_idx'), models.Index(fields=['batch_id'], name='product_pri_batch_i_64b562_idx')],
             },
         ),
+        migrations.RunPython(clear_sales_that_save_nothing, migrations.RunPython.noop),
     ]

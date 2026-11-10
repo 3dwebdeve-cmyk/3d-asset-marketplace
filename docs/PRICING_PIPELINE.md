@@ -25,7 +25,14 @@ Model Uploader -> R2 + import
 A model is **free** when any of its sellable files (`ProductFile.is_preview=False`) has a
 `storage_path` under `free-models/` (`config.media.is_free_model_path`). Otherwise it is **paid**.
 The admin API sends this as `upload_kind: "free" | "paid"`. A paid model cannot be made free on
-the website: its zip is in the private bucket. Re-upload it with the Free tick instead.
+the website: its zip is in the private bucket. Re-upload it with the Free tick instead. An admin
+`PATCH` that sets price 0 on a paid upload is refused (400), and the product form does not offer
+Free for a paid upload.
+
+A **live free model uploaded again as paid** (its zip moves to the private bucket) leaves the
+store: it goes to `pending_review` (row warning `free_to_paid_off_sale`) and then through QA and
+the Pricing page like a new paid model. It cannot stay a free download. For the same reason, QA
+approving a live update of a paid upload whose price is 0 sends it to `awaiting_price`.
 
 ### Statuses
 
@@ -39,7 +46,8 @@ the QA quality check.
 | `published` + `pending_update` | `published` | QA approve (flag cleared, price kept) |
 | `pending_review`, `awaiting_price`, live update | `rejected` | QA reject (reason required) |
 | `awaiting_price` | `published` | Pricing page publish only (Part 2) |
-| `awaiting_price` | `pending_review` | Re-upload by the Model Uploader |
+| `awaiting_price` | `pending_review` | Re-upload by the Model Uploader only (not an admin edit) |
+| `published` (free, price 0) | `pending_review` | Re-upload as paid (see above) |
 | `awaiting_price` | `draft`, `archived` | Admin edit / archive |
 
 A direct admin edit (`PATCH`) can never set `awaiting_price` or `published`. The approve endpoint
@@ -70,6 +78,15 @@ Admin `PATCH` accepts `discount_ends_at` (ISO 8601 with time zone, or `null`). I
 future and needs a sale price. Clearing `discount_price` also clears `discount_ends_at`. A time
 without a zone is refused (400). A new sale price on a model whose stored sale end has passed
 must come with a new `discount_ends_at` (or `null`), so a sale never starts already ended.
+A sale price is lower than the normal price and at least the checkout minimum (0.50 USD).
+
+An **ended sale is never revived** by an edit: resending its price, removing its end
+(`discount_ends_at: null`) or sending its old end clears it instead. Starting it again needs a
+sale price in the request together with a new price or a new future end. An unchanged
+`discount_ends_at` counts as not sent (forms resend it). The product form loads an ended sale as
+"no sale", sends the status only when the admin changed it, and sends the sale end only when it
+changed. Migration `products/0014` clears stored sales that are not below the price or are below
+0.50. The Django admin cannot change status or prices (read-only there).
 
 The maintenance loop runs `end_expired_discounts`, which clears ended sales (history source
 `sale_ended`). It is only housekeeping: an ended sale is already ignored by the rule above.

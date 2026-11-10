@@ -397,10 +397,15 @@ class AdminSaleEndTests(APITestCase):
         self.assertEqual(response.data["discount_price"], "40.00")
         self.assertEqual(parse_datetime(response.data["discount_ends_at"]), ended_at)
         self.assertFalse(response.data["discount_active"])
-        # Editing something else is still allowed and writes no price history.
+        # Saving the form again (which resends the ended sale) is allowed, and clears the
+        # ended sale instead of reviving it; the clearing is written to the price history.
         renamed = self._patch({"name": "Renamed Chair", "discount_price": "40.00"})
         self.assertEqual(renamed.status_code, status.HTTP_200_OK, renamed.data)
-        self.assertFalse(ProductPriceChange.objects.exists())
+        self.assertIsNone(renamed.data["discount_price"])
+        change = ProductPriceChange.objects.get(product=self.product)
+        self.assertEqual(
+            (change.old_discount_price, change.new_discount_price), (Decimal("40.00"), None)
+        )
 
     def test_price_change_is_recorded(self) -> None:
         response = self._patch({"price": "60.00"})

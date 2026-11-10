@@ -77,7 +77,9 @@ export function AdminProductDetailPage() {
       return
     }
     setHydratedProductId(product.id)
-    setSaleEndLocal(utcToLocalInput(product.discount_ends_at))
+    // An ended sale loads as "no sale": saving the form must never start it again.
+    const saleEnded = Boolean(product.discount_price) && product.discount_active === false
+    setSaleEndLocal(saleEnded ? '' : utcToLocalInput(product.discount_ends_at))
     setFormPricing(isFreeProduct(product) ? 'free' : 'paid')
     setForm({
       category_id: product.category.id,
@@ -94,8 +96,7 @@ export function AdminProductDetailPage() {
       short_description: product.short_description,
       price: product.price,
       currency: product.currency,
-      discount_price: product.discount_price,
-      discount_ends_at: product.discount_ends_at ?? null,
+      discount_price: saleEnded ? null : product.discount_price,
       thumbnail: product.thumbnail,
       preview_model: product.preview_model,
       preview_video: product.preview_video,
@@ -226,10 +227,14 @@ export function AdminProductDetailPage() {
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
-    // Published and Waiting for price come only from QA and the Pricing page, never from this form.
-    const { status, ...rest } = form
+    // The status is sent only when the administrator changed it here. QA actions change it
+    // on the server while this form keeps its first value, which must not undo them.
+    const current = productQuery.data
+    const { status, discount_ends_at: _loadedEnd, ...rest } = form
     const base: AdminProductUpdatePayload =
-      status === 'published' || status === 'awaiting_price' ? rest : form
+      status !== undefined && current !== undefined && status !== current.status
+        ? { ...rest, status }
+        : rest
     if (formPricing === 'free') {
       saveMutation.mutate({ ...base, price: '0.00', discount_price: null, discount_ends_at: null })
       return
@@ -244,10 +249,16 @@ export function AdminProductDetailPage() {
       setFormError(SALE_END_PAST_MESSAGE)
       return
     }
-    saveMutation.mutate({
-      ...base,
-      discount_ends_at: hasSale ? localInputToUtc(saleEndLocal) : null,
-    })
+    // Send the sale end only when it changed: the date field has no seconds, so resending an
+    // unchanged end would move it and write a needless price-history row.
+    const loadedEndLocal = current?.discount_active ? utcToLocalInput(current.discount_ends_at) : ''
+    if (!hasSale) {
+      saveMutation.mutate({ ...base, discount_ends_at: null })
+    } else if (saleEndLocal !== loadedEndLocal || !current?.discount_active) {
+      saveMutation.mutate({ ...base, discount_ends_at: localInputToUtc(saleEndLocal) })
+    } else {
+      saveMutation.mutate(base)
+    }
   }
 
   const onReject = () => {
@@ -589,19 +600,26 @@ export function AdminProductDetailPage() {
                   Pricing
                 </h2>
                 <div className="admin-product-form__grid">
-                  <div className="admin-product-form__full admin-product-form__choice">
-                    <PricingChoice
-                      idPrefix="detail"
-                      value={formPricing}
-                      onChange={(mode) => {
-                        setFormPricing(mode)
-                        // Switching a free model to Paid starts from an empty price, not 0.00.
-                        if (mode === 'paid' && Number(form.price) === 0) {
-                          setForm((current) => ({ ...current, price: '' }))
-                        }
-                      }}
-                    />
-                  </div>
+                  {product.upload_kind === 'paid' && !isFreeProduct(product) ? (
+                    // A paid upload's zip is private: it cannot be made free here.
+                    <p className="admin-product-form__full home-page__subtitle admin-product-form__note">
+                      Paid upload. To make it free, upload it again with the Free tick.
+                    </p>
+                  ) : (
+                    <div className="admin-product-form__full admin-product-form__choice">
+                      <PricingChoice
+                        idPrefix="detail"
+                        value={formPricing}
+                        onChange={(mode) => {
+                          setFormPricing(mode)
+                          // Switching a free model to Paid starts from an empty price, not 0.00.
+                          if (mode === 'paid' && Number(form.price) === 0) {
+                            setForm((current) => ({ ...current, price: '' }))
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
                   {formPricing === 'paid' ? (
                     <>
                       <FormField id="detail-price" label="Price">

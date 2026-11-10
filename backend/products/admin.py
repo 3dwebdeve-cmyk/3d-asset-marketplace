@@ -30,7 +30,17 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ("status", "license_type", "category", "has_preview", "has_package")
     search_fields = ("name", "sku", "slug", "short_description", "import_batch_id")
     prepopulated_fields = {"slug": ("name",)}
+    # Status and prices change only through /console (QA, the Pricing page, the product
+    # form), which run the publish checks and write the price history and audit log.
     readonly_fields = (
+        "status",
+        "pending_update",
+        "price",
+        "currency",
+        "discount_price",
+        "discount_ends_at",
+        "reviewed_at",
+        "reviewed_by",
         "average_rating",
         "review_count",
         "total_downloads",
@@ -38,6 +48,10 @@ class ProductAdmin(admin.ModelAdmin):
         "updated_at",
     )
     inlines = [ProductImageInline, ProductFileInline]
+
+    def has_add_permission(self, request) -> bool:
+        # A new product needs a price; create it in /console instead.
+        return False
 
 
 @admin.register(ProductImage)

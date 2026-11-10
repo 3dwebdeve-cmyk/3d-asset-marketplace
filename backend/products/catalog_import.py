@@ -69,6 +69,9 @@ CONSOLE_TEXT_KEPT = "console_text_kept"
 PRICE_NEEDED = "price_needed"
 # Row warning: the model is live; it stays on sale and waits in the QA queue as an update.
 LIVE_UPDATE_IN_QA = "live_update_in_qa"
+# Row warning: a live free model was uploaded as paid; it left the store and goes through QA
+# and the Pricing page again (its zip is now private, so it cannot stay a free download).
+FREE_TO_PAID_OFF_SALE = "free_to_paid_off_sale"
 # QA note on a live model whose re-upload the website refused. The uploader replaces the
 # files in R2 before it calls the import, so the store may already serve the new files.
 _REFUSED_NOTE_PREFIX = "Re-upload "
@@ -281,8 +284,18 @@ class CatalogImportService:
         # A live model uploaded again stays on sale with its new files (the uploader has
         # already replaced them in R2) and waits in the QA queue as an update.
         live_update = existing is not None and existing.status == Product.Status.PUBLISHED
+        # A live free model (price 0) uploaded again as paid: its zip moves to the private
+        # bucket, and at price 0 the free download would hand that zip to anyone. It leaves
+        # the store and goes through QA and the Pricing page like a new paid model.
+        free_to_paid = live_update and not free_upload and existing.price == 0
+        if free_to_paid:
+            live_update = False
         if existing is not None:
-            if not live_update and existing.status not in _UPSERTABLE_STATUSES:
+            if (
+                not live_update
+                and not free_to_paid
+                and existing.status not in _UPSERTABLE_STATUSES
+            ):
                 return CatalogImportRowResult(
                     model_id=sku,
                     action="skipped",
@@ -404,6 +417,8 @@ class CatalogImportService:
             warnings.append(LIVE_UPDATE_IN_QA)
         if action == "updated" and not free_upload and product.price <= 0:
             warnings.append(PRICE_NEEDED)
+        if free_to_paid:
+            warnings.append(FREE_TO_PAID_OFF_SALE)
 
         return CatalogImportRowResult(
             model_id=sku,
