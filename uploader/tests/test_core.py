@@ -11,6 +11,7 @@ from pathlib import Path
 from plugin_uploader.core import (
     Category,
     UploaderError,
+    describe_outcome,
     find_assets,
     make_plugin_id,
     manifest_key,
@@ -42,9 +43,12 @@ class FakeStorage:
 
 
 class FakeApi:
-    def __init__(self, next_sequence: int = 1, refuse: set[str] | None = None) -> None:
+    def __init__(
+        self, next_sequence: int = 1, refuse: set[str] | None = None, live: set[str] | None = None
+    ) -> None:
         self.next_sequence = next_sequence
         self.refuse = refuse or set()
+        self.live = live or set()
         self.batches: list[dict] = []
 
     def next_ids(self) -> dict:
@@ -55,7 +59,16 @@ class FakeApi:
         results = []
         for item in payload["items"]:
             if item["plugin_id"] in self.refuse:
-                results.append({"plugin_id": item["plugin_id"], "action": "skipped", "reason": "already_reviewed"})
+                results.append({"plugin_id": item["plugin_id"], "action": "skipped", "reason": "plugin_id_in_use"})
+            elif item["plugin_id"] in self.live:
+                results.append(
+                    {
+                        "plugin_id": item["plugin_id"],
+                        "action": "updated",
+                        "status": "published",
+                        "warnings": ["console_text_kept", "live_update_in_qa"],
+                    }
+                )
             else:
                 results.append({"plugin_id": item["plugin_id"], "action": "created", "status": "pending_review"})
         return {"results": results}
@@ -206,8 +219,28 @@ class RunTests(unittest.TestCase):
             )
             row = next(r for r in report.rows if r.name == "Rig Helper")
             self.assertEqual(row.status, "skipped")
-            self.assertEqual(row.message, "already_reviewed")
+            self.assertIn("belongs to another plugin", row.message)
             self.assertEqual(saved, [])
+
+    def test_a_live_plugin_update_is_reported_in_words(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_plugin_folder(root, "Rig Helper")
+            api = FakeApi(next_sequence=1, live={"PLG-ANI-000001"})
+            report, saved = run_batch(
+                read_rows(SHEET), categories=CATEGORIES, plugin_root=root,
+                api=api, storage=FakeStorage(), batch_id="exe-test",
+            )
+            row = next(r for r in report.rows if r.name == "Rig Helper")
+            self.assertEqual(row.status, "imported")
+            self.assertIn("still on sale, update waiting for review", row.message)
+            self.assertIn("kept the name and description set in /console", row.message)
+            self.assertEqual(saved, [(2, "PLG-ANI-000001")])
+
+    def test_an_unknown_code_is_shown_as_is(self) -> None:
+        self.assertEqual(
+            describe_outcome({"action": "skipped", "reason": "something_new"}), "something_new"
+        )
 
     def test_a_failed_upload_does_not_stop_the_other_rows(self) -> None:
         class FlakyStorage(FakeStorage):

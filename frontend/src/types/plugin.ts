@@ -121,6 +121,8 @@ export interface AdminPlugin {
   reject_reason?: string
   qa_notes?: string
   reviewed_at?: string | null
+  /** A live plugin was uploaded again: still on sale, waiting for review. */
+  pending_update?: boolean
   category: PluginCategory
   images: PluginImage[]
   files: PluginFile[]
@@ -144,8 +146,14 @@ export interface AdminPluginListItem {
   review_count: number
   total_downloads: number
   status: PluginStatus
+  pending_update?: boolean
   category: PluginCategory
   created_at: string
+}
+
+/** A live plugin's re-upload that waits for review (the plugin stays on sale meanwhile). */
+export function isLivePluginUpdate(plugin: Pick<AdminPlugin, 'status' | 'pending_update'>): boolean {
+  return plugin.status === 'published' && Boolean(plugin.pending_update)
 }
 
 export interface AdminPluginCreatePayload {
@@ -240,7 +248,8 @@ export interface PluginFileUploadPayload {
 }
 
 export interface PluginApprovePayload {
-  price: string
+  /** Leave out to keep the current price (a live plugin's update). */
+  price?: string
   currency?: string
   discount_price?: string | null
   qa_notes?: string

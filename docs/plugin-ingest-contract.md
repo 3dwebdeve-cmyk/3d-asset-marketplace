@@ -85,6 +85,12 @@ Response (200):
 ```
 
 `action` is `created`, `updated`, `skipped` or `failed`. Skipped and failed rows carry a `reason`.
+A row may also carry `warnings` (a list; the row was still imported unless it is skipped or failed):
+
+| Warning | Meaning |
+|---|---|
+| `console_text_kept` | The sheet's name or description differs from the plugin's. The website kept the administrator's text (see Re-uploads). |
+| `live_update_in_qa` | The plugin is live. It stays on sale with the new files and waits in the review queue. On a skipped or failed row it means the refused re-upload was flagged for review, because R2 may already serve the new files. |
 
 ### Row rules
 
@@ -95,17 +101,34 @@ Response (200):
 | Thumbnail key is under `plugins/<ID>/` and ends in `.webp`, `.jpg`, `.jpeg` or `.png` | `invalid_object_key` |
 | Thumbnail exists and decodes as a real image, at most 25 MB | `missing_thumbnail_object`, `invalid_thumbnail` |
 | Package key is exactly `plugins/<ID>/<ID>.zip` and the object exists | `invalid_object_key`, `missing_package_object` |
-| The ID is new, or belongs to a plugin still in review or rejected | `plugin_id_in_use` (same ID, different name), `already_reviewed` (any other status: published, draft or archived) |
+| The ID is new, or the sheet's name matches the plugin's current name or the name it was uploaded under (`manifest.name`) | `plugin_id_in_use` |
+| A new plugin's category is active (an existing plugin keeps its category, so a switched-off one does not block it) | `unknown_category` |
 
-A plugin that is not waiting for review (published, draft or archived) is never changed by an import. A rejected plugin that is re-imported goes back to
-`pending_review` and keeps its old reject reason until the next decision.
+### Re-uploads
+
+The sheet's name, description and category are used on a plugin's **first** upload only. After that
+the administrator owns them (edited in `/console`), and a re-upload updates only the files and what
+comes from them: thumbnail, manifest, package (size and version) and the plugin's version
+(`manifest.version`). The package row is updated in place, so buyers' download links keep working.
+
+| Status before | After a re-upload |
+|---|---|
+| `pending_review`, `rejected`, `draft`, `archived` | `pending_review`. A rejected plugin keeps its old reject reason until the next decision. |
+| `published` | Stays `published` and on sale with the new files, with `pending_update` set. It appears in the review queue (`?status=pending_review`) with an "Update to a live plugin" badge. |
+
+The uploader replaces the files in R2 before it calls the import. If the website then refuses a live
+plugin's row, the plugin is still flagged (`pending_update`) and its QA notes say which batch was
+refused and why. The next successful upload removes that note.
 
 ## Review (administrators)
 
-- `GET /api/v1/admin/plugins/?status=pending_review`: the queue.
+- `GET /api/v1/admin/plugins/?status=pending_review`: the queue (new plugins and live updates;
+  `pending_update` is `true` on a live update).
 - `POST /api/v1/admin/plugins/<id>/approve/` with `{"price": "24.50", "currency": "", "discount_price": null, "qa_notes": ""}`.
-  Price `0` makes the plugin free. Publishes it and records the reviewer and time.
+  Price `0` makes the plugin free. Publishes it and records the reviewer and time. For a live update,
+  leave `price` out to keep the current price and discount; the plugin stays published.
 - `POST /api/v1/admin/plugins/<id>/reject/` with `{"reason": "...", "qa_notes": ""}`. The reason is required.
+  Rejecting a live update takes the plugin off the store; buyers keep their downloads.
 - `POST /api/v1/admin/plugins/<id>/requeue/`: a rejected plugin back to `pending_review`.
 
 All three need an administrator with MFA. Each decision is written to the admin audit log.

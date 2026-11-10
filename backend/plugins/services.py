@@ -284,7 +284,10 @@ class PluginService:
         ordering: str | None = None,
     ) -> QuerySet[Plugin]:
         queryset = Plugin.objects.select_related("category")
-        if status is not None:
+        if status == Plugin.Status.PENDING_REVIEW:
+            # The review queue: new plugins, plus live plugins uploaded again (still on sale).
+            queryset = queryset.filter(cls.awaiting_review_q())
+        elif status is not None:
             queryset = queryset.filter(status=status)
         return cls._filter_list(
             queryset,
@@ -292,6 +295,17 @@ class PluginService:
             search=search,
             ordering=ordering,
         )
+
+    @staticmethod
+    def awaiting_review_q() -> Q:
+        """Plugins a reviewer must look at: pending review, or a live plugin's update."""
+        return Q(status=Plugin.Status.PENDING_REVIEW) | Q(
+            status=Plugin.Status.PUBLISHED, pending_update=True
+        )
+
+    @staticmethod
+    def is_live_update(plugin: Plugin) -> bool:
+        return plugin.status == Plugin.Status.PUBLISHED and plugin.pending_update
 
     @classmethod
     def _filter_list(
@@ -676,18 +690,28 @@ class PluginService:
         plugin: Plugin,
         *,
         reviewer,
-        price: Decimal,
+        price: Decimal | None = None,
         currency: str | None = None,
         discount_price: Decimal | None = None,
         qa_notes: str | None = None,
     ) -> Plugin:
-        """pending_review -> published. The reviewer sets the price; 0.00 means free."""
+        """pending_review -> published. The reviewer sets the price; 0.00 means free.
+
+        A live plugin's update (published + ``pending_update``) is approved the same way: it
+        stays published and the flag is cleared. Without ``price`` it keeps its current price
+        and discount.
+        """
         plugin = Plugin.objects.select_for_update().get(pk=plugin.pk)
-        if plugin.status != Plugin.Status.PENDING_REVIEW:
+        live_update = cls.is_live_update(plugin)
+        if plugin.status != Plugin.Status.PENDING_REVIEW and not live_update:
             raise PluginError(
                 f"Cannot approve plugin with status '{plugin.status}'.",
                 field="status",
             )
+        if price is None:
+            if not live_update:
+                raise PluginError("Set the price (0 for a free plugin).", field="price")
+            price, discount_price = plugin.price, plugin.discount_price
         if currency:
             plugin.currency = cls._normalize_currency(currency)
         cls._validate_pricing(price, discount_price)
@@ -697,12 +721,14 @@ class PluginService:
         cls._validate_approve_ready(plugin)
 
         plugin.status = Plugin.Status.PUBLISHED
+        plugin.pending_update = False
         plugin.reviewed_at = timezone.now()
         plugin.reviewed_by = reviewer
         # Clear prior rejection text on approve; qa_notes retained for audit.
         plugin.reject_reason = ""
         update_fields = [
             "status",
+            "pending_update",
             "price",
             "discount_price",
             "currency",
@@ -727,9 +753,14 @@ class PluginService:
         reason: str,
         qa_notes: str | None = None,
     ) -> Plugin:
-        """pending_review -> rejected. Stores the reason and review metadata."""
+        """pending_review -> rejected. Stores the reason and review metadata.
+
+        Rejecting a live plugin's update takes the plugin off sale too (published -> rejected):
+        its new files are already what the store serves, and they cannot be rolled back.
+        Buyers keep their downloads (downloads follow the paid order, not the status).
+        """
         plugin = Plugin.objects.select_for_update().get(pk=plugin.pk)
-        if plugin.status != Plugin.Status.PENDING_REVIEW:
+        if plugin.status != Plugin.Status.PENDING_REVIEW and not cls.is_live_update(plugin):
             raise PluginError(
                 f"Cannot reject plugin with status '{plugin.status}'.",
                 field="status",
@@ -738,11 +769,13 @@ class PluginService:
         if not normalized_reason:
             raise PluginError("Reject reason is required.", field="reason")
         plugin.status = Plugin.Status.REJECTED
+        plugin.pending_update = False
         plugin.reject_reason = normalized_reason
         plugin.reviewed_at = timezone.now()
         plugin.reviewed_by = reviewer
         update_fields = [
             "status",
+            "pending_update",
             "reject_reason",
             "reviewed_at",
             "reviewed_by",

@@ -87,6 +87,47 @@ describe('PluginReviewPanel', () => {
     expect(await screen.findByText(/enter the reason/i)).toBeInTheDocument()
   })
 
+  describe('a live plugin uploaded again', () => {
+    const liveUpdate = {
+      ...basePlugin,
+      status: 'published',
+      pending_update: true,
+      price: '19.00',
+      currency: 'USD',
+    } as unknown as AdminPlugin
+
+    it('shows the badge and approves without asking for a price', async () => {
+      vi.mocked(pluginsApi.approveAdminPlugin).mockResolvedValue({ ...liveUpdate, pending_update: false } as AdminPlugin)
+      const user = userEvent.setup()
+      renderPanel(liveUpdate)
+
+      expect(screen.getByText('Update to a live plugin')).toBeInTheDocument()
+      expect(screen.getByText(/keeps it on sale at USD 19\.00/)).toBeInTheDocument()
+      expect(screen.queryByLabelText('Price (0 = free)')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Approve update' }))
+
+      await waitFor(() =>
+        expect(pluginsApi.approveAdminPlugin).toHaveBeenCalledWith(basePlugin.id, { qa_notes: '' }),
+      )
+    })
+
+    it('rejects with a reason and says the plugin leaves the store', async () => {
+      vi.mocked(pluginsApi.rejectAdminPlugin).mockResolvedValue({ ...liveUpdate, status: 'rejected', pending_update: false } as AdminPlugin)
+      const user = userEvent.setup()
+      renderPanel(liveUpdate)
+
+      await user.type(screen.getByLabelText(/reject reason/i), 'Broken package')
+      await user.click(screen.getByRole('button', { name: 'Reject and take off the store' }))
+
+      await waitFor(() =>
+        expect(pluginsApi.rejectAdminPlugin).toHaveBeenCalledWith(
+          basePlugin.id,
+          expect.objectContaining({ reason: 'Broken package' }),
+        ),
+      )
+    })
+  })
+
   it('shows the rejection reason and can send a rejected plugin back to review', async () => {
     vi.mocked(pluginsApi.requeueAdminPlugin).mockResolvedValue({ ...basePlugin, status: 'pending_review' } as AdminPlugin)
     const user = userEvent.setup()
