@@ -7,7 +7,7 @@ import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
-import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, type HdriEnvironmentId } from './hdriEnvironments'
+import { HDRI_ENVIRONMENTS } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
@@ -30,9 +30,7 @@ function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
       return
     }
 
-    // Drei restores the previous background when an Environment unmounts. During
-    // Natural -> Studio transitions that cleanup can otherwise restore the forest
-    // HDRI behind the Studio ground plane, leaving a visible strip at the horizon.
+    // Keep the background matched to the ground while the environment loads.
     scene.background = studioBackground
     scene.backgroundBlurriness = 0
   }, [scene, showEnvironment, studioBackground])
@@ -41,44 +39,32 @@ function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
 }
 
 function SceneLights({
-  environmentId,
   environmentFile,
   environmentIntensity,
   lightMultiplier,
   showBackground,
   backgroundBlur,
 }: {
-  environmentId: HdriEnvironmentId
   environmentFile: string | null
   environmentIntensity: number
   lightMultiplier: number
   showBackground: boolean
   backgroundBlur: number
 }) {
-  const naturalFallback = (
-    <>
-      <ambientLight intensity={0.18} />
-      <hemisphereLight args={['#ffffff', '#c4cad3', 0.3]} />
-    </>
-  )
   return (
     <>
-      {environmentId === 'studio' ? (
-        <>
-          {/* Key and fill face the initial camera from opposite sides; rim lights the rear edge. */}
-          <ambientLight intensity={0.1 * lightMultiplier} />
-          <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          <directionalLight position={[5, 5, -1]} intensity={0.75 * lightMultiplier} />
-          <directionalLight position={[-1, 2.5, -5]} intensity={0.5 * lightMultiplier} />
-          <directionalLight position={[-5, 4, 1]} intensity={0.35 * lightMultiplier} />
-        </>
-      ) : !environmentFile ? naturalFallback : null}
+      {/* Key and fill face the initial camera from opposite sides; rim lights the rear edge. */}
+      <ambientLight intensity={0.1 * lightMultiplier} />
+      <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
+      <directionalLight position={[5, 5, -1]} intensity={0.75 * lightMultiplier} />
+      <directionalLight position={[-1, 2.5, -5]} intensity={0.5 * lightMultiplier} />
+      <directionalLight position={[-5, 4, 1]} intensity={0.35 * lightMultiplier} />
       {environmentFile ? (
         // Own Suspense so HDRI load does not remount/tear down PreviewModel
         // (Canvas wraps all children in one Suspense boundary).
         <Suspense
           key={environmentFile}
-          fallback={environmentId === 'natural' ? naturalFallback : null}
+          fallback={null}
         >
           {/* Blur must be passed to drei Environment — it applies background in useLayoutEffect;
               a separate useEffect often runs before the HDRI texture exists and gets reset to 0. */}
@@ -86,7 +72,7 @@ function SceneLights({
             files={environmentFile}
             background={showBackground}
             environmentIntensity={environmentIntensity}
-            environmentRotation={environmentId === 'studio' ? [0, Math.PI / 4, 0] : [0, 0, 0]}
+            environmentRotation={[0, Math.PI / 4, 0]}
             backgroundBlurriness={showBackground ? backgroundBlur : 0}
           />
         </Suspense>
@@ -322,17 +308,12 @@ function ModelViewerCanvas({
   visible: boolean
   pixelRatio: number
 }) {
-  const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
   const [environmentStatus, setEnvironmentStatus] = useState<{
     path: string
     available: boolean
     error: string | null
   } | null>(null)
-  const selectedEnvironment = useMemo(
-    () =>
-      HDRI_ENVIRONMENTS.find((option) => option.id === environmentId) ?? HDRI_ENVIRONMENTS[0],
-    [environmentId],
-  )
+  const selectedEnvironment = HDRI_ENVIRONMENTS[0]
   // Never pair an old HDRI with the newly selected preset's settings.
   const currentStatus = environmentStatus?.path === selectedEnvironment.hdrPath
     ? environmentStatus
@@ -390,7 +371,6 @@ function ModelViewerCanvas({
         frameloop={visible ? 'always' : 'never'}
       >
         <SceneLights
-          environmentId={selectedEnvironment.id}
           environmentFile={environmentFile}
           environmentIntensity={selectedEnvironment.environmentIntensity}
           lightMultiplier={selectedEnvironment.lightMultiplier}
@@ -417,23 +397,6 @@ function ModelViewerCanvas({
           maxPolarAngle={Math.PI * 0.92}
         />
       </Canvas>
-      <div className="model-viewer__controls" role="group" aria-label="Viewer controls">
-        <div className="model-viewer__environment" role="radiogroup" aria-label="Lighting setup">
-          {HDRI_ENVIRONMENTS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={`model-viewer__chip${environmentId === option.id ? ' model-viewer__chip--active' : ''
-                }`}
-              role="radio"
-              aria-checked={environmentId === option.id}
-              onClick={() => setEnvironmentId(option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
       {environmentError ? (
         <p className="model-viewer__hint" role="status" aria-live="polite">
           {environmentError}
