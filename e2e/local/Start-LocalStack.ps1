@@ -9,7 +9,7 @@
   Seeds the E2E accounts (seed_e2e_commerce) and the pricing scenario (seed_e2e_pricing).
 
 .EXAMPLE
-  ./e2e/local/Start-LocalStack.ps1 -Name api -BackendPort 8001
+  ./e2e/local/Start-LocalStack.ps1 -Name api -BackendPort 8001 -Fresh
   ./e2e/local/Start-LocalStack.ps1 -Name browser -BackendPort 8002 -FrontendPort 5174
 #>
 param(
@@ -17,7 +17,9 @@ param(
   [int] $BackendPort = 8001,
   # 0 starts the backend only.
   [int] $FrontendPort = 0,
-  [string] $Python = ''
+  [string] $Python = '',
+  # Drop and recreate this stack's database first, like CI (no orders left from earlier runs).
+  [switch] $Fresh
 )
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -88,7 +90,7 @@ foreach ($key in $safe.Keys) { [Environment]::SetEnvironmentVariable($key, $safe
 Push-Location $backend
 try {
   # Create the stack's own database if needed (the login comes from backend/.env).
-  & $Python (Join-Path $PSScriptRoot 'create_database.py')
+  & $Python (Join-Path $PSScriptRoot 'create_database.py') $(if ($Fresh) { '--fresh' })
   if ($LASTEXITCODE -ne 0) { throw 'Could not create the E2E database.' }
   & $Python manage.py migrate --noinput | Out-File (Join-Path $runDir 'migrate.log')
   if ($LASTEXITCODE -ne 0) { throw "migrate failed: see $runDir\migrate.log" }

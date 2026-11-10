@@ -252,4 +252,24 @@ describe('AdminPricingPage', () => {
     expect(await screen.findByText('Live Lamp')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /publish selected/i })).not.toBeInTheDocument()
   })
+
+  it('uses the saved prices in the publish summary right after saving', async () => {
+    const user = userEvent.setup()
+    const saved = previewOf()
+    saved.rows[0] = { ...saved.rows[0], id: '2', name: 'Pine Stool', old_price: '0.00', new_price: '12.00', buyer_pays: '12.00' }
+    vi.mocked(pricingApi.previewPricing).mockResolvedValue(saved)
+    vi.mocked(pricingApi.applyPricing).mockResolvedValue({ batch_id: 'b', models: 1, changed: 1, unchanged: 0 })
+    renderPage()
+
+    await user.click(await screen.findByLabelText('Select Pine Stool'))
+    await user.type(screen.getByLabelText('Price (USD)'), '12')
+    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
+    await user.click(await screen.findByRole('button', { name: /save prices/i }))
+    await waitFor(() => expect(pricingApi.applyPricing).toHaveBeenCalled())
+    await user.click(screen.getByRole('button', { name: /publish selected \(1\)/i }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('total $12.00')
+    expect(dialog).not.toHaveTextContent(/no price yet/i)
+  })
 })

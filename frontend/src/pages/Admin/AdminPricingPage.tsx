@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
@@ -54,6 +54,14 @@ function when(iso: string | null): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** Scrolls a panel that just opened into view and moves keyboard focus to it. */
+function revealPanel(panel: HTMLElement | null) {
+  if (!panel) return
+  // Optional calls: jsdom (unit tests) has no scrollIntoView.
+  panel.scrollIntoView?.({ block: 'start' })
+  panel.focus?.({ preventScroll: true })
+}
+
 function isMoney(value: string): boolean {
   return MONEY_PATTERN.test(value.trim()) && Number(value) > 0
 }
@@ -94,6 +102,14 @@ export function AdminPricingPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [showPublishSummary, setShowPublishSummary] = useState(false)
   const [publishResult, setPublishResult] = useState<PricingPublishResult | null>(null)
+  // The preview, the publish summary and the results open below the table: bring each
+  // into view and move focus to it, or the click looks like it did nothing.
+  const previewRef = useRef<HTMLElement>(null)
+  const publishSummaryRef = useRef<HTMLElement>(null)
+  const publishResultRef = useRef<HTMLElement>(null)
+  useEffect(() => { if (preview) revealPanel(previewRef.current) }, [preview])
+  useEffect(() => { if (showPublishSummary) revealPanel(publishSummaryRef.current) }, [showPublishSummary])
+  useEffect(() => { if (publishResult) revealPanel(publishResultRef.current) }, [publishResult])
 
   const thresholds = {
     low_below: Number(lowBelow) || DEFAULT_LOW_BELOW,
@@ -254,6 +270,25 @@ export function AdminPricingPage() {
     },
     onSuccess: async (result) => {
       toast.success(`Saved: ${result.changed} model price${result.changed === 1 ? '' : 's'} changed.`)
+      // The selection keeps each row as it was when ticked: give it the saved prices, so the
+      // publish summary right after saving adds up (and counts) the new prices.
+      const saved = new Map((preview?.result.rows ?? []).map((row) => [row.id, row]))
+      setSelected((current) => {
+        const next = new Map(current)
+        for (const [id, row] of current) {
+          const update = saved.get(id)
+          if (!update || update.error) continue
+          next.set(id, {
+            ...row,
+            price: update.new_price,
+            discount_price: update.new_sale_price,
+            discount_ends_at: update.new_sale_ends_at,
+            discount_active: update.new_sale_price !== null,
+            buyer_pays: update.buyer_pays,
+          })
+        }
+        return next
+      })
       resetPreview()
       await refreshLists()
     },
@@ -604,7 +639,7 @@ export function AdminPricingPage() {
         </div>
 
         {preview && summary ? (
-          <section className="admin-pricing__preview" aria-labelledby="pricing-preview-title">
+          <section ref={previewRef} tabIndex={-1} className="admin-pricing__preview" aria-labelledby="pricing-preview-title">
             <h2 id="pricing-preview-title">Preview</h2>
             <p>
               {summary.models} model{summary.models === 1 ? '' : 's'}, {summary.changed} will change
@@ -654,7 +689,7 @@ export function AdminPricingPage() {
         ) : null}
 
         {showPublishSummary ? (
-          <section className="admin-pricing__preview" role="dialog" aria-labelledby="pricing-publish-title">
+          <section ref={publishSummaryRef} tabIndex={-1} className="admin-pricing__preview" role="dialog" aria-labelledby="pricing-publish-title">
             <h2 id="pricing-publish-title">Publish {selected.size} model{selected.size === 1 ? '' : 's'}?</h2>
             <p>
               They go on the store at the prices shown (total {money(publishTotal.toFixed(2))}).
@@ -671,7 +706,7 @@ export function AdminPricingPage() {
         ) : null}
 
         {publishResult ? (
-          <section className="admin-pricing__preview" aria-labelledby="pricing-publish-result-title">
+          <section ref={publishResultRef} tabIndex={-1} className="admin-pricing__preview" aria-labelledby="pricing-publish-result-title">
             <h2 id="pricing-publish-result-title">
               {publishResult.published} published, {publishResult.failed} not published
             </h2>

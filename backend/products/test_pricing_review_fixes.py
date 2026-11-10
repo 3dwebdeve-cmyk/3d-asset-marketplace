@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 
-from products.catalog_import import FREE_TO_PAID_OFF_SALE
+from products.catalog_import import FREE_TO_PAID_OFF_SALE, SHEET_SALE_IGNORED
 from products.models import Product, ProductPriceChange
 from products.services import ProductService
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
@@ -216,5 +216,46 @@ class PricingReviewFixTests(CatalogImportTestBase):
         product = self._live_paid("40.00")
 
         response = self._patch(product, {"discount_price": "40.00"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+
+    # -- 6. a sale from the upload sheet never skips the sale rules (E2E finding) -----------
+
+    def test_the_import_ignores_a_sale_price_from_the_sheet(self) -> None:
+        row = self._upload(_happy_item(discount_price="0.10"), "2026-11-10-sheet-sale")
+
+        product = Product.objects.get(sku=_SKU)
+        self.assertEqual(row["action"], "created", row)
+        self.assertIn(SHEET_SALE_IGNORED, row.get("warnings", []))
+        self.assertIsNone(product.discount_price)
+        self.assertEqual(product.price, Decimal("29.99"))
+
+    def test_publish_refuses_a_model_with_a_sale_that_breaks_the_rules(self) -> None:
+        self._upload(_happy_item(), "2026-11-10-paid-06")
+        product = Product.objects.get(sku=_SKU)
+        self._approve(product)
+        # Older data: a 0.10 sale on a 29.99 model, stored before the rules existed.
+        Product.objects.filter(pk=product.pk).update(discount_price=Decimal("0.10"))
+        url = reverse("products_admin:admin-pricing-publish")
+
+        response = self.client.post(url, {"product_ids": [str(product.pk)], "confirm_count": 1}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        result = response.data["results"][0]
+        self.assertFalse(result["published"])
+        self.assertIn("sale price 0.10 is not allowed", result["reason"])
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.AWAITING_PRICE)
+
+    def test_admin_create_refuses_a_sale_below_the_checkout_minimum(self) -> None:
+        category = Product.objects.get(sku=_SKU).category if Product.objects.filter(sku=_SKU).exists() else None
+        if category is None:
+            self._upload(_happy_item(), "2026-11-10-paid-07")
+            category = Product.objects.get(sku=_SKU).category
+        response = self.client.post(
+            reverse("products_admin:admin-products"),
+            {"category_id": str(category.pk), "name": "Hand Made", "price": "20.00", "discount_price": "0.10"},
+            format="json",
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
