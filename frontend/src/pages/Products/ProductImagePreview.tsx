@@ -14,16 +14,18 @@ interface ProductImagePreviewProps {
 }
 
 /**
- * Show the render on a backdrop made from its own stored edge colours, much lighter than the
- * edge so the render's boundary stands out. The colour arrives with the image data, so it is
- * painted in the first frame, before the image has downloaded. Without stored colours the
- * stylesheet's neutral backdrop shows.
+ * Extend a blurred sample of each top corner into its corresponding side. Stored colours
+ * provide an immediate background while the image loads; older images use a neutral fallback.
  */
 export function ProductImagePreview({ src, alt, sideColours, onError }: ProductImagePreviewProps) {
-  const background = sideColours ? backdropColour(sideColours.left, sideColours.right) : null
+  const imageBackground = `url(${JSON.stringify(src)})`
 
   return (
-    <div className="product-detail-stage__image-preview" style={background ? { background } : undefined}>
+    <div className="product-detail-stage__image-preview">
+      <div className="product-detail-stage__corner product-detail-stage__corner--left" aria-hidden="true"
+        style={{ backgroundColor: backdropColour(sideColours?.left), backgroundImage: imageBackground }} />
+      <div className="product-detail-stage__corner product-detail-stage__corner--right" aria-hidden="true"
+        style={{ backgroundColor: backdropColour(sideColours?.right), backgroundImage: imageBackground }} />
       <img
         src={src}
         alt={alt}
