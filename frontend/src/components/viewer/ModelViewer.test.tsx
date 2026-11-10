@@ -192,7 +192,7 @@ describe('ModelViewer', () => {
     expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
     expect(viewerMocks.renderScene!.background).toHaveProperty('getHexString')
     expect((viewerMocks.renderScene!.background as import('three').Color).getHexString()).toBe(
-      'ffffff',
+      'f2f2f2',
     )
   })
 
@@ -213,7 +213,7 @@ describe('ModelViewer', () => {
         'data-files',
         '/hdri/studio_small_09_1k.exr',
       )
-      // Studio keeps the EXR's dark areas out of the white backdrop; lighting stays active.
+      // Studio keeps the EXR's dark areas out of the neutral backdrop; lighting stays active.
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '0.75')
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
@@ -288,7 +288,7 @@ describe('ModelViewer', () => {
       expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
       expect(
         (viewerMocks.renderScene!.background as import('three').Color).getHexString(),
-      ).toBe('ffffff')
+      ).toBe('f2f2f2')
     })
   })
 

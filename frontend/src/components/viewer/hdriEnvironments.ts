@@ -23,7 +23,7 @@ export const HDRI_ENVIRONMENTS: readonly HdriEnvironmentOption[] = [
     hdrPath: '/hdri/studio_small_09_1k.exr',
     environmentIntensity: 0.75,
     lightMultiplier: 1,
-    // Use the EXR for lighting/reflections; a white backdrop hides its dark studio areas.
+    // Use the EXR for lighting/reflections; a neutral backdrop hides its dark studio areas.
     background: false,
     backgroundBlur: 0.65,
     showGround: true,
