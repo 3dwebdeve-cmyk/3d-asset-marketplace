@@ -68,7 +68,7 @@ function SceneLights({
           {/* Key and fill face the initial camera from opposite sides; rim lights the rear edge. */}
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          <directionalLight position={[5, 5, -1]} intensity={0.75 * lightMultiplier} />
+          <directionalLight position={[5, 5, -1]} intensity={0.6 * lightMultiplier} />
           <directionalLight position={[-1, 2.5, -5]} intensity={0.5 * lightMultiplier} />
           <directionalLight position={[-5, 4, 1]} intensity={0.35 * lightMultiplier} />
         </>
@@ -384,7 +384,7 @@ function ModelViewerCanvas({
           // Commerce tone mapping compresses highlights while preserving
           // product colors and the shading in bright fabric/materials.
           gl.toneMapping = THREE.NeutralToneMapping
-          gl.toneMappingExposure = 1
+          gl.toneMappingExposure = 0.9
         }}
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
