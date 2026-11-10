@@ -158,7 +158,7 @@ class PluginDetailPublicSerializer(PluginListPublicSerializer):
 
 class PluginAdminListSerializer(PluginListPublicSerializer):
     class Meta(PluginListPublicSerializer.Meta):
-        fields = PluginListPublicSerializer.Meta.fields + ("status",)
+        fields = PluginListPublicSerializer.Meta.fields + ("status", "pending_update")
 
 
 class PluginAdminSerializer(serializers.ModelSerializer):
@@ -194,6 +194,7 @@ class PluginAdminSerializer(serializers.ModelSerializer):
             "reject_reason",
             "qa_notes",
             "reviewed_at",
+            "pending_update",
             "category",
             "category_id",
             "images",
@@ -216,6 +217,7 @@ class PluginAdminSerializer(serializers.ModelSerializer):
             "reject_reason",
             "qa_notes",
             "reviewed_at",
+            "pending_update",
             "created_at",
             "updated_at",
         )

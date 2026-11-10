@@ -94,7 +94,7 @@ class PluginIngestAPITests(APITestCase):
         self.assertEqual(file.storage_path, "plugins/PLG-ANI-000001/PLG-ANI-000001.zip")
         self.assertTrue(ActivityLog.objects.filter(action="plugin_ingest_import").exists())
 
-    def test_reimport_updates_and_requeues_a_rejected_plugin(self) -> None:
+    def test_reimport_requeues_a_rejected_plugin_and_keeps_its_text(self) -> None:
         _put_objects("PLG-ANI-000001")
         self._post([_item()])
         Plugin.objects.filter(plugin_id="PLG-ANI-000001").update(
@@ -104,22 +104,29 @@ class PluginIngestAPITests(APITestCase):
         response = self._post([_item(description="Better description.")], batch="exe-2")
 
         self.assertEqual(response.data["updated"], 1, response.data)
+        self.assertEqual(response.data["results"][0]["warnings"], ["console_text_kept"])
         plugin = Plugin.objects.get(plugin_id="PLG-ANI-000001")
         self.assertEqual(plugin.status, Plugin.Status.PENDING_REVIEW)
-        self.assertEqual(plugin.description, "Better description.")
+        # The sheet's text is used on the first upload only; /console owns it after that.
+        self.assertEqual(plugin.description, "Helps with rigs.")
+        self.assertEqual(plugin.import_batch_id, "exe-2")
         self.assertEqual(plugin.files.count(), 1)
 
-    def test_published_plugin_is_never_rewritten(self) -> None:
+    def test_published_plugin_stays_on_sale_and_waits_as_an_update(self) -> None:
         _put_objects("PLG-ANI-000001")
         self._post([_item()])
         Plugin.objects.filter(plugin_id="PLG-ANI-000001").update(status=Plugin.Status.PUBLISHED)
 
         response = self._post([_item(description="Changed")], batch="exe-2")
 
-        self.assertEqual(response.data["results"][0]["reason"], "already_reviewed")
-        self.assertEqual(
-            Plugin.objects.get(plugin_id="PLG-ANI-000001").description, "Helps with rigs."
-        )
+        row = response.data["results"][0]
+        self.assertEqual(row["action"], "updated", response.data)
+        self.assertEqual(row["status"], "published")
+        self.assertEqual(row["warnings"], ["console_text_kept", "live_update_in_qa"])
+        plugin = Plugin.objects.get(plugin_id="PLG-ANI-000001")
+        self.assertEqual(plugin.status, Plugin.Status.PUBLISHED)
+        self.assertTrue(plugin.pending_update)
+        self.assertEqual(plugin.description, "Helps with rigs.")
 
     def test_same_id_for_a_different_plugin_is_refused(self) -> None:
         _put_objects("PLG-ANI-000001")
