@@ -50,6 +50,7 @@ from products.serializers import (
     ProductUpdateSerializer,
 )
 from products.services import (
+    UPLOAD_KINDS,
     ProductCreateData,
     ProductError,
     ProductService,
@@ -71,6 +72,16 @@ def _parse_status_filter(value: str | None) -> str | None:
     allowed = {choice.value for choice in Product.Status}
     if normalized not in allowed:
         raise ValidationError({"status": ["Invalid status filter."]})
+    return normalized
+
+
+def _parse_kind_filter(value: str | None) -> str | None:
+    """Admin ``?kind=free|paid`` (upload kind). Blank means no filter; anything else is 400."""
+    if value is None or value.strip() == "":
+        return None
+    normalized = value.strip().lower()
+    if normalized not in UPLOAD_KINDS:
+        raise ValidationError({"kind": ["Kind must be 'free' or 'paid'."]})
     return normalized
 
 
@@ -104,8 +115,6 @@ class ProductListView(PublicCatalogCacheMixin, APIView):
         )
         search = request.query_params.get("search") or None
         ordering = request.query_params.get("ordering") or None
-        animated = _parse_bool_filter(request.query_params.get("animated"))
-        rigged = _parse_bool_filter(request.query_params.get("rigged"))
         pbr_ready = _parse_bool_filter(request.query_params.get("pbr_ready"))
         game_ready = _parse_bool_filter(request.query_params.get("game_ready"))
 
@@ -114,8 +123,6 @@ class ProductListView(PublicCatalogCacheMixin, APIView):
             category_id=category_id,
             search=search,
             ordering=ordering,
-            animated=animated,
-            rigged=rigged,
             pbr_ready=pbr_ready,
             game_ready=game_ready,
         )
@@ -182,6 +189,7 @@ class AdminProductListCreateView(APIView):
         sku = request.query_params.get("sku") or None
         import_batch_id = request.query_params.get("import_batch_id") or None
         ordering = request.query_params.get("ordering") or None
+        kind = _parse_kind_filter(request.query_params.get("kind"))
 
         queryset = ProductService.list_admin(
             status=status_filter,
@@ -190,6 +198,7 @@ class AdminProductListCreateView(APIView):
             sku=sku,
             import_batch_id=import_batch_id,
             ordering=ordering,
+            kind=kind,
         )
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
@@ -217,8 +226,6 @@ class AdminProductListCreateView(APIView):
                     polygon_count=data.get("polygon_count"),
                     vertex_count=data.get("vertex_count"),
                     software_used=data.get("software_used", ""),
-                    animated=data.get("animated", False),
-                    rigged=data.get("rigged", False),
                     pbr_ready=data.get("pbr_ready", False),
                     game_ready=data.get("game_ready", False),
                     license_type=data.get("license_type", Product.LicenseType.STANDARD),
@@ -285,6 +292,8 @@ class AdminProductDetailView(APIView):
                     currency=data.get("currency"),
                     discount_price=data.get("discount_price"),
                     clear_discount_price=data.get("clear_discount_price", False),
+                    discount_ends_at=data.get("discount_ends_at"),
+                    clear_discount_ends_at=data.get("clear_discount_ends_at", False),
                     thumbnail=data.get("thumbnail"),
                     preview_model=data.get("preview_model"),
                     preview_video=data.get("preview_video"),
@@ -293,8 +302,6 @@ class AdminProductDetailView(APIView):
                     vertex_count=data.get("vertex_count"),
                     clear_vertex_count=data.get("clear_vertex_count", False),
                     software_used=data.get("software_used"),
-                    animated=data.get("animated"),
-                    rigged=data.get("rigged"),
                     pbr_ready=data.get("pbr_ready"),
                     game_ready=data.get("game_ready"),
                     license_type=data.get("license_type"),
@@ -308,6 +315,7 @@ class AdminProductDetailView(APIView):
                     has_preview=data.get("has_preview"),
                     has_package=data.get("has_package"),
                 ),
+                actor=request.user,
             )
         except ProductError as exc:
             return _product_error_response(exc)
@@ -625,7 +633,10 @@ class AdminProductFileCheckView(APIView):
 
 
 class AdminProductApproveView(APIView):
-    """POST /api/admin/products/<id>/approve/ — pending_review → published."""
+    """POST /api/admin/products/<id>/approve/ — QA approval, empty body.
+
+    Free upload → published; paid upload → awaiting_price; live update stays published.
+    """
 
     permission_classes = [IsAuthenticated, IsAdministrator]
     throttle_classes = [AdminProductWriteRateThrottle]
@@ -639,15 +650,9 @@ class AdminProductApproveView(APIView):
 
         serializer = ProductApproveSerializer(data=request.data or {})
         serializer.is_valid(raise_exception=True)
-        pricing = serializer.validated_data.get("pricing")
 
         try:
-            updated = ProductService.approve_product(
-                product,
-                reviewer=request.user,
-                pricing=pricing,
-                price=serializer.validated_data.get("price"),
-            )
+            updated = ProductService.approve_product(product, reviewer=request.user)
         except ProductError as exc:
             return _product_error_response(exc)
 
@@ -655,7 +660,10 @@ class AdminProductApproveView(APIView):
             action="product_approve",
             actor_id=str(request.user.pk),
             target_id=str(updated.pk),
-            metadata={"pricing": pricing, "price": str(updated.price)} if pricing else None,
+            metadata={
+                "result": updated.status,
+                "upload_kind": ProductService.upload_kind(updated),
+            },
         )
         return Response(
             ProductAdminSerializer(updated).data,

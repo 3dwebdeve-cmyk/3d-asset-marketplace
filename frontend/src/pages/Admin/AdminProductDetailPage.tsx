@@ -21,20 +21,23 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
+import { isLocalInputInPast, localInputToUtc, utcToLocalInput } from '../../lib/saleEnd'
 import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCT_ARCHIVE_SUCCESS } from '../../lib/productArchive'
 import type {
-  AdminProductApprovePayload,
   AdminProductUpdatePayload,
   ProductLicenseType,
   ProductStatus,
 } from '../../types/product'
-import { isFreeProduct, isLiveUpdate } from '../../types/product'
+import { isFreeProduct, isLiveUpdate, productStatusLabel } from '../../types/product'
 import { PricingChoice } from './PricingChoice'
 import type { PricingMode } from './PricingChoice'
 import { ProductFileCheckPanel } from './ProductFileCheckPanel'
+import { ProductPriceHistoryPanel } from './ProductPriceHistoryPanel'
 import { ProductMediaSection } from './ProductMediaSection'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import '../../styles/admin-product-detail.css'
+
+export const SALE_END_PAST_MESSAGE = 'Sale end must be in the future.'
 
 export function AdminProductDetailPage() {
   const { productId = '' } = useParams()
@@ -45,8 +48,7 @@ export function AdminProductDetailPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [qaNotes, setQaNotes] = useState('')
   const [qaError, setQaError] = useState<string | null>(null)
-  const [approvePrice, setApprovePrice] = useState('')
-  const [approvePricing, setApprovePricing] = useState<PricingMode>('paid')
+  const [saleEndLocal, setSaleEndLocal] = useState('')
   const [formPricing, setFormPricing] = useState<PricingMode>('paid')
   // Gallery images whose file did not load in this browser (shown in the file check).
   const [failedImageIds, setFailedImageIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -75,10 +77,9 @@ export function AdminProductDetailPage() {
       return
     }
     setHydratedProductId(product.id)
-    setApprovePrice(Number(product.price) > 0 ? product.price : '')
-    // The uploader's folder decides: free-models/ is free, models/ is paid (enter a price).
-    const fromFreeFolder = product.files.some((file) => file.storage_path.startsWith('free-models/'))
-    setApprovePricing(fromFreeFolder || (isFreeProduct(product) && !product.import_batch_id) ? 'free' : 'paid')
+    // An ended sale loads as "no sale": saving the form must never start it again.
+    const saleEnded = Boolean(product.discount_price) && product.discount_active === false
+    setSaleEndLocal(saleEnded ? '' : utcToLocalInput(product.discount_ends_at))
     setFormPricing(isFreeProduct(product) ? 'free' : 'paid')
     setForm({
       category_id: product.category.id,
@@ -95,15 +96,13 @@ export function AdminProductDetailPage() {
       short_description: product.short_description,
       price: product.price,
       currency: product.currency,
-      discount_price: product.discount_price,
+      discount_price: saleEnded ? null : product.discount_price,
       thumbnail: product.thumbnail,
       preview_model: product.preview_model,
       preview_video: product.preview_video,
       polygon_count: product.polygon_count,
       vertex_count: product.vertex_count,
       software_used: product.software_used,
-      animated: product.animated,
-      rigged: product.rigged,
       pbr_ready: product.pbr_ready,
       game_ready: product.game_ready,
       license_type: product.license_type,
@@ -163,16 +162,18 @@ export function AdminProductDetailPage() {
 
   // A live model uploaded again: still on sale, waiting for review.
   const liveUpdate = productQuery.data ? isLiveUpdate(productQuery.data) : false
+  // Only a model with upload_kind "free" is free; anything else goes on to the Pricing page.
+  const isPaidUpload = productQuery.data?.upload_kind !== 'free'
 
   const approveMutation = useMutation({
-    mutationFn: (pricing: AdminProductApprovePayload) => approveAdminProduct(productId, pricing),
-    onSuccess: async (_product, pricing) => {
+    mutationFn: () => approveAdminProduct(productId),
+    onSuccess: async () => {
       toast.success(
         liveUpdate
           ? 'Update approved; the model stays on sale'
-          : pricing.pricing === 'free'
-            ? 'Published as a free download'
-            : 'Product approved and published',
+          : isPaidUpload
+            ? 'Approved. The model now waits on the Pricing page.'
+            : 'Published as a free download',
       )
       setQaError(null)
       await invalidateProduct()
@@ -215,32 +216,25 @@ export function AdminProductDetailPage() {
   const qaPending =
     approveMutation.isPending || rejectMutation.isPending || requeueMutation.isPending
 
+  // QA never sets a price: the body is empty and the server decides the next status.
   const onApprove = () => {
-    if (liveUpdate) {
-      // The price stays as it is; it is edited in the form below like the rest of the text.
-      setQaError(null)
-      approveMutation.mutate({})
-      return
-    }
-    if (approvePricing === 'free') {
-      setQaError(null)
-      approveMutation.mutate({ pricing: 'free' })
-      return
-    }
-    const price = Number.parseFloat(approvePrice)
-    if (!Number.isFinite(price) || price <= 0) {
-      setQaError('Enter a price above 0, or choose Free.')
-      return
-    }
     setQaError(null)
-    approveMutation.mutate({ pricing: 'paid', price: price.toFixed(2) })
+    approveMutation.mutate()
   }
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
+    // The status is sent only when the administrator changed it here. QA actions change it
+    // on the server while this form keeps its first value, which must not undo them.
+    const current = productQuery.data
+    const { status, discount_ends_at: _loadedEnd, ...rest } = form
+    const base: AdminProductUpdatePayload =
+      status !== undefined && current !== undefined && status !== current.status
+        ? { ...rest, status }
+        : rest
     if (formPricing === 'free') {
-      saveMutation.mutate({ ...form, price: '0.00', discount_price: null })
+      saveMutation.mutate({ ...base, price: '0.00', discount_price: null, discount_ends_at: null })
       return
     }
     const price = Number.parseFloat(String(form.price ?? ''))
@@ -248,7 +242,21 @@ export function AdminProductDetailPage() {
       setFormError('Enter a price above 0, or choose Free.')
       return
     }
-    saveMutation.mutate(form)
+    const hasSale = Boolean(form.discount_price)
+    if (hasSale && saleEndLocal && isLocalInputInPast(saleEndLocal)) {
+      setFormError(SALE_END_PAST_MESSAGE)
+      return
+    }
+    // Send the sale end only when it changed: the date field has no seconds, so resending an
+    // unchanged end would move it and write a needless price-history row.
+    const loadedEndLocal = current?.discount_active ? utcToLocalInput(current.discount_ends_at) : ''
+    if (!hasSale) {
+      saveMutation.mutate({ ...base, discount_ends_at: null })
+    } else if (saleEndLocal !== loadedEndLocal || !current?.discount_active) {
+      saveMutation.mutate({ ...base, discount_ends_at: localInputToUtc(saleEndLocal) })
+    } else {
+      saveMutation.mutate(base)
+    }
   }
 
   const onReject = () => {
@@ -340,7 +348,10 @@ export function AdminProductDetailPage() {
           />
         ) : product ? (
           <>
-            {(product.status === 'pending_review' || product.status === 'rejected' || liveUpdate) && (
+            {(product.status === 'pending_review' ||
+              product.status === 'awaiting_price' ||
+              product.status === 'rejected' ||
+              liveUpdate) && (
               <div className="admin-create-form" aria-labelledby="admin-product-qa-title">
                 <h2 id="admin-product-qa-title">
                   {liveUpdate ? (
@@ -381,31 +392,22 @@ export function AdminProductDetailPage() {
                 {product.status === 'pending_review' ? (
                   <>
                     <p className="home-page__subtitle">
-                      This product is pending review. Choose Free or Paid (with its price),
-                      then approve to publish it. Reject requires a reason.
+                      This product is pending review.{' '}
+                      {isPaidUpload
+                        ? 'Check the quality, then approve to send it to the Pricing page.'
+                        : 'Approve to publish it as a free download.'}{' '}
+                      Reject requires a reason.
                     </p>
+                    <p className="home-page__subtitle">
+                      <strong>{isPaidUpload ? 'Paid' : 'Free'}</strong>
+                    </p>
+                    {isPaidUpload ? (
+                      <p className="home-page__subtitle">
+                        Suggested price (from the upload sheet): {product.currency} {product.price}
+                      </p>
+                    ) : null}
                     {product.qa_notes ? (
                       <p className="home-page__subtitle">QA notes: {product.qa_notes}</p>
-                    ) : null}
-                    <PricingChoice
-                      idPrefix="qa"
-                      legend="Pricing when published"
-                      value={approvePricing}
-                      onChange={setApprovePricing}
-                      disabled={qaPending}
-                    />
-                    {approvePricing === 'paid' ? (
-                      <FormField id="qa-price" label={`Price (${product.currency})`}>
-                        <Input
-                          id="qa-price"
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={approvePrice}
-                          onChange={(event) => setApprovePrice(event.target.value)}
-                          disabled={qaPending}
-                        />
-                      </FormField>
                     ) : null}
                     <div className="dashboard-card__actions">
                       <Button
@@ -414,13 +416,7 @@ export function AdminProductDetailPage() {
                         disabled={qaPending}
                         onClick={onApprove}
                       >
-                        {approvePricing === 'free'
-                          ? 'Approve & publish as free'
-                          : `Approve & publish${
-                              Number.parseFloat(approvePrice) > 0
-                                ? ` at ${product.currency} ${Number.parseFloat(approvePrice).toFixed(2)}`
-                                : ''
-                            }`}
+                        {isPaidUpload ? 'Approve quality → send to Pricing' : 'Publish as free'}
                       </Button>
                     </div>
                     {product.reject_reason ? (
@@ -428,6 +424,16 @@ export function AdminProductDetailPage() {
                         Prior reject reason: {product.reject_reason}
                       </p>
                     ) : null}
+                    {rejectControls}
+                  </>
+                ) : null}
+
+                {product.status === 'awaiting_price' ? (
+                  <>
+                    <p className="home-page__subtitle">
+                      Waiting for price. Set the price on the{' '}
+                      <Link to="/console/pricing">Pricing page</Link>.
+                    </p>
                     {rejectControls}
                   </>
                 ) : null}
@@ -468,6 +474,7 @@ export function AdminProductDetailPage() {
             )}
 
             <ProductFileCheckPanel productId={productId} failedImageLabels={failedImageLabels} />
+            <ProductPriceHistoryPanel productId={productId} />
 
             <form className="admin-create-form admin-product-form" onSubmit={onSubmit} noValidate>
               {formError ? <Alert variant="error" message={formError} /> : null}
@@ -592,19 +599,26 @@ export function AdminProductDetailPage() {
                   Pricing
                 </h2>
                 <div className="admin-product-form__grid">
-                  <div className="admin-product-form__full admin-product-form__choice">
-                    <PricingChoice
-                      idPrefix="detail"
-                      value={formPricing}
-                      onChange={(mode) => {
-                        setFormPricing(mode)
-                        // Switching a free model to Paid starts from an empty price, not 0.00.
-                        if (mode === 'paid' && Number(form.price) === 0) {
-                          setForm((current) => ({ ...current, price: '' }))
-                        }
-                      }}
-                    />
-                  </div>
+                  {product.upload_kind === 'paid' && !isFreeProduct(product) ? (
+                    // A paid upload's zip is private: it cannot be made free here.
+                    <p className="admin-product-form__full home-page__subtitle admin-product-form__note">
+                      Paid upload. To make it free, upload it again with the Free tick.
+                    </p>
+                  ) : (
+                    <div className="admin-product-form__full admin-product-form__choice">
+                      <PricingChoice
+                        idPrefix="detail"
+                        value={formPricing}
+                        onChange={(mode) => {
+                          setFormPricing(mode)
+                          // Switching a free model to Paid starts from an empty price, not 0.00.
+                          if (mode === 'paid' && Number(form.price) === 0) {
+                            setForm((current) => ({ ...current, price: '' }))
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
                   {formPricing === 'paid' ? (
                     <>
                       <FormField id="detail-price" label="Price">
@@ -626,14 +640,30 @@ export function AdminProductDetailPage() {
                           min="0"
                           step="0.01"
                           value={form.discount_price ?? ''}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const value = event.target.value
                             setForm((current) => ({
                               ...current,
-                              discount_price: event.target.value || null,
+                              discount_price: value || null,
                             }))
-                          }
+                            // No sale price, no end date.
+                            if (!value) setSaleEndLocal('')
+                          }}
                         />
                       </FormField>
+                      {form.discount_price ? (
+                        <FormField id="detail-discount-ends-at" label="Sale ends (your local time)">
+                          <Input
+                            id="detail-discount-ends-at"
+                            type="datetime-local"
+                            value={saleEndLocal}
+                            onChange={(event) => setSaleEndLocal(event.target.value)}
+                          />
+                        </FormField>
+                      ) : null}
+                      {product.discount_price && product.discount_active === false ? (
+                        <p className="home-page__subtitle admin-product-form__note">Sale ended</p>
+                      ) : null}
                     </>
                   ) : (
                     <p className="home-page__subtitle admin-product-form__note">
@@ -698,41 +728,21 @@ export function AdminProductDetailPage() {
                         }))
                       }
                     >
+                      {/* Published and Waiting for price are set by QA and the Pricing page only;
+                          shown (read-only) when the model already has that status. */}
+                      {form.status === 'published' || form.status === 'awaiting_price' ? (
+                        <option value={form.status} disabled>
+                          {productStatusLabel(form.status)}
+                        </option>
+                      ) : null}
                       <option value="draft">Draft</option>
                       <option value="pending_review">Pending review</option>
-                      <option value="published">Published</option>
                       <option value="rejected">Rejected</option>
                       <option value="archived">Archived</option>
                     </select>
                   </FormField>
                   <fieldset className="admin-product-form__full admin-product-form__flags">
                     <legend className="form-field__label">Model features</legend>
-                    <label className="ui-input">
-                      <input
-                        type="checkbox"
-                        checked={form.animated ?? false}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            animated: event.target.checked,
-                          }))
-                        }
-                      />{' '}
-                      Animated
-                    </label>
-                    <label className="ui-input">
-                      <input
-                        type="checkbox"
-                        checked={form.rigged ?? false}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            rigged: event.target.checked,
-                          }))
-                        }
-                      />{' '}
-                      Rigged
-                    </label>
                     <label className="ui-input">
                       <input
                         type="checkbox"

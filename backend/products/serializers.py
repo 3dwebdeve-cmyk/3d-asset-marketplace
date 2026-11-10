@@ -1,5 +1,8 @@
 from decimal import Decimal
 
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from categories.models import Category
@@ -83,7 +86,42 @@ def product_formats(obj: Product, files) -> list[str]:
     return sorted(fmt for fmt in formats if fmt and fmt not in _ARCHIVE_FORMATS)
 
 
-class ProductListPublicSerializer(serializers.ModelSerializer):
+_PRICE_FIELD = serializers.DecimalField(max_digits=10, decimal_places=2)
+_DATETIME_FIELD = serializers.DateTimeField()
+
+
+# discount_price and discount_ends_at as a buyer sees them. Both come from
+# Product.active_discount_price: the running sale price or null, and the sale end only while
+# the sale runs. One clock reading per response keeps the two fields (and every product in a
+# list) consistent at the moment a sale ends. (A comment, not a docstring: the OpenAPI schema
+# would show a docstring as the description of every public product serializer.)
+class BuyerPriceFieldsMixin(serializers.Serializer):
+    discount_price = serializers.SerializerMethodField()
+    discount_ends_at = serializers.SerializerMethodField()
+
+    def _price_now(self):
+        context = self.context
+        now = context.get("_buyer_price_now")
+        if now is None:
+            now = timezone.now()
+            context["_buyer_price_now"] = now
+        return now
+
+    @extend_schema_field(
+        serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True)
+    )
+    def get_discount_price(self, obj: Product):
+        sale = obj.active_discount_price(self._price_now())
+        return None if sale is None else _PRICE_FIELD.to_representation(sale)
+
+    @extend_schema_field(serializers.DateTimeField(allow_null=True))
+    def get_discount_ends_at(self, obj: Product):
+        if obj.discount_ends_at is None or obj.active_discount_price(self._price_now()) is None:
+            return None
+        return _DATETIME_FIELD.to_representation(obj.discount_ends_at)
+
+
+class ProductListPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSerializer):
     category = ProductCategorySerializer(read_only=True)
     formats = serializers.SerializerMethodField()
 
@@ -100,6 +138,7 @@ class ProductListPublicSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "discount_ends_at",
             "is_free",
             "thumbnail",
             "software_used",
@@ -114,7 +153,7 @@ class ProductListPublicSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class ProductDetailPublicSerializer(serializers.ModelSerializer):
+class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSerializer):
     category = ProductCategorySerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
     files = ProductFilePublicSerializer(many=True, read_only=True)
@@ -134,6 +173,7 @@ class ProductDetailPublicSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "discount_ends_at",
             "is_free",
             "thumbnail",
             "preview_model",
@@ -141,8 +181,6 @@ class ProductDetailPublicSerializer(serializers.ModelSerializer):
             "polygon_count",
             "vertex_count",
             "software_used",
-            "animated",
-            "rigged",
             "pbr_ready",
             "game_ready",
             "license_type",
@@ -169,6 +207,19 @@ class ProductAdminSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    # The stored discount_price / discount_ends_at, plus whether that sale runs now.
+    discount_active = serializers.SerializerMethodField()
+
+    def get_discount_active(self, obj: Product) -> bool:
+        return obj.active_discount_price() is not None
+
+    # "free" (zip under free-models/) or "paid"; see docs/PRICING_PIPELINE.md.
+    upload_kind = serializers.SerializerMethodField()
+
+    def get_upload_kind(self, obj: Product) -> str:
+        from products.services import ProductService
+
+        return ProductService.upload_kind(obj)
 
     class Meta:
         model = Product
@@ -188,6 +239,8 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "discount_ends_at",
+            "discount_active",
             "is_free",
             "thumbnail",
             "preview_model",
@@ -195,8 +248,6 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "polygon_count",
             "vertex_count",
             "software_used",
-            "animated",
-            "rigged",
             "pbr_ready",
             "game_ready",
             "license_type",
@@ -209,6 +260,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "reviewed_by",
             "pending_update",
+            "upload_kind",
             "category",
             "category_id",
             "images",
@@ -229,20 +281,30 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "reviewed_by",
             "pending_update",
+            "upload_kind",
             "created_at",
             "updated_at",
         )
 
 
 class ProductApproveSerializer(serializers.Serializer):
-    """Optional pricing chosen at approval: free (price 0) or paid at ``price``."""
+    """QA approval takes no fields: QA never sets a price (docs/PRICING_PIPELINE.md).
 
-    pricing = serializers.ChoiceField(choices=("free", "paid"), required=False)
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    A body with ``pricing`` or ``price`` is refused so an old client cannot think it set one.
+    """
+
+    _PRICE_FIELDS = ("pricing", "price")
 
     def validate(self, attrs: dict) -> dict:
-        if attrs.get("pricing") == "paid" and attrs.get("price") is None:
-            raise serializers.ValidationError({"price": "Enter the price for a paid model."})
+        sent = getattr(self, "initial_data", None) or {}
+        if hasattr(sent, "keys"):
+            refused = {
+                name: ["QA approval does not set prices. Set prices on the Pricing page."]
+                for name in self._PRICE_FIELDS
+                if name in sent
+            }
+            if refused:
+                raise serializers.ValidationError(refused)
         return attrs
 
 
@@ -296,8 +358,6 @@ class ProductCreateSerializer(serializers.Serializer):
         default="",
         max_length=255,
     )
-    animated = serializers.BooleanField(required=False, default=False)
-    rigged = serializers.BooleanField(required=False, default=False)
     pbr_ready = serializers.BooleanField(required=False, default=False)
     game_ready = serializers.BooleanField(required=False, default=False)
     license_type = serializers.ChoiceField(
@@ -351,11 +411,33 @@ class ProductCreateSerializer(serializers.Serializer):
     def validate(self, attrs: dict) -> dict:
         discount = attrs.get("discount_price")
         price = attrs.get("price")
-        if discount is not None and price is not None and discount > price:
+        if discount is not None and price is not None and discount >= price:
             raise serializers.ValidationError(
-                {"discount_price": ["Discount price cannot exceed price."]}
+                {"discount_price": ["The sale price must be lower than the normal price."]}
             )
         return attrs
+
+
+class AwareDateTimeField(serializers.DateTimeField):
+    """ISO 8601 date and time that must name its time zone (``Z`` or an offset).
+
+    DRF would read a time without a zone as server time (UTC); for a sale end chosen in
+    the admin's local time that silently moves the end, so it is refused instead.
+    """
+
+    default_error_messages = {
+        "naive": "Include the time zone, for example 2026-12-01T18:30:00+05:30 or ...Z.",
+    }
+
+    def to_internal_value(self, value):
+        if isinstance(value, str):
+            try:
+                parsed = parse_datetime(value.strip())
+            except ValueError:
+                parsed = None
+            if parsed is not None and timezone.is_naive(parsed):
+                self.fail("naive")
+        return super().to_internal_value(value)
 
 
 class ProductUpdateSerializer(serializers.Serializer):
@@ -382,14 +464,14 @@ class ProductUpdateSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
     )
+    # ISO 8601 with a time zone, or null to make the sale run until removed.
+    discount_ends_at = AwareDateTimeField(required=False, allow_null=True)
     thumbnail = serializers.URLField(required=False, allow_blank=True)
     preview_model = serializers.URLField(required=False, allow_blank=True)
     preview_video = serializers.URLField(required=False, allow_blank=True)
     polygon_count = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     vertex_count = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     software_used = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    animated = serializers.BooleanField(required=False)
-    rigged = serializers.BooleanField(required=False)
     pbr_ready = serializers.BooleanField(required=False)
     game_ready = serializers.BooleanField(required=False)
     license_type = serializers.ChoiceField(
@@ -434,6 +516,8 @@ class ProductUpdateSerializer(serializers.Serializer):
     def validate(self, attrs: dict) -> dict:
         if "discount_price" in self.initial_data and self.initial_data.get("discount_price") is None:
             attrs["clear_discount_price"] = True
+        if "discount_ends_at" in self.initial_data and self.initial_data.get("discount_ends_at") is None:
+            attrs["clear_discount_ends_at"] = True
         if "polygon_count" in self.initial_data and self.initial_data.get("polygon_count") is None:
             attrs["clear_polygon_count"] = True
         if "vertex_count" in self.initial_data and self.initial_data.get("vertex_count") is None:
@@ -563,6 +647,8 @@ class CatalogImportItemSerializer(serializers.Serializer):
         required=False,
         default=Product.LicenseType.STANDARD,
     )
+    # Older Model Uploader builds still send these sheet columns. They are accepted so
+    # those builds keep working, and ignored: the website no longer uses them.
     rigged = serializers.BooleanField(required=False, default=False)
     animated = serializers.BooleanField(required=False, default=False)
     pbr_ready = serializers.BooleanField(required=False, default=False)

@@ -22,9 +22,11 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), siteUrlInHtml(mode), ...(mode === 'test' ? [] : [automaticWebp()])],
   server: {
     // Same-origin `/api` (incl. `/api/v1`) in local dev so httpOnly refresh cookies work.
+    // DEV_API_TARGET lets a local end-to-end stack run its own backend on another port
+    // (docs/E2E_LOCAL.md); it is never part of a build.
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: process.env.DEV_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },

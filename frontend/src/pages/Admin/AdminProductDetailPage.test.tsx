@@ -8,7 +8,8 @@ import * as categoriesApi from '../../api/categoriesApi'
 import * as productsApi from '../../api/productsApi'
 import { createTestQueryClient, resetAuthStore, resetToastStore } from '../../test/test-utils'
 import type { AdminProduct } from '../../types/product'
-import { AdminProductDetailPage } from './AdminProductDetailPage'
+import { useToastStore } from '../../store/toastStore'
+import { AdminProductDetailPage, SALE_END_PAST_MESSAGE } from './AdminProductDetailPage'
 
 vi.mock('../../api/productsApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/productsApi')>(
@@ -63,8 +64,6 @@ const sampleProduct: AdminProduct = {
   polygon_count: null,
   vertex_count: null,
   software_used: 'Blender',
-  animated: false,
-  rigged: false,
   pbr_ready: true,
   game_ready: false,
   license_type: 'standard',
@@ -205,10 +204,10 @@ describe('AdminProductDetailPage live model update', () => {
     renderProductDetailPage()
 
     expect(await screen.findByText('Update to a live model')).toBeInTheDocument()
-    expect(screen.queryByRole('group', { name: /pricing when published/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /send to pricing|publish as free/i })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Approve update' }))
 
-    await waitFor(() => expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, {}))
+    await waitFor(() => expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId))
   })
 
   it('rejects the update with a reason, taking the model off the store', async () => {
@@ -308,13 +307,13 @@ describe('AdminProductDetailPage', () => {
       expect(screen.getByDisplayValue('Oak Chair')).toBeInTheDocument()
     })
 
-    await user.selectOptions(screen.getByLabelText(/^status$/i), 'published')
+    await user.selectOptions(screen.getByLabelText(/^status$/i), 'rejected')
     await user.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() => {
       expect(productsApi.updateAdminProduct).toHaveBeenCalledWith(
         productId,
-        expect.objectContaining({ status: 'published' }),
+        expect.objectContaining({ status: 'rejected' }),
       )
     })
     await waitFor(() => {
@@ -322,24 +321,42 @@ describe('AdminProductDetailPage', () => {
     })
   })
 
-  it('shows Approve and Reject for pending_review products', async () => {
+  it('shows the paid QA section: label, suggested price, one send-to-Pricing button, no price input', async () => {
     vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
       ...sampleProduct,
       status: 'pending_review',
+      upload_kind: 'paid',
       import_batch_id: 'batch-1',
     })
 
     renderProductDetailPage()
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /import qa/i })).toBeInTheDocument()
-    })
-    const qaPricing = screen.getByRole('group', { name: /pricing when published/i })
-    expect(within(qaPricing).getByLabelText(/^free/i)).toBeInTheDocument()
-    expect(within(qaPricing).getByLabelText(/^paid/i)).toBeChecked()
-    expect(screen.getByRole('button', { name: /approve & publish/i })).toBeInTheDocument()
+    await screen.findByRole('heading', { name: /import qa/i })
+    expect(screen.getByText('Paid', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.getByText(/suggested price \(from the upload sheet\): usd 29\.99/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve quality → send to Pricing' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /publish as free/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/price \(usd\)/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /pricing when published/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^requeue$/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the free QA section with one Publish as free button', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      price: '0.00',
+      status: 'pending_review',
+      upload_kind: 'free',
+    })
+
+    renderProductDetailPage()
+
+    await screen.findByRole('heading', { name: /import qa/i })
+    expect(screen.getByText('Free', { selector: 'strong' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Publish as free' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /send to pricing/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/suggested price/i)).not.toBeInTheDocument()
   })
 
   it('requires a reject reason before calling reject', async () => {
@@ -421,73 +438,279 @@ describe('AdminProductDetailPage', () => {
     })
   })
 
-  it('approves pending_review products via the approve endpoint', async () => {
+  it('approves a paid model with no price and shows the Pricing message', async () => {
     const user = userEvent.setup()
     vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
       ...sampleProduct,
       status: 'pending_review',
+      upload_kind: 'paid',
     })
     vi.mocked(productsApi.approveAdminProduct).mockResolvedValue({
       ...sampleProduct,
-      status: 'published',
+      status: 'awaiting_price',
     })
 
     renderProductDetailPage()
 
+    await user.click(await screen.findByRole('button', { name: 'Approve quality → send to Pricing' }))
+
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /approve & publish at usd 29\.99/i })).toBeInTheDocument()
+      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId)
     })
-
-    await user.clear(screen.getByLabelText(/price \(usd\)/i))
-    await user.type(screen.getByLabelText(/price \(usd\)/i), '45')
-    await user.click(screen.getByRole('button', { name: /approve & publish/i }))
-
     await waitFor(() => {
-      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, {
-        pricing: 'paid',
-        price: '45.00',
-      })
+      expect(
+        useToastStore.getState().toasts.some(
+          (item) => item.message === 'Approved. The model now waits on the Pricing page.',
+        ),
+      ).toBe(true)
     })
   })
 
-  it('publishes a product as a free download when Free is chosen', async () => {
+  it('publishes a free model with Publish as free', async () => {
     const user = userEvent.setup()
     vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
-      ...sampleProduct,
-      status: 'pending_review',
-    })
-    vi.mocked(productsApi.approveAdminProduct).mockResolvedValue({
       ...sampleProduct,
       price: '0.00',
-      is_free: true,
+      status: 'pending_review',
+      upload_kind: 'free',
+    })
+    vi.mocked(productsApi.approveAdminProduct).mockResolvedValue({
+      ...sampleProduct,
       status: 'published',
     })
 
     renderProductDetailPage()
 
-    const qaPricing = await screen.findByRole('group', { name: /pricing when published/i })
-    await user.click(within(qaPricing).getByLabelText(/^free/i))
-    expect(screen.queryByLabelText(/price \(usd\)/i)).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /approve & publish as free/i }))
+    await user.click(await screen.findByRole('button', { name: 'Publish as free' }))
 
     await waitFor(() => {
-      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId, { pricing: 'free' })
+      expect(productsApi.approveAdminProduct).toHaveBeenCalledWith(productId)
     })
   })
+})
 
-  it('refuses a paid approval without a price', async () => {
-    const user = userEvent.setup()
+describe('AdminProductDetailPage waiting for price', () => {
+  it('shows a note and Reject, and no approve button', async () => {
     vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
       ...sampleProduct,
-      status: 'pending_review',
+      status: 'awaiting_price',
+      upload_kind: 'paid',
     })
 
     renderProductDetailPage()
 
-    await user.clear(await screen.findByLabelText(/price \(usd\)/i))
-    await user.click(screen.getByRole('button', { name: /approve & publish/i }))
+    const pricingLink = await screen.findByRole('link', { name: 'Pricing page' })
+    expect(pricingLink).toHaveAttribute('href', '/console/pricing')
+    expect(pricingLink.parentElement).toHaveTextContent('Waiting for price. Set the price on the Pricing page.')
+    expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approve|publish as free/i })).not.toBeInTheDocument()
+  })
 
-    expect(screen.getByText(/enter a price above 0/i)).toBeInTheDocument()
-    expect(productsApi.approveAdminProduct).not.toHaveBeenCalled()
+  it('does not offer awaiting_price or published in the status dropdown, but shows the current one', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      status: 'draft',
+    })
+    const first = renderProductDetailPage()
+    const select = (await screen.findByLabelText(/^status$/i)) as HTMLSelectElement
+    const values = Array.from(select.options).map((option) => option.value)
+    expect(values).not.toContain('awaiting_price')
+    expect(values).not.toContain('published')
+    first.unmount()
+
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      status: 'awaiting_price',
+    })
+    renderProductDetailPage()
+    const current = (await screen.findByLabelText(/^status$/i)) as HTMLSelectElement
+    await waitFor(() => expect(current.value).toBe('awaiting_price'))
+    expect(current.selectedOptions[0]).toHaveTextContent('Waiting for price')
+  })
+
+  it('does not send the read-only status when saving', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      status: 'awaiting_price',
+    })
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(sampleProduct)
+    renderProductDetailPage()
+    await screen.findByDisplayValue('Oak Chair')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() => expect(productsApi.updateAdminProduct).toHaveBeenCalled())
+    const payload = vi.mocked(productsApi.updateAdminProduct).mock.calls[0][1]
+    expect(payload).not.toHaveProperty('status')
+  })
+})
+
+describe('AdminProductDetailPage sale end', () => {
+  const future = () => {
+    const date = new Date(Date.now() + 3 * 24 * 3600 * 1000)
+    date.setSeconds(0, 0)
+    return date
+  }
+
+  it('shows the stored UTC time in local time and saves it back as ISO UTC', async () => {
+    const user = userEvent.setup()
+    const end = future()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      discount_price: '19.99',
+      discount_ends_at: end.toISOString(),
+      discount_active: true,
+    })
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(sampleProduct)
+
+    renderProductDetailPage()
+
+    const input = (await screen.findByLabelText(/sale ends \(your local time\)/i)) as HTMLInputElement
+    expect(input).toHaveAttribute('type', 'datetime-local')
+    // The displayed value, read back as local time, is the same instant.
+    expect(new Date(input.value).toISOString()).toBe(end.toISOString())
+
+    // A changed end is sent back as ISO UTC (an unchanged one is not resent).
+    const later = new Date(end.getTime() + 24 * 60 * 60 * 1000)
+    const pad = (value: number) => String(value).padStart(2, '0')
+    const laterLocal = `${later.getFullYear()}-${pad(later.getMonth() + 1)}-${pad(later.getDate())}T${pad(later.getHours())}:${pad(later.getMinutes())}`
+    fireEvent.change(input, { target: { value: laterLocal } })
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() => {
+      expect(productsApi.updateAdminProduct).toHaveBeenCalledWith(
+        productId,
+        expect.objectContaining({ discount_ends_at: new Date(laterLocal).toISOString() }),
+      )
+    })
+  })
+
+  it('clearing the sale price clears the end date', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      discount_price: '19.99',
+      discount_ends_at: future().toISOString(),
+      discount_active: true,
+    })
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(sampleProduct)
+
+    renderProductDetailPage()
+
+    await user.clear(await screen.findByLabelText(/discount price/i))
+    expect(screen.queryByLabelText(/sale ends/i)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() => {
+      expect(productsApi.updateAdminProduct).toHaveBeenCalledWith(
+        productId,
+        expect.objectContaining({ discount_price: null, discount_ends_at: null }),
+      )
+    })
+  })
+
+  it('refuses an end date in the past', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      discount_price: '19.99',
+      discount_ends_at: null,
+      discount_active: true,
+    })
+
+    renderProductDetailPage()
+
+    const input = await screen.findByLabelText(/sale ends \(your local time\)/i)
+    fireEvent.change(input, { target: { value: '2001-01-01T10:00' } })
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(screen.getByText(SALE_END_PAST_MESSAGE)).toBeInTheDocument()
+    expect(productsApi.updateAdminProduct).not.toHaveBeenCalled()
+  })
+
+  it('says Sale ended when the sale price is set but no longer active', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...sampleProduct,
+      discount_price: '19.99',
+      discount_ends_at: '2020-01-01T00:00:00Z',
+      discount_active: false,
+    })
+
+    renderProductDetailPage()
+
+    expect(await screen.findByText('Sale ended')).toBeInTheDocument()
+  })
+})
+
+describe('AdminProductDetailPage pricing safeguards (security review)', () => {
+  const livePaid: AdminProduct = {
+    ...sampleProduct,
+    status: 'published',
+    upload_kind: 'paid',
+    price: '40.00',
+  }
+
+  it('does not offer Free for a paid upload', async () => {
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue(livePaid)
+    renderProductDetailPage()
+
+    expect(await screen.findByText(/paid upload\. to make it free, upload it again/i)).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /^pricing$/i })).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^price$/i)).toBeInTheDocument()
+  })
+
+  it('loads an ended sale as no sale, so saving clears it instead of restarting it', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...livePaid,
+      discount_price: '30.00',
+      discount_ends_at: '2020-01-01T00:00:00Z',
+      discount_active: false,
+    })
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(livePaid)
+    renderProductDetailPage()
+
+    expect(await screen.findByText('Sale ended')).toBeInTheDocument()
+    expect(screen.getByLabelText(/discount price/i)).toHaveValue(null)
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(productsApi.updateAdminProduct).toHaveBeenCalledWith(
+        productId,
+        expect.objectContaining({ discount_price: null, discount_ends_at: null }),
+      )
+    })
+  })
+
+  it('does not resend an unchanged sale end or an unchanged status', async () => {
+    const user = userEvent.setup()
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue({
+      ...livePaid,
+      discount_price: '30.00',
+      discount_ends_at: '2099-01-01T10:30:45Z',
+      discount_active: true,
+    })
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(livePaid)
+    renderProductDetailPage()
+
+    await screen.findByDisplayValue('Oak Chair')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(productsApi.updateAdminProduct).toHaveBeenCalled())
+    const payload = vi.mocked(productsApi.updateAdminProduct).mock.calls[0][1]
+    expect(payload).not.toHaveProperty('discount_ends_at')
+    expect(payload).not.toHaveProperty('status')
+    expect(payload).toMatchObject({ discount_price: '30.00' })
+  })
+
+  it('does not send the form status back after the model moved on (for example after QA approve)', async () => {
+    const user = userEvent.setup()
+    const pending: AdminProduct = { ...sampleProduct, status: 'pending_review', upload_kind: 'paid' }
+    vi.mocked(productsApi.getAdminProduct).mockResolvedValue(pending)
+    vi.mocked(productsApi.updateAdminProduct).mockResolvedValue(pending)
+    renderProductDetailPage()
+
+    await screen.findByDisplayValue('Oak Chair')
+    await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => expect(productsApi.updateAdminProduct).toHaveBeenCalled())
+    expect(vi.mocked(productsApi.updateAdminProduct).mock.calls[0][1]).not.toHaveProperty('status')
   })
 })

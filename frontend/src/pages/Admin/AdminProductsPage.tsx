@@ -21,8 +21,8 @@ import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION, PRODUCT_RESTORE_CONFIRMATION } from '../../lib/productArchive'
-import { isFreeProduct, isLiveUpdate } from '../../types/product'
-import type { AdminProductCreatePayload, ProductStatus } from '../../types/product'
+import { isFreeProduct, isLiveUpdate, productStatusLabel } from '../../types/product'
+import type { AdminProductCreatePayload, ProductStatus, ProductUploadKind } from '../../types/product'
 import { UploaderImportsPanel } from './UploaderImportsPanel'
 
 const emptyCreateForm: AdminProductCreatePayload = {
@@ -60,6 +60,8 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
     setSearchParams(params)
   }
   const statusFilter = archived ? 'archived' : searchParams.get('status')?.trim() ?? ''
+  // The QA queue has a Free and a Paid section (docs/PRICING_PIPELINE.md).
+  const qaKind: ProductUploadKind = searchParams.get('kind') === 'paid' ? 'paid' : 'free'
   const importBatchFilter = searchParams.get('import_batch_id')?.trim() ?? ''
   const [batchInput, setBatchInput] = useState(importBatchFilter)
   const [showCreate, setShowCreate] = useState(false)
@@ -72,18 +74,39 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
     queryKey: [
       'admin',
       'products',
-      { search, status: statusFilter, import_batch_id: importBatchFilter, categoryId, page, pageSize },
+      {
+        search,
+        status: statusFilter,
+        kind: statusFilter === 'pending_review' ? qaKind : undefined,
+        import_batch_id: importBatchFilter,
+        categoryId,
+        page,
+        pageSize,
+      },
     ],
     queryFn: () =>
       listAdminProducts({
         search: search || undefined,
         status: (statusFilter || undefined) as ProductStatus | undefined,
+        kind: statusFilter === 'pending_review' ? qaKind : undefined,
         import_batch_id: importBatchFilter || undefined,
         category_id: categoryId || undefined,
         page,
         page_size: pageSize,
         ordering: '-created_at',
       }),
+  })
+
+  const qaCountsQuery = useQuery({
+    queryKey: ['admin', 'products', 'qa-counts'],
+    queryFn: async () => {
+      const [free, paid] = await Promise.all([
+        listAdminProducts({ status: 'pending_review', kind: 'free', page_size: 1 }),
+        listAdminProducts({ status: 'pending_review', kind: 'paid', page_size: 1 }),
+      ])
+      return { free: free.count, paid: paid.count }
+    },
+    enabled: statusFilter === 'pending_review',
   })
 
   const categoriesQuery = useQuery({
@@ -293,6 +316,37 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
           ))}
         </div>
         {isQaQueue ? <UploaderImportsPanel /> : null}
+        {isQaQueue ? (
+          <div className="admin-qa-sections" role="tablist" aria-label="QA sections">
+            {(
+              [
+                ['free', 'Free models', qaCountsQuery.data?.free],
+                ['paid', 'Paid models', qaCountsQuery.data?.paid],
+              ] as const
+            ).map(([kind, label, count]) => (
+              <button
+                key={kind}
+                type="button"
+                role="tab"
+                aria-selected={qaKind === kind}
+                className={`admin-qa-sections__tab${qaKind === kind ? ' admin-qa-sections__tab--active' : ''}`}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams)
+                  params.set('kind', kind)
+                  params.delete('page')
+                  setSearchParams(params)
+                }}
+              >
+                {label} <span className="products-count">{count ?? '—'}</span>
+              </button>
+            ))}
+            <p className="home-page__subtitle">
+              {qaKind === 'free'
+                ? 'Approving a free model publishes it as a free download.'
+                : 'Approving a paid model checks its quality and sends it to the Pricing page, where it gets its price and is published.'}
+            </p>
+          </div>
+        ) : null}
         {restoreError ? <Alert variant="error" message={restoreError} /> : null}
         {!archived && showCreate ? (
           <form className="admin-create-form" onSubmit={onCreateSubmit} noValidate>
@@ -385,7 +439,6 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
               >
                 <option value="draft">Draft</option>
                 <option value="pending_review">Pending review</option>
-                <option value="published">Published</option>
                 <option value="rejected">Rejected</option>
                 <option value="archived">Archived</option>
               </select>
@@ -425,6 +478,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
               <option value="">All current statuses</option>
               <option value="draft">Draft</option>
               <option value="pending_review">Pending review</option>
+              <option value="awaiting_price">Waiting for price</option>
               <option value="published">Published</option>
               <option value="rejected">Rejected</option>
             </select>
@@ -508,7 +562,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                     </td> : null}
                     <td><span className="products-product"><span className="products-thumbnail">{product.thumbnail ? <img src={product.thumbnail} alt="" loading="lazy" /> : <AdminIcon name="box" size={24} />}</span><span>{product.name}</span></span></td>
                     <td><span className="products-sku">{product.sku ?? "\u2014"}</span></td>
-                    <td><span className={`products-status products-status--${product.status}`}>{product.status === 'published' ? <AdminIcon name="check" size={14} /> : null}{product.status.replace(/_/g, ' ')}</span>{isLiveUpdate(product) ? <span className="admin-live-update-badge">Update to a live model</span> : null}</td>
+                    <td><span className={`products-status products-status--${product.status}`}>{product.status === 'published' ? <AdminIcon name="check" size={14} /> : null}{productStatusLabel(product.status)}</span>{isLiveUpdate(product) ? <span className="admin-live-update-badge">Update to a live model</span> : null}{isQaQueue && product.upload_kind ? <span className={`admin-kind-badge admin-kind-badge--${product.upload_kind}`}>{product.upload_kind === 'free' ? 'Free' : 'Paid'}</span> : null}</td>
                     <td>{product.import_batch_id || '—'}</td>
                     <td>
                       {isFreeProduct(product) ? 'Free' : `${product.currency} ${product.price}`}

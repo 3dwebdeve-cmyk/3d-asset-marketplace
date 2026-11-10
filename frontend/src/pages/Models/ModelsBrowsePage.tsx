@@ -31,7 +31,7 @@ const LICENSE_OPTIONS = [
   { value: 'standard', label: 'Standard License' },
   { value: 'extended', label: 'Extended License' },
 ]
-type TraitKey = 'rigged' | 'animated' | 'pbr_ready' | 'game_ready'
+type TraitKey = 'pbr_ready' | 'game_ready'
 
 const SORT_OPTIONS = [
   '-created_at',
@@ -80,8 +80,6 @@ export function ModelsBrowsePage() {
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const sortFromUrl = readSortFromUrl(searchParams.get('ordering')?.trim() ?? '')
 
-  const riggedFromUrl = readTraitFromUrl(searchParams, 'rigged')
-  const animatedFromUrl = readTraitFromUrl(searchParams, 'animated')
   const pbrReadyFromUrl = readTraitFromUrl(searchParams, 'pbr_ready')
   const gameReadyFromUrl = readTraitFromUrl(searchParams, 'game_ready')
 
@@ -90,8 +88,6 @@ export function ModelsBrowsePage() {
   const [sortOrdering, setSortOrdering] = useState<SortOption>(sortFromUrl)
   const currentPage = readCatalogPage(searchParams)
   const [traits, setTraits] = useState<Record<TraitKey, boolean>>({
-    rigged: riggedFromUrl,
-    animated: animatedFromUrl,
     pbr_ready: pbrReadyFromUrl,
     game_ready: gameReadyFromUrl,
   })
@@ -144,12 +140,10 @@ export function ModelsBrowsePage() {
 
   useEffect(() => {
     setTraits({
-      rigged: riggedFromUrl,
-      animated: animatedFromUrl,
       pbr_ready: pbrReadyFromUrl,
       game_ready: gameReadyFromUrl,
     })
-  }, [riggedFromUrl, animatedFromUrl, pbrReadyFromUrl, gameReadyFromUrl])
+  }, [pbrReadyFromUrl, gameReadyFromUrl])
 
   const debouncedSearch = useDebouncedValue(searchInput.trim(), 300)
 
@@ -197,8 +191,6 @@ export function ModelsBrowsePage() {
     setSelectedCategoryId('')
     setSortOrdering('-created_at')
     setTraits({
-      rigged: false,
-      animated: false,
       pbr_ready: false,
       game_ready: false,
     })
@@ -231,8 +223,6 @@ export function ModelsBrowsePage() {
       selectedCategoryId,
       debouncedSearch,
       sortOrdering,
-      traits.rigged,
-      traits.animated,
       traits.pbr_ready,
       traits.game_ready,
     ],
@@ -241,8 +231,6 @@ export function ModelsBrowsePage() {
         category_id: selectedCategoryId || undefined,
         search: debouncedSearch || undefined,
         ordering: sortOrdering,
-        rigged: traits.rigged || undefined,
-        animated: traits.animated || undefined,
         pbr_ready: traits.pbr_ready || undefined,
         game_ready: traits.game_ready || undefined,
       }),
@@ -275,7 +263,6 @@ export function ModelsBrowsePage() {
   const pageOutOfRange = currentPage > Math.max(totalPages, 1) && productsData !== undefined &&
     !isFetching && !isPlaceholderData && !categoryPending && selectedCategoryId === categoryFromUrl &&
     searchInput.trim() === debouncedSearch && sortOrdering === sortFromUrl &&
-    traits.rigged === riggedFromUrl && traits.animated === animatedFromUrl &&
     traits.pbr_ready === pbrReadyFromUrl && traits.game_ready === gameReadyFromUrl
   const hasActiveTrait = Object.values(traits).some(Boolean)
   const isFiltered =

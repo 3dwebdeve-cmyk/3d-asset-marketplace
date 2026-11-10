@@ -1,0 +1,172 @@
+/* Pricing page (/console/pricing). Uses the admin layout tokens (admin-layout.css). */
+
+.admin-layout .admin-pricing__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-layout .admin-pricing__tab {
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-layout .admin-pricing__tab--active {
+  border-bottom-color: var(--admin-red);
+  color: var(--text-heading);
+}
+
+.admin-layout .admin-pricing__tab:focus-visible {
+  outline: 2px solid var(--admin-red);
+  outline-offset: 2px;
+}
+
+.admin-layout .admin-pricing__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.admin-layout .admin-pricing__limits {
+  grid-column: 1 / -1;
+  color: var(--text-body);
+}
+
+.admin-layout .admin-pricing__limits summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.admin-layout .admin-pricing__limits-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-layout .admin-pricing__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .admin-layout .admin-pricing__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.admin-layout .admin-pricing__selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-layout .admin-pricing__table td,
+.admin-layout .admin-pricing__table th {
+  vertical-align: top;
+}
+
+.admin-layout .admin-pricing__row--selected {
+  background: var(--accent-soft);
+}
+
+.admin-layout .admin-pricing__row--error td {
+  background: rgb(239 43 43 / 8%);
+}
+
+.admin-layout .admin-pricing__tier {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.admin-layout .admin-pricing__tier--low { color: #86efac; }
+.admin-layout .admin-pricing__tier--mid { color: #fcd34d; }
+.admin-layout .admin-pricing__tier--high { color: #fca5a5; }
+.admin-layout .admin-pricing__tier--unknown { color: var(--text-secondary); }
+
+.admin-layout .admin-pricing__panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-panel);
+  color: var(--text-body);
+}
+
+.admin-layout .admin-pricing__panel h2,
+.admin-layout .admin-pricing__preview h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-heading);
+}
+
+.admin-layout .admin-pricing__panel form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-layout .admin-pricing__choice {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.admin-layout .admin-pricing__choice legend {
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.admin-layout .admin-pricing__choice label,
+.admin-layout .admin-pricing__check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  cursor: pointer;
+}
+
+.admin-layout .admin-pricing__preview {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-panel);
+  color: var(--text-body);
+  /* Brought into view when it opens; leave a little room above it. */
+  scroll-margin-top: 1rem;
+}
+
+.admin-layout .admin-pricing__preview:focus {
+  outline: none;
+}
+
+.admin-layout .admin-pricing__preview:focus-visible {
+  outline: 2px solid var(--admin-red);
+  outline-offset: 2px;
+}
+
+.admin-layout .admin-pricing__preview p {
+  margin: 0;
+}

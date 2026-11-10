@@ -1,5 +1,13 @@
 from django.urls import path
 
+from products.price_history_views import AdminProductPriceHistoryView
+from products.pricing_views import (
+    AdminPricingApplyView,
+    AdminPricingBatchesView,
+    AdminPricingListView,
+    AdminPricingPreviewView,
+    AdminPricingPublishView,
+)
 from products.views import (
     AdminCatalogImportView,
     AdminProductApproveView,
@@ -32,6 +40,12 @@ admin_urlpatterns = [
     path("", AdminProductListCreateView.as_view(), name="admin-products"),
     path("import/", AdminCatalogImportView.as_view(), name="admin-catalog-import"),
     path("bulk-delete/", AdminProductBulkDeleteView.as_view(), name="admin-product-bulk-delete"),
+    # Pricing page (docs/PRICING_PIPELINE.md, Part 2).
+    path("pricing/", AdminPricingListView.as_view(), name="admin-pricing"),
+    path("pricing/batches/", AdminPricingBatchesView.as_view(), name="admin-pricing-batches"),
+    path("pricing/preview/", AdminPricingPreviewView.as_view(), name="admin-pricing-preview"),
+    path("pricing/apply/", AdminPricingApplyView.as_view(), name="admin-pricing-apply"),
+    path("pricing/publish/", AdminPricingPublishView.as_view(), name="admin-pricing-publish"),
     path(
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),
@@ -41,6 +55,11 @@ admin_urlpatterns = [
         "<uuid:product_id>/file-check/",
         AdminProductFileCheckView.as_view(),
         name="admin-product-file-check",
+    ),
+    path(
+        "<uuid:product_id>/price-history/",
+        AdminProductPriceHistoryView.as_view(),
+        name="admin-product-price-history",
     ),
     path(
         "<uuid:product_id>/restore/",

@@ -245,6 +245,13 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \
             python manage.py seed_e2e_commerce
 
+      # The pricing pipeline spec (e2e/tests/pricing-pipeline.spec.ts) needs its own models:
+      # QA, Waiting for price and live models with sales (docs/E2E_LOCAL.md).
+      - name: Seed E2E pricing fixtures
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \
+            python manage.py seed_e2e_pricing
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
