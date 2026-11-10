@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test as base, type BrowserContext, type Locator, type Page } from '@playwright/test'
 
 import { loginAsAdmin, loginAsBuyer } from '../helpers/auth'
 
@@ -7,6 +7,33 @@ import { loginAsAdmin, loginAsBuyer } from '../helpers/auth'
  * scenario seeded by `seed_e2e_pricing` (docs/E2E_LOCAL.md). The steps depend on each other, so
  * the file runs in order and needs a fresh seed: re-run Start-LocalStack.ps1 before a new run.
  */
+
+/**
+ * One `test` for the whole file, so Playwright keeps the file order (admin steps, then the shop).
+ * Admin steps take `adminPage`: a tab in one signed-in browser context shared by the worker,
+ * like an admin who keeps one browser open. Signing in before every step trips the login rate
+ * limit (HTTP 429), and a saved storage state cannot be reused: the app rotates the refresh
+ * token on every refresh and revokes the old one. Shop and buyer steps use the normal `page`.
+ */
+const test = base.extend<{ adminPage: Page }, { adminContext: BrowserContext }>({
+  adminContext: [
+    async ({ browser }, use, workerInfo) => {
+      const context = await browser.newContext({ baseURL: workerInfo.project.use.baseURL })
+      const signIn = await context.newPage()
+      await loginAsAdmin(signIn)
+      await signIn.close()
+      await use(context)
+      await context.close()
+    },
+    { scope: 'worker' },
+  ],
+  adminPage: async ({ adminContext, viewport }, use) => {
+    const page = await adminContext.newPage()
+    if (viewport) await page.setViewportSize(viewport)
+    await use(page)
+    await page.close()
+  },
+})
 test.describe.configure({ mode: 'serial' })
 
 const PAID_QA = { sku: 'PRC-PAID-QA', name: 'E2E Paid Chair In QA' }
@@ -23,13 +50,9 @@ const TIER = { low: '9.00', mid: '19.99', high: '49.00' }
 // PRC-PAID-QA (mid) + PRC-WAIT-LOW (low) + PRC-WAIT-MID (mid); PRC-WAIT-HIGH has no price.
 const PUBLISH_TOTAL = '$48.98'
 
-// Sale end used in step 6, set once so the shop steps can check the same moment.
-const saleEnd = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-saleEnd.setSeconds(0, 0)
-const pad = (value: number) => String(value).padStart(2, '0')
-const SALE_END_LOCAL =
-  `${saleEnd.getFullYear()}-${pad(saleEnd.getMonth() + 1)}-${pad(saleEnd.getDate())}` +
-  `T${pad(saleEnd.getHours())}:${pad(saleEnd.getMinutes())}`
+// Sale end used in step 6 and checked in step 7: a fixed, far-future local time. Playwright loads
+// this file again for later steps, so a value computed from "now" can move a minute between them.
+const SALE_END_LOCAL = '2099-06-15T18:30'
 
 /** Console errors and failed page loads, printed per test so a run surfaces them. */
 function watchConsole(page: Page): string[] {
@@ -85,9 +108,8 @@ async function openFromQaQueue(page: Page, kind: 'Free' | 'Paid', sku: string) {
 }
 
 test.describe('admin pricing pipeline', () => {
-  test('1. QA queue has Free and Paid sections with counts and labels', async ({ page }) => {
+  test('1. QA queue has Free and Paid sections with counts and labels', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
-    await loginAsAdmin(page)
 
     await page.goto('/console/products?status=pending_review')
     const sections = page.getByRole('tablist', { name: 'QA sections' })
@@ -117,9 +139,8 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  test('2. QA approve: paid goes to Waiting for price, free is published', async ({ page }) => {
+  test('2. QA approve: paid goes to Waiting for price, free is published', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
-    await loginAsAdmin(page)
 
     // Paid model: label, suggested price, approve -> Waiting for price.
     await openFromQaQueue(page, 'Paid', PAID_QA.sku)
@@ -153,9 +174,8 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  test('3. Pricing page: Waiting tab lists waiting models and the filters work', async ({ page }) => {
+  test('3. Pricing page: Waiting tab lists waiting models and the filters work', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
-    await loginAsAdmin(page)
     await openPricing(page)
 
     const waitingTab = page.getByRole('tab', { name: /Waiting for price/ })
@@ -225,9 +245,8 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  test('4. Calculator by poly level: preview, a note for the unpriced level, save', async ({ page }) => {
+  test('4. Calculator by poly level: preview, a note for the unpriced level, save', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
-    await loginAsAdmin(page)
     await openPricing(page)
 
     const selection = page.locator('.admin-pricing__selection')
@@ -282,11 +301,9 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  // BUG: the publish summary uses the rows as they were when ticked (AdminPricingPage.tsx:79,
-  // 143, 301-302). After "Save prices" the table shows the new prices, but the summary still
-  // adds up the old ones and counts models that now have a price as "no price yet".
-  test.fixme('5a. Publish summary right after saving uses the saved prices', async ({ page }) => {
-    await loginAsAdmin(page)
+  // Fixed: the publish summary used the rows as they were when ticked, so right after "Save
+  // prices" it added up the old prices and counted newly priced models as "no price yet".
+  test('5a. Publish summary right after saving uses the saved prices', async ({ adminPage: page }) => {
     await openPricing(page)
     await page.getByRole('checkbox', { name: `Select ${WAIT_UNKNOWN.name}` }).check()
     await page.getByRole('radio', { name: 'Set the price' }).check()
@@ -303,9 +320,8 @@ test.describe('admin pricing pipeline', () => {
     await summary.getByRole('button', { name: 'Cancel' }).click()
   })
 
-  test('5. Publish selected: summary, confirm, results; the unpriced model stays waiting', async ({ page }) => {
+  test('5. Publish selected: summary, confirm, results; the unpriced model stays waiting', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
-    await loginAsAdmin(page)
     // A fresh page, so the summary reads the saved prices (see 5a).
     await openPricing(page)
 
@@ -347,9 +363,8 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  test('6. Live tab: a big sale needs typed confirmation; a 20% sale with an end is saved', async ({ page }) => {
+  test('6. Live tab: a big sale needs typed confirmation; a 20% sale with an end is saved', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
-    await loginAsAdmin(page)
     await openPricing(page, 'live')
 
     await searchPricing(page, LIVE.sku)
@@ -397,13 +412,12 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  // BUG: "Calculate preview" and "Publish selected" render their panel at the bottom of the page
+  // Fixed: "Calculate preview" and "Publish selected" render their panel at the bottom of the page
   // (AdminPricingPage.tsx:606, 656), below the table and the calculator. At 1280x720 with only a
   // handful of rows the panel already starts below the fold (preview top ~867px, summary ~795px),
   // so the click looks like it did nothing. Expected: the panel scrolls into view (or is a modal
   // with focus moved to it). This test only previews and cancels; it changes no data.
-  test.fixme('6a. The preview and the publish summary open where the admin can see them', async ({ page }) => {
-    await loginAsAdmin(page)
+  test('6a. The preview and the publish summary open where the admin can see them', async ({ adminPage: page }) => {
     await openPricing(page, 'live')
     await searchPricing(page, LIVE.sku)
     await page.getByRole('checkbox', { name: `Select ${LIVE.name}` }).check()
@@ -420,6 +434,9 @@ test.describe('admin pricing pipeline', () => {
     await summary.getByRole('button', { name: 'Cancel' }).click()
   })
 
+})
+
+test.describe('shop and buyer after pricing', () => {
   test('7. Shop: the sale shows on the card and the product page; an ended sale does not', async ({ page }) => {
     const errors = watchConsole(page)
 
@@ -506,8 +523,7 @@ test.describe('pricing pages at phone width', () => {
     expect(overflow, 'page is wider than the screen').toBeLessThanOrEqual(1)
   }
 
-  test('Pricing page fits a 390px screen', async ({ page }) => {
-    await loginAsAdmin(page)
+  test('Pricing page fits a 390px screen', async ({ adminPage: page }) => {
     await openPricing(page, 'live')
     await expect(page.getByRole('heading', { name: 'Calculator' })).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('pricing-390.png'), fullPage: true })
@@ -519,7 +535,7 @@ test.describe('pricing pages at phone width', () => {
     await expectNoHorizontalScroll(page)
   })
 
-  test('Product page with a sale fits a 390px screen', async ({ page }) => {
+  test('Product page with a sale fits a 390px screen', async ({ adminPage: page }) => {
     await page.goto(`/products/${LIVE.slug}`)
     await expect(page.getByRole('heading', { name: LIVE.name })).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('product-390.png'), fullPage: true })

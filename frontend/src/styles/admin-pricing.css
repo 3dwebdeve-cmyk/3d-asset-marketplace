@@ -154,6 +154,17 @@
   border-radius: 12px;
   background: var(--admin-panel);
   color: var(--text-body);
+  /* Brought into view when it opens; leave a little room above it. */
+  scroll-margin-top: 1rem;
+}
+
+.admin-layout .admin-pricing__preview:focus {
+  outline: none;
+}
+
+.admin-layout .admin-pricing__preview:focus-visible {
+  outline: 2px solid var(--admin-red);
+  outline-offset: 2px;
 }
 
 .admin-layout .admin-pricing__preview p {

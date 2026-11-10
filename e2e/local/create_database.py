@@ -1,9 +1,11 @@
 """Create the local E2E database named in DB_NAME if it does not exist (docs/E2E_LOCAL.md).
 
-Run from the backend folder: the database login comes from backend/.env.
+Run from the backend folder: the database login comes from backend/.env. With --fresh the
+database is dropped first, so a run starts like CI (no orders or carts left from earlier runs).
 """
 
 import os
+import sys
 
 import psycopg2
 from decouple import Config, RepositoryEnv
@@ -23,6 +25,13 @@ conn = psycopg2.connect(
 )
 conn.autocommit = True
 with conn.cursor() as cur:
+    if "--fresh" in sys.argv[1:]:
+        cur.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()",
+            [name],
+        )
+        cur.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(name)))
+        print(f"dropped database {name}")
     cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", [name])
     if cur.fetchone() is None:
         cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))

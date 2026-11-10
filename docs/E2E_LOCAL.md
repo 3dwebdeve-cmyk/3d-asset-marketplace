@@ -32,6 +32,10 @@ From the repository root, in PowerShell:
 ./e2e/local/Stop-LocalStack.ps1 -Name browser
 ```
 
+`-Fresh` drops and recreates the stack's database first, so a run starts like CI. Without it, orders
+ from earlier runs stay: the buyer then already owns the checkout products and sees Download
+ instead of Add to Cart.
+
 Each start:
 
 1. creates the database if it is missing;
@@ -72,5 +76,5 @@ stack running at the same time.
 ```powershell
 cd e2e
 $env:E2E_BASE_URL = 'http://localhost:5174'
-npx playwright test tests/pricing-pipeline.spec.ts
+npx playwright test   # all specs, like CI; or tests/pricing-pipeline.spec.ts alone
 ```
