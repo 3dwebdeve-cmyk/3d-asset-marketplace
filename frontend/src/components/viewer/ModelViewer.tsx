@@ -19,7 +19,7 @@ export interface ModelViewerProps {
   className?: string
 }
 
-const VIEWER_BACKGROUND_COLOR = '#ffffff'
+const VIEWER_BACKGROUND_COLOR = '#f2f2f2'
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   const scene = useThree((state) => state.scene)
@@ -222,7 +222,7 @@ function PreviewModel({
       {showGround && ground ? (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
           <planeGeometry args={[ground.width, ground.depth]} />
-          {/* Match the ground plane to the white studio backdrop. */}
+          {/* Match the ground plane to the studio backdrop. */}
           <meshBasicMaterial
             color={VIEWER_BACKGROUND_COLOR}
             transparent={Boolean(groundAlphaMap)}
