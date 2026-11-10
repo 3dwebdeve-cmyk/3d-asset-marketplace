@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -279,6 +279,25 @@ describe('AdminProductsPage', () => {
       'href',
       `/console/products/${productId}`,
     )
+  })
+
+  it('labels awaiting_price as Waiting for price in the list and offers it as a filter', async () => {
+    vi.mocked(productsApi.listAdminProducts).mockResolvedValue({
+      ...sampleProducts,
+      results: [{ ...sampleProducts.results[0], status: 'awaiting_price' }],
+    } as unknown as typeof sampleProducts)
+    renderProductsPage('/console/products?status=awaiting_price')
+
+    await waitFor(() => {
+      expect(productsApi.listAdminProducts).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'awaiting_price' }),
+      )
+    })
+    const filter = screen.getByLabelText('Filter by status') as HTMLSelectElement
+    expect(within(filter).getByRole('option', { name: 'Waiting for price' })).toHaveValue('awaiting_price')
+    expect(filter.value).toBe('awaiting_price')
+    expect(await screen.findAllByText('Waiting for price')).not.toHaveLength(0)
+    expect(screen.queryByText('awaiting price')).not.toBeInTheDocument()
   })
 
   it('filters by pending_review from the QA queue URL', async () => {

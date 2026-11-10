@@ -67,17 +67,6 @@ describe('productsApi QA helpers', () => {
     )
   })
 
-  it('approves with the price chosen in QA', async () => {
-    vi.mocked(apiClient.post).mockResolvedValue({ data: sampleProduct })
-
-    await approveAdminProduct(productId, { pricing: 'free' })
-
-    expect(apiClient.post).toHaveBeenCalledWith(
-      `/api/v1/admin/products/${productId}/approve/`,
-      { pricing: 'free' },
-    )
-  })
-
   it('rejects an admin product with reason and optional qa_notes', async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       data: { ...sampleProduct, status: 'rejected' },

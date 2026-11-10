@@ -1,7 +1,6 @@
 import { apiClient } from './client'
 import type {
   AdminProduct,
-  AdminProductApprovePayload,
   AdminProductBulkDeleteResult,
   AdminProductCreatePayload,
   AdminProductListParams,
@@ -77,14 +76,14 @@ export async function restoreAdminProduct(productId: string): Promise<AdminProdu
   return response.data
 }
 
-/** Approve and publish. `pricing` sets the price at the same time: free (price 0) or paid. */
-export async function approveAdminProduct(
-  productId: string,
-  pricing?: AdminProductApprovePayload,
-): Promise<AdminProduct> {
+/**
+ * QA approve: sends an empty body (the server refuses a price). A free model is published;
+ * a paid model moves to Waiting for price; a live update stays published.
+ */
+export async function approveAdminProduct(productId: string): Promise<AdminProduct> {
   const response = await apiClient.post<AdminProduct>(
     `/api/v1/admin/products/${productId}/approve/`,
-    pricing ?? {},
+    {},
   )
   return response.data
 }

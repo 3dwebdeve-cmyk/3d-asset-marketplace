@@ -3,9 +3,16 @@ import type { CategoryParent } from './category'
 export type ProductStatus =
   | 'draft'
   | 'pending_review'
+  | 'awaiting_price'
   | 'published'
   | 'rejected'
   | 'archived'
+/** Text for a status in the console; unknown values fall back to the raw words. */
+export function productStatusLabel(status: ProductStatus): string {
+  return status === 'awaiting_price' ? 'Waiting for price' : status.replace(/_/g, ' ')
+}
+
+export type ProductUploadKind = 'free' | 'paid'
 export type ProductLicenseType = 'standard' | 'extended' | 'editorial'
 
 export interface ProductImage {
@@ -46,6 +53,12 @@ export interface AdminProduct {
   price: string
   currency: string
   discount_price: string | null
+  /** When the sale ends (ISO 8601 UTC); null means no end. */
+  discount_ends_at?: string | null
+  /** True while the sale price applies (set and not ended). */
+  discount_active?: boolean
+  /** Free models are published by QA; paid models go on to the Pricing page. */
+  upload_kind?: ProductUploadKind
   /** Price 0: downloaded for free, without checkout. */
   is_free?: boolean
   thumbnail: string
@@ -84,12 +97,6 @@ export function isLiveUpdate(product: Pick<AdminProduct, 'status' | 'pending_upd
 export interface AdminProductRejectPayload {
   reason: string
   qa_notes?: string
-}
-
-export interface AdminProductApprovePayload {
-  /** Leave out to keep the current price (a live model's update). */
-  pricing?: 'free' | 'paid'
-  price?: string
 }
 
 export interface AdminProductBulkDeleteResult {
@@ -176,6 +183,8 @@ export interface AdminProductUpdatePayload {
   price?: string
   currency?: string
   discount_price?: string | null
+  /** ISO 8601 with time zone, in the future; null removes the end date. */
+  discount_ends_at?: string | null
   thumbnail?: string
   preview_model?: string
   preview_video?: string
@@ -208,6 +217,8 @@ export interface AdminProductListParams {
   page?: number
   page_size?: number
   status?: ProductStatus
+  /** With status pending_review: only free or only paid models. */
+  kind?: ProductUploadKind
   category_id?: string
   search?: string
   sku?: string
@@ -235,6 +246,8 @@ export interface PublicProduct {
   price: string
   currency: string
   discount_price: string | null
+  /** When the sale ends (ISO 8601 UTC); null means no end. */
+  discount_ends_at?: string | null
   /** Price 0: downloaded for free, without checkout. */
   is_free?: boolean
   thumbnail: string
@@ -267,6 +280,8 @@ export interface PublicProductDetail {
   price: string
   currency: string
   discount_price: string | null
+  /** When the sale ends (ISO 8601 UTC); null means no end. */
+  discount_ends_at?: string | null
   /** Price 0: downloaded for free, without checkout. */
   is_free?: boolean
   thumbnail: string
