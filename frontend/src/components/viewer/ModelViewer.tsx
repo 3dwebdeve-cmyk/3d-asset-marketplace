@@ -20,6 +20,8 @@ export interface ModelViewerProps {
 }
 
 const VIEWER_BACKGROUND_COLOR = '#f2f2f2'
+const ENTRANCE_DURATION = 1.5
+const ENTRANCE_START_SCALE = 0.6
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   const scene = useThree((state) => state.scene)
@@ -112,11 +114,11 @@ function PreviewModel({
   )
   const entranceTime = useRef(0)
   useFrame((_, delta) => {
-    if (reducedMotion || entranceTime.current >= 0.75 || !modelGroup.current) return
-    entranceTime.current = Math.min(entranceTime.current + Math.min(delta, 0.05), 0.75)
-    const progress = entranceTime.current / 0.75
+    if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
+    entranceTime.current = Math.min(entranceTime.current + Math.min(delta, 0.05), ENTRANCE_DURATION)
+    const progress = entranceTime.current / ENTRANCE_DURATION
     const eased = 1 - (1 - progress) ** 3
-    modelGroup.current.scale.setScalar(0.85 + 0.15 * eased)
+    modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * eased)
   })
   const shadowMapSize = useAdaptiveShadowMapSize()
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
@@ -272,7 +274,7 @@ function PreviewModel({
           />
         </>
       ) : null}
-      <group ref={modelGroup} scale={reducedMotion ? 1 : 0.85}>
+      <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
       </group>
     </>
