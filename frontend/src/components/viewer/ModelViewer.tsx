@@ -193,9 +193,9 @@ function PreviewModel({
       width: Math.max(maxXZ * 8, 360),
       depth: Math.max(maxXZ * 8, 360),
       // Wide spread ambient shadow pool with smooth gradient falloff
-      shadowScaleSpread: Math.max(maxXZ * 4.2, 4.4),
+      shadowScaleSpread: Math.max(maxXZ * 5.25, 5.5),
       // Soft mid body shadow for natural grounding
-      shadowScaleMid: Math.max(maxXZ * 2.8, 3.0),
+      shadowScaleMid: Math.max(maxXZ * 3.5, 3.75),
       // Gentle contact core under the model base
       shadowScaleCore: Math.max(maxXZ * 1.7, 1.9),
     }
