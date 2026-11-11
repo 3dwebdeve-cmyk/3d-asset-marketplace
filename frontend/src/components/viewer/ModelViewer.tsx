@@ -108,6 +108,7 @@ function PreviewModel({
 }) {
   const { scene } = useGLTF(url)
   const modelGroup = useRef<THREE.Group>(null)
+  const [entranceComplete, setEntranceComplete] = useState(false)
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false),
     [],
@@ -119,6 +120,7 @@ function PreviewModel({
     const progress = entranceTime.current / ENTRANCE_DURATION
     const eased = 1 - (1 - progress) ** 3
     modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * eased)
+    if (progress === 1) setEntranceComplete(true)
   })
   const shadowMapSize = useAdaptiveShadowMapSize()
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
@@ -179,6 +181,22 @@ function PreviewModel({
     }
   }, [groundAlphaMap])
 
+  const outerShadowMap = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 256
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128)
+    gradient.addColorStop(0, 'rgba(0,0,0,0.35)')
+    gradient.addColorStop(0.45, 'rgba(0,0,0,0.18)')
+    gradient.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, 256, 256)
+    return new THREE.CanvasTexture(canvas)
+  }, [])
+
+  useEffect(() => () => outerShadowMap?.dispose(), [outerShadowMap])
+
   const ground = useMemo(() => {
     const box = new THREE.Box3().setFromObject(fitted)
     if (box.isEmpty()) {
@@ -198,6 +216,8 @@ function PreviewModel({
       shadowScaleMid: Math.max(maxXZ * 3.5, 3.75),
       // Gentle contact core under the model base
       shadowScaleCore: Math.max(maxXZ * 1.7, 1.9),
+      outerShadowWidth: Math.max(size.x * 2, maxXZ * 1.2),
+      outerShadowDepth: Math.max(size.z * 2, maxXZ * 1.2),
     }
   }, [fitted])
 
@@ -236,9 +256,15 @@ function PreviewModel({
       ) : null}
       {showGround && ground ? (
         <>
+          {outerShadowMap ? (
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y + 0.0005, 0]}>
+              <planeGeometry args={[ground.outerShadowWidth, ground.outerShadowDepth]} />
+              <meshBasicMaterial map={outerShadowMap} transparent depthWrite={false} toneMapped={false} />
+            </mesh>
+          ) : null}
           {/* Diffused wide spread shadow pool — broad scale and high blur for smooth, non-sharp dissipation */}
           <ContactShadows
-            key={`${url}-spread`}
+            key={`${url}-spread-${entranceComplete}`}
             position={[0, ground.y + 0.001, 0]}
             opacity={0.18}
             scale={ground.shadowScaleSpread}
@@ -250,7 +276,7 @@ function PreviewModel({
           />
           {/* Soft mid body shadow — smooth falloff adding depth without sharp contours */}
           <ContactShadows
-            key={`${url}-mid`}
+            key={`${url}-mid-${entranceComplete}`}
             position={[0, ground.y + 0.002, 0]}
             opacity={0.20}
             scale={ground.shadowScaleMid}
@@ -262,7 +288,7 @@ function PreviewModel({
           />
           {/* Grounding core shadow — softly anchors the model to the floor */}
           <ContactShadows
-            key={`${url}-core`}
+            key={`${url}-core-${entranceComplete}`}
             position={[0, ground.y + 0.003, 0]}
             opacity={0.25}
             scale={ground.shadowScaleCore}
