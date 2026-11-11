@@ -1051,9 +1051,9 @@
   background: #ffffff;
 }
 
-/* Match the home page model cards to the category grid at each screen size. */
+/* Give home page model cards a wider scrolling layout. */
 .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards {
-  grid-auto-columns: calc((100% - 3 * 1.1rem) / 4);
+  grid-auto-columns: calc((100% - 3 * 1.1rem) / 4 * 1.1);
   gap: 1.1rem;
 }
 
@@ -1072,14 +1072,14 @@
 
 @media (min-width: 1280px) {
   .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards {
-    grid-auto-columns: calc((100% - 3 * 0.75rem) / 4);
+    grid-auto-columns: calc((100% - 3 * 0.75rem) / 4 * 1.1);
     gap: 0.75rem;
   }
 }
 
 @media (max-width: 800px) {
   .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards {
-    grid-auto-columns: calc((100% - 0.85rem) / 2);
+    grid-auto-columns: calc((100% - 0.85rem) / 2 * 1.1);
     gap: 0.85rem;
   }
 }
