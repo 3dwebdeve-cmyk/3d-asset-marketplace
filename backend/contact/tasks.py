@@ -25,6 +25,7 @@ def send_contact_submission_task(
     email: str,
     subject: str,
     message: str,
+    attachments: list[dict[str, str]] | None = None,
 ) -> None:
     """Deliver a contact-form email to configured admins. Retries on SMTP failure."""
     from contact.services import ContactService, ContactSubmissionData
@@ -35,5 +36,6 @@ def send_contact_submission_task(
             email=email,
             subject=subject,
             message=message,
+            attachments=attachments or [],
         )
     )
