@@ -5,3 +5,7 @@ Subject: {{ subject }}
 
 Message:
 {{ message }}
+
+{% if attachments %}Reference files: Download and extract project-reference-files.zip to view all uploaded files.
+{% for attachment in attachments %}- {{ attachment.name }}
+{% endfor %}{% endif %}

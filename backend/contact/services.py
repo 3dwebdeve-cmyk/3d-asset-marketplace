@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import logging
 import base64
+import re
+from io import BytesIO
+from pathlib import PurePosixPath
+from zipfile import ZipFile, ZIP_DEFLATED
 from dataclasses import dataclass, field
 from django.template.loader import render_to_string
 
@@ -27,6 +31,49 @@ from config.mail import render_text_email, safe_email_text, send_text_mail
 from mail_log.services import MailLogService
 
 logger = logging.getLogger("contact.notifications")
+
+
+def project_detail_rows(message: str) -> list[dict[str, str]]:
+    """Keep multiline values and URLs intact while separating known brief fields."""
+    labels = (
+        "Services", "Project", "Specifications", "Links", "Budget", "Delivery",
+        "Company", "Phone", "Purposes", "Output formats", "Delivery date",
+        "NDA requested", "30% payment acknowledged", "Attached reference files",
+    )
+    canonical = {label.lower(): label for label in labels}
+    pattern = r"^(" + "|".join(re.escape(label) for label in labels) + r"): *"
+    matches = list(re.finditer(pattern, message, flags=re.MULTILINE | re.IGNORECASE))
+    if not matches:
+        return [{"label": "Message", "value": message.strip()}]
+    rows = []
+    if message[:matches[0].start()].strip():
+        rows.append({"label": "Message", "value": message[:matches[0].start()].strip()})
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(message)
+        rows.append({"label": canonical[match.group(1).lower()], "value": message[match.end():end].strip() or "Not specified"})
+    return rows
+
+
+def reference_zip(attachments: list[dict[str, str]]) -> list[tuple[str, bytes, str]]:
+    """Package references in memory, retaining every file with safe unique names."""
+    if not attachments:
+        return []
+    buffer = BytesIO()
+    used_names: set[str] = set()
+    with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+        for index, item in enumerate(attachments, start=1):
+            name = PurePosixPath(item["name"].replace("\\", "/")).name
+            if name in {"", ".", ".."}:
+                name = f"reference-{index}"
+            path = PurePosixPath(name)
+            unique_name = name
+            suffix = 2
+            while unique_name.casefold() in used_names:
+                unique_name = f"{path.stem} ({suffix}){path.suffix}"
+                suffix += 1
+            used_names.add(unique_name.casefold())
+            archive.writestr(unique_name, base64.b64decode(item["content"], validate=True))
+    return [("project-reference-files.zip", buffer.getvalue(), "application/zip")]
 
 
 @dataclass(frozen=True)
@@ -116,6 +163,7 @@ class ContactService:
                 "sender_email": safe_email,
                 "subject": safe_subject,
                 "message": data.message.strip(),
+                "attachments": data.attachments,
             },
         )
         subject = f"Contact form: {safe_subject}"
@@ -133,10 +181,11 @@ class ContactService:
                 html_body=render_to_string("contact/emails/submission.html", {
                     "sender_name": safe_name, "sender_email": safe_email,
                     "subject": safe_subject, "message": data.message.strip(),
+                    "detail_rows": project_detail_rows(data.message),
                     "attachments": data.attachments,
                 }),
                 reply_to=[safe_email],
-                attachments=[(item["name"], base64.b64decode(item["content"]), item["type"]) for item in data.attachments],
+                attachments=reference_zip(data.attachments),
             )
         except Exception as exc:
             MailLogService.mark_failed(log_id, str(exc))
