@@ -133,3 +133,10 @@
 .custom-studio .brief-cta-button {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Align hero copy to the left edge of its padded content area. */
+.custom-studio .hero-content,
+.custom-studio .hero h1,
+.custom-studio .hero-description {
+  text-align: left;
+}
