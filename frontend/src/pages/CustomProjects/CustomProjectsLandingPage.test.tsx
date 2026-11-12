@@ -1,5 +1,5 @@
 import styles from './custom-studio.css?raw'
-﻿import { render, screen } from '@testing-library/react'
+﻿import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { submitContactForm } from '../../api/contactApi'
@@ -60,5 +60,58 @@ describe('CustomProjectsLandingPage', () => {
     expect(submitContactForm).toHaveBeenCalledWith(expect.objectContaining({ name: 'Test Customer', email: 'customer@example.com', message: expect.stringContaining('Build a chair'), attachments: [image] }))
     expect(screen.getByRole('status')).toHaveTextContent('received for delivery')
     expect(screen.getByRole('button', { name: 'Enquiry sent' })).toBeDisabled()
+  })
+})
+
+
+describe('enquiry completion', () => {
+  async function submitFilledForm() {
+    render(<CustomProjectsLandingPage />)
+    const form = document.querySelector<HTMLFormElement>('#hive-enquiry')!
+    const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement
+    fireEvent.submit(form)
+    field('project').value = 'Build a chair'
+    fireEvent.submit(form)
+    field('contactName').value = 'Test Customer'
+    field('contactEmail').value = 'customer@example.com'
+    field('paymentAcknowledged').checked = true
+    await act(async () => { fireEvent.submit(form) })
+    return { form, field }
+  }
+
+  it('shows confirmation for three seconds then clears the form for a new enquiry', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(submitContactForm).mockResolvedValue({ detail: 'Received' })
+      const { form, field } = await submitFilledForm()
+      expect(screen.getByRole('button', { name: 'Enquiry sent' })).toBeDisabled()
+      act(() => { vi.advanceTimersByTime(2999) })
+      expect(screen.getByRole('button', { name: 'Enquiry sent' })).toBeInTheDocument()
+      act(() => { vi.advanceTimersByTime(1) })
+      expect(screen.getByRole('heading', { name: 'What do you need?' })).toHaveFocus()
+      expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled()
+      expect(screen.getAllByRole('checkbox').every(input => !(input as HTMLInputElement).checked)).toBe(true)
+      expect(field('project').value).toBe('')
+      expect(field('contactName').value).toBe('')
+      expect(field('contactEmail').value).toBe('')
+      expect(field('references').files).toHaveLength(0)
+      expect(form.querySelector('.reference-previews')).toBeEmptyDOMElement()
+      expect(form.querySelector('.brief-status')).toBeEmptyDOMElement()
+      fireEvent.submit(form)
+      expect(screen.getByRole('status')).toHaveTextContent('Choose at least one service')
+    } finally { vi.useRealTimers() }
+  })
+
+  it('keeps customer details and permits retry when sending fails', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(submitContactForm).mockRejectedValue(new Error('Network unavailable'))
+      const { field } = await submitFilledForm()
+      act(() => { vi.advanceTimersByTime(3000) })
+      expect(screen.getByRole('button', { name: 'Send enquiry' })).toBeEnabled()
+      expect(field('contactName').value).toBe('Test Customer')
+      expect(field('contactEmail').value).toBe('customer@example.com')
+      expect(field('project').value).toBe('Build a chair')
+    } finally { vi.useRealTimers() }
   })
 })
