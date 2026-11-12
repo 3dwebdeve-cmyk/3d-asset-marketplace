@@ -405,7 +405,7 @@ class DownloadAPITests(APITestCase):
     def test_entitlements_list_for_paid_owner(self) -> None:
         product_file = self._upload_product_file()
         preview_file = self._upload_product_file(name="preview.glb", is_preview=True)
-        plugin_file = self._upload_plugin_file()
+        self._upload_plugin_file()
         self.create_paid_order(self.customer)
         self.create_paid_order(
             self.customer,

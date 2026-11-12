@@ -1,4 +1,3 @@
-from django.urls import path
 
 from categories.urls import admin_urlpatterns
 
