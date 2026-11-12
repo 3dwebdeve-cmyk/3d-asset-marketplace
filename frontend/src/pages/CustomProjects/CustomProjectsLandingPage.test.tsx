@@ -1,3 +1,4 @@
+import styles from './custom-studio.css?raw'
 ﻿import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +9,12 @@ vi.mock('../../api/contactApi', () => ({ submitContactForm: vi.fn() }))
 beforeEach(() => vi.clearAllMocks())
 
 describe('CustomProjectsLandingPage', () => {
+  it('keeps page styles compatible with the same-origin font security policy', () => {
+    expect(styles).not.toMatch(/@import\s+(?:url\()?['"]?https?:/i)
+    expect(styles).not.toContain('fonts.googleapis.com')
+    expect(styles).not.toContain('fonts.gstatic.com')
+  })
+
   it('renders the reference design and keeps page SEO', () => {
     render(<CustomProjectsLandingPage />)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('We’ll make it.')
