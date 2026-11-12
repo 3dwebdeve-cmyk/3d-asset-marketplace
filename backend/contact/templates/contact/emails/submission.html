@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <body style="margin:0;padding:24px;background:#f3f6fa;font-family:Arial,Helvetica,sans-serif;color:#102034;">
 <table role="presentation" style="width:100%;max-width:700px;margin:0 auto;border-collapse:collapse;background:#ffffff;border:1px solid #dbe3ee;">
@@ -12,11 +12,26 @@
       <tr><th style="padding:8px 16px 8px 0;text-align:left;vertical-align:top;">Email</th><td style="padding:8px 0;"><a href="mailto:{{ sender_email }}" style="color:#204ddf;">{{ sender_email }}</a></td></tr>
       <tr><th style="padding:8px 16px 8px 0;text-align:left;vertical-align:top;">Subject</th><td style="padding:8px 0;">{{ subject }}</td></tr>
     </table>
-    <h2 style="margin:24px 0 12px;font-size:18px;">Project details</h2>
-    <div style="padding:18px;background:#f6f8fb;border:1px solid #e1e7ef;border-radius:8px;font-size:14px;line-height:1.8;text-align:left;overflow-wrap:anywhere;">{{ message|linebreaksbr }}</div>
+    <table role="presentation" style="width:100%;margin-top:24px;border-collapse:separate;border-spacing:0;border:1px solid #d5dfe8;border-radius:10px;background:#f2f6fa;">
+      <tr><td style="padding:22px 16px;">
+        <h2 style="margin:0 0 22px 8px;font-size:22px;line-height:1.35;font-weight:700;color:#103d60;text-align:left;">PROJECT DETAILS &amp; SPECIFICATIONS</h2>
+        <table aria-label="Project details and specifications" style="width:100%;border-collapse:collapse;table-layout:fixed;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;text-align:left;color:#101820;">
+          <thead><tr style="background:#e5edf4;">
+            <th scope="col" style="width:36%;padding:12px;border:1px solid #c2ceda;text-align:left;vertical-align:top;">Key</th>
+            <th scope="col" style="padding:12px;border:1px solid #c2ceda;text-align:left;vertical-align:top;">Details</th>
+          </tr></thead>
+          <tbody>{% for row in detail_rows %}
+            <tr style="background:{% cycle '#e7eff6' '#f3f7fa' %};">
+              <th scope="row" style="padding:12px;border:1px solid #c2ceda;text-align:left;vertical-align:top;font-weight:700;overflow-wrap:anywhere;word-break:break-word;">{{ row.label }}</th>
+              <td style="padding:12px;border:1px solid #c2ceda;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;">{{ row.value|linebreaksbr }}</td>
+            </tr>
+          {% endfor %}</tbody>
+        </table>
+      </td></tr>
+    </table>
     {% if attachments %}
     <h2 style="margin:24px 0 12px;font-size:18px;">Reference files ({{ attachments|length }})</h2>
-    <p style="margin:0 0 10px;font-size:14px;line-height:1.6;">The customer's reference files are attached to this email. Open the attachments to view or download them.</p>
+    <p style="margin:0 0 10px;font-size:14px;line-height:1.6;">All reference files are included in <strong>project-reference-files.zip</strong>. Download and extract this ZIP attachment to view the original files.</p>
     <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">{% for attachment in attachments %}<li>{{ attachment.name }}</li>{% endfor %}</ul>
     {% endif %}
     <p style="margin:24px 0 0;color:#607086;font-size:13px;line-height:1.6;">Reply to this email to contact {{ sender_name }} directly.</p>

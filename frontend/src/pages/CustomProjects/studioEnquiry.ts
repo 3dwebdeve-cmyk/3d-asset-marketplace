@@ -1,4 +1,4 @@
-﻿import { submitContactForm } from '../../api/contactApi'
+import { submitContactForm } from '../../api/contactApi'
 import { getApiErrorMessage } from '../../lib/apiError'
 
 // The HTML is a trusted bundled asset; its original scripts are never executed.
@@ -53,7 +53,7 @@ export function initializeStudioEnquiry(root: HTMLElement) {
     if (files.some(file => !/\.(png|jpe?g|webp|gif|pdf|obj|fbx|glb|gltf|blend|stl|step|stp|iges|igs|zip)$/i.test(file.name))) {
       references.value = ''; notice.textContent = 'Choose images, PDF, CAD, 3D or ZIP files.'; return
     }
-    notice.textContent = 'Reference files will be attached to your enquiry email (up to 10 files, 10 MB total).'
+    notice.textContent = 'Reference files will be bundled into one ZIP attachment in your enquiry email (up to 10 files, 10 MB total).'
     Array.from(references.files ?? []).forEach((file, index) => {
       const card = document.createElement('div')
       card.className = 'reference-preview reference-document'
