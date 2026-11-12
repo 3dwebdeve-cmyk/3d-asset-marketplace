@@ -163,5 +163,50 @@
 .custom-studio .studio-information,
 .custom-studio .studio-faq,
 .custom-studio .brief-cta {
-  padding-inline: clamp(36px, 8vw, 136px);
+  padding-inline: clamp(36px, 9.5vw, 160px);
+}
+
+/* Use the site's blue accent for enquiry selections and primary actions. */
+.custom-studio .service-card input:checked + span {
+  border-color: #204ddf;
+  box-shadow: inset 0 0 0 1px #204ddf;
+  background: #edf3ff;
+}
+
+.custom-studio .service-card input:focus-visible + span,
+.custom-studio .detail-chips input:focus-visible + span {
+  outline-color: #779eff;
+}
+
+.custom-studio .brief-steps li[aria-current="step"] {
+  border-color: #204ddf;
+}
+
+.custom-studio .detail-chips input:checked + span {
+  background: #edf3ff;
+  border-color: #204ddf;
+}
+
+.custom-studio .brief-next {
+  background: #204ddf;
+  color: #fff;
+}
+
+.custom-studio .brief-next:hover {
+  background: #153bc2;
+}
+
+/* Match the process timeline markers to the blue enquiry accent. */
+.custom-studio .brief-process li::before {
+  background: #204ddf;
+}
+
+/* Keep project-detail copy aligned with the left edge of its fields. */
+.custom-studio .project-details,
+.custom-studio .project-details h3,
+.custom-studio .project-details .brief-help,
+.custom-studio .project-details .brief-field,
+.custom-studio .project-details .brief-field small,
+.custom-studio .project-details .detail-group {
+  text-align: left;
 }

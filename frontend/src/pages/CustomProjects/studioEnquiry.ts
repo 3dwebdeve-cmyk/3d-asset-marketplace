@@ -16,6 +16,7 @@ export function initializeStudioEnquiry(root: HTMLElement) {
   let step = 0
   let pending = false
   let sent = false
+  let resetTimer: ReturnType<typeof setTimeout> | undefined
   let urls: string[] = []
   const release = () => { urls.forEach(url => URL.revokeObjectURL(url)); urls = [] }
   function show(focus = true) {
@@ -103,6 +104,21 @@ export function initializeStudioEnquiry(root: HTMLElement) {
       await submitContactForm({ name: field('contactName').value.trim(), email: field('contactEmail').value.trim(), subject: `Hive Studio: ${selected('service').join(', ')}`.slice(0, 200), message, attachments: files })
       if (signal.aborted) return
       sent = true; status.textContent = 'Your enquiry and reference files have been received for delivery. Our team will reply by email.'; next.textContent = 'Enquiry sent'
+      panels.forEach(panel => panel.querySelectorAll<HTMLInputElement>('input,textarea,select').forEach(input => { input.disabled = true }))
+      resetTimer = setTimeout(() => {
+        if (signal.aborted) return
+        form.reset()
+        form.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(input => { input.checked = false })
+        references.value = ''
+        previews()
+        form.querySelector<HTMLElement>('#selected-services')!.textContent = ''
+        sent = false
+        step = 0
+        next.disabled = false
+        back.disabled = false
+        show()
+        delivery()
+      }, 3000)
     } catch (error) {
       if (signal.aborted) return
       status.textContent = getApiErrorMessage(error, 'Could not send your enquiry. Please try again.')
@@ -110,5 +126,5 @@ export function initializeStudioEnquiry(root: HTMLElement) {
     } finally { pending = false }
   }, { signal })
   show(false); delivery()
-  return () => { controller.abort(); release() }
+  return () => { controller.abort(); clearTimeout(resetTimer); release() }
 }
