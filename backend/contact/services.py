@@ -8,7 +8,9 @@ included so staff can reply.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import base64
+from dataclasses import dataclass, field
+from django.template.loader import render_to_string
 
 from django.conf import settings
 from rest_framework.exceptions import APIException
@@ -33,6 +35,7 @@ class ContactSubmissionData:
     email: str
     subject: str
     message: str
+    attachments: list[dict[str, str]] = field(default_factory=list)
 
 
 class ContactService:
@@ -86,6 +89,7 @@ class ContactService:
             data.email,
             data.subject,
             data.message,
+            data.attachments,
         )
         return cls.SUCCESS_DETAIL
 
@@ -126,6 +130,13 @@ class ContactService:
                 subject=subject,
                 body=body,
                 recipients=recipients,
+                html_body=render_to_string("contact/emails/submission.html", {
+                    "sender_name": safe_name, "sender_email": safe_email,
+                    "subject": safe_subject, "message": data.message.strip(),
+                    "attachments": data.attachments,
+                }),
+                reply_to=[safe_email],
+                attachments=[(item["name"], base64.b64decode(item["content"]), item["type"]) for item in data.attachments],
             )
         except Exception as exc:
             MailLogService.mark_failed(log_id, str(exc))

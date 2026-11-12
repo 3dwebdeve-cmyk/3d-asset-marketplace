@@ -140,3 +140,28 @@
 .custom-studio .hero-description {
   text-align: left;
 }
+
+
+/* Stretch the main content below the hero while retaining responsive gutters. */
+.custom-studio .brief-layout,
+.custom-studio .studio-info,
+.custom-studio .studio-benefits,
+.custom-studio .studio-faq-inner,
+.custom-studio .brief-cta-inner {
+  max-width: none;
+  width: 100%;
+}
+
+@media (min-width: 1001px) {
+  .custom-studio .brief-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  }
+}
+
+/* Add comfortable side gutters to the full-width content below the banner. */
+.custom-studio .brief-section,
+.custom-studio .studio-information,
+.custom-studio .studio-faq,
+.custom-studio .brief-cta {
+  padding-inline: clamp(36px, 8vw, 136px);
+}
