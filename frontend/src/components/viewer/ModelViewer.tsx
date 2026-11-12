@@ -108,6 +108,7 @@ function PreviewModel({
 }) {
   const { scene } = useGLTF(url)
   const modelGroup = useRef<THREE.Group>(null)
+  const [entranceComplete, setEntranceComplete] = useState(false)
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false),
     [],
@@ -119,6 +120,7 @@ function PreviewModel({
     const progress = entranceTime.current / ENTRANCE_DURATION
     const eased = 1 - (1 - progress) ** 3
     modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * eased)
+    if (progress === 1) setEntranceComplete(true)
   })
   const shadowMapSize = useAdaptiveShadowMapSize()
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
@@ -238,11 +240,11 @@ function PreviewModel({
         <>
           {/* Diffused wide spread shadow pool — broad scale and high blur for smooth, non-sharp dissipation */}
           <ContactShadows
-            key={`${url}-spread`}
+            key={`${url}-spread-${entranceComplete}`}
             position={[0, ground.y + 0.001, 0]}
-            opacity={0.18}
+            opacity={0.26}
             scale={ground.shadowScaleSpread}
-            blur={3.2}
+            blur={5}
             far={4.0}
             resolution={shadowMapSize}
             frames={1}
@@ -250,11 +252,11 @@ function PreviewModel({
           />
           {/* Soft mid body shadow — smooth falloff adding depth without sharp contours */}
           <ContactShadows
-            key={`${url}-mid`}
+            key={`${url}-mid-${entranceComplete}`}
             position={[0, ground.y + 0.002, 0]}
-            opacity={0.20}
+            opacity={0.28}
             scale={ground.shadowScaleMid}
-            blur={2.4}
+            blur={3.5}
             far={2.8}
             resolution={shadowMapSize}
             frames={1}
@@ -262,9 +264,9 @@ function PreviewModel({
           />
           {/* Grounding core shadow — softly anchors the model to the floor */}
           <ContactShadows
-            key={`${url}-core`}
+            key={`${url}-core-${entranceComplete}`}
             position={[0, ground.y + 0.003, 0]}
-            opacity={0.25}
+            opacity={0.32}
             scale={ground.shadowScaleCore}
             blur={1.6}
             far={1.8}
