@@ -17,7 +17,6 @@ from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
-from django.core.cache import cache
 from django.core.management import call_command
 from django.test import override_settings
 from django.urls import reverse

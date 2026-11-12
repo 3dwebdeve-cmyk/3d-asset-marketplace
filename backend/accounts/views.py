@@ -28,7 +28,6 @@ from accounts.serializers import (
     ActivityLogSerializer,
     AdminMfaConfirmSerializer,
     AdminMfaSetupSerializer,
-    AdminMfaStartSerializer,
     AdminMfaVerifySerializer,
     AdminRecoveryCodesSerializer,
     AdminUserCreateSerializer,

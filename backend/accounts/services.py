@@ -79,7 +79,6 @@ class RegistrationService:
 
         versions = LegalAcceptanceService.validate_offered(
             data.accepted_legal if data.accepted_legal is not None else {},
-            require_all=True,
         )
 
         role = cls._get_customer_role()

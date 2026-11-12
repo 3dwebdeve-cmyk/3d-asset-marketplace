@@ -1,7 +1,6 @@
 """Run once with migration/admin credentials; never from the web container."""
 
 import os
-import sys
 
 import psycopg2
 from psycopg2 import sql

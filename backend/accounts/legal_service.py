@@ -44,13 +44,11 @@ class LegalAcceptanceService:
     def validate_offered(
         cls,
         offered: Any,
-        *,
-        require_all: bool = True,
     ) -> dict[str, str]:
         """Validate client ``accepted_legal`` against current required versions.
 
-        When ``require_all`` is True (register), every current key must be present
-        with the exact current version. Extra unknown keys are ignored.
+        Every current key must be present with the exact current version. Extra
+        unknown keys are ignored.
         """
         required = cls.current_versions()
         if not required:
@@ -137,5 +135,5 @@ class LegalAcceptanceService:
                 missing=missing,
             )
 
-        validated = cls.validate_offered(offered, require_all=True)
+        validated = cls.validate_offered(offered)
         cls.record_acceptances(user, validated)
