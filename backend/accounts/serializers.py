@@ -54,7 +54,6 @@ class RegisterSerializer(serializers.Serializer):
         try:
             attrs["accepted_legal"] = LegalAcceptanceService.validate_offered(
                 attrs.get("accepted_legal") or {},
-                require_all=True,
             )
         except LegalAcceptanceError as exc:
             raise serializers.ValidationError({exc.field: [exc.message]}) from exc
@@ -88,7 +87,7 @@ class LegalAcceptSerializer(serializers.Serializer):
 
     def validate_accepted_legal(self, value: dict) -> dict:
         try:
-            return LegalAcceptanceService.validate_offered(value, require_all=True)
+            return LegalAcceptanceService.validate_offered(value)
         except LegalAcceptanceError as exc:
             raise serializers.ValidationError(exc.message) from exc
 

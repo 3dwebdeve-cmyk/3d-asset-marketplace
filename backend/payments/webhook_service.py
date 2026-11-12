@@ -70,7 +70,7 @@ class WebhookService:
             elif event.type == "charge.refunded":
                 cls._handle_charge_refunded(event.data.object)
             elif event.type in {"charge.dispute.created", "charge.dispute.closed"}:
-                cls._handle_dispute(event.data.object, closed=event.type.endswith(".closed"))
+                cls._handle_dispute(event.data.object)
             elif event.type not in STRIPE_WEBHOOK_EVENT_TYPES:
                 logger.info("Ignoring unhandled Stripe event type=%s", event.type)
 
@@ -368,7 +368,7 @@ class WebhookService:
             raise
 
     @classmethod
-    def _handle_dispute(cls, dispute, *, closed):
+    def _handle_dispute(cls, dispute):
         intent_id = stripe_id(session_value(dispute, "payment_intent"))
         if not intent_id:
             raise ValueError("Dispute does not contain a payment intent.")
