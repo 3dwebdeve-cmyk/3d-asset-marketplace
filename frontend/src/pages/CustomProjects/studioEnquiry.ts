@@ -46,10 +46,14 @@ export function initializeStudioEnquiry(root: HTMLElement) {
     const container = form.querySelector<HTMLElement>('.reference-previews')!
     const notice = form.querySelector<HTMLElement>('#reference-status')!
     container.replaceChildren()
-    if ((references.files?.length ?? 0) > 10) {
-      references.value = ''; notice.textContent = 'Please select up to 10 files.'; return
+    const files = Array.from(references.files ?? [])
+    if (files.length > 10 || files.reduce((sum, file) => sum + file.size, 0) > 10 * 1024 * 1024) {
+      references.value = ''; notice.textContent = 'Choose up to 10 files, no more than 10 MB in total.'; return
     }
-    notice.textContent = 'File names are included in your enquiry. Our team will contact you to collect the files.'
+    if (files.some(file => !/\.(png|jpe?g|webp|gif|pdf|obj|fbx|glb|gltf|blend|stl|step|stp|iges|igs|zip)$/i.test(file.name))) {
+      references.value = ''; notice.textContent = 'Choose images, PDF, CAD, 3D or ZIP files.'; return
+    }
+    notice.textContent = 'Reference files will be attached to your enquiry email (up to 10 files, 10 MB total).'
     Array.from(references.files ?? []).forEach((file, index) => {
       const card = document.createElement('div')
       card.className = 'reference-preview reference-document'
@@ -81,22 +85,24 @@ export function initializeStudioEnquiry(root: HTMLElement) {
       form.querySelector<HTMLElement>('#selected-services')!.textContent = `Selected services: ${selected('service').join(', ')}. Tell us the quantities, formats and details you need.`
       step++; show(); return
     }
+    const files = Array.from(references.files ?? [])
+    if (files.length > 10 || files.reduce((sum, file) => sum + file.size, 0) > 10 * 1024 * 1024) { status.textContent = 'Choose up to 10 reference files, no more than 10 MB in total.'; return }
     const message = [
       `Services: ${selected('service').join(', ')}`,
-      ...['project', 'specifications', 'links', 'budget', 'delivery', 'company', 'phone'].map(name => `${name}: ${field(name).value}`),
+      ...['project', 'specifications', 'links', 'budget', 'delivery', 'company', 'phone'].map(name => `${name.charAt(0).toUpperCase() + name.slice(1)}: ${field(name).value || 'Not specified'}`),
       `Purposes: ${selected('purpose').join(', ')}`,
       `Output formats: ${selected('outputFormat').join(', ')}`,
       `Delivery date: ${field('delivery').value === 'Specific date' ? field('deliveryDate').value : 'Not specified'}`,
       `NDA requested: ${field('nda').checked ? 'Yes' : 'No'}`,
       '30% payment acknowledged: Yes',
-      `Reference files to request by email: ${Array.from(references.files ?? []).map(file => file.name).join(', ') || 'None'}`,
-    ].join('\n')
+      `Attached reference files: ${Array.from(references.files ?? []).map(file => file.name).join(', ') || 'None'}`,
+    ].join('\n\n')
     if (message.length > 5000) { status.textContent = 'Please shorten your brief to fewer than 5,000 characters before sending.'; return }
     pending = true; next.disabled = true; back.disabled = true; next.textContent = 'Sending…'
     try {
-      await submitContactForm({ name: field('contactName').value.trim(), email: field('contactEmail').value.trim(), subject: `Hive Studio: ${selected('service').join(', ')}`.slice(0, 200), message })
+      await submitContactForm({ name: field('contactName').value.trim(), email: field('contactEmail').value.trim(), subject: `Hive Studio: ${selected('service').join(', ')}`.slice(0, 200), message, attachments: files })
       if (signal.aborted) return
-      sent = true; status.textContent = 'Your enquiry has been sent. Our team will reply by email and contact you to collect any reference files.'; next.textContent = 'Enquiry sent'
+      sent = true; status.textContent = 'Your enquiry and reference files have been received for delivery. Our team will reply by email.'; next.textContent = 'Enquiry sent'
     } catch (error) {
       if (signal.aborted) return
       status.textContent = getApiErrorMessage(error, 'Could not send your enquiry. Please try again.')

@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives, send_mail
 from django.template.loader import render_to_string
 
 
@@ -54,8 +54,23 @@ def send_text_mail(
     body: str,
     recipients: Sequence[str],
     from_email: str | None = None,
+    html_body: str | None = None,
+    reply_to: Sequence[str] | None = None,
+    attachments: Sequence[tuple[str, bytes, str]] | None = None,
 ) -> None:
     """Send a plain-text email. Raises on provider failure for Celery retries."""
+    if html_body is not None or attachments or reply_to:
+        email = EmailMultiAlternatives(
+            subject=safe_email_text(subject), body=body,
+            from_email=from_email or settings.DEFAULT_FROM_EMAIL,
+            to=list(recipients), reply_to=list(reply_to or []),
+        )
+        if html_body:
+            email.attach_alternative(html_body, "text/html")
+        for name, content, mimetype in attachments or []:
+            email.attach(name, content, mimetype)
+        email.send(fail_silently=False)
+        return
     send_mail(
         subject=safe_email_text(subject),
         message=body,
