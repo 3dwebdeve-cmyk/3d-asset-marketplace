@@ -17,7 +17,13 @@ from django.db import transaction
 from django.db.models import Q
 
 from categories.models import Category
-from config.media import FREE_MODELS_PREFIX, media_relative_path, package_object_exists
+from config.media import (
+    FREE_MODELS_PREFIX,
+    SPIN_FRAME_COUNT,
+    SPIN_PUBLIC_PREFIX,
+    media_relative_path,
+    package_object_exists,
+)
 from config.storages import build_public_media_url, get_public_storage
 from config.upload_security import (
     SCAN_MALWARE_FOUND,
@@ -632,6 +638,7 @@ class CatalogImportService:
                 raise ProductError("invalid_object_key", field="object_key")
             gallery_keys.append(key)
         gallery_urls = [build_public_media_url(key) for key in gallery_keys]
+        spin_keys = cls._spin_keys(sku, media.get("spin_keys"))
 
         # The buyer's download is named after the package key unless the batch says otherwise.
         default_file_name = package_key.rsplit("/", 1)[-1] if package_key else "package.zip"
@@ -649,10 +656,35 @@ class CatalogImportService:
             "package_file_size": int(media.get("package_file_size") or 0),
             "gallery_keys": gallery_keys,
             "gallery_urls": gallery_urls,
+            # None: keep the product's spin (older plugin); []: clear it; else the 36 frames.
+            "spin_keys": spin_keys,
+            "spin_urls": None
+            if spin_keys is None
+            else [build_public_media_url(key) for key in spin_keys],
             "has_thumbnail": True,
             "has_preview": True,
             "has_package": package_key is not None,
         }
+
+    @staticmethod
+    def _spin_keys(sku: str, raw: Any) -> list[str] | None:
+        """The 360° frame keys, checked against the one name and order they may have.
+
+        The frames are always under 360/<sku>/, for paid and free models alike, so the
+        row's r2_key_prefix is not used. None (absent) keeps the product's spin and []
+        clears it; any other value must be exactly the 36 frames in order.
+        """
+        if raw is None:
+            return None
+        if not isinstance(raw, (list, tuple)):
+            raise ProductError("invalid_spin_keys", field="object_key")
+        if not raw:
+            return []
+        expected = spin_frame_keys(sku)
+        keys = [media_relative_path(str(key or "").strip()) for key in raw]
+        if keys != expected:
+            raise ProductError("invalid_spin_keys", field="object_key")
+        return expected
 
     @classmethod
     def _check_preview(
@@ -786,6 +818,17 @@ class CatalogImportService:
                 )
                 for key in media_pointers["gallery_keys"]
             ]
+        # The 360° frames: every one must be a real image, so a spin is never broken.
+        replace_spin = media_pointers["spin_keys"] is not None and cls._spin_is_replaceable(
+            sku, existing
+        )
+        if not replace_spin:
+            pointers["spin_urls"] = None
+        elif media_pointers["spin_keys"]:
+            pointers["spin_urls"] = [
+                cls._check_image(key, reason="invalid_spin_image", missing="missing_spin_object")
+                for key in media_pointers["spin_keys"]
+            ]
         return pointers
 
     @staticmethod
@@ -820,6 +863,19 @@ class CatalogImportService:
         urls = ProductImage.objects.filter(product=existing).values_list("image_url", flat=True)
         prefixes = (f"models/{sku}/", f"{FREE_MODELS_PREFIX}{sku}/")
         return all((media_relative_path(url) or "").startswith(prefixes) for url in urls)
+
+    @staticmethod
+    def _spin_is_replaceable(sku: str, existing: Product | None) -> bool:
+        """The gallery's rule for the spin: replace it only when every frame came from an
+        import. Frames are only ever set by the import, so in practice this is always True;
+        a live model's spin is replaced like its other files and waits in the QA queue."""
+        if existing is None:
+            return True
+        prefix = f"{SPIN_PUBLIC_PREFIX}{sku}/"
+        return all(
+            (media_relative_path(str(url)) or "").startswith(prefix)
+            for url in existing.spin_images or ()
+        )
 
     @staticmethod
     def _import_copies(sku: str, existing: Product | None) -> list[str]:
@@ -933,6 +989,7 @@ class CatalogImportService:
                 has_preview=media_pointers["has_preview"],
                 has_package=media_pointers["has_package"],
                 package_formats=cls.normalize_package_formats(item.get("package_formats")),
+                spin_images=media_pointers["spin_urls"] or [],
             )
         )
 
@@ -980,6 +1037,8 @@ class CatalogImportService:
                 has_preview=media_pointers["has_preview"],
                 has_package=media_pointers["has_package"],
                 package_formats=cls.normalize_package_formats(item.get("package_formats")),
+                # None keeps the current spin (absent from the batch); [] clears it.
+                spin_images=media_pointers["spin_urls"],
             ),
             price_source=ProductPriceChange.Source.IMPORT,
         )
@@ -1075,6 +1134,14 @@ class CatalogImportService:
             version="1.0",
             is_preview=False,
         )
+
+
+def spin_frame_keys(sku: str) -> list[str]:
+    """The 36 frame keys of a model's 360° spin, in spin order."""
+    return [
+        f"{SPIN_PUBLIC_PREFIX}{sku}/360_{sku}_{number:02d}.jpg"
+        for number in range(1, SPIN_FRAME_COUNT + 1)
+    ]
 
 
 def _is_zip_key(key: str) -> bool:

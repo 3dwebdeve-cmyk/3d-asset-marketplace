@@ -74,6 +74,12 @@ export function ProductCard({ product }: ProductCardProps) {
           variant="icon"
         />
 
+        {product.has_360 ? (
+          <span className="product-card__badge-360" title="This model has a 360° view">
+            360°
+          </span>
+        ) : null}
+
         {hasDiscount ? (
           <span className="product-card__badge-discount">
             {salePercent !== null ? `-${salePercent}%` : 'Sale'}

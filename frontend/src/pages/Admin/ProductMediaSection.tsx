@@ -28,6 +28,8 @@ import {
 } from '../../lib/productUpload'
 import { formatFileSize } from '../../lib/format'
 import { FormatBadges } from '../../components/admin/FormatBadges'
+import { SPIN_FRAME_COUNT, hasSpin } from '../../lib/spin'
+import { ProductSpinViewer } from '../Products/ProductSpinViewer'
 import { toast } from '../../lib/toast'
 import type { AdminProduct } from '../../types/product'
 
@@ -194,6 +196,26 @@ export function ProductMediaSection({
         ) : (
           <p className="home-page__subtitle">
             Upload a GLB or self-contained GLTF file (max {PRODUCT_PREVIEW_MAX_MB} MB) below to test the 3D preview. Other formats are downloads only.
+          </p>
+        )}
+      </div>
+
+      <div className="admin-media-panel">
+        <h3 className="admin-media-panel__title">360° view</h3>
+        {hasSpin(product.spin_images) ? (
+          <>
+            <p className="admin-media-panel__hint">360: {SPIN_FRAME_COUNT} frames, from the uploader.</p>
+            <ProductSpinViewer
+              key={product.spin_images[0]}
+              images={product.spin_images}
+              productName={product.name}
+              autoRotate={false}
+              compact
+            />
+          </>
+        ) : (
+          <p className="admin-media-panel__hint">
+            No 360. Set 360 Render to YES in the uploader sheet and upload the model again to add one.
           </p>
         )}
       </div>

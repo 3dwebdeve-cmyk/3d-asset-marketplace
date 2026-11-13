@@ -5,6 +5,8 @@ import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewMode
 import { isSafePreviewVideoUrl } from '../../components/viewer/isSafePreviewVideoUrl'
 import type { ProductImage } from '../../types/product'
 import { ProductImagePreview, type SideColours } from './ProductImagePreview'
+import { hasSpin } from '../../lib/spin'
+import { ProductSpinViewer } from './ProductSpinViewer'
 import { ZoomableImage } from './ZoomableImage'
 
 interface GalleryImage {
@@ -14,7 +16,10 @@ interface GalleryImage {
   sideColours: SideColours | null
 }
 
-type StageViewMode = 'model' | 'image' | 'video'
+type StageViewMode = 'model' | 'image' | 'video' | 'spin'
+
+/** One item of the stage, in gallery order: 3D, video, 360°, then the images. */
+type StageItem = { mode: 'model' | 'video' | 'spin' } | { mode: 'image'; index: number }
 
 interface ProductImageGalleryProps {
   productName: string
@@ -22,6 +27,8 @@ interface ProductImageGalleryProps {
   images: ProductImage[]
   previewModelUrl: string
   previewVideoUrl?: string
+  /** 360° frames; the 360° item appears only with all 36. It never opens first. */
+  spinImages?: string[]
   showStageChrome?: boolean
   showPreviewModeThumbs?: boolean
   stageOverlays?: ReactNode
@@ -66,6 +73,7 @@ export function ProductImageGallery({
   images,
   previewModelUrl,
   previewVideoUrl = '',
+  spinImages,
   showStageChrome = false,
   showPreviewModeThumbs = false,
   stageOverlays,
@@ -80,6 +88,7 @@ export function ProductImageGallery({
   const galleryId = useId()
   const hasSafePreviewModel = isSafePreviewModelUrl(previewModelUrl)
   const hasSafePreviewVideo = isSafePreviewVideoUrl(previewVideoUrl)
+  const hasSpinView = hasSpin(spinImages)
 
   // Warm the preview GLB in the HTTP cache without pulling Three.js into this chunk.
   useEffect(() => {
@@ -131,7 +140,8 @@ export function ProductImageGallery({
   const activeFailed = activeImage ? imgErrorIds.has(activeImage.id) : true
   const showModelStage = hasSafePreviewModel && viewMode === 'model'
   const showVideoStage = hasSafePreviewVideo && viewMode === 'video'
-  const showImageStage = !showModelStage && !showVideoStage
+  const showSpinStage = hasSpinView && viewMode === 'spin'
+  const showImageStage = !showModelStage && !showVideoStage && !showSpinStage
 
   const markFailed = useCallback((id: string) => {
     setImgErrorIds((current) => {
@@ -155,90 +165,36 @@ export function ProductImageGallery({
     setLightboxOpen(false)
   }, [])
 
-  const totalCount =
-    (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + galleryImages.length || 1
+  // Previous / Next walk one list that loops: 3D, video, 360°, then the images.
+  const stageItems = useMemo<StageItem[]>(() => [
+    ...(hasSafePreviewModel ? [{ mode: 'model' as const }] : []),
+    ...(hasSafePreviewVideo ? [{ mode: 'video' as const }] : []),
+    ...(hasSpinView ? [{ mode: 'spin' as const }] : []),
+    ...galleryImages.map((_, index) => ({ mode: 'image' as const, index })),
+  ], [hasSafePreviewModel, hasSafePreviewVideo, hasSpinView, galleryImages])
 
-  const showPrevious = useCallback(() => {
-    if (totalCount <= 1) {
+  const totalCount = stageItems.length || 1
+  const currentMode: StageViewMode = showModelStage
+    ? 'model'
+    : showVideoStage ? 'video' : showSpinStage ? 'spin' : 'image'
+  const stageIndex = stageItems.findIndex((item) =>
+    item.mode === 'image' ? currentMode === 'image' && item.index === safeIndex : item.mode === currentMode,
+  )
+
+  const moveStage = useCallback((offset: number) => {
+    if (stageItems.length <= 1) {
       return
     }
-    if (showModelStage) {
-      if (galleryImages.length > 0) {
-        setActiveIndex(galleryImages.length - 1)
-        setViewMode('image')
-      } else if (hasSafePreviewVideo) {
-        setViewMode('video')
-      }
-    } else if (showVideoStage) {
-      if (hasSafePreviewModel) {
-        setViewMode('model')
-      } else if (galleryImages.length > 0) {
-        setActiveIndex(galleryImages.length - 1)
-        setViewMode('image')
-      }
-    } else {
-      if (safeIndex > 0) {
-        setActiveIndex(safeIndex - 1)
-        setViewMode('image')
-      } else if (hasSafePreviewVideo) {
-        setViewMode('video')
-      } else if (hasSafePreviewModel) {
-        setViewMode('model')
-      } else {
-        setActiveIndex(galleryImages.length - 1)
-        setViewMode('image')
-      }
+    const from = Math.max(0, stageIndex)
+    const target = stageItems[(from + offset + stageItems.length) % stageItems.length]
+    if (target.mode === 'image') {
+      setActiveIndex(target.index)
     }
-  }, [
-    totalCount,
-    showModelStage,
-    showVideoStage,
-    safeIndex,
-    galleryImages.length,
-    hasSafePreviewModel,
-    hasSafePreviewVideo,
-  ])
+    setViewMode(target.mode)
+  }, [stageItems, stageIndex])
 
-  const showNext = useCallback(() => {
-    if (totalCount <= 1) {
-      return
-    }
-    if (showModelStage) {
-      if (hasSafePreviewVideo) {
-        setViewMode('video')
-      } else if (galleryImages.length > 0) {
-        setActiveIndex(0)
-        setViewMode('image')
-      }
-    } else if (showVideoStage) {
-      if (galleryImages.length > 0) {
-        setActiveIndex(0)
-        setViewMode('image')
-      } else if (hasSafePreviewModel) {
-        setViewMode('model')
-      }
-    } else {
-      if (safeIndex < galleryImages.length - 1) {
-        setActiveIndex(safeIndex + 1)
-        setViewMode('image')
-      } else if (hasSafePreviewModel) {
-        setViewMode('model')
-      } else if (hasSafePreviewVideo) {
-        setViewMode('video')
-      } else {
-        setActiveIndex(0)
-        setViewMode('image')
-      }
-    }
-  }, [
-    totalCount,
-    showModelStage,
-    showVideoStage,
-    safeIndex,
-    galleryImages.length,
-    hasSafePreviewModel,
-    hasSafePreviewVideo,
-  ])
+  const showPrevious = useCallback(() => moveStage(-1), [moveStage])
+  const showNext = useCallback(() => moveStage(1), [moveStage])
 
   const selectImage = useCallback((index: number) => {
     setActiveIndex(index)
@@ -252,12 +208,10 @@ export function ProductImageGallery({
     }
   }, [galleryImages.length, safeIndex, selectImage])
 
-  const stagePosition = showModelStage ? 1 : showVideoStage
-    ? (hasSafePreviewModel ? 2 : 1)
-    : (hasSafePreviewModel ? 1 : 0) + (hasSafePreviewVideo ? 1 : 0) + safeIndex + 1
+  const stagePosition = Math.max(0, stageIndex) + 1
 
   const hasThumbnails = galleryImages.length > 0 ||
-    (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo))
+    (showPreviewModeThumbs && (hasSafePreviewModel || hasSafePreviewVideo || hasSpinView))
 
   useEffect(() => {
     const rail = thumbnailRailRef.current
@@ -398,8 +352,8 @@ export function ProductImageGallery({
         tabIndex={0}
         onKeyDown={(event) => {
           if (lightboxOpen || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
-          // Arrow keys inside the model and video belong to their own controls.
-          if ((event.target as HTMLElement).closest('.product-detail-stage__viewer, video, input, textarea, select, [contenteditable="true"]')) return
+          // Arrow keys inside the model, video and 360° view belong to their own controls.
+          if ((event.target as HTMLElement).closest('.product-detail-stage__viewer, .product-spin, video, input, textarea, select, [contenteditable="true"]')) return
           if (totalCount <= 1 || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
           event.preventDefault()
           event.stopPropagation()
@@ -426,6 +380,10 @@ export function ProductImageGallery({
             >
               Your browser does not support this preview video.
             </video>
+          </div>
+        ) : showSpinStage && spinImages ? (
+          <div className="product-detail-stage__spin">
+            <ProductSpinViewer key={spinImages[0]} images={spinImages} productName={productName} />
           </div>
         ) : !activeImage || activeFailed ? (
           <div
@@ -570,6 +528,27 @@ export function ProductImageGallery({
                 <span className="product-detail-gallery__thumb-3d">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7V5Z" /></svg>
                   <span>Video</span>
+                </span>
+              </button>
+            </li>
+          ) : null}
+          {showPreviewModeThumbs && hasSpinView ? (
+            <li>
+              <button
+                type="button"
+                className={`product-detail-gallery__thumb${
+                  showSpinStage ? ' product-detail-gallery__thumb--active' : ''
+                }`}
+                onClick={() => setViewMode('spin')}
+                aria-label="Show 360° view"
+                aria-current={showSpinStage ? 'true' : undefined}
+              >
+                <span className="product-detail-gallery__thumb-3d">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.5 8.6C20 9.5 21.5 10.7 21.5 12c0 2.8-4.3 5-9.5 5s-9.5-2.2-9.5-5 4.3-5 9.5-5" />
+                    <path d="m10 5 2 2-2 2" />
+                  </svg>
+                  <span>360°</span>
                 </span>
               </button>
             </li>

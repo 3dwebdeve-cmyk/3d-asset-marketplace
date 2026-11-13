@@ -41,6 +41,9 @@ PY
 # Gunicorn starts so the running code and database schema stay in sync.
 echo "Applying database migrations..."
 python manage.py migrate --noinput
+# The database cache (settings.CACHES "marketplace_cache") needs its table. Safe on every
+# start: an existing table is left alone.
+python manage.py createcachetable
 
 # BEGIN bootstrap administrator
 # Render's free plan has no shell, so ensure_administrator cannot be run by hand. When both
