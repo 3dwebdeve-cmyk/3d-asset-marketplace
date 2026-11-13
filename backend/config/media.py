@@ -50,6 +50,12 @@ PLUGIN_PUBLIC_PREFIX = "plugins/"
 PLUGIN_PUBLIC_SUFFIXES = (".webp", ".jpg", ".jpeg", ".png")
 # Free models live under free-models/{Model_ID}/ in the public bucket, zip included.
 FREE_MODELS_PREFIX = "free-models/"
+# 360° turntable frames live under 360/{Model_ID}/ for paid and free models alike
+# (360_<ID>_01.jpg ... 360_<ID>_36.jpg). Only JPEG frames there are ever public.
+SPIN_PUBLIC_PREFIX = "360/"
+SPIN_PUBLIC_SUFFIXES = (".jpg", ".jpeg")
+# A 360° spin is exactly this many frames.
+SPIN_FRAME_COUNT = 36
 
 
 def media_relative_path(storage_path: str) -> str | None:
@@ -108,6 +114,9 @@ def is_public_media_path(relative: str) -> bool:
     ) or (
         normalized.startswith(PLUGIN_PUBLIC_PREFIX)
         and normalized.lower().endswith(PLUGIN_PUBLIC_SUFFIXES)
+    ) or (
+        normalized.startswith(SPIN_PUBLIC_PREFIX)
+        and normalized.lower().endswith(SPIN_PUBLIC_SUFFIXES)
     )
 
 

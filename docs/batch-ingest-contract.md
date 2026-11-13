@@ -21,6 +21,7 @@ and a folder of models. For each model it creates a Model ID and writes four fil
 | `preview_<ID>.glb` | A light preview model (under 12 MB, not Draco-compressed) |
 | `previewthumb_<ID>.jpg` | The thumbnail |
 | `<ID>.json` | All product details (the plugin's own record; not uploaded) |
+| `360_<ID>_01.jpg` … `360_<ID>_36.jpg` | Optional 360° turntable: exactly 36 frames, 1024 px JPEG, in spin order (Excel column *360 Render* = YES) |
 
 **Model ID format:** `AAA-BBB-000000`, for example `FUR-CHR-000123`: a category code, a
 subcategory code and one global six-digit counter. The plugin creates the ID; the site
@@ -33,6 +34,7 @@ The uploader exe uploads the files to R2 under `models/<ID>/`, then calls the im
 | `models/<ID>/<ID>.zip` | **private** |
 | `models/<ID>/preview_<ID>.glb` | public |
 | `models/<ID>/previewthumb_<ID>.jpg` | public |
+| `360/<ID>/360_<ID>_01.jpg` … `_36.jpg` | public (paid **and** Free models) |
 
 Upload the zip **before** calling the import: the import checks it is there.
 
@@ -45,6 +47,11 @@ published paid. Anyone can download them, without an account, through
 ## Storage layout
 
 - Public objects: `models/<Model_ID>/` (thumbnail, gallery images, preview `.glb`).
+- 360° frames: `360/<Model_ID>/360_<Model_ID>_NN.jpg` in the public bucket. Only `.jpg` /
+  `.jpeg` files under `360/` are public; anything else there is never served. The frames stay
+  under `360/` for Free models too: they never move to `free-models/`, so a Free model's
+  `r2_key_prefix` is `free-models/<ID>/` while its `spin_keys` point at `360/<ID>/`.
+  Archiving or deleting a product does not delete its frames (like every other R2 file).
 - Every `.zip` under `models/` is **private** and served only through signed download
   links (60 seconds). Storage, the local media server and media migrations treat any
   `.zip` there as private.
@@ -134,7 +141,12 @@ add it there.
         "thumbnail_key": "models/FUR-CHR-000123/previewthumb_FUR-CHR-000123.jpg",
         "preview_key": "models/FUR-CHR-000123/preview_FUR-CHR-000123.glb",
         "package_key": "models/FUR-CHR-000123/FUR-CHR-000123.zip",
-        "package_file_size": 48234496
+        "package_file_size": 48234496,
+        "spin_keys": [
+          "360/FUR-CHR-000123/360_FUR-CHR-000123_01.jpg",
+          "…",
+          "360/FUR-CHR-000123/360_FUR-CHR-000123_36.jpg"
+        ]
       }
     }
   ]
@@ -148,6 +160,20 @@ add it there.
 - `polygon_count`: read from the **full model** in the package, never from the preview GLB.
   The import rejects a preview with more than 50% of this count (`preview_not_reduced`).
 - `category` / `subcategory`: matched by name, case-insensitive, among active categories.
+- `media.spin_keys`: the 360° frames, in spin order. The same rules apply to paid and Free
+  models, and the row's `r2_key_prefix` is not used:
+
+  | Value | Meaning |
+  |---|---|
+  | absent or `null` | Older plugin: the product keeps its current 360° unchanged. |
+  | `[]` | The model has no 360°: the product's 360° is cleared. The uploader then deletes the old `360/<ID>/` frames. |
+  | 36 keys | Key *n* must be exactly `360/<ID>/360_<ID>_<nn>.jpg`, `nn` = `01` … `36`, in that order. |
+
+  Any other value (35 or 37 keys, wrong order, another model's ID, a key under `models/` or
+  `free-models/`, a `.png`, a blank key) skips the row with `invalid_spin_keys`. More than 50
+  keys fails the whole request (400), like `gallery_keys`. The product stores the 36 frame URLs
+  as `spin_images` (each with `?v=<hash>`); the product page shows a 360° viewer only when there
+  are exactly 36, and the product list returns `has_360` for a "360°" badge.
 
 ## Response
 
@@ -234,6 +260,14 @@ Image checks can skip a row: `invalid_thumbnail`, `invalid_gallery_image` (not a
 image, over 25 MB or over 20 megapixels), `image_unreadable` (storage error), `missing_thumbnail_object` and
 `missing_gallery_object` (the file is not in the public bucket; upload it, then import again).
 
+The 360° frames are checked the same way, so a product never shows a broken spin:
+
+| Reason | Meaning |
+|---|---|
+| `invalid_spin_keys` | The 360° frame list is wrong: it needs exactly 36 frames named `360/<ID>/360_<ID>_01.jpg` … `_36.jpg`, in order. |
+| `missing_spin_object` | A 360° frame is not in the public bucket: upload the model again. |
+| `invalid_spin_image` | A 360° frame is not a valid image (or is over 25 MB / 20 megapixels). |
+
 A row that passes can still carry a warning. `preview_unchecked` means the preview was
 accepted without the 50% reduction check, because the row has no `Polycount` or the preview's
 triangles could not be counted: a full-detail model can become public that way, so send the
@@ -244,7 +278,8 @@ the review queue (approve action); imports never publish directly.
 
 ## Batch size
 
-Each row downloads the preview from R2, scans it and stores it again inside the request.
+Each row downloads the preview from R2, scans it and stores it again inside the request; a
+row with a 360° also reads its 36 frames (about 36 × 150 KB).
 Gunicorn's timeout is 120 seconds and Cloudflare's proxy limit is about 100 seconds, so send
 **about 5 models per request**. The importer accepts at most 500 items per request, but
 large batches will time out.
@@ -284,6 +319,10 @@ large batches will time out.
 - An existing gallery is kept; the import only fills an empty gallery.
 - The existing package is kept unless the batch provides a new `package_key`.
 - `package_formats` is replaced by the value in the batch.
+- The 360° follows the `spin_keys` rules above: absent keeps it, `[]` clears it, 36 frames
+  replace it. A live model's new 360° is shown at once and waits in the QA queue with its other
+  files (`live_update_in_qa`). A refused 360° (any of the reasons above) leaves the product's
+  current 360° as it was.
 
 ## Browsing
 

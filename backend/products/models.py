@@ -87,6 +87,9 @@ class Product(models.Model):
     # be a reduced model (see PREVIEW_MAX_POLYGON_SHARE in products.services).
     preview_triangle_count = models.PositiveIntegerField(null=True, blank=True)
     preview_video = models.URLField(blank=True)
+    # 360° turntable: the 36 public frame URLs in spin order (each with ?v=<hash>), or [].
+    # Set only by the catalog import; the frames live under 360/<sku>/ in the public bucket.
+    spin_images = models.JSONField(default=list, blank=True)
     polygon_count = models.PositiveIntegerField(null=True, blank=True)
     vertex_count = models.PositiveIntegerField(null=True, blank=True)
     material_count = models.PositiveIntegerField(null=True, blank=True)

@@ -6,6 +6,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from categories.models import Category
+from config.media import SPIN_FRAME_COUNT
 from products.models import Product, ProductFile, ProductImage
 from products.upload_rules import (
     validate_product_file_upload,
@@ -121,12 +122,22 @@ class BuyerPriceFieldsMixin(serializers.Serializer):
         return _DATETIME_FIELD.to_representation(obj.discount_ends_at)
 
 
+def has_spin(obj: Product) -> bool:
+    """A product shows a 360° viewer only with all 36 frames."""
+    return len(obj.spin_images or ()) == SPIN_FRAME_COUNT
+
+
 class ProductListPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSerializer):
     category = ProductCategorySerializer(read_only=True)
     formats = serializers.SerializerMethodField()
+    # True when the product page has a 360° spin (for the card's "360°" badge).
+    has_360 = serializers.SerializerMethodField()
 
     def get_formats(self, obj: Product) -> list[str]:
         return product_formats(obj, getattr(obj, "filter_files", ()))
+
+    def get_has_360(self, obj: Product) -> bool:
+        return has_spin(obj)
 
     class Meta:
         model = Product
@@ -148,6 +159,7 @@ class ProductListPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSerial
             "average_rating",
             "review_count",
             "total_downloads",
+            "has_360",
             "created_at",
         )
         read_only_fields = fields
@@ -178,6 +190,7 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
             "thumbnail",
             "preview_model",
             "preview_video",
+            "spin_images",
             "polygon_count",
             "vertex_count",
             "software_used",
@@ -245,6 +258,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "thumbnail",
             "preview_model",
             "preview_video",
+            "spin_images",
             "polygon_count",
             "vertex_count",
             "software_used",
@@ -273,6 +287,7 @@ class ProductAdminSerializer(serializers.ModelSerializer):
             "category",
             "images",
             "files",
+            "spin_images",
             "average_rating",
             "review_count",
             "total_downloads",
@@ -608,6 +623,17 @@ class CatalogImportMediaSerializer(serializers.Serializer):
         child=serializers.CharField(allow_blank=False, max_length=512),
         required=False,
         default=list,
+        max_length=50,
+    )
+    # The 360° frames in spin order, always under 360/<ID>/. Absent (None) keeps the
+    # product's current spin, [] clears it; anything else must be the 36 frames, or the
+    # row is skipped as invalid_spin_keys. The cap is looser than 36 so a wrong count
+    # skips that row instead of failing the whole batch; the import checks the rest.
+    spin_keys = serializers.ListField(
+        child=serializers.CharField(allow_blank=True, max_length=512),
+        required=False,
+        allow_null=True,
+        default=None,
         max_length=50,
     )
 
