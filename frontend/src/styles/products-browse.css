@@ -836,6 +836,22 @@
   text-transform: uppercase;
 }
 
+.product-card__badge-360 {
+  position: absolute;
+  z-index: 2;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+  color: var(--text-main);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
 .product-card__body {
   padding: 1.25rem;
   display: flex;

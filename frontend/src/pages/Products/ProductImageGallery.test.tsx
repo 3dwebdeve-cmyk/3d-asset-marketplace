@@ -265,4 +265,56 @@ describe('product gallery navigation', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(counter()).toHaveTextContent('3 / 4')
   })
+
+  describe('360° view', () => {
+    const spinImages = Array.from(
+      { length: 36 },
+      (_, index) => `https://cdn.example.com/360/X/360_X_${String(index + 1).padStart(2, '0')}.jpg`,
+    )
+    const spin = () => screen.queryByRole('img', { name: '360° view of Chair' })
+
+    it('adds a 360° item after the video, only with all 36 frames', async () => {
+      const { rerender } = render(<ProductImageGallery {...defaults} spinImages={spinImages.slice(0, 35)} />)
+      expect(screen.queryByRole('button', { name: 'Show 360° view' })).not.toBeInTheDocument()
+      expect(counter()).toHaveTextContent('1 / 4')
+
+      rerender(<ProductImageGallery {...defaults} spinImages={spinImages} />)
+      expect(counter()).toHaveTextContent('1 / 5')
+      await userEvent.click(next())
+      await userEvent.click(next())
+      expect(spin()).toBeInTheDocument()
+      expect(counter()).toHaveTextContent('3 / 5')
+      expect(screen.getByRole('button', { name: 'Show 360° view' })).toHaveAttribute('aria-current', 'true')
+      await userEvent.click(next())
+      expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
+      await userEvent.click(previous())
+      expect(spin()).toBeInTheDocument()
+    })
+
+    it('never opens on the 360°: the 3D preview first, else a render', async () => {
+      const { rerender } = render(<ProductImageGallery {...defaults} spinImages={spinImages} />)
+      expect(screen.getByTestId('model-preview')).toBeInTheDocument()
+      expect(spin()).not.toBeInTheDocument()
+
+      rerender(
+        <ProductImageGallery {...defaults} previewModelUrl="" previewVideoUrl="" spinImages={spinImages} />,
+      )
+      expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
+      expect(spin()).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Show 360° view' }))
+      expect(spin()).toBeInTheDocument()
+    })
+
+    it('keeps arrow keys inside the 360° view for turning it', async () => {
+      render(<ProductImageGallery {...defaults} spinImages={spinImages} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Show 360° view' }))
+      expect(counter()).toHaveTextContent('3 / 5')
+
+      fireEvent.keyDown(spin()!, { key: 'ArrowRight' })
+      expect(spin()).toHaveAttribute('data-frame', '2')
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Rotate left' }), { key: 'ArrowRight' })
+      expect(counter()).toHaveTextContent('3 / 5')
+    })
+  })
 })
