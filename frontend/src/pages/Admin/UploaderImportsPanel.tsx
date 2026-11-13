@@ -17,6 +17,9 @@ const REASON_HELP: Record<string, string> = {
   preview_not_reduced: 'preview .glb is not reduced enough',
   preview_too_large: 'preview .glb is too large',
   invalid_object_key: 'a file key is outside the model folder',
+  invalid_spin_keys: 'the 360 frame list is wrong (needs exactly 36 frames named 360_<ID>_01…36)',
+  missing_spin_object: 'a 360 frame is missing in R2: upload the model again',
+  invalid_spin_image: 'a 360 frame is not a valid image',
 }
 
 /** The uploader's latest imports, so the admin can see why a model in R2 is not in QA. */

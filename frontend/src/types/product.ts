@@ -64,6 +64,8 @@ export interface AdminProduct {
   thumbnail: string
   preview_model: string
   preview_video: string
+  /** 360° turntable: 36 frame URLs in spin order, or [] when the model has none. */
+  spin_images?: string[]
   polygon_count: number | null
   vertex_count: number | null
   software_used: string
@@ -247,6 +249,8 @@ export interface PublicProduct {
   thumbnail: string
   software_used: string
   formats?: string[]
+  /** The product page has a 360° view (for the card's "360°" badge). */
+  has_360?: boolean
   category: CategoryParent
   license_type: ProductLicenseType
   average_rating: string
@@ -281,6 +285,8 @@ export interface PublicProductDetail {
   thumbnail: string
   preview_model: string
   preview_video: string
+  /** 360° turntable: 36 frame URLs in spin order, or [] when the model has none. */
+  spin_images?: string[]
   polygon_count: number | null
   vertex_count: number | null
   software_used: string

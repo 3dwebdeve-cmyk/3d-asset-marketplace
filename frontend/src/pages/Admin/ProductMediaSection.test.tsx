@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestQueryClient, resetAuthStore, resetToastStore } from '../../test/test-utils'
 import { ProductMediaSection } from './ProductMediaSection'
 import { uploadProductFile } from '../../api/productsApi'
+import type { AdminProduct } from '../../types/product'
 
 vi.mock('../../components/viewer/ModelViewer', () => ({
   default: ({ modelUrl }: { modelUrl: string }) => <div data-testid="admin-model-viewer">{modelUrl}</div>,
@@ -86,7 +87,7 @@ const sampleProduct = {
   updated_at: '2024-01-01T00:00:00Z',
 }
 
-function renderMediaSection(product = sampleProduct) {
+function renderMediaSection(product: AdminProduct = sampleProduct) {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
@@ -134,5 +135,17 @@ describe('ProductMediaSection', () => {
 
     const fileInput = document.getElementById('product-file-upload')
     expect(fileInput).toHaveAttribute('accept', expect.stringContaining('.usdz'))
+  })
+
+  it('shows the 360° frames in a small viewer, or says there is no 360', () => {
+    const spin_images = Array.from({ length: 36 }, (_, index) => `https://cdn.example.com/360/X/${index + 1}.jpg`)
+    const { unmount } = renderMediaSection({ ...sampleProduct, spin_images })
+    expect(screen.getByText(/360: 36 frames/)).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '360° view of Oak Chair' })).toBeInTheDocument()
+    unmount()
+
+    renderMediaSection({ ...sampleProduct, spin_images: [] })
+    expect(screen.getByText(/No 360/)).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: '360° view of Oak Chair' })).not.toBeInTheDocument()
   })
 })

@@ -65,6 +65,8 @@ class ProductCreateData:
     has_preview: bool = False
     has_package: bool = False
     package_formats: list[str] = field(default_factory=list)
+    # 360° frame URLs in spin order (36) or empty; set only by the catalog import.
+    spin_images: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,8 @@ class ProductUpdateData:
     has_preview: bool | None = None
     has_package: bool | None = None
     package_formats: list[str] | None = None
+    # None keeps the product's 360° frames; [] clears them.
+    spin_images: list[str] | None = None
 
 
 class ProductService(ProductMediaService):
@@ -368,6 +372,7 @@ class ProductService(ProductMediaService):
             has_preview=data.has_preview,
             has_package=data.has_package,
             package_formats=list(data.package_formats),
+            spin_images=list(data.spin_images),
             description=data.description.strip(),
             short_description=data.short_description.strip(),
             price=data.price,
@@ -604,6 +609,10 @@ class ProductService(ProductMediaService):
         if data.package_formats is not None:
             product.package_formats = list(data.package_formats)
             update_fields.append("package_formats")
+
+        if data.spin_images is not None:
+            product.spin_images = list(data.spin_images)
+            update_fields.append("spin_images")
 
         for field_name in ("has_thumbnail", "has_preview", "has_package"):
             value = getattr(data, field_name)

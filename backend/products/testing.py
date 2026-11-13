@@ -34,17 +34,21 @@ def make_image_bytes(extension: str) -> bytes:
 
 
 def put_pipeline_images(items: list[dict]) -> None:
-    """Upload each item's thumbnail and gallery images, as the batch pipeline does.
+    """Upload each item's thumbnail, gallery images and 360° frames, as the pipeline does.
 
     The import reads them from storage before it creates the product.
     """
     for item in items:
         media = item.get("media") or {}
-        image_keys = [media.get("thumbnail_key"), *(media.get("gallery_keys") or [])]
+        image_keys = [
+            media.get("thumbnail_key"),
+            *(media.get("gallery_keys") or []),
+            *(media.get("spin_keys") or []),
+        ]
         for image_key in (str(k or "") for k in image_keys):
             extension = "." + image_key.rsplit(".", 1)[-1].lower() if "." in image_key else ""
             if (
-                image_key.startswith(("models/", "free-models/"))
+                image_key.startswith(("models/", "free-models/", "360/"))
                 and ".." not in image_key
                 and extension in _IMAGE_FORMATS
                 and not default_storage.exists(image_key)

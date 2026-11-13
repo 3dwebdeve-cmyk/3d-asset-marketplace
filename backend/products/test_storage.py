@@ -75,6 +75,14 @@ class MediaPathTests(SimpleTestCase):
         self.assertFalse(is_public_media_path("products/files/a.zip"))
         self.assertTrue(is_public_media_path("products/images/x.png"))
 
+    def test_only_jpeg_frames_under_360_are_public(self) -> None:
+        for key in ("360/X/360_X_01.jpg", "360/FUR-000123/360_FUR-000123_36.JPEG"):
+            with self.subTest(key=key):
+                self.assertTrue(is_public_media_path(key))
+        for key in ("360/X/a.zip", "360/X/360_X_01.png", "360/X/notes.html", "360/X/model.fbx"):
+            with self.subTest(key=key):
+                self.assertFalse(is_public_media_path(key))
+
     def test_any_zip_under_models_is_private(self) -> None:
         # The 3ds Max pipeline names the package <Model_ID>.zip.
         for key in (
