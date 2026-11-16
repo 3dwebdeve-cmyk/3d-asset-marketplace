@@ -1,7 +1,11 @@
 import uuid
 
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils.text import slugify
+
+# The category part of a Model ID (ELE in ELE-000001), given once by the 3ds Max plugin.
+CATEGORY_CODE_REGEX = r"^[A-Z]{2,5}$"
 
 
 class Category(models.Model):
@@ -18,6 +22,24 @@ class Category(models.Model):
         related_name="children",
     )
     is_active = models.BooleanField(default=True)
+    # The Model ID code of this category's models; null until it is set. Codes never change.
+    code = models.CharField(
+        max_length=5,
+        unique=True,
+        null=True,
+        blank=True,
+        validators=[
+            RegexValidator(
+                regex=CATEGORY_CODE_REGEX,
+                message="A code is 2 to 5 capital letters, for example ELE.",
+            )
+        ],
+    )
+    # Created by an upload and not approved yet; always saved with is_active=False.
+    pending_approval = models.BooleanField(default=False)
+    created_by_import = models.BooleanField(default=False)
+    # The upload batch that created it (blank for a category made in /console).
+    created_from_batch = models.CharField(max_length=128, blank=True, default="")
     click_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -29,6 +51,7 @@ class Category(models.Model):
             models.Index(fields=["slug"]),
             models.Index(fields=["name"]),
             models.Index(fields=["is_active"]),
+            models.Index(fields=["pending_approval"]),
             models.Index(fields=["-click_count", "name"]),
         ]
         verbose_name_plural = "categories"

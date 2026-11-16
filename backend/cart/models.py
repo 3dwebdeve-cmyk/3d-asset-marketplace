@@ -4,6 +4,8 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from products.packages import PackageKind
+
 CART_ITEM_MAX_QUANTITY = 99
 
 
@@ -40,6 +42,10 @@ class CartItem(models.Model):
     )
     product_type = models.CharField(max_length=16, choices=ProductType.choices)
     product_id = models.UUIDField(db_index=True)
+    # Which package of a product the line buys; blank for a plugin.
+    package_kind = models.CharField(
+        max_length=32, choices=PackageKind.choices, blank=True, default=""
+    )
     quantity = models.PositiveIntegerField(
         validators=[
             MinValueValidator(1),
@@ -58,7 +64,7 @@ class CartItem(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["cart", "product_type", "product_id"],
+                fields=["cart", "product_type", "product_id", "package_kind"],
                 name="unique_cart_line_item",
             ),
             models.CheckConstraint(

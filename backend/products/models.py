@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from django.conf import settings
@@ -9,6 +10,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from config.validators import validate_storage_path
+from products.packages import PackageKind
 
 # Stable join key for batch ingest (Batch Output Report Model_ID), e.g. MDL-000142.
 PRODUCT_SKU_REGEX = re.compile(r"^[A-Z0-9][A-Z0-9_-]*$")
@@ -21,7 +23,32 @@ PRODUCT_SKU_VALIDATOR = RegexValidator(
 )
 
 
-class Product(models.Model):
+class PricedMixin:
+    """The sale rules shared by a product (its summary price) and each of its packages.
+
+    The class needs ``price``, ``discount_price`` and ``discount_ends_at``. A package's
+    ``price`` may be None: it has no price yet and is not sold.
+    """
+
+    price: Decimal | None
+    discount_price: Decimal | None
+    discount_ends_at: datetime | None
+
+    def active_discount_price(self, now=None) -> Decimal | None:
+        """The sale price while the sale runs, else None. The only way to read a sale price."""
+        if self.discount_price is None:
+            return None
+        if self.discount_ends_at is not None and (now or timezone.now()) >= self.discount_ends_at:
+            return None
+        return self.discount_price
+
+    def effective_price(self, now=None) -> Decimal | None:
+        """What a buyer pays now: the running sale price, else the normal price."""
+        discount = self.active_discount_price(now)
+        return discount if discount is not None else self.price
+
+
+class Product(PricedMixin, models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
         PENDING_REVIEW = "pending_review", "Pending review"
@@ -163,19 +190,6 @@ class Product(models.Model):
         """A free model (price 0) is downloaded without checkout."""
         return self.price is not None and self.price == 0
 
-    def active_discount_price(self, now=None) -> Decimal | None:
-        """The sale price while the sale runs, else None. The only way to read a sale price."""
-        if self.discount_price is None:
-            return None
-        if self.discount_ends_at is not None and (now or timezone.now()) >= self.discount_ends_at:
-            return None
-        return self.discount_price
-
-    def effective_price(self, now=None) -> Decimal:
-        """What a buyer pays now: the running sale price, else the normal price."""
-        discount = self.active_discount_price(now)
-        return discount if discount is not None else self.price
-
     @staticmethod
     def normalize_sku(value: str | None) -> str | None:
         """Uppercase + strip; blank becomes None so unique allows many unset SKUs."""
@@ -224,6 +238,10 @@ class ProductPriceChange(models.Model):
         related_name="product_price_changes",
     )
     source = models.CharField(max_length=20, choices=Source.choices)
+    # The package whose price changed; blank for a change to the product itself.
+    package_kind = models.CharField(
+        max_length=32, choices=PackageKind.choices, blank=True, default=""
+    )
     # Groups the rows of one action (for example one Pricing page save); blank otherwise.
     batch_id = models.CharField(max_length=64, blank=True, default="")
     currency = models.CharField(max_length=3, default="USD")
@@ -277,7 +295,12 @@ class ProductImage(models.Model):
         return f"{self.product.name} image {self.display_order}"
 
 
-class ProductFile(models.Model):
+class ProductFile(PricedMixin, models.Model):
+    """A file of a product: the public preview, or one package (a zip sold on its own).
+
+    A package row has a ``package_kind`` and its own price; a row with no price is not sold.
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product = models.ForeignKey(
         Product,
@@ -290,6 +313,25 @@ class ProductFile(models.Model):
     storage_path = models.CharField(max_length=512, validators=[validate_storage_path])
     version = models.CharField(max_length=64, default="1.0")
     is_preview = models.BooleanField(default=False)
+    # Blank for the preview (and for a file with no package kind).
+    package_kind = models.CharField(
+        max_length=32, choices=PackageKind.choices, blank=True, default=""
+    )
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    discount_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    discount_ends_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -299,6 +341,18 @@ class ProductFile(models.Model):
         indexes = [
             models.Index(fields=["product", "is_preview"]),
             models.Index(fields=["file_format"]),
+        ]
+        constraints = [
+            # One package of each kind per product.
+            models.UniqueConstraint(
+                fields=["product", "package_kind"],
+                condition=models.Q(is_preview=False) & ~models.Q(package_kind=""),
+                name="unique_product_package_kind",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(is_preview=False) | models.Q(package_kind=""),
+                name="product_file_preview_has_no_package_kind",
+            ),
         ]
 
     def __str__(self) -> str:
