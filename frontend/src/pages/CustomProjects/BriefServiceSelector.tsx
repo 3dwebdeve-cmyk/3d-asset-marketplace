@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { BriefProjectDetails } from './BriefProjectDetails'
 
 const services = [
@@ -15,13 +15,26 @@ const services = [
 export function BriefServiceSelector() {
   const [selected, setSelected] = useState<string[]>([])
   const [step, setStep] = useState(0)
+  const [resetVersion, setResetVersion] = useState(0)
+  const serviceHeading = useRef<HTMLHeadingElement>(null)
+  const resetEnquiry = useCallback(() => {
+    setSelected([])
+    setStep(0)
+    setResetVersion(current => current + 1)
+  }, [])
+  useEffect(() => {
+    if (resetVersion) {
+      serviceHeading.current?.focus({ preventScroll: true })
+      serviceHeading.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [resetVersion])
   return <section className="brief-selector-wrap" aria-labelledby="brief-selector-heading">
     <div className="brief-selector">
       <h2 id="brief-selector-heading">Brief the Hive. Get a Price and timeline in 16 hours.</h2>
       <ol className="brief-selector-steps" aria-label="Enquiry steps">
         {['Service', 'Project details', 'Your contact'].map((label, index) => <li key={label} aria-current={index === step ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}
       </ol>
-      <div hidden={step !== 0}><h3>What do you need?</h3>
+      <div hidden={step !== 0}><h3 ref={serviceHeading} tabIndex={-1}>What do you need?</h3>
       <p className="brief-selector-help">Choose one or more services for your project.</p>
       <div className="brief-selector-grid">
         {services.map(([title, description, image]) => <label className="brief-selector-card" key={title}>
@@ -31,7 +44,7 @@ export function BriefServiceSelector() {
         </label>)}
       </div>
       <div className="brief-selector-actions"><span role="status">{selected.length} {selected.length === 1 ? 'service' : 'services'} selected</span><button disabled={!selected.length} onClick={() => setStep(1)}>Continue <span aria-hidden="true">→</span></button></div></div>
-      <BriefProjectDetails step={step} setStep={setStep} services={services.filter(([title]) => selected.includes(title))} />
+      <BriefProjectDetails key={resetVersion} step={step} setStep={setStep} onReset={resetEnquiry} services={services.filter(([title]) => selected.includes(title))} />
     </div>
   </section>
 }
