@@ -1,0 +1,7 @@
+﻿{
+  "git.enabled": true,
+  "git.autorefresh": true,
+  "git.decorations.enabled": true,
+  "explorer.decorations.colors": true,
+  "explorer.decorations.badges": true
+}
