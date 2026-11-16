@@ -1,4 +1,7 @@
-/** Pricing page API (docs/PRICING_PIPELINE.md, Part 2). Money is a string with two decimals. */
+/** Pricing page API (docs/PRICING_PIPELINE.md, Part 2; per package: docs/PACKAGES_PIPELINE.md).
+ * Money is a string with two decimals. */
+
+import type { PackageKind } from '../lib/packages'
 
 export type PricingTab = 'waiting' | 'live'
 export type PolyTier = 'low' | 'mid' | 'high' | 'unknown'
@@ -14,6 +17,16 @@ export const POLY_TIER_LABELS: Record<PolyTier, string> = {
 export const DEFAULT_LOW_BELOW = 10_000
 export const DEFAULT_HIGH_ABOVE = 100_000
 export const MAX_MODELS_PER_ACTION = 200
+
+/** One package of a model with what a buyer pays for it now (price null: not sold yet). */
+export interface PricingPackage {
+  kind: PackageKind
+  label: string
+  price: string | null
+  sale_price: string | null
+  sale_ends_at: string | null
+  buyer_pays: string | null
+}
 
 export interface PricingRow {
   id: string
@@ -31,7 +44,11 @@ export interface PricingRow {
   discount_price: string | null
   discount_ends_at: string | null
   discount_active: boolean
+  /** The cheapest priced package's price: what the store shows as "From". */
   buyer_pays: string
+  packages: PricingPackage[]
+  /** Server bundle check: Whole File should be the better deal; '' when fine. Never blocks. */
+  bundle_warning: string
   import_batch_id: string
   created_at: string
 }
@@ -60,6 +77,8 @@ export interface PricingListParams {
 export interface PricingRuleRequest {
   product_ids: string[]
   rule: PricingRuleKind
+  /** The package the rule prices; each model's other packages are left as they are. */
+  package_kind: PackageKind
   price?: string
   tier_prices?: Partial<Record<PolyTier, string>>
   percent?: string
@@ -79,17 +98,22 @@ export interface PricingPreviewRow {
   polygon_count: number | null
   poly_tier: PolyTier
   currency: string
-  old_price: string
+  /** False: the model has no package of the chosen kind; it is listed and left alone. */
+  has_package: boolean
+  old_price: string | null
   old_sale_price: string | null
   old_sale_ends_at: string | null
-  new_price: string
+  new_price: string | null
   new_sale_price: string | null
   new_sale_ends_at: string | null
   amount_off: string
   percent_off: string
-  buyer_pays: string
+  buyer_pays: string | null
   changed: boolean
   error: string
+  /** Every package of the model, the chosen one with its new values. */
+  packages: PricingPackage[]
+  bundle_warning: string
 }
 
 export interface PricingPreview {
@@ -102,6 +126,8 @@ export interface PricingPreview {
     buyer_pays_before: string
     buyer_pays_after: string
     needs_confirmation: boolean
+    /** Models without the chosen package (left alone). */
+    without_package: number
   }
   preview_token: string
 }

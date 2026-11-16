@@ -87,6 +87,25 @@
   background: rgb(239 43 43 / 8%);
 }
 
+/* Each model's packages and their prices (one line each). */
+.admin-layout .admin-pricing__packages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.admin-layout .admin-pricing__packages li + li {
+  margin-top: 0.15rem;
+}
+
+/* The bundle check: a warning only, the save is never blocked. */
+.admin-layout .admin-pricing__bundle-warning {
+  margin: 0.35rem 0 0;
+  color: #fcd34d;
+  font-size: 0.8rem;
+}
+
 .admin-layout .admin-pricing__tier {
   display: inline-block;
   padding: 0.1rem 0.5rem;

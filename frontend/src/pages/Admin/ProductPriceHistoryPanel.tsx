@@ -90,6 +90,7 @@ export function ProductPriceHistoryPanel({ productId }: ProductPriceHistoryPanel
                     <th scope="col">When</th>
                     <th scope="col">Who</th>
                     <th scope="col">Source</th>
+                    <th scope="col">Package</th>
                     <th scope="col">Price</th>
                     <th scope="col">Sale price</th>
                     <th scope="col">Sale ends</th>
@@ -101,6 +102,7 @@ export function ProductPriceHistoryPanel({ productId }: ProductPriceHistoryPanel
                       <td>{formatDateTime(change.created_at)}</td>
                       <td>{actorName(change)}</td>
                       <td>{change.source_label}</td>
+                      <td>{change.package_label || 'Model'}</td>
                       <td>{formatChange(change.old_price, change.new_price, change.currency)}</td>
                       <td>
                         {formatChange(change.old_discount_price, change.new_discount_price, change.currency)}

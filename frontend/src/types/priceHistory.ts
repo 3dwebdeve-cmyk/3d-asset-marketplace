@@ -15,6 +15,9 @@ export interface ProductPriceChange {
   id: string
   source: PriceChangeSource
   source_label: string
+  /** The package whose price changed; '' for a change to the model itself. */
+  package_kind: string
+  package_label: string
   batch_id: string
   currency: string
   old_price: string | null
