@@ -172,6 +172,10 @@ add it there.
   `label` is accepted and not used: the website names packages itself. No duplicate kinds;
   `media.package_key` (the main zip) must be one of the keys. Otherwise `invalid_packages`.
   More than 10 entries fails the whole request (400).
+- An entry whose `kind` is not one of the five (another zip) is not imported. The row goes
+  on with the five-kind packages and warns `extra_file_skipped`; the model's QA notes name
+  the file, so an administrator can add it by hand in Media → Packages. The main zip can
+  never be such an entry (`invalid_packages`).
 - `media.preview_key` and `media.spin_keys` (36 frames) are both optional, but a model needs
   at least one of them (`missing_preview`). `glb_checksum` is required only with a preview
   (`missing_glb_checksum`).
@@ -226,6 +230,7 @@ holds `preview_unchecked` when that applies.
 | `category_linked` | The category with the sheet's name had no code; it now has this ID's code, and later models with that code go there. |
 | `category_pending_approval` | The category of this code is new (created by this or an earlier upload) and hidden. Approve it in `/console` → Categories before approving the model. |
 | `package_needs_price` | A live model got a new package. It is not sold until it has a price on the Pricing page. |
+| `extra_file_skipped` | The upload listed a zip that is not one of the five packages. It was not imported; the model's QA notes name it, so an administrator can add it by hand. |
 | `preview_unchecked` | The preview was accepted without the 50% reduction check (see Import gate). Send `polygon_count`. |
 | `preview_not_scanned` | The preview was imported without a virus scan, because `CATALOG_IMPORT_SCAN_REQUIRED` is `False` and no scanner is configured. Expected while that switch is off. |
 | `console_text_kept` | Re-upload only: the sheet's name or descriptions differ from the product's, and the website kept the product's (see Re-import). Change the text in `/console`, not in the sheet. |

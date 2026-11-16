@@ -84,6 +84,12 @@ CATEGORY_LINKED = "category_linked"
 CATEGORY_PENDING_APPROVAL = "category_pending_approval"
 # Row warning: a live model got a new package; it is not sold until it has a price.
 PACKAGE_NEEDS_PRICE = "package_needs_price"
+# Row warning (D7): the upload listed a zip that is not one of the five packages. Only the
+# five are imported; the QA note names the file so an administrator can add it by hand.
+EXTRA_FILE_SKIPPED = "extra_file_skipped"
+EXTRA_FILE_NOTE_PREFIX = "Extra file not imported (not one of the five packages): "
+_EXTRA_FILE_NOTE_HINT = ". Add it in Media > Packages if it should be sold."
+_MAX_EXTRA_NAMES = 10
 _CATEGORY_CODE_RE = re.compile(CATEGORY_CODE_REGEX)
 
 
@@ -431,6 +437,7 @@ class CatalogImportService:
                     product, media_pointers["packages"], free_upload=free_upload
                 )
                 cls._sync_scan_note(product, media_pointers["preview_not_scanned"])
+                cls._sync_extra_files_note(product, media_pointers["extra_files"])
         except _RowRefused as exc:
             return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.reason)
         except ProductError as exc:
@@ -465,6 +472,14 @@ class CatalogImportService:
             warnings.append(PRICE_NEEDED)
         if free_to_paid:
             warnings.append(FREE_TO_PAID_OFF_SALE)
+        if media_pointers["extra_files"]:
+            warnings.append(EXTRA_FILE_SKIPPED)
+            logger.info(
+                "catalog_import_extra_file_skipped model_id=%s batch_id=%s count=%s",
+                sku,
+                import_batch_id,
+                len(media_pointers["extra_files"]),
+            )
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -706,13 +721,15 @@ class CatalogImportService:
             gallery_keys.append(key)
         gallery_urls = [build_public_media_url(key) for key in gallery_keys]
         spin_keys = cls._spin_keys(sku, media.get("spin_keys"))
+        packages, extra_files = cls._package_entries(sku, media, prefix=prefix)
 
         return {
             "thumbnail_key": thumbnail_key,
             "thumbnail_url": build_public_media_url(thumbnail_key),
             "preview_key": preview_key,
             "preview_url": build_public_media_url(preview_key) if preview_key else "",
-            "packages": cls._package_entries(sku, media, prefix=prefix),
+            "packages": packages,
+            "extra_files": extra_files,
             "gallery_keys": gallery_keys,
             "gallery_urls": gallery_urls,
             # None: keep the product's spin (older plugin); []: clear it; else the 36 frames.
@@ -726,18 +743,27 @@ class CatalogImportService:
         }
 
     @staticmethod
-    def _package_entries(sku: str, media: dict[str, Any], *, prefix: str) -> list[dict[str, Any]]:
+    def _package_entries(
+        sku: str, media: dict[str, Any], *, prefix: str
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         """The zips the tool made, one per package kind, checked against the one name each may
         have: ``{prefix}{sku}_{kind}.zip``. ``media.package_key`` (the main zip) must be one
-        of them. Any other list is refused with ``invalid_packages``."""
+        of them. A zip of no known kind is an extra file (D7): not imported, and its name is
+        returned so the row can warn. Any other wrong list is refused with ``invalid_packages``."""
         entries: list[dict[str, Any]] = []
+        extras: list[str] = []
         for raw in media.get("packages") or ():
+            if not isinstance(raw, dict):
+                raise ProductError("invalid_packages", field="object_key")
             kind = str(raw.get("kind") or "").strip()
             key = media_relative_path(str(raw.get("key") or "").strip())
             size = raw.get("file_size")
+            if kind not in PACKAGE_KINDS:
+                name = str(raw.get("file_name") or "").strip() or key.rsplit("/", 1)[-1]
+                extras.append(" ".join(name.split())[:120] or "(no name)")
+                continue
             if (
-                kind not in PACKAGE_KINDS
-                or any(entry["kind"] == kind for entry in entries)
+                any(entry["kind"] == kind for entry in entries)
                 or key != f"{prefix}{sku}_{kind}.zip"
                 or not isinstance(size, int)
                 or size <= 0
@@ -756,7 +782,7 @@ class CatalogImportService:
         main_key = media_relative_path(str(media.get("package_key") or "").strip())
         if not entries or main_key not in {entry["key"] for entry in entries}:
             raise ProductError("invalid_packages", field="object_key")
-        return entries
+        return entries, extras
 
     @staticmethod
     def _spin_keys(sku: str, raw: Any) -> list[str] | None:
@@ -1194,6 +1220,26 @@ class CatalogImportService:
         elif not not_scanned and PREVIEW_NOT_SCANNED_NOTE in notes:
             notes = notes.replace(PREVIEW_NOT_SCANNED_NOTE, "").strip()
         else:
+            return
+        product.qa_notes = notes
+        product.save(update_fields=["qa_notes", "updated_at"])
+
+    @staticmethod
+    def _sync_extra_files_note(product: Product, names: list[str]) -> None:
+        """Name the extra zips of the latest upload in the QA notes (D7), so an administrator
+        can add one by hand; an upload without extras clears the line."""
+        kept = [
+            line
+            for line in (product.qa_notes or "").splitlines()
+            if not line.startswith(EXTRA_FILE_NOTE_PREFIX)
+        ]
+        if names:
+            shown = ", ".join(names[:_MAX_EXTRA_NAMES])
+            if len(names) > _MAX_EXTRA_NAMES:
+                shown += f" and {len(names) - _MAX_EXTRA_NAMES} more"
+            kept.append(f"{EXTRA_FILE_NOTE_PREFIX}{shown}{_EXTRA_FILE_NOTE_HINT}")
+        notes = "\n".join(kept).strip()
+        if notes == (product.qa_notes or "").strip():
             return
         product.qa_notes = notes
         product.save(update_fields=["qa_notes", "updated_at"])

@@ -152,7 +152,7 @@ class ImportPackagesTests(PackagesImportTestBase):
             return media["packages"][index]
 
         cases = {
-            "unknown kind": lambda m: entry(m).update(kind="other", key="models/ELE-000001/ELE-000001_other.zip"),
+            # A known kind with a wrong name is an uploader fault, not an extra file (D7).
             "duplicate kind": lambda m: entry(m, 1).update(kind="with_light_rig", key=entry(m)["key"]),
             "wrong name": lambda m: entry(m).update(key="models/ELE-000001/chair.zip"),
             "another model's name": lambda m: entry(m).update(key="models/ELE-000001/ELE-000002_with_light_rig.zip"),
@@ -161,12 +161,40 @@ class ImportPackagesTests(PackagesImportTestBase):
             "no size": lambda m: entry(m).update(file_size=None),
             "not a zip": lambda m: entry(m).update(file_format="rar"),
             "no packages": lambda m: m.update(packages=[]),
+            "only an extra zip": lambda m: m.update(
+                packages=[{**entry(m), "kind": "other"}], package_key=entry(m)["key"]
+            ),
         }
         for name, change in cases.items():
             with self.subTest(case=name):
                 row = self._row(changed(change))
                 self.assertEqual(row.get("reason"), "invalid_packages", row)
         self.assertFalse(Product.objects.filter(sku="ELE-000001").exists())
+
+    def test_an_extra_zip_is_not_imported_and_the_admin_is_told(self) -> None:
+        # D7: only the five packages are imported. Another zip warns the uploader and is named
+        # in the QA notes, so an administrator can add it by hand.
+        item = _item(kinds=("with_light_rig", "whole"))
+        item["media"]["packages"] += [
+            {"kind": "other", "key": "models/ELE-000001/ELE-000001_textures.zip",
+             "file_name": "ELE-000001_textures.zip", "file_size": 10, "file_format": "zip"},
+            {"kind": "", "key": "models/ELE-000001/extra.zip", "file_size": 10, "file_format": "zip"},
+        ]
+
+        row = self._row(item)
+
+        self.assertEqual(row["action"], "created", row)
+        self.assertIn("extra_file_skipped", row["warnings"])
+        self.assertEqual(set(self._packages("ELE-000001")), {"with_light_rig", "whole"})
+        notes = Product.objects.get(sku="ELE-000001").qa_notes
+        self.assertIn("ELE-000001_textures.zip, extra.zip", notes)
+        self.assertIn("Media > Packages", notes)
+
+        # The next upload without the extra zip clears the note; other notes are kept.
+        Product.objects.filter(sku="ELE-000001").update(qa_notes=f"Checked by QA.\n{notes}")
+        row = self._row(_item(kinds=("with_light_rig", "whole")), batch_id="2026-11-16-run-02")
+        self.assertNotIn("extra_file_skipped", row.get("warnings", []))
+        self.assertEqual(Product.objects.get(sku="ELE-000001").qa_notes, "Checked by QA.")
 
     def test_one_missing_zip_skips_the_row(self) -> None:
         item = _item("ELE-000040", kinds=("with_light_rig", "whole"))

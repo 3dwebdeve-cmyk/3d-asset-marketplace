@@ -652,6 +652,7 @@ Whole File; no GLB).
 | D4 | Coupons apply to each package line. |
 | D5 | No upgrade pricing: an owned package cannot be bought again, and Whole File is a separate line at its full price. |
 | D6 | The migration gives a paid product still at the 0.00 placeholder (draft, pending review, waiting for price, rejected) an **unpriced** Whole File package; free (`free-models/`) products get 0. |
+| D7 | Only the five package zips are expected. Any other zip in an upload is not imported: the row warns `extra_file_skipped` and the model's QA notes name the file, so the admin can add it by hand (Media → Packages, with one of the five kinds). Built in Phase 2's import. Older files without a kind (F1, added in the console before packages) are still delivered with Whole File in Phase 4, so no buyer loses a file. |
 
 ### Found while building Phase 1
 
@@ -705,9 +706,7 @@ Whole File; no GLB).
   `pending_approval` and gets `rejected_at` (migration `categories/0004`). New uploads with its
   code are refused (`category_rejected`) until it is approved or merged.
 
-| # | Open question | Recommendation |
-|---|---|---|
-| D7 | Extra files without a kind (F1): what happens to them when packages go live? | Phase 4 delivers them to everyone who owns Whole File (or a legacy order), so no buyer loses a file. A console check lists the products that have them, so the admin can re-upload them as packages. |
+D7 (extra files) was answered on 2026-11-16; see Decisions above.
 
 ## Decisions as first asked (kept for the record)
 
