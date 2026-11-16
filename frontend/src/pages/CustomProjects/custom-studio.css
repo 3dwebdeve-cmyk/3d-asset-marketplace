@@ -210,3 +210,19 @@
 .custom-studio .project-details .detail-group {
   text-align: left;
 }
+
+/* Four-step project process reference. */
+.custom-studio .project-process{background:#fff;padding:32px 24px 56px;font-family:Arial,Helvetica,sans-serif;color:#0b1426}
+.custom-studio .project-process-heading{text-align:center;margin:0 auto 23px}
+.custom-studio .project-process-heading .project-process-eyebrow{color:#1687ff;font-size:14px;font-weight:800;letter-spacing:2px;margin:0 0 10px;line-height:20px}
+.custom-studio .project-process-heading h2{font-size:36px;line-height:1.2;letter-spacing:-1.2px;font-weight:700;margin:0 0 10px;color:#0b1426}
+.custom-studio .project-process-heading>p:last-child{font-size:16px;line-height:24px;color:#53637c;margin:0}
+.custom-studio .project-process-grid{list-style:none;padding:0;margin:0 auto;max-width:1296px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:48px}
+.custom-studio .project-process-card{position:relative;min-height:192px;padding:16px 28px 20px;border:1px solid #dfe5ef;border-radius:18px;background:linear-gradient(135deg,#fff,#f9fbfe);box-shadow:0 2px 4px #14253c06,0 10px 22px #14253c04;text-align:left}
+.custom-studio .project-process-card:not(:last-child)::after{content:'\2192';position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);font-size:32px;line-height:1;color:#1687ff}
+.custom-studio .project-process-icon{width:62px;height:50px;display:flex;align-items:center;justify-content:center;border-radius:15px;background:#edf7ff;color:#1687ff;margin-bottom:8px}
+.custom-studio .project-process-icon svg{width:40px;height:40px}
+.custom-studio .project-process-card h3{font-size:18px;line-height:23px;letter-spacing:-.5px;font-weight:700;margin:0 0 6px;text-align:left;color:#101725}
+.custom-studio .project-process-card p{font-size:16px;line-height:22px;color:#53637c;margin:0;text-align:left}
+@media(max-width:1050px){.custom-studio .project-process-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.custom-studio .project-process-card:nth-child(2)::after{display:none}.custom-studio .project-process-card:not(:last-child)::after{left:calc(100% + 1px);font-size:26px}}
+@media(max-width:600px){.custom-studio .project-process{padding:32px 20px 40px}.custom-studio .project-process-heading h2{font-size:28px;letter-spacing:-.7px}.custom-studio .project-process-grid{grid-template-columns:1fr;gap:32px;max-width:380px}.custom-studio .project-process-card{min-height:0;padding:20px 24px}.custom-studio .project-process-card:not(:last-child)::after{display:block;content:'\2193';left:50%;top:calc(100% + 2px);transform:translateX(-50%);font-size:26px}}
