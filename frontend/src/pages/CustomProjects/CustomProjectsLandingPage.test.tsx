@@ -1,13 +1,44 @@
 import styles from './custom-studio.css?raw'
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-import { fireEvent } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent } from '@testing-library/react'
+import { submitContactForm } from '../../api/contactApi'
 import { CustomProjectsLandingPage } from './CustomProjectsLandingPage'
+vi.mock('../../api/contactApi', () => ({ submitContactForm: vi.fn() }))
+afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
 describe('CustomProjectsLandingPage', () => {
   it('keeps fonts compatible with the security policy', () => {
     expect(styles).not.toContain('fonts.googleapis.com')
     expect(styles).not.toContain('fonts.gstatic.com')
+  })
+  it('shows success for two seconds then resets the enquiry to Service', async () => {
+    vi.useFakeTimers()
+    vi.mocked(submitContactForm).mockResolvedValue({ detail: 'Accepted' })
+    render(<CustomProjectsLandingPage />)
+    fireEvent.click(screen.getByRole('checkbox', { name: /Product 3D modeling/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    fireEvent.change(screen.getByRole('textbox', { name: /Scope of work/ }), { target: { value: 'Three product models' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Marketing renders' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue →' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Test Customer' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Email' }), { target: { value: 'test@example.com' } })
+    await act(async () => { fireEvent.submit(screen.getByRole('button', { name: 'Send enquiry →' }).closest('form')!) })
+    expect(submitContactForm).toHaveBeenCalledOnce()
+    expect(screen.getByRole('heading', { name: 'Thank you for your enquiry' })).toBeVisible()
+    act(() => { vi.advanceTimersByTime(1999) })
+    expect(screen.getByRole('heading', { name: 'Thank you for your enquiry' })).toBeVisible()
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(screen.getByRole('heading', { name: 'What do you need?' })).toHaveFocus()
+    expect(screen.getByRole('status')).toHaveTextContent('0 services selected')
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('checkbox', { name: /Product 3D modeling/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(screen.getByRole('textbox', { name: /Scope of work/ })).toHaveValue('')
+    expect(screen.getByRole('checkbox', { name: 'Marketing renders' })).not.toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue →' }))
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveValue('')
   })
   it('shows the service selector after the process and carries selections into the enquiry', () => {
     render(<CustomProjectsLandingPage />)
