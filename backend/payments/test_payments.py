@@ -16,7 +16,8 @@ from categories.models import Category
 from orders.models import Order, OrderItem
 from payments.models import Payment, StripeWebhookEvent
 from plugins.models import Plugin, PluginCategory
-from products.models import Product
+from products.models import Product, ProductFile
+from products.testing import sell_package
 
 
 class _FakeStripeObject:
@@ -67,6 +68,7 @@ class PaymentsTestMixin:
             price=Decimal("49.99"),
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.product)
         self.plugin_category = PluginCategory.objects.create(
             name="Tools",
             slug="tools",
@@ -99,6 +101,8 @@ class PaymentsTestMixin:
             cart=cart,
             product_type=product_type,
             product_id=product_id,
+            # A model is bought per package; the tests buy its Whole File.
+            package_kind="whole" if product_type == "product" else "",
             quantity=quantity,
         )
 
@@ -234,9 +238,8 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
 
         headers = {"HTTP_IDEMPOTENCY_KEY": "checkout-retry-2"}
         first = self.client.post(self.checkout_url, **headers)
-        type(self.product).objects.filter(pk=self.product.pk).update(
-            price=self.product.price + 10
-        )
+        # The model is sold as its Whole File package: that price changes.
+        ProductFile.objects.filter(product=self.product).update(price=self.product.price + 10)
         second = self.client.post(self.checkout_url, **headers)
 
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
@@ -296,6 +299,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             order=self.order,
             product_type=OrderItem.ProductType.PRODUCT,
             product_id=self.product.pk,
+            package_kind="whole",
             title="Hero Sword",
             slug="hero-sword",
             quantity=1,
@@ -701,6 +705,7 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
             order=self.order,
             product_type=OrderItem.ProductType.PRODUCT,
             product_id=self.product.pk,
+            package_kind="whole",
             title=self.product.name,
             slug=self.product.slug,
             quantity=1,

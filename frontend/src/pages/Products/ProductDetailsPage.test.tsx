@@ -109,6 +109,19 @@ const sampleDetail: PublicProductDetail = {
   review_count: 12,
   total_downloads: 120,
   category: { id: categoryId, name: 'Sci-Fi Assets', slug: 'sci-fi-assets' },
+  packages: [
+    {
+      kind: 'whole',
+      label: 'Whole File',
+      description: 'Everything in one download: every package of this model.',
+      file_size: 1048576,
+      price: '49.99',
+      discount_price: '39.99',
+      effective_price: '39.99',
+      sale_ends_at: null,
+    },
+  ],
+  bundle_saving: null,
   images: [
     {
       id: 'img-1',
@@ -513,13 +526,13 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    expect(
-      screen.getAllByRole('button', { name: /^add to cart$/i }).length,
-    ).toBeGreaterThanOrEqual(1)
+    // A model is bought per package: a guest can tick packages, then signs in to buy.
+    expect(screen.getByRole('checkbox', { name: 'Whole File' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in to buy' })).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^buy now$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^buy now$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/sign in to leave a review/i)).not.toBeInTheDocument()
 
@@ -549,6 +562,7 @@ describe('ProductDetailsPage', () => {
       id: '22222222-2222-2222-2222-222222222222',
       product_type: 'product',
       product_id: productId,
+      package_kind: 'whole',
       quantity: 1,
       unit_price: '39.99',
       line_total: '39.99',
@@ -563,13 +577,17 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
+    await user.click(screen.getByRole('checkbox', { name: 'Whole File' }))
     expect(screen.getByRole('button', { name: /^buy now$/i })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: /add to cart/i }))
-    expect(vi.mocked(cartApi.addCartItem).mock.calls[0]?.[0]).toEqual({
-      product_type: 'product',
-      product_id: productId,
-      quantity: 1,
-    })
+    await user.click(screen.getByRole('button', { name: 'Add selected to cart' }))
+    await waitFor(() =>
+      expect(vi.mocked(cartApi.addCartItem).mock.calls[0]?.[0]).toEqual({
+        product_type: 'product',
+        product_id: productId,
+        package_kind: 'whole',
+        quantity: 1,
+      }),
+    )
     await user.click(
       screen.getByRole('button', { name: /add to wishlist for cyberpunk drone 3d/i }),
     )
@@ -617,6 +635,7 @@ describe('ProductDetailsPage', () => {
       id: '22222222-2222-2222-2222-222222222222',
       product_type: 'product',
       product_id: productId,
+      package_kind: 'whole',
       quantity: 1,
       unit_price: '39.99',
       line_total: '39.99',
@@ -635,12 +654,14 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
+    await user.click(screen.getByRole('checkbox', { name: 'Whole File' }))
     await user.click(screen.getByRole('button', { name: /^buy now$/i }))
 
     await waitFor(() => {
       expect(cartApi.addCartItem).toHaveBeenCalledWith({
         product_type: 'product',
         product_id: productId,
+        package_kind: 'whole',
         quantity: 1,
       })
       expect(paymentsApi.createCheckoutSession).toHaveBeenCalledTimes(1)

@@ -11,6 +11,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.activity_service import ActivityLogService
 from accounts.authentication import CatalogApiKeyAuthentication
 from accounts.permissions import CatalogIngestIPAllowed, HasCatalogApiKey, IsAdministrator
 from accounts.security_log import log_admin_action
@@ -32,7 +33,9 @@ from config.storages import build_public_media_url
 from config.http_cache import PublicCatalogCacheMixin
 from products.catalog_import import CatalogImportService
 from products.file_check import check_product_files, summarize
+from products.import_reasons import describe_reason
 from products.models import Product
+from products.packages import PACKAGE_KINDS, PACKAGE_ORDER
 from products.pagination import ProductPagination
 from products.serializers import (
     CatalogImportEnvelopeSerializer,
@@ -145,10 +148,12 @@ class ProductDetailView(PublicCatalogCacheMixin, APIView):
 
 
 class ProductFreeDownloadView(APIView):
-    """GET /api/v1/products/<slug>/free-download/ — a free model's zip, no account needed.
+    """GET /api/v1/products/<slug>/free-download/?package=<kind> — a free model's zip, no
+    account needed.
 
-    Redirects to the file: the public free-models/ object, or a short-lived signed
-    link when the zip is in the private bucket.
+    ``package`` picks the package; without it, the first kind in PACKAGE_ORDER the model has.
+    An unknown or missing kind is 404. Redirects to the file: the public free-models/ object,
+    or a short-lived signed link when the zip is in the private bucket.
     """
 
     permission_classes = [AllowAny]
@@ -159,9 +164,19 @@ class ProductFreeDownloadView(APIView):
             product = ProductService.get_public_by_slug(slug)
         except ProductError as exc:
             raise NotFound(exc.message) from exc
-        package = product.files.filter(is_preview=False).order_by("-created_at").first()
-        if not product.is_free or package is None:
+        if not product.is_free:
             raise NotFound("This model is not a free download.")
+        packages = {
+            row.package_kind: row
+            for row in product.files.all()
+            if not row.is_preview and row.package_kind in PACKAGE_KINDS
+        }
+        wanted = request.query_params.get("package")
+        if wanted is None:
+            wanted = next((kind for kind in PACKAGE_ORDER if kind in packages), None)
+        package = packages.get(wanted) if wanted else None
+        if package is None:
+            raise NotFound("This model has no such package.")
         if is_free_model_path(package.storage_path):
             return HttpResponseRedirect(
                 build_public_media_url(media_relative_path(package.storage_path))
@@ -217,9 +232,7 @@ class AdminProductListCreateView(APIView):
                     name=data["name"],
                     description=data.get("description", ""),
                     short_description=data.get("short_description", ""),
-                    price=data["price"],
                     currency=data.get("currency", "USD"),
-                    discount_price=data.get("discount_price"),
                     thumbnail=data.get("thumbnail", ""),
                     preview_model=data.get("preview_model", ""),
                     preview_video=data.get("preview_video", ""),
@@ -288,12 +301,7 @@ class AdminProductDetailView(APIView):
                     slug=data.get("slug"),
                     description=data.get("description"),
                     short_description=data.get("short_description"),
-                    price=data.get("price"),
                     currency=data.get("currency"),
-                    discount_price=data.get("discount_price"),
-                    clear_discount_price=data.get("clear_discount_price", False),
-                    discount_ends_at=data.get("discount_ends_at"),
-                    clear_discount_ends_at=data.get("clear_discount_ends_at", False),
                     thumbnail=data.get("thumbnail"),
                     preview_model=data.get("preview_model"),
                     preview_video=data.get("preview_video"),
@@ -315,7 +323,6 @@ class AdminProductDetailView(APIView):
                     has_preview=data.get("has_preview"),
                     has_package=data.get("has_package"),
                 ),
-                actor=request.user,
             )
         except ProductError as exc:
             return _product_error_response(exc)
@@ -484,6 +491,7 @@ class AdminProductFileUploadView(APIView):
                 serializer.validated_data["file"],
                 version=serializer.validated_data.get("version", "1.0"),
                 is_preview=serializer.validated_data.get("is_preview", False),
+                package_kind=serializer.validated_data.get("package_kind", ""),
             )
         except ProductError as exc:
             return _product_error_response(exc)
@@ -604,6 +612,40 @@ class CatalogIngestImportView(APIView):
             },
         )
         return Response(batch.to_dict(), status=status.HTTP_200_OK)
+
+
+# How many of the uploader's latest imports the admin Imports panel lists.
+UPLOADER_IMPORTS_SHOWN = 5
+
+
+class AdminUploaderImportsView(APIView):
+    """GET /api/v1/admin/products/uploader-imports/: the uploader's latest imports, each with
+    every model that did not reach QA, its name, and the reason in words with the next step.
+
+    Read from the import's audit rows; the texts come from products.import_reasons.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+
+    def get(self, request: Request) -> Response:
+        logs = ActivityLogService.list_logs(action="catalog_ingest_import")[:UPLOADER_IMPORTS_SHOWN]
+        results = []
+        for log in logs:
+            metadata = log.metadata or {}
+            names = metadata.get("refused_names") or {}
+            results.append(
+                {
+                    "id": str(log.pk),
+                    "import_batch_id": log.target_id,
+                    "created_at": log.created_at,
+                    **{key: metadata.get(key, 0) for key in ("created", "updated", "skipped", "failed")},
+                    "refused": [
+                        {"model_id": model_id, "name": names.get(model_id, ""), **describe_reason(reason)}
+                        for model_id, reason in (metadata.get("skipped_reasons") or {}).items()
+                    ],
+                }
+            )
+        return Response({"results": results}, status=status.HTTP_200_OK)
 
 
 class AdminProductFileCheckView(APIView):

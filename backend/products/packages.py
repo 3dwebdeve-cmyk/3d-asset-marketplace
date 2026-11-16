@@ -38,6 +38,13 @@ PACKAGE_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+def line_title(name: str, kind: str) -> str:
+    """A cart or order line's title: "<model name> - <package label>" (the model name alone
+    for a line with no package, such as a plugin)."""
+    label = PACKAGE_LABELS.get(kind, "")
+    return f"{name} - {label}" if label else name
+
+
 def sync_summary_price(product: Product) -> None:
     """Keep the product's price fields equal to its cheapest priced package.
 
@@ -65,3 +72,30 @@ def sync_summary_price(product: Product) -> None:
         return
     product.price, product.discount_price, product.discount_ends_at = summary
     product.save(update_fields=["price", "discount_price", "discount_ends_at", "updated_at"])
+
+
+def bundle_warning(effective_prices: dict[str, Decimal]) -> str:
+    """Why the Whole File price looks wrong, or "" (a warning on the Pricing page, never a block).
+
+    ``effective_prices`` holds what a buyer pays now for each priced package, by kind. Whole File
+    should cost less than the other packages added together, and not less than the single most
+    expensive one (it holds all of them). Checked only with Whole File and at least one other.
+    """
+    others = {kind: price for kind, price in effective_prices.items() if kind != PackageKind.WHOLE}
+    whole = effective_prices.get(PackageKind.WHOLE)
+    if whole is None or not others:
+        return ""
+    together = sum(others.values(), Decimal("0.00"))
+    if whole >= together:
+        return (
+            f"Whole File ({whole:.2f}) is not cheaper than the other packages together "
+            f"({together:.2f})."
+        )
+    top_kind = max(others, key=lambda kind: (others[kind], -PACKAGE_ORDER.index(kind)))
+    if whole < others[top_kind]:
+        return (
+            f"Whole File ({whole:.2f}) costs less than {PACKAGE_LABELS[top_kind]} alone "
+            f"({others[top_kind]:.2f})."
+        )
+    return ""
+

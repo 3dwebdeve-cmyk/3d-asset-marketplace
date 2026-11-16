@@ -6,6 +6,7 @@ from downloads.serializers import OrderItemDownloadFileSerializer
 from downloads.services import DownloadService
 from orders.entitlements import order_allows_download
 from orders.models import Order, OrderItem
+from products.packages import PACKAGE_LABELS
 
 
 class OrderCustomerBriefSerializer(serializers.Serializer):
@@ -39,6 +40,7 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     slug = serializers.SerializerMethodField()
     line_total = serializers.SerializerMethodField()
+    package_label = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
@@ -46,6 +48,8 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
             "id",
             "product_type",
             "product_id",
+            "package_kind",
+            "package_label",
             "title",
             "slug",
             "quantity",
@@ -72,6 +76,12 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
     def get_line_total(self, obj: OrderItem) -> str:
         return f"{obj.line_total:.2f}"
 
+    def get_package_label(self, obj: OrderItem) -> str:
+        """The package bought; a model line from before packages gave every package."""
+        if obj.product_type != OrderItem.ProductType.PRODUCT:
+            return ""
+        return PACKAGE_LABELS.get(obj.package_kind) or "All packages"
+
 
 class CustomerOrderItemDetailSerializer(OrderItemDetailSerializer):
     can_download = serializers.SerializerMethodField()
@@ -97,13 +107,11 @@ class CustomerOrderItemDetailSerializer(OrderItemDetailSerializer):
             return []
 
         downloadable_files = self.context.get("downloadable_files")
+        key = (obj.product_type, obj.product_id, obj.package_kind)
         if isinstance(downloadable_files, dict):
-            file_rows = downloadable_files.get((obj.product_type, obj.product_id), [])
+            file_rows = downloadable_files.get(key, [])
         else:
-            file_rows = DownloadService.list_downloadable_files_for_item(
-                obj.product_type,
-                obj.product_id,
-            )
+            file_rows = DownloadService.list_downloadable_files_for_items([key]).get(key, [])
         request = self.context.get("request")
         return OrderItemDownloadFileSerializer(
             [
@@ -203,6 +211,10 @@ class CustomerOrderDetailSerializer(serializers.ModelSerializer):
 class AdminOrderItemCreateSerializer(serializers.Serializer):
     product_type = serializers.ChoiceField(choices=OrderItem.ProductType.choices)
     product_id = serializers.UUIDField()
+    # Required for a model; blank for a plugin.
+    package_kind = serializers.ChoiceField(
+        choices=list(PACKAGE_LABELS), required=False, allow_blank=True, default=""
+    )
     quantity = serializers.IntegerField(min_value=1)
 
 

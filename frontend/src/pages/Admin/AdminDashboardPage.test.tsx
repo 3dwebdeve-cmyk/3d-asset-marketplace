@@ -4,9 +4,17 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import * as categoriesApi from '../../api/categoriesApi'
 import * as dashboardApi from '../../api/dashboardApi'
 import { createTestQueryClient, resetAuthStore, resetToastStore } from '../../test/test-utils'
 import { AdminDashboardPage } from './AdminDashboardPage'
+
+vi.mock('../../api/categoriesApi', async () => {
+  const actual = await vi.importActual<typeof import('../../api/categoriesApi')>(
+    '../../api/categoriesApi',
+  )
+  return { ...actual, listAdminCategories: vi.fn() }
+})
 
 vi.mock('../../api/dashboardApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/dashboardApi')>(
@@ -61,9 +69,37 @@ beforeEach(() => {
   resetToastStore()
   vi.clearAllMocks()
   vi.mocked(dashboardApi.getAdminDashboardStats).mockResolvedValue(sampleStats)
+  vi.mocked(categoriesApi.listAdminCategories).mockResolvedValue({
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  })
 })
 
 describe('AdminDashboardPage', () => {
+  it('links to the new categories waiting for approval, and hides the badge at 0', async () => {
+    const { unmount } = renderDashboardPage()
+    await screen.findByText('12 total accounts')
+    expect(screen.queryByText(/New categories/)).not.toBeInTheDocument()
+    unmount()
+
+    vi.mocked(categoriesApi.listAdminCategories).mockResolvedValue({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [],
+    })
+    renderDashboardPage()
+    expect(await screen.findByRole('link', { name: /New categories \(2\)/ })).toHaveAttribute(
+      'href',
+      '/console/categories?status=pending',
+    )
+    expect(categoriesApi.listAdminCategories).toHaveBeenCalledWith(
+      expect.objectContaining({ pending_approval: true }),
+    )
+  })
+
   it('renders dashboard stat cards and category breakdown', async () => {
     renderDashboardPage()
 

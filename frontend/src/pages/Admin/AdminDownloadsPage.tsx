@@ -121,7 +121,7 @@ export function AdminDownloadsPage() {
                         <div className="home-page__subtitle">{entry.user_email}</div>
                       </td>
                       <td>{formatProductType(entry.product_type)}</td>
-                      <td>{entry.file_name}</td>
+                      <td>{entry.package_label ? `${entry.file_name} (${entry.package_label})` : entry.file_name}</td>
                       <td>{entry.invoice_number ?? '—'}</td>
                       <td><button className="downloads-view" type="button" onClick={() => setSelected(entry)}>View</button></td>
                     </tr>
@@ -139,7 +139,7 @@ export function AdminDownloadsPage() {
         {selected ? <div className="downloads-dialog-backdrop" onClick={() => setSelected(null)}>
           <section className="downloads-dialog" role="dialog" aria-modal="true" aria-labelledby="download-details-title" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Escape') setSelected(null) }}>
             <h2 id="download-details-title">Download details</h2>
-            <dl><dt>Customer</dt><dd>{selected.user_full_name} ({selected.user_email})</dd><dt>Downloaded</dt><dd>{formatLocaleDateTime(selected.downloaded_at)}</dd><dt>Type</dt><dd>{formatProductType(selected.product_type)}</dd><dt>File</dt><dd>{selected.file_name}</dd><dt>Invoice</dt><dd>{selected.invoice_number ?? '-'}</dd></dl>
+            <dl><dt>Customer</dt><dd>{selected.user_full_name} ({selected.user_email})</dd><dt>Downloaded</dt><dd>{formatLocaleDateTime(selected.downloaded_at)}</dd><dt>Type</dt><dd>{formatProductType(selected.product_type)}</dd><dt>File</dt><dd>{selected.file_name}</dd><dt>Package</dt><dd>{selected.package_label || '-'}</dd><dt>Invoice</dt><dd>{selected.invoice_number ?? '-'}</dd></dl>
             <Button type="button" onClick={() => setSelected(null)} autoFocus>Close</Button>
           </section>
         </div> : null}

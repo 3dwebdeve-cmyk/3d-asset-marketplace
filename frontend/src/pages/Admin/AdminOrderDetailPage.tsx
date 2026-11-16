@@ -195,6 +195,7 @@ export function AdminOrderDetailPage() {
                 <tr>
                   <th>Type</th>
                   <th>Title</th>
+                  <th>Package</th>
                   <th>Slug</th>
                   <th>Catalog ID</th>
                   <th>Qty</th>
@@ -208,6 +209,7 @@ export function AdminOrderDetailPage() {
                   <tr key={item.id}>
                     <td>{item.product_type}</td>
                     <td>{item.title ?? '—'}</td>
+                    <td>{item.package_label || '—'}</td>
                     <td>{item.slug ?? '—'}</td>
                     <td>{item.product_id}</td>
                     <td>{item.quantity}</td>

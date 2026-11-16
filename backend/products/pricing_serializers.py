@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from products.models import Product
+from products.packages import PackageKind
 from products.pricing import (
     DEFAULT_HIGH_ABOVE,
     DEFAULT_LOW_BELOW,
@@ -21,6 +22,8 @@ from products.pricing import (
     TIERS,
     PolyThresholds,
     PricingRule,
+    package_summaries,
+    summaries_bundle_warning,
 )
 from products.errors import ProductError
 from products.serializers import AwareDateTimeField
@@ -35,6 +38,9 @@ class PricingRowSerializer(serializers.ModelSerializer):
     poly_tier = serializers.SerializerMethodField()
     discount_active = serializers.SerializerMethodField()
     buyer_pays = serializers.SerializerMethodField()
+    # Every package with its price and sale (a package with no price is not sold yet).
+    packages = serializers.SerializerMethodField()
+    bundle_warning = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -55,6 +61,8 @@ class PricingRowSerializer(serializers.ModelSerializer):
             "discount_ends_at",
             "discount_active",
             "buyer_pays",
+            "packages",
+            "bundle_warning",
             "import_batch_id",
             "created_at",
         )
@@ -75,6 +83,15 @@ class PricingRowSerializer(serializers.ModelSerializer):
 
     def get_buyer_pays(self, obj: Product) -> str:
         return f"{obj.effective_price(self.context.get('now')):.2f}"
+
+    def _packages(self, obj: Product) -> list[dict]:
+        return package_summaries(obj, self.context.get("now") or timezone.now())
+
+    def get_packages(self, obj: Product) -> list[dict]:
+        return self._packages(obj)
+
+    def get_bundle_warning(self, obj: Product) -> str:
+        return summaries_bundle_warning(self._packages(obj))
 
 
 class _ThresholdFields(serializers.Serializer):
@@ -115,6 +132,10 @@ class PricingRuleSerializer(_ThresholdFields):
         child=serializers.UUIDField(), allow_empty=False, max_length=MAX_MODELS_PER_ACTION
     )
     rule = serializers.ChoiceField(choices=sorted(RULES))
+    # The package the rule prices (Whole File when not sent).
+    package_kind = serializers.ChoiceField(
+        choices=PackageKind.choices, required=False, default=PackageKind.WHOLE
+    )
     price = serializers.DecimalField(
         required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY
     )
@@ -168,6 +189,7 @@ class PricingRuleSerializer(_ThresholdFields):
         }
         return PricingRule(
             kind=data["rule"],
+            package_kind=data["package_kind"],
             thresholds=self.thresholds(),
             price=data.get("price") if data["rule"] == RULE_SET_PRICE else None,
             tier_prices=tier_prices if data["rule"] == RULE_TIER_PRICE else {},

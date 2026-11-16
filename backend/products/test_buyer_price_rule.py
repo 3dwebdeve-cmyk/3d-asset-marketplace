@@ -23,9 +23,11 @@ from cart.services import CartService
 from categories.models import Category
 from config.ops_report import build_daily_report
 from orders.services import OrderCreateData, OrderItemCreateData, OrderService
-from products.models import Product, ProductPriceChange
-from products.services import ProductService, ProductUpdateData
+from products.models import Product, ProductFile, ProductPriceChange
+from products.services import ProductService
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
+from products.test_catalog_reupload import _free_item
+from products.testing import price_packages, sell_package
 from wishlist.services import WishlistService
 
 PASSWORD = "StrongPass123!"
@@ -98,27 +100,29 @@ class BuyerPricePathsTests(TestCase):
             discount_price=Decimal("79.99"),
             discount_ends_at=timezone.now() + timedelta(hours=1),
         )
+        # The model is sold as its Whole File package, with the same price and sale.
+        sell_package(self.product)
 
     def _end_the_sale(self) -> None:
         # The sale ends after the item was added; the maintenance loop has not run yet.
-        Product.objects.filter(pk=self.product.pk).update(
-            discount_ends_at=timezone.now() - timedelta(seconds=1)
-        )
+        ended = timezone.now() - timedelta(seconds=1)
+        Product.objects.filter(pk=self.product.pk).update(discount_ends_at=ended)
+        ProductFile.objects.filter(product=self.product).update(discount_ends_at=ended)
 
     def test_cart_snapshot_while_the_sale_runs(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
         envelope = CartService.get_cart_envelope(self.customer)
-        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk)]
+        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "whole")]
         self.assertEqual(snapshot["discount_price"], "79.99")
         self.assertEqual(snapshot["effective_price"], "79.99")
         self.assertEqual(envelope.totals.total, Decimal("79.99"))
 
     def test_cart_snapshot_after_the_sale_ended(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
         self._end_the_sale()
 
         envelope = CartService.get_cart_envelope(self.customer)
-        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk)]
+        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "whole")]
         self.assertIsNone(snapshot["discount_price"])
         self.assertEqual(snapshot["price"], "100.00")
         self.assertEqual(snapshot["effective_price"], "100.00")
@@ -126,7 +130,7 @@ class BuyerPricePathsTests(TestCase):
         self.assertEqual(envelope.totals.total, Decimal("100.00"))
 
     def test_checkout_charges_the_normal_price_when_the_sale_ended_after_add_to_cart(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
         self._end_the_sale()
 
         order = OrderService.create_from_cart(self.customer)
@@ -136,7 +140,7 @@ class BuyerPricePathsTests(TestCase):
         self.assertEqual(order.total_amount, Decimal("100.00"))
 
     def test_checkout_charges_the_sale_price_while_it_runs(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
 
         order = OrderService.create_from_cart(self.customer)
 
@@ -145,7 +149,7 @@ class BuyerPricePathsTests(TestCase):
     def test_direct_order_uses_the_rule(self) -> None:
         data = OrderCreateData(
             user_id=self.customer.pk,
-            items=(OrderItemCreateData("product", self.product.pk, 1),),
+            items=(OrderItemCreateData("product", self.product.pk, 1, package_kind="whole"),),
         )
         self.assertEqual(OrderService.create(data).items.get().purchase_price, Decimal("79.99"))
 
@@ -238,7 +242,10 @@ class PublicApiTests(APITestCase):
         self.assertEqual(count(), before)
 
 
-class AdminSaleEndTests(APITestCase):
+class AdminProductPriceFieldsTests(APITestCase):
+    """The admin product API shows the summary price; no product form sets it any more (the
+    sale end rules live on the Pricing page, test_pricing_api and test_package_pricing)."""
+
     def setUp(self) -> None:
         cache.clear()
         self.admin = User.objects.create_user(
@@ -258,133 +265,12 @@ class AdminSaleEndTests(APITestCase):
         self.assertEqual(login.status_code, status.HTTP_200_OK)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
         self.category = Category.objects.create(name="Furniture", slug="furniture")
-        # A draft: edits of a published model also re-run the publish checks (files etc.).
         self.product = _product(
             self.category, "admin-chair", price=Decimal("50.00"), status=Product.Status.DRAFT
         )
         self.url = reverse(
             "products_admin:admin-product-detail", kwargs={"product_id": self.product.pk}
         )
-
-    def _patch(self, payload: dict):
-        return self.client.patch(self.url, payload, format="json")
-
-    def _future(self, **delta) -> str:
-        return (timezone.now() + timedelta(**(delta or {"days": 3}))).isoformat()
-
-    def test_sets_a_sale_with_an_end_and_records_who_did_it(self) -> None:
-        ends_at = timezone.now() + timedelta(days=3)
-
-        response = self._patch({"discount_price": "40.00", "discount_ends_at": ends_at.isoformat()})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(response.data["discount_price"], "40.00")
-        self.assertEqual(parse_datetime(response.data["discount_ends_at"]), ends_at)
-        self.assertTrue(response.data["discount_active"])
-        change = ProductPriceChange.objects.get(product=self.product)
-        self.assertEqual(change.source, ProductPriceChange.Source.ADMIN_EDIT)
-        self.assertEqual(change.changed_by, self.admin)
-        self.assertEqual(change.old_price, Decimal("50.00"))
-        self.assertEqual(change.new_price, Decimal("50.00"))
-        self.assertIsNone(change.old_discount_price)
-        self.assertEqual(change.new_discount_price, Decimal("40.00"))
-        self.assertIsNone(change.old_discount_ends_at)
-        self.assertEqual(change.new_discount_ends_at, ends_at)
-
-    def test_accepts_an_offset_and_stores_the_same_instant(self) -> None:
-        response = self._patch(
-            {"discount_price": "40.00", "discount_ends_at": "2099-12-01T18:30:00+05:30"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.product.refresh_from_db()
-        self.assertEqual(self.product.discount_ends_at.isoformat(), "2099-12-01T13:00:00+00:00")
-
-    def test_refuses_a_past_end(self) -> None:
-        response = self._patch(
-            {"discount_price": "40.00", "discount_ends_at": (timezone.now() - timedelta(hours=1)).isoformat()}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("discount_ends_at", response.data)
-        self.product.refresh_from_db()
-        self.assertIsNone(self.product.discount_price)
-        self.assertFalse(ProductPriceChange.objects.exists())
-
-    def test_refuses_an_end_without_a_time_zone(self) -> None:
-        for value in ("2099-12-01T18:30:00", "2099-12-01 18:30"):
-            with self.subTest(value=value):
-                response = self._patch({"discount_price": "40.00", "discount_ends_at": value})
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn("discount_ends_at", response.data)
-        self.product.refresh_from_db()
-        self.assertIsNone(self.product.discount_ends_at)
-
-    def test_refuses_an_end_without_a_sale_price(self) -> None:
-        response = self._patch({"discount_ends_at": self._future()})
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("discount_ends_at", response.data)
-
-    def test_refuses_an_end_while_removing_the_sale_price(self) -> None:
-        Product.objects.filter(pk=self.product.pk).update(discount_price=Decimal("40.00"))
-
-        response = self._patch({"discount_price": None, "discount_ends_at": self._future()})
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("discount_ends_at", response.data)
-
-    def test_adds_an_end_to_an_existing_sale(self) -> None:
-        Product.objects.filter(pk=self.product.pk).update(discount_price=Decimal("40.00"))
-
-        response = self._patch({"discount_ends_at": self._future()})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertIsNotNone(response.data["discount_ends_at"])
-
-    def test_clearing_the_sale_price_clears_its_end(self) -> None:
-        ends_at = timezone.now() + timedelta(days=1)
-        Product.objects.filter(pk=self.product.pk).update(
-            discount_price=Decimal("40.00"), discount_ends_at=ends_at
-        )
-
-        response = self._patch({"discount_price": None})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertIsNone(response.data["discount_price"])
-        self.assertIsNone(response.data["discount_ends_at"])
-        self.assertFalse(response.data["discount_active"])
-        change = ProductPriceChange.objects.get(product=self.product)
-        self.assertEqual(change.old_discount_price, Decimal("40.00"))
-        self.assertIsNone(change.new_discount_price)
-        self.assertEqual(change.old_discount_ends_at, ends_at)
-        self.assertIsNone(change.new_discount_ends_at)
-        self.assertEqual(change.changed_by, self.admin)
-
-    def test_null_end_keeps_the_sale_without_an_end(self) -> None:
-        Product.objects.filter(pk=self.product.pk).update(
-            discount_price=Decimal("40.00"), discount_ends_at=timezone.now() + timedelta(days=1)
-        )
-
-        response = self._patch({"discount_ends_at": None})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(response.data["discount_price"], "40.00")
-        self.assertIsNone(response.data["discount_ends_at"])
-        self.assertTrue(response.data["discount_active"])
-
-    def test_a_new_sale_price_over_an_ended_sale_needs_a_new_end(self) -> None:
-        Product.objects.filter(pk=self.product.pk).update(
-            discount_price=Decimal("40.00"), discount_ends_at=timezone.now() - timedelta(hours=1)
-        )
-
-        refused = self._patch({"discount_price": "35.00"})
-        self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("discount_ends_at", refused.data)
-
-        accepted = self._patch({"discount_price": "35.00", "discount_ends_at": self._future()})
-        self.assertEqual(accepted.status_code, status.HTTP_200_OK, accepted.data)
-        self.assertTrue(accepted.data["discount_active"])
 
     def test_admin_api_shows_the_stored_ended_sale_as_inactive(self) -> None:
         ended_at = timezone.now() - timedelta(hours=1)
@@ -397,56 +283,38 @@ class AdminSaleEndTests(APITestCase):
         self.assertEqual(response.data["discount_price"], "40.00")
         self.assertEqual(parse_datetime(response.data["discount_ends_at"]), ended_at)
         self.assertFalse(response.data["discount_active"])
-        # Saving the form again (which resends the ended sale) is allowed, and clears the
-        # ended sale instead of reviving it; the clearing is written to the price history.
-        renamed = self._patch({"name": "Renamed Chair", "discount_price": "40.00"})
-        self.assertEqual(renamed.status_code, status.HTTP_200_OK, renamed.data)
-        self.assertIsNone(renamed.data["discount_price"])
-        change = ProductPriceChange.objects.get(product=self.product)
-        self.assertEqual(
-            (change.old_discount_price, change.new_discount_price), (Decimal("40.00"), None)
-        )
 
-    def test_price_change_is_recorded(self) -> None:
-        response = self._patch({"price": "60.00"})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        change = ProductPriceChange.objects.get(product=self.product)
-        self.assertEqual((change.old_price, change.new_price), (Decimal("50.00"), Decimal("60.00")))
-        self.assertEqual(change.changed_by, self.admin)
-
-    def test_an_edit_without_a_price_change_writes_no_history(self) -> None:
-        response = self._patch({"name": "New Name", "price": "50.00"})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+    def test_an_edit_that_sends_a_price_is_refused_and_writes_no_history(self) -> None:
+        before = (self.product.name, self.product.price)
+        for body in (
+            {"price": "60.00"},
+            {"name": "New Name", "discount_price": "40.00"},
+            {"discount_ends_at": (timezone.now() + timedelta(days=3)).isoformat()},
+        ):
+            with self.subTest(body=body):
+                response = self.client.patch(self.url, body, format="json")
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.product.refresh_from_db()
+        self.assertEqual((self.product.name, self.product.price), before)
         self.assertFalse(ProductPriceChange.objects.exists())
 
-    def test_a_refused_edit_writes_no_history(self) -> None:
-        response = self._patch({"price": "60.00", "discount_price": "70.00"})
+    def test_an_edit_without_a_price_writes_no_history(self) -> None:
+        response = self.client.patch(self.url, {"name": "New Name"}, format="json")
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertFalse(ProductPriceChange.objects.exists())
 
 
 class ServiceHistoryTests(TestCase):
-    def test_service_default_source_is_admin_edit_without_an_actor(self) -> None:
-        category = Category.objects.create(name="Furniture", slug="furniture")
-        product = _product(category, "service-chair", status=Product.Status.DRAFT)
-
-        ProductService.update_product(product, ProductUpdateData(price=Decimal("25.00")))
-
-        change = ProductPriceChange.objects.get(product=product)
-        self.assertEqual(change.source, ProductPriceChange.Source.ADMIN_EDIT)
-        self.assertIsNone(change.changed_by)
-
-    def test_create_writes_no_history(self) -> None:
+    def test_create_writes_no_history_and_starts_at_zero(self) -> None:
         from products.services import ProductCreateData
 
         category = Category.objects.create(name="Furniture", slug="furniture")
-        ProductService.create_product(
-            ProductCreateData(category_id=category.pk, name="New Chair", price=Decimal("9.00"))
+        product = ProductService.create_product(
+            ProductCreateData(category_id=category.pk, name="New Chair")
         )
 
+        self.assertEqual(product.price, Decimal("0.00"))
         self.assertFalse(ProductPriceChange.objects.exists())
 
 
@@ -457,18 +325,10 @@ class ImportHistoryTests(CatalogImportTestBase):
         self.assertEqual(response.data["created"], 1, response.data)
         product = Product.objects.get(sku="MDL-000142")
         ends_at = timezone.now() + timedelta(days=5)
-        Product.objects.filter(pk=product.pk).update(
-            price=Decimal("45.00"), discount_price=Decimal("40.00"), discount_ends_at=ends_at
-        )
+        price_packages(product, "45.00", discount_price=Decimal("40.00"), discount_ends_at=ends_at)
         self.assertFalse(ProductPriceChange.objects.exists())
 
-        free_item = _happy_item(r2_key_prefix="free-models/MDL-000142/")
-        free_item["media"] = {
-            key: [k.replace("models/", "free-models/", 1) for k in value]
-            if isinstance(value, list)
-            else value.replace("models/", "free-models/", 1) if isinstance(value, str) else value
-            for key, value in free_item["media"].items()
-        }
+        free_item = _free_item()
         reupload = self._post_batch([free_item], batch_id="2026-09-04-run-02")
         self.assertEqual(reupload.data["updated"], 1, reupload.data)
 
@@ -476,7 +336,9 @@ class ImportHistoryTests(CatalogImportTestBase):
         self.assertEqual(product.price, Decimal("0.00"))
         self.assertIsNone(product.discount_price)
         self.assertIsNone(product.discount_ends_at)
+        # The package's price changed (a free upload's packages are free).
         change = ProductPriceChange.objects.get(product=product)
+        self.assertEqual(change.package_kind, "whole")
         self.assertEqual(change.source, ProductPriceChange.Source.IMPORT)
         self.assertIsNone(change.changed_by)
         self.assertEqual(change.old_price, Decimal("45.00"))

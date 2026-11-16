@@ -31,6 +31,7 @@ const sampleCategory = {
   image: '',
   parent: null,
   is_active: true,
+  code: null, pending_approval: false, created_by_import: false, created_from_batch: '', rejected_at: null, product_count: 0,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
 }

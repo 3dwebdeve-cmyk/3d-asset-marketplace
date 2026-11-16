@@ -1,8 +1,11 @@
 from django.urls import path
 
 from categories.views import (
+    AdminCategoryApproveView,
     AdminCategoryDetailView,
     AdminCategoryListCreateView,
+    AdminCategoryMergeView,
+    AdminCategoryRejectView,
     CategoryClickView,
     CategoryDetailView,
     CategoryListView,
@@ -28,6 +31,21 @@ admin_urlpatterns = [
         "<uuid:category_id>/",
         AdminCategoryDetailView.as_view(),
         name="admin-category-detail",
+    ),
+    path(
+        "<uuid:category_id>/approve/",
+        AdminCategoryApproveView.as_view(),
+        name="admin-category-approve",
+    ),
+    path(
+        "<uuid:category_id>/merge/",
+        AdminCategoryMergeView.as_view(),
+        name="admin-category-merge",
+    ),
+    path(
+        "<uuid:category_id>/reject/",
+        AdminCategoryRejectView.as_view(),
+        name="admin-category-reject",
     ),
 ]
 

@@ -59,6 +59,8 @@ const paidOrder: CustomerOrder = {
       id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
       product_type: 'product',
       product_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+      package_kind: 'whole',
+      package_label: 'Whole File',
       title: 'Hero Sword',
       slug: 'hero-sword',
       quantity: 1,

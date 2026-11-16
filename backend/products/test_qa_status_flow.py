@@ -26,6 +26,7 @@ from products.models import Product, ProductFile, ProductPriceChange
 from products.services import ProductService
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
 from products.test_catalog_reupload import _free_item
+from products.testing import price_packages
 
 _NEW_CHECKSUM = "c" * 64
 _SKU = "MDL-000142"
@@ -78,9 +79,8 @@ class QAStatusFlowTests(CatalogImportTestBase):
     def _live_paid(self, price: str = "49.00") -> Product:
         """A paid model on sale: QA approved, then priced and published (Part 2's job)."""
         product = self._awaiting_price()
-        Product.objects.filter(pk=product.pk).update(
-            status=Product.Status.PUBLISHED, price=Decimal(price)
-        )
+        price_packages(product, price)
+        Product.objects.filter(pk=product.pk).update(status=Product.Status.PUBLISHED)
         product.refresh_from_db()
         return product
 
@@ -116,7 +116,8 @@ class QAStatusFlowTests(CatalogImportTestBase):
     def test_free_approval_with_a_price_sets_zero_and_records_history(self) -> None:
         product = self._upload_free()
         ends = timezone.now() + timedelta(days=3)
-        Product.objects.filter(pk=product.pk).update(
+        # Prices live on the packages: a stray price on the free model's zip is reset to 0.
+        ProductFile.objects.filter(product=product, package_kind="whole").update(
             price=Decimal("5.00"), discount_price=Decimal("4.00"), discount_ends_at=ends
         )
 
@@ -126,9 +127,11 @@ class QAStatusFlowTests(CatalogImportTestBase):
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PUBLISHED)
         self.assertEqual(product.price, Decimal("0.00"))
-        self.assertIsNone(product.discount_price)
-        self.assertIsNone(product.discount_ends_at)
-        change = ProductPriceChange.objects.get(product=product)
+        package = ProductFile.objects.get(product=product, package_kind="whole")
+        self.assertEqual(package.price, Decimal("0.00"))
+        self.assertIsNone(package.discount_price)
+        self.assertIsNone(package.discount_ends_at)
+        change = ProductPriceChange.objects.get(product=product, package_kind="whole")
         self.assertEqual(change.source, ProductPriceChange.Source.QA_APPROVAL)
         self.assertEqual(change.changed_by_id, self.admin_user.pk)
         self.assertEqual(change.old_price, Decimal("5.00"))
@@ -156,7 +159,8 @@ class QAStatusFlowTests(CatalogImportTestBase):
         )
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.AWAITING_PRICE)
-        self.assertEqual(product.price, Decimal("29.99"))
+        # The packages have no price until the Pricing page: the summary is 0.
+        self.assertEqual(product.price, Decimal("0.00"))
         self.assertEqual(product.reviewed_by_id, self.admin_user.pk)
         self.assertIsNotNone(product.reviewed_at)
         self.assertEqual(product.reject_reason, "")
@@ -322,7 +326,7 @@ class QAStatusFlowTests(CatalogImportTestBase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         Product.objects.filter(pk=product.pk).update(status=Product.Status.AWAITING_PRICE)
-        response = self._patch(product, {"status": "published", "price": "49.00"})
+        response = self._patch(product, {"status": "published"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("status", response.data)
         product.refresh_from_db()
@@ -364,7 +368,7 @@ class QAStatusFlowTests(CatalogImportTestBase):
                     self.assertIn("Pricing page", str(response.data[name]))
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
-        self.assertEqual(product.price, Decimal("29.99"))
+        self.assertFalse(product.files.filter(price__isnull=False).exists())
 
 
 class QAStatusTransitionTableTests(TestCase):

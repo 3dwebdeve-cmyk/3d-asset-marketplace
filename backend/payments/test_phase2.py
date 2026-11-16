@@ -127,7 +127,7 @@ class CheckoutRecoveryTests(PaymentsTestMixin, APITestCase):
         item = CartItem.objects.get(cart__user=self.user)
         CartService.update_quantity(self.user, item.pk, 2)
         CartService.remove_items(
-            self.user, {(item.product_type, item.product_id)}, before=order.created_at,
+            self.user, {(item.product_type, item.product_id, item.package_kind)}, before=order.created_at,
         )
         item.refresh_from_db()
         self.assertEqual(item.quantity, 2)

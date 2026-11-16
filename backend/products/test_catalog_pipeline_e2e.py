@@ -19,7 +19,7 @@ from config.storages import signed_url_expiry_seconds
 from orders.models import Order, OrderItem
 from products.models import Product, ProductFile
 from products.test_catalog_import import _pipeline_item
-from products.testing import put_pipeline_objects
+from products.testing import price_packages, put_pipeline_objects
 
 SKU = "FUR-CHR-000123"
 
@@ -109,7 +109,7 @@ class PipelineEndToEndTests(APITestCase):
     def test_api_key_import_to_approved_signed_download(self) -> None:
         # 1. The uploader exe imports with its API key and the plugin's file names.
         issued = CatalogApiKeyService.create_key(name="office-pc")
-        item = _pipeline_item(SKU, subcategory="Chairs", package_formats=["max", "fbx"])
+        item = _pipeline_item(SKU, package_formats=["max", "fbx"])
         put_pipeline_objects([item])
         self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key {issued.key}")
         imported = self.client.post(
@@ -119,14 +119,15 @@ class PipelineEndToEndTests(APITestCase):
         )
         self.assertEqual(imported.status_code, status.HTTP_200_OK, imported.data)
         self.assertEqual(imported.data["created"], 1, imported.data)
-        self.assertNotIn("warnings", imported.data["results"][0])
+        # The ID's code (FUR) linked the sheet's category once.
+        self.assertEqual(imported.data["results"][0]["warnings"], ["category_linked"])
 
         product = Product.objects.get(sku=SKU)
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
-        self.assertEqual(product.category_id, self.chairs.pk)
+        self.assertEqual(product.category_id, self.furniture.pk)
         package = ProductFile.objects.get(product=product, is_preview=False)
-        self.assertEqual(package.storage_path, f"models/{SKU}/{SKU}.zip")
-        self.assertEqual(package.file_name, f"{SKU}.zip")
+        self.assertEqual(package.storage_path, f"models/{SKU}/{SKU}_whole.zip")
+        self.assertEqual(package.file_name, f"{SKU}_whole.zip")
         self.assertNotIn(product.slug, self._public_slugs(self.furniture))
 
         # 2. An administrator approves it in /console.
@@ -139,14 +140,13 @@ class PipelineEndToEndTests(APITestCase):
         self.assertEqual(approve.status_code, status.HTTP_200_OK, approve.data)
         # A paid model waits for its price after QA; the Pricing page then publishes it.
         self.assertEqual(approve.data["status"], "awaiting_price")
+        price_packages(product, "29.99")
         Product.objects.filter(pk=product.pk).update(status=Product.Status.PUBLISHED)
 
-        # 3. It is listed under its subcategory and its parent, with the package formats.
-        for category in (self.chairs, self.furniture):
-            with self.subTest(category=category.name):
-                rows = self._public_slugs(category)
-                self.assertIn(product.slug, rows)
-                self.assertEqual(rows[product.slug]["formats"], ["fbx", "max"])
+        # 3. It is listed under its category, with the package formats.
+        rows = self._public_slugs(self.furniture)
+        self.assertIn(product.slug, rows)
+        self.assertEqual(rows[product.slug]["formats"], ["fbx", "max"])
 
         # 4. A buyer who owns it gets a short-lived signed URL named after the ID.
         order = Order.objects.create(
@@ -181,8 +181,10 @@ class PipelineEndToEndTests(APITestCase):
             download = self.client.get(download_url)
 
         self.assertEqual(download.status_code, status.HTTP_200_OK)
-        exists.assert_called_once_with(f"models/{SKU}/{SKU}.zip")
-        presign.assert_called_once_with(f"models/{SKU}/{SKU}.zip", file_name=f"{SKU}.zip")
+        exists.assert_called_once_with(f"models/{SKU}/{SKU}_whole.zip")
+        presign.assert_called_once_with(
+            f"models/{SKU}/{SKU}_whole.zip", file_name=f"{SKU}_whole.zip"
+        )
         self.assertEqual(download.data["download_url"], "https://r2.example/signed")
-        self.assertEqual(download.data["file_name"], f"{SKU}.zip")
+        self.assertEqual(download.data["file_name"], f"{SKU}_whole.zip")
         self.assertEqual(download.data["expires_in"], signed_url_expiry_seconds())

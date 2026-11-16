@@ -115,7 +115,8 @@ describe('WishlistPage', () => {
       'href',
       '/products/oak-chair',
     )
-    expect(screen.getByRole('button', { name: /add oak chair to cart/i })).toBeInTheDocument()
+    // A model is bought per package: the card links to its page to choose them.
+    expect(screen.getByRole('link', { name: 'Choose packages' })).toHaveAttribute('href', '/products/oak-chair')
     expect(
       screen.getByRole('button', { name: /remove oak chair from wishlist/i }),
     ).toBeInTheDocument()

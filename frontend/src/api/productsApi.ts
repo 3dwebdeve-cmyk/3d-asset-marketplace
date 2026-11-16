@@ -1,3 +1,4 @@
+import type { PackageKind } from '../lib/packages'
 import { apiClient } from './client'
 import type {
   AdminProduct,
@@ -99,23 +100,25 @@ export async function bulkDeleteAdminProducts(
   return response.data
 }
 
-/** The uploader's latest imports, with the reason each skipped model did not reach QA. */
 /** Checks that every file the product uses (images, preview, downloads) is in storage. */
 export async function getAdminProductFileCheck(productId: string): Promise<ProductFileCheck> {
   const response = await apiClient.get<ProductFileCheck>(`/api/v1/admin/products/${productId}/file-check/`)
   return response.data
 }
 
+/** The uploader's latest imports, with every model that did not reach QA and why. */
 export async function listUploaderImports(): Promise<UploaderImport[]> {
-  const response = await apiClient.get<{ results: UploaderImport[] }>('/api/v1/admin/activity-logs/', {
-    params: { action: 'catalog_ingest_import', page_size: 5 },
-  })
+  const response = await apiClient.get<{ results: UploaderImport[] }>(
+    '/api/v1/admin/products/uploader-imports/',
+  )
   return response.data.results
 }
 
 /** A free model's zip: no account needed, the server redirects to the file. */
-export function freeDownloadUrl(slug: string): string {
-  return `${apiClient.defaults.baseURL ?? ''}/api/v1/products/${encodeURIComponent(slug)}/free-download/`
+/** A free model's zip; ``packageKind`` picks the package (else the first one it has). */
+export function freeDownloadUrl(slug: string, packageKind?: PackageKind): string {
+  const base = `${apiClient.defaults.baseURL ?? ''}/api/v1/products/${encodeURIComponent(slug)}/free-download/`
+  return packageKind ? `${base}?package=${encodeURIComponent(packageKind)}` : base
 }
 
 export async function rejectAdminProduct(
@@ -167,6 +170,9 @@ export async function uploadProductFile(
   formData.append('file', payload.file)
   formData.append('version', payload.version ?? '1.0')
   formData.append('is_preview', String(payload.is_preview ?? false))
+  if (payload.package_kind) {
+    formData.append('package_kind', payload.package_kind)
+  }
 
   const response = await apiClient.post<ProductFile>(
     `/api/v1/admin/products/${productId}/files/`,

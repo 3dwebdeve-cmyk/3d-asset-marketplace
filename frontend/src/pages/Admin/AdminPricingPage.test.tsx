@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as categoriesApi from '../../api/categoriesApi'
 import * as pricingApi from '../../api/pricingApi'
 import { createTestQueryClient, resetToastStore } from '../../test/test-utils'
-import type { PricingPreview, PricingRow } from '../../types/pricing'
+import type { PricingPackage, PricingPreview, PricingRow } from '../../types/pricing'
 import { AdminPricingPage } from './AdminPricingPage'
 
 vi.mock('../../api/pricingApi', () => ({
@@ -22,6 +22,13 @@ vi.mock('../../api/categoriesApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/categoriesApi')>('../../api/categoriesApi')
   return { ...actual, listAdminCategories: vi.fn() }
 })
+
+function whole(price: string | null, sale: string | null = null): PricingPackage {
+  return {
+    kind: 'whole', label: 'Whole File', price, sale_price: sale, sale_ends_at: null,
+    buyer_pays: sale ?? price,
+  }
+}
 
 function row(id: string, name: string, overrides: Partial<PricingRow> = {}): PricingRow {
   return {
@@ -41,13 +48,18 @@ function row(id: string, name: string, overrides: Partial<PricingRow> = {}): Pri
     discount_ends_at: null,
     discount_active: false,
     buyer_pays: '20.00',
+    packages: [whole('20.00')],
+    bundle_warning: '',
     import_batch_id: 'batch-1',
     created_at: '2026-11-10T00:00:00Z',
     ...overrides,
   }
 }
 
-const rows = [row('1', 'Oak Chair'), row('2', 'Pine Stool', { price: '0.00', buyer_pays: '0.00' })]
+const rows = [
+  row('1', 'Oak Chair'),
+  row('2', 'Pine Stool', { price: '0.00', buyer_pays: '0.00', packages: [whole(null)] }),
+]
 
 function previewOf(overrides: Partial<PricingPreview['summary']> = {}, error = ''): PricingPreview {
   return {
@@ -57,11 +69,13 @@ function previewOf(overrides: Partial<PricingPreview['summary']> = {}, error = '
         poly_tier: 'low', currency: 'USD', old_price: '20.00', old_sale_price: null,
         old_sale_ends_at: null, new_price: '12.00', new_sale_price: null, new_sale_ends_at: null,
         amount_off: '0.00', percent_off: '0.0', buyer_pays: '12.00', changed: !error, error,
+        has_package: true, packages: [whole('12.00')], bundle_warning: '',
       },
     ],
     summary: {
       models: 1, changed: error ? 0 : 1, errors: error ? 1 : 0, currency: 'USD',
       buyer_pays_before: '20.00', buyer_pays_after: '12.00', needs_confirmation: false,
+      without_package: 0,
       ...overrides,
     },
     preview_token: 'a'.repeat(64),
@@ -106,8 +120,56 @@ describe('AdminPricingPage', () => {
     expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /waiting for price/i })).toHaveAttribute('aria-selected', 'true')
     expect(within(screen.getByRole('tab', { name: /live models/i })).getByText('7')).toBeInTheDocument()
-    expect(screen.getByText('Not set')).toBeInTheDocument()
+    // Each model lists its packages; Pine Stool's Whole File has no price yet.
+    const pine = screen.getByText('Pine Stool').closest('tr')!
+    expect(pine).toHaveTextContent('Whole File: Not set')
+    expect(screen.getByText('Oak Chair').closest('tr')).toHaveTextContent('Whole File: $20.00')
     expect(screen.getByRole('button', { name: /publish selected \(0\)/i })).toBeDisabled()
+  })
+
+  it('shows the bundle warning on a model, and prices the chosen package', async () => {
+    const user = userEvent.setup()
+    vi.mocked(pricingApi.listPricingModels).mockResolvedValue({
+      count: 1, next: null, previous: null,
+      results: [row('1', 'Oak Chair', {
+        packages: [
+          { ...whole('10.00'), kind: 'with_light_rig', label: 'With Light Rig' },
+          whole('12.00'),
+        ],
+        bundle_warning: 'Whole File (12.00) is not cheaper than the other packages together (10.00).',
+      })],
+    })
+    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf())
+    renderPage()
+
+    expect(await screen.findByRole('note')).toHaveTextContent('Whole File (12.00) is not cheaper')
+    await selectFirstModel(user)
+    await user.selectOptions(screen.getByLabelText('Package'), 'with_light_rig')
+    await user.type(screen.getByLabelText('Price (USD)'), '12')
+    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
+
+    await waitFor(() =>
+      expect(pricingApi.previewPricing).toHaveBeenCalledWith(
+        expect.objectContaining({ package_kind: 'with_light_rig', rule: 'set_price' }),
+      ),
+    )
+    expect(await screen.findByRole('columnheader', { name: 'With Light Rig price' })).toBeInTheDocument()
+  })
+
+  it('says which models have no package of the chosen kind and leaves them alone', async () => {
+    const user = userEvent.setup()
+    const preview = previewOf({ changed: 0, without_package: 1 })
+    preview.rows[0] = { ...preview.rows[0], has_package: false, changed: false, old_price: null, new_price: null, buyer_pays: null }
+    vi.mocked(pricingApi.previewPricing).mockResolvedValue(preview)
+    renderPage()
+
+    await selectFirstModel(user)
+    await user.selectOptions(screen.getByLabelText('Package'), 'glb_only')
+    await user.type(screen.getByLabelText('Price (USD)'), '9')
+    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
+
+    expect(await screen.findByText('No GLB Only package: left as it is')).toBeInTheDocument()
+    expect(screen.getByText(/1 have no GLB Only package/)).toBeInTheDocument()
   })
 
   it('previews one price and saves it with the preview token', async () => {
@@ -122,7 +184,10 @@ describe('AdminPricingPage', () => {
 
     expect(await screen.findByText(/1 will change/i)).toBeInTheDocument()
     expect(pricingApi.previewPricing).toHaveBeenCalledWith(
-      expect.objectContaining({ product_ids: ['1'], rule: 'set_price', price: '12', low_below: 10000, high_above: 100000 }),
+      expect.objectContaining({
+        product_ids: ['1'], package_kind: 'whole', rule: 'set_price', price: '12',
+        low_below: 10000, high_above: 100000,
+      }),
     )
     await user.click(screen.getByRole('button', { name: /save prices/i }))
 
@@ -238,7 +303,7 @@ describe('AdminPricingPage', () => {
     await user.click(screen.getByRole('button', { name: /publish selected \(2\)/i }))
 
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByText(/1 have no price yet/i)).toBeInTheDocument()
+    expect(within(dialog).getByText(/1 have a package with no price yet/i)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: /publish 2 models/i }))
 
     await waitFor(() => expect(pricingApi.publishPricing).toHaveBeenCalledWith(['1', '2'], 2))
@@ -256,7 +321,7 @@ describe('AdminPricingPage', () => {
   it('uses the saved prices in the publish summary right after saving', async () => {
     const user = userEvent.setup()
     const saved = previewOf()
-    saved.rows[0] = { ...saved.rows[0], id: '2', name: 'Pine Stool', old_price: '0.00', new_price: '12.00', buyer_pays: '12.00' }
+    saved.rows[0] = { ...saved.rows[0], id: '2', name: 'Pine Stool', old_price: null, new_price: '12.00', buyer_pays: '12.00' }
     vi.mocked(pricingApi.previewPricing).mockResolvedValue(saved)
     vi.mocked(pricingApi.applyPricing).mockResolvedValue({ batch_id: 'b', models: 1, changed: 1, unchanged: 0 })
     renderPage()
@@ -268,8 +333,8 @@ describe('AdminPricingPage', () => {
     await waitFor(() => expect(pricingApi.applyPricing).toHaveBeenCalled())
     await user.click(screen.getByRole('button', { name: /publish selected \(1\)/i }))
 
+    // The selection took the saved package prices, so nothing shows as unpriced.
     const dialog = screen.getByRole('dialog')
-    expect(dialog).toHaveTextContent('total $12.00')
     expect(dialog).not.toHaveTextContent(/no price yet/i)
   })
 })

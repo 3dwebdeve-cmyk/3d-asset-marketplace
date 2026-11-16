@@ -13,10 +13,11 @@ from botocore.exceptions import BotoCoreError, ClientError
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 
-from categories.models import Category
+from accounts.security_log import log_admin_action
+from categories.models import CATEGORY_CODE_REGEX, Category
 from config.media import (
     FREE_MODELS_PREFIX,
     SPIN_FRAME_COUNT,
@@ -31,6 +32,7 @@ from config.upload_security import (
     inspect_product_content,
     scan_error_code,
 )
+from orders.entitlements import bought_package_kinds
 from products.edge_colour import edge_fields, fetch_side_colours
 from products.models import (
     PRODUCT_SKU_REGEX,
@@ -39,7 +41,10 @@ from products.models import (
     ProductImage,
     ProductPriceChange,
 )
+from products.packages import PACKAGE_KINDS, sync_summary_price
+from products.price_history import PriceState, record_price_change
 from products.services import (
+    UPLOAD_KIND_FREE,
     ProductCreateData,
     ProductError,
     ProductService,
@@ -73,14 +78,27 @@ CONSOLE_TEXT_KEPT = "console_text_kept"
 # Row warning: a model moved from free-models/ to models/ and still costs 0; it gets its
 # price on the Pricing page after QA.
 PRICE_NEEDED = "price_needed"
-# Row warning: the sheet had a Discount Price. Sales are set on the Pricing page (or the product
-# form), where the sale rules run, so the import never creates one (docs/PRICING_PIPELINE.md).
-SHEET_SALE_IGNORED = "sheet_sale_ignored"
+# Row warnings about the category, which comes from the code in the Model ID (ELE-000001):
+# the sheet's category name gave a category its code, or a new category waits for approval.
+CATEGORY_LINKED = "category_linked"
+CATEGORY_PENDING_APPROVAL = "category_pending_approval"
+# Row warning: a live model got a new package; it is not sold until it has a price.
+PACKAGE_NEEDS_PRICE = "package_needs_price"
+# Row warning (D7): the upload listed a zip that is not one of the five packages. Only the
+# five are imported; the QA note names the file so an administrator can add it by hand.
+EXTRA_FILE_SKIPPED = "extra_file_skipped"
+EXTRA_FILE_NOTE_PREFIX = "Extra file not imported (not one of the five packages): "
+_EXTRA_FILE_NOTE_HINT = ". Add it in Media > Packages if it should be sold."
+_MAX_EXTRA_NAMES = 10
+_CATEGORY_CODE_RE = re.compile(CATEGORY_CODE_REGEX)
 
 
-def _sheet_sale_given(item: dict[str, Any]) -> bool:
-    discount = item.get("discount_price")
-    return discount is not None and str(discount).strip() != ""
+class _RowRefused(Exception):
+    """A row the import skips, raised inside its transaction so nothing it wrote is kept."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 # Row warning: the model is live; it stays on sale and waits in the QA queue as an update.
 LIVE_UPDATE_IN_QA = "live_update_in_qa"
 # Row warning: a live free model was uploaded as paid; it left the store and goes through QA
@@ -124,8 +142,10 @@ class CatalogImportRowResult:
     status: str | None = None
     # The row was imported, but something deserves a look (for example "preview_unchecked").
     warning: str = ""
-    # Every warning for the row, including `warning` and "subcategory_not_found".
+    # Every warning for the row, including `warning`.
     warnings: tuple[str, ...] = ()
+    # The sheet's name, for the audit log (not in the response).
+    name: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -164,9 +184,10 @@ class CatalogImportBatchResult:
         if self.not_scanned_model_ids:
             metadata.update(preview_not_scanned=True, not_scanned_model_ids=self.not_scanned_model_ids)
         # Why each model did not reach QA, so the admin can see it without the uploader's log.
-        reasons = {row.model_id: row.reason for row in self.results if row.action in ("skipped", "failed")}
-        if reasons:
-            metadata["skipped_reasons"] = reasons
+        refused = [row for row in self.results if row.action in ("skipped", "failed")]
+        if refused:
+            metadata["skipped_reasons"] = {row.model_id: row.reason for row in refused}
+            metadata["refused_names"] = {row.model_id: row.name for row in refused}
         return metadata
 
     def to_dict(self) -> dict[str, Any]:
@@ -200,6 +221,7 @@ class CatalogImportService:
                 item,
                 import_batch_id=import_batch_id,
                 import_source=import_source,
+                actor_id=actor_id,
             )
             results.append(row)
             if row.action == "created":
@@ -238,12 +260,14 @@ class CatalogImportService:
         *,
         import_batch_id: str,
         import_source: str,
+        actor_id: str,
     ) -> CatalogImportRowResult:
         warnings: list[str] = []
         row = cls._import_item(
             item,
             import_batch_id=import_batch_id,
             import_source=import_source,
+            actor_id=actor_id,
             warnings=warnings,
         )
         if row.action in ("skipped", "failed") and cls._flag_refused_live_update(
@@ -253,7 +277,7 @@ class CatalogImportService:
         # `warnings` lists every warning; `warning` keeps its single value for older callers.
         if row.warning:
             warnings.append(row.warning)
-        return replace(row, warnings=tuple(warnings)) if warnings else row
+        return replace(row, warnings=tuple(warnings), name=str(item.get("name") or "").strip()[:255])
 
     @classmethod
     def _import_item(
@@ -262,14 +286,13 @@ class CatalogImportService:
         *,
         import_batch_id: str,
         import_source: str,
+        actor_id: str,
         warnings: list[str],
     ) -> CatalogImportRowResult:
-        # models/<sku>/ is a paid model (zip in the private bucket); free-models/<sku>/ is
-        # a free one with every file, zip included, in the public bucket.
+        # models/<sku>/ is a paid model (zips in the private bucket); free-models/<sku>/ is
+        # a free one with every file, zips included, in the public bucket.
         prefix = str(item.get("r2_key_prefix") or "").strip()
         free_upload = prefix.startswith(FREE_MODELS_PREFIX)
-        if free_upload:
-            item = {**item, "price": "0", "discount_price": None}
 
         raw_model_id = str(item.get("model_id") or "").strip()
         display_id = raw_model_id.upper() if raw_model_id else ""
@@ -298,10 +321,14 @@ class CatalogImportService:
         # A live model uploaded again stays on sale with its new files (the uploader has
         # already replaced them in R2) and waits in the QA queue as an update.
         live_update = existing is not None and existing.status == Product.Status.PUBLISHED
-        # A live free model (price 0) uploaded again as paid: its zip moves to the private
-        # bucket, and at price 0 the free download would hand that zip to anyone. It leaves
+        # A live free model (zips under free-models/) uploaded again as paid: its zips move to
+        # the private bucket, and as a free download it would hand them to anyone. It leaves
         # the store and goes through QA and the Pricing page like a new paid model.
-        free_to_paid = live_update and not free_upload and existing.price == 0
+        free_to_paid = (
+            live_update
+            and not free_upload
+            and ProductService.upload_kind(existing) == UPLOAD_KIND_FREE
+        )
         if free_to_paid:
             live_update = False
         if existing is not None:
@@ -315,21 +342,8 @@ class CatalogImportService:
                     action="skipped",
                     reason="published_sku",
                 )
-            # The administrator owns an existing model's category, like its text, so the
-            # sheet's category is not needed (and an unknown one does not block a re-upload).
-            category = existing.category
-        else:
-            category = cls.resolve_category(
-                str(item.get("category") or ""),
-                str(item.get("subcategory") or ""),
-                warnings=warnings,
-            )
-            if category is None:
-                return CatalogImportRowResult(
-                    model_id=sku,
-                    action="skipped",
-                    reason="category_unmapped",
-                )
+        # The administrator owns an existing model's category, like its text, so a re-upload
+        # never looks the category up; a new model's category is resolved in its transaction.
 
         media = item.get("media") or {}
         try:
@@ -341,13 +355,19 @@ class CatalogImportService:
                 reason=exc.message if exc.field == "object_key" else "invalid_object_key",
             )
 
-        # Catch a typo or failed upload now rather than at approval.
-        package_key = media_pointers["package_key"]
-        if package_key is not None and not package_object_exists(package_key):
+        # Every zip must be there: catch a typo or failed upload now rather than at approval.
+        if not all(package_object_exists(entry["key"]) for entry in media_pointers["packages"]):
             return CatalogImportRowResult(
                 model_id=sku,
                 action="skipped",
                 reason="missing_package_object",
+            )
+        # Buyers keep their files: a package someone bought cannot be dropped by a re-upload.
+        if existing is not None and cls._drops_bought_package(existing, media_pointers["packages"]):
+            return CatalogImportRowResult(
+                model_id=sku,
+                action="skipped",
+                reason="package_has_buyers",
             )
 
         # The preview first: a rejected preview then costs no image reads. Neither check
@@ -365,13 +385,25 @@ class CatalogImportService:
 
         previous_copies = cls._import_copies(sku, existing)
         # Worked out before the update, which leaves the administrator's text as it is.
-        text_kept = existing is not None and cls._sheet_text_differs(
-            existing, item, free_upload=free_upload
+        text_kept = existing is not None and cls._sheet_text_differs(existing, item)
+        # A model moved from free-models/ to models/: its packages need prices.
+        moved_from_free = (
+            existing is not None
+            and not free_upload
+            and ProductService.upload_kind(existing) == UPLOAD_KIND_FREE
         )
 
+        category_notes: list[str] = []
         try:
             with transaction.atomic():
                 if existing is None:
+                    category = cls.resolve_category(
+                        sku,
+                        str(item.get("category") or ""),
+                        import_batch_id=import_batch_id,
+                        actor_id=actor_id,
+                        notes=category_notes,
+                    )
                     product = cls._create_product(
                         item,
                         sku=sku,
@@ -389,7 +421,6 @@ class CatalogImportService:
                         import_batch_id=import_batch_id,
                         import_source=import_source,
                         media_pointers=media_pointers,
-                        free_upload=free_upload,
                         live_update=live_update,
                     )
                     action = "updated"
@@ -402,8 +433,13 @@ class CatalogImportService:
                     media_pointers["gallery_urls"],
                     replace=media_pointers["replace_gallery"],
                 )
-                cls._sync_package(product, media_pointers)
+                new_kinds = cls._sync_packages(
+                    product, media_pointers["packages"], free_upload=free_upload
+                )
                 cls._sync_scan_note(product, media_pointers["preview_not_scanned"])
+                cls._sync_extra_files_note(product, media_pointers["extra_files"])
+        except _RowRefused as exc:
+            return CatalogImportRowResult(model_id=sku, action="skipped", reason=exc.reason)
         except ProductError as exc:
             return CatalogImportRowResult(
                 model_id=sku,
@@ -423,18 +459,27 @@ class CatalogImportService:
             )
 
         cls._delete_unreferenced_copies(previous_copies)
+        warnings.extend(category_notes)
         if media_pointers["preview_not_scanned"]:
             warnings.append("preview_not_scanned")
         if text_kept:
             warnings.append(CONSOLE_TEXT_KEPT)
         if live_update:
             warnings.append(LIVE_UPDATE_IN_QA)
-        if action == "updated" and not free_upload and product.price <= 0:
+        if live_update and new_kinds and not free_upload:
+            warnings.append(PACKAGE_NEEDS_PRICE)
+        if moved_from_free:
             warnings.append(PRICE_NEEDED)
         if free_to_paid:
             warnings.append(FREE_TO_PAID_OFF_SALE)
-        if action == "created" and not free_upload and _sheet_sale_given(item):
-            warnings.append(SHEET_SALE_IGNORED)
+        if media_pointers["extra_files"]:
+            warnings.append(EXTRA_FILE_SKIPPED)
+            logger.info(
+                "catalog_import_extra_file_skipped model_id=%s batch_id=%s count=%s",
+                sku,
+                import_batch_id,
+                len(media_pointers["extra_files"]),
+            )
 
         return CatalogImportRowResult(
             model_id=sku,
@@ -473,18 +518,9 @@ class CatalogImportService:
                 if size_val is not None and Decimal(str(size_val)) <= 0:
                     return "invalid_export_size"
 
-        price = item.get("price")
-        if price is None or price == "":
-            return "invalid_price"
-        try:
-            price_dec = price if isinstance(price, Decimal) else Decimal(str(price))
-        except Exception:
-            return "invalid_price"
-        if price_dec < Decimal("0"):
-            return "invalid_price"
+        from config.currency import normalize_currency
 
-        from config.currency import normalize_currency, to_minor_units
-
+        # The price is never read from the sheet: packages are priced on the Pricing page.
         currency_raw = item.get("currency")
         if currency_raw is None or str(currency_raw).strip() == "":
             currency = "USD"
@@ -493,11 +529,7 @@ class CatalogImportService:
         try:
             normalize_currency(currency)
         except ValueError:
-            return 'invalid_currency'
-        try:
-            to_minor_units(price_dec, currency)
-        except ValueError:
-            return 'invalid_price'
+            return "invalid_currency"
 
         media = item.get("media") or {}
         thumbnail_key = str(media.get("thumbnail_key") or "").strip()
@@ -508,21 +540,17 @@ class CatalogImportService:
         if qa_status not in _QA_READY:
             return "qa_not_ready"
 
-        checksum = str(item.get("glb_checksum") or "").strip()
-        if not checksum or not _GLB_CHECKSUM_RE.fullmatch(checksum):
-            return "missing_glb_checksum"
-
         r2_prefix = str(item.get("r2_key_prefix") or "").strip()
         if r2_prefix not in (f"models/{sku}/", f"{FREE_MODELS_PREFIX}{sku}/"):
             return "invalid_r2_prefix"
 
-        preview_key = str(media.get("preview_key") or "").strip()
-        if not preview_key:
+        # A model shows a 3D preview, a 360° spin, or both; the checksum goes with the preview.
+        if str(media.get("preview_key") or "").strip():
+            checksum = str(item.get("glb_checksum") or "").strip()
+            if not _GLB_CHECKSUM_RE.fullmatch(checksum):
+                return "missing_glb_checksum"
+        elif len(media.get("spin_keys") or ()) != SPIN_FRAME_COUNT:
             return "missing_preview"
-
-        package_size = media.get("package_file_size")
-        if package_size is not None and int(package_size) <= 0:
-            return "invalid_export_size"
 
         return None
 
@@ -552,42 +580,102 @@ class CatalogImportService:
     @classmethod
     def resolve_category(
         cls,
-        category_name: str,
-        subcategory_name: str = "",
+        sku: str,
+        sheet_name: str,
         *,
-        warnings: list[str] | None = None,
-    ) -> Category | None:
-        parent_name = category_name.strip()
-        if not parent_name:
-            return None
+        import_batch_id: str,
+        actor_id: str,
+        notes: list[str],
+    ) -> Category:
+        """A new model's category, found by the code in its Model ID (ELE in ELE-000001).
 
-        parent = (
-            Category.objects.filter(name__iexact=parent_name, is_active=True)
-            .order_by("name")
-            .first()
-        )
-        if parent is None:
-            return None
+        The code belongs to one category for good. The sheet's name only links a category
+        that has no code yet (once), or names a new category, which is created hidden and
+        waiting for approval. Raises _RowRefused with the reason otherwise. Runs inside the
+        row's transaction, so a refused row keeps no link and no new category.
+        """
+        code = sku.split("-", 1)[0]
+        if not _CATEGORY_CODE_RE.fullmatch(code):
+            raise _RowRefused("invalid_model_id")
+        by_code = Category.objects.select_for_update().filter(code=code).first()
+        if by_code is not None:
+            return cls._usable_category(by_code, notes)
 
-        child_name = subcategory_name.strip()
-        if not child_name:
-            return parent
-
-        child = (
-            Category.objects.filter(
-                name__iexact=child_name,
-                parent=parent,
-                is_active=True,
+        name = " ".join(sheet_name.split())
+        if not name or len(name) > 255:
+            raise _RowRefused("category_unmapped")
+        named = list(Category.objects.select_for_update().filter(name__iexact=name))
+        if not named:
+            return cls._create_pending_category(
+                name, code, import_batch_id=import_batch_id, actor_id=actor_id, notes=notes
             )
-            .order_by("name")
-            .first()
+        unlinked = [category for category in named if category.is_active and category.code is None]
+        if len(unlinked) > 1:
+            raise _RowRefused("category_ambiguous")
+        if unlinked:
+            return cls._link_code(unlinked[0], code, notes)
+        if any(category.code for category in named):
+            raise _RowRefused("category_code_mismatch")
+        # Only switched-off categories have this name: never revive one silently.
+        raise _RowRefused("category_inactive")
+
+    @staticmethod
+    def _usable_category(category: Category, notes: list[str]) -> Category:
+        if category.is_active:
+            return category
+        if not category.pending_approval:
+            raise _RowRefused("category_inactive")
+        if category.rejected_at is not None:
+            raise _RowRefused("category_rejected")
+        notes.append(CATEGORY_PENDING_APPROVAL)
+        return category
+
+    @classmethod
+    def _link_code(cls, category: Category, code: str, notes: list[str]) -> Category:
+        """Give a category without a code this ID's code, once; later models find it by code."""
+        try:
+            with transaction.atomic():
+                category.code = code
+                category.save(update_fields=["code", "updated_at"])
+        except IntegrityError:
+            # Another import linked the code first.
+            return cls._usable_category(Category.objects.get(code=code), notes)
+        notes.append(CATEGORY_LINKED)
+        return category
+
+    @classmethod
+    def _create_pending_category(
+        cls,
+        name: str,
+        code: str,
+        *,
+        import_batch_id: str,
+        actor_id: str,
+        notes: list[str],
+    ) -> Category:
+        """The first model of a new code creates its category: hidden until an admin approves."""
+        try:
+            with transaction.atomic():
+                category = Category.objects.create(
+                    name=name,
+                    slug=Category.build_slug(name),
+                    code=code,
+                    is_active=False,
+                    pending_approval=True,
+                    created_by_import=True,
+                    created_from_batch=import_batch_id[:128],
+                )
+        except IntegrityError:
+            # Another import created the category for this code first.
+            return cls._usable_category(Category.objects.get(code=code), notes)
+        log_admin_action(
+            action="category_import_create",
+            actor_id=actor_id,
+            target_id=str(category.pk),
+            metadata={"code": code, "name": name, "import_batch_id": import_batch_id},
         )
-        if child is None:
-            # Keep the parent fallback, but tell the uploader the subcategory is missing.
-            if warnings is not None:
-                warnings.append("subcategory_not_found")
-            return parent
-        return child
+        notes.append(CATEGORY_PENDING_APPROVAL)
+        return category
 
     @classmethod
     def _normalize_object_key(cls, raw_key: str, *, sku: str, prefix: str = "") -> str:
@@ -615,21 +703,15 @@ class CatalogImportService:
             sku=sku,
             prefix=prefix,
         )
-        preview_key = cls._normalize_object_key(
-            str(media.get("preview_key") or ""),
-            sku=sku,
-            prefix=prefix,
+        # No preview is fine when the model has a 360° spin (checked by the gate).
+        raw_preview_key = str(media.get("preview_key") or "").strip()
+        preview_key = (
+            cls._normalize_object_key(raw_preview_key, sku=sku, prefix=prefix)
+            if raw_preview_key
+            else ""
         )
         if _is_zip_key(thumbnail_key) or _is_zip_key(preview_key):
             raise ProductError("invalid_object_key", field="object_key")
-
-        package_key_raw = str(media.get("package_key") or "").strip()
-        package_key: str | None = None
-        if package_key_raw:
-            package_key = cls._normalize_object_key(package_key_raw, sku=sku, prefix=prefix)
-            # Only these two names are packages; a paid model's .zip is always private.
-            if package_key not in (f"{prefix}package.zip", f"{prefix}{sku}.zip"):
-                raise ProductError("invalid_object_key", field="package_key")
 
         gallery_keys: list[str] = []
         for raw in media.get("gallery_keys") or []:
@@ -639,21 +721,15 @@ class CatalogImportService:
             gallery_keys.append(key)
         gallery_urls = [build_public_media_url(key) for key in gallery_keys]
         spin_keys = cls._spin_keys(sku, media.get("spin_keys"))
-
-        # The buyer's download is named after the package key unless the batch says otherwise.
-        default_file_name = package_key.rsplit("/", 1)[-1] if package_key else "package.zip"
+        packages, extra_files = cls._package_entries(sku, media, prefix=prefix)
 
         return {
             "thumbnail_key": thumbnail_key,
             "thumbnail_url": build_public_media_url(thumbnail_key),
             "preview_key": preview_key,
-            "preview_url": build_public_media_url(preview_key),
-            "package_key": package_key,
-            "package_file_name": str(media.get("package_file_name") or "").strip()
-            or default_file_name,
-            "package_file_format": str(media.get("package_file_format") or "zip").strip().lower()
-            or "zip",
-            "package_file_size": int(media.get("package_file_size") or 0),
+            "preview_url": build_public_media_url(preview_key) if preview_key else "",
+            "packages": packages,
+            "extra_files": extra_files,
             "gallery_keys": gallery_keys,
             "gallery_urls": gallery_urls,
             # None: keep the product's spin (older plugin); []: clear it; else the 36 frames.
@@ -662,9 +738,51 @@ class CatalogImportService:
             if spin_keys is None
             else [build_public_media_url(key) for key in spin_keys],
             "has_thumbnail": True,
-            "has_preview": True,
-            "has_package": package_key is not None,
+            "has_preview": bool(preview_key),
+            "has_package": True,
         }
+
+    @staticmethod
+    def _package_entries(
+        sku: str, media: dict[str, Any], *, prefix: str
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        """The zips the tool made, one per package kind, checked against the one name each may
+        have: ``{prefix}{sku}_{kind}.zip``. ``media.package_key`` (the main zip) must be one
+        of them. A zip of no known kind is an extra file (D7): not imported, and its name is
+        returned so the row can warn. Any other wrong list is refused with ``invalid_packages``."""
+        entries: list[dict[str, Any]] = []
+        extras: list[str] = []
+        for raw in media.get("packages") or ():
+            if not isinstance(raw, dict):
+                raise ProductError("invalid_packages", field="object_key")
+            kind = str(raw.get("kind") or "").strip()
+            key = media_relative_path(str(raw.get("key") or "").strip())
+            size = raw.get("file_size")
+            if kind not in PACKAGE_KINDS:
+                name = str(raw.get("file_name") or "").strip() or key.rsplit("/", 1)[-1]
+                extras.append(" ".join(name.split())[:120] or "(no name)")
+                continue
+            if (
+                any(entry["kind"] == kind for entry in entries)
+                or key != f"{prefix}{sku}_{kind}.zip"
+                or not isinstance(size, int)
+                or size <= 0
+                or str(raw.get("file_format") or "").strip().lower() != "zip"
+            ):
+                raise ProductError("invalid_packages", field="object_key")
+            entries.append(
+                {
+                    "kind": kind,
+                    "key": key,
+                    "file_name": str(raw.get("file_name") or "").strip()[:255]
+                    or key.rsplit("/", 1)[-1],
+                    "file_size": size,
+                }
+            )
+        main_key = media_relative_path(str(media.get("package_key") or "").strip())
+        if not entries or main_key not in {entry["key"] for entry in entries}:
+            raise ProductError("invalid_packages", field="object_key")
+        return entries, extras
 
     @staticmethod
     def _spin_keys(sku: str, raw: Any) -> list[str] | None:
@@ -703,6 +821,16 @@ class CatalogImportService:
         source_key = media_pointers["preview_key"]
         # preview_not_scanned: None when the product keeps its current preview (unknown).
         pointers = {**media_pointers, "preview_unchecked": False, "preview_not_scanned": False}
+        if not source_key:
+            # No preview sent (a model with a 360° spin): a re-upload keeps the preview it has.
+            kept = existing.preview_model if existing is not None else ""
+            pointers.update(
+                preview_url=kept,
+                preview_triangle_count=existing.preview_triangle_count if kept else None,
+                preview_not_scanned=None,
+                has_preview=bool(kept),
+            )
+            return pointers
         if not source_key.lower().endswith(".glb"):
             raise ProductError("invalid_preview_format", field="preview_key")
 
@@ -919,22 +1047,14 @@ class CatalogImportService:
         return strip_folder_listing(str(item.get("short_description") or ""))[:500]
 
     @classmethod
-    def _sheet_text_differs(cls, product: Product, item: dict[str, Any], *, free_upload: bool) -> bool:
-        """True when the sheet's text or price differs from the product's, so the
-        uploader's report can say the website kept the administrator's version."""
+    def _sheet_text_differs(cls, product: Product, item: dict[str, Any]) -> bool:
+        """True when the sheet's text differs from the product's, so the uploader's report
+        can say the website kept the administrator's version."""
         if str(item.get("name") or "").strip() != product.name:
             return True
         if cls._sheet_description(item) != (product.description or "").strip():
             return True
-        if cls._sheet_short_description(item) != (product.short_description or "").strip():
-            return True
-        if free_upload:
-            return False
-        try:
-            sheet_price = Decimal(str(item.get("price")))
-        except (ArithmeticError, ValueError):
-            return False
-        return sheet_price != product.price
+        return cls._sheet_short_description(item) != (product.short_description or "").strip()
 
     @classmethod
     def _create_product(
@@ -947,14 +1067,6 @@ class CatalogImportService:
         import_source: str,
         media_pointers: dict[str, Any],
     ) -> Product:
-        price = item["price"]
-        if not isinstance(price, Decimal):
-            price = Decimal(str(price))
-        # The sheet's Discount Price is not used: a sale is set on the Pricing page, where the
-        # sale rules (minimum 0.50, below the price, at most 90% off) run. Row warning
-        # sheet_sale_ignored tells the uploader.
-        discount = None
-
         currency = str(item.get("currency") or "USD").strip().upper() or "USD"
         license_type = str(item.get("license_type") or Product.LicenseType.STANDARD).strip()
         if license_type not in {c.value for c in Product.LicenseType}:
@@ -968,11 +1080,9 @@ class CatalogImportService:
             ProductCreateData(
                 category_id=category.pk,
                 name=str(item.get("name") or "").strip(),
-                price=price,
                 description=cls._sheet_description(item),
                 short_description=cls._sheet_short_description(item),
                 currency=currency,
-                discount_price=discount,
                 thumbnail=media_pointers["thumbnail_url"],
                 preview_model=media_pointers["preview_url"],
                 polygon_count=polygon_count,
@@ -1003,16 +1113,14 @@ class CatalogImportService:
         import_batch_id: str,
         import_source: str,
         media_pointers: dict[str, Any],
-        free_upload: bool,
         live_update: bool = False,
     ) -> Product:
         """Update a re-uploaded model's files only; the administrator owns its text.
 
         Name, descriptions, category, price, currency, licence, software and the feature
         ticks are set from the sheet on the first upload and edited in /console after
-        that, so a re-upload never overwrites them. The one exception is a model the
-        uploader marked Free: its files are in the public bucket, so it cannot be sold
-        and the price becomes 0. Back to Pending review, except a live model (``live_update``),
+        that, so a re-upload never overwrites them (the packages' prices follow the Free tick in
+        ``_sync_packages``). Back to Pending review, except a live model (``live_update``),
         which stays published and is flagged for review by ``_sync_review_flags``.
         """
         polygon_count = item.get("polygon_count")
@@ -1022,8 +1130,6 @@ class CatalogImportService:
         return ProductService.update_product(
             product,
             ProductUpdateData(
-                price=Decimal("0") if free_upload else None,
-                clear_discount_price=free_upload,
                 thumbnail=media_pointers["thumbnail_url"],
                 preview_model=media_pointers["preview_url"],
                 polygon_count=polygon_value,
@@ -1040,7 +1146,7 @@ class CatalogImportService:
                 # None keeps the current spin (absent from the batch); [] clears it.
                 spin_images=media_pointers["spin_urls"],
             ),
-            price_source=ProductPriceChange.Source.IMPORT,
+            source=ProductPriceChange.Source.IMPORT,
         )
 
     @classmethod
@@ -1118,22 +1224,87 @@ class CatalogImportService:
         product.qa_notes = notes
         product.save(update_fields=["qa_notes", "updated_at"])
 
-    @classmethod
-    def _sync_package(cls, product: Product, media_pointers: dict[str, Any]) -> None:
-        package_key = media_pointers.get("package_key")
-        # Without a new package in the batch, keep the package already on the product.
-        if not package_key:
+    @staticmethod
+    def _sync_extra_files_note(product: Product, names: list[str]) -> None:
+        """Name the extra zips of the latest upload in the QA notes (D7), so an administrator
+        can add one by hand; an upload without extras clears the line."""
+        kept = [
+            line
+            for line in (product.qa_notes or "").splitlines()
+            if not line.startswith(EXTRA_FILE_NOTE_PREFIX)
+        ]
+        if names:
+            shown = ", ".join(names[:_MAX_EXTRA_NAMES])
+            if len(names) > _MAX_EXTRA_NAMES:
+                shown += f" and {len(names) - _MAX_EXTRA_NAMES} more"
+            kept.append(f"{EXTRA_FILE_NOTE_PREFIX}{shown}{_EXTRA_FILE_NOTE_HINT}")
+        notes = "\n".join(kept).strip()
+        if notes == (product.qa_notes or "").strip():
             return
-        ProductFile.objects.filter(product=product, is_preview=False).delete()
-        ProductFile.objects.create(
-            product=product,
-            file_name=media_pointers["package_file_name"][:255],
-            file_format=media_pointers["package_file_format"][:32],
-            file_size=max(0, int(media_pointers["package_file_size"] or 0)),
-            storage_path=package_key,
-            version="1.0",
-            is_preview=False,
-        )
+        product.qa_notes = notes
+        product.save(update_fields=["qa_notes", "updated_at"])
+
+    @staticmethod
+    def _drops_bought_package(product: Product, packages: list[dict[str, Any]]) -> bool:
+        """True when the upload leaves out a package someone bought (or the product was bought
+        before packages existed, which covers every package)."""
+        incoming = {entry["kind"] for entry in packages}
+        dropped = {
+            row.package_kind
+            for row in product.files.filter(is_preview=False).exclude(package_kind="")
+            if row.package_kind not in incoming
+        }
+        if not dropped:
+            return False
+        bought = bought_package_kinds(product.pk)
+        return "" in bought or bool(dropped & bought)
+
+    @staticmethod
+    def _sync_packages(
+        product: Product, packages: list[dict[str, Any]], *, free_upload: bool
+    ) -> list[str]:
+        """One package row per zip the tool made; returns the kinds that are new.
+
+        A re-upload keeps each package's price and sale. A new paid package has no price (not
+        sold until priced); every package of a free upload costs 0. A paid package left at 0
+        (the model moved out of free-models/) has no price either. A kind the upload no longer
+        has is removed (the caller refused the row if someone bought it).
+        """
+        rows = {
+            row.package_kind: row
+            for row in product.files.filter(is_preview=False).exclude(package_kind="")
+        }
+        new_kinds: list[str] = []
+        changes: list[tuple[ProductFile, PriceState]] = []
+        for entry in packages:
+            row = rows.get(entry["kind"])
+            if row is not None:
+                changes.append((row, PriceState.of(row)))
+            if row is None:
+                row = ProductFile(
+                    product=product,
+                    package_kind=entry["kind"],
+                    price=Decimal("0.00") if free_upload else None,
+                    is_preview=False,
+                )
+                new_kinds.append(entry["kind"])
+            elif free_upload:
+                row.price, row.discount_price, row.discount_ends_at = Decimal("0.00"), None, None
+            elif row.price == 0:
+                row.price = None
+            row.file_name = entry["file_name"]
+            row.file_format = "zip"
+            row.file_size = entry["file_size"]
+            row.storage_path = entry["key"]
+            row.save()
+        incoming = {entry["kind"] for entry in packages}
+        for kind, row in rows.items():
+            if kind not in incoming:
+                row.delete()
+        for row, before in changes:
+            record_price_change(row, before, source=ProductPriceChange.Source.IMPORT)
+        sync_summary_price(product)
+        return new_kinds
 
 
 def spin_frame_keys(sku: str) -> list[str]:

@@ -34,7 +34,8 @@ from payments.checkout_service import CheckoutService
 from payments.models import Payment, StripeWebhookEvent
 from payments.payment_common import e2e_stripe_simulate_enabled, stripe, to_cents
 from payments.stripe_config import collect_stripe_config_report
-from products.models import Product
+from products.models import Product, ProductFile
+from products.packages import PackageKind
 
 
 SMOKE_EMAIL_PREFIX = "stripe-smoke-"
@@ -171,11 +172,22 @@ def run_sandbox_fulfill_smoke(*, cleanup: bool = True) -> StripeFulfillSmokeResu
         price=Decimal("9.99"),
         status=Product.Status.PUBLISHED,
     )
+    # Models are sold per package: the smoke buys the model's priced Whole File package.
+    ProductFile.objects.create(
+        product=product,
+        file_name=f"{product.slug}_whole.zip",
+        file_format="zip",
+        file_size=1,
+        storage_path=f"products/files/{product.slug}_whole.zip",
+        package_kind=PackageKind.WHOLE,
+        price=product.price,
+    )
     cart, _ = Cart.objects.get_or_create(user=user)
     CartItem.objects.create(
         cart=cart,
         product_type=CartItem.ProductType.PRODUCT,
         product_id=product.pk,
+        package_kind=PackageKind.WHOLE,
         quantity=1,
     )
 

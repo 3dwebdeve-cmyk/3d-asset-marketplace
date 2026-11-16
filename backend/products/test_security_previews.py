@@ -136,6 +136,7 @@ class ApprovePreviewGateTests(TestCase):
             file_format="zip",
             file_size=2,
             storage_path=package_key,
+            package_kind="whole",
         )
 
     def _approve_errors(self) -> dict:

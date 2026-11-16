@@ -1,3 +1,4 @@
+import type { PackageKind } from '../lib/packages'
 import type { CategoryParent } from './category'
 
 export type ProductStatus =
@@ -33,8 +34,23 @@ export interface ProductFile {
   storage_path: string
   version: string
   is_preview: boolean
+  /** A package row (one zip sold on its own); '' for the preview or a file with no kind. */
+  package_kind: PackageKind | ''
+  package_label: string
+  /** null: no price yet, so the package is not sold. */
+  price: string | null
+  discount_price: string | null
+  discount_ends_at: string | null
   created_at: string
   updated_at: string
+}
+
+/** The category as QA sees it: a model in a pending or rejected category cannot be approved. */
+export interface AdminProductCategory extends CategoryParent {
+  code: string | null
+  is_active: boolean
+  pending_approval: boolean
+  rejected_at: string | null
 }
 
 export interface AdminProduct {
@@ -82,7 +98,7 @@ export interface AdminProduct {
   reviewed_by: string | null
   /** A published model was uploaded again: still on sale, waiting in the QA queue. */
   pending_update?: boolean
-  category: CategoryParent
+  category: AdminProductCategory
   images: ProductImage[]
   files: ProductFile[]
   created_at: string
@@ -110,19 +126,34 @@ export function isFreeProduct(product: { is_free?: boolean; price: string }): bo
   return product.is_free ?? Number(product.price) === 0
 }
 
-/** One call from the uploader, from the activity log. */
+/** The admin's price text for a model: free uploads by their folder, paid ones by their
+ * cheapest priced package ("From"), or not priced yet. Never by is_free (a paid model with no
+ * priced package has a summary price of 0). */
+export function adminPriceLabel(product: Pick<AdminProduct, 'upload_kind' | 'price' | 'currency'>): string {
+  if (product.upload_kind === 'free') return 'Free'
+  return Number(product.price) > 0 ? `From ${product.currency} ${product.price}` : 'Not priced'
+}
+
+/** A model the import refused, with the reason in words (backend/products/import_reasons.py). */
+export interface UploaderImportRefusal {
+  model_id: string
+  name: string
+  reason: string
+  text: string
+  /** What to do next; '' for a reason the table does not know. */
+  action: string
+}
+
+/** One call from the uploader. */
 export interface UploaderImport {
   id: string
-  target_id: string
+  import_batch_id: string
   created_at: string
-  metadata: {
-    created?: number
-    updated?: number
-    skipped?: number
-    failed?: number
-    /** Model ID → why it did not reach QA. */
-    skipped_reasons?: Record<string, string>
-  }
+  created: number
+  updated: number
+  skipped: number
+  failed: number
+  refused: UploaderImportRefusal[]
 }
 
 /** found: in storage. missing: not there. unknown: storage did not answer. external: another host. */
@@ -150,9 +181,7 @@ export interface AdminProductCreatePayload {
   name: string
   description?: string
   short_description?: string
-  price: string
   currency?: string
-  discount_price?: string | null
   thumbnail?: string
   preview_model?: string
   preview_video?: string
@@ -178,11 +207,7 @@ export interface AdminProductUpdatePayload {
   slug?: string
   description?: string
   short_description?: string
-  price?: string
   currency?: string
-  discount_price?: string | null
-  /** ISO 8601 with time zone, in the future; null removes the end date. */
-  discount_ends_at?: string | null
   thumbnail?: string
   preview_model?: string
   preview_video?: string
@@ -232,6 +257,8 @@ export interface ProductFileUploadPayload {
   file: File
   version?: string
   is_preview?: boolean
+  /** Which package the file is; required for any file that is not the preview. */
+  package_kind?: PackageKind
 }
 
 export interface PublicProduct {
@@ -251,12 +278,29 @@ export interface PublicProduct {
   formats?: string[]
   /** The product page has a 360° view (for the card's "360°" badge). */
   has_360?: boolean
+  /** The lowest price among the model's packages, for a "From $X" card; null with one package. */
+  price_from?: string | null
   category: CategoryParent
   license_type: ProductLicenseType
   average_rating: string
   review_count: number
   total_downloads: number
   created_at: string
+}
+
+/** One package a buyer can choose on the product page (only priced packages are listed). */
+export interface PublicProductPackage {
+  kind: PackageKind
+  label: string
+  /** What the package holds. */
+  description: string
+  file_size: number
+  price: string
+  /** The running sale price, else null. */
+  discount_price: string | null
+  /** What a buyer pays now. */
+  effective_price: string
+  sale_ends_at: string | null
 }
 
 export interface PublicProductFile {
@@ -299,6 +343,10 @@ export interface PublicProductDetail {
   category: CategoryParent
   images: ProductImage[]
   files: PublicProductFile[]
+  /** The packages for sale, in package order. */
+  packages: PublicProductPackage[]
+  /** What Whole File saves against the other listed packages bought apart; null if nothing. */
+  bundle_saving: string | null
   created_at: string
   updated_at: string
 }

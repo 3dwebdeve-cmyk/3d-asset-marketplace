@@ -27,6 +27,9 @@ EXPECTED_FIELDS = {
     "id",
     "source",
     "source_label",
+    # Which package the change priced ("" for a summary-level row) and its label.
+    "package_kind",
+    "package_label",
     "batch_id",
     "currency",
     "old_price",

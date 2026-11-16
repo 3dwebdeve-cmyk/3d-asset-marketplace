@@ -142,14 +142,14 @@ test.describe('admin pricing pipeline', () => {
   test('2. QA approve: paid goes to Waiting for price, free is published', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
 
-    // Paid model: label, suggested price, approve -> Waiting for price.
+    // Paid model: label, no sheet price (prices are set per package), approve -> Waiting for price.
     await openFromQaQueue(page, 'Paid', PAID_QA.sku)
     const qa = page.locator('.admin-create-form').filter({ has: page.getByRole('heading', { name: 'Import QA' }) })
     await expect(qa.getByText('Paid', { exact: true })).toBeVisible()
-    await expect(qa.getByText(/Suggested price \(from the upload sheet\): USD 25(\.00)?/)).toBeVisible()
+    await expect(qa.getByText(/Suggested price/)).toHaveCount(0)
     await qa.getByRole('button', { name: 'Approve quality → send to Pricing' }).click()
     await expect(toast(page, 'Approved. The model now waits on the Pricing page.')).toBeVisible()
-    await expect(qa.getByText(/Waiting for price\. Set the price on the/)).toBeVisible()
+    await expect(qa.getByText(/Waiting for price\. Set a price for each package on the/)).toBeVisible()
     await expect(qa.getByRole('link', { name: 'Pricing page' })).toHaveAttribute('href', '/console/pricing')
     await expect(qa.getByRole('button', { name: /Approve quality/ })).toHaveCount(0)
 
@@ -189,7 +189,7 @@ test.describe('admin pricing pipeline', () => {
     await expect(pricingRow(page, FREE_QA.sku)).toHaveCount(0)
     await expect(pricingRow(page, LIVE.sku)).toHaveCount(0)
 
-    // Row details: poly level, price "Not set", buyer pays.
+    // Row details: poly level, the Whole File package's price (or "Not set"), the "From" price.
     const paidRow = pricingRow(page, PAID_QA.sku)
     await expect(paidRow).toContainText('Mid poly')
     await expect(paidRow).toContainText('$25.00')
@@ -266,7 +266,7 @@ test.describe('admin pricing pipeline', () => {
     await expect(preview).toBeVisible()
     const previewRow = (sku: string) => preview.getByRole('row').filter({ hasText: sku })
     await expect(previewRow(PAID_QA.sku)).toContainText(`$25.00 → $${TIER.mid}`)
-    await expect(previewRow(WAIT_LOW.sku)).toContainText(`$0.00 → $${TIER.low}`)
+    await expect(previewRow(WAIT_LOW.sku)).toContainText(`— → $${TIER.low}`)
     await expect(previewRow(WAIT_MID.sku)).toContainText(`$30.00 → $${TIER.mid}`)
     // The model whose level got no price has a note and blocks the save.
     const unknownNote = previewRow(WAIT_UNKNOWN.sku).locator('td').last()
@@ -282,7 +282,7 @@ test.describe('admin pricing pipeline', () => {
     await page.getByRole('button', { name: 'Calculate preview (3)' }).click()
     await expect(preview).toBeVisible()
     await expect(preview).toContainText('3 models, 3 will change')
-    await expect(preview).toContainText(`Buyers pay $55.00 → ${PUBLISH_TOTAL} in total`)
+    await expect(preview).toContainText(`Whole File: buyers pay $55.00 → ${PUBLISH_TOTAL} in total`)
     await expect(preview.getByRole('row').filter({ hasText: WAIT_UNKNOWN.sku })).toHaveCount(0)
     const save = preview.getByRole('button', { name: 'Save prices' })
     await expect(save).toBeEnabled()
@@ -316,7 +316,8 @@ test.describe('admin pricing pipeline', () => {
 
     await page.getByRole('button', { name: 'Publish selected (1)' }).click()
     const summary = page.getByRole('dialog', { name: 'Publish 1 model?' })
-    await expect(summary).toContainText('total $12.00') // shows $15.00 today
+    await expect(summary).toContainText('with the package prices shown')
+    await expect(summary).not.toContainText('no price yet')
     await summary.getByRole('button', { name: 'Cancel' }).click()
   })
 
@@ -334,8 +335,7 @@ test.describe('admin pricing pipeline', () => {
 
     const summary = page.getByRole('dialog', { name: 'Publish 4 models?' })
     await expect(summary).toBeVisible()
-    await expect(summary).toContainText(`total ${PUBLISH_TOTAL}`)
-    await expect(summary).toContainText(/1 (has|have) no price yet and will stay waiting/)
+    await expect(summary).toContainText(/1 (has|have) a package with no price yet and will stay waiting/)
     await summary.getByRole('button', { name: 'Publish 4 models' }).click()
 
     const results = page.getByRole('region', { name: /published, .* not published/ })
@@ -498,15 +498,17 @@ test.describe('shop and buyer after pricing', () => {
     await page.goto(`/products/${LIVE.slug}`)
     await expect(page.getByRole('heading', { name: LIVE.name })).toBeVisible()
     const purchase = page.getByRole('complementary', { name: 'Product purchase details' })
-    await purchase.getByRole('button', { name: /Add to Cart/i }).click()
-    await expect(purchase.getByRole('button', { name: /^In cart$/i })).toBeVisible({ timeout: 15_000 })
+    // A model is sold per package: tick Whole File (the one package), then add it.
+    await purchase.getByRole('checkbox', { name: 'Whole File' }).check()
+    await purchase.getByRole('button', { name: 'Add selected to cart' }).click()
+    await expect(purchase.getByRole('link', { name: 'In cart' })).toBeVisible({ timeout: 15_000 })
 
     await page.goto('/cart')
     await expect(page.getByRole('heading', { name: 'Your cart' })).toBeVisible()
     const line = page.locator('.cart-page__line').filter({ hasText: LIVE.name })
     await expect(line).toBeVisible()
     await expect(line.locator('.cart-line-item__price')).toHaveText('$32.00')
-    await expect(page.getByRole('checkbox', { name: `Buy ${LIVE.name}` })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: `Buy ${LIVE.name} - Whole File` })).toBeChecked()
     await expect(page.locator('.cart-summary--total')).toContainText('$32.00')
     // Stops before paying: checkout-flow.spec.ts covers the simulated payment.
 
@@ -530,8 +532,8 @@ test.describe('pricing pages at phone width', () => {
     // The table is wider than the phone; its wrapper scrolls sideways to the price columns.
     const tableWrap = page.locator('.admin-pricing__layout .admin-table-wrap').first()
     await expect(tableWrap).toHaveCSS('overflow-x', 'auto')
-    await page.getByRole('columnheader', { name: 'Buyer pays' }).scrollIntoViewIfNeeded()
-    await expect(page.getByRole('columnheader', { name: 'Buyer pays' })).toBeInViewport()
+    await page.getByRole('columnheader', { name: 'From', exact: true }).scrollIntoViewIfNeeded()
+    await expect(page.getByRole('columnheader', { name: 'From', exact: true })).toBeInViewport()
     await expectNoHorizontalScroll(page)
   })
 

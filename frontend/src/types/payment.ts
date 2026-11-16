@@ -1,9 +1,12 @@
+import type { PackageKind } from '../lib/packages'
 import type { CartProductType } from './cart'
 
 /** A cart line to buy: checkout pays for these only. */
 export interface CheckoutItem {
   product_type: CartProductType
   product_id: string
+  /** The package of a model (one line per package); leave out for a plugin. */
+  package_kind?: PackageKind
 }
 
 export interface CheckoutSessionResponse {

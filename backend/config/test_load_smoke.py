@@ -14,6 +14,7 @@ from django.urls import reverse
 from categories.models import Category
 from config.load_smoke import run_load_smoke
 from products.models import Product, ProductImage
+from products.testing import sell_package
 
 
 @override_settings(
@@ -49,6 +50,8 @@ class LoadSmokeRunTests(TestCase):
                 "http://127.0.0.1:8000/media/products/previews/oak.glb"
             ),
         )
+        # Models are sold per package: the smoke buys this one's Whole File.
+        sell_package(self.product)
         ProductImage.objects.create(
             product=self.product,
             image_url=(
@@ -155,6 +158,7 @@ class LoadSmokeCdnTests(TestCase):
             thumbnail=f"{base}/products/images/cdn.jpg",
             preview_model=f"{base}/products/previews/cdn.glb",
         )
+        sell_package(self.product)
         ProductImage.objects.create(
             product=self.product,
             image_url=f"{base}/products/images/cdn-g.jpg",

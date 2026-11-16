@@ -95,7 +95,10 @@ export function ProductCard({ product }: ProductCardProps) {
         </h3>
 
         <div className="product-card__price-container">
-          {hasDiscount ? (
+          {/* Several packages: the lowest price a buyer can pay now. */}
+          {!isFree && product.price_from ? (
+            <span className="product-card__price">From {formatCardPrice(Number(product.price_from))}</span>
+          ) : hasDiscount ? (
             <>
               <span className="product-card__price">{formattedPrice}</span>
               <span className="product-card__price product-card__price--original">

@@ -16,6 +16,9 @@ vi.mock('../../api/categoriesApi', async () => {
     ...actual,
     listAdminCategories: vi.fn(),
     createAdminCategory: vi.fn(),
+    approveAdminCategory: vi.fn(),
+    mergeAdminCategory: vi.fn(),
+    rejectAdminCategory: vi.fn(),
   }
 })
 
@@ -32,17 +35,31 @@ const sampleCategories = {
       image: '',
       parent: null,
       is_active: true,
+      code: null, pending_approval: false, created_by_import: false, created_from_batch: '', rejected_at: null, product_count: 0,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     },
   ],
 }
 
-function renderCategoriesPage() {
+const pendingCategory = {
+  ...sampleCategories.results[0],
+  id: '9c1f3a3e-0000-4000-8000-000000000001',
+  name: 'Outdoor',
+  slug: 'outdoor',
+  is_active: false,
+  code: 'OUT',
+  pending_approval: true,
+  created_by_import: true,
+  created_from_batch: '2026-11-16-run-01',
+  product_count: 2,
+}
+
+function renderCategoriesPage(path = '/console/categories') {
   const queryClient = createTestQueryClient()
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/console/categories']}>
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/console/categories" element={<AdminCategoriesPage />} />
           <Route path="/console" element={<div>Admin Dashboard</div>} />
@@ -131,5 +148,58 @@ describe('AdminCategoriesPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Admin Dashboard')).toBeInTheDocument()
     })
+  })
+
+  it('sends the model code in capitals when creating a category', async () => {
+    const user = userEvent.setup()
+    vi.mocked(categoriesApi.createAdminCategory).mockResolvedValue(sampleCategories.results[0])
+    renderCategoriesPage()
+
+    await user.click(screen.getByRole('button', { name: /create category/i }))
+    await user.type(screen.getByLabelText(/^name$/i), 'Lighting')
+    await user.type(screen.getByLabelText(/model code/i), 'lit')
+    await user.click(screen.getByRole('button', { name: /^create category$/i }))
+
+    await waitFor(() => expect(categoriesApi.createAdminCategory).toHaveBeenCalled())
+    expect(vi.mocked(categoriesApi.createAdminCategory).mock.calls[0]?.[0]).toMatchObject({
+      name: 'Lighting',
+      code: 'LIT',
+    })
+  })
+
+  it('lists new categories waiting for approval with approve, merge and reject', async () => {
+    vi.mocked(categoriesApi.listAdminCategories).mockImplementation(async (params) => ({
+      ...sampleCategories,
+      results: params?.pending_approval ? [pendingCategory] : sampleCategories.results,
+    }))
+    vi.mocked(categoriesApi.approveAdminCategory).mockResolvedValue({ ...pendingCategory, is_active: true })
+    vi.mocked(categoriesApi.mergeAdminCategory).mockResolvedValue(sampleCategories.results[0])
+    vi.mocked(categoriesApi.rejectAdminCategory).mockResolvedValue(null)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = userEvent.setup()
+    renderCategoriesPage('/console/categories?status=pending')
+
+    expect(await screen.findByText('Outdoor')).toBeInTheDocument()
+    expect(categoriesApi.listAdminCategories).toHaveBeenCalledWith(
+      expect.objectContaining({ pending_approval: true }),
+    )
+    expect(screen.getByLabelText('Filter by status')).toHaveValue('pending')
+    expect(screen.getByText('Waiting for approval', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByText(/2 models · upload 2026-11-16-run-01/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Approve category' }))
+    expect(categoriesApi.approveAdminCategory).toHaveBeenCalledWith(pendingCategory.id)
+
+    const mergeButton = screen.getByRole('button', { name: 'Merge' })
+    expect(mergeButton).toBeDisabled()
+    await user.selectOptions(await screen.findByLabelText('Merge Outdoor into'), 'Furniture')
+    await user.click(mergeButton)
+    expect(categoriesApi.mergeAdminCategory).toHaveBeenCalledWith(
+      pendingCategory.id,
+      sampleCategories.results[0].id,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Reject' }))
+    expect(categoriesApi.rejectAdminCategory).toHaveBeenCalledWith(pendingCategory.id)
   })
 })

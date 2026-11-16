@@ -19,6 +19,8 @@ function change(overrides: Partial<ProductPriceChange>): ProductPriceChange {
     id: 'row-1',
     source: 'admin_edit',
     source_label: 'Admin edit',
+    package_kind: '',
+    package_label: '',
     batch_id: '',
     currency: 'USD',
     old_price: '10.00',
@@ -80,6 +82,23 @@ describe('ProductPriceHistoryPanel', () => {
 
     expect(await screen.findByText('System')).toBeInTheDocument()
     expect(screen.getByText('Sale ended')).toBeInTheDocument()
+  })
+
+  it('names the package of each change, and Model for a change to the model itself', async () => {
+    vi.mocked(priceHistoryApi.getAdminProductPriceHistory).mockResolvedValue({
+      results: [
+        change({ id: 'row-1', source: 'pricing_page', source_label: 'Pricing page', package_kind: 'whole', package_label: 'Whole File' }),
+        change({ id: 'row-2' }),
+      ],
+    })
+    const user = userEvent.setup()
+    renderPanel()
+
+    await user.click(screen.getByRole('button', { name: /price history/i }))
+
+    const rows = await screen.findAllByRole('row')
+    expect(rows[1]).toHaveTextContent('Whole File')
+    expect(rows[2]).toHaveTextContent('Model')
   })
 
   it('shows an empty state', async () => {

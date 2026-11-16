@@ -27,6 +27,7 @@ import {
   PRODUCT_IMAGE_MAX_MB,
 } from '../../lib/productUpload'
 import { formatFileSize } from '../../lib/format'
+import { PACKAGE_LABELS, PACKAGE_ORDER, sortedPackages, type PackageKind } from '../../lib/packages'
 import { FormatBadges } from '../../components/admin/FormatBadges'
 import { SPIN_FRAME_COUNT, hasSpin } from '../../lib/spin'
 import { ProductSpinViewer } from '../Products/ProductSpinViewer'
@@ -54,6 +55,7 @@ export function ProductMediaSection({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [mediaError, setMediaError] = useState<string | null>(null)
   const [fileVersion, setFileVersion] = useState('1.0')
+  const [packageKind, setPackageKind] = useState<PackageKind | ''>('')
   const [isImageDragActive, setIsImageDragActive] = useState(false)
   const [isFileDragActive, setIsFileDragActive] = useState(false)
 
@@ -97,6 +99,7 @@ export function ProductMediaSection({
         version: fileVersion,
         // GLB/glTF always become the interactive preview (server also enforces this).
         is_preview: isPreviewModelFile(file),
+        package_kind: isPreviewModelFile(file) ? undefined : packageKind || undefined,
       }),
     onSuccess: async (uploaded) => {
       toast.success(
@@ -108,6 +111,7 @@ export function ProductMediaSection({
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+      setPackageKind('')
       await invalidateProduct()
     },
     onError: (error) => {
@@ -137,6 +141,11 @@ export function ProductMediaSection({
     const maxMb = isPreviewModelFile(file) ? PRODUCT_PREVIEW_MAX_MB : PRODUCT_FILE_MAX_MB
     if (file.size > maxMb * 1024 * 1024) {
       setMediaError(`${isPreviewModelFile(file) ? 'Preview model' : 'File'} must be ${maxMb} MB or smaller.`)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+    if (!isPreviewModelFile(file) && !packageKind) {
+      setMediaError('Choose which package this file is before uploading it.')
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
     }
@@ -175,6 +184,10 @@ export function ProductMediaSection({
     }
   }
 
+  const packages = sortedPackages(product.files)
+  const otherFiles = product.files.filter((file) => file.package_kind === '')
+  const freeKinds = PACKAGE_ORDER.filter((kind) => !packages.some((row) => row.package_kind === kind))
+
   return (
     <section className="admin-media-section" aria-labelledby="product-media-title">
       <h2 id="product-media-title">Images and model files</h2>
@@ -193,6 +206,8 @@ export function ProductMediaSection({
               ariaLabel={`3D preview of ${product.name}`}
             />
           </Suspense>
+        ) : hasSpin(product.spin_images) ? (
+          <p className="admin-media-panel__hint">No 3D preview - 360 only. The product page shows the 360° view.</p>
         ) : (
           <p className="home-page__subtitle">
             Upload a GLB or self-contained GLTF file (max {PRODUCT_PREVIEW_MAX_MB} MB) below to test the 3D preview. Other formats are downloads only.
@@ -315,6 +330,52 @@ export function ProductMediaSection({
       </div>
 
       <div className="admin-media-panel">
+        <h3 className="admin-media-panel__title">Packages</h3>
+        <p className="admin-media-panel__hint">
+          Each package is one zip, sold on its own. Prices are set on the Pricing page.
+        </p>
+        {packages.length ? (
+          <table className="admin-packages-table">
+            <thead>
+              <tr>
+                <th scope="col">Package</th>
+                <th scope="col">File</th>
+                <th scope="col">Size</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {packages.map((file) => (
+                <tr key={file.id}>
+                  <th scope="row">{file.package_label}</th>
+                  <td>{file.file_name}</td>
+                  <td>{formatFileSize(file.file_size)}</td>
+                  <td>
+                    <a className="auth-link" href={file.storage_path} target="_blank" rel="noreferrer">
+                      Download
+                    </a>{' '}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      isLoading={fileDeleteMutation.isPending}
+                      onClick={() =>
+                        window.confirm(`Remove the ${file.package_label} package? It will no longer be sold.`) &&
+                        fileDeleteMutation.mutate(file.id)
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="home-page__subtitle">No packages yet: the model cannot be published.</p>
+        )}
+      </div>
+
+      <div className="admin-media-panel">
         <h3 className="admin-media-panel__title">3D model files</h3>
         <p className="admin-media-panel__hint">
           Upload source and delivery formats for this product. Packages max{' '}
@@ -323,6 +384,21 @@ export function ProductMediaSection({
         </p>
         <FormatBadges labels={PRODUCT_FILE_FORMAT_LABELS} />
 
+        <FormField id="product-file-package" label="Package (for a zip or model file)">
+          <select
+            id="product-file-package"
+            className="ui-input"
+            value={packageKind}
+            onChange={(event) => setPackageKind(event.target.value as PackageKind | '')}
+          >
+            <option value="">Choose a package…</option>
+            {freeKinds.map((kind) => (
+              <option key={kind} value={kind}>
+                {PACKAGE_LABELS[kind]}
+              </option>
+            ))}
+          </select>
+        </FormField>
         <FormField id="product-file-version" label="File version">
           <Input
             id="product-file-version"
@@ -332,7 +408,7 @@ export function ProductMediaSection({
         </FormField>
         <p className="home-page__subtitle">
           GLB and GLTF uploads are always used as the interactive 3D preview.
-          Other formats are stored as downloadable package files.
+          Any other file becomes the package chosen above, with no price until the Pricing page sets one.
         </p>
 
         <div
@@ -371,9 +447,9 @@ export function ProductMediaSection({
           </label>
         </div>
 
-        {product.files.length ? (
+        {otherFiles.length ? (
           <ul className="admin-media-list">
-            {product.files.map((file) => (
+            {otherFiles.map((file) => (
               <li key={file.id} className="admin-media-item admin-media-item--file">
                 <span className="admin-format-badge admin-format-badge--large">
                   {formatFormatLabel(file.file_format)}
@@ -384,7 +460,7 @@ export function ProductMediaSection({
                     Version {file.version} · {formatFileSize(file.file_size)}
                     {file.is_preview && PREVIEW_MODEL_FORMATS.has(file.file_format)
                       ? ' · Interactive preview'
-                      : ''}
+                      : ' · No package kind (older upload)'}
                   </p>
                   <div className="admin-media-item__actions">
                     <a
@@ -409,7 +485,7 @@ export function ProductMediaSection({
             ))}
           </ul>
         ) : (
-          <p className="home-page__subtitle">No downloadable files yet.</p>
+          <p className="home-page__subtitle">No preview file uploaded here.</p>
         )}
       </div>
     </section>

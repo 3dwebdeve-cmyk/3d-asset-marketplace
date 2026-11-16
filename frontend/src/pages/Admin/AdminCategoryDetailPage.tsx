@@ -19,6 +19,7 @@ import { getApiErrorMessage, isHttpNotFound } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type { AdminCategoryUpdatePayload } from '../../types/category'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
+import { PendingCategoryActions } from './PendingCategoryActions'
 
 export function AdminCategoryDetailPage() {
   const { categoryId = '' } = useParams()
@@ -48,7 +49,9 @@ export function AdminCategoryDetailPage() {
       description: categoryQuery.data.description,
       image: categoryQuery.data.image,
       parent_id: categoryQuery.data.parent?.id ?? null,
-      is_active: categoryQuery.data.is_active,
+      // A category waiting for approval goes live only through Approve.
+      is_active: categoryQuery.data.pending_approval ? undefined : categoryQuery.data.is_active,
+      code: categoryQuery.data.code ?? '',
     })
   }, [categoryQuery.data])
 
@@ -81,8 +84,14 @@ export function AdminCategoryDetailPage() {
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     setFormError(null)
-    saveMutation.mutate(form)
+    const { code, ...rest } = form
+    const newCode = code?.trim().toUpperCase() || null
+    // The code is sent only when it changed: it is fixed once the category has models.
+    saveMutation.mutate(newCode === (category?.code ?? null) ? rest : { ...rest, code: newCode })
   }
+
+  const category = categoryQuery.data
+  const codeLocked = (category?.product_count ?? 0) > 0
 
   const parentOptions =
     parentOptionsQuery.data?.results.filter(
@@ -165,6 +174,24 @@ export function AdminCategoryDetailPage() {
                 }
               />
             </FormField>
+            <FormField id="detail-code" label="Model code">
+              <Input
+                id="detail-code"
+                maxLength={5}
+                placeholder="ELE"
+                aria-describedby="detail-code-hint"
+                readOnly={codeLocked}
+                value={form.code ?? ''}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))
+                }
+              />
+            </FormField>
+            <p id="detail-code-hint" className="admin-media-panel__hint">
+              {codeLocked
+                ? "Fixed: this category has models, and the code is part of their Model IDs."
+                : "2 to 5 capital letters: the start of this category's Model IDs (ELE in ELE-000001). New uploads with this code go to this category."}
+            </p>
             <FormField id="detail-parent" label="Parent category">
               <select
                 id="detail-parent"
@@ -185,22 +212,36 @@ export function AdminCategoryDetailPage() {
                 ))}
               </select>
             </FormField>
-            <FormField id="detail-active" label="Status">
-              <select
-                id="detail-active"
-                className="ui-input"
-                value={form.is_active ? 'active' : 'inactive'}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    is_active: event.target.value === 'active',
-                  }))
-                }
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </FormField>
+            {category?.pending_approval ? (
+              <div className="admin-media-panel">
+                <h2 className="admin-media-panel__title">
+                  {category.rejected_at ? 'Rejected' : 'Waiting for approval'}
+                </h2>
+                <p className="admin-media-panel__hint">
+                  Created by an upload{category.created_from_batch ? ` (${category.created_from_batch})` : ''}{' '}
+                  with {category.product_count} model{category.product_count === 1 ? '' : 's'}. Hidden on
+                  the site until approved; its models cannot be approved before.
+                </p>
+                <PendingCategoryActions category={category} />
+              </div>
+            ) : (
+              <FormField id="detail-active" label="Status">
+                <select
+                  id="detail-active"
+                  className="ui-input"
+                  value={form.is_active ? 'active' : 'inactive'}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      is_active: event.target.value === 'active',
+                    }))
+                  }
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </FormField>
+            )}
             <div className="dashboard-card__actions">
               <Button type="submit" isLoading={saveMutation.isPending}>
                 Save changes

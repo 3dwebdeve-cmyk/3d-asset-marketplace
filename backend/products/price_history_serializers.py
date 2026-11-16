@@ -5,11 +5,14 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from products.models import ProductPriceChange
+from products.packages import PACKAGE_LABELS
 
 
 class ProductPriceChangeSerializer(serializers.ModelSerializer):
     source_label = serializers.CharField(source="get_source_display", read_only=True)
     changed_by = serializers.SerializerMethodField()
+    # The package whose price changed ("" for a change to the model itself).
+    package_label = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductPriceChange
@@ -17,6 +20,8 @@ class ProductPriceChangeSerializer(serializers.ModelSerializer):
             "id",
             "source",
             "source_label",
+            "package_kind",
+            "package_label",
             "batch_id",
             "currency",
             "old_price",
@@ -35,3 +40,6 @@ class ProductPriceChangeSerializer(serializers.ModelSerializer):
         if user is None:
             return None
         return {"id": str(user.pk), "full_name": user.full_name, "email": user.email}
+
+    def get_package_label(self, obj: ProductPriceChange) -> str:
+        return PACKAGE_LABELS.get(obj.package_kind, "")
