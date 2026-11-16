@@ -38,6 +38,13 @@ PACKAGE_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+def line_title(name: str, kind: str) -> str:
+    """A cart or order line's title: "<model name> - <package label>" (the model name alone
+    for a line with no package, such as a plugin)."""
+    label = PACKAGE_LABELS.get(kind, "")
+    return f"{name} - {label}" if label else name
+
+
 def sync_summary_price(product: Product) -> None:
     """Keep the product's price fields equal to its cheapest priced package.
 

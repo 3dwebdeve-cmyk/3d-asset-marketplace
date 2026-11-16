@@ -51,22 +51,23 @@ def _accepted_legal_from_request(request: Request):
 def _cart_fingerprint(user, selected=None) -> str:
     """Hash of the cart's lines, prices and currency, so a replayed checkout key cannot
     return a session that was priced before the cart or the catalog changed."""
-    from cart.services import CartService
+    from cart.services import CartService, line_key
 
     envelope = CartService.get_cart_envelope(user)
     parts = [str(envelope.totals.total), str(envelope.totals.currency)]
-    parts.extend(sorted(f"{kind}:{pk}" for kind, pk in selected or ()))
-    for item in sorted(envelope.items, key=lambda row: (row.product_type, str(row.product_id))):
-        snapshot = envelope.snapshots.get((item.product_type, item.product_id)) or {}
+    parts.extend(sorted(f"{kind}:{pk}:{package}" for kind, pk, package in selected or ()))
+    for item in sorted(envelope.items, key=lambda row: (row.product_type, str(row.product_id), row.package_kind)):
+        snapshot = envelope.snapshots.get(line_key(item)) or {}
         parts.append(
-            f"{item.product_type}:{item.product_id}:{item.quantity}:"
+            f"{item.product_type}:{item.product_id}:{item.package_kind}:{item.quantity}:"
             f"{snapshot.get('effective_price')}:{snapshot.get('is_available')}"
         )
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
 
 
 def _selected_items_from_request(request: Request):
-    """Optional `items: [{product_type, product_id}]`: buy only these cart lines."""
+    """Optional `items: [{product_type, product_id, package_kind}]`: buy only these cart
+    lines (one line per package of a model; package_kind is blank for a plugin)."""
     data = request.data
     raw = data.get("items") if isinstance(data, dict) else None
     if raw is None:
@@ -74,8 +75,11 @@ def _selected_items_from_request(request: Request):
     if not isinstance(raw, list) or not raw:
         raise ValidationError({"items": ["Select at least one item to buy."]})
     try:
-        return {(str(row["product_type"]), UUID(str(row["product_id"]))) for row in raw}
-    except (KeyError, TypeError, ValueError):
+        return {
+            (str(row["product_type"]), UUID(str(row["product_id"])), str(row.get("package_kind") or ""))
+            for row in raw
+        }
+    except (AttributeError, KeyError, TypeError, ValueError):
         raise ValidationError({"items": ["Each item needs a product_type and product_id."]}) from None
 
 

@@ -7,7 +7,12 @@ from rest_framework import serializers
 from categories.models import Category
 from config.media import SPIN_FRAME_COUNT
 from products.models import Product, ProductFile, ProductImage
-from products.packages import PACKAGE_LABELS, PackageKind
+from products.packages import (
+    PACKAGE_DESCRIPTIONS,
+    PACKAGE_LABELS,
+    PACKAGE_ORDER,
+    PackageKind,
+)
 from products.upload_rules import (
     validate_product_file_upload,
     validate_product_image_upload,
@@ -145,6 +150,17 @@ class BuyerPriceFieldsMixin(serializers.Serializer):
         return _DATETIME_FIELD.to_representation(obj.discount_ends_at)
 
 
+def priced_packages(files) -> list[ProductFile]:
+    """A product's packages that are for sale (priced), in PACKAGE_ORDER. ``files`` are its
+    prefetched file rows."""
+    rows = {
+        row.package_kind: row
+        for row in files
+        if not row.is_preview and row.package_kind and row.price is not None
+    }
+    return [rows[kind] for kind in PACKAGE_ORDER if kind in rows]
+
+
 def has_spin(obj: Product) -> bool:
     """A product shows a 360° viewer only with all 36 frames."""
     return len(obj.spin_images or ()) == SPIN_FRAME_COUNT
@@ -155,6 +171,17 @@ class ProductListPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSerial
     formats = serializers.SerializerMethodField()
     # True when the product page has a 360° spin (for the card's "360°" badge).
     has_360 = serializers.SerializerMethodField()
+    # The lowest price a buyer pays now among the model's packages, for a "From $X" card;
+    # null when the model has one priced package (the card shows its price as before).
+    price_from = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True))
+    def get_price_from(self, obj: Product):
+        now = self._price_now()
+        packages = priced_packages(getattr(obj, "filter_files", ()))
+        if len(packages) < 2:
+            return None
+        return _PRICE_FIELD.to_representation(min(row.effective_price(now) for row in packages))
 
     def get_formats(self, obj: Product) -> list[str]:
         return product_formats(obj, getattr(obj, "filter_files", ()))
@@ -183,9 +210,44 @@ class ProductListPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSerial
             "review_count",
             "total_downloads",
             "has_360",
+            "price_from",
             "created_at",
         )
         read_only_fields = fields
+
+
+class ProductPackagePublicSerializer(serializers.Serializer):
+    """One package a buyer can choose: its contents, size and price now."""
+
+    kind = serializers.CharField(source="package_kind")
+    label = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    file_size = serializers.IntegerField()
+    price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    discount_price = serializers.SerializerMethodField()
+    effective_price = serializers.SerializerMethodField()
+    sale_ends_at = serializers.SerializerMethodField()
+
+    def get_label(self, obj: ProductFile) -> str:
+        return PACKAGE_LABELS[obj.package_kind]
+
+    def get_description(self, obj: ProductFile) -> str:
+        return PACKAGE_DESCRIPTIONS[obj.package_kind]
+
+    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True))
+    def get_discount_price(self, obj: ProductFile):
+        sale = obj.active_discount_price(self.context["now"])
+        return None if sale is None else _PRICE_FIELD.to_representation(sale)
+
+    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2))
+    def get_effective_price(self, obj: ProductFile):
+        return _PRICE_FIELD.to_representation(obj.effective_price(self.context["now"]))
+
+    @extend_schema_field(serializers.DateTimeField(allow_null=True))
+    def get_sale_ends_at(self, obj: ProductFile):
+        if obj.discount_ends_at is None or obj.active_discount_price(self.context["now"]) is None:
+            return None
+        return _DATETIME_FIELD.to_representation(obj.discount_ends_at)
 
 
 class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSerializer):
@@ -193,9 +255,31 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
     images = ProductImageSerializer(many=True, read_only=True)
     files = ProductFilePublicSerializer(many=True, read_only=True)
     formats = serializers.SerializerMethodField()
+    # The packages for sale (priced), in PACKAGE_ORDER: one option each on the product page.
+    packages = serializers.SerializerMethodField()
+    # What Whole File saves against buying the other listed packages one by one; null unless
+    # Whole File and at least one other package are listed (and it does save).
+    bundle_saving = serializers.SerializerMethodField()
 
     def get_formats(self, obj: Product) -> list[str]:
         return product_formats(obj, obj.files.all())
+
+    @extend_schema_field(ProductPackagePublicSerializer(many=True))
+    def get_packages(self, obj: Product) -> list[dict]:
+        now = self._price_now()
+        return ProductPackagePublicSerializer(
+            priced_packages(obj.files.all()), many=True, context={"now": now}
+        ).data
+
+    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True))
+    def get_bundle_saving(self, obj: Product):
+        now = self._price_now()
+        prices = {row.package_kind: row.effective_price(now) for row in priced_packages(obj.files.all())}
+        whole = prices.pop(PackageKind.WHOLE, None)
+        if whole is None or not prices:
+            return None
+        saving = sum(prices.values()) - whole
+        return _PRICE_FIELD.to_representation(saving) if saving > 0 else None
 
     class Meta:
         model = Product
@@ -227,6 +311,8 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
             "images",
             "files",
             "formats",
+            "packages",
+            "bundle_saving",
             "created_at",
             "updated_at",
         )

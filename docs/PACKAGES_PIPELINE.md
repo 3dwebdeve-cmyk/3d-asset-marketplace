@@ -706,6 +706,27 @@ Whole File; no GLB).
   `pending_approval` and gets `rejected_at` (migration `categories/0004`). New uploads with its
   code are refused (`category_rejected`) until it is approved or merged.
 
+### Found while building Phase 4
+
+- **F14. `owned` and `in_cart` are not in the product page response.** The public product detail
+  is cached for everyone (`PublicCatalogCacheMixin`), so it cannot carry per-user flags. It lists
+  the packages; the page reads ownership from My Downloads (`package_kinds` on each entitlement)
+  and the cart from the cart API, as it already did for whole products.
+- **F15. `user_owns_catalog_item` stays, with one meaning.** It answers "owns the plugin, or at
+  least one package of the model". Reviews need exactly that (any owned package allows a review),
+  and so do the rollback rehearsal and the Stripe smoke. The cart, checkout and downloads check
+  each package with `owned_package_kinds` / `owned_line_keys`.
+- **F16. Cart lines are keyed by package everywhere.** `line_key` = `(product_type, product_id,
+  package_kind)`: cart snapshots, the checkout selection (`items[].package_kind`), the checkout
+  fingerprint, the webhook's cart clean-up and order file lists.
+- **F17. Cart buttons outside the product page.** A model has no single "Add to cart" any more:
+  the product image's cart icon is gone, and a model on the wishlist links to its page
+  ("Choose packages"). The shared buy box (`CommerceCtaGroup`) now serves plugins only.
+- **F18. Old order lines.** A model line from before packages shows "All packages" in the order
+  pages, and its files are every file of the model (including files without a kind, D7).
+- **F19. Smoke scripts.** `rollback_rehearsal`, `stripe_smoke` and `load_smoke` buy a priced Whole
+  File package (the load smoke buys the product's cheapest priced package).
+
 D7 (extra files) was answered on 2026-11-16; see Decisions above.
 
 ## Decisions as first asked (kept for the record)

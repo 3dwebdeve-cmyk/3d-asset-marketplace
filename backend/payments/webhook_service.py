@@ -158,7 +158,7 @@ class WebhookService:
                 order = OrderService.update_payment_status(order, Order.PaymentStatus.PAID)
 
         purchased_keys = {
-            (item.product_type, item.product_id)
+            (item.product_type, item.product_id, item.package_kind)
             for item in order.items.all()
             if item.product_type
             in {OrderItem.ProductType.PRODUCT, OrderItem.ProductType.PLUGIN}

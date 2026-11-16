@@ -195,12 +195,19 @@ function WishlistItemCard({
           </div>
 
           {isAvailable && catalog ? (
-            <AddToCartButton
-              productType={item.product_type}
-              productId={item.product_id}
-              productName={catalog.name}
-              variant="marketplace"
-            />
+            item.product_type === 'product' ? (
+              // A model is sold per package: the buyer picks them on its page.
+              detailPath ? <Link to={detailPath} className="product-card__add-cart">
+                <span>Choose packages</span>
+              </Link> : null
+            ) : (
+              <AddToCartButton
+                productType={item.product_type}
+                productId={item.product_id}
+                productName={catalog.name}
+                variant="marketplace"
+              />
+            )
           ) : null}
         </div>
       </div>

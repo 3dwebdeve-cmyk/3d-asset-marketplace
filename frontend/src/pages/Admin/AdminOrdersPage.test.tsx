@@ -202,6 +202,8 @@ describe('AdminOrdersPage', () => {
           id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
           product_type: 'product',
           product_id: productId,
+          package_kind: 'whole',
+          package_label: 'Whole File',
           title: 'Oak Chair',
           slug: 'oak-chair',
           quantity: 2,

@@ -130,6 +130,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(product.pk),
+                "package_kind": "whole",
                 "quantity": 1,
             },
             format="json",
@@ -158,6 +159,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(product.pk),
+                "package_kind": "whole",
                 "quantity": 1,
             },
             format="json",

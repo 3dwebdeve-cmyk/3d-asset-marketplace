@@ -278,12 +278,29 @@ export interface PublicProduct {
   formats?: string[]
   /** The product page has a 360° view (for the card's "360°" badge). */
   has_360?: boolean
+  /** The lowest price among the model's packages, for a "From $X" card; null with one package. */
+  price_from?: string | null
   category: CategoryParent
   license_type: ProductLicenseType
   average_rating: string
   review_count: number
   total_downloads: number
   created_at: string
+}
+
+/** One package a buyer can choose on the product page (only priced packages are listed). */
+export interface PublicProductPackage {
+  kind: PackageKind
+  label: string
+  /** What the package holds. */
+  description: string
+  file_size: number
+  price: string
+  /** The running sale price, else null. */
+  discount_price: string | null
+  /** What a buyer pays now. */
+  effective_price: string
+  sale_ends_at: string | null
 }
 
 export interface PublicProductFile {
@@ -326,6 +343,10 @@ export interface PublicProductDetail {
   category: CategoryParent
   images: ProductImage[]
   files: PublicProductFile[]
+  /** The packages for sale, in package order. */
+  packages: PublicProductPackage[]
+  /** What Whole File saves against the other listed packages bought apart; null if nothing. */
+  bundle_saving: string | null
   created_at: string
   updated_at: string
 }

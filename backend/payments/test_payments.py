@@ -17,6 +17,7 @@ from orders.models import Order, OrderItem
 from payments.models import Payment, StripeWebhookEvent
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
+from products.testing import sell_package
 
 
 class _FakeStripeObject:
@@ -67,6 +68,7 @@ class PaymentsTestMixin:
             price=Decimal("49.99"),
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.product)
         self.plugin_category = PluginCategory.objects.create(
             name="Tools",
             slug="tools",
@@ -99,6 +101,8 @@ class PaymentsTestMixin:
             cart=cart,
             product_type=product_type,
             product_id=product_id,
+            # A model is bought per package; the tests buy its Whole File.
+            package_kind="whole" if product_type == "product" else "",
             quantity=quantity,
         )
 

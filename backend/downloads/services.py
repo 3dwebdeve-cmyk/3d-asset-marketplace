@@ -16,15 +16,23 @@ from django.utils import timezone
 from config.media import PrivateFileNotFound, resolve_private_download
 from config.sentry import capture_download_spike
 from downloads.models import DownloadHistory
-from orders.entitlements import user_owns_catalog_item
+from orders.entitlements import kinds_of_line, owned_package_kinds, user_owns_catalog_item
 from orders.models import Order, OrderItem
 from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
+from products.packages import PACKAGE_LABELS, PACKAGE_ORDER
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
 PRODUCT_TYPE_PRODUCT = DownloadHistory.ProductType.PRODUCT
 PRODUCT_TYPE_PLUGIN = DownloadHistory.ProductType.PLUGIN
+
+
+def _package_sort_key(row: ProductFile) -> tuple[int, float]:
+    """Packages in PACKAGE_ORDER, then files without a kind (newest first among those)."""
+    if row.package_kind in PACKAGE_ORDER:
+        return (PACKAGE_ORDER.index(row.package_kind), 0.0)
+    return (len(PACKAGE_ORDER), -row.created_at.timestamp() if row.created_at else 0.0)
 
 
 @dataclass(frozen=True)
@@ -67,18 +75,17 @@ class DownloadService:
     def downloadable_product_files(
         cls, product_ids: list[UUID]
     ) -> dict[UUID, list[ProductFile]]:
-        """Private package files per product.
+        """Private package files per product, in PACKAGE_ORDER (files without a kind last).
 
         Public previews are never sold: anyone can already fetch them, so a product
-        without a package has nothing to download (``audit_published_packages``).
+        without a package has nothing to download (``audit_published_packages``). Callers
+        keep only the kinds the buyer owns.
         """
         files: dict[UUID, list[ProductFile]] = {}
         if not product_ids:
             return files
-        for file_row in ProductFile.objects.filter(
-            product_id__in=product_ids,
-            is_preview=False,
-        ).order_by("-created_at"):
+        rows = ProductFile.objects.filter(product_id__in=product_ids, is_preview=False)
+        for file_row in sorted(rows, key=_package_sort_key):
             files.setdefault(file_row.product_id, []).append(file_row)
         return files
 
@@ -117,6 +124,7 @@ class DownloadService:
         }
 
         product_files = cls.downloadable_product_files(product_ids)
+        owned_kinds = owned_package_kinds(user, product_ids)
 
         plugin_files: dict[UUID, list[PluginFile]] = {}
         if plugin_ids:
@@ -129,9 +137,14 @@ class DownloadService:
 
         entitlements: list[dict[str, Any]] = []
         for product_type, product_id in keys:
+            package_kinds: list[str] = []
             if product_type == PRODUCT_TYPE_PRODUCT:
                 catalog = products.get(product_id)
-                files = product_files.get(product_id, [])
+                owned = owned_kinds.get(product_id, frozenset())
+                # Only the packages bought (Whole File, or an order from before packages, owns
+                # them all, and the files without a kind).
+                files = [row for row in product_files.get(product_id, []) if row.package_kind in owned]
+                package_kinds = [kind for kind in PACKAGE_ORDER if kind in owned]
             elif product_type == PRODUCT_TYPE_PLUGIN:
                 catalog = plugins.get(product_id)
                 files = plugin_files.get(product_id, [])
@@ -147,6 +160,8 @@ class DownloadService:
                     "product_id": product_id,
                     "title": catalog.name,
                     "slug": catalog.slug,
+                    # The packages owned (so a product page shows Download for them).
+                    "package_kinds": package_kinds,
                     "files": [
                         cls._serialize_file_metadata(
                             product_type=product_type,
@@ -161,6 +176,19 @@ class DownloadService:
 
         entitlements.sort(key=lambda item: item["title"].lower())
         return entitlements
+
+    @staticmethod
+    def package_labels(rows) -> dict[UUID, str]:
+        """The package label of each model file in these download history rows, by file id."""
+        file_ids = {row.file_id for row in rows if row.product_type == PRODUCT_TYPE_PRODUCT}
+        if not file_ids:
+            return {}
+        return {
+            file_id: PACKAGE_LABELS.get(kind, "")
+            for file_id, kind in ProductFile.objects.filter(pk__in=file_ids).values_list(
+                "id", "package_kind"
+            )
+        }
 
     @classmethod
     def list_history_for_user(cls, user: User) -> QuerySet[DownloadHistory]:
@@ -206,9 +234,10 @@ class DownloadService:
     def stream_product_file(
         cls, user: User, product_id: UUID, file_id: UUID
     ) -> FileResponse | dict[str, Any]:
-        if not user_owns_catalog_item(user, PRODUCT_TYPE_PRODUCT, product_id):
-            raise DownloadError("File not found.")
         file_row = cls.get_product_file(product_id, file_id)
+        # Only a package the user bought (the same answer whether the file exists or not).
+        if file_row.package_kind not in owned_package_kinds(user, [product_id]).get(product_id, ()):
+            raise DownloadError("File not found.")
         return cls._deliver_owned_file(
             user=user,
             product_type=PRODUCT_TYPE_PRODUCT,
@@ -216,6 +245,7 @@ class DownloadService:
             file_id=file_row.id,
             file_name=file_row.file_name,
             storage_path=file_row.storage_path,
+            package_kind=file_row.package_kind,
         )
 
     @classmethod
@@ -235,32 +265,29 @@ class DownloadService:
         )
 
     @classmethod
-    def list_downloadable_files_for_item(
-        cls,
-        product_type: str,
-        product_id: UUID,
-    ) -> list[CatalogFileRef]:
-        return cls.list_downloadable_files_for_items(
-            [(product_type, product_id)]
-        ).get((product_type, product_id), [])
-
-    @classmethod
     def list_downloadable_files_for_items(
         cls,
-        keys: list[tuple[str, UUID]],
-    ) -> dict[tuple[str, UUID], list[CatalogFileRef]]:
-        """Batch-load downloadable files for many order lines (avoids N+1)."""
-        result: dict[tuple[str, UUID], list[CatalogFileRef]] = {
+        keys: list[tuple[str, UUID, str]],
+    ) -> dict[tuple[str, UUID, str], list[CatalogFileRef]]:
+        """Batch-load the files of many order lines, (product_type, product_id, package_kind),
+        without N+1: a model line gives its package's zip, or every file for Whole File and a
+        line from before packages."""
+        result: dict[tuple[str, UUID, str], list[CatalogFileRef]] = {
             key: [] for key in keys
         }
-        product_ids = [product_id for ptype, product_id in keys if ptype == PRODUCT_TYPE_PRODUCT]
-        plugin_ids = [product_id for ptype, product_id in keys if ptype == PRODUCT_TYPE_PLUGIN]
+        product_ids = [product_id for ptype, product_id, _ in keys if ptype == PRODUCT_TYPE_PRODUCT]
+        plugin_ids = [product_id for ptype, product_id, _ in keys if ptype == PRODUCT_TYPE_PLUGIN]
 
         if product_ids:
             product_rows = cls.downloadable_product_files(product_ids)
-            for row in (row for rows in product_rows.values() for row in rows):
-                key = (PRODUCT_TYPE_PRODUCT, row.product_id)
-                if key in result:
+            for key in result:
+                ptype, product_id, kind = key
+                if ptype != PRODUCT_TYPE_PRODUCT:
+                    continue
+                covered = kinds_of_line(kind)
+                for row in product_rows.get(product_id, []):
+                    if row.package_kind not in covered:
+                        continue
                     result[key].append(
                         CatalogFileRef(
                             product_type=PRODUCT_TYPE_PRODUCT,
@@ -279,7 +306,7 @@ class DownloadService:
                 "-is_primary",
                 "-created_at",
             ):
-                key = (PRODUCT_TYPE_PLUGIN, row.plugin_id)
+                key = (PRODUCT_TYPE_PLUGIN, row.plugin_id, "")
                 if key in result:
                     result[key].append(
                         CatalogFileRef(
@@ -305,8 +332,12 @@ class DownloadService:
         file_row: ProductFile | PluginFile,
         last_downloaded_at,
     ) -> dict[str, Any]:
+        package_kind = getattr(file_row, "package_kind", "")
         return {
             "id": file_row.id,
+            # The package this zip is ("" for a plugin file or a file without a kind).
+            "package_kind": package_kind,
+            "package_label": PACKAGE_LABELS.get(package_kind, ""),
             "file_name": file_row.file_name,
             "file_format": file_row.file_format,
             "file_size": file_row.file_size,
@@ -332,15 +363,21 @@ class DownloadService:
         user: User,
         product_type: str,
         product_id: UUID,
+        package_kind: str,
     ) -> Order | None:
+        """The latest paid order whose line gives this file (its package, Whole File, or a
+        line from before packages)."""
+        lines = OrderItem.objects.filter(
+            order__user=user,
+            order__order_status=Order.OrderStatus.PAID,
+            order__payment_status=Order.PaymentStatus.PAID,
+            product_type=product_type,
+            product_id=product_id,
+        )
+        if product_type == PRODUCT_TYPE_PRODUCT:
+            lines = lines.filter(package_kind__in={package_kind, "whole", ""})
         item = (
-            OrderItem.objects.filter(
-                order__user=user,
-                order__order_status=Order.OrderStatus.PAID,
-                order__payment_status=Order.PaymentStatus.PAID,
-                product_type=product_type,
-                product_id=product_id,
-            )
+            lines
             .exclude(order__payment__status="disputed")
             .select_related("order")
             .order_by("-order__created_at")
@@ -357,8 +394,9 @@ class DownloadService:
         product_id: UUID,
         file_id: UUID,
         file_name: str,
+        package_kind: str,
     ) -> None:
-        order = cls._find_matching_order(user, product_type, product_id)
+        order = cls._find_matching_order(user, product_type, product_id, package_kind)
         with transaction.atomic():
             DownloadHistory.objects.create(
                 user=user,
@@ -406,6 +444,7 @@ class DownloadService:
         file_id: UUID,
         file_name: str,
         storage_path: str,
+        package_kind: str = "",
     ) -> FileResponse | dict[str, Any]:
         try:
             result = resolve_private_download(storage_path, file_name=file_name)
@@ -418,6 +457,7 @@ class DownloadService:
             product_id=product_id,
             file_id=file_id,
             file_name=file_name,
+            package_kind=package_kind,
         )
         logger.info(
             "catalog_download user_id=%s product_type=%s product_id=%s file_id=%s mode=%s",

@@ -110,7 +110,7 @@ export function CartPage() {
                 <div key={item.id} className="cart-page__line">
                   <input
                     type="checkbox"
-                    aria-label={`Buy ${item.catalog?.name ?? 'this item'}`}
+                    aria-label={`Buy ${item.catalog?.title ?? 'this item'}`}
                     checked={Boolean(item.catalog?.is_available) && !unticked.has(item.id)}
                     disabled={!item.catalog?.is_available}
                     onChange={() => toggle(item.id)}
@@ -161,7 +161,11 @@ export function CartPage() {
                 disabled={selected.length === 0}
                 onClick={() =>
                   startCheckout(
-                    selected.map((item) => ({ product_type: item.product_type, product_id: item.product_id })),
+                    selected.map((item) => ({
+                      product_type: item.product_type,
+                      product_id: item.product_id,
+                      ...(item.package_kind ? { package_kind: item.package_kind } : {}),
+                    })),
                   )
                 }
               >

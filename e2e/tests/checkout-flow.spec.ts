@@ -16,8 +16,11 @@ test.describe('marketplace checkout commerce', () => {
     await expect(viewer.or(viewerLoading)).toBeVisible({ timeout: 45_000 })
     await expect(viewer).toBeVisible({ timeout: 60_000 })
 
-    await page.getByRole('button', { name: /Add to Cart/i }).click()
-    await expect(page.getByRole('button', { name: /^In cart$/ })).toBeVisible({
+    // A model is sold per package: tick Whole File, then add it to the cart.
+    const packages = page.getByRole('region', { name: 'Choose your packages' })
+    await packages.getByRole('checkbox', { name: 'Whole File' }).check()
+    await packages.getByRole('button', { name: 'Add selected to cart' }).click()
+    await expect(packages.getByRole('link', { name: 'In cart' })).toBeVisible({
       timeout: 15_000,
     })
 
@@ -25,8 +28,9 @@ test.describe('marketplace checkout commerce', () => {
     await expect(page.getByRole('heading', { name: 'Your cart' })).toBeVisible()
     await expect(page.getByText('E2E Checkout Chair')).toBeVisible()
 
-    // Every cart line is ticked by default; checkout buys the ticked ones.
-    await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Chair' })).toBeChecked()
+    // Every cart line is ticked by default; checkout buys the ticked ones. The line names
+    // the package.
+    await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Chair - Whole File' })).toBeChecked()
     await page.getByRole('button', { name: /^Checkout selected \(\d+\)$/ }).click()
 
     await expect(page).toHaveURL(/\/checkout\/success\?order_id=/, { timeout: 60_000 })

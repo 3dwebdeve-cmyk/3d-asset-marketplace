@@ -1,8 +1,8 @@
 """
 Cart pricing policy (v1):
-- Display and subtotal use live catalog effective prices. Models use the one rule,
-  Product.effective_price() (the running sale price, else price; an ended sale is
-  ignored). Plugins: discount_price if set else price.
+- A model is sold per package (docs/PACKAGES_PIPELINE.md): each cart line is one package of
+  one model, priced by that package's effective price (the running sale price, else the
+  price; an ended sale is ignored). Plugins: discount_price if set else price.
 - Prices are NOT snapshotted in the cart; checkout snapshots purchase_price
   on OrderItem via OrderService.create() / OrderService.create_from_cart().
 - Unavailable catalog lines remain in the cart but are excluded from subtotal.
@@ -20,12 +20,22 @@ from django.db.models import Q
 from django.utils import timezone
 from cart.models import Cart, CartItem
 from plugins.models import Plugin
-from products.models import Product
+from products.models import Product, ProductFile
+from products.packages import PACKAGE_KINDS, PACKAGE_LABELS, PACKAGE_ORDER, PackageKind, line_title
 
 User = get_user_model()
 
 DEFAULT_CURRENCY = "USD"
 ZERO = Decimal("0.00")
+
+# One cart (or order) line: (product_type, product_id, package_kind); the kind is blank for a
+# plugin.
+LineKey = tuple[str, UUID, str]
+
+
+def line_key(item) -> LineKey:
+    """The key of a cart or order line."""
+    return (item.product_type, item.product_id, item.package_kind)
 
 
 class CartError(Exception):
@@ -50,7 +60,7 @@ class CartEnvelope:
     cart: Cart
     items: list[CartItem]
     totals: CartTotals
-    snapshots: dict[tuple[str, UUID], dict[str, Any] | None]
+    snapshots: dict[LineKey, dict[str, Any] | None]
 
 
 class CartService:
@@ -87,11 +97,15 @@ class CartService:
         user: User,
         product_type: str,
         product_id: UUID,
+        package_kind: str = "",
         quantity: int = 1,
     ) -> tuple[CartItem, bool]:
         normalized_type = product_type.strip().lower()
         if normalized_type not in CartItem.ProductType.values:
             raise CartError("Invalid product type.", field="product_type")
+        package_kind = (package_kind or "").strip()
+        if normalized_type == CartItem.ProductType.PLUGIN and package_kind:
+            raise CartError("A plugin has no packages.", field="package_kind")
 
         if quantity < 1 or quantity > CartItem.MAX_QUANTITY:
             raise CartError(
@@ -99,13 +113,13 @@ class CartService:
                 field="quantity",
             )
 
-        _, currency = cls._validate_catalog_item(normalized_type, product_id)
-        from orders.entitlements import user_owns_catalog_item
+        _, currency = cls._validate_catalog_item(normalized_type, product_id, package_kind)
+        from orders.entitlements import owned_line_keys
 
         # Digital items are bought once; the download stays available.
-        if user_owns_catalog_item(user, normalized_type, product_id):
+        if owned_line_keys(user, [(normalized_type, product_id, package_kind)]):
             raise CartError(
-                "You already own this item. Download it from Dashboard → Downloads.",
+                "You already own this. Download it from Dashboard → Downloads.",
                 field="product_id",
             )
         cart = cls.lock_cart(user)
@@ -115,6 +129,7 @@ class CartService:
             cart=cart,
             product_type=normalized_type,
             product_id=product_id,
+            package_kind=package_kind,
             defaults={"quantity": quantity},
         )
         if not created:
@@ -147,7 +162,7 @@ class CartService:
         except CartItem.DoesNotExist as exc:
             raise CartError("Cart item not found.") from exc
 
-        cls._validate_catalog_item(item.product_type, item.product_id)
+        cls._validate_catalog_item(item.product_type, item.product_id, item.package_kind)
 
         item.quantity = quantity
         item.save(update_fields=["quantity", "updated_at"])
@@ -171,8 +186,8 @@ class CartService:
 
     @classmethod
     @transaction.atomic
-    def remove_items(cls, user: User, keys: Iterable[tuple[str, UUID]], *, before=None) -> None:
-        """Remove only the given (product_type, product_id) lines from the cart.
+    def remove_items(cls, user: User, keys: Iterable[LineKey], *, before=None) -> None:
+        """Remove only the given lines from the cart.
 
         Used after a successful checkout to drop just the purchased lines,
         leaving anything the customer added after starting checkout intact.
@@ -182,8 +197,8 @@ class CartService:
         if not key_set:
             return
         query = Q()
-        for product_type, product_id in key_set:
-            query |= Q(product_type=product_type, product_id=product_id)
+        for product_type, product_id, package_kind in key_set:
+            query |= Q(product_type=product_type, product_id=product_id, package_kind=package_kind)
         rows = cart.items.filter(query)
         if before is not None:
             rows = rows.filter(updated_at__lte=before)
@@ -207,10 +222,10 @@ class CartService:
     def _resolve_cart_currency(
         cls,
         items: Iterable[CartItem],
-        snapshots: dict[tuple[str, UUID], dict[str, Any] | None],
+        snapshots: dict[LineKey, dict[str, Any] | None],
     ) -> str:
         for item in items:
-            snapshot = snapshots.get((item.product_type, item.product_id))
+            snapshot = snapshots.get(line_key(item))
             if snapshot and snapshot.get("currency"):
                 return str(snapshot["currency"])
         return DEFAULT_CURRENCY
@@ -220,6 +235,7 @@ class CartService:
         cls,
         product_type: str,
         product_id: UUID,
+        package_kind: str,
     ) -> tuple[Decimal, str]:
         if product_type == CartItem.ProductType.PRODUCT:
             try:
@@ -236,7 +252,18 @@ class CartService:
                     "This model is free. Use Download on its page; it needs no checkout.",
                     field="product_id",
                 )
-            return product.effective_price(), product.currency
+            if package_kind not in PACKAGE_KINDS:
+                raise CartError("Choose a package of this model.", field="package_kind")
+            package = ProductFile.objects.filter(
+                product=product, is_preview=False, package_kind=package_kind
+            ).first()
+            if package is None or package.price is None:
+                # A package with no price yet is not sold.
+                raise CartError(
+                    f"The {PACKAGE_LABELS[package_kind]} package of this model is not for sale.",
+                    field="package_kind",
+                )
+            return package.effective_price(), product.currency
 
         try:
             plugin = Plugin.objects.select_related("category").get(pk=product_id)
@@ -269,7 +296,8 @@ class CartService:
     def build_catalog_snapshots(
         cls,
         items: Iterable[CartItem],
-    ) -> dict[tuple[str, UUID], dict[str, Any] | None]:
+    ) -> dict[LineKey, dict[str, Any] | None]:
+        items = list(items)
         product_ids = [
             item.product_id
             for item in items
@@ -281,50 +309,93 @@ class CartService:
             if item.product_type == CartItem.ProductType.PLUGIN
         ]
 
-        snapshots: dict[tuple[str, UUID], dict[str, Any] | None] = {}
+        snapshots: dict[LineKey, dict[str, Any] | None] = {}
 
         if product_ids:
             # One clock reading for the whole cart, so every line agrees on which sales run.
             now = timezone.now()
-            products = Product.objects.select_related("category").filter(pk__in=product_ids)
-            for product in products:
-                snapshots[(CartItem.ProductType.PRODUCT, product.id)] = (
-                    cls._product_snapshot(product, now=now)
+            products = {
+                product.id: product
+                for product in Product.objects.select_related("category")
+                .prefetch_related("files")
+                .filter(pk__in=product_ids)
+            }
+            for item in items:
+                product = products.get(item.product_id)
+                if item.product_type != CartItem.ProductType.PRODUCT or product is None:
+                    continue
+                package = next(
+                    (
+                        row
+                        for row in product.files.all()
+                        if not row.is_preview and row.package_kind and row.package_kind == item.package_kind
+                    ),
+                    None,
                 )
+                snapshots[line_key(item)] = (
+                    cls._product_snapshot(product, package, now=now) if package else None
+                )
+            cls._add_whole_file_hints(items, snapshots)
 
         if plugin_ids:
             plugins = Plugin.objects.select_related("category").filter(pk__in=plugin_ids)
             for plugin in plugins:
-                snapshots[(CartItem.ProductType.PLUGIN, plugin.id)] = (
+                snapshots[(CartItem.ProductType.PLUGIN, plugin.id, "")] = (
                     cls._plugin_snapshot(plugin)
                 )
 
         return snapshots
 
     @classmethod
-    def _product_snapshot(cls, product: Product, *, now=None) -> dict[str, Any]:
+    def _add_whole_file_hints(
+        cls, items: list[CartItem], snapshots: dict[LineKey, dict[str, Any] | None]
+    ) -> None:
+        """Whole File holds every package: say so on its line when the cart also has other
+        packages of the same model, so the buyer does not pay twice by mistake."""
+        kinds_by_product: dict[UUID, set[str]] = {}
+        for item in items:
+            if item.product_type == CartItem.ProductType.PRODUCT:
+                kinds_by_product.setdefault(item.product_id, set()).add(item.package_kind)
+        for product_id, kinds in kinds_by_product.items():
+            others = [kind for kind in PACKAGE_ORDER if kind in kinds and kind != PackageKind.WHOLE]
+            snapshot = snapshots.get((CartItem.ProductType.PRODUCT, product_id, PackageKind.WHOLE))
+            if snapshot and others:
+                labels = ", ".join(PACKAGE_LABELS[kind] for kind in others)
+                snapshot["bundle_hint"] = (
+                    f"Whole File already contains {labels}. Remove "
+                    f"{'it' if len(others) == 1 else 'them'} unless you want separate downloads."
+                )
+
+    @classmethod
+    def _product_snapshot(cls, product: Product, package: ProductFile, *, now=None) -> dict[str, Any]:
         now = now or timezone.now()
-        sale_price = product.active_discount_price(now)
-        effective_price = product.effective_price(now)
+        sale_price = package.active_discount_price(now)
+        effective_price = package.effective_price(now)
         return {
             "name": product.name,
+            "title": line_title(product.name, package.package_kind),
+            "package_kind": package.package_kind,
+            "package_label": PACKAGE_LABELS[package.package_kind],
+            "bundle_hint": "",
             "slug": product.slug,
             "thumbnail": product.thumbnail,
-            "price": f"{product.price:.2f}",
+            "price": f"{package.price:.2f}" if package.price is not None else None,
             # The running sale price only; an ended sale is not shown or charged.
             "discount_price": f"{sale_price:.2f}" if sale_price is not None else None,
-            "effective_price": f"{effective_price:.2f}",
+            "effective_price": f"{effective_price:.2f}" if effective_price is not None else None,
             "currency": product.currency,
             "category": {
                 "id": str(product.category_id),
                 "name": product.category.name,
                 "slug": product.category.slug,
             },
-            # A model made free after it was added is downloaded, not checked out.
+            # A model made free after it was added is downloaded, not checked out; a package
+            # whose price was removed is not sold.
             "is_available": (
                 product.status == Product.Status.PUBLISHED
                 and product.category.is_active
                 and not product.is_free
+                and package.price is not None
             ),
         }
 
@@ -333,6 +404,10 @@ class CartService:
         effective_price = cls._effective_price(plugin.discount_price, plugin.price)
         return {
             "name": plugin.name,
+            "title": plugin.name,
+            "package_kind": "",
+            "package_label": "",
+            "bundle_hint": "",
             "slug": plugin.slug,
             "thumbnail": plugin.thumbnail,
             "price": f"{plugin.price:.2f}",
@@ -357,11 +432,11 @@ class CartService:
     def _compute_subtotal(
         cls,
         items: Iterable[CartItem],
-        snapshots: dict[tuple[str, UUID], dict[str, Any] | None],
+        snapshots: dict[LineKey, dict[str, Any] | None],
     ) -> Decimal:
         subtotal = Decimal("0.00")
         for item in items:
-            snapshot = snapshots.get((item.product_type, item.product_id))
+            snapshot = snapshots.get(line_key(item))
             if not snapshot or not snapshot.get("is_available"):
                 continue
             effective_price = Decimal(snapshot["effective_price"])
@@ -372,7 +447,7 @@ class CartService:
     def _compute_totals(
         cls,
         items: Iterable[CartItem],
-        snapshots: dict[tuple[str, UUID], dict[str, Any] | None],
+        snapshots: dict[LineKey, dict[str, Any] | None],
     ) -> CartTotals:
         item_list = list(items)
         subtotal = cls._compute_subtotal(item_list, snapshots)
@@ -391,9 +466,9 @@ class CartService:
     def get_item_line_total(
         cls,
         item: CartItem,
-        snapshots: dict[tuple[str, UUID], dict[str, Any] | None],
+        snapshots: dict[LineKey, dict[str, Any] | None],
     ) -> Decimal | None:
-        snapshot = snapshots.get((item.product_type, item.product_id))
+        snapshot = snapshots.get(line_key(item))
         if not snapshot or not snapshot.get("is_available"):
             return None
         effective_price = Decimal(snapshot["effective_price"])
@@ -403,9 +478,9 @@ class CartService:
     def get_item_unit_price(
         cls,
         item: CartItem,
-        snapshots: dict[tuple[str, UUID], dict[str, Any] | None],
+        snapshots: dict[LineKey, dict[str, Any] | None],
     ) -> str | None:
-        snapshot = snapshots.get((item.product_type, item.product_id))
+        snapshot = snapshots.get(line_key(item))
         if not snapshot:
             return None
         return snapshot.get("effective_price")

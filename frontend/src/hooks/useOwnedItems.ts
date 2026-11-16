@@ -2,6 +2,7 @@ import { queryOptions, useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
 
 import { listDownloadEntitlements } from '../api/downloadsApi'
+import type { PackageKind } from '../lib/packages'
 import { isAdministrator } from '../lib/roles'
 import { useAuthStore } from '../store/authStore'
 import type { CartProductType } from '../types/cart'
@@ -13,7 +14,12 @@ export const entitlementsQuery = queryOptions({
   staleTime: 60_000,
 })
 
-/** Whether the signed-in customer already owns an item, so pages offer the download, not a second purchase. */
+const NO_PACKAGES: ReadonlySet<PackageKind> = new Set()
+
+/**
+ * What the signed-in customer already owns, so pages offer the download, not a second purchase:
+ * a plugin, or the packages of a model (Whole File, or an order from before packages, owns all).
+ */
 export function useOwnedItems() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
@@ -26,10 +32,25 @@ export function useOwnedItems() {
     () => new Set((query.data ?? []).map((item) => `${item.product_type}:${item.product_id}`)),
     [query.data],
   )
+  const packages = useMemo(
+    () =>
+      new Map(
+        (query.data ?? [])
+          .filter((item) => item.product_type === 'product')
+          .map((item) => [item.product_id, new Set(item.package_kinds)] as const),
+      ),
+    [query.data],
+  )
+  /** A plugin the user bought, or a model they own at least one package of. */
   const isOwned = useCallback(
     (type: CartProductType, id: string) => owned.has(`${type}:${id}`),
     [owned],
   )
+  /** The packages of a model the user owns. */
+  const ownedPackages = useCallback(
+    (productId: string): ReadonlySet<PackageKind> => packages.get(productId) ?? NO_PACKAGES,
+    [packages],
+  )
 
-  return { isOwned }
+  return { isOwned, ownedPackages }
 }

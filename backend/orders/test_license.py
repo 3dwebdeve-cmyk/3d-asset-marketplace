@@ -19,6 +19,7 @@ from orders.license import LICENSE_CODE_RE
 from orders.models import Order, OrderItem
 from orders.services import OrderCreateData, OrderItemCreateData, OrderService
 from products.models import Product
+from products.testing import sell_package
 
 
 class LicenseCertificateTests(APITestCase):
@@ -48,6 +49,7 @@ class LicenseCertificateTests(APITestCase):
             license_type=Product.LicenseType.EXTENDED,
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.product)
 
     def _order(self, *, paid: bool = True) -> Order:
         order = OrderService.create(
@@ -55,7 +57,7 @@ class LicenseCertificateTests(APITestCase):
                 user_id=self.buyer.pk,
                 items=(
                     OrderItemCreateData(
-                        product_type="product", product_id=self.product.pk, quantity=1
+                        product_type="product", product_id=self.product.pk, package_kind="whole", quantity=1
                     ),
                 ),
                 currency="USD",

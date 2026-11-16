@@ -14,6 +14,7 @@ from orders.models import Order, OrderItem
 from orders.services import OrderCreateData, OrderError, OrderItemCreateData, OrderService
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
+from products.testing import sell_package
 
 
 class OrderTestMixin:
@@ -35,6 +36,7 @@ class OrderTestMixin:
             discount_price=Decimal("39.99"),
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.product)
         self.draft_product = Product.objects.create(
             category=self.category,
             name="Draft Shield",
@@ -42,6 +44,7 @@ class OrderTestMixin:
             price=Decimal("19.99"),
             status=Product.Status.DRAFT,
         )
+        sell_package(self.draft_product)
         self.plugin_category = PluginCategory.objects.create(
             name="Tools",
             slug="tools",
@@ -126,7 +129,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=2,
                     ),
                     OrderItemCreateData(
@@ -175,7 +178,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=uuid4(),
+                            product_id=uuid4(), package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -209,7 +212,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.draft_product.pk,
+                            product_id=self.draft_product.pk, package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -241,12 +244,12 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=1,
                         ),
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=2,
                         ),
                     ),
@@ -270,7 +273,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -289,7 +292,7 @@ class OrderServiceStatusTransitionTests(OrderTestMixin, TestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),
@@ -382,7 +385,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=2,
                     ),
                     OrderItemCreateData(
@@ -800,7 +803,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=2,
                     ),
                     OrderItemCreateData(
@@ -855,7 +858,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),
@@ -907,7 +910,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),
@@ -938,7 +941,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -1180,7 +1183,7 @@ class OrderInvoiceAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),

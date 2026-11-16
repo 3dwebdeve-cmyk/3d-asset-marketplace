@@ -13,8 +13,8 @@ from rest_framework.test import APITestCase
 from accounts.models import Role, User
 from categories.models import Category
 from downloads.models import DownloadHistory
-from orders.models import Order
-from orders.services import OrderCreateData, OrderItemCreateData, OrderService
+from orders.models import Order, OrderItem
+from orders.services import OrderService
 from plugins.models import Plugin, PluginCategory, PluginFile
 from products.models import Product, ProductFile
 from config.media import media_relative_path
@@ -103,6 +103,31 @@ class DownloadAPITests(APITestCase):
         self.assertEqual(login.status_code, status.HTTP_200_OK)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
 
+    def create_order(
+        self,
+        user: User,
+        *,
+        product_type: str = "product",
+        product_id=None,
+    ) -> Order:
+        """A pending order for one line: a model's Whole File (every file), or a plugin.
+        Written directly: these tests are about downloads, not about pricing an order."""
+        order = Order.objects.create(
+            user=user,
+            invoice_number=OrderService._generate_invoice_number(),
+            total_amount=Decimal("29.99"),
+            currency="USD",
+        )
+        OrderItem.objects.create(
+            order=order,
+            product_type=product_type,
+            product_id=product_id or self.product.pk,
+            package_kind="whole" if product_type == "product" else "",
+            quantity=1,
+            purchase_price=Decimal("29.99"),
+        )
+        return order
+
     def create_paid_order(
         self,
         user: User,
@@ -110,19 +135,7 @@ class DownloadAPITests(APITestCase):
         product_type: str = "product",
         product_id=None,
     ) -> Order:
-        order = OrderService.create(
-            OrderCreateData(
-                user_id=user.pk,
-                items=(
-                    OrderItemCreateData(
-                        product_type=product_type,
-                        product_id=product_id or self.product.pk,
-                        quantity=1,
-                    ),
-                ),
-                currency="USD",
-            )
-        )
+        order = self.create_order(user, product_type=product_type, product_id=product_id)
         OrderService.update_order_status(order, Order.OrderStatus.PAID)
         return OrderService.update_payment_status(order, Order.PaymentStatus.PAID)
 
@@ -209,19 +222,7 @@ class DownloadAPITests(APITestCase):
 
     def test_pending_order_cannot_download(self) -> None:
         product_file = self._upload_product_file()
-        OrderService.create(
-            OrderCreateData(
-                user_id=self.customer.pk,
-                items=(
-                    OrderItemCreateData(
-                        product_type="product",
-                        product_id=self.product.pk,
-                        quantity=1,
-                    ),
-                ),
-                currency="USD",
-            )
-        )
+        self.create_order(self.customer)
         url = reverse(
             "downloads:product-file-download",
             kwargs={"product_id": self.product.pk, "file_id": product_file.pk},
@@ -232,19 +233,7 @@ class DownloadAPITests(APITestCase):
 
     def test_order_paid_payment_pending_cannot_download(self) -> None:
         product_file = self._upload_product_file()
-        order = OrderService.create(
-            OrderCreateData(
-                user_id=self.customer.pk,
-                items=(
-                    OrderItemCreateData(
-                        product_type="product",
-                        product_id=self.product.pk,
-                        quantity=1,
-                    ),
-                ),
-                currency="USD",
-            )
-        )
+        order = self.create_order(self.customer)
         OrderService.update_order_status(order, Order.OrderStatus.PAID)
         url = reverse(
             "downloads:product-file-download",
@@ -562,19 +551,7 @@ class DownloadAPITests(APITestCase):
 
     def test_customer_order_detail_hides_files_when_pending(self) -> None:
         self._upload_product_file()
-        order = OrderService.create(
-            OrderCreateData(
-                user_id=self.customer.pk,
-                items=(
-                    OrderItemCreateData(
-                        product_type="product",
-                        product_id=self.product.pk,
-                        quantity=1,
-                    ),
-                ),
-                currency="USD",
-            )
-        )
+        order = self.create_order(self.customer)
         detail_url = reverse("orders:order-detail", kwargs={"order_id": order.pk})
         self.authenticate()
         response = self.client.get(detail_url)
