@@ -22,6 +22,7 @@ from products.views import (
     AdminProductRejectView,
     AdminProductRequeueView,
     AdminProductRestoreView,
+    AdminUploaderImportsView,
     CatalogIngestImportView,
     ProductFreeDownloadView,
     ProductDetailView,
@@ -39,6 +40,11 @@ public_urlpatterns = [
 admin_urlpatterns = [
     path("", AdminProductListCreateView.as_view(), name="admin-products"),
     path("import/", AdminCatalogImportView.as_view(), name="admin-catalog-import"),
+    path(
+        "uploader-imports/",
+        AdminUploaderImportsView.as_view(),
+        name="admin-uploader-imports",
+    ),
     path("bulk-delete/", AdminProductBulkDeleteView.as_view(), name="admin-product-bulk-delete"),
     # Pricing page (docs/PRICING_PIPELINE.md, Part 2).
     path("pricing/", AdminPricingListView.as_view(), name="admin-pricing"),

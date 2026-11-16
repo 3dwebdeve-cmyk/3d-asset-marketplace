@@ -17,7 +17,7 @@ from cart.models import Cart, CartItem
 from orders.models import Order, OrderItem
 from products.models import Product, ProductImage
 from products import test_product_qa
-from products.test_catalog_import import _happy_item
+from products.test_catalog_reupload import _free_item
 from products.testing import put_pipeline_uploads
 from wishlist.models import WishlistItem
 
@@ -56,8 +56,12 @@ class FreeAndPaidApprovalTests(APITestCase):
         response = self._approve(product)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data["status"], "awaiting_price")
-        self.assertEqual(response.data["price"], "29.99")
-        self.assertFalse(response.data["is_free"])
+        # Its packages have no price until the Pricing page; the upload stays paid.
+        self.assertEqual(response.data["upload_kind"], "paid")
+        self.assertEqual(response.data["price"], "0.00")
+        self.assertEqual(
+            [row["price"] for row in response.data["files"] if row["package_kind"]], [None]
+        )
 
     def test_approve_refuses_a_paid_price(self) -> None:
         """QA never sets a paid model's price: the Pricing page does."""
@@ -67,7 +71,7 @@ class FreeAndPaidApprovalTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
-        self.assertEqual(product.price, Decimal("29.99"))
+        self.assertFalse(product.files.filter(price__isnull=False).exists())
 
     def test_paid_needs_a_price_above_the_checkout_minimum(self) -> None:
         self._authenticate_as_admin()
@@ -90,13 +94,7 @@ class FreeAndPaidApprovalTests(APITestCase):
 
     def _publish_free_folder_model(self) -> Product:
         """Import from free-models/<sku>/ (zip in the public bucket) and approve as is."""
-        item = _happy_item(r2_key_prefix="free-models/MDL-000142/")
-        item["media"] = {
-            key: [k.replace("models/", "free-models/", 1) for k in value]
-            if isinstance(value, list)
-            else value.replace("models/", "free-models/", 1) if isinstance(value, str) else value
-            for key, value in item["media"].items()
-        }
+        item = _free_item()
         put_pipeline_uploads([item])
         self._write_package(item["media"]["package_key"])
         self._authenticate_as_admin()
@@ -121,7 +119,7 @@ class FreeAndPaidApprovalTests(APITestCase):
         response = self._free_download(product)
 
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertTrue(response["Location"].endswith("free-models/MDL-000142/package.zip"))
+        self.assertTrue(response["Location"].endswith("free-models/MDL-000142/MDL-000142_whole.zip"))
 
     def test_free_folder_model_cannot_be_published_paid(self) -> None:
         product = self._publish_free_folder_model()

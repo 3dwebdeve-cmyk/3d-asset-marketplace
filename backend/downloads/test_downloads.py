@@ -148,10 +148,12 @@ class DownloadAPITests(APITestCase):
                 ),
                 "version": "1.0",
                 "is_preview": is_preview,
+                # A file that is not the preview is one of the model's packages.
+                "package_kind": "" if is_preview else "whole",
             },
             format="multipart",
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         return ProductFile.objects.get(pk=response.data["id"])
 
     def _upload_plugin_file(self, *, name: str = "plugin.zip") -> PluginFile:

@@ -16,6 +16,7 @@ from accounts.models import Role, User
 from categories.models import Category
 from plugins.models import Plugin, PluginCategory, PluginFile
 from products.models import Product, ProductFile
+from products.packages import PackageKind
 
 DEFAULT_BUYER_EMAIL = "e2e-buyer@example.com"
 DEFAULT_BUYER_PASSWORD = "E2eBuyerPass123!"
@@ -176,6 +177,9 @@ class Command(BaseCommand):
                 "storage_path": PACKAGE_STORAGE_PATH,
                 "version": "1.0",
                 "is_preview": False,
+                # The one package carries the product's price.
+                "package_kind": PackageKind.WHOLE,
+                "price": product.price,
             },
         )
 

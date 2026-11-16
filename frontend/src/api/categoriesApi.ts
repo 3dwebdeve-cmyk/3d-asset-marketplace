@@ -73,6 +73,31 @@ export async function updateAdminCategory(
   return response.data
 }
 
+/** A category an upload created goes live; its models can then be approved. */
+export async function approveAdminCategory(categoryId: string): Promise<AdminCategory> {
+  const response = await apiClient.post<AdminCategory>(
+    `/api/v1/admin/categories/${categoryId}/approve/`,
+  )
+  return response.data
+}
+
+/** Move a pending category's models into an active category and delete it; returns the target. */
+export async function mergeAdminCategory(categoryId: string, intoId: string): Promise<AdminCategory> {
+  const response = await apiClient.post<AdminCategory>(
+    `/api/v1/admin/categories/${categoryId}/merge/`,
+    { into: intoId },
+  )
+  return response.data
+}
+
+/** Reject a pending category: null when it was empty and is deleted, else it stays hidden. */
+export async function rejectAdminCategory(categoryId: string): Promise<AdminCategory | null> {
+  const response = await apiClient.post<AdminCategory | ''>(
+    `/api/v1/admin/categories/${categoryId}/reject/`,
+  )
+  return response.status === 204 || !response.data ? null : response.data
+}
+
 export async function deactivateAdminCategory(categoryId: string): Promise<AdminCategory> {
   const response = await apiClient.delete<AdminCategory>(
     `/api/v1/admin/categories/${categoryId}/`,

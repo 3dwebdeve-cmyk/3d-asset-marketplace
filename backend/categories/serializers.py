@@ -35,6 +35,12 @@ class CategoryClickSerializer(serializers.Serializer):
 class CategoryAdminSerializer(serializers.ModelSerializer):
     parent = CategoryParentSerializer(read_only=True)
     parent_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    product_count = serializers.SerializerMethodField()
+
+    def get_product_count(self, obj: Category) -> int:
+        # Annotated by the admin queryset; counted here for a category saved in this request.
+        count = getattr(obj, "product_count", None)
+        return obj.products.count() if count is None else count
 
     class Meta:
         model = Category
@@ -47,10 +53,26 @@ class CategoryAdminSerializer(serializers.ModelSerializer):
             "parent",
             "parent_id",
             "is_active",
+            "code",
+            "pending_approval",
+            "created_by_import",
+            "created_from_batch",
+            "rejected_at",
+            "product_count",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "parent", "created_at", "updated_at")
+        read_only_fields = (
+            "id",
+            "parent",
+            "pending_approval",
+            "created_by_import",
+            "created_from_batch",
+            "rejected_at",
+            "product_count",
+            "created_at",
+            "updated_at",
+        )
 
 
 class CategoryCreateSerializer(serializers.Serializer):
@@ -58,6 +80,8 @@ class CategoryCreateSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True, default="")
     image = serializers.URLField(required=False, allow_blank=True, default="")
     parent_id = serializers.UUIDField(required=False, allow_null=True)
+    # The Model ID code of the category's models, for example ELE; optional.
+    code = serializers.CharField(max_length=5, required=False, allow_blank=True, default="")
 
     def validate_name(self, value: str) -> str:
         normalized = value.strip()
@@ -73,6 +97,8 @@ class CategoryUpdateSerializer(serializers.Serializer):
     image = serializers.URLField(required=False, allow_blank=True)
     parent_id = serializers.UUIDField(required=False, allow_null=True)
     is_active = serializers.BooleanField(required=False)
+    # null or "" removes the code (allowed only while the category has no models).
+    code = serializers.CharField(max_length=5, required=False, allow_blank=True, allow_null=True)
 
     def validate_name(self, value: str) -> str:
         normalized = value.strip()
@@ -83,4 +109,11 @@ class CategoryUpdateSerializer(serializers.Serializer):
     def validate(self, attrs: dict) -> dict:
         if "parent_id" in self.initial_data and self.initial_data.get("parent_id") is None:
             attrs["clear_parent"] = True
+        if "code" in attrs and not attrs["code"]:
+            attrs.pop("code")
+            attrs["clear_code"] = True
         return attrs
+
+
+class CategoryMergeSerializer(serializers.Serializer):
+    into = serializers.UUIDField()

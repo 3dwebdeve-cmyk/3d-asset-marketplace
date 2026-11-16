@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import struct
+from decimal import Decimal
 from io import BytesIO
 from pathlib import PurePosixPath
 
@@ -72,12 +73,56 @@ def put_pipeline_uploads(items: list[dict], *, triangles: int = 100) -> None:
     put_pipeline_images(items)
 
 
+def moved_media(media: dict, old: str, new: str) -> dict:
+    """``media`` with ``old`` replaced by ``new`` once in every text, package entries and
+    lists included (for example models/ to free-models/, or one Model ID to another)."""
+
+    def moved(value):
+        if isinstance(value, str):
+            return value.replace(old, new, 1)
+        if isinstance(value, list):
+            return [moved(entry) for entry in value]
+        if isinstance(value, dict):
+            return {key: moved(entry) for key, entry in value.items()}
+        return value
+
+    return moved(media)
+
+
+def package_media(prefix: str, sku: str, kinds: tuple[str, ...] = ("whole",)) -> dict:
+    """The import's ``media.package_key`` and ``media.packages`` for these package kinds, named
+    as the Model ID Tool names its zips (``<prefix><sku>_<kind>.zip``); the first is the main zip."""
+    packages = [
+        {
+            "kind": kind,
+            "key": f"{prefix}{sku}_{kind}.zip",
+            "file_name": f"{sku}_{kind}.zip",
+            "file_format": "zip",
+            "file_size": 1048576,
+        }
+        for kind in kinds
+    ]
+    return {"package_key": packages[0]["key"], "packages": packages}
+
+
+def price_packages(product, price: str, **sale) -> None:
+    """Give every package of ``product`` this price (and sale fields), as the Pricing page
+    saves them, then update the product's summary price."""
+    from products.packages import sync_summary_price
+
+    product.files.filter(is_preview=False).exclude(package_kind="").update(
+        price=Decimal(price), **sale
+    )
+    sync_summary_price(product)
+
+
 def put_pipeline_packages(items: list[dict]) -> None:
-    """Upload each item's package zip, as the batch pipeline does before an import."""
+    """Upload each item's package zips, as the batch pipeline does before an import."""
     for item in items:
-        key = str((item.get("media") or {}).get("package_key") or "")
-        if key.lower().endswith(".zip") and ".." not in key and not default_storage.exists(key):
-            default_storage.save(key, ContentFile(b"PK\x05\x06" + b"\x00" * 18))
+        for package in (item.get("media") or {}).get("packages") or ():
+            key = str(package.get("key") or "")
+            if key.lower().endswith(".zip") and ".." not in key and not default_storage.exists(key):
+                default_storage.save(key, ContentFile(b"PK\x05\x06" + b"\x00" * 18))
 
 
 def put_pipeline_objects(items: list[dict], *, triangles: int = 100) -> None:

@@ -81,7 +81,7 @@ _EXPECTED_GATE: dict[str, str | None] = {
     "MDL-000142": None,
     "MDL-000199": "folder_mismatch",
     "MDL-000201": "exports_incomplete",
-    "MDL-000202": "invalid_price",
+    "MDL-000202": "missing_glb_checksum",
     "MDL-000203": "missing_thumbnail",
 }
 
@@ -246,21 +246,25 @@ def _row_to_import_item(
         sku=sku,
         intake_gallery=intake.get("Gallery Image Paths", ""),
     )
-    has_package = "package.zip" in disk_files
+    # The fixture folder's package.zip is sent as the model's Whole File package.
+    package_key = f"models/{sku}/{sku}_whole.zip" if "package.zip" in disk_files else ""
     media: dict[str, Any] = {
         "thumbnail_key": thumb_key,
         "preview_key": f"models/{sku}/preview.glb" if "preview.glb" in disk_files else "",
-        "package_key": f"models/{sku}/package.zip" if has_package else "",
-        "package_file_name": "package.zip",
-        "package_file_format": "zip",
-        "package_file_size": 1048576 if has_package else 0,
+        "package_key": package_key,
+        "packages": [
+            {
+                "kind": "whole",
+                "key": package_key,
+                "file_name": f"{sku}_whole.zip",
+                "file_format": "zip",
+                "file_size": 1048576,
+            }
+        ]
+        if package_key
+        else [],
         "gallery_keys": gallery_keys,
     }
-
-    price_raw = intake.get("Price", "")
-    price: str | None = price_raw if price_raw != "" else None
-    discount_raw = intake.get("Discount Price", "")
-    discount: str | None = discount_raw if discount_raw != "" else None
 
     poly_raw = report.get("Polycount", "")
     polygon_count: int | None
@@ -273,10 +277,7 @@ def _row_to_import_item(
         "model_id": sku,
         "name": report.get("Model Name", ""),
         "category": report.get("Category", ""),
-        "subcategory": report.get("Subcategory", ""),
-        "price": price,
         "currency": intake.get("Currency", "") or "USD",
-        "discount_price": discount,
         "short_description": intake.get("Short Description", ""),
         "description": intake.get("Description", ""),
         "license_type": intake.get("License Type", "") or "standard",

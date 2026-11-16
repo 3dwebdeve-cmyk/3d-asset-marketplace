@@ -12,36 +12,38 @@ Fixtures live in `docs/fixtures/batch-ingest/` (`happy`, `mismatch`, `gate-failu
 
 ## 3ds Max pipeline
 
-The 3ds Max plugin reads an Excel sheet (Name, Category, Subcategory, Price, Description)
-and a folder of models. For each model it creates a Model ID and writes four files:
+The 3ds Max plugin (Model ID Tool 1.8) reads an Excel sheet (Name, Category, Description and
+a YES column per package) and a folder of models. For each model it creates a Model ID and
+writes these files:
 
 | File | Contents |
 |---|---|
-| `<ID>.zip` | The paid package: every model format and the textures |
-| `preview_<ID>.glb` | A light preview model (under 12 MB, not Draco-compressed) |
+| `<ID>_<kind>.zip` | One zip per package the model has (1 to 5), each sold on its own: `with_light_rig`, `without_light_rig`, `glb_only`, `environment`, `whole` (Whole File, everything) |
+| `preview_<ID>.glb` | Optional when the model has a 360°: a light preview model (under 12 MB, not Draco-compressed) |
 | `previewthumb_<ID>.jpg` | The thumbnail |
 | `<ID>.json` | All product details (the plugin's own record; not uploaded) |
 | `360_<ID>_01.jpg` … `360_<ID>_36.jpg` | Optional 360° turntable: exactly 36 frames, 1024 px JPEG, in spin order (Excel column *360 Render* = YES) |
 
-**Model ID format:** `AAA-BBB-000000`, for example `FUR-CHR-000123`: a category code, a
-subcategory code and one global six-digit counter. The plugin creates the ID; the site
-stores it as the product's `sku` and uses it to update the same product on re-import.
+**Model ID format:** `CODE-000000`, for example `ELE-000001`: a category code of 2 to 5
+capital letters and one global six-digit counter (older IDs such as `FUR-CHR-000123` also
+start with their category code). The plugin creates the ID; the site stores it as the
+product's `sku`, uses it to update the same product on re-import, and finds a new model's
+category by its code (see "Category").
 
 The uploader exe uploads the files to R2 under `models/<ID>/`, then calls the import:
 
 | Object key | Bucket |
 |---|---|
-| `models/<ID>/<ID>.zip` | **private** |
+| `models/<ID>/<ID>_<kind>.zip` (one per package) | **private** |
 | `models/<ID>/preview_<ID>.glb` | public |
 | `models/<ID>/previewthumb_<ID>.jpg` | public |
 | `360/<ID>/360_<ID>_01.jpg` … `_36.jpg` | public (paid **and** Free models) |
 
-Upload the zip **before** calling the import: the import checks it is there.
+Upload every zip **before** calling the import: the import checks each one is there.
 
 **Free models** go under `free-models/<ID>/` in the **public** bucket, zip included, with
-`r2_key_prefix: "free-models/<ID>/"` and every media key under that prefix. They import
-at price 0 (any `price` sent is ignored), QA publishes them as free, and they cannot be
-published paid. Anyone can download them, without an account, through
+`r2_key_prefix: "free-models/<ID>/"` and every media key under that prefix. Every package
+imports at price 0, QA publishes them as free, and they cannot be published paid. Anyone can download them, without an account, through
 `GET /api/v1/products/<slug>/free-download/`, which redirects to the zip.
 
 ## Storage layout
@@ -55,11 +57,13 @@ published paid. Anyone can download them, without an account, through
 - Every `.zip` under `models/` is **private** and served only through signed download
   links (60 seconds). Storage, the local media server and media migrations treat any
   `.zip` there as private.
-- The package key must be exactly `models/<Model_ID>/<Model_ID>.zip` (3ds Max pipeline) or
-  `models/<Model_ID>/package.zip` (older bridge). Any other `package_key` is rejected
-  (`invalid_object_key`). A `.zip` is also rejected as a thumbnail, preview or gallery key.
-- When `package_file_name` is not sent, the buyer's download is named after the package
-  key, so a pipeline package downloads as `<Model_ID>.zip`.
+- Each package key must be exactly `<prefix><Model_ID>_<kind>.zip`, where `<prefix>` is the
+  row's `r2_key_prefix`. Any other name skips the row (`invalid_packages`); the old
+  `<Model_ID>.zip` and `package.zip` names are no longer packages (existing products were
+  converted to Whole File by the 0016 migration). A `.zip` is also rejected as a thumbnail,
+  preview or gallery key (`invalid_object_key`).
+- The buyer's download is named after the package's `file_name` (by default the key's file
+  name, `<Model_ID>_<kind>.zip`).
 - **The import never creates, renames or deletes a file in R2.** It checks the uploaded
   files where they are, and the product points straight at them: `models/<ID>/` holds only
   the uploader's files. The one exception is a preview the virus scanner reports as
@@ -128,7 +132,7 @@ add it there.
       "name": "Oak Chair",
       "category": "Furniture",
       "subcategory": "Chair",
-      "price": "29.99",
+      "price": "0.00",
       "currency": "USD",
       "description": "…",
       "polygon_count": 12480,
@@ -140,8 +144,15 @@ add it there.
       "media": {
         "thumbnail_key": "models/FUR-CHR-000123/previewthumb_FUR-CHR-000123.jpg",
         "preview_key": "models/FUR-CHR-000123/preview_FUR-CHR-000123.glb",
-        "package_key": "models/FUR-CHR-000123/FUR-CHR-000123.zip",
-        "package_file_size": 48234496,
+        "package_key": "models/FUR-CHR-000123/FUR-CHR-000123_whole.zip",
+        "packages": [
+          {"kind": "with_light_rig", "label": "With Light Rig",
+           "key": "models/FUR-CHR-000123/FUR-CHR-000123_with_light_rig.zip",
+           "file_name": "FUR-CHR-000123_with_light_rig.zip", "file_format": "zip", "file_size": 40500000},
+          {"kind": "whole", "label": "Whole File",
+           "key": "models/FUR-CHR-000123/FUR-CHR-000123_whole.zip",
+           "file_name": "FUR-CHR-000123_whole.zip", "file_format": "zip", "file_size": 48234496}
+        ],
         "spin_keys": [
           "360/FUR-CHR-000123/360_FUR-CHR-000123_01.jpg",
           "…",
@@ -153,13 +164,26 @@ add it there.
 }
 ```
 
+- `price`: the `"0.00"` placeholder. The sheet's price and discount are never read: each
+  package is priced on the Pricing page, and a package with no price is not sold.
+- `media.packages`: one entry per zip the tool made (1 to 5), each with `kind` (one of
+  `with_light_rig`, `without_light_rig`, `glb_only`, `environment`, `whole`), `key`
+  (`<prefix><ID>_<kind>.zip`), `file_name`, `file_format` (`zip`) and `file_size` (> 0).
+  `label` is accepted and not used: the website names packages itself. No duplicate kinds;
+  `media.package_key` (the main zip) must be one of the keys. Otherwise `invalid_packages`.
+  More than 10 entries fails the whole request (400).
+- `media.preview_key` and `media.spin_keys` (36 frames) are both optional, but a model needs
+  at least one of them (`missing_preview`). `glb_checksum` is required only with a preview
+  (`missing_glb_checksum`).
 - `package_formats`: the model formats inside the zip, lowercase without the dot
   (`fbx`, `max`, `obj`, `blend`, `glb`…). The plugin fills it from the files it packs. The
   site shows them as the product's formats and uses them for the browse page's
   software/format filter. Archive types (`zip`, `rar`, `7z`) are never listed as formats.
 - `polygon_count`: read from the **full model** in the package, never from the preview GLB.
   The import rejects a preview with more than 50% of this count (`preview_not_reduced`).
-- `category` / `subcategory`: matched by name, case-insensitive, among active categories.
+- `category`: the sheet's category name. A new model's category is found by the code in its
+  Model ID; the name only links or names a category (see "Category"). There are no
+  subcategories in the upload.
 - `media.spin_keys`: the 360° frames, in spin order. The same rules apply to paid and Free
   models, and the row's `r2_key_prefix` is not used:
 
@@ -199,23 +223,51 @@ holds `preview_unchecked` when that applies.
 
 | Warning | Meaning |
 |---|---|
-| `subcategory_not_found` | The subcategory does not exist (or is inactive) under the category. The product was placed in the parent category. Create the subcategory in `/console`, then re-import. |
+| `category_linked` | The category with the sheet's name had no code; it now has this ID's code, and later models with that code go there. |
+| `category_pending_approval` | The category of this code is new (created by this or an earlier upload) and hidden. Approve it in `/console` → Categories before approving the model. |
+| `package_needs_price` | A live model got a new package. It is not sold until it has a price on the Pricing page. |
 | `preview_unchecked` | The preview was accepted without the 50% reduction check (see Import gate). Send `polygon_count`. |
 | `preview_not_scanned` | The preview was imported without a virus scan, because `CATALOG_IMPORT_SCAN_REQUIRED` is `False` and no scanner is configured. Expected while that switch is off. |
-| `console_text_kept` | Re-upload only: the sheet's name, descriptions or price differ from the product's, and the website kept the product's (see Re-import). Change the text in `/console`, not in the sheet. |
-| `price_needed` | Re-upload only: the model moved from `free-models/` to `models/` but still costs 0. Set a price when approving it in the QA queue. |
+| `console_text_kept` | Re-upload only: the sheet's name or descriptions differ from the product's, and the website kept the product's (see Re-import). Change the text in `/console`, not in the sheet. |
+| `price_needed` | Re-upload only: the model moved from `free-models/` to `models/`. Its packages have no price; set them on the Pricing page after QA. |
 | `live_update_in_qa` | The model is live: it stays on sale and waits in the QA queue as an update (see Re-import). Also set when a live model's re-upload was refused. |
 
 ## Import gate
 
 A row is skipped, with a reason, when any of these apply:
 `folder_mismatch`, `invalid_model_id`, `exports_incomplete`, `invalid_name`,
-`invalid_export_size`, `invalid_price`, `invalid_currency`, `missing_thumbnail`,
-`qa_not_ready`, `missing_glb_checksum`, `invalid_r2_prefix`, `missing_preview`,
-`category_unmapped`, `invalid_object_key`.
+`invalid_export_size`, `invalid_currency`, `missing_thumbnail`, `qa_not_ready`,
+`missing_glb_checksum`, `invalid_r2_prefix`, `missing_preview`, `invalid_object_key`,
+`invalid_packages`, `missing_package_object`, `package_has_buyers`, and the category reasons
+below. The texts the admin sees for every reason are in `backend/products/import_reasons.py`.
 
-`category_unmapped` applies to new models only: a re-upload keeps the product's category, so
-the sheet's category is not looked up.
+`package_has_buyers`: a re-upload leaves out a package that someone bought (a paid, not
+disputed order line of that package, or one from before packages existed, which covers every
+package). The row is refused so the buyer's file stays; keep that zip and upload again. A
+package nobody bought may be left out: its row is removed.
+
+## Category
+
+A new model's category comes from the code in its Model ID (`ELE` in `ELE-000001`). The code
+belongs to one category for good. A re-upload keeps the product's category and never looks it
+up. For a new model, in this order:
+
+1. The code is the part before the first `-`. Not 2-5 capital letters → `invalid_model_id`.
+2. A category has the code: an active one is used; a pending one (created by an upload, not
+   approved yet) is used with `category_pending_approval`; a rejected one → `category_rejected`;
+   one switched off in `/console` → `category_inactive` (never revived).
+3. Otherwise the active categories with the sheet's name (case-insensitive, extra spaces
+   ignored) and no code: exactly one gets the code once (`category_linked`); more than one →
+   `category_ambiguous`. A category with that name and another code → `category_code_mismatch`;
+   only switched-off ones → `category_inactive`.
+4. No category has the code or the name: the category is **created**, hidden and pending
+   (`is_active` false, `pending_approval` true, the batch id recorded), with
+   `category_pending_approval`. An empty name, or one over 255 characters, → `category_unmapped`.
+
+An admin approves, merges or rejects new categories in `/console` → Categories ("Waiting for
+approval"). A model in a pending or rejected category cannot be approved. Reject deletes an
+empty category; one with models stays hidden and refuses new uploads until it is approved or
+merged.
 
 `exports_incomplete`: a row passes when **either** rule passes:
 
@@ -288,14 +340,15 @@ large batches will time out.
 
 - Re-importing the same Model ID updates the product (`pending_review` again).
 - **The administrator owns the text.** The sheet's name, short description, description,
-  category, price, discount, currency, licence, software and feature ticks are used only
-  when the model is first created. After that they are edited in `/console`, and a re-upload
-  updates only the files and what is measured from them: thumbnail, preview, gallery,
-  package, `polygon_count`, `glb_checksum`, `package_formats`, the batch ID. When the sheet's
-  text or price differs, the row carries the warning `console_text_kept`.
+  currency, licence, software and feature ticks are used only when the model is first created
+  (the category comes from the Model ID's code; prices from the Pricing page). After that they
+  are edited in `/console`, and a re-upload updates only the files and what is measured from
+  them: thumbnail, preview, gallery, packages, `polygon_count`, `glb_checksum`,
+  `package_formats`, the batch ID. Each package keeps its price and sale; a new package has no
+  price. When the sheet's text differs, the row carries the warning `console_text_kept`.
 - The Free tick still decides the price on a re-upload: a model sent to `free-models/` becomes
-  free (price 0, no discount), because its files are public. A model moved from `free-models/`
-  back to `models/` keeps price 0 and carries `price_needed`; set the price when approving it.
+  free (every package 0, no sale), because its files are public. A model moved from
+  `free-models/` back to `models/` has unpriced packages and carries `price_needed`.
 - On the first upload, a trailing "Folders in model folder: …" list (written by the Model ID
   Tool) is removed from the description and short description. For products imported
   before this change, run `python manage.py strip_folder_listings` (dry run), then
@@ -317,7 +370,8 @@ large batches will time out.
 - Every skipped or failed model is recorded with its reason in the activity log
   (`skipped_reasons`), and the `/console` QA queue lists the latest imports with those reasons.
 - An existing gallery is kept; the import only fills an empty gallery.
-- The existing package is kept unless the batch provides a new `package_key`.
+- The packages follow `media.packages`: one row per zip, a removed kind is deleted (unless
+  someone bought it: `package_has_buyers`).
 - `package_formats` is replaced by the value in the batch.
 - The 360° follows the `spin_keys` rules above: absent keeps it, `[]` clears it, 36 frames
   replace it. A live model's new 360° is shown at once and waits in the QA queue with its other
