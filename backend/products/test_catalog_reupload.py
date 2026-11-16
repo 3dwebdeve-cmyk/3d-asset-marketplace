@@ -18,6 +18,7 @@ from products.catalog_import import (
 )
 from products.models import Product
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
+from products.testing import moved_media, price_packages
 
 _NEW_CHECKSUM = "b" * 64
 _FOLDERS = "Folders in model folder:- BLENDER- FBX- GLB- RENDER_IMAGES- TEXTURE- THUMBNAIL"
@@ -26,12 +27,7 @@ _FOLDERS = "Folders in model folder:- BLENDER- FBX- GLB- RENDER_IMAGES- TEXTURE-
 def _free_item(**overrides: object) -> dict:
     """The same model ticked Free in the uploader: every file under free-models/<sku>/."""
     item = _happy_item(r2_key_prefix="free-models/MDL-000142/", **overrides)
-    item["media"] = {
-        key: [k.replace("models/", "free-models/", 1) for k in value]
-        if isinstance(value, list)
-        else value.replace("models/", "free-models/", 1) if isinstance(value, str) else value
-        for key, value in item["media"].items()
-    }
+    item["media"] = moved_media(item["media"], "models/", "free-models/")
     return item
 
 
@@ -53,11 +49,11 @@ class CatalogReuploadTests(CatalogImportTestBase):
     def test_reupload_keeps_the_admin_text_and_updates_the_files(self) -> None:
         product = self._first_upload()
         lamps = Category.objects.create(name="Lamps", slug="lamps")
+        price_packages(product, "45.00")
         Product.objects.filter(pk=product.pk).update(
             name="Oak Studio Chair",
             description="Written in the console.",
             short_description="Console short text.",
-            price=Decimal("45.00"),
             category=lamps,
             license_type=Product.LicenseType.EXTENDED,
             software_used="Blender",
@@ -109,7 +105,7 @@ class CatalogReuploadTests(CatalogImportTestBase):
 
         self._reupload(_happy_item(category="DoesNotExist"))
 
-        self.assertEqual(Product.objects.get(sku="MDL-000142").category_id, self.chairs.pk)
+        self.assertEqual(Product.objects.get(sku="MDL-000142").category_id, self.furniture.pk)
 
     def test_rejected_model_returns_to_qa_with_its_console_text(self) -> None:
         product = self._first_upload()
@@ -123,7 +119,7 @@ class CatalogReuploadTests(CatalogImportTestBase):
 
     def test_reupload_into_the_free_folder_makes_it_free(self) -> None:
         product = self._first_upload()
-        Product.objects.filter(pk=product.pk).update(price=Decimal("45.00"), discount_price=Decimal("40.00"))
+        price_packages(product, "45.00", discount_price=Decimal("40.00"))
 
         self._reupload(_free_item())
 
@@ -167,6 +163,7 @@ class LiveModelUpdateTests(CatalogImportTestBase):
         self.product.refresh_from_db()
         # A paid model waits for its price after QA; the Pricing page then publishes it.
         self.assertEqual(self.product.status, Product.Status.AWAITING_PRICE)
+        price_packages(self.product, "29.99")
         Product.objects.filter(pk=self.product.pk).update(status=Product.Status.PUBLISHED)
         self.product.refresh_from_db()
         self.public_url = reverse("products:product-detail", kwargs={"slug": self.product.slug})

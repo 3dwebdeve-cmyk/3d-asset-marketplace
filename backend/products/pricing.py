@@ -1,10 +1,12 @@
 """Pricing page service (docs/PRICING_PIPELINE.md, Part 2).
 
-The server calculates every price. The page sends model IDs and a rule (one price, a price per
-poly level, % off, $ off, or remove the sale); ``preview`` returns the calculated rows and a
-token; ``apply`` recalculates under row locks, refuses when anything changed since the preview
-(the token differs), and saves everything or nothing with one price-history batch. ``publish``
-puts priced models from "Waiting for price" on the store, one by one, with the publish checks.
+The server calculates every price. The page sends model IDs, the package the rule prices
+(docs/PACKAGES_PIPELINE.md, Phase 3) and a rule (one price, a price per poly level, % off,
+$ off, or remove the sale); ``preview`` returns the calculated rows and a token; ``apply``
+recalculates under row locks, refuses when anything changed since the preview (the token
+differs), and saves everything or nothing with one price-history batch. A model without the
+chosen package is listed and left alone. ``publish`` puts priced models from "Waiting for price"
+on the store, one by one, with the publish checks (every package priced).
 """
 
 from __future__ import annotations
@@ -25,9 +27,16 @@ from django.utils import timezone
 
 from config.currency import MINIMUM_CHECKOUT_AMOUNTS
 from products.errors import ProductError
-from products.models import Product, ProductPriceChange
+from products.models import Product, ProductFile, ProductPriceChange
+from products.packages import (
+    PACKAGE_LABELS,
+    PACKAGE_ORDER,
+    PackageKind,
+    bundle_warning,
+    sync_summary_price,
+)
 from products.price_history import PriceState, record_price_change
-from products.services import UPLOAD_KIND_FREE, ProductService
+from products.services import MAX_DISCOUNT_SHARE, UPLOAD_KIND_FREE, ProductService
 
 TAB_WAITING = "waiting"
 TAB_LIVE = "live"
@@ -52,7 +61,6 @@ RULES = frozenset(
 SALE_RULES = frozenset({RULE_PERCENT_OFF, RULE_AMOUNT_OFF})
 
 MAX_MODELS_PER_ACTION = 200
-MAX_DISCOUNT_SHARE = Decimal("0.90")
 CONFIRM_DISCOUNT_SHARE = Decimal("0.50")
 CURRENCY = "USD"
 MINIMUM_PRICE = MINIMUM_CHECKOUT_AMOUNTS[CURRENCY]
@@ -131,13 +139,15 @@ def list_models(
 ) -> QuerySet[Product]:
     """Models on the Pricing page. Waiting: paid models that passed QA. Live: paid models on
     the store (free models never have a price or a sale)."""
-    queryset = Product.objects.select_related("category").annotate(
-        free_upload=ProductService.free_upload_exists()
+    queryset = (
+        Product.objects.select_related("category")
+        .prefetch_related("files")
+        .annotate(free_upload=ProductService.free_upload_exists())
     )
     if tab == TAB_WAITING:
         queryset = queryset.filter(status=Product.Status.AWAITING_PRICE)
     elif tab == TAB_LIVE:
-        queryset = queryset.filter(status=Product.Status.PUBLISHED, price__gt=0)
+        queryset = queryset.filter(status=Product.Status.PUBLISHED)
     else:
         raise ProductError("Tab must be 'waiting' or 'live'.", field="tab")
     queryset = queryset.filter(free_upload=False)
@@ -176,6 +186,8 @@ def list_batches(tab: str) -> list[str]:
 @dataclass(frozen=True)
 class PricingRule:
     kind: str
+    # The package the rule prices; the other packages of each model are left as they are.
+    package_kind: str = PackageKind.WHOLE
     thresholds: PolyThresholds = field(default_factory=PolyThresholds)
     price: Decimal | None = None
     tier_prices: dict[str, Decimal] = field(default_factory=dict)
@@ -187,6 +199,7 @@ class PricingRule:
     def canonical(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
+            "package_kind": self.package_kind,
             "low_below": self.thresholds.low_below,
             "high_above": self.thresholds.high_above,
             "price": _text(self.price),
@@ -198,49 +211,91 @@ class PricingRule:
         }
 
 
+def package_summaries(
+    product: Product, now: datetime, override: PricingRow | None = None
+) -> list[dict[str, Any]]:
+    """Every package of a model with its price and sale, in PACKAGE_ORDER; ``override`` shows
+    one package with a preview row's new values. Reads ``product.files.all()`` (prefetched)."""
+    rows = sorted(
+        (row for row in product.files.all() if not row.is_preview and row.package_kind),
+        key=lambda row: PACKAGE_ORDER.index(row.package_kind),
+    )
+    summaries = []
+    for row in rows:
+        if override is not None and override.package is not None and row.pk == override.package.pk:
+            price, sale, ends_at = override.new_price, override.new_sale, override.new_ends_at
+        else:
+            price = row.price
+            sale = row.active_discount_price(now)
+            ends_at = row.discount_ends_at if sale is not None else None
+        effective = sale if sale is not None else price
+        summaries.append(
+            {
+                "kind": row.package_kind,
+                "label": PACKAGE_LABELS[row.package_kind],
+                "price": _text(price),
+                "sale_price": _text(sale),
+                "sale_ends_at": _time_text(ends_at),
+                "buyer_pays": _text(effective),
+            }
+        )
+    return summaries
+
+
+def summaries_bundle_warning(summaries: list[dict[str, Any]]) -> str:
+    """The bundle check on what buyers pay for the priced packages."""
+    return bundle_warning(
+        {row["kind"]: Decimal(row["buyer_pays"]) for row in summaries if row["buyer_pays"] is not None}
+    )
+
+
 @dataclass
 class PricingRow:
     product: Product
+    # The chosen kind's package; None when the model has no such package (left alone).
+    package: ProductFile | None
     tier: str
-    old_price: Decimal
+    old_price: Decimal | None
     old_sale: Decimal | None
     old_ends_at: datetime | None
-    new_price: Decimal
+    new_price: Decimal | None
     new_sale: Decimal | None
     new_ends_at: datetime | None
+    now: datetime
     error: str = ""
 
     @property
-    def old_effective(self) -> Decimal:
+    def old_effective(self) -> Decimal | None:
         return self.old_sale if self.old_sale is not None else self.old_price
 
     @property
-    def new_effective(self) -> Decimal:
+    def new_effective(self) -> Decimal | None:
         return self.new_sale if self.new_sale is not None else self.new_price
 
     @property
     def discount_share(self) -> Decimal:
-        if self.new_sale is None or self.new_price <= 0:
+        if self.new_sale is None or not self.new_price:
             return Decimal("0")
         return (self.new_price - self.new_sale) / self.new_price
 
     @property
     def changed(self) -> bool:
-        product = self.product
-        return (
-            self.new_price != product.price
-            or self.new_sale != product.discount_price
-            or self.new_ends_at != product.discount_ends_at
+        package = self.package
+        return package is not None and (
+            self.new_price != package.price
+            or self.new_sale != package.discount_price
+            or self.new_ends_at != package.discount_ends_at
         )
 
     def fingerprint(self) -> list[Any]:
-        product = self.product
+        product, package = self.product, self.package
         return [
             str(product.pk),
             product.status,
-            _text(product.price),
-            _text(product.discount_price),
-            _time_text(product.discount_ends_at),
+            str(package.pk) if package else None,
+            _text(package.price) if package else None,
+            _text(package.discount_price) if package else None,
+            _time_text(package.discount_ends_at) if package else None,
             _text(self.new_price),
             _text(self.new_sale),
             _time_text(self.new_ends_at),
@@ -250,6 +305,7 @@ class PricingRow:
     def to_dict(self) -> dict[str, Any]:
         product = self.product
         saving = self.new_price - self.new_sale if self.new_sale is not None else Decimal("0")
+        packages = package_summaries(product, self.now, override=self)
         return {
             "id": str(product.pk),
             "name": product.name,
@@ -258,6 +314,7 @@ class PricingRow:
             "polygon_count": product.polygon_count,
             "poly_tier": self.tier,
             "currency": product.currency,
+            "has_package": self.package is not None,
             "old_price": _text(self.old_price),
             "old_sale_price": _text(self.old_sale),
             "old_sale_ends_at": _time_text(self.old_ends_at),
@@ -269,6 +326,9 @@ class PricingRow:
             "buyer_pays": _text(self.new_effective),
             "changed": self.changed and not self.error,
             "error": self.error,
+            # Every package of the model, the chosen one with its new values.
+            "packages": packages,
+            "bundle_warning": summaries_bundle_warning(packages),
         }
 
 
@@ -293,41 +353,54 @@ def calculate(products: list[Product], rule: PricingRule, now: datetime) -> list
 
 def _calculate_row(product: Product, rule: PricingRule, now: datetime) -> PricingRow:
     tier = rule.thresholds.tier(product.polygon_count)
-    active_sale = product.active_discount_price(now)
+    package = next(
+        (
+            row
+            for row in product.files.all()
+            if not row.is_preview and row.package_kind == rule.package_kind
+        ),
+        None,
+    )
+    active_sale = package.active_discount_price(now) if package is not None else None
     # An ended sale that is still stored counts as no sale (it is cleared on save).
-    sale = active_sale
-    ends_at = product.discount_ends_at if active_sale is not None else None
+    ends_at = package.discount_ends_at if active_sale is not None else None
+    price = package.price if package is not None else None
     row = PricingRow(
         product=product,
+        package=package,
         tier=tier,
-        old_price=product.price,
+        old_price=price,
         old_sale=active_sale,
         old_ends_at=ends_at,
-        new_price=product.price,
-        new_sale=sale,
+        new_price=price,
+        new_sale=active_sale,
         new_ends_at=ends_at,
+        now=now,
     )
 
     eligible = _eligibility_error(product)
     if eligible:
         row.error = eligible
         return row
+    if package is None:
+        # Listed as "no <label> package" by the page, and never changed.
+        return row
 
     if rule.kind in (RULE_SET_PRICE, RULE_TIER_PRICE):
-        price = rule.price if rule.kind == RULE_SET_PRICE else rule.tier_prices.get(tier)
-        if price is None:
+        new_price = rule.price if rule.kind == RULE_SET_PRICE else rule.tier_prices.get(tier)
+        if new_price is None:
             row.error = f"No price was given for {tier} poly models."
             return row
-        row.new_price = price
-        if row.new_sale is not None and row.new_sale >= price:
+        row.new_price = new_price
+        if row.new_sale is not None and row.new_sale >= new_price:
             row.error = (
                 f"The running sale price {row.new_sale:.2f} would not be lower than the new "
                 "price. Remove the sale first, or choose a higher price."
             )
             return row
     elif rule.kind in SALE_RULES:
-        base = product.price
-        if base < MINIMUM_PRICE:
+        base = package.price
+        if base is None or base < MINIMUM_PRICE:
             row.error = "Set the price before giving a sale."
             return row
         if rule.kind == RULE_PERCENT_OFF:
@@ -352,12 +425,7 @@ def _calculate_row(product: Product, rule: PricingRule, now: datetime) -> Pricin
 
 
 def _eligibility_error(product: Product) -> str:
-    if product.status == Product.Status.AWAITING_PRICE:
-        pass
-    elif product.status == Product.Status.PUBLISHED:
-        if product.price <= 0:
-            return "Free models have no price or sale."
-    else:
+    if product.status not in (Product.Status.AWAITING_PRICE, Product.Status.PUBLISHED):
         return "Only models waiting for a price or on the store can be priced here."
     if product.currency != CURRENCY:
         return f"Only {CURRENCY} prices are supported."
@@ -367,6 +435,9 @@ def _eligibility_error(product: Product) -> str:
 
 
 def _price_error(row: PricingRow) -> str:
+    if row.new_price is None:
+        # A package with no price yet keeps none (removing a sale it does not have).
+        return ""
     if row.new_price < MINIMUM_PRICE:
         return f"The price must be at least {MINIMUM_PRICE} {CURRENCY}."
     if row.new_sale is None:
@@ -408,8 +479,13 @@ class PricingPreview:
                 "changed": sum(1 for row in ok_rows if row.changed),
                 "errors": len(self.rows) - len(ok_rows),
                 "currency": CURRENCY,
-                "buyer_pays_before": _text(sum((row.old_effective for row in ok_rows), Decimal("0"))),
-                "buyer_pays_after": _text(sum((row.new_effective for row in ok_rows), Decimal("0"))),
+                "buyer_pays_before": _text(
+                    sum((row.old_effective or Decimal("0") for row in ok_rows), Decimal("0"))
+                ),
+                "buyer_pays_after": _text(
+                    sum((row.new_effective or Decimal("0") for row in ok_rows), Decimal("0"))
+                ),
+                "without_package": sum(1 for row in self.rows if row.package is None),
                 "needs_confirmation": self.needs_confirmation,
             },
             "preview_token": self.token,
@@ -478,19 +554,20 @@ def apply(
     for row in result.rows:
         if not row.changed:
             continue
-        product = row.product
-        before = PriceState.of(product)
-        product.price = row.new_price
-        product.discount_price = row.new_sale
-        product.discount_ends_at = row.new_ends_at
-        product.save(update_fields=["price", "discount_price", "discount_ends_at", "updated_at"])
+        package = row.package
+        before = PriceState.of(package)
+        package.price = row.new_price
+        package.discount_price = row.new_sale
+        package.discount_ends_at = row.new_ends_at
+        package.save(update_fields=["price", "discount_price", "discount_ends_at", "updated_at"])
         record_price_change(
-            product,
+            package,
             before,
             source=ProductPriceChange.Source.PRICING_PAGE,
             actor=actor,
             batch_id=batch_id,
         )
+        sync_summary_price(row.product)
         changed += 1
     return {
         "batch_id": batch_id,
@@ -545,18 +622,7 @@ def _publish_error(product: Product) -> str:
         return "This model is not waiting for a price."
     if ProductService.upload_kind(product) == UPLOAD_KIND_FREE:
         return "Free models are published from QA."
-    if product.price < MINIMUM_PRICE:
-        return f"Set a price of at least {MINIMUM_PRICE} {CURRENCY} first."
-    # A running sale must follow the same rules as one saved on this page (older data, or a
-    # sale from before the rules existed, must not reach the store).
-    sale = product.active_discount_price()
-    if sale is not None:
-        share = (product.price - sale) / product.price
-        if sale < MINIMUM_PRICE or sale >= product.price or share > MAX_DISCOUNT_SHARE:
-            return (
-                f"Its sale price {sale:.2f} is not allowed (at least {MINIMUM_PRICE}, below the "
-                "price, at most 90% off). Remove the sale or change it first."
-            )
+    # Every package's price and running sale are checked by _validate_publish_ready.
     try:
         ProductService._validate_publish_ready(product, require_sku=True)
     except ProductError as exc:

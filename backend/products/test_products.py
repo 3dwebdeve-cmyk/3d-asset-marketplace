@@ -288,7 +288,6 @@ class ProductAdminAPITests(APITestCase):
             {
                 "category_id": str(self.category.pk),
                 "name": "Glass Pavilion",
-                "price": "89.50",
                 "short_description": "Modern glass structure",
                 "status": "draft",
             },
@@ -310,7 +309,6 @@ class ProductAdminAPITests(APITestCase):
             {
                 "category_id": str(self.category.pk),
                 "name": "Invalid Product",
-                "price": "10.00",
             },
             format="json",
         )
@@ -322,19 +320,19 @@ class ProductAdminAPITests(APITestCase):
         self._authenticate_as_admin()
         package_path = default_storage.save('products/files/admin-update.zip', ContentFile(b'package'))
         ProductFile.objects.create(product=self.product, file_name='admin-update.zip', file_format='zip',
-                                   file_size=7, storage_path=package_path)
+                                   file_size=7, storage_path=package_path, package_kind='whole')
 
         # Publishing is only through the review queue, so a direct PATCH is refused.
         direct = self.client.patch(
             self.detail_url,
-            {"status": "published", "price": "150.00", "preview_model": "https://example.com/model.glb"},
+            {"status": "published", "preview_model": "https://example.com/model.glb"},
             format="json",
         )
         self.assertEqual(direct.status_code, status.HTTP_400_BAD_REQUEST)
 
         self.client.patch(
             self.detail_url,
-            {"status": "pending_review", "sku": "ADMIN-UPDATE-001", "price": "150.00",
+            {"status": "pending_review", "sku": "ADMIN-UPDATE-001",
              "preview_model": "https://example.com/model.glb"},
             format="json",
         )
@@ -343,9 +341,9 @@ class ProductAdminAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.product.refresh_from_db()
-        # A paid model passes QA and waits for its price; the edited price is kept.
+        # A paid model passes QA and waits for its package prices (set on the Pricing page).
         self.assertEqual(self.product.status, Product.Status.AWAITING_PRICE)
-        self.assertEqual(self.product.price, Decimal("150.00"))
+        self.assertIsNone(ProductFile.objects.get(product=self.product, package_kind="whole").price)
 
     def test_admin_archive_product(self) -> None:
         self._authenticate_as_admin()
@@ -420,7 +418,6 @@ class ProductAdminAPITests(APITestCase):
             {
                 "category_id": str(self.category.pk),
                 "name": "Batch Model",
-                "price": "42.00",
                 "sku": "mdl-000142",
                 "import_batch_id": "batch-2026-08-04",
                 "import_source": "batch_report",
@@ -451,7 +448,6 @@ class ProductAdminAPITests(APITestCase):
             {
                 "category_id": str(self.category.pk),
                 "name": "Duplicate SKU Product",
-                "price": "10.00",
                 "sku": "MDL-000142",
             },
             format="json",
@@ -468,7 +464,6 @@ class ProductAdminAPITests(APITestCase):
             {
                 "category_id": str(self.category.pk),
                 "name": "Bad SKU Product",
-                "price": "10.00",
                 "sku": "bad sku!",
             },
             format="json",
@@ -690,12 +685,15 @@ class ProductMediaUploadAPITests(APITestCase):
 
         response = self.client.post(
             self.files_url,
-            {"file": usdz, "version": "1.0"},
+            {"file": usdz, "version": "1.0", "package_kind": "environment"},
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data["file_format"], "usdz")
+        self.assertEqual(response.data["package_kind"], "environment")
+        self.assertEqual(response.data["package_label"], "With Environment")
+        self.assertIsNone(response.data["price"])
         self.assertEqual(response.data["file_name"], "chair.usdz")
 
     def test_delete_image(self) -> None:

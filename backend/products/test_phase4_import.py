@@ -16,6 +16,7 @@ class ReimportKeepsMediaTests(TestCase):
             category=category,
             name="Imported Chair",
             slug="imported-chair",
+            sku="IMP-000001",
             price=Decimal("20.00"),
             status=Product.Status.DRAFT,
         )
@@ -25,6 +26,7 @@ class ReimportKeepsMediaTests(TestCase):
             display_order=0,
             is_primary=True,
         )
+        # An admin upload with no package kind (docs/PACKAGES_PIPELINE.md, F1).
         ProductFile.objects.create(
             product=self.product,
             file_name="chair.zip",
@@ -35,27 +37,29 @@ class ReimportKeepsMediaTests(TestCase):
             is_preview=False,
         )
 
-    def test_reimport_without_gallery_or_package_keeps_existing_media(self) -> None:
+    def test_reimport_without_gallery_keeps_existing_images(self) -> None:
         # Even a gallery the import may replace is kept when the batch sends none.
         CatalogImportService._sync_gallery(self.product, [], replace=True)
-        CatalogImportService._sync_package(self.product, {"package_key": ""})
 
         self.assertEqual(ProductImage.objects.filter(product=self.product).count(), 1)
-        self.assertEqual(
-            ProductFile.objects.filter(product=self.product, is_preview=False).count(),
-            1,
-        )
 
-    def test_reimport_with_a_new_package_replaces_the_old_row(self) -> None:
-        CatalogImportService._sync_package(
+    def test_reimport_adds_its_packages_and_keeps_files_without_a_kind(self) -> None:
+        new_kinds = CatalogImportService._sync_packages(
             self.product,
-            {
-                "package_key": "products/files/chair-v2.zip",
-                "package_file_name": "chair-v2.zip",
-                "package_file_format": "zip",
-                "package_file_size": 20,
-            },
+            [
+                {
+                    "kind": "whole",
+                    "key": "models/IMP-000001/IMP-000001_whole.zip",
+                    "file_name": "IMP-000001_whole.zip",
+                    "file_size": 20,
+                }
+            ],
+            free_upload=False,
         )
 
-        files = list(ProductFile.objects.filter(product=self.product, is_preview=False))
-        self.assertEqual([row.storage_path for row in files], ["products/files/chair-v2.zip"])
+        self.assertEqual(new_kinds, ["whole"])
+        files = {row.storage_path: row.package_kind for row in self.product.files.all()}
+        self.assertEqual(
+            files,
+            {"products/files/chair.zip": "", "models/IMP-000001/IMP-000001_whole.zip": "whole"},
+        )

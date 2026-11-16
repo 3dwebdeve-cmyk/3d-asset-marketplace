@@ -184,7 +184,7 @@ class PublishRegressionTests(TestCase):
     def test_direct_create_published_is_rejected(self):
         with self.assertRaises(ProductError):
             ProductService.create_product(ProductCreateData(category_id=self.category.pk,
-                name='New published product', price=Decimal('10'), status='published'))
+                name='New published product', status='published'))
         self.assertEqual(Product.objects.count(), 1)
 
     def test_manual_patch_cannot_publish_without_package(self):
@@ -194,15 +194,20 @@ class PublishRegressionTests(TestCase):
         self.assertEqual(self.product.status, 'draft')
 
     def test_jpy_price_precision_is_validated_on_catalog_write(self):
+        # A package priced with cents cannot be switched to JPY, which has no minor unit.
+        ProductFile.objects.create(product=self.product, file_name='model.zip', file_format='zip',
+                                   storage_path='products/files/model.zip', file_size=10,
+                                   package_kind='whole', price=Decimal('10.25'))
         with self.assertRaises(ProductError):
-            ProductService.update_product(self.product, ProductUpdateData(currency='JPY', price=Decimal('10.25')))
+            ProductService.update_product(self.product, ProductUpdateData(currency='JPY'))
         self.product.refresh_from_db()
         self.assertEqual(self.product.currency, 'USD')
 
     @patch('products.services.package_object_exists', return_value=True)
     def test_publish_with_existing_package_and_preview_goes_through_review(self, exists):
         ProductFile.objects.create(product=self.product, file_name='model.zip', file_format='zip',
-                                   storage_path='products/files/model.zip', file_size=10)
+                                   storage_path='products/files/model.zip', file_size=10,
+                                   package_kind='whole')
         # A direct publish is refused; the product must be submitted and approved.
         with self.assertRaises(ProductError):
             ProductService.update_product(self.product, ProductUpdateData(

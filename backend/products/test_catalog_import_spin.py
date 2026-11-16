@@ -12,8 +12,12 @@ from rest_framework import status
 
 from products.catalog_import import spin_frame_keys
 from products.models import Product
-from products.test_catalog_import import CatalogImportTestBase, _happy_item, _image_bytes
-from products.testing import put_pipeline_objects
+from products.test_catalog_import import (
+    CatalogImportTestBase,
+    _happy_item,
+    _image_bytes,
+)
+from products.testing import package_media, price_packages, put_pipeline_objects
 
 _VERSIONED = r"\?v=[0-9a-f]{12}$"
 
@@ -24,8 +28,7 @@ def _spin_item(sku: str = "FUR-000123", *, free: bool = False, **media: object) 
     item_media: dict = {
         "thumbnail_key": f"{folder}previewthumb_{sku}.jpg",
         "preview_key": f"{folder}preview_{sku}.glb",
-        "package_key": f"{folder}{sku}.zip",
-        "package_file_size": 1048576,
+        **package_media(folder, sku),
         "gallery_keys": [f"{folder}render_{sku}_01.jpg"],
         "spin_keys": spin_frame_keys(sku),
     }
@@ -171,6 +174,7 @@ class CatalogImportSpinTests(CatalogImportTestBase):
     def test_a_live_model_gets_its_new_spin_and_waits_for_review(self) -> None:
         sku = "FUR-000132"
         self._result(self._post_batch([_spin_item(sku, spin_keys=[])]))
+        price_packages(Product.objects.get(sku=sku), "29.99")
         Product.objects.filter(sku=sku).update(status=Product.Status.PUBLISHED)
 
         row = self._result(self._post_batch([_spin_item(sku)], batch_id="2026-11-13-run-02"))
@@ -184,6 +188,7 @@ class CatalogImportSpinTests(CatalogImportTestBase):
     def test_a_refused_spin_leaves_a_live_model_unchanged(self) -> None:
         sku = "FUR-000133"
         self._result(self._post_batch([_spin_item(sku)]))
+        price_packages(Product.objects.get(sku=sku), "29.99")
         Product.objects.filter(sku=sku).update(status=Product.Status.PUBLISHED)
         before = Product.objects.get(sku=sku).spin_images
 
@@ -200,6 +205,8 @@ class CatalogImportSpinTests(CatalogImportTestBase):
 
     def test_public_api_shows_the_spin_and_the_360_flag(self) -> None:
         self._result(self._post_batch([_spin_item("FUR-000134"), _spin_item("FUR-000135", spin_keys=[])]))
+        for live in Product.objects.filter(sku__in=["FUR-000134", "FUR-000135"]):
+            price_packages(live, "29.99")
         Product.objects.filter(sku__in=["FUR-000134", "FUR-000135"]).update(
             status=Product.Status.PUBLISHED
         )

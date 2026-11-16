@@ -11,6 +11,7 @@ from django.db import transaction
 from products.edge_colour import edge_fields, sample_side_colours
 from products.errors import ProductError
 from products.models import Product, ProductFile, ProductImage
+from products.packages import PACKAGE_KINDS, PACKAGE_LABELS, sync_summary_price
 from products.storage import ProductMediaStorageService
 from products.upload_rules import (
     validate_product_file_upload,
@@ -115,11 +116,25 @@ class ProductMediaService:
         *,
         version: str = "1.0",
         is_preview: bool = False,
+        package_kind: str = "",
     ) -> ProductFile:
+        """Store an uploaded file. A GLB/glTF is the public preview; any other file is one of
+        the product's packages (``package_kind``), with no price until the Pricing page sets
+        one."""
         validated = validate_product_file_upload(uploaded)
         # GLB/glTF uploads always become the interactive public preview.
         use_public_preview = validated.file_format in {"glb", "gltf"}
         effective_is_preview = True if use_public_preview else is_preview
+        if effective_is_preview:
+            package_kind = ""
+        elif package_kind not in PACKAGE_KINDS:
+            raise ProductError("Choose which package this file is.", field="package_kind")
+        elif product.files.filter(is_preview=False, package_kind=package_kind).exists():
+            raise ProductError(
+                f"This model already has a {PACKAGE_LABELS[package_kind]} package: "
+                "delete that file first.",
+                field="package_kind",
+            )
         if use_public_preview:
             reduction_error = preview_reduction_error(
                 validated.triangle_count, product.polygon_count
@@ -148,7 +163,10 @@ class ProductMediaService:
             storage_path=storage_path,
             version=version.strip() or "1.0",
             is_preview=effective_is_preview,
+            package_kind=package_kind,
         )
+        if package_kind:
+            sync_summary_price(product)
 
         if use_public_preview:
             product.preview_model = storage_path
@@ -167,7 +185,10 @@ class ProductMediaService:
 
         storage_path = product_file.storage_path
         was_preview = product_file.is_preview
+        was_package = bool(product_file.package_kind)
         product_file.delete()
+        if was_package:
+            sync_summary_price(product)
         # Preview GLBs live under products/previews/; packages under products/files/.
         ProductMediaStorageService.delete_if_managed(
             storage_path,

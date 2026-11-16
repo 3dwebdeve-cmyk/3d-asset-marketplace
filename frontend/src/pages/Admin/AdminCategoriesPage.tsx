@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import {
   createAdminCategory,
@@ -19,41 +19,51 @@ import '../../styles/admin-categories.css'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import type { AdminCategoryCreatePayload } from '../../types/category'
+import { PendingCategoryActions } from './PendingCategoryActions'
+
+/** The status filter: '' all, or active, inactive, pending (waiting for approval). */
+function statusParams(filter: string): { is_active?: boolean; pending_approval?: boolean } {
+  if (filter === 'active') return { is_active: true }
+  if (filter === 'inactive') return { is_active: false, pending_approval: false }
+  if (filter === 'pending') return { pending_approval: true }
+  return {}
+}
+
+function statusLabel(category: AdminCategory): string {
+  if (category.rejected_at) return 'Rejected'
+  if (category.pending_approval) return 'Waiting for approval'
+  return category.is_active ? 'Active' : 'Inactive'
+}
 
 const emptyCreateForm: AdminCategoryCreatePayload = {
   name: '',
   description: '',
   image: '',
   parent_id: null,
+  code: '',
 }
 
 export function AdminCategoriesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [view, setView] = useState<'list' | 'grid'>('list')
   const [hierarchy, setHierarchy] = useState(false)
-  const [activeFilter, setActiveFilter] = useState('')
+  const [activeFilter, setActiveFilter] = useState(searchParams.get('status') ?? '')
   const [showCreate, setShowCreate] = useState(false)
   const [createForm, setCreateForm] =
     useState<AdminCategoryCreatePayload>(emptyCreateForm)
   const [createError, setCreateError] = useState<string | null>(null)
-
-  const activeParam =
-    activeFilter === 'active'
-      ? true
-      : activeFilter === 'inactive'
-        ? false
-        : undefined
 
   const categoriesQuery = useQuery({
     queryKey: ['admin', 'categories', { search, is_active: activeFilter, page, pageSize }],
     queryFn: () =>
       listAdminCategories({
         search: search || undefined,
-        is_active: activeParam,
+        ...statusParams(activeFilter),
         page,
         page_size: pageSize,
       }),
@@ -100,6 +110,7 @@ export function AdminCategoriesPage() {
     createMutation.mutate({
       ...createForm,
       parent_id: createForm.parent_id || null,
+      code: createForm.code?.trim().toUpperCase() || undefined,
     })
   }
 
@@ -198,6 +209,25 @@ export function AdminCategoriesPage() {
                 }
               />
             </FormField>
+            <FormField id="create-code" label="Model code (optional)">
+              <Input
+                id="create-code"
+                maxLength={5}
+                placeholder="ELE"
+                aria-describedby="create-code-hint"
+                value={createForm.code ?? ''}
+                onChange={(event) =>
+                  setCreateForm((current) => ({
+                    ...current,
+                    code: event.target.value.toUpperCase(),
+                  }))
+                }
+              />
+            </FormField>
+            <p id="create-code-hint" className="admin-media-panel__hint">
+              2 to 5 capital letters: the start of this category's Model IDs (ELE in ELE-000001).
+              It cannot change once the category has models.
+            </p>
             <FormField id="create-parent" label="Parent category">
               <select
                 id="create-parent"
@@ -240,6 +270,7 @@ export function AdminCategoriesPage() {
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
+            <option value="pending">Waiting for approval</option>
           </select>
           <div className="categories-view" aria-label="Category view">
             <button type="button" aria-label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')}>☷</button>
@@ -265,6 +296,7 @@ export function AdminCategoriesPage() {
               <thead>
                 <tr>
                   <th scope="col">Category</th>
+                  <th scope="col">Code</th>
                   <th scope="col">Slug</th>
                   <th scope="col">Parent</th>
                   <th scope="col">Status</th>
@@ -275,10 +307,22 @@ export function AdminCategoriesPage() {
                 {categoriesQuery.data?.results.map((category) => (
                   <tr key={category.id}>
                     <td><span className="categories-name"><span className="categories-folder"><AdminIcon name="folder" size={20} /></span>{category.name}</span></td>
+                    <td>{category.code ? <code>{category.code}</code> : '—'}</td>
                     <td><code className="categories-slug">{category.slug}</code></td>
                     <td>{category.parent?.name ?? '—'}</td>
-                    <td><span className={`categories-status${category.is_active ? ' categories-status--active' : ''}`}><AdminIcon name={category.is_active ? 'check' : 'archive'} size={15} />{category.is_active ? 'Active' : 'Inactive'}</span></td>
+                    <td><span className={`categories-status${category.is_active ? ' categories-status--active' : ''}`}><AdminIcon name={category.is_active ? 'check' : 'archive'} size={15} />{statusLabel(category)}</span></td>
                     <td>
+                      {category.pending_approval ? (
+                        <>
+                          <p className="admin-media-panel__hint">
+                            {category.product_count} model{category.product_count === 1 ? '' : 's'}
+                            {category.created_from_batch ? ` · upload ${category.created_from_batch}` : ''}
+                            {' · '}
+                            {new Date(category.created_at).toLocaleDateString()}
+                          </p>
+                          <PendingCategoryActions category={category} />
+                        </>
+                      ) : null}
                       <Link
                         className="categories-manage"
                         to={`/console/categories/${category.id}`}

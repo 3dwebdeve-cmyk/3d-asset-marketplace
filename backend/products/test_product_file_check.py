@@ -58,11 +58,11 @@ class ProductFileCheckTests(CatalogImportTestBase):
         self.assertEqual(row["role"], "image")
 
     def test_a_missing_package_is_reported_from_the_private_bucket(self) -> None:
-        default_storage.delete("models/MDL-000142/package.zip")
+        default_storage.delete("models/MDL-000142/MDL-000142_whole.zip")
 
         data = self._check()
 
-        row = self._by_key(data)["models/MDL-000142/package.zip"]
+        row = self._by_key(data)["models/MDL-000142/MDL-000142_whole.zip"]
         self.assertEqual(row["status"], MISSING)
         self.assertEqual(row["bucket"], "private")
         self.assertEqual(row["role"], "package")

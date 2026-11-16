@@ -819,6 +819,51 @@
   vertical-align: middle;
 }
 
+/* Dashboard: categories uploads created, waiting for an administrator. */
+.admin-layout .admin-new-categories {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #b45309;
+  border-radius: 0.75rem;
+  background: rgb(245 158 11 / 10%);
+  color: #fcd34d;
+  text-decoration: none;
+}
+
+.admin-layout .admin-new-categories span {
+  color: inherit;
+  opacity: 0.85;
+}
+
+/* Approve / Merge into… / Reject for a category an upload created. */
+.admin-layout .pending-category-actions .dashboard-card__actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-layout .pending-category-actions select {
+  width: auto;
+  min-width: 10rem;
+}
+
+/* QA page: the packages a model is sold in. */
+.admin-layout .admin-packages-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-layout .admin-packages-table th,
+.admin-layout .admin-packages-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #3a3a42;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
 /* QA queue: Free and Paid sections, and the kind label on each row. */
 .admin-layout .admin-qa-sections {
   display: flex;

@@ -1,4 +1,3 @@
-from decimal import Decimal
 
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -8,6 +7,7 @@ from rest_framework import serializers
 from categories.models import Category
 from config.media import SPIN_FRAME_COUNT
 from products.models import Product, ProductFile, ProductImage
+from products.packages import PACKAGE_LABELS, PackageKind
 from products.upload_rules import (
     validate_product_file_upload,
     validate_product_image_upload,
@@ -60,6 +60,14 @@ class ProductFilePublicSerializer(serializers.ModelSerializer):
 
 
 class ProductFileAdminSerializer(serializers.ModelSerializer):
+    """A file as QA sees it; a package row also has its kind, label and price (null: not
+    priced yet, so not sold)."""
+
+    package_label = serializers.SerializerMethodField()
+
+    def get_package_label(self, obj: ProductFile) -> str:
+        return PACKAGE_LABELS.get(obj.package_kind, "")
+
     class Meta:
         model = ProductFile
         fields = (
@@ -70,9 +78,24 @@ class ProductFileAdminSerializer(serializers.ModelSerializer):
             "storage_path",
             "version",
             "is_preview",
+            "package_kind",
+            "package_label",
+            "price",
+            "discount_price",
+            "discount_ends_at",
             "created_at",
             "updated_at",
         )
+        read_only_fields = fields
+
+
+class ProductAdminCategorySerializer(serializers.ModelSerializer):
+    """The category as QA needs it: a model in a category waiting for approval (or rejected)
+    cannot be approved."""
+
+    class Meta:
+        model = Category
+        fields = ("id", "name", "slug", "code", "is_active", "pending_approval", "rejected_at")
         read_only_fields = fields
 
 
@@ -211,7 +234,7 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
 
 
 class ProductAdminSerializer(serializers.ModelSerializer):
-    category = ProductCategorySerializer(read_only=True)
+    category = ProductAdminCategorySerializer(read_only=True)
     category_id = serializers.UUIDField(write_only=True, required=False)
     images = ProductImageSerializer(many=True, read_only=True)
     files = ProductFileAdminSerializer(many=True, read_only=True)
@@ -302,24 +325,30 @@ class ProductAdminSerializer(serializers.ModelSerializer):
         )
 
 
+# Prices live on the packages and are set on the Pricing page (docs/PACKAGES_PIPELINE.md); the
+# product's price fields are their summary, so no product form or QA action sends them.
+PRICE_FIELDS = ("price", "discount_price", "discount_ends_at")
+PRICING_PAGE_MESSAGE = "Prices are set per package on the Pricing page."
+
+
+def refuse_sent_fields(serializer: serializers.Serializer, names, message: str) -> None:
+    """Refuse a request that sends any of ``names``, so an old client cannot think it set them."""
+    sent = getattr(serializer, "initial_data", None) or {}
+    if hasattr(sent, "keys"):
+        refused = {name: [message] for name in names if name in sent}
+        if refused:
+            raise serializers.ValidationError(refused)
+
+
 class ProductApproveSerializer(serializers.Serializer):
-    """QA approval takes no fields: QA never sets a price (docs/PRICING_PIPELINE.md).
-
-    A body with ``pricing`` or ``price`` is refused so an old client cannot think it set one.
-    """
-
-    _PRICE_FIELDS = ("pricing", "price")
+    """QA approval takes no fields: QA never sets a price (docs/PRICING_PIPELINE.md)."""
 
     def validate(self, attrs: dict) -> dict:
-        sent = getattr(self, "initial_data", None) or {}
-        if hasattr(sent, "keys"):
-            refused = {
-                name: ["QA approval does not set prices. Set prices on the Pricing page."]
-                for name in self._PRICE_FIELDS
-                if name in sent
-            }
-            if refused:
-                raise serializers.ValidationError(refused)
+        refuse_sent_fields(
+            self,
+            ("pricing", "price"),
+            "QA approval does not set prices. Set prices on the Pricing page.",
+        )
         return attrs
 
 
@@ -353,15 +382,7 @@ class ProductCreateSerializer(serializers.Serializer):
         default="",
         max_length=500,
     )
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0"))
     currency = serializers.CharField(required=False, default="USD", max_length=3)
-    discount_price = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        min_value=Decimal("0"),
-        required=False,
-        allow_null=True,
-    )
     thumbnail = serializers.URLField(required=False, allow_blank=True, default="")
     preview_model = serializers.URLField(required=False, allow_blank=True, default="")
     preview_video = serializers.URLField(required=False, allow_blank=True, default="")
@@ -424,12 +445,7 @@ class ProductCreateSerializer(serializers.Serializer):
         return Product.normalize_sku(value)
 
     def validate(self, attrs: dict) -> dict:
-        discount = attrs.get("discount_price")
-        price = attrs.get("price")
-        if discount is not None and price is not None and discount >= price:
-            raise serializers.ValidationError(
-                {"discount_price": ["The sale price must be lower than the normal price."]}
-            )
+        refuse_sent_fields(self, PRICE_FIELDS, PRICING_PAGE_MESSAGE)
         return attrs
 
 
@@ -465,22 +481,7 @@ class ProductUpdateSerializer(serializers.Serializer):
         allow_blank=True,
         max_length=500,
     )
-    price = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        min_value=Decimal("0"),
-        required=False,
-    )
     currency = serializers.CharField(required=False, max_length=3)
-    discount_price = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        min_value=Decimal("0"),
-        required=False,
-        allow_null=True,
-    )
-    # ISO 8601 with a time zone, or null to make the sale run until removed.
-    discount_ends_at = AwareDateTimeField(required=False, allow_null=True)
     thumbnail = serializers.URLField(required=False, allow_blank=True)
     preview_model = serializers.URLField(required=False, allow_blank=True)
     preview_video = serializers.URLField(required=False, allow_blank=True)
@@ -529,10 +530,7 @@ class ProductUpdateSerializer(serializers.Serializer):
         return Product.normalize_sku(value)
 
     def validate(self, attrs: dict) -> dict:
-        if "discount_price" in self.initial_data and self.initial_data.get("discount_price") is None:
-            attrs["clear_discount_price"] = True
-        if "discount_ends_at" in self.initial_data and self.initial_data.get("discount_ends_at") is None:
-            attrs["clear_discount_ends_at"] = True
+        refuse_sent_fields(self, PRICE_FIELDS, PRICING_PAGE_MESSAGE)
         if "polygon_count" in self.initial_data and self.initial_data.get("polygon_count") is None:
             attrs["clear_polygon_count"] = True
         if "vertex_count" in self.initial_data and self.initial_data.get("vertex_count") is None:
@@ -557,6 +555,10 @@ class ProductFileUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
     version = serializers.CharField(required=False, allow_blank=True, default="1.0", max_length=64)
     is_preview = serializers.BooleanField(required=False, default=False)
+    # Which package the file is; required for any file that is not the preview.
+    package_kind = serializers.ChoiceField(
+        choices=PackageKind.choices, required=False, allow_blank=True, default=""
+    )
 
     def validate_file(self, value):
         validate_product_file_upload(value)
@@ -601,24 +603,26 @@ class CatalogImportExportsSerializer(serializers.Serializer):
     )
 
 
+class CatalogImportPackageSerializer(serializers.Serializer):
+    """One zip the tool made. Loose types on purpose: a wrong entry skips its row as
+    invalid_packages instead of failing the whole batch (the import checks every field)."""
+
+    kind = serializers.CharField(required=False, allow_blank=True, default="", max_length=32)
+    key = serializers.CharField(required=False, allow_blank=True, default="", max_length=512)
+    file_name = serializers.CharField(required=False, allow_blank=True, default="", max_length=255)
+    file_format = serializers.CharField(required=False, allow_blank=True, default="", max_length=32)
+    file_size = serializers.IntegerField(required=False, allow_null=True, default=None)
+
+
 class CatalogImportMediaSerializer(serializers.Serializer):
     thumbnail_key = serializers.CharField(required=False, allow_blank=True, default="")
+    # Optional when the model has a 360° spin (spin_keys).
     preview_key = serializers.CharField(required=False, allow_blank=True, default="")
+    # The main zip: one of the packages' keys.
     package_key = serializers.CharField(required=False, allow_blank=True, default="")
-    # Blank means "name it after the package key" (package.zip or <Model_ID>.zip).
-    package_file_name = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        default="",
-        max_length=255,
-    )
-    package_file_format = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        default="zip",
-        max_length=32,
-    )
-    package_file_size = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    # One entry per zip (docs/batch-ingest-contract.md). The cap is looser than the five kinds
+    # so a wrong list skips its row instead of failing the batch.
+    packages = CatalogImportPackageSerializer(many=True, required=False, default=list, max_length=10)
     gallery_keys = serializers.ListField(
         child=serializers.CharField(allow_blank=False, max_length=512),
         required=False,
@@ -641,26 +645,10 @@ class CatalogImportMediaSerializer(serializers.Serializer):
 class CatalogImportItemSerializer(serializers.Serializer):
     model_id = serializers.CharField(required=False, allow_blank=True, default="", max_length=64)
     name = serializers.CharField(required=False, allow_blank=True, default="", max_length=255)
+    # The sheet's category name: only used to link or create the category of the code in
+    # model_id. The sheet's price is not read: packages are priced on the Pricing page.
     category = serializers.CharField(required=False, allow_blank=True, default="", max_length=255)
-    subcategory = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        default="",
-        max_length=255,
-    )
-    price = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        required=False,
-        allow_null=True,
-    )
     currency = serializers.CharField(required=False, allow_blank=True, default="USD", max_length=3)
-    discount_price = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        required=False,
-        allow_null=True,
-    )
     short_description = serializers.CharField(
         required=False,
         allow_blank=True,

@@ -1,10 +1,14 @@
+import re
 from dataclasses import dataclass
 from uuid import UUID
 
-from django.db import transaction
-from django.db.models import F, Q, QuerySet
+from django.db import IntegrityError, transaction
+from django.db.models import Count, F, Q, QuerySet
+from django.utils import timezone
 
-from categories.models import Category
+from categories.models import CATEGORY_CODE_REGEX, Category
+
+_CODE_RE = re.compile(CATEGORY_CODE_REGEX)
 
 
 class CategoryError(Exception):
@@ -20,6 +24,7 @@ class CategoryCreateData:
     description: str = ""
     image: str = ""
     parent_id: UUID | None = None
+    code: str | None = None
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,9 @@ class CategoryUpdateData:
     clear_parent: bool = False
     is_active: bool | None = None
     slug: str | None = None
+    # A new model code; clear_code removes it. Both only while the category has no models.
+    code: str | None = None
+    clear_code: bool = False
 
 
 class CategoryService:
@@ -77,13 +85,16 @@ class CategoryService:
         cls,
         *,
         is_active: bool | None = None,
+        pending_approval: bool | None = None,
         parent_id: UUID | None = None,
         search: str | None = None,
     ) -> QuerySet[Category]:
-        queryset = Category.objects.select_related("parent")
+        queryset = cls._admin_queryset()
 
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active)
+        if pending_approval is not None:
+            queryset = queryset.filter(pending_approval=pending_approval)
         if parent_id is not None:
             queryset = queryset.filter(parent_id=parent_id)
         if search:
@@ -93,9 +104,14 @@ class CategoryService:
                     Q(name__icontains=query)
                     | Q(description__icontains=query)
                     | Q(slug__icontains=query)
+                    | Q(code__iexact=query)
                 )
 
         return queryset.order_by("name")
+
+    @staticmethod
+    def _admin_queryset() -> QuerySet[Category]:
+        return Category.objects.select_related("parent").annotate(product_count=Count("products"))
 
     @classmethod
     def get_public_by_slug(cls, slug: str) -> Category:
@@ -110,7 +126,7 @@ class CategoryService:
     @classmethod
     def get_by_id(cls, category_id: UUID) -> Category:
         try:
-            return Category.objects.select_related("parent").get(pk=category_id)
+            return cls._admin_queryset().get(pk=category_id)
         except Category.DoesNotExist as exc:
             raise CategoryError("Category not found.") from exc
 
@@ -123,14 +139,20 @@ class CategoryService:
 
         parent = cls._resolve_parent(data.parent_id)
         slug = Category.build_slug(name)
+        code = cls._clean_code(data.code) if data.code else None
 
-        return Category.objects.create(
-            name=name,
-            slug=slug,
-            description=data.description.strip(),
-            image=data.image.strip(),
-            parent=parent,
-        )
+        try:
+            with transaction.atomic():
+                return Category.objects.create(
+                    name=name,
+                    slug=slug,
+                    description=data.description.strip(),
+                    image=data.image.strip(),
+                    parent=parent,
+                    code=code,
+                )
+        except IntegrityError as exc:
+            raise CategoryError(_code_taken(code), field="code") from exc
 
     @classmethod
     @transaction.atomic
@@ -175,13 +197,103 @@ class CategoryService:
             update_fields.append("slug")
 
         if data.is_active is not None:
+            if data.is_active and category.pending_approval:
+                raise CategoryError(
+                    "This category is waiting for approval: approve it instead.",
+                    field="is_active",
+                )
             if not data.is_active:
                 cls._ensure_can_deactivate(category)
             category.is_active = data.is_active
             update_fields.append("is_active")
 
-        category.save(update_fields=list(dict.fromkeys(update_fields)))
+        if data.clear_code or data.code is not None:
+            new_code = None if data.clear_code else cls._clean_code(data.code)
+            if new_code != category.code:
+                cls._ensure_code_editable(category)
+                category.code = new_code
+                update_fields.append("code")
+
+        try:
+            with transaction.atomic():
+                category.save(update_fields=list(dict.fromkeys(update_fields)))
+        except IntegrityError as exc:
+            raise CategoryError(_code_taken(category.code), field="code") from exc
         return category
+
+    @classmethod
+    @transaction.atomic
+    def approve_category(cls, category: Category) -> Category:
+        """A category an upload created goes live; its models can then be approved."""
+        cls._ensure_pending(category)
+        category.is_active = True
+        category.pending_approval = False
+        category.rejected_at = None
+        category.save(update_fields=["is_active", "pending_approval", "rejected_at", "updated_at"])
+        return category
+
+    @classmethod
+    @transaction.atomic
+    def merge_category(cls, category: Category, into_id: UUID) -> tuple[Category, int]:
+        """Move a pending category's models into an active category and delete it.
+
+        For a typo ("Furnture" into "Furniture"). The target keeps its own code; a target with
+        no code takes this one, so later uploads with that code go there. Returns the target
+        and the number of models moved.
+        """
+        cls._ensure_pending(category)
+        target = (
+            Category.objects.filter(pk=into_id, is_active=True, pending_approval=False)
+            .exclude(pk=category.pk)
+            .first()
+        )
+        if target is None:
+            raise CategoryError(
+                "Pick an active category that is not waiting for approval.", field="into"
+            )
+        if category.children.exists():
+            raise CategoryError("Move this category's subcategories first.", field="into")
+        moved = category.products.update(category=target)
+        code = category.code
+        category.delete()
+        if target.code is None and code:
+            target.code = code
+            target.save(update_fields=["code", "updated_at"])
+        return cls.get_by_id(target.pk), moved
+
+    @classmethod
+    @transaction.atomic
+    def reject_category(cls, category: Category) -> Category | None:
+        """Reject a category an upload created. With no models it is deleted (returns None).
+        With models it stays hidden and rejected: they cannot be approved until an admin
+        approves the category or merges it into another one."""
+        cls._ensure_pending(category)
+        if not category.products.exists():
+            category.delete()
+            return None
+        category.rejected_at = timezone.now()
+        category.save(update_fields=["rejected_at", "updated_at"])
+        return category
+
+    @staticmethod
+    def _ensure_pending(category: Category) -> None:
+        if not category.pending_approval:
+            raise CategoryError("This category is not waiting for approval.", field="category")
+
+    @staticmethod
+    def _clean_code(raw: str | None) -> str:
+        code = (raw or "").strip()
+        if not _CODE_RE.fullmatch(code):
+            raise CategoryError("A code is 2 to 5 capital letters, for example ELE.", field="code")
+        return code
+
+    @staticmethod
+    def _ensure_code_editable(category: Category) -> None:
+        # The code is in every Model ID of the category's models, so it never changes after.
+        if category.products.exists():
+            raise CategoryError(
+                "The model code cannot change once the category has models.", field="code"
+            )
 
     @classmethod
     @transaction.atomic
@@ -236,3 +348,7 @@ class CategoryService:
                 "Deactivate child categories before deactivating this category.",
                 field="is_active",
             )
+
+
+def _code_taken(code: str | None) -> str:
+    return f"Another category already has the code {code}."

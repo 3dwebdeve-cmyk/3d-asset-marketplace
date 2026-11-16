@@ -20,7 +20,7 @@ from categories.models import Category
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
 from products.test_catalog_reupload import _free_item
-from products.testing import make_glb_bytes, put_pipeline_images, put_pipeline_uploads
+from products.testing import package_media, make_glb_bytes, put_pipeline_images, put_pipeline_uploads
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
@@ -213,16 +213,13 @@ class ProductQAWorkflowAPITests(APITestCase):
                 media={
                     "thumbnail_key": "models/MDL-MISS-01/thumbnail.jpg",
                     "preview_key": "models/MDL-MISS-01/preview.glb",
-                    "package_key": "models/MDL-MISS-01/package.zip",
-                    "package_file_name": "package.zip",
-                    "package_file_format": "zip",
-                    "package_file_size": 1048576,
+                    **package_media("models/MDL-MISS-01/", "MDL-MISS-01"),
                     "gallery_keys": ["models/MDL-MISS-01/gallery/01.jpg"],
                 },
             )
         ]
         put_pipeline_images(items)
-        self._write_package("models/MDL-MISS-01/package.zip")
+        self._write_package("models/MDL-MISS-01/MDL-MISS-01_whole.zip")
         response = self.client.post(
             self.import_url,
             {
@@ -244,7 +241,7 @@ class ProductQAWorkflowAPITests(APITestCase):
         self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("files", blocked.data)
         self.assertTrue(
-            any("missing from private storage" in msg for msg in blocked.data["files"])
+            any("Package file missing from storage: Whole File" in msg for msg in blocked.data["files"])
         )
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
@@ -372,7 +369,7 @@ class ProductQAWorkflowAPITests(APITestCase):
         package_path = 'products/files/manual-publish.zip'
         self._write_package(package_path)
         ProductFile.objects.create(product=draft, file_name='manual-publish.zip', file_format='zip',
-                                   file_size=10, storage_path=package_path)
+                                   file_size=10, storage_path=package_path, package_kind='whole')
         # Direct publish is refused even with a package: review must approve it.
         direct = self.client.patch(detail_url, {
             'status': 'published', 'preview_model': 'https://example.com/manual.glb',

@@ -21,7 +21,7 @@ import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
 import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION, PRODUCT_RESTORE_CONFIRMATION } from '../../lib/productArchive'
-import { isFreeProduct, isLiveUpdate, productStatusLabel } from '../../types/product'
+import { adminPriceLabel, isLiveUpdate, productStatusLabel } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus, ProductUploadKind } from '../../types/product'
 import { UploaderImportsPanel } from './UploaderImportsPanel'
 
@@ -30,17 +30,8 @@ const emptyCreateForm: AdminProductCreatePayload = {
   name: '',
   sku: '',
   short_description: '',
-  price: '',
   currency: 'USD',
   status: 'draft',
-}
-
-function formatPrice(value: string): string {
-  const parsed = Number.parseFloat(value)
-  if (Number.isNaN(parsed)) {
-    return value
-  }
-  return parsed.toFixed(2)
 }
 
 export function AdminProductsPage({ archived = false }: { archived?: boolean }) {
@@ -231,7 +222,6 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
     setCreateError(null)
     createMutation.mutate({
       ...createForm,
-      price: formatPrice(createForm.price),
       sku: createForm.sku?.trim() ? createForm.sku.trim() : null,
     })
   }
@@ -410,21 +400,9 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                 }
               />
             </FormField>
-            <FormField id="create-price" label="Price (USD)">
-              <Input
-                id="create-price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={createForm.price}
-                onChange={(event) =>
-                  setCreateForm((current) => ({
-                    ...current,
-                    price: event.target.value,
-                  }))
-                }
-              />
-            </FormField>
+            <p className="home-page__subtitle">
+              Prices are set per package on the Pricing page, after the model&apos;s files are added.
+            </p>
             <FormField id="create-status" label="Status">
               <select
                 id="create-status"
@@ -565,7 +543,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                     <td><span className={`products-status products-status--${product.status}`}>{product.status === 'published' ? <AdminIcon name="check" size={14} /> : null}{productStatusLabel(product.status)}</span>{isLiveUpdate(product) ? <span className="admin-live-update-badge">Update to a live model</span> : null}{isQaQueue && product.upload_kind ? <span className={`admin-kind-badge admin-kind-badge--${product.upload_kind}`}>{product.upload_kind === 'free' ? 'Free' : 'Paid'}</span> : null}</td>
                     <td>{product.import_batch_id || '—'}</td>
                     <td>
-                      {isFreeProduct(product) ? 'Free' : `${product.currency} ${product.price}`}
+                      {adminPriceLabel(product)}
                     </td>
                     <td>
                       <Link

@@ -91,12 +91,18 @@ class PricingApiTests(APITestCase):
             status=status_value,
         )
         folder = "free-models" if free else "models"
+        # One Whole File package with the product's price, as the 0016 migration leaves an
+        # older model (a paid model at 0 has no price yet).
         ProductFile.objects.create(
             product=product,
-            file_name="package.zip",
+            file_name=f"{sku}_whole.zip",
             file_format="zip",
             file_size=100,
-            storage_path=f"{folder}/{sku}/package.zip",
+            storage_path=f"{folder}/{sku}/{sku}_whole.zip",
+            package_kind="whole",
+            price=product.price if product.price > 0 or free else None,
+            discount_price=product.discount_price,
+            discount_ends_at=product.discount_ends_at,
         )
         return product
 
@@ -347,13 +353,13 @@ class PricingApiTests(APITestCase):
     def test_apply_is_refused_when_prices_changed_since_the_preview(self, _exists) -> None:
         model = self._model("Chair", price="20.00")
         preview = self._preview([model], rule="percent_off", percent="10")
-        Product.objects.filter(pk=model.pk).update(price=Decimal("25.00"))
+        # Someone else changes the package's price meanwhile.
+        ProductFile.objects.filter(product=model).update(price=Decimal("25.00"))
 
         response = self._apply([model], preview.data["preview_token"], rule="percent_off", percent="10")
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
-        model.refresh_from_db()
-        self.assertIsNone(model.discount_price)
+        self.assertIsNone(ProductFile.objects.get(product=model).discount_price)
 
     def test_a_token_from_another_rule_is_refused(self, _exists) -> None:
         model = self._model("Chair", price="20.00")

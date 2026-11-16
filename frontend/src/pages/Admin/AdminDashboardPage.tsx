@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { listAdminCategories } from '../../api/categoriesApi'
 import { getAdminDashboardStats } from '../../api/dashboardApi'
 import { AdminIcon, type AdminIconName } from '../../components/admin/AdminIcon'
 import { AdminPageShell } from '../../components/admin/AdminPageShell'
@@ -34,6 +35,13 @@ export function AdminDashboardPage() {
     queryFn: getAdminDashboardStats,
   })
 
+  // Categories uploads created, waiting for an administrator (the badge hides at 0).
+  const pendingCategoriesQuery = useQuery({
+    queryKey: ['admin', 'categories', 'pending-count'],
+    queryFn: () => listAdminCategories({ pending_approval: true, page_size: 1 }),
+  })
+  const pendingCategories = pendingCategoriesQuery.data?.count ?? 0
+
   const stats = statsQuery.data
   const fullName = useAuthStore((state) => state.user?.full_name)
   const [categoryQuery, setCategoryQuery] = useState('')
@@ -63,6 +71,13 @@ export function AdminDashboardPage() {
       className="admin-dashboard"
       subtitle="Live marketplace overview with category inventory and module readiness."
     >
+      {pendingCategories > 0 ? (
+        <Link className="admin-new-categories" to="/console/categories?status=pending">
+          <AdminIcon name="layers" size={18} />
+          <strong>New categories ({pendingCategories})</strong>
+          <span>Uploads created them: approve, merge or reject before approving their models.</span>
+        </Link>
+      ) : null}
       {statsQuery.isLoading ? (
         <Spinner label="Loading dashboard stats..." />
       ) : statsQuery.isError ? (

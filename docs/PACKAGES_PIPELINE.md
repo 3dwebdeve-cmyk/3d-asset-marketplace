@@ -652,6 +652,7 @@ Whole File; no GLB).
 | D4 | Coupons apply to each package line. |
 | D5 | No upgrade pricing: an owned package cannot be bought again, and Whole File is a separate line at its full price. |
 | D6 | The migration gives a paid product still at the 0.00 placeholder (draft, pending review, waiting for price, rejected) an **unpriced** Whole File package; free (`free-models/`) products get 0. |
+| D7 | Only the five package zips are expected. Any other zip in an upload is not imported: the row warns `extra_file_skipped` and the model's QA notes name the file, so the admin can add it by hand (Media → Packages, with one of the five kinds). Built in Phase 2's import. Older files without a kind (F1, added in the console before packages) are still delivered with Whole File in Phase 4, so no buyer loses a file. |
 
 ### Found while building Phase 1
 
@@ -665,9 +666,47 @@ Whole File; no GLB).
   must also clear them on package rows, record a package price-history row (`sale_ended`), and
   call `sync_summary_price`. Added to Phase 3.
 
-| # | Open question | Recommendation |
-|---|---|---|
-| D7 | Extra files without a kind (F1): what happens to them when packages go live? | Phase 4 delivers them to everyone who owns Whole File (or a legacy order), so no buyer loses a file. A console check lists the products that have them, so the admin can re-upload them as packages. |
+### Found while building Phase 2
+
+- **F4. Live re-uploads.** The import used `price == 0` to spot "a free live model uploaded as
+  paid". Unpriced packages make every new paid model's summary price 0, so a normal re-upload
+  of a live paid model would have left the store. It now checks for a zip under
+  `free-models/`; `price_needed` uses the same rule.
+- **F5. The sheet's price is no longer read.** The import drops `price`, `discount_price` and
+  `subcategory` (and the `invalid_price` and `sheet_sale_ignored` codes). The
+  `gate-failures` fixture now tests a missing GLB checksum instead of a blank price.
+- **F6. e2e seeds.** `seed_e2e_pricing` and `seed_e2e_commerce` create a priced Whole File
+  package, so the browser e2e flows pass the per-package publish rule.
+- **F8. `is_free` on an unpriced paid model.** With no priced package the summary price is 0,
+  so `is_free` is true for a paid model waiting for its prices (as it already was with the
+  tool's 0.00 placeholder). It only matters once published, and a paid model cannot be
+  published below 0.50. Phase 3: the admin product form and the Pricing page must decide
+  free/paid by `upload_kind`, never by `is_free`.
+- **F9. Phase 2 and 3 are linked.** Until Phase 3, the Pricing page still writes only the
+  product price, while publishing now needs a price on every package. So the Pricing page
+  cannot publish a newly imported model until Phase 3 ships (D3: nothing is merged before).
+  The pricing journey tests (`test_e2e_pricing_journey`) that apply a rule and then publish
+  stay red until Phase 3.
+### Found while building Phase 3
+
+- **F10. No product form sets a price.** Console create and edit refuse `price`,
+  `discount_price` and `discount_ends_at` ("Prices are set per package on the Pricing page");
+  the update service's price branch, `_resolve_discount_ends_at`, `_validate_pricing` and
+  `_validate_sale_minimum` are deleted. The old product-form sale-end tests went with them; the
+  Pricing page's sale rules and the per-package publish check cover the same cases.
+- **F11. Price history is per package.** The Pricing page, the import (Free tick, free to paid)
+  and the free QA approval each write one history row per package (`package_kind` set); the
+  product's summary price follows silently.
+- **F12. Rules default to Whole File.** A Pricing page request without `package_kind` prices
+  Whole File. The page always sends it.
+- **F13. A model may sit in a pending category.** The product service accepts a category that
+  waits for approval (otherwise a new category's first model could not be created); approval
+  stays blocked until the category is approved.
+- **F7. Category Reject (D1).** A rejected category that still has models keeps
+  `pending_approval` and gets `rejected_at` (migration `categories/0004`). New uploads with its
+  code are refused (`category_rejected`) until it is approved or merged.
+
+D7 (extra files) was answered on 2026-11-16; see Decisions above.
 
 ## Decisions as first asked (kept for the record)
 
