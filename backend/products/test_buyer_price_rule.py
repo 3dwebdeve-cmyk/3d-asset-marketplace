@@ -97,6 +97,7 @@ class BuyerPricePathsTests(TestCase):
             self.category,
             "sale-desk",
             price=Decimal("100.00"),
+            discount_price=Decimal("79.99"),
             discount_ends_at=timezone.now() + timedelta(hours=1),
         )
         # The model is sold as its Whole File package, with the same price and sale.

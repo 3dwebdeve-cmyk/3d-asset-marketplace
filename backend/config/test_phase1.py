@@ -274,6 +274,7 @@ class CurrencyCommerceRegressionTests(PaymentsTestMixin, APITestCase):
         for amount in ['0', '0.01']:
             self.product.price = Decimal(amount)
             self.product.save()
+            ProductFile.objects.filter(product=self.product).update(price=Decimal(amount))
             with self.subTest(amount=amount), self.assertRaises(CheckoutError):
                 CheckoutService.create_checkout_session(self.user)
         create.assert_not_called()

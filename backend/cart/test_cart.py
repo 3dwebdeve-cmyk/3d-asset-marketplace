@@ -463,7 +463,7 @@ class OwnedItemTests(APITestCase):
             )
 
         order = OrderService.create_from_cart(
-            self.customer, selected={("product", self.discounted_product.pk)}
+            self.customer, selected={("product", self.discounted_product.pk, "whole")}
         )
 
         self.assertEqual([item.product_id for item in order.items.all()], [self.discounted_product.pk])
