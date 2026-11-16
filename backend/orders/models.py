@@ -5,6 +5,8 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
+from products.packages import PackageKind
+
 
 class Order(models.Model):
     class OrderStatus(models.TextChoices):
@@ -75,6 +77,11 @@ class OrderItem(models.Model):
     )
     product_type = models.CharField(max_length=16, choices=ProductType.choices)
     product_id = models.UUIDField()
+    # The package bought. Blank for a plugin or a custom project, and for a product line
+    # bought before packages existed: that line entitles the buyer to every package.
+    package_kind = models.CharField(
+        max_length=32, choices=PackageKind.choices, blank=True, default=""
+    )
     title = models.CharField(max_length=255, blank=True, null=True)
     slug = models.SlugField(max_length=255, blank=True, null=True)
     quantity = models.PositiveIntegerField(
@@ -104,7 +111,7 @@ class OrderItem(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["order", "product_type", "product_id"],
+                fields=["order", "product_type", "product_id", "package_kind"],
                 name="unique_order_line_item",
             ),
             models.CheckConstraint(
