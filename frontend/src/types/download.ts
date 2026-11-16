@@ -1,7 +1,11 @@
+import type { PackageKind } from '../lib/packages'
 import type { OrderItemProductType } from './order'
 
 export interface DownloadFile {
   id: string
+  /** The package this zip is; '' for a plugin file or a model file from before packages. */
+  package_kind: PackageKind | ''
+  package_label: string
   file_name: string
   file_format: string
   file_size: number
@@ -15,6 +19,8 @@ export interface DownloadEntitlement {
   product_id: string
   title: string
   slug: string
+  /** The packages of a model the user owns, in package order ([] for a plugin). */
+  package_kinds: PackageKind[]
   files: DownloadFile[]
 }
 
@@ -26,6 +32,8 @@ export interface DownloadHistoryEntry {
   product_id: string
   file_id: string
   file_name: string
+  /** The package of the file downloaded ('' for a plugin file). */
+  package_label: string
   invoice_number: string | null
   downloaded_at: string
 }

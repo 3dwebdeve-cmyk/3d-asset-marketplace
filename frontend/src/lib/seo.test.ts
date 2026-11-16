@@ -48,6 +48,8 @@ const product: PublicProductDetail = {
     { id: 'i2', image_url: 'https://cdn.example.com/b.jpg', display_order: 1, is_primary: false, created_at: '' },
   ],
   files: [],
+  packages: [],
+  bundle_saving: null,
   created_at: '',
   updated_at: '',
 }

@@ -146,10 +146,11 @@ class FreeAndPaidApprovalTests(APITestCase):
         self._authenticate_as_customer()
         response = self.client.post(
             reverse("cart:cart-detail"),
-            {"product_type": "product", "product_id": str(product.pk)},
+            {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("free", str(response.data))
         self.assertFalse(CartItem.objects.filter(product_id=product.pk).exists())
 
 

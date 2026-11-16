@@ -35,6 +35,7 @@ from products.catalog_import import CatalogImportService
 from products.file_check import check_product_files, summarize
 from products.import_reasons import describe_reason
 from products.models import Product
+from products.packages import PACKAGE_KINDS, PACKAGE_ORDER
 from products.pagination import ProductPagination
 from products.serializers import (
     CatalogImportEnvelopeSerializer,
@@ -147,10 +148,12 @@ class ProductDetailView(PublicCatalogCacheMixin, APIView):
 
 
 class ProductFreeDownloadView(APIView):
-    """GET /api/v1/products/<slug>/free-download/ — a free model's zip, no account needed.
+    """GET /api/v1/products/<slug>/free-download/?package=<kind> — a free model's zip, no
+    account needed.
 
-    Redirects to the file: the public free-models/ object, or a short-lived signed
-    link when the zip is in the private bucket.
+    ``package`` picks the package; without it, the first kind in PACKAGE_ORDER the model has.
+    An unknown or missing kind is 404. Redirects to the file: the public free-models/ object,
+    or a short-lived signed link when the zip is in the private bucket.
     """
 
     permission_classes = [AllowAny]
@@ -161,9 +164,19 @@ class ProductFreeDownloadView(APIView):
             product = ProductService.get_public_by_slug(slug)
         except ProductError as exc:
             raise NotFound(exc.message) from exc
-        package = product.files.filter(is_preview=False).order_by("-created_at").first()
-        if not product.is_free or package is None:
+        if not product.is_free:
             raise NotFound("This model is not a free download.")
+        packages = {
+            row.package_kind: row
+            for row in product.files.all()
+            if not row.is_preview and row.package_kind in PACKAGE_KINDS
+        }
+        wanted = request.query_params.get("package")
+        if wanted is None:
+            wanted = next((kind for kind in PACKAGE_ORDER if kind in packages), None)
+        package = packages.get(wanted) if wanted else None
+        if package is None:
+            raise NotFound("This model has no such package.")
         if is_free_model_path(package.storage_path):
             return HttpResponseRedirect(
                 build_public_media_url(media_relative_path(package.storage_path))

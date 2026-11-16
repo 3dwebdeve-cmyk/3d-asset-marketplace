@@ -441,7 +441,7 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         # Buyer: the cart and a checkout during the sale use the sale price.
         self._as_buyer()
         added = self.client.post(
-            reverse("cart:cart-detail"), {"product_type": "product", "product_id": str(lamp.pk)}, format="json"
+            reverse("cart:cart-detail"), {"product_type": "product", "product_id": str(lamp.pk), "package_kind": "whole"}, format="json"
         )
         self.assertIn(added.status_code, (status.HTTP_200_OK, status.HTTP_201_CREATED), added.data)
         cart = self._cart()

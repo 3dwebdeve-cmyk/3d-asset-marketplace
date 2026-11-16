@@ -141,7 +141,16 @@ class ProductService(ProductMediaService):
             .prefetch_related(
                 Prefetch(
                     "files",
-                    queryset=ProductFile.objects.only("product_id", "file_format"),
+                    # file_format for the formats; the package and price fields for price_from.
+                    queryset=ProductFile.objects.only(
+                        "product_id",
+                        "file_format",
+                        "is_preview",
+                        "package_kind",
+                        "price",
+                        "discount_price",
+                        "discount_ends_at",
+                    ),
                     to_attr="filter_files",
                 )
             )

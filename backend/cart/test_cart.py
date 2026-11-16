@@ -13,6 +13,7 @@ from cart.models import Cart, CartItem
 from categories.models import Category
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
+from products.testing import sell_package
 
 
 class CartAPITests(APITestCase):
@@ -45,6 +46,7 @@ class CartAPITests(APITestCase):
             price=Decimal("29.99"),
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.published_product)
         self.discounted_product = Product.objects.create(
             category=self.category,
             name="Sale Desk",
@@ -53,6 +55,7 @@ class CartAPITests(APITestCase):
             discount_price=Decimal("79.99"),
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.discounted_product)
         self.draft_product = Product.objects.create(
             category=self.category,
             name="Hidden Desk",
@@ -60,6 +63,7 @@ class CartAPITests(APITestCase):
             price=Decimal("99.00"),
             status=Product.Status.DRAFT,
         )
+        sell_package(self.draft_product)
         self.archived_product = Product.objects.create(
             category=self.category,
             name="Old Lamp",
@@ -67,6 +71,7 @@ class CartAPITests(APITestCase):
             price=Decimal("15.00"),
             status=Product.Status.ARCHIVED,
         )
+        sell_package(self.archived_product)
         self.eur_product = Product.objects.create(
             category=self.category,
             name="Euro Chair",
@@ -75,6 +80,7 @@ class CartAPITests(APITestCase):
             currency="EUR",
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.eur_product)
 
         self.plugin_category = PluginCategory.objects.create(
             name="Tools",
@@ -119,6 +125,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.published_product.pk),
+                "package_kind": "whole",
             },
             format="json",
         )
@@ -149,6 +156,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.published_product.pk),
+                "package_kind": "whole",
             },
             format="json",
         )
@@ -177,6 +185,7 @@ class CartAPITests(APITestCase):
         payload = {
             "product_type": "product",
             "product_id": str(self.published_product.pk),
+            "package_kind": "whole",
             "quantity": 2,
         }
         first = self.client.post(self.cart_url, payload, format="json")
@@ -233,6 +242,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.published_product.pk),
+                "package_kind": "whole",
             },
             format="json",
         )
@@ -243,6 +253,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.eur_product.pk),
+                "package_kind": "whole",
             },
             format="json",
         )
@@ -256,6 +267,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.discounted_product.pk),
+                "package_kind": "whole",
                 "quantity": 2,
             },
             format="json",
@@ -284,6 +296,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
+            package_kind="whole",
         )
         self.authenticate()
         url = reverse("cart:cart-item-detail", kwargs={"item_id": item.pk})
@@ -300,6 +313,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
+            package_kind="whole",
         )
         self.authenticate()
         url = reverse("cart:cart-item-detail", kwargs={"item_id": item.pk})
@@ -314,6 +328,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
+            package_kind="whole",
         )
         self.authenticate(self.customer)
         url = reverse("cart:cart-item-detail", kwargs={"item_id": item.pk})
@@ -328,6 +343,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
+            package_kind="whole",
         )
         self.authenticate()
         response = self.client.delete(self.cart_url)
@@ -341,12 +357,14 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.archived_product.pk,
             quantity=2,
+            package_kind="whole",
         )
         CartItem.objects.create(
             cart=cart,
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
+            package_kind="whole",
         )
         self.authenticate()
         response = self.client.get(self.cart_url)
@@ -368,6 +386,7 @@ class CartAPITests(APITestCase):
         payload = {
             "product_type": "product",
             "product_id": str(self.published_product.pk),
+            "package_kind": "whole",
         }
         first = self.client.post(self.cart_url, payload, format="json")
         second = self.client.post(self.cart_url, payload, format="json")
@@ -407,7 +426,7 @@ class OwnedItemTests(APITestCase):
 
         response = self.client.post(
             self.cart_url,
-            {"product_type": "product", "product_id": str(self.published_product.pk)},
+            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "whole"},
             format="json",
         )
 
@@ -422,7 +441,7 @@ class OwnedItemTests(APITestCase):
         for product in (self.published_product, self.discounted_product):
             self.client.post(
                 self.cart_url,
-                {"product_type": "product", "product_id": str(product.pk)},
+                {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
                 format="json",
             )
         self.give_customer(self.published_product)
@@ -439,12 +458,12 @@ class OwnedItemTests(APITestCase):
         for product in (self.published_product, self.discounted_product):
             self.client.post(
                 self.cart_url,
-                {"product_type": "product", "product_id": str(product.pk)},
+                {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
                 format="json",
             )
 
         order = OrderService.create_from_cart(
-            self.customer, selected={("product", self.discounted_product.pk)}
+            self.customer, selected={("product", self.discounted_product.pk, "whole")}
         )
 
         self.assertEqual([item.product_id for item in order.items.all()], [self.discounted_product.pk])
@@ -457,7 +476,7 @@ class OwnedItemTests(APITestCase):
         self.authenticate()
         self.client.post(
             self.cart_url,
-            {"product_type": "product", "product_id": str(self.published_product.pk)},
+            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "whole"},
             format="json",
         )
         Product.objects.filter(pk=self.published_product.pk).update(price=0, discount_price=None)
@@ -474,7 +493,7 @@ class OwnedItemTests(APITestCase):
         for product in (self.published_product, self.discounted_product):
             self.client.post(
                 self.cart_url,
-                {"product_type": "product", "product_id": str(product.pk)},
+                {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
                 format="json",
             )
         # An administrator switches one product's currency while it sits in the cart.
@@ -496,7 +515,7 @@ class OwnedItemTests(APITestCase):
 
         response = self.client.post(
             self.cart_url,
-            {"product_type": "product", "product_id": str(self.published_product.pk)},
+            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "whole"},
             format="json",
         )
 

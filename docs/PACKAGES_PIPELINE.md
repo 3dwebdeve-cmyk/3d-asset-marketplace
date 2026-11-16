@@ -603,8 +603,11 @@ you deploy" and "Other things".
 - The uploader is Model Uploader 1.2.1. It needs no change for this work.
 
 ### 5.4 Deploy
-- Open the PR from `feature/packages` into `main` (see D3) and merge after your go. Render runs
-  the migrations on start.
+- The phases are stacked branches: `feature/packages` (Phase 1, merged into `develop` in #443),
+  `feature/packages-phase-2`, `-phase-3`, `-phase-4` and `-phase-5`, each on the one before. Open
+  one PR from `feature/packages-phase-5` into `develop` (it holds Phases 2 to 5; phase 2 alone fails
+  CI by design, F9), then `develop` into `main` after your go (D3). Render runs the migrations
+  on start.
 - Copy the updated master folder into `E:\ABHAY\MaxPlugin\subfolder\3d-asset-marketplace` (CAT).
 
 ### 5.5 Acceptance test with the real models (PKG §12, CAT "After you deploy")
@@ -631,6 +634,22 @@ Whole File; no GLB).
 11. Re-run the Model Uploader on the output folder of models refused earlier (for example
     `category_unmapped`, `invalid_object_key`). Their files are already in R2, so nothing is
     re-uploaded, and they now import.
+
+### Phase 5 status (2026-11-16)
+- **5.1 done in code.** No users remain of the replaced names: the import's `_sync_package`,
+  `subcategory_not_found`, `sheet_sale_ignored`, `invalid_price`, `REASON_HELP`,
+  `owned_catalog_keys`, `PricingChoice`, the product buy box (`ProductCtaGroup`) and the product
+  cart icon. `user_owns_catalog_item` stays for "owns anything" (F15). The old `package.zip`
+  name is gone from `config/media.py` (any `.zip` was already private). `vulture` on the changed
+  backend files reports only Django's management `Command` classes. PKG §11: backend #1 to #14
+  each have tests (`test_packages`, `test_packages_import`, `test_package_pricing`,
+  `test_package_selling`, `test_category_approval`); #2's "unknown kind" is now a warning (D7).
+  Frontend: `PackageOptions.test`, `ProductCard.test` ("From $X"), `AdminPricingPage.test`
+  (package selector), `ProductMediaSection.test` (packages table).
+- **5.2** is held by the existing tests (360 viewer, plugins with a blank kind, archive keeps R2
+  files, the R2 layout); the uploader and the 3ds Max plugin were not changed.
+- **5.3 to 5.5 are on the owner's side:** Render settings, the deploy and the acceptance test with
+  the real models below.
 
 ### Definition of done (PKG)
 - The refused models in PKG §0 are gone: every model the tool sends with a preview or a 360, and
@@ -705,6 +724,27 @@ Whole File; no GLB).
 - **F7. Category Reject (D1).** A rejected category that still has models keeps
   `pending_approval` and gets `rejected_at` (migration `categories/0004`). New uploads with its
   code are refused (`category_rejected`) until it is approved or merged.
+
+### Found while building Phase 4
+
+- **F14. `owned` and `in_cart` are not in the product page response.** The public product detail
+  is cached for everyone (`PublicCatalogCacheMixin`), so it cannot carry per-user flags. It lists
+  the packages; the page reads ownership from My Downloads (`package_kinds` on each entitlement)
+  and the cart from the cart API, as it already did for whole products.
+- **F15. `user_owns_catalog_item` stays, with one meaning.** It answers "owns the plugin, or at
+  least one package of the model". Reviews need exactly that (any owned package allows a review),
+  and so do the rollback rehearsal and the Stripe smoke. The cart, checkout and downloads check
+  each package with `owned_package_kinds` / `owned_line_keys`.
+- **F16. Cart lines are keyed by package everywhere.** `line_key` = `(product_type, product_id,
+  package_kind)`: cart snapshots, the checkout selection (`items[].package_kind`), the checkout
+  fingerprint, the webhook's cart clean-up and order file lists.
+- **F17. Cart buttons outside the product page.** A model has no single "Add to cart" any more:
+  the product image's cart icon is gone, and a model on the wishlist links to its page
+  ("Choose packages"). The shared buy box (`CommerceCtaGroup`) now serves plugins only.
+- **F18. Old order lines.** A model line from before packages shows "All packages" in the order
+  pages, and its files are every file of the model (including files without a kind, D7).
+- **F19. Smoke scripts.** `rollback_rehearsal`, `stripe_smoke` and `load_smoke` buy a priced Whole
+  File package (the load smoke buys the product's cheapest priced package).
 
 D7 (extra files) was answered on 2026-11-16; see Decisions above.
 

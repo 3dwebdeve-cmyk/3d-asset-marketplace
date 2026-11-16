@@ -23,11 +23,11 @@ from cart.services import CartService
 from categories.models import Category
 from config.ops_report import build_daily_report
 from orders.services import OrderCreateData, OrderItemCreateData, OrderService
-from products.models import Product, ProductPriceChange
+from products.models import Product, ProductFile, ProductPriceChange
 from products.services import ProductService
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
 from products.test_catalog_reupload import _free_item
-from products.testing import price_packages
+from products.testing import price_packages, sell_package
 from wishlist.services import WishlistService
 
 PASSWORD = "StrongPass123!"
@@ -100,27 +100,29 @@ class BuyerPricePathsTests(TestCase):
             discount_price=Decimal("79.99"),
             discount_ends_at=timezone.now() + timedelta(hours=1),
         )
+        # The model is sold as its Whole File package, with the same price and sale.
+        sell_package(self.product)
 
     def _end_the_sale(self) -> None:
         # The sale ends after the item was added; the maintenance loop has not run yet.
-        Product.objects.filter(pk=self.product.pk).update(
-            discount_ends_at=timezone.now() - timedelta(seconds=1)
-        )
+        ended = timezone.now() - timedelta(seconds=1)
+        Product.objects.filter(pk=self.product.pk).update(discount_ends_at=ended)
+        ProductFile.objects.filter(product=self.product).update(discount_ends_at=ended)
 
     def test_cart_snapshot_while_the_sale_runs(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
         envelope = CartService.get_cart_envelope(self.customer)
-        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk)]
+        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "whole")]
         self.assertEqual(snapshot["discount_price"], "79.99")
         self.assertEqual(snapshot["effective_price"], "79.99")
         self.assertEqual(envelope.totals.total, Decimal("79.99"))
 
     def test_cart_snapshot_after_the_sale_ended(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
         self._end_the_sale()
 
         envelope = CartService.get_cart_envelope(self.customer)
-        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk)]
+        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "whole")]
         self.assertIsNone(snapshot["discount_price"])
         self.assertEqual(snapshot["price"], "100.00")
         self.assertEqual(snapshot["effective_price"], "100.00")
@@ -128,7 +130,7 @@ class BuyerPricePathsTests(TestCase):
         self.assertEqual(envelope.totals.total, Decimal("100.00"))
 
     def test_checkout_charges_the_normal_price_when_the_sale_ended_after_add_to_cart(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
         self._end_the_sale()
 
         order = OrderService.create_from_cart(self.customer)
@@ -138,7 +140,7 @@ class BuyerPricePathsTests(TestCase):
         self.assertEqual(order.total_amount, Decimal("100.00"))
 
     def test_checkout_charges_the_sale_price_while_it_runs(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk)
+        CartService.add_item(self.customer, "product", self.product.pk, "whole")
 
         order = OrderService.create_from_cart(self.customer)
 
@@ -147,7 +149,7 @@ class BuyerPricePathsTests(TestCase):
     def test_direct_order_uses_the_rule(self) -> None:
         data = OrderCreateData(
             user_id=self.customer.pk,
-            items=(OrderItemCreateData("product", self.product.pk, 1),),
+            items=(OrderItemCreateData("product", self.product.pk, 1, package_kind="whole"),),
         )
         self.assertEqual(OrderService.create(data).items.get().purchase_price, Decimal("79.99"))
 

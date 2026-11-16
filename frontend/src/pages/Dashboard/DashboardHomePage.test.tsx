@@ -100,6 +100,7 @@ describe('DashboardHomePage', () => {
         product_id: 'prod-1',
         title: 'Model A',
         slug: 'model-a',
+        package_kinds: ['whole'],
         files: [],
       },
     ])

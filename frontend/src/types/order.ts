@@ -1,3 +1,4 @@
+import type { PackageKind } from '../lib/packages'
 import type { OrderItemDownloadFile } from './download'
 
 export type OrderStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
@@ -55,6 +56,10 @@ export interface AdminOrderItem {
   id: string
   product_type: OrderItemProductType
   product_id: string
+  /** The package bought; '' for a plugin, a custom project, or a line from before packages. */
+  package_kind: PackageKind | ''
+  /** "All packages" for a model line from before packages; '' when not a model. */
+  package_label: string
   title: string | null
   slug: string | null
   quantity: number
@@ -100,6 +105,8 @@ export interface AdminOrderListParams {
 export interface AdminOrderItemCreatePayload {
   product_type: OrderItemProductType
   product_id: string
+  /** Required for a model. */
+  package_kind?: PackageKind
   quantity: number
 }
 
@@ -130,6 +137,8 @@ export interface CustomerOrderItem {
   id: string
   product_type: OrderItemProductType
   product_id: string
+  package_kind: PackageKind | ''
+  package_label: string
   title: string | null
   slug: string | null
   quantity: number

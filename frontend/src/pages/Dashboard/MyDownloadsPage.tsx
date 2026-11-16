@@ -275,6 +275,7 @@ export function MyDownloadsPage() {
                   <tr>
                     <th scope="col">Type</th>
                     <th scope="col">Title</th>
+                    <th scope="col">Package</th>
                     <th scope="col">File</th>
                     <th scope="col">Version</th>
                     <th scope="col">Size</th>
@@ -288,6 +289,7 @@ export function MyDownloadsPage() {
                       <tr key={file.id}>
                         <td>{formatProductType(entitlement.product_type)}</td>
                         <td>{entitlement.title}</td>
+                        <td>{file.package_label || (entitlement.product_type === 'product' ? 'Extra file' : 'Plugin')}</td>
                         <td>{file.file_name}</td>
                         <td>{file.version}</td>
                         <td>{formatFileSize(file.file_size)}</td>
@@ -355,7 +357,7 @@ export function MyDownloadsPage() {
                       <tr key={entry.id}>
                         <td>{formatDateTime(entry.downloaded_at)}</td>
                         <td>{formatProductType(entry.product_type)}</td>
-                        <td>{entry.file_name}</td>
+                        <td>{entry.package_label ? `${entry.file_name} (${entry.package_label})` : entry.file_name}</td>
                         <td>{entry.invoice_number ?? '—'}</td>
                       </tr>
                     ))}

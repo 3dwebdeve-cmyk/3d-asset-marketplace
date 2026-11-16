@@ -9,12 +9,14 @@ import {
   updateCartItemQuantity,
 } from '../api/cartApi'
 import { getApiErrorMessage } from '../lib/apiError'
+import type { PackageKind } from '../lib/packages'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import type { CartProductType } from '../types/cart'
 
-function cartKey(type: CartProductType, id: string): string {
-  return `${type}:${id}`
+/** One cart line: a plugin, or one package of a model. */
+function cartKey(type: CartProductType, id: string, packageKind: PackageKind | '' = ''): string {
+  return `${type}:${id}:${packageKind}`
 }
 
 export function useCart() {
@@ -38,6 +40,24 @@ export function useCart() {
     onSuccess: async () => {
       await invalidateCart()
       toast.success('Added to cart.')
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, 'Could not add to cart.'))
+    },
+  })
+
+  // A model's packages: one cart line each, added one after another.
+  const addPackagesMutation = useMutation({
+    mutationFn: async ({ productId, packageKinds }: { productId: string; packageKinds: PackageKind[] }) => {
+      for (const kind of packageKinds) {
+        await addCartItem({ product_type: 'product', product_id: productId, package_kind: kind, quantity: 1 })
+      }
+    },
+    onSettled: async () => {
+      await invalidateCart()
+    },
+    onSuccess: (_data, { packageKinds }) => {
+      toast.success(packageKinds.length === 1 ? 'Added to cart.' : `${packageKinds.length} packages added to cart.`)
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, 'Could not add to cart.'))
@@ -80,17 +100,19 @@ export function useCart() {
   const lookup = useMemo(() => {
     const map = new Map<string, string>()
     for (const item of cartQuery.data?.items ?? []) {
-      map.set(cartKey(item.product_type, item.product_id), item.id)
+      map.set(cartKey(item.product_type, item.product_id, item.package_kind), item.id)
     }
     return map
   }, [cartQuery.data?.items])
 
+  /** Whether the line is in the cart: a plugin, or one package of a model. */
   const isInCart = useCallback(
-    (productType: CartProductType, productId: string) =>
-      lookup.has(cartKey(productType, productId)),
+    (productType: CartProductType, productId: string, packageKind: PackageKind | '' = '') =>
+      lookup.has(cartKey(productType, productId, packageKind)),
     [lookup],
   )
 
+  /** Add a plugin to the cart (a model is added by package, with addPackages). */
   const add = useCallback(
     (productType: CartProductType, productId: string, quantity = 1) => {
       if (!isSignedIn) {
@@ -99,6 +121,16 @@ export function useCart() {
       addMutation.mutate({ product_type: productType, product_id: productId, quantity })
     },
     [addMutation, isSignedIn],
+  )
+
+  const addPackages = useCallback(
+    (productId: string, packageKinds: PackageKind[]) => {
+      if (!isSignedIn || packageKinds.length === 0) {
+        return
+      }
+      addPackagesMutation.mutate({ productId, packageKinds })
+    },
+    [addPackagesMutation, isSignedIn],
   )
 
   const updateQuantity = useCallback(
@@ -130,6 +162,7 @@ export function useCart() {
 
   const isPending =
     addMutation.isPending ||
+    addPackagesMutation.isPending ||
     updateQuantityMutation.isPending ||
     removeMutation.isPending ||
     clearMutation.isPending
@@ -139,6 +172,7 @@ export function useCart() {
     count: cartQuery.data?.total_quantity ?? 0,
     isInCart,
     add,
+    addPackages,
     updateQuantity,
     remove,
     clear,

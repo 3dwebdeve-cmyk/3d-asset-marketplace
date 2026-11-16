@@ -1,3 +1,4 @@
+import type { PackageKind } from '../lib/packages'
 import { apiClient } from './client'
 import type {
   AdminProduct,
@@ -114,8 +115,10 @@ export async function listUploaderImports(): Promise<UploaderImport[]> {
 }
 
 /** A free model's zip: no account needed, the server redirects to the file. */
-export function freeDownloadUrl(slug: string): string {
-  return `${apiClient.defaults.baseURL ?? ''}/api/v1/products/${encodeURIComponent(slug)}/free-download/`
+/** A free model's zip; ``packageKind`` picks the package (else the first one it has). */
+export function freeDownloadUrl(slug: string, packageKind?: PackageKind): string {
+  const base = `${apiClient.defaults.baseURL ?? ''}/api/v1/products/${encodeURIComponent(slug)}/free-download/`
+  return packageKind ? `${base}?package=${encodeURIComponent(packageKind)}` : base
 }
 
 export async function rejectAdminProduct(

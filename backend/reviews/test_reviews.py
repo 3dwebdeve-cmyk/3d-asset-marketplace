@@ -12,6 +12,7 @@ from orders.models import Order, OrderItem
 from orders.services import OrderCreateData, OrderItemCreateData, OrderService
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
+from products.testing import sell_package
 from reviews.models import Review, ReviewReaction, ReviewReply, ReviewReplyReaction
 
 
@@ -52,6 +53,7 @@ class ReviewAPITests(APITestCase):
             price=Decimal("29.99"),
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.product)
         self.draft_product = Product.objects.create(
             category=self.category,
             name="Draft Desk",
@@ -112,7 +114,7 @@ class ReviewAPITests(APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=product_type,
-                        product_id=product_id or self.product.pk,
+                        product_id=product_id or self.product.pk, package_kind="whole" if product_type == "product" else "",
                         quantity=1,
                     ),
                 ),
@@ -128,6 +130,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "rating": 5,
                 "review_text": "Great",
             },
@@ -145,6 +148,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "review_text": "Nice chair",
             },
             format="json",
@@ -176,6 +180,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "review_text": "   ",
             },
             format="json",
@@ -222,6 +227,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "rating": 5,
                 "review_text": "Excellent asset",
             },
@@ -244,6 +250,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "rating": 4,
                 "review_text": "Good",
             },
@@ -254,6 +261,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "review_text": "Even better",
             },
             format="json",
@@ -268,6 +276,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
             },
         )
         self.assertEqual(listing.data["results"][0]["review_text"], "Even better")
@@ -285,6 +294,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "rating": 4,
                 "review_text": "Good",
             },
@@ -295,6 +305,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "rating": 5,
                 "review_text": "Another comment",
             },
@@ -325,6 +336,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "review_text": "Comment 6",
             },
             format="json",
@@ -365,6 +377,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
             },
         )
 
@@ -380,6 +393,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
             },
         )
         self.assertEqual(eligibility.status_code, status.HTTP_200_OK)
@@ -391,6 +405,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
                 "review_text": "Solid",
             },
             format="json",
@@ -401,6 +416,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
             },
         )
         self.assertEqual(mine.status_code, status.HTTP_200_OK)
@@ -411,6 +427,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
+                "package_kind": "whole",
             },
         )
         self.assertTrue(eligibility2.data["has_reviewed"])
@@ -511,6 +528,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.draft_product.pk),
+                "package_kind": "whole",
                 "rating": 5,
             },
             format="json",
@@ -529,7 +547,7 @@ class ReviewAPITests(APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type="product",
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),

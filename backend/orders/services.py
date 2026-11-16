@@ -14,7 +14,8 @@ from django.utils import timezone
 from accounts.models import User
 from orders.models import Order, OrderItem
 from plugins.models import Plugin
-from products.models import Product
+from products.models import Product, ProductFile
+from products.packages import PACKAGE_KINDS, PACKAGE_LABELS, line_title
 
 
 class OrderError(Exception):
@@ -79,6 +80,8 @@ class OrderItemCreateData:
     product_type: str
     product_id: UUID
     quantity: int
+    # The package of a model ("" for a plugin).
+    package_kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -226,8 +229,8 @@ class OrderService:
             raise OrderError("At least one order item is required.", field="items")
 
         currency = (data.currency or "USD").strip().upper()[:3]
-        resolved_items: list[tuple[str, UUID, int, Decimal, str, str]] = []
-        seen_keys: set[tuple[str, UUID]] = set()
+        resolved_items: list[tuple[str, UUID, str, int, Decimal, str, str]] = []
+        seen_keys: set[tuple[str, UUID, str]] = set()
 
         for index, item in enumerate(data.items):
             if item.quantity < 1:
@@ -241,7 +244,7 @@ class OrderService:
                     "Invalid product type.",
                     field=f"items[{index}].product_type",
                 )
-            key = (product_type, item.product_id)
+            key = (product_type, item.product_id, item.package_kind)
             if key in seen_keys:
                 raise OrderError(
                     "Duplicate line items are not allowed.",
@@ -252,6 +255,7 @@ class OrderService:
             purchase_price, item_currency, title, slug = cls._resolve_catalog_item(
                 product_type,
                 item.product_id,
+                item.package_kind,
                 field_prefix=f"items[{index}]",
             )
             if item_currency != currency:
@@ -263,6 +267,7 @@ class OrderService:
                 (
                     product_type,
                     item.product_id,
+                    item.package_kind,
                     item.quantity,
                     purchase_price,
                     title,
@@ -273,7 +278,7 @@ class OrderService:
         total_amount = sum(
             (
                 purchase_price * quantity
-                for _, _, quantity, purchase_price, _, _ in resolved_items
+                for _, _, _, quantity, purchase_price, _, _ in resolved_items
             ),
             start=Decimal("0.00"),
         )
@@ -290,6 +295,7 @@ class OrderService:
                         order=order,
                         product_type=product_type,
                         product_id=product_id,
+                        package_kind=package_kind,
                         title=title,
                         slug=slug,
                         quantity=quantity,
@@ -298,6 +304,7 @@ class OrderService:
                     for (
                         product_type,
                         product_id,
+                        package_kind,
                         quantity,
                         purchase_price,
                         title,
@@ -316,26 +323,30 @@ class OrderService:
         """Snapshot the user's cart into a PENDING order for checkout.
 
         Only available cart lines are included (mirrors CartService totals).
-        `selected`, a set of (product_type, product_id), limits the order to those lines;
-        the rest stay in the cart.
+        `selected`, a set of line keys (product_type, product_id, package_kind), limits the
+        order to those lines; the rest stay in the cart.
         """
-        from cart.services import CartService
+        from cart.services import CartService, line_key
 
-        from orders.entitlements import owned_catalog_keys
+        from orders.entitlements import owned_line_keys
 
         cart = CartService.lock_cart(user)
-        # Owned since it was added (another tab, an earlier checkout, a free claim):
-        # drop it from the cart so it is never charged twice and never blocks checkout.
-        owned = owned_catalog_keys(user, list(cart.items.values_list("product_type", "product_id")))
-        for product_type, product_id in owned:
-            cart.items.filter(product_type=product_type, product_id=product_id).delete()
+        # Owned since it was added (another tab, an earlier checkout, a Whole File bought
+        # meanwhile): drop it from the cart so it is never charged twice or blocks checkout.
+        owned = owned_line_keys(
+            user, cart.items.values_list("product_type", "product_id", "package_kind")
+        )
+        for product_type, product_id, package_kind in owned:
+            cart.items.filter(
+                product_type=product_type, product_id=product_id, package_kind=package_kind
+            ).delete()
         envelope = CartService.get_cart_envelope(user)
         available_items = [
             item
             for item in envelope.items
-            if (snapshot := envelope.snapshots.get((item.product_type, item.product_id)))
+            if (snapshot := envelope.snapshots.get(line_key(item)))
             and snapshot.get("is_available")
-            and (selected is None or (item.product_type, item.product_id) in selected)
+            and (selected is None or line_key(item) in selected)
         ]
         if not available_items:
             raise OrderError("Your cart is empty.", field="items")
@@ -344,10 +355,9 @@ class OrderService:
         # An administrator can change a catalog currency after items are in the cart. Never
         # charge one currency's price in another: every line must match the order currency.
         mismatched = sorted(
-            str(envelope.snapshots[(item.product_type, item.product_id)].get("name") or "an item")
+            str(envelope.snapshots[line_key(item)].get("title") or "an item")
             for item in available_items
-            if str(envelope.snapshots[(item.product_type, item.product_id)].get("currency") or "")
-            != totals.currency
+            if str(envelope.snapshots[line_key(item)].get("currency") or "") != totals.currency
         )
         if mismatched:
             raise OrderError(
@@ -360,20 +370,11 @@ class OrderService:
             (
                 item.product_type,
                 item.product_id,
+                item.package_kind,
                 item.quantity,
-                Decimal(
-                    envelope.snapshots[(item.product_type, item.product_id)][
-                        "effective_price"
-                    ]
-                ),
-                str(
-                    envelope.snapshots[(item.product_type, item.product_id)].get("name")
-                    or ""
-                ),
-                str(
-                    envelope.snapshots[(item.product_type, item.product_id)].get("slug")
-                    or ""
-                ),
+                Decimal(envelope.snapshots[line_key(item)]["effective_price"]),
+                str(envelope.snapshots[line_key(item)].get("title") or ""),
+                str(envelope.snapshots[line_key(item)].get("slug") or ""),
             )
             for item in available_items
         ]
@@ -382,7 +383,10 @@ class OrderService:
             from datetime import timedelta
             from django.utils import timezone
 
-            expected = {(kind, pk, qty, price) for kind, pk, qty, price, title, slug in resolved_items}
+            expected = {
+                (kind, pk, package, qty, price)
+                for kind, pk, package, qty, price, _title, _slug in resolved_items
+            }
             # Stripe drops idempotency keys after 24 hours. Reusing an older
             # attempt blocks checkout instead of starting a new session.
             fresh_attempt_after = timezone.now() - timedelta(hours=23)
@@ -398,8 +402,10 @@ class OrderService:
                 | Q(created_at__gte=timezone.now() - timedelta(minutes=25), payment__status="pending")
             ).prefetch_related("items").order_by("-created_at")[:10]
             for candidate in candidates:
-                actual = {(item.product_type, item.product_id, item.quantity, item.purchase_price)
-                          for item in candidate.items.all()}
+                actual = {
+                    (item.product_type, item.product_id, item.package_kind, item.quantity, item.purchase_price)
+                    for item in candidate.items.all()
+                }
                 if actual == expected:
                     return cls.get(candidate.pk)
 
@@ -414,6 +420,7 @@ class OrderService:
                     order=order,
                     product_type=product_type,
                     product_id=product_id,
+                    package_kind=package_kind,
                     title=title or None,
                     slug=slug or None,
                     quantity=quantity,
@@ -422,6 +429,7 @@ class OrderService:
                 for (
                     product_type,
                     product_id,
+                    package_kind,
                     quantity,
                     purchase_price,
                     title,
@@ -514,7 +522,7 @@ class OrderService:
 
         Idempotent when both order and payment statuses are already refunded.
         Downloads are denied automatically via ``order_allows_download`` /
-        ``user_owns_catalog_item`` (paid + paid required).
+        ``owned_package_kinds`` (paid + paid required).
         """
         with transaction.atomic():
             locked = Order.objects.select_for_update().prefetch_related("items").get(
@@ -563,9 +571,12 @@ class OrderService:
         cls,
         product_type: str,
         product_id: UUID,
+        package_kind: str,
         *,
         field_prefix: str,
     ) -> tuple[Decimal, str, str, str]:
+        if product_type != OrderItem.ProductType.PRODUCT and package_kind:
+            raise OrderError("A plugin has no packages.", field=f"{field_prefix}.package_kind")
         if product_type == OrderItem.ProductType.PRODUCT:
             try:
                 product = Product.objects.get(pk=product_id)
@@ -579,9 +590,25 @@ class OrderService:
                     "Product is not available for purchase.",
                     field=f"{field_prefix}.product_id",
                 )
+            if package_kind not in PACKAGE_KINDS:
+                raise OrderError(
+                    "Choose a package of this model.", field=f"{field_prefix}.package_kind"
+                )
+            package = ProductFile.objects.filter(
+                product=product, is_preview=False, package_kind=package_kind
+            ).first()
+            if package is None or package.price is None:
+                raise OrderError(
+                    f"The {PACKAGE_LABELS[package_kind]} package of this model is not for sale.",
+                    field=f"{field_prefix}.package_kind",
+                )
             # The one buyer-price rule: an ended sale is never charged.
-            purchase_price = product.effective_price()
-            return purchase_price, product.currency, product.name, product.slug
+            return (
+                package.effective_price(),
+                product.currency,
+                line_title(product.name, package_kind),
+                product.slug,
+            )
 
         try:
             plugin = Plugin.objects.get(pk=product_id)

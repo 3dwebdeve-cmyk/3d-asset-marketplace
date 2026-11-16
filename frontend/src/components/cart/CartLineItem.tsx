@@ -21,8 +21,10 @@ function getCategoryLabel(item: CartItem): string {
   return item.product_type === 'product' ? '3D Models' : 'Plugins'
 }
 
+/** The package bought (a model line), or the plugin licence. */
 function getOptionLabel(item: CartItem): string {
-  return item.product_type === 'product' ? 'Standard license' : 'Plugin license'
+  if (item.product_type === 'product') return item.catalog?.package_label || 'Standard license'
+  return 'Plugin license'
 }
 
 function getOptionDescription(item: CartItem): string {
@@ -117,11 +119,11 @@ export function CartLineItem({
 
         <p className="cart-line-item__option">
           <span>{optionLabel}</span>
-          <span className="cart-line-item__option-chevron" aria-hidden="true">
-            ▾
-          </span>
         </p>
         <p className="cart-line-item__option-hint">{optionDescription}</p>
+        {catalog?.bundle_hint ? (
+          <p className="cart-line-item__bundle-hint" role="note">{catalog.bundle_hint}</p>
+        ) : null}
 
         <div className="cart-line-item__footer">
           <div

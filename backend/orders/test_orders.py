@@ -14,6 +14,7 @@ from orders.models import Order, OrderItem
 from orders.services import OrderCreateData, OrderError, OrderItemCreateData, OrderService
 from plugins.models import Plugin, PluginCategory
 from products.models import Product
+from products.testing import sell_package
 
 
 class OrderTestMixin:
@@ -35,6 +36,7 @@ class OrderTestMixin:
             discount_price=Decimal("39.99"),
             status=Product.Status.PUBLISHED,
         )
+        sell_package(self.product)
         self.draft_product = Product.objects.create(
             category=self.category,
             name="Draft Shield",
@@ -42,6 +44,7 @@ class OrderTestMixin:
             price=Decimal("19.99"),
             status=Product.Status.DRAFT,
         )
+        sell_package(self.draft_product)
         self.plugin_category = PluginCategory.objects.create(
             name="Tools",
             slug="tools",
@@ -126,7 +129,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=2,
                     ),
                     OrderItemCreateData(
@@ -148,7 +151,8 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
         product_item = order.items.get(product_type=OrderItem.ProductType.PRODUCT)
         self.assertEqual(product_item.purchase_price, Decimal("39.99"))
         self.assertEqual(product_item.quantity, 2)
-        self.assertEqual(product_item.title, "Hero Sword")
+        self.assertEqual(product_item.title, "Hero Sword - Whole File")
+        self.assertEqual(product_item.package_kind, "whole")
         self.assertEqual(product_item.slug, "hero-sword")
 
         plugin_item = order.items.get(product_type=OrderItem.ProductType.PLUGIN)
@@ -175,7 +179,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=uuid4(),
+                            product_id=uuid4(), package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -209,7 +213,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.draft_product.pk,
+                            product_id=self.draft_product.pk, package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -241,12 +245,12 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=1,
                         ),
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=2,
                         ),
                     ),
@@ -270,7 +274,7 @@ class OrderServiceCreateTests(OrderTestMixin, TestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -289,7 +293,7 @@ class OrderServiceStatusTransitionTests(OrderTestMixin, TestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),
@@ -382,7 +386,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=2,
                     ),
                     OrderItemCreateData(
@@ -499,7 +503,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
 
         titles = {item["title"] for item in response.data["items"]}
         slugs = {item["slug"] for item in response.data["items"]}
-        self.assertEqual(titles, {"Hero Sword", "UV Toolkit"})
+        self.assertEqual(titles, {"Hero Sword - Whole File", "UV Toolkit"})
         self.assertEqual(slugs, {"hero-sword", "uv-toolkit"})
 
         product_item = next(
@@ -518,7 +522,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         renamed = self.client.get(detail_url)
         self.assertEqual(renamed.status_code, status.HTTP_200_OK)
         renamed_titles = {item["title"] for item in renamed.data["items"]}
-        self.assertEqual(renamed_titles, {"Hero Sword", "UV Toolkit"})
+        self.assertEqual(renamed_titles, {"Hero Sword - Whole File", "UV Toolkit"})
 
     def test_admin_can_cancel_pending_order(self) -> None:
         self._authenticate_admin()
@@ -622,6 +626,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
                     {
                         "product_type": OrderItem.ProductType.PRODUCT,
                         "product_id": str(self.product.id),
+                        "package_kind": "whole",
                         "quantity": 1,
                     }
                 ],
@@ -631,10 +636,10 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["customer"]["email"], self.user.email)
         self.assertEqual(len(response.data["items"]), 1)
-        self.assertEqual(response.data["items"][0]["title"], "Hero Sword")
+        self.assertEqual(response.data["items"][0]["title"], "Hero Sword - Whole File")
         self.assertEqual(response.data["items"][0]["slug"], "hero-sword")
         created_item = OrderItem.objects.get(id=response.data["items"][0]["id"])
-        self.assertEqual(created_item.title, "Hero Sword")
+        self.assertEqual(created_item.title, "Hero Sword - Whole File")
         self.assertEqual(created_item.slug, "hero-sword")
 
     def test_unauthenticated_denied_on_admin_order_endpoints(self) -> None:
@@ -656,6 +661,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
                     {
                         "product_type": OrderItem.ProductType.PRODUCT,
                         "product_id": str(self.product.id),
+                        "package_kind": "whole",
                         "quantity": 1,
                     }
                 ],
@@ -692,6 +698,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
                     {
                         "product_type": OrderItem.ProductType.PRODUCT,
                         "product_id": str(self.product.id),
+                        "package_kind": "whole",
                         "quantity": 1,
                     }
                 ],
@@ -712,6 +719,7 @@ class OrderAdminAPITests(OrderTestMixin, APITestCase):
                     {
                         "product_type": OrderItem.ProductType.PRODUCT,
                         "product_id": str(self.product.id),
+                        "package_kind": "whole",
                         "quantity": 1,
                     }
                 ],
@@ -757,6 +765,8 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         "id",
         "product_type",
         "product_id",
+        "package_kind",
+        "package_label",
         "title",
         "slug",
         "quantity",
@@ -800,7 +810,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=2,
                     ),
                     OrderItemCreateData(
@@ -855,7 +865,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),
@@ -877,6 +887,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                     {
                         "product_type": OrderItem.ProductType.PRODUCT,
                         "product_id": str(self.product.id),
+                        "package_kind": "whole",
                         "quantity": 1,
                     }
                 ],
@@ -907,7 +918,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),
@@ -938,7 +949,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
                     items=(
                         OrderItemCreateData(
                             product_type=OrderItem.ProductType.PRODUCT,
-                            product_id=self.product.pk,
+                            product_id=self.product.pk, package_kind="whole",
                             quantity=1,
                         ),
                     ),
@@ -1120,7 +1131,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         titles = {item["title"] for item in response.data["items"]}
         slugs = {item["slug"] for item in response.data["items"]}
-        self.assertEqual(titles, {"Hero Sword", "UV Toolkit"})
+        self.assertEqual(titles, {"Hero Sword - Whole File", "UV Toolkit"})
         self.assertEqual(slugs, {"hero-sword", "uv-toolkit"})
 
         self.product.name = "Renamed Sword"
@@ -1129,7 +1140,7 @@ class OrderCustomerAPITests(OrderTestMixin, APITestCase):
         self.assertEqual(after_rename.status_code, status.HTTP_200_OK)
         self.assertEqual(
             {item["title"] for item in after_rename.data["items"]},
-            {"Hero Sword", "UV Toolkit"},
+            {"Hero Sword - Whole File", "UV Toolkit"},
         )
 
     def test_serializer_falls_back_to_live_catalog_when_snapshot_missing(self) -> None:
@@ -1180,7 +1191,7 @@ class OrderInvoiceAPITests(OrderTestMixin, APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=OrderItem.ProductType.PRODUCT,
-                        product_id=self.product.pk,
+                        product_id=self.product.pk, package_kind="whole",
                         quantity=1,
                     ),
                 ),

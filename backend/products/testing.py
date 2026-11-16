@@ -116,6 +116,32 @@ def price_packages(product, price: str, **sale) -> None:
     sync_summary_price(product)
 
 
+def sell_package(product, kind: str = "whole", price=None, **sale):
+    """Give ``product`` a priced package of this kind (the product's own price and sale by
+    default), as a model is sold after the Pricing page. Returns the package row."""
+    from products.models import ProductFile
+
+    package, _ = ProductFile.objects.update_or_create(
+        product=product,
+        package_kind=kind,
+        defaults={
+            "file_name": f"{product.slug}_{kind}.zip",
+            "file_format": "zip",
+            "file_size": 1024,
+            "storage_path": f"products/files/{product.slug}_{kind}.zip",
+            "is_preview": False,
+            "price": Decimal(str(price)) if price is not None else product.price,
+            "discount_price": sale.get(
+                "discount_price", product.discount_price if price is None else None
+            ),
+            "discount_ends_at": sale.get(
+                "discount_ends_at", product.discount_ends_at if price is None else None
+            ),
+        },
+    )
+    return package
+
+
 def put_pipeline_packages(items: list[dict]) -> None:
     """Upload each item's package zips, as the batch pipeline does before an import."""
     for item in items:

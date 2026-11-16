@@ -239,6 +239,7 @@ class CurrencyCommerceRegressionTests(PaymentsTestMixin, APITestCase):
         self.product.currency = 'JPY'
         self.product.price = Decimal('100')
         self.product.save()
+        ProductFile.objects.filter(product=self.product).update(price=Decimal('100'))
         self._add_to_cart('product', self.product.pk)
         result = CheckoutService.create_checkout_session(self.user)
         self.assertEqual(create.call_args.kwargs['line_items'][0]['price_data']['unit_amount'], 100)
@@ -273,6 +274,7 @@ class CurrencyCommerceRegressionTests(PaymentsTestMixin, APITestCase):
         for amount in ['0', '0.01']:
             self.product.price = Decimal(amount)
             self.product.save()
+            ProductFile.objects.filter(product=self.product).update(price=Decimal(amount))
             with self.subTest(amount=amount), self.assertRaises(CheckoutError):
                 CheckoutService.create_checkout_session(self.user)
         create.assert_not_called()

@@ -30,7 +30,8 @@ from accounts.legal_service import LegalAcceptanceService
 from accounts.models import Role, User
 from cart.models import Cart, CartItem
 from categories.models import Category
-from products.models import Product, ProductImage
+from products.models import Product, ProductFile, ProductImage
+from products.packages import PackageKind
 
 SMOKE_EMAIL_PREFIX = "load-smoke-"
 SMOKE_PRODUCT_SLUG_PREFIX = "load-smoke-"
@@ -129,6 +130,16 @@ def _ensure_published_fixture() -> tuple[Product, bool]:
         status=Product.Status.PUBLISHED,
         thumbnail=thumb,
         preview_model=preview,
+    )
+    # Models are sold per package: the smoke buys the model's priced Whole File package.
+    ProductFile.objects.create(
+        product=product,
+        file_name=f"{product.slug}_whole.zip",
+        file_format="zip",
+        file_size=1,
+        storage_path=f"products/files/{product.slug}_whole.zip",
+        package_kind=PackageKind.WHOLE,
+        price=product.price,
     )
     ProductImage.objects.create(
         product=product,
@@ -423,11 +434,25 @@ def _check_checkout_session(*, product: Product) -> LoadSmokeCheck:
         user,
         LegalAcceptanceService.current_versions(),
     )
+    # Models are sold per package: buy the cheapest priced one.
+    package = (
+        ProductFile.objects.filter(product=product, is_preview=False, price__isnull=False)
+        .exclude(package_kind="")
+        .order_by("price")
+        .first()
+    )
+    if package is None:
+        return LoadSmokeCheck(
+            name="checkout_session",
+            ok=False,
+            detail=f"{product.slug} has no priced package to buy",
+        )
     cart, _ = Cart.objects.get_or_create(user=user)
     CartItem.objects.create(
         cart=cart,
         product_type=CartItem.ProductType.PRODUCT,
         product_id=product.pk,
+        package_kind=package.package_kind,
         quantity=1,
     )
 

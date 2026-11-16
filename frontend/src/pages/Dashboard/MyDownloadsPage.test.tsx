@@ -40,9 +40,12 @@ const entitlement: DownloadEntitlement = {
   product_id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
   title: 'Hero Sword',
   slug: 'hero-sword',
+  package_kinds: ['whole'],
   files: [
     {
       id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+      package_kind: 'whole',
+      package_label: 'Whole File',
       file_name: 'hero-sword.zip',
       file_format: 'zip',
       file_size: 2048,

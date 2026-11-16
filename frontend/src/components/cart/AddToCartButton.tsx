@@ -11,7 +11,7 @@ interface AddToCartButtonProps {
   productId: string
   productName: string
   className?: string
-  variant?: 'chip' | 'primary' | 'icon' | 'full' | 'marketplace'
+  variant?: 'chip' | 'primary' | 'full' | 'marketplace'
   guestLabel?: string
 }
 
@@ -34,7 +34,6 @@ export function AddToCartButton({
   if (isSignedIn && isOwned(productType, productId)) {
     const ownedClass = {
       marketplace: 'product-card__add-cart product-card__add-cart--owned',
-      icon: 'product-detail-stage__overlay-btn product-detail-stage__overlay-btn--active',
       full: 'ui-button ui-button--secondary product-detail-cta__full product-detail-cta__link',
       primary: 'ui-button ui-button--primary product-detail-cta__full product-detail-cta__link',
       chip: 'ui-button ui-button--secondary product-detail-cta__chip product-detail-cta__link',
@@ -45,13 +44,7 @@ export function AddToCartButton({
         className={`${ownedClass} ${className ?? ''}`.trim()}
         aria-label={`You own ${productName}. Go to your downloads`}
       >
-        {variant === 'icon' ? (
-          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        ) : (
-          <span>{variant === 'marketplace' ? 'Owned' : 'Owned · Download'}</span>
-        )}
+        <span>{variant === 'marketplace' ? 'Owned' : 'Owned · Download'}</span>
       </Link>
     )
   }
@@ -93,44 +86,6 @@ export function AddToCartButton({
           <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span>{inCart ? 'In Cart' : 'Add to Cart'}</span>
-      </button>
-    )
-  }
-
-  if (variant === 'icon') {
-    const iconCart = (
-      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="9" cy="20" r="1.5" />
-        <circle cx="17" cy="20" r="1.5" />
-        <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h7.4a1.5 1.5 0 0 0 1.5-1.2L20 8H7" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    )
-
-    if (!isSignedIn) {
-      return (
-        <AuthEntryButton
-          mode="login"
-          returnTo={returnTo}
-          className={`product-detail-stage__overlay-btn ${className ?? ''}`.trim()}
-          aria-label={`Sign in to add ${productName} to cart`}
-        >
-          {iconCart}
-        </AuthEntryButton>
-      )
-    }
-
-    return (
-      <button
-        type="button"
-        className={`product-detail-stage__overlay-btn ${inCart ? 'product-detail-stage__overlay-btn--active' : ''} ${className ?? ''}`.trim()}
-        aria-label={inCart ? `${productName} is in cart` : `Add ${productName} to cart`}
-        aria-pressed={inCart}
-        disabled={isPending || inCart}
-        onClick={() => {
-          add(productType, productId)
-        }}
-      >
-        {iconCart}
       </button>
     )
   }

@@ -5,35 +5,42 @@ import { createCheckoutSession } from '../api/paymentsApi'
 import { getApiErrorMessage } from '../lib/apiError'
 import { rememberCheckoutOrderId } from '../lib/checkoutReturn'
 import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
+import type { PackageKind } from '../lib/packages'
 import { toast } from '../lib/toast'
 import type { CartProductType } from '../types/cart'
+import type { CheckoutItem } from '../types/payment'
 
 interface BuyNowPayload {
   productType: CartProductType
   productId: string
+  /** A model's packages (one line each); empty for a plugin. */
+  packageKinds: PackageKind[]
 }
 
 export function useBuyNow() {
   const queryClient = useQueryClient()
 
   const buyNowMutation = useMutation({
-    mutationFn: async ({ productType, productId }: BuyNowPayload) => {
+    mutationFn: async ({ productType, productId, packageKinds }: BuyNowPayload) => {
+      const lines: CheckoutItem[] =
+        productType === 'product'
+          ? packageKinds.map((kind) => ({ product_type: productType, product_id: productId, package_kind: kind }))
+          : [{ product_type: productType, product_id: productId }]
       const cart = await getCart()
-      const alreadyInCart = cart.items.some(
-        (item) => item.product_type === productType && item.product_id === productId,
-      )
-      if (!alreadyInCart) {
-        await addCartItem({
-          product_type: productType,
-          product_id: productId,
-          quantity: 1,
-        })
+      for (const line of lines) {
+        const alreadyInCart = cart.items.some(
+          (item) =>
+            item.product_type === line.product_type &&
+            item.product_id === line.product_id &&
+            item.package_kind === (line.package_kind ?? ''),
+        )
+        if (!alreadyInCart) {
+          await addCartItem({ ...line, quantity: 1 })
+        }
       }
       await queryClient.invalidateQueries({ queryKey: ['cart'] })
-      // Buy Now pays for this model only; the rest of the cart stays for later.
-      return createCheckoutSession(currentAcceptedLegalPayload(), [
-        { product_type: productType, product_id: productId },
-      ])
+      // Buy Now pays for these lines only; the rest of the cart stays for later.
+      return createCheckoutSession(currentAcceptedLegalPayload(), lines)
     },
     onSuccess: (data) => {
       rememberCheckoutOrderId(data.order_id)
@@ -47,8 +54,9 @@ export function useBuyNow() {
   })
 
   return {
-    buyNow: (productType: CartProductType, productId: string) => {
-      buyNowMutation.mutate({ productType, productId })
+    /** Buy a plugin, or the given packages of a model, at once. */
+    buyNow: (productType: CartProductType, productId: string, packageKinds: PackageKind[] = []) => {
+      buyNowMutation.mutate({ productType, productId, packageKinds })
     },
     isRedirecting: buyNowMutation.isPending || buyNowMutation.isSuccess,
   }

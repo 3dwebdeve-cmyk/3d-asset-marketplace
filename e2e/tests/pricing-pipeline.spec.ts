@@ -498,15 +498,17 @@ test.describe('shop and buyer after pricing', () => {
     await page.goto(`/products/${LIVE.slug}`)
     await expect(page.getByRole('heading', { name: LIVE.name })).toBeVisible()
     const purchase = page.getByRole('complementary', { name: 'Product purchase details' })
-    await purchase.getByRole('button', { name: /Add to Cart/i }).click()
-    await expect(purchase.getByRole('button', { name: /^In cart$/i })).toBeVisible({ timeout: 15_000 })
+    // A model is sold per package: tick Whole File (the one package), then add it.
+    await purchase.getByRole('checkbox', { name: 'Whole File' }).check()
+    await purchase.getByRole('button', { name: 'Add selected to cart' }).click()
+    await expect(purchase.getByRole('link', { name: 'In cart' })).toBeVisible({ timeout: 15_000 })
 
     await page.goto('/cart')
     await expect(page.getByRole('heading', { name: 'Your cart' })).toBeVisible()
     const line = page.locator('.cart-page__line').filter({ hasText: LIVE.name })
     await expect(line).toBeVisible()
     await expect(line.locator('.cart-line-item__price')).toHaveText('$32.00')
-    await expect(page.getByRole('checkbox', { name: `Buy ${LIVE.name}` })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: `Buy ${LIVE.name} - Whole File` })).toBeChecked()
     await expect(page.locator('.cart-summary--total')).toContainText('$32.00')
     // Stops before paying: checkout-flow.spec.ts covers the simulated payment.
 
