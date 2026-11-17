@@ -1087,6 +1087,17 @@
   aspect-ratio: 16 / 10;
 }
 
+/* Home cards: inset the thumbnail inside the card and fit the whole model in it. */
+.products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card--marketplace .product-card__media {
+  box-sizing: border-box;
+  padding: 0.75rem;
+  background: #ffffff;
+}
+
+.products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card--marketplace .product-card__image {
+  object-fit: contain;
+}
+
 @media (min-width: 1280px) {
   .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards {
     grid-auto-columns: calc((100% - 3 * 0.75rem) / 4 * 1.3);
