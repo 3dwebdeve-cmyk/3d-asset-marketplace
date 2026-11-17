@@ -5,8 +5,10 @@ import '../../styles/product-spin.css'
 
 /** Pixels of horizontal drag per frame. */
 const PIXELS_PER_FRAME = 12
-/** One frame of the slow turn when the viewer opens (36 frames, about 4.3 seconds). */
+/** One frame of the continuous turn (36 frames, about 4.3 seconds per full turn). */
 const AUTO_ROTATE_FRAME_MS = 120
+/** After a drag, an arrow key or ◀ ▶, the turn starts again this long after the last touch. */
+const RESUME_AFTER_MS = 3000
 /**
  * +1: dragging right, the right arrow key and the ▶ button show the next frame.
  * Set to -1 if the 3ds Max turntable turns the other way.
@@ -24,7 +26,10 @@ function prefersReducedMotion(): boolean {
 interface ProductSpinViewerProps {
   images: string[]
   productName: string
-  /** One slow turn once every frame has loaded (never with reduced motion). */
+  /**
+   * Turn continuously once every frame has loaded, with a Pause / Play button. With
+   * reduced motion it starts paused. False keeps the viewer still (the admin console).
+   */
   autoRotate?: boolean
   /** A smaller viewer, for the admin console. */
   compact?: boolean
@@ -33,7 +38,8 @@ interface ProductSpinViewerProps {
 /**
  * A 360° turntable: 36 photos of the model, one every 10°. Dragging, the arrow keys and
  * the ◀ ▶ buttons step through them, and they loop. Frame 1 shows at once; the other
- * frames load when the viewer opens, so the product page itself stays light.
+ * frames load when the viewer opens, so the product page itself stays light. Once they
+ * have, it turns continuously; the visitor's own turning holds it for a few seconds.
  */
 export function ProductSpinViewer({
   images,
@@ -46,19 +52,48 @@ export function ProductSpinViewer({
   const [loaded, setLoaded] = useState<ReadonlySet<number>>(() => new Set())
   const [aspectRatio, setAspectRatio] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
-  // The slow turn runs once, after every frame has loaded; the first interaction ends it.
-  const [autoTurnDone, setAutoTurnDone] = useState(() => !autoRotate || prefersReducedMotion())
+  // Pause / Play: only the button changes it. Reduced motion starts paused.
+  const [paused, setPaused] = useState(() => prefersReducedMotion())
+  // False from the visitor's last drag, arrow key or ◀ ▶ until RESUME_AFTER_MS later.
+  const [idle, setIdle] = useState(true)
+  const resumeTimer = useRef<number | null>(null)
   const drag = useRef<{ pointerId: number; startX: number; startFrame: number } | null>(null)
 
   const ready = loaded.size >= SPIN_FRAME_COUNT
-  const rotating = ready && !autoTurnDone
+  const rotating = autoRotate && ready && !paused && idle && !dragging
 
-  const stopAutoRotate = useCallback(() => setAutoTurnDone(true), [])
+  const clearResumeTimer = useCallback(() => {
+    if (resumeTimer.current !== null) {
+      window.clearTimeout(resumeTimer.current)
+      resumeTimer.current = null
+    }
+  }, [])
+
+  // The visitor has taken control: hold the turn, and restart the wait for it to resume.
+  const holdAutoRotate = useCallback(() => {
+    clearResumeTimer()
+    setIdle(false)
+    resumeTimer.current = window.setTimeout(() => {
+      resumeTimer.current = null
+      setIdle(true)
+    }, RESUME_AFTER_MS)
+  }, [clearResumeTimer])
+
+  useEffect(() => clearResumeTimer, [clearResumeTimer])
+
+  const togglePaused = () => {
+    if (paused) {
+      // Play turns at once, without waiting out an earlier hold.
+      clearResumeTimer()
+      setIdle(true)
+    }
+    setPaused(!paused)
+  }
 
   const turn = useCallback((steps: number) => {
-    stopAutoRotate()
+    holdAutoRotate()
     setFrame((current) => wrapFrame(current + TURN_DIRECTION * steps))
-  }, [stopAutoRotate])
+  }, [holdAutoRotate])
 
   const markLoaded = useCallback((index: number) => {
     setLoaded((current) => {
@@ -71,13 +106,8 @@ export function ProductSpinViewer({
 
   useEffect(() => {
     if (!rotating) return
-    let steps = 0
     const timer = window.setInterval(() => {
-      steps += 1
       setFrame((current) => wrapFrame(current + 1))
-      if (steps >= SPIN_FRAME_COUNT) {
-        setAutoTurnDone(true)
-      }
     }, AUTO_ROTATE_FRAME_MS)
     return () => window.clearInterval(timer)
   }, [rotating])
@@ -90,6 +120,7 @@ export function ProductSpinViewer({
     if (drag.current?.pointerId !== event.pointerId) return
     drag.current = null
     setDragging(false)
+    holdAutoRotate() // The wait to resume counts from letting go.
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -114,7 +145,7 @@ export function ProductSpinViewer({
         onKeyDown={onKeyDown}
         onPointerDown={(event) => {
           if (event.pointerType === 'mouse' && event.button !== 0) return
-          stopAutoRotate()
+          holdAutoRotate()
           drag.current = { pointerId: event.pointerId, startX: event.clientX, startFrame: frame }
           event.currentTarget.setPointerCapture?.(event.pointerId)
           setDragging(true)
@@ -165,6 +196,24 @@ export function ProductSpinViewer({
             <path d="m14 6-6 6 6 6" />
           </svg>
         </button>
+        {autoRotate ? (
+          <button
+            type="button"
+            className="product-spin__button"
+            aria-label={paused ? 'Play rotation' : 'Pause rotation'}
+            onClick={togglePaused}
+          >
+            {paused ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+                <path d="M8 5.5v13l10.5-6.5L8 5.5Z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+                <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" />
+              </svg>
+            )}
+          </button>
+        ) : null}
         <span id={hintId} className="product-spin__hint">
           Drag to rotate<span className="product-spin__sr-only">, or use the arrow keys</span>
         </span>
