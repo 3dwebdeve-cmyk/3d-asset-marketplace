@@ -525,6 +525,17 @@
   height: 1.5rem;
 }
 
+.product-detail-gallery__thumb--spin {
+  position: relative;
+}
+
+.product-detail-gallery__thumb--spin .product-detail-gallery__thumb-3d {
+  position: absolute;
+  inset: 0;
+  background: rgb(233 237 255 / 65%);
+  text-shadow: 0 1px 2px #ffffff;
+}
+
 .product-detail-purchase {
   display: flex;
   flex-direction: column;

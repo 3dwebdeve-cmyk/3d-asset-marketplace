@@ -506,17 +506,26 @@ export function ProductImageGallery({
             }
 
             if (item.mode === 'spin') {
+              const backgroundImage = galleryImages.find((image) => !imgErrorIds.has(image.id))
               return showPreviewModeThumbs ? (
                 <li key="spin">
                   <button
                     type="button"
-                    className={`product-detail-gallery__thumb${
+                    className={`product-detail-gallery__thumb product-detail-gallery__thumb--spin${
                       showSpinStage ? ' product-detail-gallery__thumb--active' : ''
                     }`}
                     onClick={() => setViewMode('spin')}
                     aria-label="Show 360° view"
                     aria-current={showSpinStage ? 'true' : undefined}
                   >
+                    {backgroundImage ? (
+                      <img
+                        src={backgroundImage.src}
+                        alt=""
+                        className="product-detail-gallery__thumb-image"
+                        onError={() => markFailed(backgroundImage.id)}
+                      />
+                    ) : null}
                     <span className="product-detail-gallery__thumb-3d">
                       <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M17.5 8.6C20 9.5 21.5 10.7 21.5 12c0 2.8-4.3 5-9.5 5s-9.5-2.2-9.5-5 4.3-5 9.5-5" />
