@@ -62,7 +62,6 @@ export function useWishlist() {
     mutationFn: addWishlistItem,
     onSuccess: async () => {
       await invalidateWishlist()
-      toast.success('Added to wishlist.')
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, 'Could not add to wishlist.'))
@@ -73,7 +72,6 @@ export function useWishlist() {
     mutationFn: removeWishlistItem,
     onSuccess: async () => {
       await invalidateWishlist()
-      toast.success('Removed from wishlist.')
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error, 'Could not remove from wishlist.'))

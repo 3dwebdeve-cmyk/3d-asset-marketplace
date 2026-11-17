@@ -250,7 +250,6 @@ export function WishlistPage() {
       setRemovingId(itemId)
     },
     onSuccess: async () => {
-      toast.success('Removed from wishlist.')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['wishlist', 'page'] }),
         queryClient.invalidateQueries({ queryKey: ['wishlist', 'count'] }),
