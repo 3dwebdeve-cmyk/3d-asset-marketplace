@@ -31,12 +31,14 @@ from categories.models import Category
 from orders.models import Order
 from payments.models import CheckoutAttempt
 from products.catalog_import import FREE_TO_PAID_OFF_SALE, LIVE_UPDATE_IN_QA
-from products.models import Product, ProductPriceChange
+from products.models import Product, ProductFile, ProductPriceChange
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
+from products.testing import moved_media
 
-FREE_SKU = "JRN-FREE-001"
-LAMP_SKU = "JRN-LAMP-001"  # paid, Lighting, 5,000 polygons (low), sheet price 19.99
-CHAIR_SKU = "JRN-CHAIR-001"  # paid, Furniture > Chairs, 50,000 polygons (mid), no price
+# A Model ID's code (JRF in JRF-FREE-001) belongs to one category, so each category has its own.
+FREE_SKU = "JRF-FREE-001"  # free, Furniture
+LAMP_SKU = "JRL-LAMP-001"  # paid, Lighting, 5,000 polygons (low), sheet price 19.99 (not read)
+CHAIR_SKU = "JRC-CHAIR-001"  # paid, Furniture > Chairs, 50,000 polygons (mid), no price
 BATCH = "journey-run-01"
 
 LAMP_PRICE = "24.00"
@@ -53,16 +55,9 @@ def _item(sku: str, *, free: bool = False, **overrides: object) -> dict:
     folder = "free-models" if free else "models"
     overrides.setdefault("glb_checksum", _checksum(sku))
     item = _happy_item(model_id=sku, r2_key_prefix=f"{folder}/{sku}/", **overrides)
-
-    def move(key: str) -> str:
-        return key.replace("models/MDL-000142/", f"{folder}/{sku}/", 1)
-
-    item["media"] = {
-        key: [move(k) for k in value]
-        if isinstance(value, list)
-        else move(value) if isinstance(value, str) else value
-        for key, value in item["media"].items()
-    }
+    media = moved_media(item["media"], "models/MDL-000142/", f"{folder}/{sku}/")
+    # The zips are named after the Model ID too (<ID>_<kind>.zip).
+    item["media"] = moved_media(media, "MDL-000142_", f"{sku}_")
     return item
 
 
@@ -124,6 +119,10 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
     @staticmethod
     def _product(sku: str) -> Product:
         return Product.objects.get(sku=sku)
+
+    @staticmethod
+    def _whole(product: Product) -> ProductFile:
+        return ProductFile.objects.get(product=product, package_kind="whole")
 
     # ─── Admin: QA ──────────────────────────────────────────────────────────────────────
 
@@ -227,7 +226,8 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
                     price="19.99",
                     polygon_count=5_000,
                 ),
-                _item(CHAIR_SKU, name="Journey Lounge Chair", price="0", polygon_count=50_000),
+                _item(CHAIR_SKU, name="Journey Lounge Chair", category="Chairs", price="0",
+                      polygon_count=50_000),
             ]
         )
         self.assertEqual((data["created"], data["skipped"], data["failed"]), (3, 0, 0), data)
@@ -265,10 +265,13 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
 
     @staticmethod
     def _end_sale_in_db(product: Product) -> None:
-        """Time passes: the sale end is now in the past (the stored sale is not cleared yet)."""
-        Product.objects.filter(pk=product.pk).update(
-            discount_ends_at=timezone.now() - timedelta(minutes=1)
+        """Time passes: the sale end is now in the past (the stored sale is not cleared yet).
+        Sales live on the packages; the summary follows them."""
+        ended = timezone.now() - timedelta(minutes=1)
+        ProductFile.objects.filter(product=product, discount_price__isnull=False).update(
+            discount_ends_at=ended
         )
+        Product.objects.filter(pk=product.pk).update(discount_ends_at=ended)
         product.refresh_from_db()
 
     # ═══ 1. Upload and QA ═══════════════════════════════════════════════════════════════
@@ -279,7 +282,8 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
             self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
             self.assertEqual(self._public_detail(product).status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(free.price, Decimal("0.00"))  # the Free tick makes the price 0
-        self.assertEqual(lamp.price, Decimal("19.99"))  # the sheet price is only a suggestion
+        # The sheet's price is never read: the paid packages wait for the Pricing page.
+        self.assertIsNone(self._whole(lamp).price)
 
         self._as_admin()
         self.assertEqual(self._qa_skus("free"), {FREE_SKU})
@@ -315,8 +319,7 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
             self.assertEqual(response.data["upload_kind"], "paid")
             self.assertEqual(self._public_detail(product).status_code, status.HTTP_404_NOT_FOUND)
             self._as_admin()
-        lamp.refresh_from_db()
-        self.assertEqual(lamp.price, Decimal("19.99"))  # approve kept the suggested price
+        self.assertIsNone(self._whole(lamp).price)  # approve never sets a price
         self.assertEqual(self._qa_skus("free"), set())
         self.assertEqual(self._qa_skus("paid"), set())
         self.assertIsNone(self._public_list_row(lamp))
@@ -343,7 +346,11 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         batches = self.client.get(reverse("products_admin:admin-pricing-batches"), {"tab": "waiting"})
         self.assertEqual(batches.data["results"], [BATCH])
         row = self._pricing_rows(tab="waiting")[LAMP_SKU]
-        self.assertEqual((row["poly_tier"], row["price"], row["buyer_pays"]), ("low", "19.99", "19.99"))
+        # The sheet's 19.99 is never read: the package has no price until the Pricing page
+        # saves one, and the model's summary stays 0.00 ("Not set" on the page).
+        self.assertEqual((row["poly_tier"], row["price"]), ("low", "0.00"))
+        whole = next(item for item in row["packages"] if item["kind"] == "whole")
+        self.assertEqual((whole["price"], whole["buyer_pays"]), (None, None))
         self.assertEqual(row["category"]["id"], str(self.lighting.pk))
 
         # Preview a price by poly level: the mid model has no price, so it gets an error row.
@@ -358,8 +365,7 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
                               tier_prices={"low": LAMP_PRICE})
         self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST, refused.data)
         self.assertIn("mid", _row_errors(refused.data)[str(chair.pk)][0])
-        lamp.refresh_from_db()
-        self.assertEqual(lamp.price, Decimal("19.99"))
+        self.assertIsNone(self._whole(lamp).price)
 
         # Save the Lamp alone; statuses do not change on save.
         applied = self._price([lamp], rule="tier_price", tier_prices={"low": LAMP_PRICE})
@@ -400,7 +406,7 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         self.assertEqual(len(history), 1)
         self.assertEqual(
             (history[0]["source"], history[0]["batch_id"], history[0]["old_price"], history[0]["new_price"]),
-            ("pricing_page", applied["batch_id"], "19.99", LAMP_PRICE),
+            ("pricing_page", applied["batch_id"], None, LAMP_PRICE),
         )
         self.assertEqual(history[0]["changed_by"]["id"], str(self.admin_user.pk))
 
@@ -435,7 +441,7 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         # Buyer: the cart and a checkout during the sale use the sale price.
         self._as_buyer()
         added = self.client.post(
-            reverse("cart:cart-detail"), {"product_type": "product", "product_id": str(lamp.pk)}, format="json"
+            reverse("cart:cart-detail"), {"product_type": "product", "product_id": str(lamp.pk), "package_kind": "whole"}, format="json"
         )
         self.assertIn(added.status_code, (status.HTTP_200_OK, status.HTTP_201_CREATED), added.data)
         cart = self._cart()
@@ -652,7 +658,8 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
 
         # A re-upload between the preview and the save (the model went back to QA): 409.
         token = self._preview_ok([chair], rule="set_price", price="44.00")["preview_token"]
-        self._upload([_item(CHAIR_SKU, price="0", polygon_count=50_000, glb_checksum=_checksum("c3"))],
+        self._upload([_item(CHAIR_SKU, category="Chairs", price="0", polygon_count=50_000,
+                            glb_checksum=_checksum("c3"))],
                      batch_id="journey-run-04")
         self._as_admin()
         conflict = self._apply([chair], token, rule="set_price", price="44.00")
@@ -694,19 +701,21 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         self.assertNotEqual(lamp.price, Decimal(LAMP_PRICE))
 
     def test_10_sheet_sale_is_ignored_and_never_reaches_the_store(self, *_stripe) -> None:
-        # Fixed: the upload no longer takes a sale price from the sheet (warning
-        # sheet_sale_ignored), so a 29.99 model with a 0.10 sheet sale is sold at 29.99.
+        # The upload never reads the sheet's price or sale: a 0.10 sheet sale never reaches
+        # the store. The packages wait unpriced until the Pricing page sets 29.99.
         data = self._upload(
-            [_item("JRN-SHEET-SALE", name="Journey Sheet Sale", price="29.99", discount_price="0.10",
+            [_item("JRF-SHEET-SALE", name="Journey Sheet Sale", price="29.99", discount_price="0.10",
                    polygon_count=20_000)],
             batch_id="journey-sheet",
         )
         self.assertEqual(data["created"], 1, data)
-        self.assertIn("sheet_sale_ignored", data["results"][0].get("warnings", []))
-        product = self._product("JRN-SHEET-SALE")
+        product = self._product("JRF-SHEET-SALE")
+        whole = self._whole(product)
+        self.assertEqual((whole.price, whole.discount_price), (None, None))
         self.assertIsNone(product.discount_price)
         self._as_admin()
         self.assertEqual(self._approve(product).status_code, status.HTTP_200_OK)
+        self._price([product], rule="set_price", price="29.99")
         self._publish([product])
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PUBLISHED)

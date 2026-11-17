@@ -3,7 +3,7 @@ C:/batch/out/MDL-000201/
 ├── preview.glb
 └── thumbnail.jpg
 
-# MDL-000202 — complete disk; intake Price blank
+# MDL-000202 — complete disk; report GLB checksum blank
 C:/batch/out/MDL-000202/
 ├── preview.glb
 ├── thumbnail.jpg

@@ -40,6 +40,10 @@ class Category(models.Model):
     created_by_import = models.BooleanField(default=False)
     # The upload batch that created it (blank for a category made in /console).
     created_from_batch = models.CharField(max_length=128, blank=True, default="")
+    # An admin rejected this pending category while it still had models. It stays hidden, its
+    # models cannot be approved, and new uploads with its code are refused until an admin
+    # approves it or merges it into another category. (An empty one is deleted instead.)
+    rejected_at = models.DateTimeField(null=True, blank=True)
     click_count = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

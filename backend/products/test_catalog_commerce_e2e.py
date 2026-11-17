@@ -22,10 +22,10 @@ from downloads.models import DownloadHistory
 from orders.models import Order
 from payments.models import Payment
 from payments.payment_common import to_cents
-from payments.test_payments import _FakeEvent, _fake_session
+from payments.test_payments import _fake_session, _FakeEvent
 from products.models import Product, ProductFile
 from products.test_catalog_import import _happy_item
-from products.testing import put_pipeline_uploads
+from products.testing import price_packages, put_pipeline_uploads
 
 
 @override_settings(
@@ -130,6 +130,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(product.pk),
+                "package_kind": "whole",
                 "quantity": 1,
             },
             format="json",
@@ -145,6 +146,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
         self.assertEqual(approve.status_code, status.HTTP_200_OK)
         # A paid model waits for its price after QA; the Pricing page then publishes it.
         self.assertEqual(approve.data["status"], "awaiting_price")
+        price_packages(product, "29.99")
         Product.objects.filter(pk=product.pk).update(status=Product.Status.PUBLISHED)
 
         self.client.credentials()
@@ -157,6 +159,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(product.pk),
+                "package_kind": "whole",
                 "quantity": 1,
             },
             format="json",

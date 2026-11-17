@@ -40,6 +40,8 @@ const sampleOrder = {
       id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
       product_type: 'product' as const,
       product_id: productId,
+      package_kind: 'whole' as const,
+      package_label: 'Whole File',
       title: 'Oak Chair',
       slug: 'oak-chair',
       quantity: 2,

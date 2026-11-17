@@ -37,9 +37,8 @@ PUBLIC_MEDIA_PREFIXES = (
     "avatars/",
 )
 # Feature 16 public objects live under models/{Model_ID}/; packages stay private.
-# The 3ds Max pipeline names the package <Model_ID>.zip, so any .zip is private.
+# The packages are <Model_ID>_<kind>.zip (docs/PACKAGES_PIPELINE.md), so any .zip is private.
 BATCH_PUBLIC_PREFIX = "models/"
-BATCH_PRIVATE_FILENAMES = frozenset({"package.zip"})
 BATCH_PRIVATE_SUFFIXES = (".zip",)
 # Only these file types are ever public under models/. Anything else there (.rar, .7z, .fbx,
 # .blend...) is a paid file and stays private even if an import path put it there.
@@ -95,7 +94,7 @@ def media_relative_path(storage_path: str) -> str | None:
 
 def is_batch_private_object(relative: str) -> bool:
     name = Path(relative.replace("\\", "/")).name.lower()
-    return name in BATCH_PRIVATE_FILENAMES or name.endswith(BATCH_PRIVATE_SUFFIXES)
+    return name.endswith(BATCH_PRIVATE_SUFFIXES)
 
 
 def is_free_model_path(storage_path: str) -> bool:

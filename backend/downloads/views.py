@@ -50,7 +50,9 @@ class CustomerDownloadHistoryListView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(
-            DownloadHistorySerializer(page, many=True).data
+            DownloadHistorySerializer(
+                page, many=True, context={"package_labels": DownloadService.package_labels(page)}
+            ).data
         )
 
 
@@ -96,5 +98,7 @@ class AdminDownloadHistoryListView(APIView):
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
         return paginator.get_paginated_response(
-            DownloadHistorySerializer(page, many=True).data
+            DownloadHistorySerializer(
+                page, many=True, context={"package_labels": DownloadService.package_labels(page)}
+            ).data
         )

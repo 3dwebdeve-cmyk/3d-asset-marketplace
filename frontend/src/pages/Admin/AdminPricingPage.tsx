@@ -21,6 +21,7 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { PACKAGE_LABELS, PACKAGE_ORDER, type PackageKind } from '../../lib/packages'
 import { isLocalInputInPast, localInputToUtc } from '../../lib/saleEnd'
 import { toast } from '../../lib/toast'
 import {
@@ -31,6 +32,7 @@ import {
 } from '../../types/pricing'
 import type {
   PolyTier,
+  PricingPackage,
   PricingPreview,
   PricingPublishResult,
   PricingRow,
@@ -66,6 +68,33 @@ function isMoney(value: string): boolean {
   return MONEY_PATTERN.test(value.trim()) && Number(value) > 0
 }
 
+/** A model's packages with their prices; a package with no price is shown as not set. */
+function PackagePrices({ packages, warning }: { packages: PricingPackage[]; warning: string }) {
+  if (packages.length === 0) return <em>No packages</em>
+  return (
+    <>
+      <ul className="admin-pricing__packages">
+        {packages.map((row) => (
+          <li key={row.kind}>
+            <span>{row.label}:</span>{' '}
+            {row.price === null ? (
+              <em>Not set</em>
+            ) : row.sale_price ? (
+              <>
+                {money(row.sale_price)} <s>{money(row.price)}</s>
+                {row.sale_ends_at ? <span className="home-page__subtitle"> until {when(row.sale_ends_at)}</span> : null}
+              </>
+            ) : (
+              money(row.price)
+            )}
+          </li>
+        ))}
+      </ul>
+      {warning ? <p className="admin-pricing__bundle-warning" role="note">{warning}</p> : null}
+    </>
+  )
+}
+
 export function AdminPricingPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -86,7 +115,8 @@ export function AdminPricingPage() {
   // Selection survives paging; at most MAX_MODELS_PER_ACTION models.
   const [selected, setSelected] = useState<Map<string, PricingRow>>(() => new Map())
 
-  // Calculator
+  // Calculator: every rule prices one package of each selected model.
+  const [packageKind, setPackageKind] = useState<PackageKind>('whole')
   const [action, setAction] = useState<Action>('price')
   const [priceMode, setPriceMode] = useState<'one' | 'tier'>('one')
   const [price, setPrice] = useState('')
@@ -215,7 +245,7 @@ export function AdminPricingPage() {
 
   const buildBody = (): PricingRuleRequest | string => {
     if (selectedIds.length === 0) return 'Select at least one model.'
-    const base = { product_ids: selectedIds, ...thresholds }
+    const base = { product_ids: selectedIds, package_kind: packageKind, ...thresholds }
     if (action === 'remove') return { ...base, rule: 'remove_sale' }
     if (action === 'price') {
       if (priceMode === 'one') {
@@ -278,14 +308,7 @@ export function AdminPricingPage() {
         for (const [id, row] of current) {
           const update = saved.get(id)
           if (!update || update.error) continue
-          next.set(id, {
-            ...row,
-            price: update.new_price,
-            discount_price: update.new_sale_price,
-            discount_ends_at: update.new_sale_ends_at,
-            discount_active: update.new_sale_price !== null,
-            buyer_pays: update.buyer_pays,
-          })
+          next.set(id, { ...row, packages: update.packages, bundle_warning: update.bundle_warning })
         }
         return next
       })
@@ -333,8 +356,10 @@ export function AdminPricingPage() {
   const confirmOk = !summary?.needs_confirmation || confirmText.trim() === String(summary.models)
   const canSave =
     summary !== undefined && summary.errors === 0 && summary.changed > 0 && confirmOk
-  const publishTotal = selectedRows.reduce((total, row) => total + Number(row.buyer_pays), 0)
-  const unpriced = selectedRows.filter((row) => Number(row.price) < 0.5).length
+  // A model goes live only with every package priced (the server checks again).
+  const unpriced = selectedRows.filter(
+    (row) => row.packages.length === 0 || row.packages.some((item) => item.price === null || Number(item.price) < 0.5),
+  ).length
   const busy = previewMutation.isPending || applyMutation.isPending || publishMutation.isPending
 
   return (
@@ -498,9 +523,8 @@ export function AdminPricingPage() {
                     <th scope="col">Category</th>
                     <th scope="col">Polygons</th>
                     <th scope="col">Level</th>
-                    <th scope="col">Price</th>
-                    <th scope="col">Sale</th>
-                    <th scope="col">Buyer pays</th>
+                    <th scope="col">Packages</th>
+                    <th scope="col">From</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -522,16 +546,8 @@ export function AdminPricingPage() {
                       <td>{row.category.name}</td>
                       <td>{row.polygon_count?.toLocaleString() ?? '—'}</td>
                       <td><span className={`admin-pricing__tier admin-pricing__tier--${row.poly_tier}`}>{POLY_TIER_LABELS[row.poly_tier]}</span></td>
-                      <td>{Number(row.price) > 0 ? money(row.price) : <em>Not set</em>}</td>
-                      <td>
-                        {row.discount_price && row.discount_active ? (
-                          <>
-                            {money(row.discount_price)}
-                            <div className="home-page__subtitle">{row.discount_ends_at ? `until ${when(row.discount_ends_at)}` : 'no end date'}</div>
-                          </>
-                        ) : row.discount_price ? <span className="home-page__subtitle">Sale ended</span> : '—'}
-                      </td>
-                      <td>{money(row.buyer_pays)}</td>
+                      <td><PackagePrices packages={row.packages} warning={row.bundle_warning} /></td>
+                      <td>{Number(row.price) > 0 ? money(row.buyer_pays) : <em>Not set</em>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -558,6 +574,19 @@ export function AdminPricingPage() {
             <h2 id="pricing-calculator-title">Calculator</h2>
             {formError ? <Alert variant="error" message={formError} /> : null}
             <form onSubmit={onPreview} noValidate>
+              <FormField id="pricing-package" label="Package">
+                <select
+                  id="pricing-package"
+                  className="ui-input"
+                  value={packageKind}
+                  onChange={(event) => { setPackageKind(event.target.value as PackageKind); resetPreview() }}
+                >
+                  {PACKAGE_ORDER.map((kind) => <option key={kind} value={kind}>{PACKAGE_LABELS[kind]}</option>)}
+                </select>
+              </FormField>
+              <p className="home-page__subtitle">
+                The rule changes this package of each selected model. A model without it is left alone.
+              </p>
               <fieldset className="admin-pricing__choice">
                 <legend>Change</legend>
                 {(
@@ -643,17 +672,20 @@ export function AdminPricingPage() {
             <h2 id="pricing-preview-title">Preview</h2>
             <p>
               {summary.models} model{summary.models === 1 ? '' : 's'}, {summary.changed} will change
-              {summary.errors > 0 ? `, ${summary.errors} cannot take this price` : ''}. Buyers pay {money(summary.buyer_pays_before)} → {money(summary.buyer_pays_after)} in total.
+              {summary.errors > 0 ? `, ${summary.errors} cannot take this price` : ''}
+              {summary.without_package > 0 ? `, ${summary.without_package} have no ${PACKAGE_LABELS[preview.body.package_kind]} package` : ''}.
+              {' '}{PACKAGE_LABELS[preview.body.package_kind]}: buyers pay {money(summary.buyer_pays_before)} → {money(summary.buyer_pays_after)} in total.
             </p>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
                     <th scope="col">Model</th>
-                    <th scope="col">Price</th>
+                    <th scope="col">{PACKAGE_LABELS[preview.body.package_kind]} price</th>
                     <th scope="col">Sale price</th>
                     <th scope="col">Off</th>
                     <th scope="col">Buyer pays</th>
+                    <th scope="col">All packages after saving</th>
                     <th scope="col">Note</th>
                   </tr>
                 </thead>
@@ -668,7 +700,13 @@ export function AdminPricingPage() {
                       </td>
                       <td>{row.new_sale_price ? `${money(row.amount_off)} (${row.percent_off}%)` : '—'}</td>
                       <td>{money(row.buyer_pays)}</td>
-                      <td>{row.error || (row.changed ? 'Changes' : 'No change')}</td>
+                      <td><PackagePrices packages={row.packages} warning={row.bundle_warning} /></td>
+                      <td>
+                        {row.error ||
+                          (!row.has_package
+                            ? `No ${PACKAGE_LABELS[preview.body.package_kind]} package: left as it is`
+                            : row.changed ? 'Changes' : 'No change')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -692,9 +730,9 @@ export function AdminPricingPage() {
           <section ref={publishSummaryRef} tabIndex={-1} className="admin-pricing__preview" role="dialog" aria-labelledby="pricing-publish-title">
             <h2 id="pricing-publish-title">Publish {selected.size} model{selected.size === 1 ? '' : 's'}?</h2>
             <p>
-              They go on the store at the prices shown (total {money(publishTotal.toFixed(2))}).
-              {unpriced > 0 ? ` ${unpriced} have no price yet and will stay waiting.` : ''} Each model is
-              checked again before it goes live.
+              They go on the store with the package prices shown.
+              {unpriced > 0 ? ` ${unpriced} have a package with no price yet and will stay waiting.` : ''} Each
+              model is checked again before it goes live.
             </p>
             <div className="dashboard-card__actions">
               <Button type="button" isLoading={publishMutation.isPending} disabled={busy} onClick={() => publishMutation.mutate()}>

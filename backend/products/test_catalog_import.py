@@ -9,9 +9,9 @@ from io import BytesIO, StringIO
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.core.management import call_command
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
@@ -24,6 +24,8 @@ from products.catalog_import import PREVIEW_NOT_SCANNED_NOTE, CatalogImportServi
 from products.models import Product, ProductFile, ProductImage
 from products.testing import (
     make_glb_bytes,
+    package_media,
+    price_packages,
     put_pipeline_objects,
     put_pipeline_packages,
     put_pipeline_uploads,
@@ -37,10 +39,9 @@ def _happy_item(**overrides: object) -> dict:
         "model_id": "MDL-000142",
         "name": "Studio Chair Oak",
         "category": "Furniture",
-        "subcategory": "Chairs",
-        "price": "29.99",
+        # The tool sends the 0.00 placeholder; packages are priced on the Pricing page.
+        "price": "0.00",
         "currency": "USD",
-        "discount_price": None,
         "short_description": "Oak studio chair with fabric seat",
         "description": "High-quality chair model for archviz and games.",
         "license_type": "standard",
@@ -66,10 +67,7 @@ def _happy_item(**overrides: object) -> dict:
         "media": {
             "thumbnail_key": "models/MDL-000142/thumbnail.jpg",
             "preview_key": "models/MDL-000142/preview.glb",
-            "package_key": "models/MDL-000142/package.zip",
-            "package_file_name": "package.zip",
-            "package_file_format": "zip",
-            "package_file_size": 1048576,
+            **package_media("models/MDL-000142/", "MDL-000142"),
             "gallery_keys": ["models/MDL-000142/gallery/01.jpg"],
         },
     }
@@ -164,8 +162,13 @@ class CatalogImportAPITests(CatalogImportTestBase):
         product = Product.objects.get(sku="MDL-000142")
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
         self.assertEqual(product.name, "Studio Chair Oak")
-        self.assertEqual(product.category_id, self.chairs.pk)
-        self.assertEqual(product.price, Decimal("29.99"))
+        # The category comes from the ID's code (MDL); the sheet's name linked it once.
+        self.assertEqual(product.category_id, self.furniture.pk)
+        self.furniture.refresh_from_db()
+        self.assertEqual(self.furniture.code, "MDL")
+        self.assertEqual(response.data["results"][0]["warnings"], ["category_linked"])
+        # Unpriced until the Pricing page: the product price is the summary, 0.
+        self.assertEqual(product.price, Decimal("0.00"))
         self.assertEqual(product.import_batch_id, "2026-09-03-run-01")
         self.assertEqual(product.import_source, "catalog-bridge")
         self.assertEqual(product.glb_checksum, _HAPPY_CHECKSUM.lower())
@@ -181,8 +184,9 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertNotIn("package.zip", product.preview_model)
 
         package = ProductFile.objects.get(product=product, is_preview=False)
-        self.assertEqual(package.storage_path, "models/MDL-000142/package.zip")
-        self.assertFalse(package.is_preview)
+        self.assertEqual(package.storage_path, "models/MDL-000142/MDL-000142_whole.zip")
+        self.assertEqual(package.package_kind, "whole")
+        self.assertIsNone(package.price)
 
         gallery = list(ProductImage.objects.filter(product=product))
         self.assertEqual(len(gallery), 1)
@@ -194,7 +198,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(first.data["created"], 1)
 
         second = self._post_batch(
-            [_happy_item(name="Studio Chair Oak v2", price="34.99")],
+            [_happy_item(name="Studio Chair Oak v2")],
             batch_id="2026-09-03-run-02",
         )
         self.assertEqual(second.status_code, status.HTTP_200_OK)
@@ -205,10 +209,9 @@ class CatalogImportAPITests(CatalogImportTestBase):
 
         self.assertEqual(Product.objects.filter(sku="MDL-000142").count(), 1)
         product = Product.objects.get(sku="MDL-000142")
-        # A re-upload updates files only: the name and price stay as first imported
-        # (or as an administrator edited them), and the report says so.
+        # A re-upload updates files only: the name stays as first imported (or as an
+        # administrator edited it), and the report says so.
         self.assertEqual(product.name, "Studio Chair Oak")
-        self.assertEqual(product.price, Decimal("29.99"))
         self.assertIn("console_text_kept", second.data["results"][0]["warnings"])
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
         self.assertEqual(product.import_batch_id, "2026-09-03-run-02")
@@ -228,8 +231,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
                     media={
                         "thumbnail_key": "models/MDL-000199/thumbnail.jpg",
                         "preview_key": "models/MDL-000199/preview.glb",
-                        "package_key": "models/MDL-000199/package.zip",
-                        "package_file_size": 100,
+                        **package_media("models/MDL-000199/", "MDL-000199"),
                     },
                 )
             ]
@@ -255,19 +257,17 @@ class CatalogImportAPITests(CatalogImportTestBase):
                 media={
                     "thumbnail_key": "models/MDL-000201/thumbnail.jpg",
                     "preview_key": "models/MDL-000201/preview.glb",
-                    "package_key": "models/MDL-000201/package.zip",
-                    "package_file_size": 100,
+                    **package_media("models/MDL-000201/", "MDL-000201"),
                 },
             ),
             _happy_item(
                 model_id="MDL-000202",
                 r2_key_prefix="models/MDL-000202/",
-                price=None,
+                glb_checksum="",
                 media={
                     "thumbnail_key": "models/MDL-000202/thumbnail.jpg",
                     "preview_key": "models/MDL-000202/preview.glb",
-                    "package_key": "models/MDL-000202/package.zip",
-                    "package_file_size": 100,
+                    **package_media("models/MDL-000202/", "MDL-000202"),
                 },
             ),
             _happy_item(
@@ -276,8 +276,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
                 media={
                     "thumbnail_key": "",
                     "preview_key": "models/MDL-000203/preview.glb",
-                    "package_key": "models/MDL-000203/package.zip",
-                    "package_file_size": 100,
+                    **package_media("models/MDL-000203/", "MDL-000203"),
                 },
             ),
         ]
@@ -286,7 +285,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(response.data["skipped"], 3)
         reasons = {row["model_id"]: row["reason"] for row in response.data["results"]}
         self.assertEqual(reasons["MDL-000201"], "exports_incomplete")
-        self.assertEqual(reasons["MDL-000202"], "invalid_price")
+        self.assertEqual(reasons["MDL-000202"], "missing_glb_checksum")
         self.assertEqual(reasons["MDL-000203"], "missing_thumbnail")
         self.assertEqual(Product.objects.filter(sku__startswith="MDL-00020").count(), 0)
 
@@ -294,6 +293,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self._authenticate_as_admin()
         # A real live model: imported with its files, then published.
         self.assertEqual(self._post_batch([_happy_item()], batch_id="first").data["created"], 1)
+        price_packages(Product.objects.get(sku="MDL-000142"), "29.99")
         Product.objects.filter(sku="MDL-000142").update(name="Live Chair", status=Product.Status.PUBLISHED)
         Product.objects.create(
             category=self.furniture,
@@ -313,19 +313,17 @@ class CatalogImportAPITests(CatalogImportTestBase):
                     media={
                         "thumbnail_key": "models/MDL-000300/thumbnail.jpg",
                         "preview_key": "models/MDL-000300/preview.glb",
-                        "package_key": "models/MDL-000300/package.zip",
-                        "package_file_size": 100,
+                        **package_media("models/MDL-000300/", "MDL-000300"),
                     },
                 ),
                 _happy_item(
                     model_id="MDL-000301",
-                    category="DoesNotExist",
+                    folder_match_status="Mismatch",
                     r2_key_prefix="models/MDL-000301/",
                     media={
                         "thumbnail_key": "models/MDL-000301/thumbnail.jpg",
                         "preview_key": "models/MDL-000301/preview.glb",
-                        "package_key": "models/MDL-000301/package.zip",
-                        "package_file_size": 100,
+                        **package_media("models/MDL-000301/", "MDL-000301"),
                     },
                 ),
             ]
@@ -345,11 +343,13 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(Product.objects.get(sku="MDL-000300").status, Product.Status.PENDING_REVIEW)
         # The admin sees why a model did not reach QA in the activity log.
         log = ActivityLog.objects.filter(action="catalog_import").latest("created_at")
-        self.assertEqual(log.metadata["skipped_reasons"], {"MDL-000301": "category_unmapped"})
+        self.assertEqual(log.metadata["skipped_reasons"], {"MDL-000301": "folder_mismatch"})
+        self.assertEqual(log.metadata["refused_names"], {"MDL-000301": "Studio Chair Oak"})
 
     def test_skip_category_unmapped(self) -> None:
+        # No category has the ID's code, and the sheet names none.
         self._authenticate_as_admin()
-        response = self._post_batch([_happy_item(category="DoesNotExist")])
+        response = self._post_batch([_happy_item(category="  ")])
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["skipped"], 1)
         self.assertEqual(response.data["results"][0]["reason"], "category_unmapped")
@@ -396,8 +396,7 @@ class CatalogImportAPITests(CatalogImportTestBase):
                     media={
                         "thumbnail_key": "models/MDL-000142/../secret.jpg",
                         "preview_key": "models/MDL-000142/preview.glb",
-                        "package_key": "models/MDL-000142/package.zip",
-                        "package_file_size": 100,
+                        **package_media("models/MDL-000142/", "MDL-000142"),
                     }
                 )
             ]
@@ -406,26 +405,22 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(response.data["skipped"], 1)
         self.assertEqual(response.data["results"][0]["reason"], "invalid_object_key")
 
-    def test_package_key_must_be_package_zip(self) -> None:
-        # Only package.zip and <sku>.zip are packages; other names are rejected.
+    def test_package_key_must_be_one_of_the_packages(self) -> None:
+        # The main zip names one of the listed packages; old names are not packages any more.
         self._authenticate_as_admin()
-        for key in ("models/MDL-000142/source.rar", "models/MDL-000142/gallery/package.zip"):
+        for key in (
+            "models/MDL-000142/source.rar",
+            "models/MDL-000142/package.zip",
+            "models/MDL-000142/MDL-000142.zip",
+            "",
+        ):
             with self.subTest(key=key):
-                response = self._post_batch(
-                    [
-                        _happy_item(
-                            media={
-                                "thumbnail_key": "models/MDL-000142/thumbnail.jpg",
-                                "preview_key": "models/MDL-000142/preview.glb",
-                                "package_key": key,
-                                "package_file_size": 100,
-                            }
-                        )
-                    ]
-                )
+                item = _happy_item()
+                item["media"]["package_key"] = key
+                response = self._post_batch([item])
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
                 self.assertEqual(response.data["skipped"], 1)
-                self.assertEqual(response.data["results"][0]["reason"], "invalid_object_key")
+                self.assertEqual(response.data["results"][0]["reason"], "invalid_packages")
         self.assertFalse(Product.objects.filter(sku="MDL-000142").exists())
 
     def test_rejected_product_reimport_sets_pending_review(self) -> None:
@@ -476,8 +471,7 @@ def _webp_item(sku: str = "MDL-000900", **overrides: object) -> dict:
         media={
             "thumbnail_key": f"models/{sku}/thumbnail.jpg",
             "preview_key": f"models/{sku}/preview.glb",
-            "package_key": f"models/{sku}/package.zip",
-            "package_file_size": 1048576,
+            **package_media(f"models/{sku}/", sku),
             "gallery_keys": [f"models/{sku}/gallery/01.png"],
         },
     )
@@ -690,7 +684,9 @@ class CatalogImportImageTests(APITestCase):
 
         self.assertEqual(response.data["created"], 1, response.data)
         self.assertEqual(response.data["results"][0]["warning"], "preview_unchecked")
-        self.assertEqual(response.data["results"][0]["warnings"], ["preview_unchecked"])
+        self.assertEqual(
+            response.data["results"][0]["warnings"], ["category_linked", "preview_unchecked"]
+        )
         self.assertTrue(any("catalog_import_preview_unchecked" in line for line in logs.output))
 
     def test_checked_preview_has_no_warning(self) -> None:
@@ -702,7 +698,7 @@ class CatalogImportImageTests(APITestCase):
 
 
 def _pipeline_item(sku: str = "FUR-CHR-000123", **overrides: object) -> dict:
-    """A row as the 3ds Max plugin sends it: <ID>.zip, preview_<ID>.glb, package_formats."""
+    """A row as the 3ds Max plugin sends it: <ID>_whole.zip, preview_<ID>.glb, package_formats."""
     item = _happy_item(
         model_id=sku,
         r2_key_prefix=f"models/{sku}/",
@@ -711,8 +707,7 @@ def _pipeline_item(sku: str = "FUR-CHR-000123", **overrides: object) -> dict:
         media={
             "thumbnail_key": f"models/{sku}/previewthumb_{sku}.jpg",
             "preview_key": f"models/{sku}/preview_{sku}.glb",
-            "package_key": f"models/{sku}/{sku}.zip",
-            "package_file_size": 1048576,
+            **package_media(f"models/{sku}/", sku),
         },
     )
     item.update(overrides)
@@ -720,7 +715,7 @@ def _pipeline_item(sku: str = "FUR-CHR-000123", **overrides: object) -> dict:
 
 
 class PipelineCatalogImportTests(CatalogImportTestBase):
-    """3ds Max pipeline names, package checks, subcategory warnings, package formats."""
+    """3ds Max pipeline names, package checks, package formats."""
 
     def _skip_reason(self, item: dict) -> str:
         response = self._post_batch([item])
@@ -734,7 +729,7 @@ class PipelineCatalogImportTests(CatalogImportTestBase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["created"], 1, response.data)
-        self.assertNotIn("warnings", response.data["results"][0])
+        self.assertEqual(response.data["results"][0]["warnings"], ["category_linked"])
         product = Product.objects.get(sku="FUR-CHR-000123")
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
         # The uploader's files are used where they are, under their own names.
@@ -748,29 +743,31 @@ class PipelineCatalogImportTests(CatalogImportTestBase):
         )
         self.assertTrue(default_storage.exists("models/FUR-CHR-000123/preview_FUR-CHR-000123.glb"))
         package = ProductFile.objects.get(product=product, is_preview=False)
-        self.assertEqual(package.storage_path, "models/FUR-CHR-000123/FUR-CHR-000123.zip")
-        self.assertEqual(package.file_name, "FUR-CHR-000123.zip")
+        self.assertEqual(package.storage_path, "models/FUR-CHR-000123/FUR-CHR-000123_whole.zip")
+        self.assertEqual(package.file_name, "FUR-CHR-000123_whole.zip")
 
     def test_explicit_package_file_name_is_kept(self) -> None:
         self._authenticate_as_admin()
         item = _pipeline_item()
-        item["media"]["package_file_name"] = "Oak Chair.zip"
+        item["media"]["packages"][0]["file_name"] = "Oak Chair.zip"
         self._post_batch([item])
         package = ProductFile.objects.get(product__sku="FUR-CHR-000123", is_preview=False)
         self.assertEqual(package.file_name, "Oak Chair.zip")
 
     def test_other_zip_name_is_rejected_as_package(self) -> None:
         self._authenticate_as_admin()
-        for name in ("Other.zip", "FUR-CHR-000999.zip", "fur-chr-000123.ZIP"):
+        for name in ("Other.zip", "FUR-CHR-000999_whole.zip", "fur-chr-000123_whole.ZIP"):
             item = _pipeline_item()
-            item["media"]["package_key"] = f"models/FUR-CHR-000123/{name}"
+            key = f"models/FUR-CHR-000123/{name}"
+            item["media"]["package_key"] = key
+            item["media"]["packages"][0]["key"] = key
             with self.subTest(name=name):
-                self.assertEqual(self._skip_reason(item), "invalid_object_key")
+                self.assertEqual(self._skip_reason(item), "invalid_packages")
         self.assertFalse(Product.objects.filter(sku="FUR-CHR-000123").exists())
 
     def test_zip_is_rejected_as_thumbnail_preview_or_gallery(self) -> None:
         self._authenticate_as_admin()
-        zip_key = "models/FUR-CHR-000123/FUR-CHR-000123.zip"
+        zip_key = "models/FUR-CHR-000123/FUR-CHR-000123_whole.zip"
         for field_name, value in (
             ("thumbnail_key", zip_key),
             ("preview_key", zip_key),
@@ -801,22 +798,6 @@ class PipelineCatalogImportTests(CatalogImportTestBase):
         self.assertTrue(
             default_storage.exists("models/FUR-CHR-000777/preview_FUR-CHR-000777.glb")
         )
-
-    def test_missing_subcategory_falls_back_with_warning(self) -> None:
-        self._authenticate_as_admin()
-        response = self._post_batch([_pipeline_item(subcategory="Tables")])
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        row = response.data["results"][0]
-        self.assertEqual(row["action"], "created")
-        self.assertEqual(row["warnings"], ["subcategory_not_found"])
-        self.assertEqual(Product.objects.get(sku="FUR-CHR-000123").category_id, self.furniture.pk)
-
-    def test_existing_subcategory_has_no_warning(self) -> None:
-        self._authenticate_as_admin()
-        response = self._post_batch([_pipeline_item(subcategory="chairs")])
-        self.assertNotIn("warnings", response.data["results"][0])
-        self.assertEqual(Product.objects.get(sku="FUR-CHR-000123").category_id, self.chairs.pk)
 
     def test_package_formats_gate(self) -> None:
         self._authenticate_as_admin()

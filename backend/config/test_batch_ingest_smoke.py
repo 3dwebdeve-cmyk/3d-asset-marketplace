@@ -67,7 +67,7 @@ class BatchIngestSmokeTests(TestCase):
         self.assertTrue(by_name["gate_MDL-000201"].ok)
         self.assertIn("exports_incomplete", by_name["gate_MDL-000201"].detail)
         self.assertTrue(by_name["gate_MDL-000202"].ok)
-        self.assertIn("invalid_price", by_name["gate_MDL-000202"].detail)
+        self.assertIn("missing_glb_checksum", by_name["gate_MDL-000202"].detail)
         self.assertTrue(by_name["gate_MDL-000203"].ok)
         self.assertIn("missing_thumbnail", by_name["gate_MDL-000203"].detail)
         self.assertTrue(result.all_ok)
@@ -77,15 +77,17 @@ class BatchIngestSmokeTests(TestCase):
         self.assertEqual(len(items), 1)
         item = items[0]
         self.assertEqual(item["model_id"], "MDL-000142")
-        self.assertEqual(item["price"], "29.99")
+        # The sheet's price is not sent: packages are priced on the Pricing page.
+        self.assertNotIn("price", item)
         self.assertEqual(item["media"]["thumbnail_key"], "models/MDL-000142/thumbnail.jpg")
-        self.assertEqual(item["media"]["package_key"], "models/MDL-000142/package.zip")
+        self.assertEqual(item["media"]["package_key"], "models/MDL-000142/MDL-000142_whole.zip")
+        self.assertEqual([entry["kind"] for entry in item["media"]["packages"]], ["whole"])
         self.assertEqual(item["exports"]["glb"], "Success")
         self.assertEqual(item["exports"]["fbx"], "Success")
 
     def test_gate_failure_items_have_expected_media_gaps(self) -> None:
         by_id = {i["model_id"]: i for i in load_scenario_items("gate-failures")}
-        self.assertEqual(by_id["MDL-000202"]["price"], None)
+        self.assertEqual(by_id["MDL-000202"]["glb_checksum"], "")
         self.assertEqual(by_id["MDL-000203"]["media"]["thumbnail_key"], "")
         self.assertEqual(by_id["MDL-000201"]["exports"]["fbx"], "Failed")
 

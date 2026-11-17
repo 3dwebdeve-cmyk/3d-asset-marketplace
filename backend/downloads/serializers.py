@@ -6,6 +6,9 @@ from downloads.services import DownloadService
 
 class DownloadFileSerializer(serializers.Serializer):
     id = serializers.UUIDField()
+    # The package this zip is ("" for a plugin file or a model file without a kind).
+    package_kind = serializers.CharField(allow_blank=True)
+    package_label = serializers.CharField(allow_blank=True)
     file_name = serializers.CharField()
     file_format = serializers.CharField()
     file_size = serializers.IntegerField()
@@ -30,6 +33,8 @@ class DownloadEntitlementSerializer(serializers.Serializer):
     product_id = serializers.UUIDField()
     title = serializers.CharField()
     slug = serializers.CharField()
+    # The packages of a model the user owns, in PACKAGE_ORDER ([] for a plugin).
+    package_kinds = serializers.ListField(child=serializers.CharField())
     files = serializers.SerializerMethodField()
 
     def get_files(self, obj: dict) -> list:
@@ -55,6 +60,11 @@ class DownloadHistorySerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    package_label = serializers.SerializerMethodField()
+
+    def get_package_label(self, obj: DownloadHistory) -> str:
+        """The package of the file downloaded (from the view's one lookup per page)."""
+        return self.context.get("package_labels", {}).get(obj.file_id, "")
 
     class Meta:
         model = DownloadHistory
@@ -66,6 +76,7 @@ class DownloadHistorySerializer(serializers.ModelSerializer):
             "product_id",
             "file_id",
             "file_name",
+            "package_label",
             "invoice_number",
             "downloaded_at",
         )

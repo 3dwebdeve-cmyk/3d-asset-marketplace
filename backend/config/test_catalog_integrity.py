@@ -43,6 +43,7 @@ class CatalogIntegrityTests(TestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.product.id,
             quantity=1,
+            package_kind="whole",
         )
         report = collect_catalog_integrity_report()
         self.assertTrue(report.ok)
@@ -55,6 +56,7 @@ class CatalogIntegrityTests(TestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=uuid.uuid4(),
             quantity=1,
+            package_kind="whole",
         )
         report = collect_catalog_integrity_report()
         self.assertFalse(report.ok)

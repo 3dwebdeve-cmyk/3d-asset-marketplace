@@ -8,7 +8,6 @@ import { ReviewsSection } from '../../components/reviews/ReviewsSection'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
-import { AddToCartButton } from '../../components/cart/AddToCartButton'
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
 import {
   buildProductMetaDescription,
@@ -24,7 +23,7 @@ import { NotFoundPage } from '../NotFound/NotFoundPage'
 import { isFreeProduct } from '../../types/product'
 import type { ProductLicenseType, PublicProductDetail } from '../../types/product'
 import { ProductCard } from './ProductCard'
-import { ProductCtaGroup } from './ProductCtaGroup'
+import { PackageOptions } from './PackageOptions'
 import { ProductImageGallery } from './ProductImageGallery'
 import { ProductSpecs } from './ProductSpecs'
 import '../../styles/product-details.css'
@@ -126,25 +125,16 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             thumbnail={product.thumbnail}
             images={product.images}
             previewModelUrl={product.preview_model}
-            previewVideoUrl={product.preview_video}
             spinImages={product.spin_images}
             showPreviewModeThumbs
             showStageChrome
             stageOverlays={
-              <>
-                <WishlistToggle
-                  productType="product"
-                  productId={product.id}
-                  productName={product.name}
-                  variant="icon"
-                />
-                <AddToCartButton
-                  productType="product"
-                  productId={product.id}
-                  productName={product.name}
-                  variant="icon"
-                />
-              </>
+              <WishlistToggle
+                productType="product"
+                productId={product.id}
+                productName={product.name}
+                variant="icon"
+              />
             }
           />
 
@@ -176,6 +166,10 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             <div className="product-hub-detail__purchase-row">
               <div className="product-hub-detail__purchase-info">
                 <div className="product-detail-purchase__price">
+                  {/* With several packages the price shown is the cheapest one. */}
+                  {!isFree && product.packages.length > 1 ? (
+                    <span className="product-detail-purchase__price-from">From</span>
+                  ) : null}
                   {isFree ? (
                     <span className="product-detail-purchase__price-current">Free</span>
                   ) : hasDiscount && product.discount_price ? (
@@ -214,13 +208,8 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
                 </p>
               </div>
 
-              <ProductCtaGroup
-                productId={product.id}
-                productName={product.name}
-                productSlug={product.slug}
-                isFree={isFree}
-              />
             </div>
+            <PackageOptions product={product} isFree={isFree} />
 
           </div>
 

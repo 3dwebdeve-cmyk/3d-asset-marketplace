@@ -22,6 +22,7 @@ from categories.serializers import (
     CategoryAdminSerializer,
     CategoryClickSerializer,
     CategoryCreateSerializer,
+    CategoryMergeSerializer,
     CategoryPublicSerializer,
     CategoryUpdateSerializer,
 )
@@ -36,11 +37,18 @@ def _category_error_response(exc: CategoryError) -> Response:
     return domain_error_response(exc, default_code="category_error")
 
 
+def _admin_category(category_id: UUID):
+    try:
+        return CategoryService.get_by_id(category_id)
+    except CategoryError as exc:
+        raise NotFound(exc.message) from exc
+
+
 def _parse_parent_filter(value: str | None) -> UUID | None:
     return parse_uuid(value, "parent_id")
 
 
-def _parse_is_active_filter(value: str | None) -> bool | None:
+def _parse_bool_filter(value: str | None, field: str) -> bool | None:
     if value is None:
         return None
     normalized = value.strip().lower()
@@ -48,7 +56,7 @@ def _parse_is_active_filter(value: str | None) -> bool | None:
         return True
     if normalized in {"false", "0"}:
         return False
-    raise ValidationError({"is_active": ["Must be true or false."]})
+    raise ValidationError({field: ["Must be true or false."]})
 
 
 def _parse_trending_limit(value: str | None) -> int:
@@ -137,12 +145,16 @@ class AdminCategoryListCreateView(APIView):
     throttle_classes = [AdminCategoryWriteRateThrottle]
 
     def get(self, request: Request) -> Response:
-        is_active = _parse_is_active_filter(request.query_params.get("is_active"))
+        is_active = _parse_bool_filter(request.query_params.get("is_active"), "is_active")
+        pending_approval = _parse_bool_filter(
+            request.query_params.get("pending_approval"), "pending_approval"
+        )
         parent_id = _parse_parent_filter(request.query_params.get("parent_id"))
         search = request.query_params.get("search") or None
 
         queryset = CategoryService.list_admin(
             is_active=is_active,
+            pending_approval=pending_approval,
             parent_id=parent_id,
             search=search,
         )
@@ -162,6 +174,7 @@ class AdminCategoryListCreateView(APIView):
                     description=serializer.validated_data.get("description", ""),
                     image=serializer.validated_data.get("image", ""),
                     parent_id=serializer.validated_data.get("parent_id"),
+                    code=serializer.validated_data.get("code") or None,
                 )
             )
         except CategoryError as exc:
@@ -183,10 +196,7 @@ class AdminCategoryDetailView(APIView):
     throttle_classes = [AdminCategoryWriteRateThrottle]
 
     def get(self, request: Request, category_id: UUID) -> Response:
-        try:
-            category = CategoryService.get_by_id(category_id)
-        except CategoryError as exc:
-            raise NotFound(exc.message) from exc
+        category = _admin_category(category_id)
 
         return Response(
             CategoryAdminSerializer(category).data,
@@ -194,10 +204,7 @@ class AdminCategoryDetailView(APIView):
         )
 
     def patch(self, request: Request, category_id: UUID) -> Response:
-        try:
-            category = CategoryService.get_by_id(category_id)
-        except CategoryError as exc:
-            raise NotFound(exc.message) from exc
+        category = _admin_category(category_id)
 
         serializer = CategoryUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -213,6 +220,8 @@ class AdminCategoryDetailView(APIView):
                     parent_id=serializer.validated_data.get("parent_id"),
                     clear_parent=serializer.validated_data.get("clear_parent", False),
                     is_active=serializer.validated_data.get("is_active"),
+                    code=serializer.validated_data.get("code"),
+                    clear_code=serializer.validated_data.get("clear_code", False),
                 ),
             )
         except CategoryError as exc:
@@ -229,10 +238,7 @@ class AdminCategoryDetailView(APIView):
         )
 
     def delete(self, request: Request, category_id: UUID) -> Response:
-        try:
-            category = CategoryService.get_by_id(category_id)
-        except CategoryError as exc:
-            raise NotFound(exc.message) from exc
+        category = _admin_category(category_id)
 
         try:
             updated = CategoryService.deactivate_category(category)
@@ -246,5 +252,82 @@ class AdminCategoryDetailView(APIView):
         )
         return Response(
             CategoryAdminSerializer(updated).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminCategoryApproveView(APIView):
+    """POST /api/v1/admin/categories/<id>/approve/: a category an upload created goes live."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminCategoryWriteRateThrottle]
+
+    def post(self, request: Request, category_id: UUID) -> Response:
+        category = _admin_category(category_id)
+        try:
+            approved = CategoryService.approve_category(category)
+        except CategoryError as exc:
+            return _category_error_response(exc)
+        log_admin_action(
+            action="category_approve",
+            actor_id=str(request.user.pk),
+            target_id=str(approved.pk),
+            metadata={"code": approved.code},
+        )
+        return Response(
+            CategoryAdminSerializer(CategoryService.get_by_id(approved.pk)).data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminCategoryMergeView(APIView):
+    """POST /api/v1/admin/categories/<id>/merge/ {"into": <id>}: move a pending category's
+    models into an active category, then delete it. Returns the target category."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminCategoryWriteRateThrottle]
+
+    def post(self, request: Request, category_id: UUID) -> Response:
+        category = _admin_category(category_id)
+        serializer = CategoryMergeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            target, moved = CategoryService.merge_category(
+                category, serializer.validated_data["into"]
+            )
+        except CategoryError as exc:
+            return _category_error_response(exc)
+        log_admin_action(
+            action="category_merge",
+            actor_id=str(request.user.pk),
+            target_id=str(category_id),
+            metadata={"into": str(target.pk), "code": target.code, "models_moved": moved},
+        )
+        return Response(CategoryAdminSerializer(target).data, status=status.HTTP_200_OK)
+
+
+class AdminCategoryRejectView(APIView):
+    """POST /api/v1/admin/categories/<id>/reject/: delete an empty pending category (204), or
+    keep one with models hidden and rejected (200 with the category)."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminCategoryWriteRateThrottle]
+
+    def post(self, request: Request, category_id: UUID) -> Response:
+        category = _admin_category(category_id)
+        try:
+            rejected = CategoryService.reject_category(category)
+        except CategoryError as exc:
+            return _category_error_response(exc)
+        log_admin_action(
+            action="category_reject",
+            actor_id=str(request.user.pk),
+            target_id=str(category_id),
+            metadata={"deleted": rejected is None},
+        )
+        if rejected is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            CategoryAdminSerializer(CategoryService.get_by_id(rejected.pk)).data,
             status=status.HTTP_200_OK,
         )

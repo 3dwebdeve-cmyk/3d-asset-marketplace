@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.mocked(downloadsApi.listAdminDownloadHistory).mockResolvedValue({
     count: 21, next: null, previous: null, results: [{
       id: 'download-1', user_email: 'customer@example.com', user_full_name: 'Customer',
-      product_type: 'product', product_id: 'product-1', file_id: 'file-1', file_name: 'model.zip',
+      product_type: 'product', product_id: 'product-1', file_id: 'file-1', file_name: 'model.zip', package_label: 'Whole File',
       invoice_number: 'INV-123', downloaded_at: '2026-10-30T10:00:00Z',
     }],
   })

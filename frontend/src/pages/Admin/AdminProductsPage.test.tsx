@@ -74,7 +74,7 @@ const sampleProducts = {
       qa_notes: '',
       reviewed_at: null,
       reviewed_by: null,
-      category: { id: categoryId, name: 'Furniture', slug: 'furniture' },
+      category: { id: categoryId, name: 'Furniture', slug: 'furniture', code: null, is_active: true, pending_approval: false, rejected_at: null },
       images: [],
       files: [],
       created_at: '2024-01-01T00:00:00Z',
@@ -96,6 +96,7 @@ const sampleCategories = {
       image: '',
       parent: null,
       is_active: true,
+      code: null, pending_approval: false, created_by_import: false, created_from_batch: '', rejected_at: null, product_count: 0,
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     },
@@ -313,16 +314,31 @@ describe('AdminProductsPage', () => {
     vi.mocked(productsApi.listUploaderImports).mockResolvedValue([
       {
         id: 'log-1',
-        target_id: 'uploader-20261030-001',
+        import_batch_id: 'uploader-20261030-001',
         created_at: '2026-10-30T06:29:55Z',
-        metadata: { created: 2, updated: 0, skipped: 1, failed: 0, skipped_reasons: { 'PRO-000003': 'published_sku' } },
+        created: 2,
+        updated: 0,
+        skipped: 1,
+        failed: 0,
+        refused: [
+          {
+            model_id: 'OUT-000003',
+            name: 'Garden Bench',
+            reason: 'category_unmapped',
+            text: 'No category has the code of this ID.',
+            action: 'Set the code on the right category.',
+          },
+        ],
       },
     ])
     renderProductsPage('/console/products?status=pending_review')
 
     expect(await screen.findByRole('heading', { name: 'Recent uploader imports' })).toBeInTheDocument()
     expect(screen.getByText(/2 new, 0 updated to QA, 1 not imported/)).toBeInTheDocument()
-    expect(screen.getByText('PRO-000003: already published, left as it is')).toBeInTheDocument()
+    const refused = screen.getByText('OUT-000003').closest('li')
+    expect(refused).toHaveTextContent(
+      'OUT-000003 (Garden Bench): No category has the code of this ID. Next step: Set the code on the right category.',
+    )
   })
 
   it('filters by import_batch_id', async () => {
@@ -356,17 +372,16 @@ describe('AdminProductsPage', () => {
     await user.selectOptions(screen.getByLabelText(/^category$/i), categoryId)
     await user.type(screen.getByLabelText(/^name$/i), 'Glass Table')
     await user.type(screen.getByLabelText(/short description/i), 'Modern table')
-    await user.type(screen.getByLabelText(/price/i), '120')
+    // No price here: packages are priced on the Pricing page.
+    expect(screen.queryByLabelText(/price/i)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /^create product$/i }))
 
     await waitFor(() => {
       expect(productsApi.createAdminProduct).toHaveBeenCalled()
     })
-    expect(vi.mocked(productsApi.createAdminProduct).mock.calls[0]?.[0]).toMatchObject({
-      category_id: categoryId,
-      name: 'Glass Table',
-      price: '120.00',
-    })
+    const payload = vi.mocked(productsApi.createAdminProduct).mock.calls[0]?.[0]
+    expect(payload).toMatchObject({ category_id: categoryId, name: 'Glass Table' })
+    expect(payload).not.toHaveProperty('price')
     await waitFor(() => {
       expect(screen.getByText('Admin Dashboard')).toBeInTheDocument()
     })

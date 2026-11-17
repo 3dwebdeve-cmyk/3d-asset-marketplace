@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-from datetime import datetime
+from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID
 
@@ -10,7 +9,12 @@ from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet
 from django.utils import timezone
 
 from categories.models import Category
-from config.media import FREE_MODELS_PREFIX, is_free_model_path, package_object_exists
+from config.media import (
+    FREE_MODELS_PREFIX,
+    SPIN_FRAME_COUNT,
+    is_free_model_path,
+    package_object_exists,
+)
 from config.currency import (
     MINIMUM_CHECKOUT_AMOUNTS,
     normalize_currency,
@@ -29,7 +33,11 @@ from products.models import (
     ProductImage,
     ProductPriceChange,
 )
+from products.packages import PACKAGE_LABELS, PACKAGE_ORDER, sync_summary_price
 from products.price_history import PriceState, record_price_change
+
+# A sale may take at most this share off a price (the Pricing page and the publish check).
+MAX_DISCOUNT_SHARE = Decimal("0.90")
 
 # Upload kind (docs/PRICING_PIPELINE.md): a model whose sellable zip is under free-models/
 # is free; any other model is paid.
@@ -40,13 +48,13 @@ UPLOAD_KINDS = frozenset({UPLOAD_KIND_FREE, UPLOAD_KIND_PAID})
 
 @dataclass(frozen=True)
 class ProductCreateData:
+    """A new product. Its price fields start at 0: they summarise its packages' prices."""
+
     category_id: UUID
     name: str
-    price: Decimal
     description: str = ""
     short_description: str = ""
     currency: str = "USD"
-    discount_price: Decimal | None = None
     thumbnail: str = ""
     preview_model: str = ""
     preview_video: str = ""
@@ -76,13 +84,7 @@ class ProductUpdateData:
     slug: str | None = None
     description: str | None = None
     short_description: str | None = None
-    price: Decimal | None = None
     currency: str | None = None
-    discount_price: Decimal | None = None
-    clear_discount_price: bool = False
-    # When the sale ends (time-zone aware, in the future). Clearing the sale price clears it.
-    discount_ends_at: datetime | None = None
-    clear_discount_ends_at: bool = False
     thumbnail: str | None = None
     preview_model: str | None = None
     preview_video: str | None = None
@@ -139,7 +141,16 @@ class ProductService(ProductMediaService):
             .prefetch_related(
                 Prefetch(
                     "files",
-                    queryset=ProductFile.objects.only("product_id", "file_format"),
+                    # file_format for the formats; the package and price fields for price_from.
+                    queryset=ProductFile.objects.only(
+                        "product_id",
+                        "file_format",
+                        "is_preview",
+                        "package_kind",
+                        "price",
+                        "discount_price",
+                        "discount_ends_at",
+                    ),
                     to_attr="filter_files",
                 )
             )
@@ -339,10 +350,7 @@ class ProductService(ProductMediaService):
             raise ProductError("Name must be at least 2 characters.", field="name")
 
         category = cls._resolve_category(data.category_id)
-        cls._validate_pricing(data.price, data.discount_price)
         currency = cls._normalize_currency(data.currency)
-        cls._validate_sale_minimum(currency, data.discount_price)
-        cls._validate_currency_prices(currency, data.price, data.discount_price)
         license_type = cls._normalize_license(data.license_type)
         status = cls._normalize_status(data.status)
         sku = cls._validate_sku_unique(data.sku)
@@ -375,9 +383,8 @@ class ProductService(ProductMediaService):
             spin_images=list(data.spin_images),
             description=data.description.strip(),
             short_description=data.short_description.strip(),
-            price=data.price,
+            price=Decimal("0.00"),
             currency=currency,
-            discount_price=data.discount_price,
             thumbnail=data.thumbnail.strip(),
             preview_model=data.preview_model.strip(),
             preview_video=data.preview_video.strip(),
@@ -398,17 +405,12 @@ class ProductService(ProductMediaService):
         product: Product,
         data: ProductUpdateData,
         *,
-        actor=None,
-        price_source: str = ProductPriceChange.Source.ADMIN_EDIT,
+        source: str = ProductPriceChange.Source.ADMIN_EDIT,
     ) -> Product:
-        """Apply an edit. A change to the price, sale price or sale end writes one
-        ProductPriceChange row (``price_source``, ``actor``) in the same transaction."""
+        """Apply an edit (never to a price: prices live on the packages). ``source`` is
+        ``IMPORT`` for a re-upload, which may move a model the way only the import does."""
         product = Product.objects.select_for_update().get(pk=product.pk)
-        price_before = PriceState.of(product)
         update_fields: list[str] = ["updated_at"]
-        # A form sends the stored sale end back with every save: unchanged means not sent.
-        if data.discount_ends_at is not None and data.discount_ends_at == product.discount_ends_at:
-            data = replace(data, discount_ends_at=None)
 
         if data.category_id is not None:
             product.category = cls._resolve_category(data.category_id)
@@ -442,65 +444,6 @@ class ProductService(ProductMediaService):
         if data.short_description is not None:
             product.short_description = data.short_description.strip()
             update_fields.append("short_description")
-
-        price = product.price if data.price is None else data.price
-        # A paid model's zip is in the private bucket: making it free would hand that zip to
-        # anyone. Only a re-upload with the Free tick (the import) makes a model free.
-        if (
-            data.price is not None
-            and data.price == 0
-            and product.price != 0
-            and price_source != ProductPriceChange.Source.IMPORT
-            and cls.upload_kind(product) == UPLOAD_KIND_PAID
-        ):
-            raise ProductError(
-                "A paid model cannot be made free here. Upload it again with the Free tick.",
-                field="price",
-            )
-        if data.clear_discount_price:
-            discount_price: Decimal | None = None
-        elif data.discount_price is not None:
-            discount_price = data.discount_price
-        else:
-            discount_price = product.discount_price
-
-        touches_sale = (
-            data.price is not None
-            or data.discount_price is not None
-            or data.clear_discount_price
-            or data.discount_ends_at is not None
-            or data.clear_discount_ends_at
-        )
-        sale_ended = (
-            product.discount_price is not None
-            and product.discount_ends_at is not None
-            and product.discount_ends_at <= timezone.now()
-        )
-        # An ended sale (not yet cleared by the maintenance loop) is never revived by
-        # resending its price, nor by removing or moving its end date. Starting a sale again
-        # needs a sale price in the request together with a new price or a new end date.
-        restarting = data.discount_price is not None and (
-            data.discount_price != product.discount_price or data.discount_ends_at is not None
-        )
-        if touches_sale and sale_ended and not restarting:
-            discount_price = None
-
-        if touches_sale:
-            cls._validate_pricing(price, discount_price)
-            cls._validate_sale_minimum(product.currency, discount_price)
-            if data.price is not None:
-                product.price = data.price
-                update_fields.append("price")
-            if discount_price != product.discount_price:
-                product.discount_price = discount_price
-                update_fields.append("discount_price")
-
-        discount_ends_at = cls._resolve_discount_ends_at(
-            product, data, discount_price, price_before.discount_price
-        )
-        if discount_ends_at != product.discount_ends_at:
-            product.discount_ends_at = discount_ends_at
-            update_fields.append("discount_ends_at")
 
         if data.currency is not None:
             product.currency = cls._normalize_currency(data.currency)
@@ -551,7 +494,7 @@ class ProductService(ProductMediaService):
             # The import takes a live free model that was uploaded as paid off the store and
             # back to QA (catalog_import, free_to_paid). No other edit may do that.
             import_takes_off_sale = (
-                price_source == ProductPriceChange.Source.IMPORT
+                source == ProductPriceChange.Source.IMPORT
                 and product.status == Product.Status.PUBLISHED
                 and new_status == Product.Status.PENDING_REVIEW
             )
@@ -578,7 +521,7 @@ class ProductService(ProductMediaService):
             if (
                 product.status == Product.Status.AWAITING_PRICE
                 and new_status == Product.Status.PENDING_REVIEW
-                and price_source != ProductPriceChange.Source.IMPORT
+                and source != ProductPriceChange.Source.IMPORT
             ):
                 raise ProductError(
                     "This model already passed QA. Reject it, or upload it again to re-check it.",
@@ -620,62 +563,12 @@ class ProductService(ProductMediaService):
                 setattr(product, field_name, value)
                 update_fields.append(field_name)
 
-        cls._validate_currency_prices(product.currency, product.price, product.discount_price)
+        cls._validate_currency_prices(product)
         if product.status == Product.Status.PUBLISHED:
             cls._validate_publish_ready(product)
         product.save(update_fields=list(dict.fromkeys(update_fields)))
-        record_price_change(product, price_before, source=price_source, actor=actor)
         updated = cls.get_by_id(product.pk)
         return updated
-
-    @staticmethod
-    def _resolve_discount_ends_at(
-        product: Product,
-        data: ProductUpdateData,
-        discount_price: Decimal | None,
-        previous_discount_price: Decimal | None,
-    ) -> datetime | None:
-        """The sale end after this edit. ``discount_price`` is the sale price after it.
-
-        A new end must be time-zone aware, in the future, and needs a sale price. Removing
-        the sale price removes its end. A new sale price on a product whose old end has
-        passed must come with a new end (or null), so a sale never starts already ended.
-        """
-        if discount_price is None:
-            if data.discount_ends_at is not None:
-                raise ProductError(
-                    "Set a sale price to give the sale an end date.",
-                    field="discount_ends_at",
-                )
-            return None
-        if data.clear_discount_ends_at:
-            return None
-        if data.discount_ends_at is not None:
-            ends_at = data.discount_ends_at
-            if timezone.is_naive(ends_at):
-                raise ProductError(
-                    "Give the sale end with a time zone.",
-                    field="discount_ends_at",
-                )
-            if ends_at <= timezone.now():
-                raise ProductError(
-                    "The sale end must be in the future.",
-                    field="discount_ends_at",
-                )
-            return ends_at
-        current = product.discount_ends_at
-        if (
-            data.discount_price is not None
-            and data.discount_price != previous_discount_price
-            and current is not None
-            and current <= timezone.now()
-        ):
-            raise ProductError(
-                "This sale's end date has passed. Send a new discount_ends_at, "
-                "or null for a sale with no end.",
-                field="discount_ends_at",
-            )
-        return current
 
     @classmethod
     @transaction.atomic
@@ -739,47 +632,48 @@ class ProductService(ProductMediaService):
         if len(name) < 2:
             errors["name"] = ["Name must be at least 2 characters."]
 
-        if product.category_id is None:
+        category = Category.objects.filter(pk=product.category_id).first()
+        if category is None:
             errors["category"] = ["Category is required before publish."]
-        elif not Category.objects.filter(pk=product.category_id, is_active=True).exists():
+        elif category.pending_approval and category.rejected_at is not None:
+            errors["category"] = [
+                f"The category '{category.name}' was rejected: merge it into another "
+                "category first."
+            ]
+        elif category.pending_approval:
+            errors["category"] = [f"Approve the new category '{category.name}' first."]
+        elif not category.is_active:
             errors["category"] = ["Category not found or inactive."]
 
         if check_price:
             try:
-                cls._validate_currency_prices(
-                    product.currency, product.price, product.discount_price
-                )
+                cls._validate_currency_prices(product)
             except ProductError as exc:
                 errors['price'] = [exc.message]
 
-            if product.price is None or product.price < Decimal("0.00"):
-                errors["price"] = ["A valid non-negative price is required."]
-
-        sellable_files = list(
-            ProductFile.objects.filter(
-                product=product,
-                is_preview=False,
-            ).only("storage_path")
+        packages = sorted(
+            ProductFile.objects.filter(product=product, is_preview=False).exclude(package_kind=""),
+            key=lambda row: PACKAGE_ORDER.index(row.package_kind),
         )
-        if not sellable_files:
+        missing = [row for row in packages if not package_object_exists(row.storage_path)]
+        if not packages:
+            errors["files"] = ["At least one package is required before publish."]
+        elif missing:
             errors["files"] = [
-                "At least one sellable package file is required before publish."
+                "Package file missing from storage: "
+                f"{', '.join(PACKAGE_LABELS[row.package_kind] for row in missing)}. "
+                "Upload the model again."
             ]
-        elif not any(package_object_exists(row.storage_path) for row in sellable_files):
-            errors["files"] = [
-                "Sellable package object is missing from private storage. "
-                "Upload or migrate the package before publish."
-            ]
-        elif (
-            check_price
-            and product.price
-            and any(is_free_model_path(row.storage_path) for row in sellable_files)
-        ):
-            # Anyone can fetch a zip in the public free-models/ folder, so it cannot be sold.
-            errors["price"] = ["This model's zip is in the free-models folder: publish it as free."]
+        elif check_price:
+            price_errors = cls._package_price_errors(product, packages)
+            if price_errors:
+                errors["price"] = price_errors
 
         if not (product.preview_model or "").strip():
-            errors["preview_model"] = ["Preview model is required before publish."]
+            if len(product.spin_images or ()) != SPIN_FRAME_COUNT:
+                errors["preview_model"] = [
+                    "A 3D preview or a 360° spin (36 frames) is required before publish."
+                ]
         elif product.polygon_count and product.preview_triangle_count is None:
             errors["preview_model"] = [
                 "Preview has not been measured. Upload the reduced preview again."
@@ -796,6 +690,37 @@ class ProductService(ProductMediaService):
                 "Product is not ready to publish.",
                 errors=errors,
             )
+
+    @staticmethod
+    def _package_price_errors(product: Product, packages: list[ProductFile]) -> list[str]:
+        """Every package needs a price: 0 for a free model (its zips are public), else at least
+        the checkout minimum, with a running sale that follows the Pricing page's rules."""
+        if any(is_free_model_path(row.storage_path) for row in packages):
+            if any(row.price != 0 or row.discount_price is not None for row in packages):
+                # Anyone can fetch a zip in the public free-models/ folder: it cannot be sold.
+                return ["This model's zip is in the free-models folder: publish it as free."]
+            return []
+        minimum = MINIMUM_CHECKOUT_AMOUNTS[normalize_currency(product.currency)]
+        now = timezone.now()
+        priced = [row for row in packages if row.price is not None and row.price >= minimum]
+        unpriced = [PACKAGE_LABELS[row.package_kind] for row in packages if row not in priced]
+        errors = (
+            [f"Set a price of at least {minimum} {product.currency} for: {', '.join(unpriced)}."]
+            if unpriced
+            else []
+        )
+        for row in priced:
+            sale = row.active_discount_price(now)
+            if sale is None:
+                continue
+            share = (row.price - sale) / row.price
+            if sale < minimum or sale >= row.price or share > MAX_DISCOUNT_SHARE:
+                errors.append(
+                    f"{PACKAGE_LABELS[row.package_kind]}: its sale price {sale:.2f} is not allowed "
+                    f"(at least {minimum}, below the price, at most 90% off). Remove the sale or "
+                    "change it first."
+                )
+        return errors
 
     @classmethod
     @transaction.atomic
@@ -818,14 +743,13 @@ class ProductService(ProductMediaService):
         """
         product = Product.objects.select_for_update().get(pk=product.pk)
         live_update = cls.is_live_update(product)
+        free_packages: list[tuple[ProductFile, PriceState]] = []
         if product.status != Product.Status.PENDING_REVIEW and not live_update:
             raise ProductError(
                 f"Cannot approve product with status '{product.status}'.",
                 field="status",
             )
 
-        before = PriceState.of(product)
-        price_fields: list[str] = []
         kind = cls.upload_kind(product)
         if live_update and kind == UPLOAD_KIND_PAID and product.price == 0:
             # A live model at price 0 whose zip is now the private, paid one: approving it as
@@ -837,16 +761,16 @@ class ProductService(ProductMediaService):
             cls._validate_publish_ready(product, require_sku=True)
         elif kind == UPLOAD_KIND_FREE:
             new_status = Product.Status.PUBLISHED
-            # A free model is a free download: price 0 and no sale.
-            if (
-                product.price != 0
-                or product.discount_price is not None
-                or product.discount_ends_at is not None
-            ):
-                product.price = Decimal("0.00")
-                product.discount_price = None
-                product.discount_ends_at = None
-                price_fields = ["price", "discount_price", "discount_ends_at"]
+            # A free model is a free download: every package at 0 and no sale.
+            for package in product.files.filter(is_preview=False).exclude(package_kind=""):
+                free_packages.append((package, PriceState.of(package)))
+                package.price, package.discount_price, package.discount_ends_at = (
+                    Decimal("0.00"),
+                    None,
+                    None,
+                )
+                package.save(update_fields=["price", "discount_price", "discount_ends_at", "updated_at"])
+            sync_summary_price(product)
             cls._validate_status_transition(product.status, new_status)
             cls._validate_publish_ready(product, require_sku=True)
         else:
@@ -867,16 +791,13 @@ class ProductService(ProductMediaService):
                 "reviewed_at",
                 "reviewed_by",
                 "reject_reason",
-                *price_fields,
                 "updated_at",
             ]
         )
-        record_price_change(
-            product,
-            before,
-            source=ProductPriceChange.Source.QA_APPROVAL,
-            actor=reviewer,
-        )
+        for package, before in free_packages:
+            record_price_change(
+                package, before, source=ProductPriceChange.Source.QA_APPROVAL, actor=reviewer
+            )
         approved = cls.get_by_id(product.pk)
         return approved
 
@@ -970,43 +891,17 @@ class ProductService(ProductMediaService):
 
     @classmethod
     def _resolve_category(cls, category_id: UUID) -> Category:
+        """An active category, or one an upload created that waits for approval (its models
+        stay in QA until it is approved: see _validate_publish_ready)."""
         try:
-            return Category.objects.get(pk=category_id, is_active=True)
+            return Category.objects.get(
+                Q(is_active=True) | Q(pending_approval=True), pk=category_id
+            )
         except Category.DoesNotExist as exc:
             raise ProductError(
                 "Category not found or inactive.",
                 field="category_id",
             ) from exc
-
-    @staticmethod
-    def _validate_pricing(price: Decimal, discount_price: Decimal | None) -> None:
-        if price < Decimal("0.00"):
-            raise ProductError("Price cannot be negative.", field="price")
-        if discount_price is not None:
-            if discount_price < Decimal("0.00"):
-                raise ProductError(
-                    "Discount price cannot be negative.",
-                    field="discount_price",
-                )
-            # A sale must save the buyer money (docs/PRICING_PIPELINE.md).
-            if discount_price >= price:
-                raise ProductError(
-                    "The sale price must be lower than the normal price.",
-                    field="discount_price",
-                )
-
-    @staticmethod
-    def _validate_sale_minimum(currency: str, discount_price: Decimal | None) -> None:
-        """A sale price is a checkout price: never 0 (a free model is a re-upload, not a
-        sale) and never below what checkout accepts."""
-        if discount_price is None:
-            return
-        minimum = MINIMUM_CHECKOUT_AMOUNTS.get(normalize_currency(currency))
-        if discount_price <= 0 or (minimum is not None and discount_price < minimum):
-            raise ProductError(
-                f"The sale price must be at least {minimum} {currency}.",
-                field="discount_price",
-            )
 
     @staticmethod
     def _normalize_currency(currency: str) -> str:
@@ -1016,9 +911,18 @@ class ProductService(ProductMediaService):
             raise ProductError(str(exc), field='currency') from exc
 
     @staticmethod
-    def _validate_currency_prices(currency, price, discount):
+    def _validate_currency_prices(product: Product) -> None:
+        """Every price the model carries (its summary and each package's) must fit the
+        currency's precision, so switching to JPY is refused while a package has cents."""
+        priced = [(product.price, product.discount_price)] + [
+            (row.price, row.discount_price)
+            for row in ProductFile.objects.filter(product=product, is_preview=False)
+            .exclude(package_kind="")
+            .exclude(price__isnull=True)
+        ]
         try:
-            validate_catalog_prices(currency, price, discount)
+            for price, discount in priced:
+                validate_catalog_prices(product.currency, price, discount)
         except ValueError as exc:
             raise ProductError(str(exc), field='price') from exc
 

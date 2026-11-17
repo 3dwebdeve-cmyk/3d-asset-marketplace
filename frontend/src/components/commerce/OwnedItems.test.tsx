@@ -20,7 +20,8 @@ vi.mock('../../api/downloadsApi', async () => {
   return { ...actual, listDownloadEntitlements: vi.fn() }
 })
 
-const OWNED_ID = 'owned-product-id'
+// Models are bought per package (PackageOptions.test.tsx); this buy box serves plugins.
+const OWNED_ID = 'owned-plugin-id'
 
 function renderWithProviders(ui: React.ReactNode) {
   return render(
@@ -48,7 +49,7 @@ beforeEach(() => {
   })
   vi.mocked(downloadsApi.listDownloadEntitlements).mockReset()
   vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([
-    { product_type: 'product', product_id: OWNED_ID, title: 'Oak Chair', slug: 'oak-chair', files: [] },
+    { product_type: 'plugin', product_id: OWNED_ID, title: 'UV Tool', slug: 'uv-tool', package_kinds: [], files: [] },
   ])
 })
 
@@ -56,30 +57,30 @@ describe('items the customer already owns', () => {
   it('offer the download instead of Buy Now and Add to cart', async () => {
     signIn()
     renderWithProviders(
-      <CommerceCtaGroup productType="product" productId={OWNED_ID} productName="Oak Chair" productSlug="oak-chair" variant="buybox" />,
+      <CommerceCtaGroup productType="plugin" productId={OWNED_ID} productName="UV Tool" productSlug="uv-tool" variant="buybox" />,
     )
 
     const download = await screen.findByRole('link', { name: 'Download' })
     expect(download).toHaveAttribute('href', '/dashboard/downloads')
-    expect(screen.getByText('You already own this product.')).toBeInTheDocument()
+    expect(screen.getByText('You already own this plugin.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /buy now/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add to cart/i })).not.toBeInTheDocument()
   })
 
-  it('show "Owned" on product cards', async () => {
+  it('show "Owned" on cards', async () => {
     signIn()
     renderWithProviders(
-      <AddToCartButton productType="product" productId={OWNED_ID} productName="Oak Chair" variant="marketplace" />,
+      <AddToCartButton productType="plugin" productId={OWNED_ID} productName="UV Tool" variant="marketplace" />,
     )
 
-    const owned = await screen.findByRole('link', { name: 'You own Oak Chair. Go to your downloads' })
+    const owned = await screen.findByRole('link', { name: 'You own UV Tool. Go to your downloads' })
     expect(owned).toHaveTextContent('Owned')
   })
 
   it('leave other items for sale', async () => {
     signIn()
     renderWithProviders(
-      <CommerceCtaGroup productType="product" productId="other-id" productName="Desk" productSlug="desk" variant="buybox" />,
+      <CommerceCtaGroup productType="plugin" productId="other-id" productName="Desk Tool" productSlug="desk-tool" variant="buybox" />,
     )
 
     expect(await screen.findByRole('button', { name: /buy now/i })).toBeInTheDocument()
@@ -89,14 +90,14 @@ describe('items the customer already owns', () => {
 
   it('are not looked up for visitors or administrators', async () => {
     const visitor = renderWithProviders(
-      <CommerceCtaGroup productType="product" productId={OWNED_ID} productName="Oak Chair" productSlug="oak-chair" />,
+      <CommerceCtaGroup productType="plugin" productId={OWNED_ID} productName="UV Tool" productSlug="uv-tool" />,
     )
     expect(screen.getByText('Sign in to buy')).toBeInTheDocument()
     visitor.unmount()
 
     signIn('Administrator')
     renderWithProviders(
-      <CommerceCtaGroup productType="product" productId={OWNED_ID} productName="Oak Chair" productSlug="oak-chair" />,
+      <CommerceCtaGroup productType="plugin" productId={OWNED_ID} productName="UV Tool" productSlug="uv-tool" />,
     )
     expect(await screen.findByRole('button', { name: /buy now/i })).toBeInTheDocument()
     expect(downloadsApi.listDownloadEntitlements).not.toHaveBeenCalled()

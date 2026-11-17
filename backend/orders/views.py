@@ -52,7 +52,7 @@ def _detail_serializer_context(order: Order, request: Request | None = None) -> 
     downloadable_files = {}
     if order_allows_download(order):
         downloadable_files = DownloadService.list_downloadable_files_for_items(
-            [(item.product_type, item.product_id) for item in items]
+            [(item.product_type, item.product_id, item.package_kind) for item in items]
         )
     context = {
         "catalog_titles": {key: title for key, (title, _slug) in snapshots.items()},
@@ -109,6 +109,7 @@ class AdminOrderListCreateView(APIView):
                         OrderItemCreateData(
                             product_type=item["product_type"],
                             product_id=item["product_id"],
+                            package_kind=item.get("package_kind", ""),
                             quantity=item["quantity"],
                         )
                         for item in items

@@ -32,7 +32,8 @@ from orders.entitlements import order_allows_download, user_owns_catalog_item
 from orders.models import Order, OrderItem
 from payments.models import Payment, StripeWebhookEvent
 from payments.stripe_config import collect_stripe_config_report
-from products.models import Product
+from products.models import Product, ProductFile
+from products.packages import PackageKind
 
 RollbackProfile = Literal["local", "staging"]
 
@@ -185,11 +186,22 @@ def _check_purchase_path() -> RollbackCheck:
         price=Decimal("12.50"),
         status=Product.Status.PUBLISHED,
     )
+    # Models are sold per package: the smoke buys the model's priced Whole File package.
+    ProductFile.objects.create(
+        product=product,
+        file_name=f"{product.slug}_whole.zip",
+        file_format="zip",
+        file_size=1,
+        storage_path=f"products/files/{product.slug}_whole.zip",
+        package_kind=PackageKind.WHOLE,
+        price=product.price,
+    )
     cart, _ = Cart.objects.get_or_create(user=user)
     CartItem.objects.create(
         cart=cart,
         product_type=CartItem.ProductType.PRODUCT,
         product_id=product.pk,
+        package_kind=PackageKind.WHOLE,
         quantity=1,
     )
     client = APIClient()

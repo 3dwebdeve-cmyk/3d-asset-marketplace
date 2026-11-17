@@ -15,7 +15,7 @@ from cart.serializers import (
     CartSerializer,
     CartUpdateQuantitySerializer,
 )
-from cart.services import CartError, CartService
+from cart.services import CartEnvelope, CartError, CartService, line_key
 
 
 def _cart_error_response(exc: CartError) -> Response:
@@ -24,23 +24,7 @@ def _cart_error_response(exc: CartError) -> Response:
 
 def _serialize_cart(user) -> dict:
     envelope = CartService.get_cart_envelope(user)
-    items_data = []
-    for item in envelope.items:
-        line_total = CartService.get_item_line_total(item, envelope.snapshots)
-        unit_price = CartService.get_item_unit_price(item, envelope.snapshots)
-        items_data.append(
-            {
-                "id": item.id,
-                "product_type": item.product_type,
-                "product_id": item.product_id,
-                "quantity": item.quantity,
-                "unit_price": unit_price,
-                "line_total": f"{line_total:.2f}" if line_total is not None else None,
-                "catalog": envelope.snapshots.get(
-                    (item.product_type, item.product_id),
-                ),
-            }
-        )
+    items_data = [_item_data(item, envelope) for item in envelope.items]
 
     serializer = CartSerializer(
         data={
@@ -58,19 +42,22 @@ def _serialize_cart(user) -> dict:
     return serializer.data
 
 
-def _serialize_item(user, item: CartItem) -> dict:
-    envelope = CartService.get_cart_envelope(user)
+def _item_data(item: CartItem, envelope: CartEnvelope) -> dict:
     line_total = CartService.get_item_line_total(item, envelope.snapshots)
-    unit_price = CartService.get_item_unit_price(item, envelope.snapshots)
     return {
         "id": item.id,
         "product_type": item.product_type,
         "product_id": item.product_id,
+        "package_kind": item.package_kind,
         "quantity": item.quantity,
-        "unit_price": unit_price,
+        "unit_price": CartService.get_item_unit_price(item, envelope.snapshots),
         "line_total": f"{line_total:.2f}" if line_total is not None else None,
-        "catalog": envelope.snapshots.get((item.product_type, item.product_id)),
+        "catalog": envelope.snapshots.get(line_key(item)),
     }
+
+
+def _serialize_item(user, item: CartItem) -> dict:
+    return _item_data(item, CartService.get_cart_envelope(user))
 
 
 class CartView(APIView):
@@ -92,6 +79,7 @@ class CartView(APIView):
                 request.user,
                 serializer.validated_data["product_type"],
                 serializer.validated_data["product_id"],
+                package_kind=serializer.validated_data.get("package_kind", ""),
                 quantity=serializer.validated_data.get("quantity", 1),
             )
         except CartError as exc:

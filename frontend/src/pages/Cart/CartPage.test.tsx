@@ -48,11 +48,16 @@ const sampleCart = {
       id: itemId,
       product_type: 'product' as const,
       product_id: productId,
+      package_kind: 'whole' as const,
       quantity: 2,
       unit_price: '29.99',
       line_total: '59.98',
       catalog: {
         name: 'Oak Chair',
+        title: 'Oak Chair - Whole File',
+        package_kind: 'whole' as const,
+        package_label: 'Whole File',
+        bundle_hint: '',
         slug: 'oak-chair',
         thumbnail: 'https://example.com/chair.png',
         price: '29.99',
@@ -100,7 +105,8 @@ describe('CartPage', () => {
       '/products/oak-chair',
     )
     expect(screen.getByText('Furniture')).toBeInTheDocument()
-    expect(screen.getByText(/standard license/i)).toBeInTheDocument()
+    // The line shows the package bought.
+    expect(screen.getByText('Whole File')).toBeInTheDocument()
     expect(screen.getAllByText('$59.98').length).toBeGreaterThan(0)
     expect(screen.queryByLabelText(/coupon code/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Checkout selected (1)' })).toBeEnabled()
@@ -110,7 +116,7 @@ describe('CartPage', () => {
     const user = userEvent.setup()
     renderCartPage()
 
-    await user.click(await screen.findByRole('checkbox', { name: 'Buy Oak Chair' }))
+    await user.click(await screen.findByRole('checkbox', { name: 'Buy Oak Chair - Whole File' }))
 
     expect(screen.getByRole('button', { name: 'Checkout selected (0)' })).toBeDisabled()
   })
@@ -137,7 +143,7 @@ describe('CartPage', () => {
       expect(paymentsApi.createCheckoutSession).toHaveBeenCalledTimes(1)
     })
     expect(vi.mocked(paymentsApi.createCheckoutSession).mock.calls[0][1]).toEqual([
-      { product_type: 'product', product_id: productId },
+      { product_type: 'product', product_id: productId, package_kind: 'whole' },
     ])
     await waitFor(() => {
       expect(window.location.href).toBe('https://checkout.stripe.com/pay/cs_test_123')
