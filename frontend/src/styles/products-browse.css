@@ -1073,17 +1073,18 @@
   gap: 1.1rem;
 }
 
+/* Home cards keep the same 16:10 thumbnail as the models page; only the rail width changes. */
 .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .browse-rail__item {
-  aspect-ratio: 16 / 9;
   min-height: 0;
 }
 
-.products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card__media,
-.products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card-skeleton__media {
-  flex: 1 1 0;
-  min-height: 0;
-  height: 0;
+.products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card-skeleton {
   aspect-ratio: auto;
+}
+
+.products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card-skeleton__media {
+  height: auto;
+  aspect-ratio: 16 / 10;
 }
 
 @media (min-width: 1280px) {
