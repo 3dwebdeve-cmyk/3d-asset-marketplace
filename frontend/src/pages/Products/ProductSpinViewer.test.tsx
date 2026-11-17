@@ -108,7 +108,7 @@ describe('ProductSpinViewer', () => {
     expect(frameNumber()).toBe(36)
   })
 
-  it('turns once, slowly, after every frame has loaded, then stops', () => {
+  it('turns continuously, slowly, once every frame has loaded', () => {
     vi.useFakeTimers()
     reducedMotion(false)
     render(<ProductSpinViewer images={frames} productName="Chair" />)
@@ -120,12 +120,12 @@ describe('ProductSpinViewer', () => {
     act(() => { vi.advanceTimersByTime(120) })
     expect(frameNumber()).toBe(2)
     act(() => { vi.advanceTimersByTime(120 * 35) })
-    expect(frameNumber()).toBe(1) // One full turn, back at the start.
-    act(() => { vi.advanceTimersByTime(5000) })
-    expect(frameNumber()).toBe(1)
+    expect(frameNumber()).toBe(1) // One full turn, back at the start...
+    act(() => { vi.advanceTimersByTime(120 * 36 * 2 + 120 * 5) })
+    expect(frameNumber()).toBe(6) // ...and it keeps going.
   })
 
-  it('stops the turn on the first interaction', () => {
+  it('holds the turn while the visitor drags, and resumes 3 seconds after they let go', () => {
     vi.useFakeTimers()
     reducedMotion(false)
     render(<ProductSpinViewer images={frames} productName="Chair" />)
@@ -134,12 +134,54 @@ describe('ProductSpinViewer', () => {
     act(() => { vi.advanceTimersByTime(240) })
     expect(frameNumber()).toBe(3)
     fireEvent.pointerDown(surface(), { pointerId: 1, pointerType: 'touch', clientX: 50 })
-    fireEvent.pointerUp(surface(), { pointerId: 1, clientX: 50 })
-    act(() => { vi.advanceTimersByTime(2000) })
+    act(() => { vi.advanceTimersByTime(5000) }) // A long drag: no turning under the finger.
     expect(frameNumber()).toBe(3)
+    fireEvent.pointerUp(surface(), { pointerId: 1, clientX: 50 })
+    act(() => { vi.advanceTimersByTime(2900) })
+    expect(frameNumber()).toBe(3)
+    act(() => { vi.advanceTimersByTime(100) }) // 3 s: the turn starts again.
+    act(() => { vi.advanceTimersByTime(120) })
+    expect(frameNumber()).toBe(4)
   })
 
-  it('never turns by itself with reduced motion', () => {
+  it('holds the turn for the arrow keys and buttons, counting from the last press', () => {
+    vi.useFakeTimers()
+    reducedMotion(false)
+    render(<ProductSpinViewer images={frames} productName="Chair" />)
+    loadEveryFrame()
+
+    fireEvent.click(rotateRight())
+    expect(frameNumber()).toBe(2)
+    act(() => { vi.advanceTimersByTime(2000) })
+    fireEvent.keyDown(surface(), { key: 'ArrowRight' })
+    act(() => { vi.advanceTimersByTime(2000) })
+    expect(frameNumber()).toBe(3) // 4 s after the first press, but 2 s after the last.
+    act(() => { vi.advanceTimersByTime(1000) })
+    act(() => { vi.advanceTimersByTime(120) })
+    expect(frameNumber()).toBe(4)
+  })
+
+  it('stays paused after Pause, even after a drag, until Play', () => {
+    vi.useFakeTimers()
+    reducedMotion(false)
+    render(<ProductSpinViewer images={frames} productName="Chair" />)
+    loadEveryFrame()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause rotation' }))
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(frameNumber()).toBe(1)
+    fireEvent.pointerDown(surface(), { pointerId: 1, pointerType: 'touch', clientX: 50 })
+    fireEvent.pointerUp(surface(), { pointerId: 1, clientX: 50 })
+    act(() => { vi.advanceTimersByTime(10000) })
+    expect(frameNumber()).toBe(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play rotation' }))
+    act(() => { vi.advanceTimersByTime(120) })
+    expect(frameNumber()).toBe(2) // At once, without waiting out the drag's hold.
+    expect(screen.getByRole('button', { name: 'Pause rotation' })).toBeInTheDocument()
+  })
+
+  it('starts paused with reduced motion, and Play still turns it', () => {
     vi.useFakeTimers()
     reducedMotion(true)
     render(<ProductSpinViewer images={frames} productName="Chair" />)
@@ -147,5 +189,19 @@ describe('ProductSpinViewer', () => {
 
     act(() => { vi.advanceTimersByTime(5000) })
     expect(frameNumber()).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Play rotation' }))
+    act(() => { vi.advanceTimersByTime(240) })
+    expect(frameNumber()).toBe(3)
+  })
+
+  it('stays still, with no Pause / Play button, when it is not set to turn (admin)', () => {
+    vi.useFakeTimers()
+    reducedMotion(false)
+    render(<ProductSpinViewer images={frames} productName="Chair" autoRotate={false} />)
+    loadEveryFrame()
+
+    act(() => { vi.advanceTimersByTime(5000) })
+    expect(frameNumber()).toBe(1)
+    expect(screen.queryByRole('button', { name: /rotation/ })).not.toBeInTheDocument()
   })
 })

@@ -14,9 +14,11 @@ const images = [1, 2].map((number) => ({
 }))
 const defaults = {
   productName: 'Chair', thumbnail: '', images,
-  previewModelUrl: 'https://example.com/preview.glb',
-  previewVideoUrl: 'https://example.com/preview.mp4', showPreviewModeThumbs: true,
+  previewModelUrl: 'https://example.com/preview.glb', showPreviewModeThumbs: true,
 }
+const thumbnailLabels = () => within(screen.getByRole('list', { name: 'Product image thumbnails' }))
+  .getAllByRole('button')
+  .map((button) => button.getAttribute('aria-label'))
 const stage = () => screen.getByRole('region', { name: 'Chair media gallery' })
 const next = () => screen.getByRole('button', { name: 'Next gallery item' })
 const previous = () => screen.getByRole('button', { name: 'Previous gallery item' })
@@ -73,8 +75,6 @@ describe('product gallery navigation', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Show 3D preview' }))
     expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-preview')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Show preview video' }))
-    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
   })
 
   it('smoothly scrolls overflowing thumbnails with the vertical mouse wheel', () => {
@@ -95,7 +95,7 @@ describe('product gallery navigation', () => {
     fireEvent.wheel(strip, { deltaY: -3, deltaMode: 1 })
     advance(500)
     expect(strip.scrollLeft).toBe(152)
-    expect(counter()).toHaveTextContent('1 / 4')
+    expect(counter()).toHaveTextContent('1 / 3')
   })
 
   it('scrolls thumbnails when the wheel is over the gallery heading or navigation', () => {
@@ -112,7 +112,7 @@ describe('product gallery navigation', () => {
     expect(fireEvent.wheel(screen.getByRole('button', { name: 'Previous gallery item' }), { deltaY: -100 })).toBe(false)
     advance(500)
     expect(strip.scrollLeft).toBe(100)
-    expect(counter()).toHaveTextContent('1 / 4')
+    expect(counter()).toHaveTextContent('1 / 3')
   })
 
   it('stops easing for direct interaction and clamps scrolling at the last thumbnail', () => {
@@ -172,58 +172,46 @@ describe('product gallery navigation', () => {
     }
   })
 
-  it('cycles through model, video and renders in both directions, and returns using the 3D thumbnail', async () => {
+  it('cycles through the model and renders in both directions, and returns using the 3D thumbnail', async () => {
     const user = userEvent.setup()
     render(<ProductImageGallery {...defaults} />)
-    expect(counter()).toHaveTextContent('1 / 4')
-    await user.click(next())
-    expect(screen.getByLabelText('Preview video of Chair')).toBeInTheDocument()
-    expect(counter()).toHaveTextContent('2 / 4')
+    expect(counter()).toHaveTextContent('1 / 3')
+    expect(thumbnailLabels()).toEqual(['Show 3D preview', 'Show image 1 of 2', 'Show image 2 of 2'])
     await user.click(next())
     expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
-    expect(counter()).toHaveTextContent('3 / 4')
+    expect(counter()).toHaveTextContent('2 / 3')
     await user.click(next())
-    expect(counter()).toHaveTextContent('4 / 4')
+    expect(counter()).toHaveTextContent('3 / 3')
     await user.click(next())
     expect(screen.getByTestId('model-preview')).toBeInTheDocument()
     await user.click(previous())
-    expect(counter()).toHaveTextContent('4 / 4')
+    expect(counter()).toHaveTextContent('3 / 3')
     await user.click(previous())
-    expect(counter()).toHaveTextContent('3 / 4')
-    await user.click(previous())
-    expect(counter()).toHaveTextContent('2 / 4')
+    expect(counter()).toHaveTextContent('2 / 3')
     await user.click(screen.getByRole('button', { name: 'Show 3D preview' }))
-    expect(counter()).toHaveTextContent('1 / 4')
+    expect(counter()).toHaveTextContent('1 / 3')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('wraps backwards to video when there are no images', async () => {
-    render(<ProductImageGallery {...defaults} images={[]} />)
-    await userEvent.click(previous())
-    expect(counter()).toHaveTextContent('2 / 2')
-    await userEvent.click(next())
-    expect(counter()).toHaveTextContent('1 / 2')
-  })
-
   it('hides navigation for a single preview or empty gallery', () => {
-    const { rerender } = render(<ProductImageGallery {...defaults} images={[]} previewVideoUrl="" />)
+    const { rerender } = render(<ProductImageGallery {...defaults} images={[]} />)
     expect(screen.queryByRole('button', { name: 'Next preview' })).not.toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    rerender(<ProductImageGallery {...defaults} images={[]} previewVideoUrl="" previewModelUrl="" />)
+    rerender(<ProductImageGallery {...defaults} images={[]} previewModelUrl="" />)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('supports focused stage arrow keys without consuming viewer or video keys', () => {
+  it('supports focused stage arrow keys without consuming viewer keys', () => {
     render(<ProductImageGallery {...defaults} />)
     fireEvent.keyDown(screen.getByTestId('model-preview').querySelector('canvas')!, { key: 'ArrowRight' })
-    expect(counter()).toHaveTextContent('1 / 4')
+    expect(counter()).toHaveTextContent('1 / 3')
     stage().focus()
     fireEvent.keyDown(stage(), { key: 'ArrowRight' })
-    expect(counter()).toHaveTextContent('2 / 4')
-    fireEvent.keyDown(screen.getByLabelText('Preview video of Chair'), { key: 'ArrowRight' })
-    expect(counter()).toHaveTextContent('2 / 4')
+    expect(counter()).toHaveTextContent('2 / 3')
     fireEvent.keyDown(stage(), { key: 'ArrowLeft' })
-    expect(counter()).toHaveTextContent('1 / 4')
+    expect(counter()).toHaveTextContent('1 / 3')
+    fireEvent.keyDown(stage(), { key: 'ArrowLeft' })
+    expect(counter()).toHaveTextContent('3 / 3')
   })
 
   it('swipes renders, ignores vertical gestures and model drags, and suppresses the swipe click', async () => {
@@ -233,17 +221,17 @@ describe('product gallery navigation', () => {
       fireEvent.touchEnd(target, { touches: [], changedTouches: [{ clientX: x, clientY: y }] })
     }
     swipe(screen.getByTestId('model-preview'), 50, 200)
-    expect(counter()).toHaveTextContent('1 / 4')
+    expect(counter()).toHaveTextContent('1 / 3')
     await userEvent.click(screen.getByRole('button', { name: 'Show image 1 of 2' }))
     const imageButton = screen.getByRole('button', { name: 'View larger image of Chair' })
     swipe(imageButton, 190, 60)
-    expect(counter()).toHaveTextContent('3 / 4')
+    expect(counter()).toHaveTextContent('2 / 3')
     swipe(imageButton, 50, 200)
     fireEvent.click(imageButton)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(counter()).toHaveTextContent('4 / 4')
+    expect(counter()).toHaveTextContent('3 / 3')
     swipe(imageButton, 300, 200)
-    expect(counter()).toHaveTextContent('3 / 4')
+    expect(counter()).toHaveTextContent('2 / 3')
   })
 
   it('navigates and wraps lightbox images with buttons and keyboard without switching to other media', async () => {
@@ -263,7 +251,7 @@ describe('product gallery navigation', () => {
     expect(within(dialog).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(counter()).toHaveTextContent('3 / 4')
+    expect(counter()).toHaveTextContent('2 / 3')
   })
 
   describe('360° view', () => {
@@ -273,48 +261,65 @@ describe('product gallery navigation', () => {
     )
     const spin = () => screen.queryByRole('img', { name: '360° view of Chair' })
 
-    it('adds a 360° item after the video, only with all 36 frames', async () => {
+    it('puts the 360° second, after the 3D preview, only with all 36 frames', async () => {
       const { rerender } = render(<ProductImageGallery {...defaults} spinImages={spinImages.slice(0, 35)} />)
       expect(screen.queryByRole('button', { name: 'Show 360° view' })).not.toBeInTheDocument()
-      expect(counter()).toHaveTextContent('1 / 4')
+      expect(counter()).toHaveTextContent('1 / 3')
 
       rerender(<ProductImageGallery {...defaults} spinImages={spinImages} />)
-      expect(counter()).toHaveTextContent('1 / 5')
-      await userEvent.click(next())
+      expect(counter()).toHaveTextContent('1 / 4')
+      expect(thumbnailLabels()).toEqual(
+        ['Show 3D preview', 'Show 360° view', 'Show image 1 of 2', 'Show image 2 of 2'],
+      )
       await userEvent.click(next())
       expect(spin()).toBeInTheDocument()
-      expect(counter()).toHaveTextContent('3 / 5')
+      expect(counter()).toHaveTextContent('2 / 4')
       expect(screen.getByRole('button', { name: 'Show 360° view' })).toHaveAttribute('aria-current', 'true')
       await userEvent.click(next())
       expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
       await userEvent.click(previous())
       expect(spin()).toBeInTheDocument()
+      await userEvent.click(previous())
+      expect(screen.getByTestId('model-preview')).toBeInTheDocument()
     })
 
-    it('never opens on the 360°: the 3D preview first, else a render', async () => {
-      const { rerender } = render(<ProductImageGallery {...defaults} spinImages={spinImages} />)
-      expect(screen.getByTestId('model-preview')).toBeInTheDocument()
-      expect(spin()).not.toBeInTheDocument()
-
-      rerender(
-        <ProductImageGallery {...defaults} previewModelUrl="" previewVideoUrl="" spinImages={spinImages} />,
-      )
+    it('without a 3D preview, opens on the first render and puts the 360° second, after it', async () => {
+      render(<ProductImageGallery {...defaults} previewModelUrl="" spinImages={spinImages} />)
       expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
       expect(spin()).not.toBeInTheDocument()
+      expect(counter()).toHaveTextContent('1 / 3')
+      expect(thumbnailLabels()).toEqual(['Show image 1 of 2', 'Show 360° view', 'Show image 2 of 2'])
+      expect(screen.getByRole('button', { name: 'Show image 1 of 2' })).toHaveAttribute('aria-current', 'true')
 
-      await userEvent.click(screen.getByRole('button', { name: 'Show 360° view' }))
+      await userEvent.click(next())
       expect(spin()).toBeInTheDocument()
+      expect(counter()).toHaveTextContent('2 / 3')
+      await userEvent.click(next())
+      expect(within(stage()).getByAltText('Chair 3D model, image 2')).toBeInTheDocument()
+      await userEvent.click(next())
+      expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
+    })
+
+    it('with a 3D preview and one render, still puts the 360° second', () => {
+      render(<ProductImageGallery {...defaults} images={images.slice(0, 1)} spinImages={spinImages} />)
+      expect(thumbnailLabels()).toEqual(['Show 3D preview', 'Show 360° view', 'Show image 1 of 1'])
+    })
+
+    it('never opens on the 360°', () => {
+      render(<ProductImageGallery {...defaults} spinImages={spinImages} />)
+      expect(screen.getByTestId('model-preview')).toBeInTheDocument()
+      expect(spin()).not.toBeInTheDocument()
     })
 
     it('keeps arrow keys inside the 360° view for turning it', async () => {
       render(<ProductImageGallery {...defaults} spinImages={spinImages} />)
       await userEvent.click(screen.getByRole('button', { name: 'Show 360° view' }))
-      expect(counter()).toHaveTextContent('3 / 5')
+      expect(counter()).toHaveTextContent('2 / 4')
 
       fireEvent.keyDown(spin()!, { key: 'ArrowRight' })
       expect(spin()).toHaveAttribute('data-frame', '2')
       fireEvent.keyDown(screen.getByRole('button', { name: 'Rotate left' }), { key: 'ArrowRight' })
-      expect(counter()).toHaveTextContent('3 / 5')
+      expect(counter()).toHaveTextContent('2 / 4')
     })
   })
 })
