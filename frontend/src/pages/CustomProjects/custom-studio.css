@@ -240,31 +240,30 @@
 }
 
 /* Capabilities section matched to the centered blue-accent reference. */
-.custom-studio .studio-capabilities{max-width:1280px;margin-inline:auto;border-top:1px solid #dce4ef;padding:58px 20px 60px;color:#071124}
+.custom-studio .studio-information{background:#f2f4f6}
+.custom-studio .studio-capabilities{max-width:1160px;margin-inline:auto;border-top:1px solid #dce4ef;padding:58px 20px 48px;color:#071124;background:#f2f4f6}
 .custom-studio .studio-capabilities h2{margin:0 0 40px;text-align:left}
-.custom-studio .studio-capabilities .studio-info-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:34px 40px}
+.custom-studio .studio-capabilities .studio-info-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 40px}
 .custom-studio .studio-capabilities article{border-left:3px solid #1687ff;padding-left:18px;text-align:left}
 .custom-studio .studio-capabilities h3{margin:0 0 6px;color:#071124}
 .custom-studio .studio-capabilities p{color:#53637c;margin:0}
 @media(max-width:1000px){.custom-studio .studio-capabilities .studio-info-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:30px}}
 @media(max-width:600px){.custom-studio .studio-capabilities{padding:36px 0}.custom-studio .studio-capabilities h2{margin-bottom:28px}.custom-studio .studio-capabilities .studio-info-grid{grid-template-columns:1fr;gap:24px}}
 
-/* Rounded benefit cards with blue line icons. */
-.custom-studio .studio-benefits{max-width:1400px;margin-inline:auto;padding:24px 0 40px}
-.custom-studio .studio-info.studio-benefits{padding-top:24px}
-.custom-studio .studio-benefits h2{text-align:center;margin:0 0 26px}
-.custom-studio .studio-benefits .studio-info-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
-.custom-studio .studio-benefits article{display:grid;grid-template-columns:60px minmax(0,1fr);column-gap:20px;align-content:start;border:0;border-radius:24px;padding:20px 24px;background:#fff;box-shadow:0 8px 32px #203d6b05;text-align:left}
-.custom-studio .studio-benefit-icon{grid-column:1;grid-row:1/3;display:flex;align-items:center;justify-content:center;width:60px;height:54px;border-radius:18px;background:linear-gradient(135deg,#eef8ff,#e2eeff);color:#1687ff}
-.custom-studio .studio-benefit-icon svg{width:36px;height:36px}
-.custom-studio .studio-benefits h3{grid-column:2;font-size:18px;line-height:1.35;margin:0 0 5px;text-align:left}
-.custom-studio .studio-benefits p{grid-column:2;font-size:14px;line-height:1.45;color:#435470;text-align:left;margin:0}
-@media(max-width:1100px){.custom-studio .studio-benefits .studio-info-grid{grid-template-columns:1fr}.custom-studio .studio-benefits article{max-width:640px;width:100%;margin-inline:auto}}
-@media(max-width:600px){.custom-studio .studio-benefits{padding-bottom:32px}.custom-studio .studio-benefits article{padding:20px 16px;column-gap:16px}}
+/* Open benefits columns with teal rules, matching the supplied reference. */
+.custom-studio .studio-info.studio-benefits{max-width:1160px;margin-inline:auto;padding:56px 20px 42px;border-top:1px solid #dce4ef;background:#f2f4f6}
+.custom-studio .studio-benefits h2{text-align:left;margin:0 0 34px;font-size:36px;line-height:1.2;letter-spacing:-1px;color:#0d2030}
+.custom-studio .studio-benefits .studio-info-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:40px}
+.custom-studio .studio-benefits article{display:block;border:0;border-left:3px solid #087879;border-radius:0;padding:0 0 0 16px;background:transparent;box-shadow:none;text-align:left}
+.custom-studio .studio-benefit-icon{display:none}
+.custom-studio .studio-benefits h3{font-size:18px;line-height:1.35;margin:0 0 6px;text-align:left;color:#0d2030}
+.custom-studio .studio-benefits p{font-size:16px;line-height:1.6;color:#53637c;text-align:left;margin:0}
+@media(max-width:900px){.custom-studio .studio-benefits .studio-info-grid{grid-template-columns:1fr;gap:26px}}
+@media(max-width:600px){.custom-studio .studio-info.studio-benefits{padding:36px 0 32px}.custom-studio .studio-benefits h2{font-size:28px;margin-bottom:28px}}
 
 /* Wide FAQ layout from the reference. */
 .custom-studio .studio-faq{padding:0 24px 48px;color:#080808}
-.custom-studio .studio-faq-inner{max-width:1392px;width:100%;margin-inline:auto;border-top:0;padding:56px 20px 0}
+.custom-studio .studio-faq-inner{max-width:1160px;width:100%;margin-inline:auto;border-top:0;padding:56px 0 0}
 .custom-studio .studio-faq h2{color:#080808;font-size:36px;line-height:1.2;margin:0 0 32px;letter-spacing:-1px;text-align:left}
 .custom-studio .studio-faq .faq-list{max-width:none;width:100%}
 .custom-studio .faq-list details{border-bottom:1px solid #e1e1e1}
@@ -282,7 +281,7 @@
 @media(max-width:900px){.custom-studio .brief-cta-inner{padding:32px 28px}.custom-studio .brief-cta h2{max-width:65%;font-size:32px}}
 @media(max-width:600px){.custom-studio .brief-cta{padding:0 20px 32px}.custom-studio .brief-cta-inner{padding:28px 22px 180px;background-size:100% auto;background-position:right bottom;background-color:#e3f2ff;position:relative}.custom-studio .brief-cta-inner::before{content:'';position:absolute;inset:0;background:linear-gradient(#e3f2ff 0%,#e3f2ff 45%,transparent 70%)}.custom-studio .brief-cta h2{max-width:100%;font-size:28px}.custom-studio .brief-cta p{max-width:100%}}
 
-.custom-studio .brief-detail-layout{display:grid;grid-template-columns:198px minmax(0,1fr);gap:25px;margin-top:24px;color:#10223d;text-align:left}
+.custom-studio .brief-detail-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:25px;margin-top:24px;color:#10223d;text-align:left}
 .custom-studio .brief-selected{border:1px solid #d5e1f1;border-radius:11px;padding:18px;align-self:start;background:#fff}
 .custom-studio .brief-selected h4{font-size:16px;margin:0 0 8px}
 .custom-studio .brief-selected>p{font-size:11px;line-height:1.6;color:#536b8c;margin:0 0 18px}
@@ -344,3 +343,64 @@
 .custom-studio .project-process-card p{font-size:16px;line-height:22px;color:#53637c;margin:0;text-align:left}
 @media(max-width:1050px){.custom-studio .project-process-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}.custom-studio .project-process-card:nth-child(2)::after{display:none}.custom-studio .project-process-card:not(:last-child)::after{left:calc(100% + 1px);font-size:26px}}
 @media(max-width:600px){.custom-studio .project-process{padding:32px 20px 40px}.custom-studio .project-process-heading h2{font-size:28px;letter-spacing:-.7px}.custom-studio .project-process-grid{grid-template-columns:1fr;gap:32px;max-width:380px}.custom-studio .project-process-card{min-height:0;padding:20px 24px}.custom-studio .project-process-card:not(:last-child)::after{display:block;content:'\2193';left:50%;top:calc(100% + 2px);transform:translateX(-50%);font-size:26px}}
+
+/* Enquiry panel below the custom project banner. */
+.custom-studio .hive-enquiry{background:#f2f4f6;padding:48px 24px 72px;color:#17232d}
+.custom-studio .hive-enquiry-layout{max-width:1240px;margin:auto;display:grid;grid-template-columns:minmax(0,.84fr) minmax(0,1.4fr);gap:48px;align-items:start}
+.custom-studio .hive-enquiry-copy{text-align:left}
+@media(min-width:901px){.custom-studio .hive-enquiry-copy{position:sticky;top:24px;align-self:start}}
+.custom-studio .hive-enquiry-copy h2{font-size:clamp(36px,3.5vw,56px);line-height:1.12;letter-spacing:-1.7px;margin:0 0 24px;font-weight:800;text-align:left;color:#17232d}
+.custom-studio .hive-enquiry-copy p{font-size:15px;line-height:1.65;color:#657383;margin:0 0 28px;text-align:left}
+.custom-studio .hive-enquiry-timeline{list-style:none;border-left:2px solid #d9e0e7;margin:0 0 28px;padding:0 0 0 18px}
+.custom-studio .hive-enquiry-timeline li{position:relative;padding:0 0 20px;font-size:15px;line-height:1.5}
+.custom-studio .hive-enquiry-timeline li::before{content:'';position:absolute;left:-25px;top:7px;width:11px;height:11px;background:#1687ff;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+.custom-studio .hive-enquiry-timeline p{margin:2px 0 0;font-size:14px}
+.custom-studio .hive-enquiry-copy .hive-enquiry-note{background:#e3f1f0;border-radius:10px;padding:16px;font-size:14px;color:#293944;margin:0}
+.custom-studio .hive-enquiry-note strong{color:#087879}
+.custom-studio .brief-selector-wrap--compact{padding:0;background:transparent;min-width:0}
+.custom-studio .brief-selector-wrap--compact .brief-selector{padding:32px;border-radius:17px;background:#fff;box-shadow:none;text-align:left}
+.custom-studio .brief-selector-wrap--compact .brief-selector-steps{gap:8px;margin-bottom:24px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-steps li{font-size:13px;gap:3px;color:#657383}
+.custom-studio .brief-selector-wrap--compact .brief-selector-steps li>span{display:inline;width:auto;height:auto;background:none;color:inherit;border-radius:0}
+.custom-studio .brief-selector-wrap--compact .brief-selector-steps li>span::after{content:'.'}
+.custom-studio .brief-selector-wrap--compact .brief-selector-steps li[aria-current]{border-color:#06f;color:#14222e}
+.custom-studio .brief-selector-wrap--compact h3{text-align:left;margin:0 0 4px;color:#14222e}
+.custom-studio .brief-selector-wrap--compact .brief-selector-help{text-align:left;color:#657383;line-height:1.5}
+.custom-studio .brief-selector-wrap--compact .brief-selector-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card{min-height:108px;padding:22px 18px;border:1px solid #cfd7e3;background:#fff;text-align:left;transition:background-color .15s,border-color .15s,box-shadow .15s}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card:hover{border-color:#1687ff;background:#edf6ff;box-shadow:0 0 0 1px #1687ff}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card:has(input:checked){border-color:#06f;box-shadow:inset 0 0 0 1px #06f;background:#edf3ff}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card:has(input:checked):hover{border-color:#1687ff;background:#e1efff;box-shadow:inset 0 0 0 1px #1687ff}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card input{appearance:auto;opacity:0;width:1px;height:1px;top:0;right:0}
+.custom-studio .brief-selector-wrap--compact .brief-selector-title{font-weight:700;font-size:15px;line-height:21px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-description{font-size:13px;line-height:18px;color:#657383}
+.custom-studio .brief-selector-wrap--compact .brief-selector-actions{margin-top:40px;flex-wrap:wrap}
+.custom-studio .brief-selector-wrap--compact .brief-selector-actions>span{background:transparent;color:#657383;font-size:11px;margin-right:auto;padding:0}
+.custom-studio .brief-selector-wrap--compact .brief-selector-actions>button{background:#06f;color:#fff;padding:13px 24px;font-weight:600}
+.custom-studio .brief-selector-wrap--compact .brief-selector-actions>button:hover:not(:disabled){background:#0052cc}
+.custom-studio .brief-selector-wrap--compact .brief-selector-actions>button>span{display:none}
+.custom-studio .brief-selector-wrap--compact .brief-detail-layout{grid-template-columns:1fr}
+.custom-studio .brief-selector-wrap--compact .brief-detail-actions button:last-child{background:#06f;border-color:#06f;color:#fff}
+.custom-studio .brief-selector-wrap--compact .brief-detail-actions button:last-child:hover:not(:disabled){background:#0052cc;border-color:#0052cc}
+@media(max-width:900px){.custom-studio .hive-enquiry-layout{grid-template-columns:1fr;gap:32px;max-width:650px}.custom-studio .hive-enquiry-copy h2{font-size:42px}.custom-studio .hive-enquiry{padding:36px 20px 48px}}
+@media(max-width:480px){.custom-studio .brief-selector-wrap--compact .brief-selector{padding:22px 16px}.custom-studio .brief-selector-wrap--compact .brief-selector-grid{grid-template-columns:1fr}.custom-studio .hive-enquiry-copy h2{font-size:36px}.custom-studio .brief-selector-wrap--compact .brief-selector-steps li{font-size:11px}}
+
+/* Simple closing invitation below the FAQ. */
+.custom-studio .brief-cta--simple{background:#f2f4f6;padding:0 24px}
+.custom-studio .brief-cta--simple .brief-cta-inner{max-width:1160px;margin-inline:auto;padding:54px 20px;min-height:0;background:none;overflow:visible}
+.custom-studio .brief-cta--simple .brief-cta-inner::before{display:none}
+.custom-studio .brief-cta--simple h2{max-width:none;margin:0 0 28px;font-size:36px;line-height:1.2;color:#0d2030}
+.custom-studio .brief-cta--simple p{max-width:540px;margin:0 0 20px;font-size:16px;line-height:1.6;color:#657383}
+.custom-studio .brief-cta--simple .brief-cta-button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:12px 24px;background:#06f;color:#fff;border-radius:10px;font-size:16px;font-weight:600}
+.custom-studio .brief-cta--simple .brief-cta-button:hover{background:#0052cc}
+@media(max-width:600px){.custom-studio .brief-cta--simple{padding:0 20px}.custom-studio .brief-cta--simple .brief-cta-inner{padding:36px 0}.custom-studio .brief-cta--simple h2{font-size:28px;margin-bottom:20px}}
+
+/* Stack the project brief fields in reading order. */
+.custom-studio .brief-detail-grid--project{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 16px}
+.custom-studio .brief-detail-grid--project> :nth-child(-n+6){grid-column:1 / -1}
+.custom-studio .brief-detail-grid--project .brief-detail-chips span{padding:6px 10px;font-weight:400}
+.custom-studio .brief-detail-grid--project .brief-detail-chips input:checked+span{background:#17232d;border-color:#17232d;color:#fff}
+.custom-studio .brief-detail-grid--project .brief-detail-drop{min-height:86px;background:#fff;border-color:#c6d4e8;color:#536b8c}
+.custom-studio .brief-detail-grid--project .brief-detail-field textarea{min-height:100px}
+.custom-studio .brief-detail-grid--project+.brief-detail-actions{justify-content:space-between}
+@media(max-width:380px){.custom-studio .brief-detail-grid--project{grid-template-columns:1fr}}
