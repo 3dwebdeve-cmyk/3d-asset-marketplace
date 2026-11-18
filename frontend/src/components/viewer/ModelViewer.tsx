@@ -67,12 +67,15 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Key and fill face the initial camera from opposite sides; rim lights the rear edge. */}
+          {/* Preserve the key light, with gentle fills around the model for orbiting. */}
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
           <directionalLight position={[5, 5, -1]} intensity={0.6 * lightMultiplier} />
           <directionalLight position={[-1, 2.5, -5]} intensity={0.5 * lightMultiplier} />
           <directionalLight position={[-5, 4, 1]} intensity={0.35 * lightMultiplier} />
+          <directionalLight position={[-5, 3, -1]} intensity={0.45 * lightMultiplier} />
+          <directionalLight position={[1.8, 2, -2.3]} intensity={0.3 * lightMultiplier} />
+          <directionalLight position={[1, 2, 5]} intensity={0.35 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
