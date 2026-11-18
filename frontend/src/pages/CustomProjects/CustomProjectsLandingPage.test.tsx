@@ -1,9 +1,10 @@
 import styles from './custom-studio.css?raw'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent } from '@testing-library/react'
 import { submitContactForm } from '../../api/contactApi'
 import { CustomProjectsLandingPage } from './CustomProjectsLandingPage'
+import { BriefServiceSelector } from './BriefServiceSelector'
 vi.mock('../../api/contactApi', () => ({ submitContactForm: vi.fn() }))
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 
@@ -12,10 +13,20 @@ describe('CustomProjectsLandingPage', () => {
     expect(styles).not.toContain('fonts.googleapis.com')
     expect(styles).not.toContain('fonts.gstatic.com')
   })
+  it('shows the new enquiry panel below the banner', () => {
+    render(<CustomProjectsLandingPage />)
+    expect(screen.queryByRole('heading', { name: 'From brief to final files in four simple steps.' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'What do you need?' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Project enquiry' })).toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(8)
+    expect(screen.getByRole('heading', { name: /Brief the Hive/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', window.location.origin + '/custom-projects')
+  })
   it('shows success for two seconds then resets the enquiry to Service', async () => {
     vi.useFakeTimers()
     vi.mocked(submitContactForm).mockResolvedValue({ detail: 'Accepted' })
-    render(<CustomProjectsLandingPage />)
+    render(<BriefServiceSelector />)
     fireEvent.click(screen.getByRole('checkbox', { name: /Product 3D modeling/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     fireEvent.change(screen.getByRole('textbox', { name: /Scope of work/ }), { target: { value: 'Three product models' } })
@@ -40,13 +51,8 @@ describe('CustomProjectsLandingPage', () => {
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
     expect(screen.getByRole('textbox', { name: 'Email' })).toHaveValue('')
   })
-  it('shows the service selector after the process and carries selections into the enquiry', () => {
-    render(<CustomProjectsLandingPage />)
-    expect(screen.getByRole('heading', { name: 'From brief to final files in four simple steps.' })).toBeInTheDocument()
-    const steps = within(screen.getByRole('list', { name: 'Project process' })).getAllByRole('listitem')
-    expect(steps).toHaveLength(4)
-    expect(within(steps[0]).getByRole('heading')).toHaveTextContent('Send your enquiry')
-    expect(within(steps[3]).getByRole('heading')).toHaveTextContent('Review and receive files')
+  it('carries service selections into the enquiry', () => {
+    render(<BriefServiceSelector />)
     expect(screen.getByRole('heading', { name: 'What do you need?' })).toBeInTheDocument()
     expect(screen.getAllByRole('checkbox')).toHaveLength(8)
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
@@ -59,7 +65,7 @@ describe('CustomProjectsLandingPage', () => {
     const scope = screen.getByRole('textbox', { name: /Scope of work/ })
     fireEvent.change(scope, { target: { value: 'Create three product models' } })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Marketing renders' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit selection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     expect(screen.getByRole('checkbox', { name: /Product 3D modeling/ })).toBeChecked()
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     expect(screen.getByRole('textbox', { name: /Scope of work/ })).toHaveValue('Create three product models')
@@ -67,6 +73,5 @@ describe('CustomProjectsLandingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue →' }))
     expect(screen.getByRole('heading', { name: 'Your contact details' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Have a brief? Send it today.' })).not.toBeInTheDocument()
-    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', window.location.origin + '/custom-projects')
   })
 })

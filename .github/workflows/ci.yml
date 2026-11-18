@@ -128,7 +128,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: JavaScript dependency security audit
-        run: npm audit --audit-level=moderate
+        run: |
+          node --test scripts/security-audit-checks.mjs
+          npm run audit:security
       - name: Unit tests
         run: npm test
       - name: Lint
