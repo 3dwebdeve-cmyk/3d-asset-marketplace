@@ -1,0 +1,26 @@
+# Dependency audit
+
+Install the committed dependency tree with `npm ci`. Run the CI security check
+with `npm run audit:security`. Do not run `npm audit fix --force`: npm currently
+suggests downgrading Vite and Vitest to versions with other known advisories.
+
+## Temporary development-only exception
+
+As of November 18, 2026, picomatch 4.0.7 is the latest published version and
+GHSA-fc5q-39xc-vjpf has no patched release:
+https://github.com/advisories/GHSA-fc5q-39xc-vjpf
+
+This is a regular expression denial of service issue triggered by crafted glob
+patterns. The affected frontend build/test tools use repository-controlled
+patterns. Keep development servers private and do not process untrusted globs.
+
+The audit script temporarily accepts only this exact advisory and dependency
+chains whose packages are all marked development-only in package-lock.json.
+Any other moderate, high or critical finding still fails CI. Audit retrieval
+errors also fail CI. The exception expires December 19, 2026, at which point
+the check fails until the exception is reviewed or removed.
+
+When a patched picomatch release is available, update the dependency tree,
+remove the exception, and return CI to `npm audit --audit-level=moderate`.
+Production dependencies can be independently checked with
+`npm audit --omit=dev --audit-level=moderate`.
