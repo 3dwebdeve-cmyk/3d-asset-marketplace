@@ -12,7 +12,7 @@ const services = [
   ['Something else', 'Not listed? Describe it and we’ll scope it.', 'spheres'],
 ] as const
 
-export function BriefServiceSelector() {
+export function BriefServiceSelector({ compact = false }: { compact?: boolean }) {
   const [selected, setSelected] = useState<string[]>([])
   const [step, setStep] = useState(0)
   const [resetVersion, setResetVersion] = useState(0)
@@ -28,19 +28,19 @@ export function BriefServiceSelector() {
       serviceHeading.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
     }
   }, [resetVersion])
-  return <section className="brief-selector-wrap" aria-labelledby="brief-selector-heading">
+  return <section className={`brief-selector-wrap${compact ? ' brief-selector-wrap--compact' : ''}`} aria-label={compact ? 'Project enquiry' : undefined} aria-labelledby={compact ? undefined : 'brief-selector-heading'}>
     <div className="brief-selector">
-      <h2 id="brief-selector-heading">Brief the Hive. Get a Price and timeline in 16 hours.</h2>
+      {!compact && <h2 id="brief-selector-heading">Brief the Hive. Get a Price and timeline in 16 hours.</h2>}
       <ol className="brief-selector-steps" aria-label="Enquiry steps">
         {['Service', 'Project details', 'Your contact'].map((label, index) => <li key={label} aria-current={index === step ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}
       </ol>
       <div hidden={step !== 0}><h3 ref={serviceHeading} tabIndex={-1}>What do you need?</h3>
-      <p className="brief-selector-help">Choose one or more services for your project.</p>
+      <p className="brief-selector-help">{compact ? 'Choose one or more. We’ll suggest matching options on the next step.' : 'Choose one or more services for your project.'}</p>
       <div className="brief-selector-grid">
         {services.map(([title, description, image]) => <label className="brief-selector-card" key={title}>
           <input type="checkbox" checked={selected.includes(title)} onChange={() => setSelected(current => current.includes(title) ? current.filter(value => value !== title) : [...current, title])} />
-          <img src={`/images/brief-services/${image}.webp`} alt="" loading="lazy" width="180" height="130" />
-          <span className="brief-selector-title">{title}</span><span className="brief-selector-description">{description}</span>
+          {!compact && <img src={`/images/brief-services/${image}.webp`} alt="" loading="lazy" width="180" height="130" />}
+          <span className="brief-selector-title">{title}</span><span className="brief-selector-description">{compact ? description.replace(/ AI .*$/, '') : description}</span>
         </label>)}
       </div>
       <div className="brief-selector-actions"><span role="status">{selected.length} {selected.length === 1 ? 'service' : 'services'} selected</span><button disabled={!selected.length} onClick={() => setStep(1)}>Continue <span aria-hidden="true">→</span></button></div></div>

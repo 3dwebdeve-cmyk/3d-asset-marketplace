@@ -53,16 +53,15 @@ export function BriefProjectDetails({step, setStep, onReset, services}:{step:num
     } catch(e) {setError(getApiErrorMessage(e, 'We could not send your enquiry. Please try again.'))} finally {setPending(false)}
   }
   return <div hidden={step === 0} className="brief-detail-layout">
-    <aside className="brief-selected"><h4>Selected services</h4><p>Your project includes these services.</p><ul>{services.map(([title,,image])=><li key={title}><img src={`/images/brief-services/${image}.webp`} alt=""/><span>{title}</span></li>)}</ul><button type="button" onClick={()=>setStep(0)}>Edit selection</button></aside>
     <div className="brief-detail-main">
       <h3 ref={heading} tabIndex={-1}>{step === 1 ? 'Describe your project' : sent ? 'Thank you for your enquiry' : 'Your contact details'}</h3>
       <div hidden={step !== 1}>
-        <div className="brief-detail-grid">
+        <div className="brief-detail-grid brief-detail-grid--project">
           <label className="brief-detail-field">Scope of work<small>What should we make, and how many items, scenes or variations?</small><textarea value={scope} onChange={e=>setScope(e.target.value)} placeholder="e.g. 40 SKUs of bottled products: 3D models plus 5 marketplace images each." /></label>
-          <label className="brief-detail-field">Specifications and guidelines<small>Dimensions, materials, brand colours, camera angles, resolution, polycount, platform limits.</small><textarea value={specs} onChange={e=>setSpecs(e.target.value)} /></label>
           <Chips title="Purpose" help="Where will the final result be used?" values={purposes} selected={purpose} onChange={setPurpose}/>
           <Chips title="Output formats" help="Select all you need. Not sure? Leave blank and we’ll advise." values={formats} selected={output} onChange={setOutput}/>
           <div className="brief-detail-field"><label htmlFor="brief-reference-files">Reference images</label><label className="brief-detail-drop" onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();addFiles(e.dataTransfer.files)}}><input id="brief-reference-files" type="file" multiple accept="image/*,.pdf,.zip,.obj,.fbx,.glb,.gltf,.blend,.stl,.step,.stp,.iges,.igs" onChange={e=>{addFiles(e.target.files);e.target.value=''}}/><span>Drop files here or click to browse</span><small>Images, PDFs or CAD, up to 10 files (10 MB total)</small></label>{files.length ? <ul className="brief-file-list">{files.map((file,index)=><li key={`${file.name}-${index}`}><ReferenceFilePreview file={file}/><button type="button" aria-label={`Remove ${file.name}`} onClick={()=>setFiles(current=>current.filter((_,i)=>i!==index))}>×</button></li>)}</ul> : <small>No files selected.</small>}</div>
+          <label className="brief-detail-field">Specifications and guidelines<small>Dimensions, materials, brand colours, camera angles, resolution, polycount, platform limits.</small><textarea value={specs} onChange={e=>setSpecs(e.target.value)} /></label>
           <label className="brief-detail-field">Briefs and links<small>Paste a brief, or links to a folder, Figma, Drive or a product page.</small><textarea value={links} onChange={e=>setLinks(e.target.value)} /></label>
           <label className="brief-detail-field">Budget range<select value={budget} onChange={e=>setBudget(e.target.value)}>{['Not sure yet', 'Under $500', '$500–$1,000', '$1,000–$5,000', '$5,000–$10,000', '$10,000+'].map(value=><option key={value}>{value}</option>)}</select></label>
           <label className="brief-detail-field">Delivery time<select value={delivery} onChange={e=>setDelivery(e.target.value)}>{['Flexible', 'Within 1 week', 'Within 2 weeks', 'Within 1 month', 'More than 1 month'].map(value=><option key={value}>{value}</option>)}</select></label>

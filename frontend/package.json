@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "audit:security": "node scripts/security-audit.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "deploy": "npm run build && wrangler deploy",
