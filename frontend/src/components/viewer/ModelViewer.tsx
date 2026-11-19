@@ -21,6 +21,11 @@ export interface ModelViewerProps {
 
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.6
+const LIGHT_POSITIONS: [number, number, number][] = [
+  [0, 4, 5],
+  [-4.33, 4, -2.5],
+  [4.33, 4, -2.5],
+]
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   const scene = useThree((state) => state.scene)
@@ -43,6 +48,7 @@ function SceneLights({
   environmentFile,
   environmentIntensity,
   lightMultiplier,
+  keyLightIndex,
   showBackground,
   backgroundBlur,
 }: {
@@ -50,6 +56,7 @@ function SceneLights({
   environmentFile: string | null
   environmentIntensity: number
   lightMultiplier: number
+  keyLightIndex: number | null
   showBackground: boolean
   backgroundBlur: number
 }) {
@@ -63,14 +70,20 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Space three equal lights around the model for consistent coverage while orbiting. */}
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          <directionalLight position={[0, 4, 5]} intensity={0.85 * lightMultiplier} />
-          <directionalLight position={[-4.33, 4, -2.5]} intensity={0.85 * lightMultiplier} />
-          <directionalLight position={[4.33, 4, -2.5]} intensity={0.85 * lightMultiplier} />
+          {LIGHT_POSITIONS.map((position, index) => (
+            <directionalLight
+              key={index}
+              position={position}
+              intensity={(keyLightIndex === null ? 0.85 : keyLightIndex === index ? 2.05 : 0.25) * lightMultiplier}
+            />
+          ))}
         </>
       ) : !environmentFile ? naturalFallback : null}
+      {environmentId === 'natural' && keyLightIndex !== null ? (
+        <directionalLight position={LIGHT_POSITIONS[keyLightIndex]} intensity={1.8} />
+      ) : null}
       {environmentFile ? (
         // Own Suspense so HDRI load does not remount/tear down PreviewModel
         // (Canvas wraps all children in one Suspense boundary).
@@ -261,11 +274,9 @@ function ModelViewerError({ message }: { message: string }) {
 function ViewerToolbar({
   controls,
   onLighting,
-  naturalLighting,
 }: {
   controls: { current: ComponentRef<typeof OrbitControls> | null }
   onLighting?: () => void
-  naturalLighting?: boolean
 }) {
   const toolbar = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
@@ -299,7 +310,7 @@ function ViewerToolbar({
   return (
     <div ref={toolbar} className="model-viewer__toolbar" role="group" aria-label="3D view actions">
       {onLighting ? (
-        <button type="button" onClick={onLighting} aria-pressed={naturalLighting}>
+        <button type="button" onClick={onLighting} title="Cycle light direction">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" /></svg>
           Lighting
         </button>
@@ -336,6 +347,7 @@ function ModelViewerCanvas({
   pixelRatio: number
 }) {
   const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
+  const [keyLightIndex, setKeyLightIndex] = useState<number | null>(null)
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const [environmentStatus, setEnvironmentStatus] = useState<{
     path: string
@@ -408,6 +420,7 @@ function ModelViewerCanvas({
           environmentFile={environmentFile}
           environmentIntensity={selectedEnvironment.environmentIntensity}
           lightMultiplier={selectedEnvironment.lightMultiplier}
+          keyLightIndex={keyLightIndex}
           showBackground={selectedEnvironment.background}
           backgroundBlur={selectedEnvironment.backgroundBlur}
         />
@@ -434,8 +447,7 @@ function ModelViewerCanvas({
       </Canvas>
       <ViewerToolbar
         controls={controls}
-        onLighting={() => setEnvironmentId((id) => id === 'studio' ? 'natural' : 'studio')}
-        naturalLighting={environmentId === 'natural'}
+        onLighting={() => setKeyLightIndex((index) => ((index ?? -1) + 1) % LIGHT_POSITIONS.length)}
       />
       <div className="model-viewer__controls" role="group" aria-label="Viewer controls">
         <div className="model-viewer__environment" role="radiogroup" aria-label="Lighting setup">

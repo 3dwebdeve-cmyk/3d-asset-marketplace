@@ -251,8 +251,7 @@
   cursor: pointer;
 }
 
-.model-viewer__toolbar button:hover,
-.model-viewer__toolbar button[aria-pressed='true'] {
+.model-viewer__toolbar button:hover {
   background: #62666b;
 }
 
