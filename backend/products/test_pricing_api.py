@@ -212,22 +212,12 @@ class PricingApiTests(APITestCase):
 
     # -- preview: the calculator -------------------------------------------------------------
 
-    def test_set_price_and_price_per_poly_level(self, _exists) -> None:
+    def test_set_price_for_the_selection(self, _exists) -> None:
         low = self._model("Low", polygons=5_000)
         high = self._model("High", polygons=500_000)
-        unknown = self._model("Unknown", polygons=None)
 
         one = self._preview([low, high], rule="set_price", price="12.00")
         self.assertEqual([r["new_price"] for r in one.data["rows"]], ["12.00", "12.00"])
-
-        tiers = self._preview(
-            [low, high, unknown], rule="tier_price", tier_prices={"low": "5.00", "high": "25.00"}
-        )
-        rows = {r["id"]: r for r in tiers.data["rows"]}
-        self.assertEqual(rows[str(low.pk)]["new_price"], "5.00")
-        self.assertEqual(rows[str(high.pk)]["new_price"], "25.00")
-        self.assertIn("No price was given for unknown", rows[str(unknown.pk)]["error"])
-        self.assertEqual(tiers.data["summary"]["errors"], 1)
 
     def test_percent_and_amount_off_with_the_99_ending(self, _exists) -> None:
         model = self._model("Chair", price="10.50")
@@ -319,15 +309,13 @@ class PricingApiTests(APITestCase):
         first = self._model("First", polygons=5_000)
         second = self._model("Second", polygons=200_000)
 
-        response = self._preview_and_apply(
-            [first, second], rule="tier_price", tier_prices={"low": "5.00", "high": "30.00"}
-        )
+        response = self._preview_and_apply([first, second], rule="set_price", price="5.00")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data["changed"], 2)
         first.refresh_from_db()
         second.refresh_from_db()
-        self.assertEqual((first.price, second.price), (Decimal("5.00"), Decimal("30.00")))
+        self.assertEqual((first.price, second.price), (Decimal("5.00"), Decimal("5.00")))
         self.assertEqual(first.status, Product.Status.AWAITING_PRICE)
         changes = ProductPriceChange.objects.filter(batch_id=response.data["batch_id"])
         self.assertEqual(changes.count(), 2)

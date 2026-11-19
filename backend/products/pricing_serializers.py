@@ -15,13 +15,15 @@ from products.pricing import (
     MAX_MODELS_PER_ACTION,
     RULE_AMOUNT_OFF,
     RULE_PERCENT_OFF,
+    RULE_HOURS_PRICE,
     RULE_SET_PRICE,
-    RULE_TIER_PRICE,
     RULES,
+    MAX_DISCOUNT_PERCENT,
     SALE_RULES,
     TIERS,
     PolyThresholds,
     PricingRule,
+    get_default_percents,
     package_summaries,
     summaries_bundle_warning,
 )
@@ -55,6 +57,9 @@ class PricingRowSerializer(serializers.ModelSerializer):
             "category",
             "polygon_count",
             "poly_tier",
+            "hours_spent",
+            "hourly_rate",
+            "package_percents",
             "price",
             "currency",
             "discount_price",
@@ -116,15 +121,6 @@ class PricingListQuerySerializer(_ThresholdFields):
     ordering = serializers.CharField(required=False, allow_blank=True, max_length=32)
 
 
-class TierPricesSerializer(serializers.Serializer):
-    low = serializers.DecimalField(required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY)
-    mid = serializers.DecimalField(required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY)
-    high = serializers.DecimalField(required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY)
-    unknown = serializers.DecimalField(
-        required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY
-    )
-
-
 class PricingRuleSerializer(_ThresholdFields):
     """The selection and the rule. The server calculates every price from these."""
 
@@ -139,7 +135,6 @@ class PricingRuleSerializer(_ThresholdFields):
     price = serializers.DecimalField(
         required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY
     )
-    tier_prices = TierPricesSerializer(required=False)
     percent = serializers.DecimalField(
         required=False,
         allow_null=True,
@@ -152,17 +147,25 @@ class PricingRuleSerializer(_ThresholdFields):
         required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY
     )
     round_99 = serializers.BooleanField(required=False, default=False)
+    # Hours rule: the sale switch (off by default) and the sale %, used only while it is on.
+    sale_enabled = serializers.BooleanField(required=False, default=False)
+    sale_percent = serializers.DecimalField(
+        required=False,
+        allow_null=True,
+        max_digits=5,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        max_value=MAX_DISCOUNT_PERCENT,
+    )
     discount_ends_at = AwareDateTimeField(required=False, allow_null=True, default=None)
 
     def validate(self, attrs: dict) -> dict:
         rule = attrs["rule"]
         if rule == RULE_SET_PRICE and attrs.get("price") is None:
             raise serializers.ValidationError({"price": ["Enter the price."]})
-        if rule == RULE_TIER_PRICE and not any(
-            value is not None for value in (attrs.get("tier_prices") or {}).values()
-        ):
+        if rule == RULE_HOURS_PRICE and attrs["sale_enabled"] and attrs.get("sale_percent") is None:
             raise serializers.ValidationError(
-                {"tier_prices": ["Enter a price for at least one poly level."]}
+                {"sale_percent": ["Enter the sale percentage (up to 90)."]}
             )
         if rule == RULE_PERCENT_OFF and attrs.get("percent") is None:
             raise serializers.ValidationError({"percent": ["Enter the percentage off (up to 90)."]})
@@ -170,9 +173,9 @@ class PricingRuleSerializer(_ThresholdFields):
             raise serializers.ValidationError({"amount": ["Enter the amount off."]})
         ends_at = attrs.get("discount_ends_at")
         if ends_at is not None:
-            if rule not in SALE_RULES:
+            if rule not in SALE_RULES or (rule == RULE_HOURS_PRICE and not attrs["sale_enabled"]):
                 raise serializers.ValidationError(
-                    {"discount_ends_at": ["A sale end goes with a % off or $ off rule."]}
+                    {"discount_ends_at": ["A sale end goes with a sale (switch it on first)."]}
                 )
             if ends_at <= timezone.now():
                 raise serializers.ValidationError(
@@ -182,21 +185,20 @@ class PricingRuleSerializer(_ThresholdFields):
 
     def build_rule(self) -> PricingRule:
         data = self.validated_data
-        tier_prices = {
-            tier: value
-            for tier, value in (data.get("tier_prices") or {}).items()
-            if value is not None
-        }
+        kind = data["rule"]
+        hours = kind == RULE_HOURS_PRICE
+        sale_on = hours and data["sale_enabled"]
         return PricingRule(
-            kind=data["rule"],
+            kind=kind,
             package_kind=data["package_kind"],
             thresholds=self.thresholds(),
-            price=data.get("price") if data["rule"] == RULE_SET_PRICE else None,
-            tier_prices=tier_prices if data["rule"] == RULE_TIER_PRICE else {},
-            percent=data.get("percent") if data["rule"] == RULE_PERCENT_OFF else None,
-            amount=data.get("amount") if data["rule"] == RULE_AMOUNT_OFF else None,
-            round_99=bool(data.get("round_99")) and data["rule"] in SALE_RULES,
-            discount_ends_at=data.get("discount_ends_at") if data["rule"] in SALE_RULES else None,
+            price=data.get("price") if kind == RULE_SET_PRICE else None,
+            default_percents=get_default_percents() if hours else {},
+            sale_percent=data.get("sale_percent") if sale_on else None,
+            percent=data.get("percent") if kind == RULE_PERCENT_OFF else None,
+            amount=data.get("amount") if kind == RULE_AMOUNT_OFF else None,
+            round_99=bool(data.get("round_99")) and kind in (RULE_PERCENT_OFF, RULE_AMOUNT_OFF),
+            discount_ends_at=data.get("discount_ends_at") if kind in SALE_RULES else None,
         )
 
 
@@ -210,3 +212,39 @@ class PricingPublishSerializer(serializers.Serializer):
         child=serializers.UUIDField(), allow_empty=False, max_length=MAX_MODELS_PER_ACTION
     )
     confirm_count = serializers.IntegerField(min_value=1)
+
+
+class PricingInputItemSerializer(serializers.Serializer):
+    """One model's hours, rate and own package percents. Only the keys sent change; a null
+    hours or rate clears it, a null package percent goes back to the default."""
+
+    id = serializers.UUIDField()
+    hours_spent = serializers.DecimalField(
+        required=False, allow_null=True, max_digits=7, decimal_places=2, min_value=Decimal("0.01")
+    )
+    hourly_rate = serializers.DecimalField(
+        required=False, allow_null=True, min_value=Decimal("0.01"), **_MONEY
+    )
+    package_percents = serializers.DictField(
+        child=serializers.DecimalField(
+            allow_null=True, max_digits=6, decimal_places=2, min_value=Decimal("0.01")
+        ),
+        required=False,
+    )
+
+
+class PricingInputsSerializer(serializers.Serializer):
+    items = PricingInputItemSerializer(many=True, allow_empty=False, max_length=MAX_MODELS_PER_ACTION)
+
+    def validate_items(self, items: list[dict]) -> list[dict]:
+        ids = [item["id"] for item in items]
+        if len(set(ids)) != len(ids):
+            raise serializers.ValidationError("Each model may appear once.")
+        return items
+
+
+class PricingDefaultsSerializer(serializers.Serializer):
+    package_percents = serializers.DictField(
+        child=serializers.DecimalField(max_digits=6, decimal_places=2, min_value=Decimal("0.01")),
+        allow_empty=False,
+    )

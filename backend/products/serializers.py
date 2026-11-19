@@ -760,6 +760,9 @@ class CatalogImportItemSerializer(serializers.Serializer):
         max_length=255,
     )
     polygon_count = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    # Hours spent on the model. Any value is accepted here so a bad one never refuses the row;
+    # the import ignores what is not a positive number (CatalogImportService._sheet_hours).
+    hours_spent = serializers.JSONField(required=False, allow_null=True)
     glb_checksum = serializers.CharField(required=False, allow_blank=True, default="", max_length=64)
     qa_status = serializers.CharField(required=False, allow_blank=True, default="", max_length=64)
     folder_match_status = serializers.CharField(

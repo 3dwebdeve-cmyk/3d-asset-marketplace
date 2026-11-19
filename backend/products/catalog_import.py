@@ -1039,6 +1039,18 @@ class CatalogImportService:
             logger.exception("catalog_import_object_delete_failed key=%s", key)
 
     @staticmethod
+    def _sheet_hours(item: dict[str, Any]) -> Decimal | None:
+        """``hours_spent`` from the uploader: a number above 0 and under 100000, else None."""
+        raw = item.get("hours_spent")
+        if raw is None or isinstance(raw, bool):
+            return None
+        try:
+            hours = Decimal(str(raw)).quantize(Decimal("0.01"))
+            return hours if Decimal("0") < hours < Decimal("100000") else None
+        except ArithmeticError:  # not a number, NaN or too large
+            return None
+
+    @staticmethod
     def _sheet_description(item: dict[str, Any]) -> str:
         return strip_folder_listing(str(item.get("description") or ""))
 
@@ -1076,7 +1088,7 @@ class CatalogImportService:
         if polygon_count is not None:
             polygon_count = int(polygon_count)
 
-        return ProductService.create_product(
+        product = ProductService.create_product(
             ProductCreateData(
                 category_id=category.pk,
                 name=str(item.get("name") or "").strip(),
@@ -1102,6 +1114,11 @@ class CatalogImportService:
                 spin_images=media_pointers["spin_urls"] or [],
             )
         )
+        hours = cls._sheet_hours(item)
+        if hours is not None:
+            product.hours_spent = hours
+            product.save(update_fields=["hours_spent", "updated_at"])
+        return product
 
     @classmethod
     def _update_product(
@@ -1127,7 +1144,7 @@ class CatalogImportService:
         clear_polygon = polygon_count is None
         polygon_value: int | None = None if clear_polygon else int(polygon_count)
 
-        return ProductService.update_product(
+        updated = ProductService.update_product(
             product,
             ProductUpdateData(
                 thumbnail=media_pointers["thumbnail_url"],
@@ -1148,6 +1165,12 @@ class CatalogImportService:
             ),
             source=ProductPriceChange.Source.IMPORT,
         )
+        # The administrator owns the hours once set: a re-upload only fills them when empty.
+        hours = cls._sheet_hours(item)
+        if hours is not None and updated.hours_spent is None:
+            updated.hours_spent = hours
+            updated.save(update_fields=["hours_spent", "updated_at"])
+        return updated
 
     @classmethod
     def _sync_gallery(cls, product: Product, gallery_urls: list[str], *, replace: bool) -> None:

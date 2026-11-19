@@ -1,8 +1,10 @@
 import { apiClient } from './client'
 import type {
+  PackagePercents,
   PaginatedPricingRows,
   PricingApplyRequest,
   PricingApplyResult,
+  PricingInputItem,
   PricingListParams,
   PricingPreview,
   PricingPublishResult,
@@ -44,6 +46,29 @@ export async function publishPricing(
   const response = await apiClient.post<PricingPublishResult>(`${BASE}/publish/`, {
     product_ids: productIds,
     confirm_count: confirmCount,
+  })
+  return response.data
+}
+
+/** The default percent of the base price for each package. */
+export async function getPricingDefaults(): Promise<PackagePercents> {
+  const response = await apiClient.get<{ package_percents: PackagePercents }>(`${BASE}/defaults/`)
+  return response.data.package_percents
+}
+
+export async function savePricingDefaults(percents: Partial<PackagePercents>): Promise<PackagePercents> {
+  const response = await apiClient.put<{ package_percents: PackagePercents }>(`${BASE}/defaults/`, {
+    package_percents: percents,
+  })
+  return response.data.package_percents
+}
+
+/** Save the models' hours, rate and own percents (before calculating the hours price). */
+export async function savePricingInputs(
+  items: PricingInputItem[],
+): Promise<{ models: number; changed: number }> {
+  const response = await apiClient.post<{ models: number; changed: number }>(`${BASE}/inputs/`, {
+    items,
   })
   return response.data
 }

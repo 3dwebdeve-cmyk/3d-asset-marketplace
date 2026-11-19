@@ -45,10 +45,13 @@ const WAIT_UNKNOWN = { sku: 'PRC-WAIT-UNKNOWN', name: 'E2E Desk Lamp No Poly Cou
 const LIVE = { sku: 'PRC-LIVE', name: 'E2E Live Dining Chair', slug: 'prc-live' }
 const LIVE_ENDED = { sku: 'PRC-LIVE-ENDED', name: 'E2E Live Floor Lamp Sale Ended', slug: 'prc-live-ended' }
 
-// Calculator "By poly level" prices used in step 4 (Unknown is left empty on purpose).
-const TIER = { low: '9.00', mid: '19.99', high: '49.00' }
+// Step 4 prices three models from hours x rate (rate $1, so hours = the Whole File price in
+// whole dollars); the Unknown model gets no hours on purpose.
+const TIER = { low: '9.00', mid: '20.00' }
+const HOURS = { low: '9', mid: '20' }
+const RATE = '1'
 // PRC-PAID-QA (mid) + PRC-WAIT-LOW (low) + PRC-WAIT-MID (mid); PRC-WAIT-HIGH has no price.
-const PUBLISH_TOTAL = '$48.98'
+const PUBLISH_TOTAL = '$49.00'
 
 // Sale end used in step 6 and checked in step 7: a fixed, far-future local time. Playwright loads
 // this file again for later steps, so a value computed from "now" can move a minute between them.
@@ -245,7 +248,7 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  test('4. Calculator by poly level: preview, a note for the unpriced level, save', async ({ adminPage: page }) => {
+  test('4. Calculator from hours: preview, a note for the model without hours, save', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
     await openPricing(page)
 
@@ -255,21 +258,28 @@ test.describe('admin pricing pipeline', () => {
     }
     await expect(selection).toContainText('4 selected')
 
-    await page.getByRole('radio', { name: 'Set the price' }).check()
-    await page.getByRole('radio', { name: 'By poly level' }).check()
-    await page.getByLabel('Low poly (USD)').fill(TIER.low)
-    await page.getByLabel('Mid poly (USD)').fill(TIER.mid)
-    await page.getByLabel('High poly (USD)').fill(TIER.high)
+    // Hours and rate go in the table and are saved first; the discount sale stays off.
+    for (const [model, hours] of [[PAID_QA, HOURS.mid], [WAIT_LOW, HOURS.low], [WAIT_MID, HOURS.mid]] as const) {
+      await page.getByLabel(`Hours for ${model.name}`).fill(hours)
+      await page.getByLabel(`Rate per hour for ${model.name}`).fill(RATE)
+    }
+    await page.getByRole('button', { name: 'Save hours, rates and percents (3)' }).click()
+    await expect(toast(page, 'Hours, rates and percents saved.')).toBeVisible()
+    await expect(page.getByRole('radio', { name: 'Price from hours' })).toBeChecked()
+    await expect(page.getByRole('switch', { name: /Discount sale OFF/ })).not.toBeChecked()
     await page.getByRole('button', { name: 'Calculate preview (4)' }).click()
 
     const preview = previewSection(page)
     await expect(preview).toBeVisible()
-    const previewRow = (sku: string) => preview.getByRole('row').filter({ hasText: sku })
+    // The hours price has a row per package; the seeded models only have Whole File.
+    const previewRow = (sku: string) =>
+      preview.getByRole('row').filter({ hasText: sku }).filter({ hasText: 'Whole File' })
     await expect(previewRow(PAID_QA.sku)).toContainText(`$25.00 → $${TIER.mid}`)
     await expect(previewRow(WAIT_LOW.sku)).toContainText(`— → $${TIER.low}`)
     await expect(previewRow(WAIT_MID.sku)).toContainText(`$30.00 → $${TIER.mid}`)
     // The model whose level got no price has a note and blocks the save.
     const unknownNote = previewRow(WAIT_UNKNOWN.sku).locator('td').last()
+    await expect(unknownNote).toContainText('Enter the hours spent')
     await expect(unknownNote).not.toHaveText(/^(Changes|No change)$/)
     await expect(unknownNote).not.toBeEmpty()
     await expect(preview).toContainText('1 cannot take this price')
@@ -282,7 +292,7 @@ test.describe('admin pricing pipeline', () => {
     await page.getByRole('button', { name: 'Calculate preview (3)' }).click()
     await expect(preview).toBeVisible()
     await expect(preview).toContainText('3 models, 3 will change')
-    await expect(preview).toContainText(`Whole File: buyers pay $55.00 → ${PUBLISH_TOTAL} in total`)
+    await expect(preview).toContainText(`All packages: buyers pay $55.00 → ${PUBLISH_TOTAL} in total`)
     await expect(preview.getByRole('row').filter({ hasText: WAIT_UNKNOWN.sku })).toHaveCount(0)
     const save = preview.getByRole('button', { name: 'Save prices' })
     await expect(save).toBeEnabled()
@@ -307,7 +317,6 @@ test.describe('admin pricing pipeline', () => {
     await openPricing(page)
     await page.getByRole('checkbox', { name: `Select ${WAIT_UNKNOWN.name}` }).check()
     await page.getByRole('radio', { name: 'Set the price' }).check()
-    await page.getByRole('radio', { name: 'One price for all' }).check()
     await page.getByLabel('Price (USD)').fill('12.00')
     await page.getByRole('button', { name: 'Calculate preview (1)' }).click()
     await previewSection(page).getByRole('button', { name: 'Save prices' }).click()

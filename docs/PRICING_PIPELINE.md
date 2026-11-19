@@ -146,7 +146,7 @@ mark only. List and preview use the `admin_pricing_read` limit (120/min); apply 
 | `rule` | Fields | Result |
 |---|---|---|
 | `set_price` | `price` | The normal price. A running sale stays; it must still be below the new price. |
-| `tier_price` | `tier_prices: {low, mid, high, unknown}` | A price for each poly level. A model whose level has no price gets an error row. |
+| `hours_price` | `sale_enabled`, `sale_percent`, `discount_ends_at` | Every package = hours x rate x its percent (see "Hours pricing"). |
 | `percent_off` | `percent` (0.01 to 90), `round_99`, `discount_ends_at` | Sale price = price × (100 − percent) / 100, rounded to the cent. |
 | `amount_off` | `amount`, `round_99`, `discount_ends_at` | Sale price = price − amount. |
 | `remove_sale` | none | The sale and its end are removed. |
@@ -208,6 +208,48 @@ page shows a summary first. Each model is checked and saved on its own.
 Returns `models`, `published`, `failed`, and `results` (`id`, `name`, `sku`, `published`,
 `reason`). The audit log gets one `pricing_publish` entry.
 
+## Hours pricing
+
+The poly-level price rule is gone. A model is priced from the hours spent on it.
+
+```
+base price     = hours_spent x hourly_rate            (per model)
+package price  = round(base price x percent / 100)    (whole dollars, half up)
+sale price     = round(package price x (100 - sale %) / 100)   only while the sale switch is on
+```
+
+- **Fields** (on `Product`): `hours_spent` (from the uploader, see `docs/batch-ingest-contract.md`,
+  editable here), `hourly_rate` (per model), `package_percents` (the model's own percents; a kind
+  that is missing uses the default).
+- **Percents**: above 0 and at most 200, two decimals, one per package kind in `PACKAGE_ORDER`
+  (a fifth one for Whole File). The defaults are `DEFAULT_PACKAGE_PERCENTS` (With Light Rig 60,
+  Without Light Rig 50, GLB Only 25, With Environment 30, Whole File 100) until an administrator
+  changes them (`PricingSettings`, one row). A changed default only affects prices calculated
+  afterwards.
+- **Rule `hours_price`**: `preview` and `apply` return a row per model **and package**
+  (`package_kind`, `package_label`). `summary.models` counts models, not rows. The token covers the
+  default percents, so changing one after a preview gives 409 on save.
+- **Errors** (the whole save is refused, like any row error): no hours or no rate ("Enter the hours
+  spent and the rate per hour first."), or a package that rounds below 0.50 USD.
+- **Sale switch** (`sale_enabled`, off by default): off means normal prices only, and any running
+  sale on the priced packages is removed. On needs `sale_percent` (0.01 to 90), applies to every
+  package, and may have `discount_ends_at` (future, IST picked on the page, stored in UTC). The
+  90% limit and the typed confirmation above 50% apply as before. `round_99` does not apply: sale
+  prices are whole dollars too.
+- **Whole File check**: the existing bundle warning still shows when a package costs more than
+  Whole File, or Whole File is not cheaper than the others together. It never blocks.
+- **Free models** and models without a package of a kind are left alone, as before.
+
+### Endpoints
+
+| Route | Use |
+|---|---|
+| `POST pricing/inputs/` | `items`: `[{id, hours_spent?, hourly_rate?, package_percents?}]`, at most 200, each model once. Only the keys sent change; a null hours or rate clears it, a null percent goes back to the default. Audit entry `pricing_inputs`. |
+| `GET pricing/defaults/` | `{package_percents: {kind: "60.00", ...}}` |
+| `PUT pricing/defaults/` | `{package_percents: {kind: percent}}`: changes only the kinds sent. Audit entry `pricing_defaults`. |
+
+The list rows also carry `hours_spent`, `hourly_rate` and `package_percents`.
+
 ## Part 3: screens
 
 ### QA queue: Free and Paid sections
@@ -229,7 +271,9 @@ Console menu item "Pricing". Code: `pages/Admin/AdminPricingPage.tsx`, `api/pric
 - **Table**: tick models on any page, up to 200 in total. Each row shows the price, the running
   sale and its end, and what the buyer pays.
 - **Calculator**:
-  - "Set the price": one price for all, or a price by poly level.
+  - "Price from hours" (the default): see "Hours pricing". Hours, rate and percents are typed
+    in the table and saved with "Save hours, rates and percents" first.
+  - "Set the price": one price for one package.
   - "Give a sale": % off or $ off, the .99 ending, and an optional end in the admin's local
     time, sent as UTC.
   - "Remove the sale".
