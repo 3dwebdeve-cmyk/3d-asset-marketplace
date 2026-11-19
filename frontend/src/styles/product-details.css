@@ -229,8 +229,8 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 0.0625rem;
   width: max-content;
-  min-width: 3rem;
-  padding: 0.25rem;
+  min-width: 2.75rem;
+  padding: 0.35rem 0.125rem;
   border-radius: 2rem;
   background: #4b4e52;
   color: #fff;
@@ -242,9 +242,9 @@
   align-content: center;
   gap: 0.125rem;
   min-width: 0;
-  min-height: 2.2rem;
+  min-height: 2.75rem;
   margin: 0;
-  padding: 0.125rem 0.25rem;
+  padding: 0.125rem 0.1875rem;
   border: 0;
   border-radius: 1rem;
   background: transparent;
@@ -267,8 +267,8 @@
 }
 
 .model-viewer__toolbar svg {
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 1.0625rem;
+  height: 1.0625rem;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
