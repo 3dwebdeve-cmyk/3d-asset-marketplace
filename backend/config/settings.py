@@ -257,7 +257,11 @@ CATALOG_IMPORT_SCAN_REQUIRED = config("CATALOG_IMPORT_SCAN_REQUIRED", cast=bool,
 # A missing scanner must disable package uploads, not prevent migrations or the
 # rest of the application from starting. scan_upload remains fail-closed, and
 # check_package_scanner is the explicit operational readiness check.
-R2_ENABLED = (not _running_tests) and all(
+# R2_FORCE_OFF is the only reliable way to keep a run off the real buckets. Blanking the
+# R2_* values does not work on Windows: an empty process variable is deleted, so the real
+# keys in backend/.env win. The local E2E stack sets this (e2e/local/Start-LocalStack.ps1).
+R2_FORCE_OFF = config("R2_FORCE_OFF", cast=bool, default=False)
+R2_ENABLED = (not _running_tests) and (not R2_FORCE_OFF) and all(
     (
         R2_ACCOUNT_ID,
         R2_ACCESS_KEY_ID,
@@ -814,7 +818,9 @@ EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
 
 # --- Sentry (optional; no-op when SENTRY_DSN is blank) ---
-SENTRY_DSN = config("SENTRY_DSN", default="").strip()
+# SENTRY_FORCE_OFF: same reason as R2_FORCE_OFF (a blanked SENTRY_DSN falls back to .env).
+SENTRY_FORCE_OFF = config("SENTRY_FORCE_OFF", cast=bool, default=False)
+SENTRY_DSN = "" if SENTRY_FORCE_OFF else config("SENTRY_DSN", default="").strip()
 SENTRY_ENVIRONMENT = config(
     "SENTRY_ENVIRONMENT",
     default="development" if DEBUG else "production",
