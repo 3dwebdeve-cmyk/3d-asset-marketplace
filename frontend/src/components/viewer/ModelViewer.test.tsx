@@ -192,11 +192,7 @@ describe('ModelViewer', () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-dpr', '1.25')
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'always')
-    expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
-    expect(viewerMocks.renderScene!.background).toHaveProperty('getHexString')
-    expect((viewerMocks.renderScene!.background as import('three').Color).getHexString()).toBe(
-      'f2f2f2',
-    )
+    expect(viewerMocks.renderScene!.background).toBeNull()
   })
 
   it('renders environment controls and defaults to Studio HDRI', async () => {
@@ -252,7 +248,7 @@ describe('ModelViewer', () => {
       <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
     )
     await screen.findByTestId('viewer-environment')
-    expect(container.querySelectorAll('directionallight')).toHaveLength(6)
+    expect(container.querySelectorAll('directionallight')).toHaveLength(3)
 
     await user.click(screen.getByRole('radio', { name: 'Natural' }))
     await waitFor(() => {
@@ -270,7 +266,7 @@ describe('ModelViewer', () => {
       'data-files', '/hdri/studio.exr',
       )
     })
-    expect(container.querySelectorAll('directionallight')).toHaveLength(6)
+    expect(container.querySelectorAll('directionallight')).toHaveLength(3)
     expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
   })
 
@@ -288,10 +284,7 @@ describe('ModelViewer', () => {
     await user.click(screen.getByRole('radio', { name: 'Studio' }))
 
     await waitFor(() => {
-      expect(viewerMocks.renderScene!.background).toMatchObject({ isColor: true })
-      expect(
-        (viewerMocks.renderScene!.background as import('three').Color).getHexString(),
-      ).toBe('f2f2f2')
+      expect(viewerMocks.renderScene!.background).toBeNull()
     })
   })
 

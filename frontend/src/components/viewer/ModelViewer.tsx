@@ -19,25 +19,21 @@ export interface ModelViewerProps {
   className?: string
 }
 
-const VIEWER_BACKGROUND_COLOR = '#f2f2f2'
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.6
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   const scene = useThree((state) => state.scene)
-  const studioBackground = useMemo(() => new THREE.Color(VIEWER_BACKGROUND_COLOR), [])
 
   useLayoutEffect(() => {
     if (showEnvironment) {
       return
     }
 
-    // Drei restores the previous background when an Environment unmounts. During
-    // Natural -> Studio transitions that cleanup can otherwise restore the forest
-    // HDRI behind the Studio ground plane, leaving a visible strip at the horizon.
-    scene.background = studioBackground
+    // Clear any HDRI restored by Drei so the canvas gradient shows through.
+    scene.background = null
     scene.backgroundBlurriness = 0
-  }, [scene, showEnvironment, studioBackground])
+  }, [scene, showEnvironment])
 
   return null
 }
@@ -67,15 +63,12 @@ function SceneLights({
     <>
       {environmentId === 'studio' ? (
         <>
-          {/* Preserve the key light, with gentle fills around the model for orbiting. */}
+          {/* Space three equal lights around the model for consistent coverage while orbiting. */}
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          <directionalLight position={[5, 5, -1]} intensity={0.6 * lightMultiplier} />
-          <directionalLight position={[-1, 2.5, -5]} intensity={0.5 * lightMultiplier} />
-          <directionalLight position={[-5, 4, 1]} intensity={0.35 * lightMultiplier} />
-          <directionalLight position={[-5, 3, -1]} intensity={0.45 * lightMultiplier} />
-          <directionalLight position={[1.8, 2, -2.3]} intensity={0.3 * lightMultiplier} />
-          <directionalLight position={[1, 2, 5]} intensity={0.35 * lightMultiplier} />
+          <directionalLight position={[0, 4, 5]} intensity={0.85 * lightMultiplier} />
+          <directionalLight position={[-4.33, 4, -2.5]} intensity={0.85 * lightMultiplier} />
+          <directionalLight position={[4.33, 4, -2.5]} intensity={0.85 * lightMultiplier} />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentFile ? (
@@ -148,42 +141,6 @@ function PreviewModel({
     invalidate()
   }, [camera, controls, fitted, size.width, size.height, invalidate])
 
-  const groundAlphaMap = useMemo(() => {
-    if (typeof document === 'undefined') {
-      return null
-    }
-
-    const size = 256
-    const canvas = document.createElement('canvas')
-    canvas.width = size
-    canvas.height = size
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      return null
-    }
-
-    // Soft radial fade: keep it opaque for most of the plane,
-    // then fade only at the very edges (so the floor feels "infinite").
-    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
-    grad.addColorStop(0, 'rgba(255,255,255,1)')
-    grad.addColorStop(0.82, 'rgba(255,255,255,1)')
-    grad.addColorStop(1, 'rgba(255,255,255,0)')
-    ctx.fillStyle = grad
-    ctx.fillRect(0, 0, size, size)
-
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.wrapS = THREE.ClampToEdgeWrapping
-    texture.wrapT = THREE.ClampToEdgeWrapping
-    texture.needsUpdate = true
-    return texture
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      groundAlphaMap?.dispose()
-    }
-  }, [groundAlphaMap])
-
   const ground = useMemo(() => {
     const box = new THREE.Box3().setFromObject(fitted)
     if (box.isEmpty()) {
@@ -193,10 +150,6 @@ function PreviewModel({
     const maxXZ = Math.max(size.x, size.z, 0.01)
     return {
       y: box.min.y - 0.02,
-      // Make the floor so large that its edge is never visible at our orbit distances,
-      // which makes it feel effectively "infinite".
-      width: Math.max(maxXZ * 8, 360),
-      depth: Math.max(maxXZ * 8, 360),
       // Wide spread ambient shadow pool with smooth gradient falloff
       shadowScaleSpread: Math.max(maxXZ * 5.25, 5.5),
       // Soft mid body shadow for natural grounding
@@ -226,19 +179,6 @@ function PreviewModel({
 
   return (
     <>
-      {showGround && ground ? (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, ground.y, 0]}>
-          <planeGeometry args={[ground.width, ground.depth]} />
-          {/* Match the ground plane to the studio backdrop. */}
-          <meshBasicMaterial
-            color={VIEWER_BACKGROUND_COLOR}
-            transparent={Boolean(groundAlphaMap)}
-            alphaMap={groundAlphaMap ?? undefined}
-            depthWrite={false}
-            toneMapped={false}
-          />
-        </mesh>
-      ) : null}
       {showGround && ground ? (
         <>
           {/* Diffused wide spread shadow pool — broad scale and high blur for smooth, non-sharp dissipation */}
@@ -476,7 +416,6 @@ function StableModelViewerCanvas({
         dpr={pixelRatio}
         frameloop={visible ? 'always' : 'never'}
       >
-        <color attach="background" args={[VIEWER_BACKGROUND_COLOR]} />
         <ambientLight intensity={0.45} />
         <hemisphereLight args={['#ffffff', '#c4cad3', 0.5]} />
         <directionalLight position={[5, 8, 4]} intensity={1.1} />

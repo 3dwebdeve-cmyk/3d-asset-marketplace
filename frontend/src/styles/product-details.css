@@ -191,6 +191,7 @@
 .product-detail-stage__viewer:fullscreen .model-viewer-shell,
 .product-detail-stage__viewer:fullscreen .model-viewer,
 .product-detail-stage__viewer:fullscreen .model-viewer__canvas {
+  background: radial-gradient(ellipse closest-side at center, #E6E8EC 0%, #D8DBE2 60%, #C5C8D0 100%);
   width: 100% !important;
   height: 100% !important;
   min-height: 100% !important;
