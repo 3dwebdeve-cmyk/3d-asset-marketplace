@@ -212,10 +212,19 @@ describe('ModelViewer', () => {
 
     const lighting = screen.getByRole('button', { name: 'Lighting' })
     const keyLight = container.querySelector('directionallight')
-    for (const position of ['4,5,3', '-5,1,2', '0,0,5', '0,6,0', '4,5,3']) {
+    const lightPositions = [
+      '4,3,4', '5,0,0', '4,3,-4', '0,0,-5', '-4,3,-4',
+      '-5,0,0', '-4,3,4', '0,0,5', '0,6,0',
+    ]
+    expect(Array.from(container.querySelectorAll('directionallight[position]'), (light) =>
+      light.getAttribute('position'),
+    )).toEqual([...lightPositions, '0,1,5', '0,1,-5'])
+    for (const position of [...lightPositions, lightPositions[0]]) {
       await user.click(lighting)
       expect(keyLight).toHaveAttribute('position', position)
       expect(keyLight).toHaveAttribute('intensity', '1.8')
+      expect(container.querySelector('directionallight[position="0,1,5"]')).toHaveAttribute('intensity', '0.85')
+      expect(container.querySelector('directionallight[position="0,1,-5"]')).toHaveAttribute('intensity', '0.85')
     }
     expect(screen.getByRole('radio', { name: 'Studio' })).toHaveAttribute('aria-checked', 'true')
     await user.click(screen.getByRole('button', { name: 'Reset' }))
@@ -282,7 +291,7 @@ describe('ModelViewer', () => {
       <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
     )
     await screen.findByTestId('viewer-environment')
-    expect(container.querySelectorAll('directionallight')).toHaveLength(5)
+    expect(container.querySelectorAll('directionallight')).toHaveLength(12)
 
     await user.click(screen.getByRole('radio', { name: 'Natural' }))
     await waitFor(() => {
@@ -300,7 +309,7 @@ describe('ModelViewer', () => {
       'data-files', '/hdri/studio.exr',
       )
     })
-    expect(container.querySelectorAll('directionallight')).toHaveLength(5)
+    expect(container.querySelectorAll('directionallight')).toHaveLength(12)
     expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
   })
 
