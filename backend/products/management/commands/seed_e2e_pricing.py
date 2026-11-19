@@ -75,6 +75,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         if getattr(settings, "DEPLOYMENT_PROFILE", "") not in {"test", "development"}:
             raise CommandError("seed_e2e_pricing only runs with DEPLOYMENT_PROFILE=test or development.")
+        if getattr(settings, "R2_ENABLED", False):
+            # The fixture zips would land in the real buckets (models/PRC-*, free-models/PRC-*).
+            raise CommandError(
+                "seed_e2e_pricing never writes to the real R2 buckets: set R2_FORCE_OFF=True "
+                "(e2e/local/Start-LocalStack.ps1 does)."
+            )
 
         furniture, _ = Category.objects.get_or_create(slug="e2e-furniture", defaults={"name": "E2E Furniture"})
         chairs, _ = Category.objects.update_or_create(

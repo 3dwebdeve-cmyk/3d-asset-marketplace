@@ -242,6 +242,12 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \
             python manage.py migrate --check
 
+      # Stops here, before any fixture is written, if the real R2 or Sentry would be used.
+      - name: Check the E2E stack is isolated from real services
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \
+            python manage.py check_safe_settings
+
       - name: Seed E2E commerce fixtures
         run: |
           docker compose -f docker-compose.yml -f docker-compose.e2e.yml exec -T web \

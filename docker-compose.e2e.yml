@@ -28,6 +28,10 @@ services:
       ALLOW_LOCALHOST_FRONTEND: "True"
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       SENTRY_DSN: ""
+      # Explicit off switches: the E2E stack must never reach the real R2 buckets or Sentry,
+      # even if the host environment passes real keys through docker-compose.yml.
+      R2_FORCE_OFF: "True"
+      SENTRY_FORCE_OFF: "True"
       # The E2E stack is plain HTTP with console mail, unlike the secure base defaults.
       SECURE_SSL_REDIRECT: "False"
       SECURE_HSTS_SECONDS: "0"
