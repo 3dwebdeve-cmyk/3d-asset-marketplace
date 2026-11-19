@@ -27,12 +27,14 @@ vi.mock('@react-three/fiber', () => ({
     children,
     frameloop,
     dpr,
+    style,
   }: {
     children?: import('react').ReactNode
     frameloop?: string
     dpr?: number
+    style?: import('react').CSSProperties
   }) => (
-    <div data-testid="r3f-canvas" data-frameloop={frameloop} data-dpr={dpr}>
+    <div data-testid="r3f-canvas" data-frameloop={frameloop} data-dpr={dpr} style={style}>
       {children}
     </div>
   ),
@@ -236,6 +238,22 @@ describe('ModelViewer', () => {
     expect(viewerMocks.toolbarControls.dollyIn).toHaveBeenCalledWith(0.8)
     expect(viewerMocks.toolbarControls.dollyOut).toHaveBeenCalledWith(0.8)
     expect(requestFullscreen).toHaveBeenCalledOnce()
+  })
+
+  it('cycles only the three background colors while preserving Natural lighting', async () => {
+    const user = userEvent.setup()
+    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />)
+    await user.click(screen.getByRole('radio', { name: 'Natural' }))
+    const environment = await screen.findByTestId('viewer-environment')
+    expect(environment).toHaveAttribute('data-background', 'true')
+
+    const button = screen.getByRole('button', { name: 'Change background color' })
+    for (const background of ['#e6e8ec', '#d6e7f7', '#c5c8d0', '#e6e8ec']) {
+      await user.click(button)
+      expect(screen.getByTestId('r3f-canvas')).toHaveStyle({ background })
+      expect(environment).toHaveAttribute('data-background', 'false')
+    }
+    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('renders environment controls and defaults to Studio HDRI', async () => {
