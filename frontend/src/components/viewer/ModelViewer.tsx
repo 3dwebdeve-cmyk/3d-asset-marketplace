@@ -60,6 +60,8 @@ function SceneLights({
   showBackground: boolean
   backgroundBlur: number
 }) {
+  const lightDirection = keyLightIndex ?? 0
+  const studioEnvironmentAngle = Math.PI / 4 - lightDirection * (2 * Math.PI / LIGHT_POSITIONS.length)
   const naturalFallback = (
     <>
       <ambientLight intensity={0.18} />
@@ -72,11 +74,11 @@ function SceneLights({
         <>
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          {LIGHT_POSITIONS.map((position, index) => (
+          {LIGHT_POSITIONS.map((_, index) => (
             <directionalLight
               key={index}
-              position={position}
-              intensity={(keyLightIndex === null ? 0.85 : keyLightIndex === index ? 2.05 : 0.25) * lightMultiplier}
+              position={LIGHT_POSITIONS[(lightDirection + index) % LIGHT_POSITIONS.length]}
+              intensity={(keyLightIndex === null ? 0.85 : index === 0 ? 2.05 : 0.25) * lightMultiplier}
             />
           ))}
         </>
@@ -97,7 +99,7 @@ function SceneLights({
             files={environmentFile}
             background={showBackground}
             environmentIntensity={environmentIntensity}
-            environmentRotation={environmentId === 'studio' ? [0, Math.PI / 4, 0] : [0, 0, 0]}
+            environmentRotation={environmentId === 'studio' ? [0, studioEnvironmentAngle, 0] : [0, 0, 0]}
             backgroundBlurriness={showBackground ? backgroundBlur : 0}
           />
         </Suspense>
