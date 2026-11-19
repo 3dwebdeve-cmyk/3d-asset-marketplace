@@ -262,7 +262,7 @@
 @media(max-width:600px){.custom-studio .studio-info.studio-benefits{padding:36px 0 32px}.custom-studio .studio-benefits h2{font-size:28px;margin-bottom:28px}}
 
 /* Wide FAQ layout from the reference. */
-.custom-studio .studio-faq{padding:0 24px 48px;color:#080808}
+.custom-studio .studio-faq{background:#f2f4f6;padding:0 24px 48px;color:#080808}
 .custom-studio .studio-faq-inner{max-width:1160px;width:100%;margin-inline:auto;border-top:0;padding:56px 0 0}
 .custom-studio .studio-faq h2{color:#080808;font-size:36px;line-height:1.2;margin:0 0 32px;letter-spacing:-1px;text-align:left}
 .custom-studio .studio-faq .faq-list{max-width:none;width:100%}
