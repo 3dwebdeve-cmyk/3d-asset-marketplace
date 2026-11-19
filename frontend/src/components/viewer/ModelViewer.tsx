@@ -301,25 +301,24 @@ function ModelViewerError({ message }: { message: string }) {
   )
 }
 
-const BACKGROUND_COLORS = [
-  { name: 'Light gray', color: '#e6e8ec' },
-  { name: 'Light blue', color: '#d6e7f7' },
-  { name: 'Gray', color: '#c5c8d0' },
+const BACKGROUND_GRADIENTS = [
+  'linear-gradient(to bottom, #A7A3A5 0%, #9A9494 50%, #8C8380 100%)',
+  'radial-gradient(ellipse closest-side at center, #E2E2E0 0%, #B8B7B5 60%, #737270 100%)',
 ] as const
 
 type ViewerBackgroundProps = {
-  background?: (typeof BACKGROUND_COLORS)[number]
+  background?: string
   onBackgroundChange: () => void
 }
 
 function ViewerToolbar({
   controls,
   onLighting,
-  background,
   onBackgroundChange,
-}: ViewerBackgroundProps & {
+}: {
   controls: { current: ComponentRef<typeof OrbitControls> | null }
   onLighting?: () => void
+  onBackgroundChange: () => void
 }) {
   const toolbar = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
@@ -358,12 +357,7 @@ function ViewerToolbar({
           Lighting
         </button>
       ) : null}
-      <button
-        type="button"
-        onClick={onBackgroundChange}
-        aria-label="Change background color"
-        title={background ? `Background: ${background.name}` : 'Change background color'}
-      >
+      <button type="button" onClick={onBackgroundChange} aria-label="Change background gradient">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" /><path d="m6 15 4-4 8 7" /></svg>
         BG Color
       </button>
@@ -459,7 +453,7 @@ function ModelViewerCanvas({
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
       <Canvas
         className="model-viewer__canvas"
-        style={background ? { background: background.color } : undefined}
+        style={background ? { backgroundImage: background } : undefined}
         camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         onCreated={({ gl }) => {
@@ -504,7 +498,6 @@ function ModelViewerCanvas({
       <ViewerToolbar
         controls={controls}
         onLighting={() => setKeyLightIndex((index) => ((index ?? -1) + 1) % LIGHT_POSITIONS.length)}
-        background={background}
         onBackgroundChange={onBackgroundChange}
       />
       <div className="model-viewer__controls" role="group" aria-label="Viewer controls">
@@ -557,7 +550,7 @@ function StableModelViewerCanvas({
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
       <Canvas
         className="model-viewer__canvas"
-        style={background ? { background: background.color } : undefined}
+        style={background ? { backgroundImage: background } : undefined}
         camera={{ position: [0, 0.9, 2.8], fov: 42, near: 0.1, far: 200 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         dpr={pixelRatio}
@@ -579,7 +572,7 @@ function StableModelViewerCanvas({
           maxPolarAngle={Math.PI * 0.92}
         />
       </Canvas>
-      <ViewerToolbar controls={controls} background={background} onBackgroundChange={onBackgroundChange} />
+      <ViewerToolbar controls={controls} onBackgroundChange={onBackgroundChange} />
       <ViewerProgressOverlay />
     </div>
   )
@@ -587,8 +580,8 @@ function StableModelViewerCanvas({
 
 export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps) {
   const [backgroundIndex, setBackgroundIndex] = useState(-1)
-  const background = BACKGROUND_COLORS[backgroundIndex]
-  const cycleBackground = () => setBackgroundIndex((index) => (index + 1) % BACKGROUND_COLORS.length)
+  const background = BACKGROUND_GRADIENTS[backgroundIndex]
+  const cycleBackground = () => setBackgroundIndex((index) => (index + 1) % BACKGROUND_GRADIENTS.length)
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
   const pixelRatio = useAdaptivePixelRatio()
