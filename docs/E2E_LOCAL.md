@@ -10,11 +10,19 @@ never touches the real services:
 
 | Real service | Local run |
 |---|---|
-| Cloudflare R2 buckets | Off (blank R2 settings). Files go to `backend/media` in this checkout |
+| Cloudflare R2 buckets | Off (`R2_FORCE_OFF=True`). Files go to `backend/media` in this checkout |
 | Stripe | Simulated (`E2E_STRIPE_SIMULATE=True`, placeholder test keys) |
 | Brevo email | Printed to the backend log |
-| Sentry, Google sign-in | Off |
+| Sentry | Off (`SENTRY_FORCE_OFF=True`) |
+| Google sign-in | Not used |
 | Database | Its own database `assethive_e2e_<name>`, created on first run |
+
+**Never turn a service off by blanking its setting.** On Windows an empty process variable is
+deleted, so the real value in `backend/.env` takes over (this wrote test files to the real R2
+buckets on 2026-11-10). Use an explicit switch. Before anything starts, the script runs
+`python manage.py check_safe_settings`, which reads the effective settings and stops the run if R2
+or Sentry would be used. If you run `runserver` or a seed command yourself against `backend/.env`,
+set `R2_FORCE_OFF=True` and `SENTRY_FORCE_OFF=True` and run that check first.
 
 The profile is `test`, which is the only profile in which the seed commands run. The admin signs in
 with a password; there is no authenticator in E2E. Never point these scripts at a server.

@@ -48,14 +48,11 @@ $safe = [ordered]@{
   DB_NAME                      = "assethive_e2e_$Name"
   DEBUG                        = 'False'
   ALLOWED_HOSTS                = 'localhost,127.0.0.1'
-  # Blank R2 settings switch storage to local files (config/settings.py, R2_ENABLED).
-  R2_ACCOUNT_ID                = ''
-  R2_ACCESS_KEY_ID             = ''
-  R2_SECRET_ACCESS_KEY         = ''
-  R2_ENDPOINT_URL              = ''
-  R2_PUBLIC_BUCKET             = ''
-  R2_PRIVATE_BUCKET            = ''
-  R2_PUBLIC_BASE_URL           = ''
+  # Explicit off switches. Never blank a setting to turn a service off: on Windows an empty
+  # process variable is deleted, so the real value in backend/.env wins.
+  # check_safe_settings below stops the run if either one fails to take effect.
+  R2_FORCE_OFF                 = 'True'
+  SENTRY_FORCE_OFF             = 'True'
   # Simulated Stripe with placeholder test keys: no request reaches Stripe.
   E2E_STRIPE_SIMULATE          = 'True'
   STRIPE_PAYMENT_MODE          = 'test'
@@ -66,7 +63,6 @@ $safe = [ordered]@{
   EMAIL_BACKEND                = 'django.core.mail.backends.console.EmailBackend'
   ALLOW_CONSOLE_EMAIL          = 'True'
   BREVO_API_KEY                = ''
-  SENTRY_DSN                   = ''
   GOOGLE_OAUTH_CLIENT_ID       = ''
   ADMIN_MFA_REQUIRED           = 'False'
   PASSWORD_BREACH_CHECK        = 'False'
@@ -89,6 +85,9 @@ foreach ($key in $safe.Keys) { [Environment]::SetEnvironmentVariable($key, $safe
 
 Push-Location $backend
 try {
+  # Stop before anything is written if the real R2 buckets or Sentry would be used.
+  & $Python manage.py check_safe_settings
+  if ($LASTEXITCODE -ne 0) { throw 'Unsafe settings: the real R2 or Sentry would be used. Nothing was started.' }
   # Create the stack's own database if needed (the login comes from backend/.env).
   & $Python (Join-Path $PSScriptRoot 'create_database.py') $(if ($Fresh) { '--fresh' })
   if ($LASTEXITCODE -ne 0) { throw 'Could not create the E2E database.' }
