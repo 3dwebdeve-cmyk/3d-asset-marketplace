@@ -43,6 +43,16 @@ function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   return null
 }
 
+function CenterFillLight() {
+  const light = useRef<THREE.DirectionalLight>(null)
+
+  useFrame(({ camera }) => {
+    if (light.current) camera.getWorldPosition(light.current.position)
+  })
+
+  return <directionalLight ref={light} intensity={0.7} />
+}
+
 function SceneLights({
   environmentId,
   environmentFile,
@@ -81,6 +91,7 @@ function SceneLights({
               intensity={(keyLightIndex === null ? 0.85 : index === 0 ? 2.05 : 0.25) * lightMultiplier}
             />
           ))}
+          <CenterFillLight />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentId === 'natural' && keyLightIndex !== null ? (
