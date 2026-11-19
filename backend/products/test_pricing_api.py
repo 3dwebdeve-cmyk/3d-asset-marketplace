@@ -430,13 +430,21 @@ class PricingApiTests(APITestCase):
         self.assertEqual(model.status, Product.Status.AWAITING_PRICE)
 
     def test_publish_runs_the_publish_checks(self, _exists) -> None:
-        model = self._model("No Preview")
-        Product.objects.filter(pk=model.pk).update(preview_model="")
+        model = self._model("No Price")
+        ProductFile.objects.filter(product=model).update(price=None)
 
         row = self._publish([model]).data["results"][0]
 
         self.assertFalse(row["published"])
-        self.assertIn("preview_model", row["reason"])
+        self.assertIn("price", row["reason"])
+
+    def test_a_model_with_no_preview_and_no_360_can_be_published(self, _exists) -> None:
+        model = self._model("No Preview")
+        Product.objects.filter(pk=model.pk).update(preview_model="", spin_images=[])
+
+        row = self._publish([model]).data["results"][0]
+
+        self.assertTrue(row["published"], row)
 
     def test_a_published_model_appears_in_the_shop(self, _exists) -> None:
         model = self._model("Shop Chair", price="20.00")
