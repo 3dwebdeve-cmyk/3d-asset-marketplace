@@ -177,9 +177,11 @@ add it there.
   on with the five-kind packages and warns `extra_file_skipped`; the model's QA notes name
   the file, so an administrator can add it by hand in Media → Packages. The main zip can
   never be such an entry (`invalid_packages`).
-- `media.preview_key` and `media.spin_keys` (36 frames) are both optional, but a model needs
-  at least one of them (`missing_preview`). `glb_checksum` is required only with a preview
-  (`missing_glb_checksum`).
+- `media.preview_key` and `media.spin_keys` (36 frames) are both optional, and a model may
+  have **neither** (a high-poly model often has no GLB; the product page then shows its
+  photos). A 360° must be exactly the 36 frames (`invalid_spin_keys` otherwise). `glb_checksum`
+  is required only with a preview (`missing_glb_checksum`). Low-poly models normally send a GLB,
+  but the website does not enforce it.
 - `package_formats`: the model formats inside the zip, lowercase without the dot
   (`fbx`, `max`, `obj`, `blend`, `glb`…). The plugin fills it from the files it packs. The
   site shows them as the product's formats and uses them for the browse page's
@@ -247,7 +249,7 @@ holds `preview_unchecked` when that applies.
 A row is skipped, with a reason, when any of these apply:
 `folder_mismatch`, `invalid_model_id`, `exports_incomplete`, `invalid_name`,
 `invalid_export_size`, `invalid_currency`, `missing_thumbnail`, `qa_not_ready`,
-`missing_glb_checksum`, `invalid_r2_prefix`, `missing_preview`, `invalid_object_key`,
+`missing_glb_checksum`, `invalid_r2_prefix`, `invalid_object_key`,
 `invalid_packages`, `missing_package_object`, `package_has_buyers`, and the category reasons
 below. The texts the admin sees for every reason are in `backend/products/import_reasons.py`.
 

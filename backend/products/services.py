@@ -11,7 +11,6 @@ from django.utils import timezone
 from categories.models import Category
 from config.media import (
     FREE_MODELS_PREFIX,
-    SPIN_FRAME_COUNT,
     is_free_model_path,
     package_object_exists,
 )
@@ -669,21 +668,19 @@ class ProductService(ProductMediaService):
             if price_errors:
                 errors["price"] = price_errors
 
-        if not (product.preview_model or "").strip():
-            if len(product.spin_images or ()) != SPIN_FRAME_COUNT:
+        # A 3D preview and a 360° spin are both optional (a model may have neither). A preview
+        # that exists must be the measured, reduced one.
+        if (product.preview_model or "").strip():
+            if product.polygon_count and product.preview_triangle_count is None:
                 errors["preview_model"] = [
-                    "A 3D preview or a 360° spin (36 frames) is required before publish."
+                    "Preview has not been measured. Upload the reduced preview again."
                 ]
-        elif product.polygon_count and product.preview_triangle_count is None:
-            errors["preview_model"] = [
-                "Preview has not been measured. Upload the reduced preview again."
-            ]
-        else:
-            reduction_error = preview_reduction_error(
-                product.preview_triangle_count, product.polygon_count
-            )
-            if reduction_error:
-                errors["preview_model"] = [reduction_error]
+            else:
+                reduction_error = preview_reduction_error(
+                    product.preview_triangle_count, product.polygon_count
+                )
+                if reduction_error:
+                    errors["preview_model"] = [reduction_error]
 
         if errors:
             raise ProductError(
