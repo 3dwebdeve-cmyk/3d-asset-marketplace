@@ -71,6 +71,16 @@ function pricingRow(page: Page, sku: string): Locator {
     .filter({ has: page.getByText(sku, { exact: true }) })
 }
 
+/** Type the rate and the five percents into the Model Pricing box: Whole File = hours x 20. */
+async function fillPricingBox(page: Page) {
+  await page.getByLabel('Rate per hour (USD)').fill('20')
+  await page.getByLabel('With Light Rig percent').fill('60')
+  await page.getByLabel('Without Light Rig percent').fill('50')
+  await page.getByLabel('With Environment percent').fill('30')
+  await page.getByLabel('GLB Only percent').fill('25')
+  await page.getByLabel('Whole File percent').fill('100')
+}
+
 async function openPricing(page: Page, tab: 'waiting' | 'live' = 'waiting') {
   await page.goto(tab === 'live' ? '/console/pricing?tab=live' : '/console/pricing')
   await expect(page.getByRole('heading', { name: 'Pricing', level: 1 })).toBeVisible()
@@ -175,23 +185,13 @@ test.describe('admin pricing pipeline', () => {
     await expect(pricingRow(page, FREE_QA.sku)).toHaveCount(0)
     await expect(pricingRow(page, LIVE.sku)).toHaveCount(0)
 
-    // Row details: poly level, the Whole File package's price (or "Not set"), the "From" price.
+    // Row details: the hours (typed, empty for the High Poly Sofa), the Whole File variation's
+    // price (or "Not set"), the "From" price.
     const paidRow = pricingRow(page, PAID_QA.sku)
-    await expect(paidRow).toContainText('Mid poly')
+    await expect(paidRow.getByLabel(`Hours for ${PAID_QA.name}`)).toHaveValue('8.00')
     await expect(paidRow).toContainText('$25.00')
     await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('Not set')
-    await expect(pricingRow(page, WAIT_UNKNOWN.sku)).toContainText('Unknown')
-
-    // Poly level.
-    await page.getByLabel('Poly level', { exact: true }).selectOption('high')
-    await expect(pricingRow(page, WAIT_HIGH.sku)).toBeVisible()
-    await expect(pricingRow(page, WAIT_MID.sku)).toHaveCount(0)
-    await expect(pricingRow(page, WAIT_LOW.sku)).toHaveCount(0)
-    await page.getByLabel('Poly level', { exact: true }).selectOption('mid')
-    await expect(pricingRow(page, WAIT_MID.sku)).toBeVisible()
-    await expect(pricingRow(page, PAID_QA.sku)).toBeVisible()
-    await expect(pricingRow(page, WAIT_HIGH.sku)).toHaveCount(0)
-    await page.getByLabel('Poly level', { exact: true }).selectOption('')
+    await expect(pricingRow(page, WAIT_HIGH.sku).getByLabel(`Hours for ${WAIT_HIGH.name}`)).toHaveValue('')
 
     // Category (main category includes its subcategories), then subcategory.
     const subcategory = page.getByLabel('Subcategory')
@@ -231,9 +231,64 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  test('6a. The publish summary opens where the admin can see it', async ({ adminPage: page }) => {
+  test('4. Model Pricing box: calculate beside each variation, publish; a model without hours stays', async ({ adminPage: page }) => {
+    const errors = watchConsole(page)
     await openPricing(page)
-    await page.getByRole('checkbox', { name: `Select ${WAIT_HIGH.name}` }).check()
+
+    const selection = page.locator('.admin-pricing__selection')
+    for (const model of [PAID_QA, WAIT_LOW, WAIT_MID, WAIT_HIGH]) {
+      await page.getByRole('checkbox', { name: `Select ${model.name}` }).check()
+    }
+    await expect(selection).toContainText('4 selected')
+
+    // Nothing to publish before a calculation.
+    await expect(page.getByRole('button', { name: 'Publish selected (4)' })).toBeDisabled()
+    await fillPricingBox(page)
+    await page.getByRole('button', { name: 'Calculate prices (4)' }).click()
+
+    // The new price shows right beside the model's variation (hours 8 / 4 / 6, rate $20, Whole 100%).
+    await expect(pricingRow(page, PAID_QA.sku)).toContainText('Whole File: $25.00 → $160.00')
+    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('Whole File: Not set → $80.00')
+    await expect(pricingRow(page, WAIT_MID.sku)).toContainText('Whole File: $30.00 → $120.00')
+    // The model without hours says why and gets no price.
+    await expect(pricingRow(page, WAIT_HIGH.sku)).toContainText('Enter the hours spent first.')
+    await expect(page.locator('.admin-pricing__calc-summary')).toContainText('3 of 4 models priced')
+
+    // Changing a box clears the calculation.
+    await page.getByLabel('Whole File percent').fill('90')
+    await expect(pricingRow(page, PAID_QA.sku)).not.toContainText('→')
+    await expect(page.getByRole('button', { name: 'Publish selected (4)' })).toBeDisabled()
+    await page.getByLabel('Whole File percent').fill('100')
+    await page.getByRole('button', { name: 'Calculate prices (4)' }).click()
+    await expect(pricingRow(page, PAID_QA.sku)).toContainText('→ $160.00')
+
+    // Publish: summary first, then the results.
+    await page.getByRole('button', { name: 'Publish selected (4)' }).click()
+    const summary = page.getByRole('dialog', { name: 'Publish 4 models?' })
+    await expect(summary).toContainText('1 cannot be priced and will stay waiting')
+    await summary.getByRole('button', { name: 'Publish 4 models' }).click()
+    const results = page.getByRole('region', { name: /published, .* not published/ })
+    await expect(results.getByRole('heading')).toHaveText('3 published, 1 not published')
+    await expect(toast(page, '3 models published.')).toBeVisible()
+    await expect(results.getByRole('listitem').filter({ hasText: WAIT_HIGH.name })).toContainText('hours')
+
+    // The unpriced model stays waiting; the published ones are on the Live tab at their prices.
+    await expect(pricingRow(page, WAIT_HIGH.sku)).toBeVisible()
+    await expect(pricingRow(page, PAID_QA.sku)).toHaveCount(0)
+    await page.getByRole('tab', { name: /Live models/ }).click()
+    await searchPricing(page, 'PRC-')
+    await expect(pricingRow(page, PAID_QA.sku)).toContainText('$160.00')
+    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('$80.00')
+    await expect(pricingRow(page, WAIT_MID.sku)).toContainText('$120.00')
+
+    reportConsole(errors)
+  })
+
+  test('6a. The publish summary opens where the admin can see it (changes no data)', async ({ adminPage: page }) => {
+    await openPricing(page)
+    await page.getByRole('checkbox', { name: `Select ${WAIT_UNKNOWN.name}` }).check()
+    await fillPricingBox(page)
+    await page.getByRole('button', { name: 'Calculate prices (1)' }).click()
     await page.getByRole('button', { name: 'Publish selected (1)' }).click()
     const summary = page.getByRole('dialog', { name: 'Publish 1 model?' })
     await expect(summary).toBeInViewport()

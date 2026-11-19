@@ -18,6 +18,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from products.catalog_import import FREE_TO_PAID_OFF_SALE
+from products.errors import ProductError
 from products.models import Product
 from products.services import ProductService
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
@@ -140,19 +141,45 @@ class PricingReviewFixTests(CatalogImportTestBase):
         self.assertEqual(product.price, Decimal("0.00"))
         self.assertFalse(product.files.filter(discount_price__isnull=False).exists())
 
-    def test_publish_refuses_a_model_with_a_sale_that_breaks_the_rules(self) -> None:
+    def test_the_publish_check_refuses_a_sale_that_breaks_the_rules(self) -> None:
         self._upload(_happy_item(), "2026-11-10-paid-06")
         product = Product.objects.get(sku=_SKU)
         self._approve(product)
         # Older data: a 0.10 sale on a 29.99 package, stored before the rules existed.
         price_packages(product, "29.99", discount_price=Decimal("0.10"))
-        url = reverse("products_admin:admin-pricing-publish")
 
-        response = self.client.post(url, {"product_ids": [str(product.pk)], "confirm_count": 1}, format="json")
+        with self.assertRaises(ProductError) as raised:
+            ProductService._validate_publish_ready(product, require_sku=True)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        result = response.data["results"][0]
-        self.assertFalse(result["published"])
-        self.assertIn("Whole File: its sale price 0.10 is not allowed", result["reason"])
+        self.assertIn("Whole File: its sale price 0.10 is not allowed", " ".join(raised.exception.errors["price"]))
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.AWAITING_PRICE)
+
+    def test_pricing_the_model_replaces_a_stored_sale_so_it_can_be_published(self) -> None:
+        self._upload(_happy_item(), "2026-11-10-paid-07")
+        product = Product.objects.get(sku=_SKU)
+        self._approve(product)
+        price_packages(product, "29.99", discount_price=Decimal("0.10"))
+        Product.objects.filter(pk=product.pk).update(hours_spent=Decimal("1.5"))
+        body = {
+            "product_ids": [str(product.pk)],
+            "rate": "20",
+            "percents": {
+                "with_light_rig": "60", "without_light_rig": "50", "glb_only": "25",
+                "environment": "30", "whole": "100",
+            },
+        }
+        token = self.client.post(
+            reverse("products_admin:admin-pricing-calculate"), body, format="json"
+        ).data["preview_token"]
+
+        response = self.client.post(
+            reverse("products_admin:admin-pricing-publish"),
+            {**body, "preview_token": token, "confirm_count": 1},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data["results"][0]["published"], response.data)
+        package = product.files.get(is_preview=False, package_kind="whole")
+        self.assertEqual((package.price, package.discount_price), (Decimal("30.00"), None))

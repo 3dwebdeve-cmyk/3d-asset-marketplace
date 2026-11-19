@@ -1,7 +1,10 @@
 import { apiClient } from './client'
 import type {
   PaginatedPricingRows,
+  PricingCalculation,
+  PricingInputBody,
   PricingListParams,
+  PricingPublishRequest,
   PricingPublishResult,
   PricingTab,
 } from '../types/pricing'
@@ -20,14 +23,24 @@ export async function listPricingBatches(tab: PricingTab): Promise<string[]> {
   return response.data.results
 }
 
-/** Put priced models from Waiting for price on the store. */
-export async function publishPricing(
-  productIds: string[],
-  confirmCount: number,
-): Promise<PricingPublishResult> {
-  const response = await apiClient.post<PricingPublishResult>(`${BASE}/publish/`, {
-    product_ids: productIds,
-    confirm_count: confirmCount,
+/** The prices the selection would get. The server calculates; nothing is saved. */
+export async function calculatePricing(body: PricingInputBody): Promise<PricingCalculation> {
+  const response = await apiClient.post<PricingCalculation>(`${BASE}/calculate/`, body)
+  return response.data
+}
+
+/** Save the calculated prices and put the models on the store. 409: calculate again. */
+export async function publishPricing(body: PricingPublishRequest): Promise<PricingPublishResult> {
+  const response = await apiClient.post<PricingPublishResult>(`${BASE}/publish/`, body)
+  return response.data
+}
+
+/** Set (or clear, with null) the hours spent of some models. */
+export async function savePricingHours(
+  items: { id: string; hours_spent: string | null }[],
+): Promise<{ models: number; changed: number }> {
+  const response = await apiClient.post<{ models: number; changed: number }>(`${BASE}/hours/`, {
+    items,
   })
   return response.data
 }

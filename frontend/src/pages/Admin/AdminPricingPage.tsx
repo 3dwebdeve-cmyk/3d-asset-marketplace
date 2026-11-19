@@ -1,9 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { listAdminCategories } from '../../api/categoriesApi'
-import { listPricingBatches, listPricingModels, publishPricing } from '../../api/pricingApi'
+import {
+  calculatePricing,
+  listPricingBatches,
+  listPricingModels,
+  publishPricing,
+  savePricingHours,
+} from '../../api/pricingApi'
 import { AdminIcon } from '../../components/admin/AdminIcon'
 import { Alert } from '../../components/ui/Alert'
 import { Button } from '../../components/ui/Button'
@@ -13,15 +21,13 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { PACKAGE_LABELS, PACKAGE_ORDER, type PackageKind } from '../../lib/packages'
 import { toast } from '../../lib/toast'
-import {
-  DEFAULT_HIGH_ABOVE,
-  DEFAULT_LOW_BELOW,
-  MAX_MODELS_PER_ACTION,
-  POLY_TIER_LABELS,
-} from '../../types/pricing'
+import { MAX_MODELS_PER_ACTION } from '../../types/pricing'
 import type {
-  PolyTier,
+  PricingCalcRow,
+  PricingCalculation,
+  PricingInputBody,
   PricingPackage,
   PricingPublishResult,
   PricingRow,
@@ -30,7 +36,18 @@ import type {
 import '../../styles/admin-pricing.css'
 
 const PAGE_SIZE = 50
-const TIERS: PolyTier[] = ['low', 'mid', 'high', 'unknown']
+const NUMBER_PATTERN = /^\d+(\.\d{1,2})?$/
+const MAX_RATE = 100_000
+const MAX_PERCENT = 200
+
+type Percents = Record<PackageKind, string>
+const EMPTY_PERCENTS: Percents = {
+  with_light_rig: '',
+  without_light_rig: '',
+  glb_only: '',
+  environment: '',
+  whole: '',
+}
 
 function money(value: string | null | undefined): string {
   return value === null || value === undefined ? '—' : `$${value}`
@@ -49,9 +66,24 @@ function revealPanel(panel: HTMLElement | null) {
   panel.focus?.({ preventScroll: true })
 }
 
-/** A model's packages with their prices; a package with no price is shown as not set. */
-function PackagePrices({ packages, warning }: { packages: PricingPackage[]; warning: string }) {
+function isPositive(value: string, max: number): boolean {
+  const text = value.trim()
+  return NUMBER_PATTERN.test(text) && Number(text) > 0 && Number(text) <= max
+}
+
+/** A model's packages. After a calculation each variation shows its new price beside it;
+ * a model that cannot be priced shows why instead. */
+function PackagePrices({
+  packages,
+  warning,
+  calculated,
+}: {
+  packages: PricingPackage[]
+  warning: string
+  calculated?: PricingCalcRow
+}) {
   if (packages.length === 0) return <em>No packages</em>
+  const newPrices = new Map((calculated?.packages ?? []).map((item) => [item.kind, item.price]))
   return (
     <>
       <ul className="admin-pricing__packages">
@@ -68,9 +100,13 @@ function PackagePrices({ packages, warning }: { packages: PricingPackage[]; warn
             ) : (
               money(row.price)
             )}
+            {newPrices.has(row.kind) ? (
+              <strong className="admin-pricing__new-price"> → {money(newPrices.get(row.kind))}</strong>
+            ) : null}
           </li>
         ))}
       </ul>
+      {calculated?.error ? <p className="admin-pricing__row-error" role="alert">{calculated.error}</p> : null}
       {warning ? <p className="admin-pricing__bundle-warning" role="note">{warning}</p> : null}
     </>
   )
@@ -84,9 +120,6 @@ export function AdminPricingPage() {
   // Filters
   const [categoryId, setCategoryId] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
-  const [poly, setPoly] = useState<PolyTier | ''>('')
-  const [lowBelow, setLowBelow] = useState(String(DEFAULT_LOW_BELOW))
-  const [highAbove, setHighAbove] = useState(String(DEFAULT_HIGH_ABOVE))
   const [searchInput, setSearchInput] = useState('')
   const search = useDebouncedValue(searchInput.trim(), 300)
   const [batch, setBatch] = useState('')
@@ -96,6 +129,13 @@ export function AdminPricingPage() {
   // Selection survives paging; at most MAX_MODELS_PER_ACTION models.
   const [selected, setSelected] = useState<Map<string, PricingRow>>(() => new Map())
 
+  // The Model Pricing box: one rate and one percent per package, for every ticked model.
+  const [rate, setRate] = useState('')
+  const [percents, setPercents] = useState<Percents>(EMPTY_PERCENTS)
+  // Hours typed in the table and not saved yet (saved when the box loses focus).
+  const [hoursDraft, setHoursDraft] = useState<Record<string, string>>({})
+
+  const [calculation, setCalculation] = useState<{ body: PricingInputBody; result: PricingCalculation } | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [showPublishSummary, setShowPublishSummary] = useState(false)
   const [publishResult, setPublishResult] = useState<PricingPublishResult | null>(null)
@@ -106,29 +146,20 @@ export function AdminPricingPage() {
   useEffect(() => { if (showPublishSummary) revealPanel(publishSummaryRef.current) }, [showPublishSummary])
   useEffect(() => { if (publishResult) revealPanel(publishResultRef.current) }, [publishResult])
 
-  const thresholds = {
-    low_below: Number(lowBelow) || DEFAULT_LOW_BELOW,
-    high_above: Number(highAbove) || DEFAULT_HIGH_ABOVE,
-  }
-  const thresholdsValid = thresholds.low_below >= 1 && thresholds.high_above >= thresholds.low_below
-
   const listParams = {
     tab,
     category_id: categoryId || undefined,
     subcategory_id: subcategoryId || undefined,
-    poly: poly || undefined,
     search: search || undefined,
     import_batch_id: batch || undefined,
     ordering,
     page,
     page_size: PAGE_SIZE,
-    ...thresholds,
   }
 
   const modelsQuery = useQuery({
     queryKey: ['admin', 'pricing', 'list', listParams],
     queryFn: () => listPricingModels(listParams),
-    enabled: thresholdsValid,
   })
   const waitingCount = useQuery({
     queryKey: ['admin', 'pricing', 'count', 'waiting'],
@@ -153,7 +184,17 @@ export function AdminPricingPage() {
   const rows = modelsQuery.data?.results ?? []
   const selectedRows = useMemo(() => [...selected.values()], [selected])
   const selectedIds = selectedRows.map((row) => row.id)
+  const calculatedById = useMemo(
+    () => new Map((calculation?.result.rows ?? []).map((row) => [row.id, row])),
+    [calculation],
+  )
 
+  // Any change to the selection, the boxes or the hours makes the calculation stale.
+  const resetCalculation = () => {
+    setCalculation(null)
+    setShowPublishSummary(false)
+    setFormError(null)
+  }
   const resetPage = () => setPage(1)
 
   const switchTab = (next: PricingTab) => {
@@ -161,15 +202,15 @@ export function AdminPricingPage() {
     params.set('tab', next)
     setSearchParams(params)
     setSelected(new Map())
+    setHoursDraft({})
     setBatch('')
     setPage(1)
-    setShowPublishSummary(false)
     setPublishResult(null)
-    setFormError(null)
+    resetCalculation()
   }
 
   const toggle = (row: PricingRow) => {
-    setFormError(null)
+    resetCalculation()
     if (!selected.has(row.id) && selected.size >= MAX_MODELS_PER_ACTION) {
       setFormError(`Select at most ${MAX_MODELS_PER_ACTION} models at a time.`)
       return
@@ -187,7 +228,7 @@ export function AdminPricingPage() {
 
   const allOnPageSelected = rows.length > 0 && rows.every((row) => selected.has(row.id))
   const togglePage = () => {
-    setFormError(null)
+    resetCalculation()
     setSelected((current) => {
       const next = new Map(current)
       if (allOnPageSelected) {
@@ -207,11 +248,90 @@ export function AdminPricingPage() {
     await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
   }
 
+  // ─── Hours ────────────────────────────────────────────────────────────────
+  const hoursOf = (row: PricingRow) => hoursDraft[row.id] ?? row.hours_spent ?? ''
+
+  const hoursMutation = useMutation({
+    mutationFn: (item: { id: string; hours: string }) =>
+      savePricingHours([{ id: item.id, hours_spent: item.hours.trim() || null }]),
+    onSuccess: async (_result, item) => {
+      setHoursDraft((current) => {
+        const next = { ...current }
+        delete next[item.id]
+        return next
+      })
+      resetCalculation()
+      await refreshLists()
+    },
+    onError: (error) => setFormError(getApiErrorMessage(error, 'Could not save the hours.')),
+  })
+
+  const saveHours = (row: PricingRow) => {
+    const typed = hoursDraft[row.id]
+    if (typed === undefined || typed.trim() === (row.hours_spent ?? '')) {
+      setHoursDraft((current) => {
+        const next = { ...current }
+        delete next[row.id]
+        return next
+      })
+      return
+    }
+    if (typed.trim() !== '' && !isPositive(typed, 99_999)) {
+      setFormError('Hours must be a number above 0.')
+      return
+    }
+    setFormError(null)
+    hoursMutation.mutate({ id: row.id, hours: typed })
+  }
+
+  // ─── Calculate and publish ────────────────────────────────────────────────
+  const buildBody = (): PricingInputBody | string => {
+    if (selectedIds.length === 0) return 'Tick at least one model.'
+    if (Object.keys(hoursDraft).length > 0) return 'Finish typing the hours first (click outside the box to save).'
+    if (!isPositive(rate, MAX_RATE)) return 'Enter the rate per hour, for example 20 or 12.50.'
+    for (const kind of PACKAGE_ORDER) {
+      if (!isPositive(percents[kind], MAX_PERCENT)) {
+        return `Enter the ${PACKAGE_LABELS[kind]} percent (above 0, at most ${MAX_PERCENT}).`
+      }
+    }
+    return {
+      product_ids: selectedIds,
+      rate: rate.trim(),
+      percents: Object.fromEntries(PACKAGE_ORDER.map((kind) => [kind, percents[kind].trim()])) as Percents,
+    }
+  }
+
+  const calculateMutation = useMutation({
+    mutationFn: (body: PricingInputBody) => calculatePricing(body).then((result) => ({ body, result })),
+    onSuccess: (data) => setCalculation(data),
+    onError: (error) => setFormError(getApiErrorMessage(error, 'Could not calculate the prices.')),
+  })
+
+  const onCalculate = (event: FormEvent) => {
+    event.preventDefault()
+    setFormError(null)
+    setPublishResult(null)
+    const body = buildBody()
+    if (typeof body === 'string') {
+      setFormError(body)
+      return
+    }
+    calculateMutation.mutate(body)
+  }
+
   const publishMutation = useMutation({
-    mutationFn: () => publishPricing(selectedIds, selectedIds.length),
+    mutationFn: () => {
+      if (!calculation) throw new Error('No calculation')
+      return publishPricing({
+        ...calculation.body,
+        preview_token: calculation.result.preview_token,
+        confirm_count: calculation.body.product_ids.length,
+      })
+    },
     onSuccess: async (result) => {
       setPublishResult(result)
       setShowPublishSummary(false)
+      setCalculation(null)
       setSelected((current) => {
         const next = new Map(current)
         result.results.filter((row) => row.published).forEach((row) => next.delete(row.id))
@@ -220,14 +340,20 @@ export function AdminPricingPage() {
       toast.success(`${result.published} model${result.published === 1 ? '' : 's'} published.`)
       await refreshLists()
     },
-    onError: (error) => setFormError(getApiErrorMessage(error, 'Could not publish the models.')),
+    onError: (error) => {
+      if (isAxiosError(error) && error.response?.status === 409) {
+        setCalculation(null)
+        setShowPublishSummary(false)
+        setFormError('Prices or hours changed since the calculation. Calculate again.')
+        return
+      }
+      setFormError(getApiErrorMessage(error, 'Could not publish the models.'))
+    },
   })
 
-  // A model goes live only with every package priced (the server checks again).
-  const unpriced = selectedRows.filter(
-    (row) => row.packages.length === 0 || row.packages.some((item) => item.price === null || Number(item.price) < 0.5),
-  ).length
-  const busy = publishMutation.isPending
+  const summary = calculation?.result.summary
+  const busy = calculateMutation.isPending || publishMutation.isPending || hoursMutation.isPending
+  const canPublish = tab === 'waiting' && calculation !== null && (summary?.priced ?? 0) > 0
 
   return (
     <main className="dashboard-page admin-pricing-page">
@@ -237,7 +363,8 @@ export function AdminPricingPage() {
           <div>
             <h1 id="admin-pricing-title">Pricing</h1>
             <p className="home-page__subtitle">
-              Paid models wait here after QA. Waiting models go live only when you publish them.
+              Tick the models, type the rate and the percents, calculate, then publish. Each model is
+              priced only for the variations it has.
             </p>
           </div>
         </header>
@@ -290,17 +417,6 @@ export function AdminPricingPage() {
               ))}
             </select>
           </FormField>
-          <FormField id="pricing-poly" label="Poly level">
-            <select
-              id="pricing-poly"
-              className="ui-input"
-              value={poly}
-              onChange={(event) => { setPoly(event.target.value as PolyTier | ''); resetPage() }}
-            >
-              <option value="">All levels</option>
-              {TIERS.map((tier) => <option key={tier} value={tier}>{POLY_TIER_LABELS[tier]}</option>)}
-            </select>
-          </FormField>
           <FormField id="pricing-search" label="Search name or model ID">
             <Input
               id="pricing-search"
@@ -325,48 +441,83 @@ export function AdminPricingPage() {
               <option value="-created_at">Newest first</option>
               <option value="price">Price low–high</option>
               <option value="-price">Price high–low</option>
+              <option value="hours_spent">Hours low–high</option>
+              <option value="-hours_spent">Hours high–low</option>
               <option value="polygon_count">Polygons low–high</option>
               <option value="-polygon_count">Polygons high–low</option>
             </select>
           </FormField>
-          <details className="admin-pricing__limits">
-            <summary>Poly level limits</summary>
-            <p className="home-page__subtitle">Low: fewer than the first number. High: more than the second. Mid: in between.</p>
-            <div className="admin-pricing__limits-fields">
-              <FormField id="pricing-low-below" label="Low below">
-                <Input id="pricing-low-below" type="number" min="1" value={lowBelow}
-                  onChange={(event) => { setLowBelow(event.target.value); resetPage() }} />
-              </FormField>
-              <FormField id="pricing-high-above" label="High above">
-                <Input id="pricing-high-above" type="number" min="1" value={highAbove}
-                  onChange={(event) => { setHighAbove(event.target.value); resetPage() }} />
-              </FormField>
-            </div>
-            {!thresholdsValid ? <Alert variant="error" message="The Low limit must be at least 1 and not above the High limit." /> : null}
-          </details>
         </div>
 
-        <div className="admin-pricing__layout">
+        <div className={`admin-pricing__layout${tab === 'waiting' ? ' admin-pricing__layout--with-panel' : ''}`}>
+          {tab === 'waiting' ? (
+            <aside className="admin-pricing__panel" aria-labelledby="pricing-box-title">
+              <h2 id="pricing-box-title">Model Pricing</h2>
+              <form onSubmit={onCalculate} noValidate>
+                <div className="admin-pricing__formula">
+                  <label htmlFor="pricing-rate">Base price = Hours ×</label>
+                  <Input
+                    id="pricing-rate"
+                    inputMode="decimal"
+                    aria-label="Rate per hour (USD)"
+                    placeholder="$ / hour"
+                    value={rate}
+                    onChange={(event) => { setRate(event.target.value); resetCalculation() }}
+                  />
+                </div>
+                {PACKAGE_ORDER.map((kind) => (
+                  <div className="admin-pricing__formula" key={kind}>
+                    <label htmlFor={`pricing-percent-${kind}`}>{PACKAGE_LABELS[kind]} = Base price ×</label>
+                    <span className="admin-pricing__percent">
+                      <Input
+                        id={`pricing-percent-${kind}`}
+                        inputMode="decimal"
+                        aria-label={`${PACKAGE_LABELS[kind]} percent`}
+                        value={percents[kind]}
+                        onChange={(event) => {
+                          setPercents((current) => ({ ...current, [kind]: event.target.value }))
+                          resetCalculation()
+                        }}
+                      />
+                      <span aria-hidden="true">%</span>
+                    </span>
+                  </div>
+                ))}
+                {formError ? <Alert variant="error" message={formError} /> : null}
+                <Button type="submit" variant="secondary" isLoading={calculateMutation.isPending} disabled={busy || selected.size === 0}>
+                  Calculate prices ({selected.size})
+                </Button>
+              </form>
+            </aside>
+          ) : null}
+
           <div className="admin-table-wrap">
-            {formError ? <Alert variant="error" message={formError} /> : null}
+            {tab === 'live' && formError ? <Alert variant="error" message={formError} /> : null}
             <div className="admin-pricing__selection">
               <strong>{selected.size} selected</strong>
               <span className="home-page__subtitle"> (at most {MAX_MODELS_PER_ACTION})</span>
               {selected.size > 0 ? (
-                <Button type="button" variant="secondary" onClick={() => { setSelected(new Map()); setFormError(null) }}>
+                <Button type="button" variant="secondary" onClick={() => { setSelected(new Map()); resetCalculation() }}>
                   Clear selection
                 </Button>
               ) : null}
               {tab === 'waiting' ? (
                 <Button
                   type="button"
-                  disabled={selected.size === 0 || busy}
+                  disabled={!canPublish || busy}
                   onClick={() => { setPublishResult(null); setShowPublishSummary(true) }}
                 >
                   Publish selected ({selected.size})
                 </Button>
               ) : null}
             </div>
+            {summary ? (
+              <p role="status" className="admin-pricing__calc-summary">
+                {summary.priced} of {summary.models} model{summary.models === 1 ? '' : 's'} priced
+                {summary.errors > 0 ? `, ${summary.errors} cannot be priced (see the note on the model)` : ''}.
+                Check the new prices, then publish.
+              </p>
+            ) : null}
 
             {modelsQuery.isLoading ? <Spinner label="Loading models..." /> : modelsQuery.isError ? (
               <ErrorState
@@ -389,8 +540,8 @@ export function AdminPricingPage() {
                     <th scope="col">Model</th>
                     <th scope="col">Category</th>
                     <th scope="col">Polygons</th>
-                    <th scope="col">Level</th>
-                    <th scope="col">Packages</th>
+                    <th scope="col">Hours</th>
+                    <th scope="col">Variations and prices</th>
                     <th scope="col">From</th>
                   </tr>
                 </thead>
@@ -412,8 +563,27 @@ export function AdminPricingPage() {
                       </td>
                       <td>{row.category.name}</td>
                       <td>{row.polygon_count?.toLocaleString() ?? '—'}</td>
-                      <td><span className={`admin-pricing__tier admin-pricing__tier--${row.poly_tier}`}>{POLY_TIER_LABELS[row.poly_tier]}</span></td>
-                      <td><PackagePrices packages={row.packages} warning={row.bundle_warning} /></td>
+                      <td>
+                        {tab === 'waiting' ? (
+                          <Input
+                            aria-label={`Hours for ${row.name}`}
+                            inputMode="decimal"
+                            className="admin-pricing__number"
+                            value={hoursOf(row)}
+                            onChange={(event) => setHoursDraft((current) => ({ ...current, [row.id]: event.target.value }))}
+                            onBlur={() => saveHours(row)}
+                          />
+                        ) : (
+                          row.hours_spent ?? '—'
+                        )}
+                      </td>
+                      <td>
+                        <PackagePrices
+                          packages={row.packages}
+                          warning={row.bundle_warning}
+                          calculated={calculatedById.get(row.id)}
+                        />
+                      </td>
                       <td>{Number(row.price) > 0 ? money(row.buyer_pays) : <em>Not set</em>}</td>
                     </tr>
                   ))}
@@ -438,13 +608,15 @@ export function AdminPricingPage() {
           </div>
         </div>
 
-        {showPublishSummary ? (
+        {showPublishSummary && summary ? (
           <section ref={publishSummaryRef} tabIndex={-1} className="admin-pricing__preview" role="dialog" aria-labelledby="pricing-publish-title">
             <h2 id="pricing-publish-title">Publish {selected.size} model{selected.size === 1 ? '' : 's'}?</h2>
             <p>
-              They go on the store with the package prices shown.
-              {unpriced > 0 ? ` ${unpriced} have a package with no price yet and will stay waiting.` : ''} Each
-              model is checked again before it goes live.
+              The calculated prices are saved and {summary.priced} model{summary.priced === 1 ? '' : 's'} go
+              {summary.priced === 1 ? 'es' : ''} on the live site.
+              {summary.errors > 0
+                ? ` ${summary.errors} cannot be priced and will stay waiting.`
+                : ''} Each model is checked again before it goes live.
             </p>
             <div className="dashboard-card__actions">
               <Button type="button" isLoading={publishMutation.isPending} disabled={busy} onClick={() => publishMutation.mutate()}>

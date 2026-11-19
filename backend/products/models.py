@@ -118,12 +118,9 @@ class Product(PricedMixin, models.Model):
     # Set only by the catalog import; the frames live under 360/<sku>/ in the public bucket.
     spin_images = models.JSONField(default=list, blank=True)
     polygon_count = models.PositiveIntegerField(null=True, blank=True)
-    # Hours spent on the model (sent by the uploader, editable on the Pricing page), the money
-    # rate per hour, and this model's own package percentages (kind -> percent; a kind that is
-    # missing uses the default). Base price = hours x rate (products.pricing).
+    # Hours spent on the model: sent by the uploader, editable on the Pricing page. The Pricing
+    # page prices from it (hours x rate x package percent).
     hours_spent = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
-    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    package_percents = models.JSONField(default=dict, blank=True)
     vertex_count = models.PositiveIntegerField(null=True, blank=True)
     material_count = models.PositiveIntegerField(null=True, blank=True)
     texture_map_types = models.JSONField(default=list, blank=True)
@@ -363,25 +360,3 @@ class ProductFile(PricedMixin, models.Model):
 
     def __str__(self) -> str:
         return f"{self.product.name} ({self.file_format})"
-
-
-class PricingSettings(models.Model):
-    """The default package percentages of the hours pricing (one row, pk=1).
-
-    ``package_percents`` maps every package kind to its share of the base price, in percent.
-    A model's own ``package_percents`` overrides a kind. Read and write through
-    ``products.pricing.get_default_percents`` / ``save_default_percents``.
-    """
-
-    package_percents = models.JSONField(default=dict)
-    updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="+",
-    )
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = "pricing_settings"
