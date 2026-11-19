@@ -208,6 +208,12 @@ page shows a summary first. Each model is checked and saved on its own.
 Returns `models`, `published`, `failed`, and `results` (`id`, `name`, `sku`, `published`,
 `reason`). The audit log gets one `pricing_publish` entry.
 
+> **Pricing page reset (2026-11-19):** the Pricing page is being redone. Its calculator (hours
+> price, set price, sales, sale switch), the hours / rate / percents boxes and the default
+> percents editor are removed from the screen for now. The page lists models, filters, selects
+> and publishes only. The Pricing API below (preview, apply, inputs, defaults) is still in the
+> backend, unchanged, until the new design says what it needs.
+
 ## Hours pricing
 
 The poly-level price rule is gone. A model is priced from the hours spent on it.

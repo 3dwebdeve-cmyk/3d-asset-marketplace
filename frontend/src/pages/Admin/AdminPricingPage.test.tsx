@@ -1,25 +1,19 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AxiosError, AxiosHeaders } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as categoriesApi from '../../api/categoriesApi'
 import * as pricingApi from '../../api/pricingApi'
 import { createTestQueryClient, resetToastStore } from '../../test/test-utils'
-import type { PricingPackage, PricingPreview, PricingRow } from '../../types/pricing'
+import type { PricingPackage, PricingRow } from '../../types/pricing'
 import { AdminPricingPage } from './AdminPricingPage'
 
 vi.mock('../../api/pricingApi', () => ({
   listPricingModels: vi.fn(),
   listPricingBatches: vi.fn(),
-  previewPricing: vi.fn(),
-  applyPricing: vi.fn(),
   publishPricing: vi.fn(),
-  getPricingDefaults: vi.fn(),
-  savePricingDefaults: vi.fn(),
-  savePricingInputs: vi.fn(),
 }))
 vi.mock('../../api/categoriesApi', async () => {
   const actual = await vi.importActual<typeof import('../../api/categoriesApi')>('../../api/categoriesApi')
@@ -45,9 +39,6 @@ function row(id: string, name: string, overrides: Partial<PricingRow> = {}): Pri
     category: { id: 'cat-1', name: 'Chairs', parent_id: null },
     polygon_count: 5000,
     poly_tier: 'low',
-    hours_spent: null,
-    hourly_rate: null,
-    package_percents: {},
     price: '20.00',
     currency: 'USD',
     discount_price: null,
@@ -67,36 +58,6 @@ const rows = [
   row('2', 'Pine Stool', { price: '0.00', buyer_pays: '0.00', packages: [whole(null)] }),
 ]
 
-function previewOf(overrides: Partial<PricingPreview['summary']> = {}, error = ''): PricingPreview {
-  return {
-    rows: [
-      {
-        id: '1', name: 'Oak Chair', sku: 'MDL-1', status: 'awaiting_price', polygon_count: 5000,
-        poly_tier: 'low', currency: 'USD', old_price: '20.00', old_sale_price: null,
-        old_sale_ends_at: null, new_price: '12.00', new_sale_price: null, new_sale_ends_at: null,
-        amount_off: '0.00', percent_off: '0.0', buyer_pays: '12.00', changed: !error, error,
-        package_kind: 'whole', package_label: 'Whole File',
-        has_package: true, packages: [whole('12.00')], bundle_warning: '',
-      },
-    ],
-    summary: {
-      models: 1, changed: error ? 0 : 1, errors: error ? 1 : 0, currency: 'USD',
-      buyer_pays_before: '20.00', buyer_pays_after: '12.00', needs_confirmation: false,
-      without_package: 0,
-      ...overrides,
-    },
-    preview_token: 'a'.repeat(64),
-  }
-}
-
-const DEFAULT_PERCENTS = {
-  with_light_rig: '60.00',
-  without_light_rig: '50.00',
-  glb_only: '25.00',
-  environment: '30.00',
-  whole: '100.00',
-}
-
 function renderPage(path = '/console/pricing') {
   return render(
     <QueryClientProvider client={createTestQueryClient()}>
@@ -109,10 +70,6 @@ function renderPage(path = '/console/pricing') {
   )
 }
 
-async function selectFirstModel(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByLabelText('Select Oak Chair'))
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   resetToastStore()
@@ -123,7 +80,6 @@ beforeEach(() => {
     results: params.tab === 'waiting' ? rows : [row('9', 'Live Lamp', { status: 'published' })],
   }))
   vi.mocked(pricingApi.listPricingBatches).mockResolvedValue(['batch-1'])
-  vi.mocked(pricingApi.getPricingDefaults).mockResolvedValue(DEFAULT_PERCENTS)
   vi.mocked(categoriesApi.listAdminCategories).mockResolvedValue({
     count: 0, next: null, previous: null, results: [],
   })
@@ -143,8 +99,18 @@ describe('AdminPricingPage', () => {
     expect(screen.getByRole('button', { name: /publish selected \(0\)/i })).toBeDisabled()
   })
 
-  it('shows the bundle warning on a model, and prices the chosen package', async () => {
-    const user = userEvent.setup()
+  it('has no calculator and no pricing set-up for now', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Calculator' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /calculate preview/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByText(/default package percentages/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/hours for/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the bundle warning on a model', async () => {
     vi.mocked(pricingApi.listPricingModels).mockResolvedValue({
       count: 1, next: null, previous: null,
       results: [row('1', 'Oak Chair', {
@@ -155,159 +121,9 @@ describe('AdminPricingPage', () => {
         bundle_warning: 'Whole File (12.00) is not cheaper than the other packages together (10.00).',
       })],
     })
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf())
     renderPage()
 
     expect(await screen.findByRole('note')).toHaveTextContent('Whole File (12.00) is not cheaper')
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Set the price'))
-    await user.selectOptions(screen.getByLabelText('Package'), 'with_light_rig')
-    await user.type(screen.getByLabelText('Price (USD)'), '12')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-
-    await waitFor(() =>
-      expect(pricingApi.previewPricing).toHaveBeenCalledWith(
-        expect.objectContaining({ package_kind: 'with_light_rig', rule: 'set_price' }),
-      ),
-    )
-    expect(await screen.findByRole('columnheader', { name: 'Price' })).toBeInTheDocument()
-  })
-
-  it('says which models have no package of the chosen kind and leaves them alone', async () => {
-    const user = userEvent.setup()
-    const preview = previewOf({ changed: 0, without_package: 1 })
-    preview.rows[0] = { ...preview.rows[0], has_package: false, package_kind: null, package_label: null, changed: false, old_price: null, new_price: null, buyer_pays: null }
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(preview)
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Set the price'))
-    await user.selectOptions(screen.getByLabelText('Package'), 'glb_only')
-    await user.type(screen.getByLabelText('Price (USD)'), '9')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-
-    expect(await screen.findByText('No GLB Only package: left as it is')).toBeInTheDocument()
-    expect(screen.getByText(/1 have no GLB Only package/)).toBeInTheDocument()
-  })
-
-  it('previews one price and saves it with the preview token', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf())
-    vi.mocked(pricingApi.applyPricing).mockResolvedValue({ batch_id: 'pricing-x', models: 1, changed: 1, unchanged: 0 })
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Set the price'))
-    await user.type(screen.getByLabelText('Price (USD)'), '12')
-    await user.click(screen.getByRole('button', { name: /calculate preview \(1\)/i }))
-
-    expect(await screen.findByText(/1 will change/i)).toBeInTheDocument()
-    expect(pricingApi.previewPricing).toHaveBeenCalledWith(
-      expect.objectContaining({
-        product_ids: ['1'], package_kind: 'whole', rule: 'set_price', price: '12',
-        low_below: 10000, high_above: 100000,
-      }),
-    )
-    await user.click(screen.getByRole('button', { name: /save prices/i }))
-
-    await waitFor(() =>
-      expect(pricingApi.applyPricing).toHaveBeenCalledWith(
-        expect.objectContaining({ product_ids: ['1'], rule: 'set_price', price: '12', preview_token: 'a'.repeat(64) }),
-      ),
-    )
-  })
-
-  it('checks the rule before asking the server', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Give a sale'))
-    await user.type(screen.getByLabelText(/percent off/i), '95')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-
-    expect(await screen.findByText(/between 0.01 and 90/i)).toBeInTheDocument()
-    expect(pricingApi.previewPricing).not.toHaveBeenCalled()
-  })
-
-  it('sends a sale with its end in UTC and the .99 choice', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf())
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Give a sale'))
-    await user.type(screen.getByLabelText(/percent off/i), '20')
-    await user.click(screen.getByLabelText(/end sale prices in \.99/i))
-    const end = screen.getByLabelText(/sale ends/i)
-    await user.type(end, '2099-01-31T18:30')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-
-    await waitFor(() =>
-      expect(pricingApi.previewPricing).toHaveBeenCalledWith(
-        expect.objectContaining({
-          rule: 'percent_off',
-          percent: '20',
-          round_99: true,
-          discount_ends_at: new Date('2099-01-31T18:30').toISOString(),
-        }),
-      ),
-    )
-  })
-
-  it('needs the typed model count for a sale above 50% off', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf({ needs_confirmation: true }))
-    vi.mocked(pricingApi.applyPricing).mockResolvedValue({ batch_id: 'b', models: 1, changed: 1, unchanged: 0 })
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Set the price'))
-    await user.type(screen.getByLabelText('Price (USD)'), '12')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-    const save = await screen.findByRole('button', { name: /save prices/i })
-    expect(save).toBeDisabled()
-
-    await user.type(screen.getByLabelText(/type 1 to confirm/i), '1')
-    expect(save).toBeEnabled()
-    await user.click(save)
-    await waitFor(() =>
-      expect(pricingApi.applyPricing).toHaveBeenCalledWith(expect.objectContaining({ confirm_count: 1 })),
-    )
-  })
-
-  it('does not save while a row has an error', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf({}, 'The price must be at least 0.50 USD.'))
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Set the price'))
-    await user.type(screen.getByLabelText('Price (USD)'), '12')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-
-    expect(await screen.findByText('The price must be at least 0.50 USD.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /save prices/i })).toBeDisabled()
-  })
-
-  it('asks for a new preview when prices changed since the preview (409)', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf())
-    vi.mocked(pricingApi.applyPricing).mockRejectedValue(
-      new AxiosError('Conflict', 'ERR_BAD_REQUEST', undefined, undefined, {
-        status: 409, statusText: 'Conflict', headers: {}, config: { headers: new AxiosHeaders() }, data: {},
-      }),
-    )
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByLabelText('Set the price'))
-    await user.type(screen.getByLabelText('Price (USD)'), '12')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-    await user.click(await screen.findByRole('button', { name: /save prices/i }))
-
-    expect(await screen.findByText(/calculate the preview again/i)).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /save prices/i })).not.toBeInTheDocument()
   })
 
   it('publishes after a summary and lists the models that stayed waiting', async () => {
@@ -338,117 +154,5 @@ describe('AdminPricingPage', () => {
 
     expect(await screen.findByText('Live Lamp')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /publish selected/i })).not.toBeInTheDocument()
-  })
-
-  it('uses the saved prices in the publish summary right after saving', async () => {
-    const user = userEvent.setup()
-    const saved = previewOf()
-    saved.rows[0] = { ...saved.rows[0], id: '2', name: 'Pine Stool', old_price: null, new_price: '12.00', buyer_pays: '12.00' }
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(saved)
-    vi.mocked(pricingApi.applyPricing).mockResolvedValue({ batch_id: 'b', models: 1, changed: 1, unchanged: 0 })
-    renderPage()
-
-    await user.click(await screen.findByLabelText('Select Pine Stool'))
-    await user.click(screen.getByLabelText('Set the price'))
-    await user.type(screen.getByLabelText('Price (USD)'), '12')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-    await user.click(await screen.findByRole('button', { name: /save prices/i }))
-    await waitFor(() => expect(pricingApi.applyPricing).toHaveBeenCalled())
-    await user.click(screen.getByRole('button', { name: /publish selected \(1\)/i }))
-
-    // The selection took the saved package prices, so nothing shows as unpriced.
-    const dialog = screen.getByRole('dialog')
-    expect(dialog).not.toHaveTextContent(/no price yet/i)
-  })
-
-  it('prices from hours by default, with the discount sale off', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf())
-    renderPage()
-
-    await selectFirstModel(user)
-    expect(screen.getByLabelText('Price from hours')).toBeChecked()
-    expect(screen.getByRole('switch', { name: /discount sale off/i })).not.toBeChecked()
-    expect(screen.queryByLabelText(/discount percent/i)).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-
-    await waitFor(() =>
-      expect(pricingApi.previewPricing).toHaveBeenCalledWith(
-        expect.objectContaining({ rule: 'hours_price', sale_enabled: false, product_ids: ['1'] }),
-      ),
-    )
-    expect(vi.mocked(pricingApi.previewPricing).mock.calls[0][0]).not.toHaveProperty('sale_percent')
-    expect(await screen.findByRole('columnheader', { name: 'Package' })).toBeInTheDocument()
-    expect(screen.getByText(/All packages: buyers pay/)).toBeInTheDocument()
-  })
-
-  it('applies the discount only while the switch is on', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.previewPricing).mockResolvedValue(previewOf())
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.click(screen.getByRole('switch', { name: /discount sale/i }))
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-    expect(await screen.findByText(/between 0.01 and 90/i)).toBeInTheDocument()
-    expect(pricingApi.previewPricing).not.toHaveBeenCalled()
-
-    await user.type(screen.getByLabelText(/discount percent/i), '20')
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-
-    await waitFor(() =>
-      expect(pricingApi.previewPricing).toHaveBeenCalledWith(
-        expect.objectContaining({ rule: 'hours_price', sale_enabled: true, sale_percent: '20' }),
-      ),
-    )
-  })
-
-  it('saves the hours, rate and percents before the hours price can be calculated', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.savePricingInputs).mockResolvedValue({ models: 1, changed: 1 })
-    renderPage()
-
-    await selectFirstModel(user)
-    await user.type(screen.getByLabelText('Hours for Oak Chair'), '10')
-    await user.type(screen.getByLabelText('Rate per hour for Oak Chair'), '20')
-    expect(screen.getByText('$200.00')).toBeInTheDocument()
-    const glb = screen.getByLabelText('GLB Only percent for Oak Chair')
-    expect(glb).toHaveAttribute('placeholder', '25.00')
-    await user.type(glb, '40')
-
-    await user.click(screen.getByRole('button', { name: /calculate preview/i }))
-    expect(await screen.findByText(/save the hours, rates and percents you changed first/i)).toBeInTheDocument()
-    expect(pricingApi.previewPricing).not.toHaveBeenCalled()
-
-    await user.click(screen.getByRole('button', { name: /save hours, rates and percents \(1\)/i }))
-    await waitFor(() =>
-      expect(pricingApi.savePricingInputs).toHaveBeenCalledWith([
-        { id: '1', hours_spent: '10', hourly_rate: '20', package_percents: { glb_only: '40' } },
-      ]),
-    )
-  })
-
-  it('refuses a percent above 200 before saving', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await user.type(await screen.findByLabelText('GLB Only percent for Oak Chair'), '250')
-
-    expect(screen.getByText(/percents above 0 and at most 200/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /save hours, rates and percents/i })).toBeDisabled()
-  })
-
-  it('edits the default package percentages', async () => {
-    const user = userEvent.setup()
-    vi.mocked(pricingApi.savePricingDefaults).mockResolvedValue({ ...DEFAULT_PERCENTS, glb_only: '40.00' })
-    renderPage()
-
-    const field = await screen.findByLabelText('GLB Only %')
-    await waitFor(() => expect(field).toHaveValue('25.00'))
-    await user.clear(field)
-    await user.type(field, '40')
-    await user.click(screen.getByRole('button', { name: /save default percentages/i }))
-
-    await waitFor(() => expect(pricingApi.savePricingDefaults).toHaveBeenCalledWith({ glb_only: '40' }))
   })
 })
