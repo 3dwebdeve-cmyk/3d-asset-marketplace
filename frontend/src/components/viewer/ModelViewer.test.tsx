@@ -211,16 +211,11 @@ describe('ModelViewer', () => {
     Object.defineProperty(container.firstElementChild, 'requestFullscreen', { value: requestFullscreen })
 
     const lighting = screen.getByRole('button', { name: 'Lighting' })
-    const lightIntensities = () => Array.from(container.querySelectorAll('directionallight'),
-      (light) => light.getAttribute('intensity'))
-    for (const expected of [
-      ['2.05', '0.25', '0.25'],
-      ['0.25', '2.05', '0.25'],
-      ['0.25', '0.25', '2.05'],
-      ['2.05', '0.25', '0.25'],
-    ]) {
+    const keyLight = container.querySelector('directionallight')
+    for (const position of ['0,4,5', '-4.33,4,-2.5', '4.33,4,-2.5', '0,4,5']) {
       await user.click(lighting)
-      expect(lightIntensities()).toEqual(expected)
+      expect(keyLight).toHaveAttribute('position', position)
+      expect(keyLight).toHaveAttribute('intensity', '2.05')
     }
     expect(screen.getByRole('radio', { name: 'Studio' })).toHaveAttribute('aria-checked', 'true')
     await user.click(screen.getByRole('button', { name: 'Reset' }))
