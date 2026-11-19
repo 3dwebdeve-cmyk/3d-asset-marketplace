@@ -210,8 +210,14 @@ describe('ModelViewer', () => {
     const requestFullscreen = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(container.firstElementChild, 'requestFullscreen', { value: requestFullscreen })
 
-    await user.click(screen.getByRole('button', { name: 'Lighting' }))
-    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'true')
+    const lighting = screen.getByRole('button', { name: 'Lighting' })
+    const keyLight = container.querySelector('directionallight')
+    for (const position of ['0,4,5', '-4.33,4,-2.5', '4.33,4,-2.5', '0,4,5']) {
+      await user.click(lighting)
+      expect(keyLight).toHaveAttribute('position', position)
+      expect(keyLight).toHaveAttribute('intensity', '2.05')
+    }
+    expect(screen.getByRole('radio', { name: 'Studio' })).toHaveAttribute('aria-checked', 'true')
     await user.click(screen.getByRole('button', { name: 'Reset' }))
     await user.click(screen.getByRole('button', { name: 'Zoom In' }))
     await user.click(screen.getByRole('button', { name: 'Zoom Out' }))
