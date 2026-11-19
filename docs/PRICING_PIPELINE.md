@@ -6,14 +6,15 @@ contract for the code; change it together with the code.
 ## Flow
 
 ```
-Model Uploader -> R2 + import
+Model Uploader -> R2 + import (sends hours_spent)
   Free tick (zip under free-models/)        Paid (zip under models/, private bucket)
-    QA, Free section                          QA, Paid section (suggested price = sheet price)
+    QA, Free section                          QA, Paid section
       Approve -> published (free download)      Approve quality -> awaiting_price
       Reject  -> rejected                       Reject -> rejected
-                                              Pricing page, "Waiting for price"   (Part 2)
-                                                Save prices, then Publish selected -> published
-  Live models -> Pricing page, "Live models": sales and normal-price changes   (Part 2)
+                                              Pricing page, "Waiting for price"
+                                                tick models, type the rate and the percents,
+                                                Calculate, then Publish -> published
+  Live models -> Pricing page, "Live models": read-only list
   Re-upload of a live model -> stays published, pending_update -> QA (its section) -> Approve keeps
   the price, Reject takes it off the store
 ```
@@ -110,145 +111,70 @@ Inside the same transaction as the change. Nothing is written when nothing chang
 
 `GET /api/v1/admin/products/<id>/price-history/`: the latest 100 rows, newest first, admins only.
 
-## Part 2: Pricing page API
+## Pricing page API
 
 Code: `products/pricing.py` (rules and calculation), `pricing_serializers.py`, `pricing_views.py`.
 All routes are under `/api/v1/admin/products/pricing/`, for administrators with the authenticator
-mark only. List and preview use the `admin_pricing_read` limit (120/min); apply and publish use
-`admin_product_write` (60/min). Prices are USD only.
+mark only. List and calculate use the `admin_pricing_read` limit (120/min); publish and hours use
+`admin_product_write` (60/min). Prices are USD only. At most 200 models per action.
 
-### Tabs and filters: `GET pricing/?tab=waiting|live`
-
-- **waiting**: `awaiting_price` models. **live**: published models with a price above 0.
-- Free uploads never appear in either tab: they have no price or sale.
-- Filters:
-  - `category_id`: a main category, which includes its subcategories.
-  - `subcategory_id`: exactly that category.
-  - `poly=low|mid|high|unknown`.
-  - `search`: name, or model ID.
-  - `import_batch_id`.
-  - `ordering`: `name`, `price`, `polygon_count` or `created_at`, each also with a leading `-`.
-  - `page`, `page_size`.
-- **Poly levels**: Low is fewer than `low_below` polygons (default 10,000). High is more than
-  `high_above` (default 100,000). Mid is between, both ends included. A model with no polygon
-  count is Unknown. The page may send its own `low_below` and `high_above`.
-- **Each row**:
-  - The stored `price`, `discount_price` and `discount_ends_at`.
-  - `discount_active` and `buyer_pays`, from the buyer-price rule.
-  - `poly_tier`, and `category` (`id`, `name`, `parent_id`).
-
-`GET pricing/batches/?tab=` lists the upload batch IDs in that tab, newest first, at most 50.
-
-### Rules: the body of `preview` and `apply`
-
-`product_ids` (1 to 200 IDs; repeats count once) and `rule`, plus the fields that rule needs:
-
-| `rule` | Fields | Result |
-|---|---|---|
-| `set_price` | `price` | The normal price. A running sale stays; it must still be below the new price. |
-| `hours_price` | `sale_enabled`, `sale_percent`, `discount_ends_at` | Every package = hours x rate x its percent (see "Hours pricing"). |
-| `percent_off` | `percent` (0.01 to 90), `round_99`, `discount_ends_at` | Sale price = price × (100 − percent) / 100, rounded to the cent. |
-| `amount_off` | `amount`, `round_99`, `discount_ends_at` | Sale price = price − amount. |
-| `remove_sale` | none | The sale and its end are removed. |
-
-- **`round_99`**: moves the sale price down to the nearest .99 (8.40 becomes 7.99; 9.00 becomes
-  8.99).
-- **`discount_ends_at`**: ISO 8601 with a time zone, in the future. `null` means the sale has no
-  end.
-- **Stored ended sales**: a sale that has ended counts as no sale and is cleared when the prices
-  are saved.
-
-A row has an `error`, and nothing for it can be saved, when:
-
-- the model is not waiting for a price and not live, or it is a free upload;
-- a price or sale price would be below 0.50;
-- the sale price would not be below the price, or would take more than 90% off;
-- a new normal price would not be above a running sale (remove the sale first);
-- a sale rule is used on a model with no price yet.
-
-### `POST pricing/preview/`
-
-Changes nothing. Returns:
-
-- `rows`: each row has the old and new price, sale price and sale end, `amount_off`,
-  `percent_off`, `buyer_pays`, `poly_tier`, `changed` and `error`.
-- `summary`:
-  - `models`, `changed`, `errors`;
-  - `buyer_pays_before` and `buyer_pays_after`, totals over the rows without errors;
-  - `needs_confirmation`: true when a sale takes more than 50% off.
-- `preview_token`: a hash of the rule, plus each model's current prices and the calculated result.
-
-### `POST pricing/apply/` (Step 1, Save)
-
-Send the same body as the preview, plus `preview_token`, plus `confirm_count` when the preview
-needed confirmation. `confirm_count` is the number of selected models, typed by the admin.
-
-- The rows are locked in ID order, recalculated, and refused with **409** if the token differs:
-  something changed since the preview, or a sale ended.
-- Any row error refuses the whole save (400). The response body maps each model ID to a list with
-  its error (the API's usual field-error shape).
-- Otherwise every changed model is saved in one transaction.
-- One `ProductPriceChange` row is written per changed model, with source `pricing_page`, the admin
-  as actor, and one shared `batch_id`.
-- The audit log gets one `pricing_apply` entry: the batch, the rule and the IDs.
-- Statuses do not change.
-
-Returns `batch_id`, `models`, `changed` and `unchanged`.
-
-### `POST pricing/publish/` (Step 2)
-
-Body: `product_ids` (1 to 200) and `confirm_count`, which must equal the number of models; the
-page shows a summary first. Each model is checked and saved on its own.
-
-- **Published**: an `awaiting_price` model that is a paid upload, has a price of at least 0.50,
-  has no running sale that breaks the sale rules, and passes every publish check (files, preview,
-  category and so on).
-- **Not published**: any other model stays where it is, and its `reason` is returned.
-
-Returns `models`, `published`, `failed`, and `results` (`id`, `name`, `sku`, `published`,
-`reason`). The audit log gets one `pricing_publish` entry.
-
-## Hours pricing
-
-The poly-level price rule is gone. A model is priced from the hours spent on it.
+### The formula
 
 ```
-base price     = hours_spent x hourly_rate            (per model)
-package price  = round(base price x percent / 100)    (whole dollars, half up)
-sale price     = round(package price x (100 - sale %) / 100)   only while the sale switch is on
+base price     = hours_spent x rate                          (per model; one rate for the selection)
+package price  = round(base price x percent / 100)           (whole dollars, half up)
 ```
 
-- **Fields** (on `Product`): `hours_spent` (from the uploader, see `docs/batch-ingest-contract.md`,
-  editable here), `hourly_rate` (per model), `package_percents` (the model's own percents; a kind
-  that is missing uses the default).
-- **Percents**: above 0 and at most 200, two decimals, one per package kind in `PACKAGE_ORDER`
-  (a fifth one for Whole File). The defaults are `DEFAULT_PACKAGE_PERCENTS` (With Light Rig 60,
-  Without Light Rig 50, GLB Only 25, With Environment 30, Whole File 100) until an administrator
-  changes them (`PricingSettings`, one row). A changed default only affects prices calculated
-  afterwards.
-- **Rule `hours_price`**: `preview` and `apply` return a row per model **and package**
-  (`package_kind`, `package_label`). `summary.models` counts models, not rows. The token covers the
-  default percents, so changing one after a preview gives 409 on save.
-- **Errors** (the whole save is refused, like any row error): no hours or no rate ("Enter the hours
-  spent and the rate per hour first."), or a package that rounds below 0.50 USD.
-- **Sale switch** (`sale_enabled`, off by default): off means normal prices only, and any running
-  sale on the priced packages is removed. On needs `sale_percent` (0.01 to 90), applies to every
-  package, and may have `discount_ends_at` (future, IST picked on the page, stored in UTC). The
-  90% limit and the typed confirmation above 50% apply as before. `round_99` does not apply: sale
-  prices are whole dollars too.
-- **Whole File check**: the existing bundle warning still shows when a package costs more than
-  Whole File, or Whole File is not cheaper than the others together. It never blocks.
-- **Free models** and models without a package of a kind are left alone, as before.
+- The admin types **one rate** and **one percent for each of the five packages** (With Light Rig,
+  Without Light Rig, With Environment, GLB Only, Whole File). They apply to every ticked model.
+- Each model's `hours_spent` comes from the uploader (`docs/batch-ingest-contract.md`) and can be
+  edited on the page.
+- A model is priced only for the packages it **has**: a model with three packages gets three
+  prices, the percents of the other two are not used for it.
+- Rate: above 0, at most 100,000. Percent: above 0, at most 200. All five percents are required.
 
-### Endpoints
+### `GET pricing/?tab=waiting|live`
 
-| Route | Use |
-|---|---|
-| `POST pricing/inputs/` | `items`: `[{id, hours_spent?, hourly_rate?, package_percents?}]`, at most 200, each model once. Only the keys sent change; a null hours or rate clears it, a null percent goes back to the default. Audit entry `pricing_inputs`. |
-| `GET pricing/defaults/` | `{package_percents: {kind: "60.00", ...}}` |
-| `PUT pricing/defaults/` | `{package_percents: {kind: percent}}`: changes only the kinds sent. Audit entry `pricing_defaults`. |
+- **waiting**: `awaiting_price` models. **live**: published paid models. Free uploads never appear.
+- Filters: `category_id` (a main category includes its subcategories), `subcategory_id`, `search`
+  (name or model ID), `import_batch_id`, `ordering` (`name`, `price`, `polygon_count`,
+  `hours_spent`, `created_at`, each also with a leading `-`), `page`, `page_size`.
+- Each row: the stored `price`, `discount_price`, `discount_ends_at`, `discount_active`,
+  `buyer_pays`, `hours_spent`, `polygon_count`, `category`, `packages` (each with its price and
+  sale) and `bundle_warning`. `GET pricing/batches/?tab=` lists the upload batch IDs.
 
-The list rows also carry `hours_spent`, `hourly_rate` and `package_percents`.
+### `POST pricing/calculate/`
+
+Body: `product_ids`, `rate`, `percents` (`{kind: percent}` for all five kinds). Changes nothing.
+Returns `rows` (`id`, `name`, `sku`, `hours_spent`, `error`, and `packages` with `kind`, `label`,
+`old_price`, `price`), `summary` (`models`, `priced`, `errors`) and `preview_token`.
+
+A row has an `error` and no prices when:
+- the model is not waiting for a price, is a free upload, or is not USD;
+- it has no hours ("Enter the hours spent first.") or no packages;
+- a package would cost less than 0.50 USD after rounding.
+
+### `POST pricing/publish/`
+
+Body: the same as `calculate`, plus `preview_token` (from the calculation the admin saw) and
+`confirm_count` (the number of selected models). The server calculates again and refuses with
+**409** if the result differs from the token (hours, prices or a percent changed, or the model went
+back to QA). Otherwise each model is handled **on its own**, in one transaction:
+
+1. its package prices are saved (a stored sale on the package is cleared) with one
+   `ProductPriceChange` row per changed package, source `pricing_page`, one shared `batch_id`;
+2. the publish checks run (every package priced, files in storage, category, preview if present);
+3. the model goes `published`.
+
+A model that fails any step keeps its old prices and stays waiting, and its `reason` is returned.
+Returns `batch_id`, `models`, `published`, `failed` and `results` (`id`, `name`, `sku`, `published`,
+`reason`). The audit log gets one `pricing_publish` entry (rate, percents, published and failed IDs).
+
+### `POST pricing/hours/`
+
+Body: `items: [{id, hours_spent}]` (each model once, `null` clears). Hours above 0. Audit entry
+`pricing_hours`.
+
 
 ## Part 3: screens
 
@@ -266,27 +192,21 @@ Console menu item "Pricing". Code: `pages/Admin/AdminPricingPage.tsx`, `api/pric
 `types/pricing.ts`.
 
 - **Tabs**: "Waiting for price" and "Live models" (`?tab=live`), each with a count.
-- **Filters**: category, subcategory, poly level, search by name or model ID, upload batch, sort,
-  and "Poly level limits" for the Low and High limits.
-- **Table**: tick models on any page, up to 200 in total. Each row shows the price, the running
-  sale and its end, and what the buyer pays.
-- **Calculator**:
-  - "Price from hours" (the default): see "Hours pricing". Hours, rate and percents are typed
-    in the table and saved with "Save hours, rates and percents" first.
-  - "Set the price": one price for one package.
-  - "Give a sale": % off or $ off, the .99 ending, and an optional end in the admin's local
-    time, sent as UTC.
-  - "Remove the sale".
-- **Calculate preview**: shows the server's rows and totals. Any change to the selection or the
-  rule clears the preview.
-- **Save prices** (Step 1):
-  - Only enabled when no row has an error and something changes.
-  - A sale above 50% off needs the number of models typed in first.
-  - A 409 answer clears the preview and asks for a new one.
-- **Publish selected** (Waiting tab only, Step 2):
-  - A summary first: how many models, their total, and how many have no price yet.
-  - Then the results, with the reason for each model that stayed waiting.
+- **Filters**: category, subcategory, search by name or model ID, upload batch, sort.
+- **List**: tick models on any page, up to 200 in total. Each row shows the model, category,
+  polygons, its **hours** (a box in the Waiting tab, saved when it loses focus), each **variation**
+  the model has with its price ("Not set" until priced), and the "From" price.
+- **Model Pricing box** (Waiting tab, on the left of the list): "Base price = Hours × [rate]" and one
+  "[Variation] = Base price × [%]" line for each of the five variations.
+- **Calculate prices (N)**: sends the ticked models and the boxes to `calculate`. The new price shows
+  beside each variation in the list ("Not set → $80.00"). A model that cannot be priced shows why.
+  Changing the selection, a box or any hours clears the calculation.
+- **Publish selected (N)**: enabled only after a calculation. A summary first (how many are priced and
+  how many will stay waiting), then `publish`, then the results with the reason for each model that
+  stayed waiting. A 409 clears the calculation and asks for a new one.
 - Models with a pending re-upload show an "Update in QA" label.
+- The Live tab is read-only for now (no box, no publish).
+
 
 ### Shop
 

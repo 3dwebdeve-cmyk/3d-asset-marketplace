@@ -37,31 +37,20 @@
   margin-bottom: 1rem;
 }
 
-.admin-layout .admin-pricing__limits {
-  grid-column: 1 / -1;
-  color: var(--text-body);
-}
-
-.admin-layout .admin-pricing__limits summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.admin-layout .admin-pricing__limits-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
 .admin-layout .admin-pricing__layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   align-items: start;
 }
 
+/* The Model Pricing box sits on the left of the model list. */
+.admin-layout .admin-pricing__layout--with-panel {
+  grid-template-columns: 340px minmax(0, 1fr);
+}
+
 @media (max-width: 1100px) {
-  .admin-layout .admin-pricing__layout {
+  .admin-layout .admin-pricing__layout--with-panel {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -106,20 +95,6 @@
   font-size: 0.8rem;
 }
 
-.admin-layout .admin-pricing__tier {
-  display: inline-block;
-  padding: 0.1rem 0.5rem;
-  border: 1px solid var(--admin-line);
-  border-radius: 999px;
-  font-size: 0.8rem;
-  white-space: nowrap;
-}
-
-.admin-layout .admin-pricing__tier--low { color: #86efac; }
-.admin-layout .admin-pricing__tier--mid { color: #fcd34d; }
-.admin-layout .admin-pricing__tier--high { color: #fca5a5; }
-.admin-layout .admin-pricing__tier--unknown { color: var(--text-secondary); }
-
 .admin-layout .admin-pricing__panel {
   display: grid;
   gap: 0.75rem;
@@ -140,28 +115,6 @@
 .admin-layout .admin-pricing__panel form {
   display: grid;
   gap: 0.75rem;
-}
-
-.admin-layout .admin-pricing__choice {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.admin-layout .admin-pricing__choice legend {
-  margin-bottom: 0.25rem;
-  font-weight: 600;
-  color: var(--text-heading);
-}
-
-.admin-layout .admin-pricing__choice label,
-.admin-layout .admin-pricing__check {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  cursor: pointer;
 }
 
 .admin-layout .admin-pricing__preview {
@@ -190,29 +143,37 @@
   margin: 0;
 }
 
-.admin-layout .admin-pricing__inputs-bar {
-  display: grid;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
 .admin-layout .admin-pricing__number {
   width: 6rem;
   min-width: 0;
 }
 
-.admin-layout .admin-pricing__percents {
-  margin-top: 0.35rem;
-}
-
-.admin-layout .admin-pricing__percents summary {
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.admin-layout .admin-pricing__percents label {
+.admin-layout .admin-pricing__formula {
   display: grid;
-  gap: 0.15rem;
-  margin-top: 0.4rem;
-  font-size: 0.8rem;
+  grid-template-columns: minmax(0, 1fr) 6.5rem;
+  gap: 0.5rem;
+  align-items: center;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--admin-line);
+  font-weight: 600;
+}
+
+.admin-layout .admin-pricing__percent {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-layout .admin-pricing__new-price {
+  color: var(--text-heading);
+}
+
+.admin-layout .admin-pricing__row-error {
+  margin: 0.35rem 0 0;
+  color: var(--admin-danger, #b3261e);
+  font-size: 0.85rem;
+}
+
+.admin-layout .admin-pricing__calc-summary {
+  margin: 0.5rem 0;
 }

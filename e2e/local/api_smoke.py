@@ -5,8 +5,9 @@ it goes through the real middleware, throttles, routing and JSON handling.
 
     python e2e/local/api_smoke.py [--base http://127.0.0.1:8001]
 
-Signs in as the seeded admin, lists "Waiting for price", previews and saves a price for
-PRC-WAIT-LOW, publishes it and checks the public product API shows it with that price.
+Signs in as the seeded admin, lists "Waiting for price", calculates the price of PRC-WAIT-LOW
+(4 hours x rate 20 x Whole File 100%), publishes it and checks the public product API shows it
+with that price.
 Start-LocalStack re-seeds a clean scenario, so run it on a fresh stack. Standard library only.
 """
 
@@ -22,7 +23,15 @@ import urllib.request
 ADMIN_EMAIL = "e2e-admin@example.com"
 ADMIN_PASSWORD = "E2eAdminPass123!"
 SKU = "PRC-WAIT-LOW"
-PRICE = "12.00"
+PRICE = "80.00"
+RATE = "20"
+PERCENTS = {
+    "with_light_rig": "60",
+    "without_light_rig": "50",
+    "glb_only": "25",
+    "environment": "30",
+    "whole": "100",
+}
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 
 
@@ -98,60 +107,50 @@ def run(base: str) -> None:
     check(len(rows) == 1, f"{SKU} is in the waiting tab", body)
     row = rows[0]
     check(row["status"] == "awaiting_price", "it is awaiting_price", row["status"])
-    check(row["poly_tier"] == "low", "its poly level is low", row["poly_tier"])
+    check(row["hours_spent"] == "4.00", "its hours are 4.00", row["hours_spent"])
     product_id, slug = row["id"], row["slug"]
-    code, body, _ = client.call(
-        "GET", "/api/v1/admin/products/pricing/", query={"tab": "waiting", "poly": "low"}
-    )
-    check(
-        code == 200 and product_id in {r["id"] for r in body["results"]},
-        "poly=low filter lists it",
-        code,
-    )
     code, body, _ = client.call("GET", "/api/v1/admin/products/pricing/batches/", query={"tab": "waiting"})
     check(code == 200 and isinstance(body.get("results"), list), "batches list answers", body)
     code, _, _ = client.call("GET", f"/api/v1/products/{slug}/")
     check(code == 404, "it is not on the public store yet", code)
 
-    print("4. preview and save a price")
-    rule = {"product_ids": [product_id], "rule": "set_price", "price": PRICE}
-    code, body, _ = client.call("POST", "/api/v1/admin/products/pricing/preview/", rule)
-    check(code == 200, "preview answers 200", body)
-    preview_row = body["rows"][0]
-    check(preview_row["error"] == "", "preview row has no error", preview_row)
-    check(preview_row["new_price"] == PRICE, f"preview new price is {PRICE}", preview_row)
-    check(body["summary"]["changed"] == 1, "preview changes one model", body["summary"])
+    print("4. calculate")
+    inputs = {"product_ids": [product_id], "rate": RATE, "percents": PERCENTS}
+    code, body, _ = client.call("POST", "/api/v1/admin/products/pricing/calculate/", inputs)
+    check(code == 200, "calculate answers 200", body)
+    calc_row = body["rows"][0]
+    check(calc_row["error"] == "", "calculated row has no error", calc_row)
+    prices = {item["kind"]: item["price"] for item in calc_row["packages"]}
+    check(prices == {"whole": PRICE}, f"the model's one package costs {PRICE}", prices)
     token_value = body["preview_token"]
-
-    code, body, _ = client.call(
-        "POST", "/api/v1/admin/products/pricing/apply/", {**rule, "preview_token": "0" * 64}
-    )
-    check(code == 409, "apply with a wrong token is refused (409)", (code, body))
-    code, body, _ = client.call(
-        "POST", "/api/v1/admin/products/pricing/apply/", {**rule, "preview_token": token_value}
-    )
-    check(code == 200, "apply answers 200", body)
-    check(body["changed"] == 1, "apply saved one model", body)
-    batch_id = body["batch_id"]
-    code, body, _ = client.call(
-        "POST", "/api/v1/admin/products/pricing/apply/", {**rule, "preview_token": token_value}
-    )
-    check(code == 409, "replaying the same token after the save is refused (409)", (code, body))
 
     print("5. publish")
     code, body, _ = client.call(
         "POST",
         "/api/v1/admin/products/pricing/publish/",
-        {"product_ids": [product_id], "confirm_count": 2},
+        {**inputs, "preview_token": token_value, "confirm_count": 2},
     )
     check(code == 400, "publish with a wrong confirm_count is refused (400)", (code, body))
     code, body, _ = client.call(
         "POST",
         "/api/v1/admin/products/pricing/publish/",
-        {"product_ids": [product_id], "confirm_count": 1},
+        {**inputs, "preview_token": "0" * 64, "confirm_count": 1},
+    )
+    check(code == 409, "publish with a wrong token is refused (409)", (code, body))
+    code, body, _ = client.call(
+        "POST",
+        "/api/v1/admin/products/pricing/publish/",
+        {**inputs, "preview_token": token_value, "confirm_count": 1},
     )
     check(code == 200, "publish answers 200", body)
     check(body["published"] == 1, "one model published", body)
+    batch_id = body["batch_id"]
+    code, body, _ = client.call(
+        "POST",
+        "/api/v1/admin/products/pricing/publish/",
+        {**inputs, "preview_token": token_value, "confirm_count": 1},
+    )
+    check(code == 409, "replaying the same token after the publish is refused (409)", (code, body))
 
     print("6. public store and history")
     client_token, client.token = client.token, None
@@ -199,7 +198,9 @@ def run(base: str) -> None:
     code, _, _ = client.call("GET", "/api/v1/admin/products/pricing/", query={"tab": "waiting"})
     check(code == 403, "pricing list refuses a customer (403)", code)
     code, _, _ = client.call(
-        "POST", "/api/v1/admin/products/pricing/publish/", {"product_ids": [product_id], "confirm_count": 1}
+        "POST",
+        "/api/v1/admin/products/pricing/publish/",
+        {**inputs, "preview_token": token_value, "confirm_count": 1},
     )
     check(code == 403, "publish refuses a customer (403)", code)
     client.call("DELETE", "/api/v1/cart/")
