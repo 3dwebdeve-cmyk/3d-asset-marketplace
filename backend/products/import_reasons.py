@@ -30,7 +30,6 @@ IMPORT_REASONS: dict[str, tuple[str, str]] = {
     "invalid_gallery_image": ("A gallery image is not a valid image (JPEG, PNG or WebP, at most 25 MB and 20 megapixels).", "Replace the image, then upload again."),
     "image_unreadable": ("Storage could not be read.", "Upload again in a few minutes."),
     # Preview and 360°
-    "missing_preview": ("The model has neither a preview GLB nor a full 360° spin (36 frames).", "Add a preview GLB or the 360° render, then upload again."),
     "missing_glb_checksum": ("A preview GLB was sent without its checksum.", "Upload the model again with the uploader."),
     "invalid_preview_format": ("The preview is not a .glb file.", "Export the preview as GLB, then upload again."),
     "missing_preview_object": ("The preview GLB is not in storage.", "Upload the model again."),

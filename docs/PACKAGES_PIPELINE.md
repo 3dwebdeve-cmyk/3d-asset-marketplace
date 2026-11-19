@@ -54,6 +54,11 @@ Extra findings PKG does not mention. Each is handled in the phase noted:
 
 ---
 
+> **Update (2026-11-19):** a model may now have neither a preview GLB nor a 360°. The import
+> no longer refuses it (`missing_preview` is gone) and publish no longer requires either; a
+> partial 360° is `invalid_spin_keys`. The notes below about "at least one of them" are the
+> earlier rule.
+
 ## Global rules (PKG §10, apply in every phase)
 
 1. **One list of package kinds**: `PACKAGE_KINDS`, `PACKAGE_LABELS`, `PACKAGE_ORDER` (plus one
