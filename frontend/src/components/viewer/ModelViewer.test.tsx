@@ -240,7 +240,7 @@ describe('ModelViewer', () => {
     expect(requestFullscreen).toHaveBeenCalledOnce()
   })
 
-  it('cycles between the vertical and radial background gradients', async () => {
+  it('toggles the vertical gradient and restores the default environment background', async () => {
     const user = userEvent.setup()
     render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />)
     await user.click(screen.getByRole('radio', { name: 'Natural' }))
@@ -249,11 +249,13 @@ describe('ModelViewer', () => {
 
     const button = screen.getByRole('button', { name: 'Change background gradient' })
     const canvas = screen.getByTestId('r3f-canvas')
-    for (const kind of ['linear-gradient', 'radial-gradient', 'linear-gradient']) {
-      await user.click(button)
-      expect(canvas.style.backgroundImage).toContain(kind)
-      expect(environment).toHaveAttribute('data-background', 'false')
-    }
+    await user.click(button)
+    expect(canvas.style.backgroundImage).toContain('linear-gradient')
+    expect(environment).toHaveAttribute('data-background', 'false')
+
+    await user.click(button)
+    expect(canvas.style.backgroundImage).toBe('')
+    expect(environment).toHaveAttribute('data-background', 'true')
     expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'true')
   })
 

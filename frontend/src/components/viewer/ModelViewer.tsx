@@ -301,10 +301,8 @@ function ModelViewerError({ message }: { message: string }) {
   )
 }
 
-const BACKGROUND_GRADIENTS = [
-  'linear-gradient(to bottom, #A7A3A5 0%, #9A9494 50%, #8C8380 100%)',
-  'radial-gradient(ellipse closest-side at center, #E2E2E0 0%, #B8B7B5 60%, #737270 100%)',
-] as const
+const VERTICAL_BACKGROUND_GRADIENT =
+  'linear-gradient(to bottom, #A7A3A5 0%, #9A9494 50%, #8C8380 100%)'
 
 type ViewerBackgroundProps = {
   background?: string
@@ -579,9 +577,9 @@ function StableModelViewerCanvas({
 }
 
 export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps) {
-  const [backgroundIndex, setBackgroundIndex] = useState(-1)
-  const background = BACKGROUND_GRADIENTS[backgroundIndex]
-  const cycleBackground = () => setBackgroundIndex((index) => (index + 1) % BACKGROUND_GRADIENTS.length)
+  const [useVerticalBackground, setUseVerticalBackground] = useState(false)
+  const background = useVerticalBackground ? VERTICAL_BACKGROUND_GRADIENT : undefined
+  const cycleBackground = () => setUseVerticalBackground((enabled) => !enabled)
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
   const pixelRatio = useAdaptivePixelRatio()
