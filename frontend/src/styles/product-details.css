@@ -227,10 +227,10 @@
   transform: translateY(-50%);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.125rem;
+  gap: 0.0625rem;
   width: max-content;
-  min-width: 3.25rem;
-  padding: 0.35rem;
+  min-width: 3rem;
+  padding: 0.25rem;
   border-radius: 2rem;
   background: #4b4e52;
   color: #fff;
@@ -240,11 +240,11 @@
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 0.2rem;
+  gap: 0.125rem;
   min-width: 0;
-  min-height: 2.65rem;
+  min-height: 2.2rem;
   margin: 0;
-  padding: 0.2rem 0.35rem;
+  padding: 0.125rem 0.25rem;
   border: 0;
   border-radius: 1rem;
   background: transparent;
@@ -267,8 +267,8 @@
 }
 
 .model-viewer__toolbar svg {
-  width: 1rem;
-  height: 1rem;
+  width: 0.875rem;
+  height: 0.875rem;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
