@@ -193,33 +193,6 @@
   min-height: 720px;
 }
 
-.product-hub-detail .product-detail-stage__fullscreen {
-  position: absolute;
-  right: 0.65rem;
-  bottom: 0.65rem;
-  z-index: 4;
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  padding: 0.35rem;
-  border: 0;
-  border-radius: 0.35rem;
-  background: transparent;
-  color: #111;
-  cursor: pointer;
-}
-
-.product-hub-detail .product-detail-stage__fullscreen svg {
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .product-hub-detail .product-detail-stage:fullscreen {
   width: 100vw;
   height: 100vh;

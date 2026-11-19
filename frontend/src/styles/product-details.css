@@ -219,6 +219,58 @@
   touch-action: none;
 }
 
+.model-viewer__toolbar {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  z-index: 3;
+  transform: translateY(-50%);
+  display: grid;
+  gap: 0.125rem;
+  width: 3.25rem;
+  padding: 0.35rem 0.2rem;
+  border-radius: 2rem;
+  background: #4b4e52;
+  color: #fff;
+}
+
+.model-viewer__toolbar button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.2rem;
+  min-height: 2.65rem;
+  padding: 0.2rem;
+  border: 0;
+  border-radius: 1rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.625rem;
+  line-height: 1.1;
+  cursor: pointer;
+}
+
+.model-viewer__toolbar button:hover,
+.model-viewer__toolbar button[aria-pressed='true'] {
+  background: #62666b;
+}
+
+.model-viewer__toolbar button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.model-viewer__toolbar svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .model-viewer__controls {
   position: absolute;
   top: 0.7rem;
