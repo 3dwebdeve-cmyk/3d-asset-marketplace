@@ -544,13 +544,13 @@ class CatalogImportService:
         if r2_prefix not in (f"models/{sku}/", f"{FREE_MODELS_PREFIX}{sku}/"):
             return "invalid_r2_prefix"
 
-        # A model shows a 3D preview, a 360° spin, or both; the checksum goes with the preview.
+        # A model shows a 3D preview, a 360° spin, both, or neither (a high-poly model may have
+        # none: the page then shows its photos). The checksum goes with a preview; a 360° must
+        # be all 36 frames (checked in _spin_keys).
         if str(media.get("preview_key") or "").strip():
             checksum = str(item.get("glb_checksum") or "").strip()
             if not _GLB_CHECKSUM_RE.fullmatch(checksum):
                 return "missing_glb_checksum"
-        elif len(media.get("spin_keys") or ()) != SPIN_FRAME_COUNT:
-            return "missing_preview"
 
         return None
 
