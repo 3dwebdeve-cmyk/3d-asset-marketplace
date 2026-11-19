@@ -136,6 +136,7 @@ add it there.
       "currency": "USD",
       "description": "…",
       "polygon_count": 12480,
+      "hours_spent": 14.5,
       "glb_checksum": "<sha256 of the preview>",
       "qa_status": "Ready for QA",
       "folder_match_status": "Matched",
@@ -183,6 +184,10 @@ add it there.
   (`fbx`, `max`, `obj`, `blend`, `glb`…). The plugin fills it from the files it packs. The
   site shows them as the product's formats and uses them for the browse page's
   software/format filter. Archive types (`zip`, `rar`, `7z`) are never listed as formats.
+- `hours_spent` (optional): the hours spent on the model, a number above 0 and under 100,000,
+  kept with two decimals. The Pricing page prices from it (hours x rate). The import sets it on a
+  new model, and on a re-upload only when the model has none yet: an administrator's edit on the
+  Pricing page is never overwritten. A value that is not a positive number is ignored.
 - `polygon_count`: read from the **full model** in the package, never from the preview GLB.
   The import rejects a preview with more than 50% of this count (`preview_not_reduced`).
 - `category`: the sheet's category name. A new model's category is found by the code in its

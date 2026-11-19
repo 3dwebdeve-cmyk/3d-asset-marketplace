@@ -36,6 +36,16 @@ PACKAGE_DESCRIPTIONS: dict[str, str] = {
     PackageKind.ENVIRONMENT: "The model placed in its environment scene.",
     PackageKind.WHOLE: "Everything in one download: every package of this model.",
 }
+# The starting share of the base price (hours x rate) each package costs, in percent. The admin
+# changes them on the Pricing page (products.pricing.get_default_percents); a model can override
+# any of them. Whole File is the anchor: the other packages together cost more than it.
+DEFAULT_PACKAGE_PERCENTS: dict[str, Decimal] = {
+    PackageKind.WITH_LIGHT_RIG: Decimal("60"),
+    PackageKind.WITHOUT_LIGHT_RIG: Decimal("50"),
+    PackageKind.GLB_ONLY: Decimal("25"),
+    PackageKind.ENVIRONMENT: Decimal("30"),
+    PackageKind.WHOLE: Decimal("100"),
+}
 
 
 def line_title(name: str, kind: str) -> str:

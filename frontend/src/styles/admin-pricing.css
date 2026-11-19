@@ -189,3 +189,30 @@
 .admin-layout .admin-pricing__preview p {
   margin: 0;
 }
+
+.admin-layout .admin-pricing__inputs-bar {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.admin-layout .admin-pricing__number {
+  width: 6rem;
+  min-width: 0;
+}
+
+.admin-layout .admin-pricing__percents {
+  margin-top: 0.35rem;
+}
+
+.admin-layout .admin-pricing__percents summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.admin-layout .admin-pricing__percents label {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}

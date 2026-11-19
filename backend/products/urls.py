@@ -6,6 +6,8 @@ from products.pricing_views import (
     AdminPricingBatchesView,
     AdminPricingListView,
     AdminPricingPreviewView,
+    AdminPricingDefaultsView,
+    AdminPricingInputsView,
     AdminPricingPublishView,
 )
 from products.views import (
@@ -52,6 +54,8 @@ admin_urlpatterns = [
     path("pricing/preview/", AdminPricingPreviewView.as_view(), name="admin-pricing-preview"),
     path("pricing/apply/", AdminPricingApplyView.as_view(), name="admin-pricing-apply"),
     path("pricing/publish/", AdminPricingPublishView.as_view(), name="admin-pricing-publish"),
+    path("pricing/inputs/", AdminPricingInputsView.as_view(), name="admin-pricing-inputs"),
+    path("pricing/defaults/", AdminPricingDefaultsView.as_view(), name="admin-pricing-defaults"),
     path(
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),

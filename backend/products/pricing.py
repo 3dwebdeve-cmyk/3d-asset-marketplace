@@ -1,8 +1,8 @@
 """Pricing page service (docs/PRICING_PIPELINE.md, Part 2).
 
-The server calculates every price. The page sends model IDs, the package the rule prices
-(docs/PACKAGES_PIPELINE.md, Phase 3) and a rule (one price, a price per poly level, % off,
-$ off, or remove the sale); ``preview`` returns the calculated rows and a token; ``apply``
+The server calculates every price. The page sends model IDs and a rule: the hours rule (every
+package = hours x rate x its percent, with the sale only while the sale switch is on), one
+package's price, % off, $ off, or remove the sale; ``preview`` returns the calculated rows and a token; ``apply``
 recalculates under row locks, refuses when anything changed since the preview (the token
 differs), and saves everything or nothing with one price-history batch. A model without the
 chosen package is listed and left alone. ``publish`` puts priced models from "Waiting for price"
@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from datetime import timezone as dt_timezone
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
@@ -27,8 +27,10 @@ from django.utils import timezone
 
 from config.currency import MINIMUM_CHECKOUT_AMOUNTS
 from products.errors import ProductError
-from products.models import Product, ProductFile, ProductPriceChange
+from products.models import PricingSettings, Product, ProductFile, ProductPriceChange
 from products.packages import (
+    DEFAULT_PACKAGE_PERCENTS,
+    PACKAGE_KINDS,
     PACKAGE_LABELS,
     PACKAGE_ORDER,
     PackageKind,
@@ -51,14 +53,18 @@ DEFAULT_LOW_BELOW = 10_000
 DEFAULT_HIGH_ABOVE = 100_000
 
 RULE_SET_PRICE = "set_price"
-RULE_TIER_PRICE = "tier_price"
+RULE_HOURS_PRICE = "hours_price"
 RULE_PERCENT_OFF = "percent_off"
 RULE_AMOUNT_OFF = "amount_off"
 RULE_REMOVE_SALE = "remove_sale"
 RULES = frozenset(
-    {RULE_SET_PRICE, RULE_TIER_PRICE, RULE_PERCENT_OFF, RULE_AMOUNT_OFF, RULE_REMOVE_SALE}
+    {RULE_SET_PRICE, RULE_HOURS_PRICE, RULE_PERCENT_OFF, RULE_AMOUNT_OFF, RULE_REMOVE_SALE}
 )
-SALE_RULES = frozenset({RULE_PERCENT_OFF, RULE_AMOUNT_OFF})
+# The hours rule carries its sale too, but only while the sale switch is on (sale_percent set).
+SALE_RULES = frozenset({RULE_PERCENT_OFF, RULE_AMOUNT_OFF, RULE_HOURS_PRICE})
+MAX_DISCOUNT_PERCENT = Decimal("90")
+MAX_PACKAGE_PERCENT = Decimal("200")
+WHOLE_DOLLAR = Decimal("1")
 
 MAX_MODELS_PER_ACTION = 200
 CONFIRM_DISCOUNT_SHARE = Decimal("0.50")
@@ -190,7 +196,9 @@ class PricingRule:
     package_kind: str = PackageKind.WHOLE
     thresholds: PolyThresholds = field(default_factory=PolyThresholds)
     price: Decimal | None = None
-    tier_prices: dict[str, Decimal] = field(default_factory=dict)
+    # Hours rule: the default percent of each package, and the sale % (None: sale switch off).
+    default_percents: dict[str, Decimal] = field(default_factory=dict)
+    sale_percent: Decimal | None = None
     percent: Decimal | None = None
     amount: Decimal | None = None
     round_99: bool = False
@@ -203,7 +211,10 @@ class PricingRule:
             "low_below": self.thresholds.low_below,
             "high_above": self.thresholds.high_above,
             "price": _text(self.price),
-            "tier_prices": {tier: _text(value) for tier, value in sorted(self.tier_prices.items())},
+            "default_percents": {
+                kind: _text(value) for kind, value in sorted(self.default_percents.items())
+            },
+            "sale_percent": _text(self.sale_percent),
             "percent": _text(self.percent),
             "amount": _text(self.amount),
             "round_99": self.round_99,
@@ -314,6 +325,8 @@ class PricingRow:
             "polygon_count": product.polygon_count,
             "poly_tier": self.tier,
             "currency": product.currency,
+            "package_kind": self.package.package_kind if self.package else None,
+            "package_label": PACKAGE_LABELS[self.package.package_kind] if self.package else None,
             "has_package": self.package is not None,
             "old_price": _text(self.old_price),
             "old_sale_price": _text(self.old_sale),
@@ -348,7 +361,48 @@ def ending_99(value: Decimal) -> Decimal:
 
 
 def calculate(products: list[Product], rule: PricingRule, now: datetime) -> list[PricingRow]:
+    if rule.kind == RULE_HOURS_PRICE:
+        # One row per model and package, so each package's old and new price is shown and saved.
+        return [
+            _calculate_row(product, replace(rule, package_kind=kind), now)
+            for product in products
+            for kind in PACKAGE_ORDER
+        ]
     return [_calculate_row(product, rule, now) for product in products]
+
+
+def _percent_for(product: Product, kind: str, defaults: dict[str, Decimal]) -> Decimal:
+    """The model's own percent for a package, else the default."""
+    own = (product.package_percents or {}).get(kind)
+    if own is not None:
+        try:
+            return Decimal(str(own))
+        except ArithmeticError:
+            pass
+    return defaults[kind]
+
+
+def _hours_row(row: PricingRow, rule: PricingRule) -> None:
+    """Hours rule: price = hours x rate x percent, to whole dollars; the sale (``sale_percent``,
+    whole dollars too) only while the sale switch is on, else any sale is cleared."""
+    product = row.product
+    hours, rate = product.hours_spent, product.hourly_rate
+    if not hours or not rate or hours <= 0 or rate <= 0:
+        row.error = "Enter the hours spent and the rate per hour first."
+        return
+    percent = _percent_for(product, rule.package_kind, rule.default_percents)
+    row.new_price = (hours * rate * percent / Decimal("100")).quantize(
+        WHOLE_DOLLAR, rounding=ROUND_HALF_UP
+    )
+    if rule.sale_percent is None:
+        row.new_sale = None
+        row.new_ends_at = None
+    else:
+        row.new_sale = (row.new_price * (Decimal("100") - rule.sale_percent) / Decimal("100")).quantize(
+            WHOLE_DOLLAR, rounding=ROUND_HALF_UP
+        )
+        row.new_ends_at = rule.discount_ends_at
+    row.error = _price_error(row)
 
 
 def _calculate_row(product: Product, rule: PricingRule, now: datetime) -> PricingRow:
@@ -386,19 +440,19 @@ def _calculate_row(product: Product, rule: PricingRule, now: datetime) -> Pricin
         # Listed as "no <label> package" by the page, and never changed.
         return row
 
-    if rule.kind in (RULE_SET_PRICE, RULE_TIER_PRICE):
-        new_price = rule.price if rule.kind == RULE_SET_PRICE else rule.tier_prices.get(tier)
-        if new_price is None:
-            row.error = f"No price was given for {tier} poly models."
+    if rule.kind == RULE_HOURS_PRICE:
+        _hours_row(row, rule)
+        if row.error:
             return row
-        row.new_price = new_price
-        if row.new_sale is not None and row.new_sale >= new_price:
+    elif rule.kind == RULE_SET_PRICE:
+        row.new_price = rule.price
+        if row.new_sale is not None and row.new_sale >= rule.price:
             row.error = (
                 f"The running sale price {row.new_sale:.2f} would not be lower than the new "
                 "price. Remove the sale first, or choose a higher price."
             )
             return row
-    elif rule.kind in SALE_RULES:
+    elif rule.kind in (RULE_PERCENT_OFF, RULE_AMOUNT_OFF):
         base = package.price
         if base is None or base < MINIMUM_PRICE:
             row.error = "Set the price before giving a sale."
@@ -451,6 +505,98 @@ def _price_error(row: PricingRow) -> str:
     return ""
 
 
+# ─── Hours pricing inputs and default percents ──────────────────────────────
+
+
+def clean_percent(value: Any, *, field_name: str) -> Decimal:
+    """A package percent: above 0 and at most 200, two decimals."""
+    try:
+        percent = Decimal(str(value)).quantize(CENT, rounding=ROUND_HALF_UP)
+    except ArithmeticError:
+        raise ProductError("Enter a number.", field=field_name) from None
+    if not Decimal("0") < percent <= MAX_PACKAGE_PERCENT:
+        raise ProductError(
+            f"A package percent must be above 0 and at most {MAX_PACKAGE_PERCENT}.",
+            field=field_name,
+        )
+    return percent
+
+
+def _clean_percent_map(raw: Any, *, field_name: str, allow_null: bool) -> dict[str, Decimal | None]:
+    if not isinstance(raw, dict):
+        raise ProductError("Send the percents as an object.", field=field_name)
+    cleaned: dict[str, Decimal | None] = {}
+    for kind, value in raw.items():
+        if kind not in PACKAGE_KINDS:
+            raise ProductError(f"Unknown package: {kind}.", field=field_name)
+        if value is None and allow_null:
+            cleaned[kind] = None
+        else:
+            cleaned[kind] = clean_percent(value, field_name=field_name)
+    return cleaned
+
+
+def get_default_percents() -> dict[str, Decimal]:
+    """The default percent of every package kind (the stored ones over the built-in ones)."""
+    stored = PricingSettings.objects.filter(pk=1).values_list("package_percents", flat=True).first()
+    merged = dict(DEFAULT_PACKAGE_PERCENTS)
+    for kind, value in (stored or {}).items():
+        if kind in PACKAGE_KINDS:
+            merged[kind] = Decimal(str(value))
+    return {kind: merged[kind] for kind in PACKAGE_ORDER}
+
+
+def save_default_percents(raw: Any, *, actor) -> dict[str, Decimal]:
+    """Change some defaults. Prices already saved do not move; the next hours price uses them."""
+    changes = _clean_percent_map(raw, field_name="package_percents", allow_null=False)
+    with transaction.atomic():
+        row, _ = PricingSettings.objects.select_for_update().get_or_create(pk=1)
+        stored = {kind: str(value) for kind, value in get_default_percents().items()}
+        stored.update({kind: str(value) for kind, value in changes.items()})
+        row.package_percents = stored
+        row.updated_by = actor
+        row.save()
+    return get_default_percents()
+
+
+@transaction.atomic
+def save_inputs(items: list[dict[str, Any]], *, actor=None) -> int:
+    """Save each model's hours, rate per hour and own package percents (a ``None`` percent goes
+    back to the default). Only the keys sent change. Returns how many models changed."""
+    ids = _check_ids([item["id"] for item in items])
+    products = {
+        product.pk: product
+        for product in Product.objects.filter(pk__in=ids).order_by("pk").select_for_update()
+    }
+    if len(products) != len(ids):
+        raise ProductError("Some selected models no longer exist. Reload the page.", field="product_ids")
+    changed = 0
+    for item in {item["id"]: item for item in items}.values():
+        product = products[item["id"]]
+        update_fields = []
+        for name in ("hours_spent", "hourly_rate"):
+            if name in item and getattr(product, name) != item[name]:
+                setattr(product, name, item[name])
+                update_fields.append(name)
+        if "package_percents" in item:
+            percents = _clean_percent_map(
+                item["package_percents"], field_name="package_percents", allow_null=True
+            )
+            own = dict(product.package_percents or {})
+            for kind, value in percents.items():
+                if value is None:
+                    own.pop(kind, None)
+                else:
+                    own[kind] = str(value)
+            if own != (product.package_percents or {}):
+                product.package_percents = own
+                update_fields.append("package_percents")
+        if update_fields:
+            product.save(update_fields=[*update_fields, "updated_at"])
+            changed += 1
+    return changed
+
+
 # ─── Preview, apply, publish ────────────────────────────────────────────────
 
 
@@ -475,9 +621,9 @@ class PricingPreview:
         return {
             "rows": [row.to_dict() for row in self.rows],
             "summary": {
-                "models": len(self.rows),
+                "models": len({row.product.pk for row in self.rows}),
                 "changed": sum(1 for row in ok_rows if row.changed),
-                "errors": len(self.rows) - len(ok_rows),
+                "errors": len({row.product.pk for row in self.rows if row.error}),
                 "currency": CURRENCY,
                 "buyer_pays_before": _text(
                     sum((row.old_effective or Decimal("0") for row in ok_rows), Decimal("0"))
@@ -536,7 +682,11 @@ def apply(
             "Prices changed since the preview (or a sale ended). Preview again before saving.",
             field="preview_token",
         )
-    errors = {str(row.product.pk): [row.error] for row in result.rows if row.error}
+    errors: dict[str, list[str]] = {}
+    for row in result.rows:
+        if row.error and row.error not in errors.setdefault(str(row.product.pk), []):
+            errors[str(row.product.pk)].append(row.error)
+    errors = {key: value for key, value in errors.items() if value}
     if errors:
         raise ProductError(
             "Some models cannot take this price. Remove them from the selection or change the rule.",
@@ -573,7 +723,7 @@ def apply(
         "batch_id": batch_id,
         "models": len(ids),
         "changed": changed,
-        "unchanged": len(ids) - changed,
+        "unchanged": len(result.rows) - changed,
     }
 
 

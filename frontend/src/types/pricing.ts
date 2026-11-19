@@ -5,7 +5,7 @@ import type { PackageKind } from '../lib/packages'
 
 export type PricingTab = 'waiting' | 'live'
 export type PolyTier = 'low' | 'mid' | 'high' | 'unknown'
-export type PricingRuleKind = 'set_price' | 'tier_price' | 'percent_off' | 'amount_off' | 'remove_sale'
+export type PricingRuleKind = 'hours_price' | 'set_price' | 'percent_off' | 'amount_off' | 'remove_sale'
 
 export const POLY_TIER_LABELS: Record<PolyTier, string> = {
   low: 'Low poly',
@@ -39,6 +39,11 @@ export interface PricingRow {
   category: { id: string; name: string; parent_id: string | null }
   polygon_count: number | null
   poly_tier: PolyTier
+  /** Hours spent (from the uploader, editable here) and the rate per hour: base = hours x rate. */
+  hours_spent: string | null
+  hourly_rate: string | null
+  /** This model's own package percents; a package that is missing uses the default. */
+  package_percents: Partial<Record<PackageKind, string>>
   price: string
   currency: string
   discount_price: string | null
@@ -77,10 +82,12 @@ export interface PricingListParams {
 export interface PricingRuleRequest {
   product_ids: string[]
   rule: PricingRuleKind
-  /** The package the rule prices; each model's other packages are left as they are. */
+  /** The package a one-package rule prices; the hours rule prices every package. */
   package_kind: PackageKind
   price?: string
-  tier_prices?: Partial<Record<PolyTier, string>>
+  /** Hours rule: the sale only applies while this switch is on (off by default). */
+  sale_enabled?: boolean
+  sale_percent?: string
   percent?: string
   amount?: string
   round_99?: boolean
@@ -98,7 +105,10 @@ export interface PricingPreviewRow {
   polygon_count: number | null
   poly_tier: PolyTier
   currency: string
-  /** False: the model has no package of the chosen kind; it is listed and left alone. */
+  /** The package this row prices (the hours rule has a row per model and package). */
+  package_kind: PackageKind | null
+  package_label: string | null
+  /** False: the model has no package of this kind; it is listed and left alone. */
   has_package: boolean
   old_price: string | null
   old_sale_price: string | null
@@ -150,3 +160,16 @@ export interface PricingPublishResult {
   failed: number
   results: { id: string; name: string; sku: string | null; published: boolean; reason: string }[]
 }
+
+/** Each model's own hours, rate and percents; only the keys sent change. */
+export interface PricingInputItem {
+  id: string
+  hours_spent?: string | null
+  hourly_rate?: string | null
+  /** A null percent goes back to the default. */
+  package_percents?: Partial<Record<PackageKind, string | null>>
+}
+
+export type PackagePercents = Record<PackageKind, string>
+
+export const MAX_PACKAGE_PERCENT = 200

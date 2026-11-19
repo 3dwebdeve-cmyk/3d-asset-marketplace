@@ -244,9 +244,9 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         return free, lamp, chair
 
     def _stage_lamp_live(self) -> tuple[Product, Product, Product, dict]:
-        """Lamp priced by poly level and published; Chair has no price and stays waiting."""
+        """Lamp priced and published; Chair has no price and stays waiting."""
         free, lamp, chair = self._stage_quality_approved()
-        applied = self._price([lamp], rule="tier_price", tier_prices={"low": LAMP_PRICE})
+        applied = self._price([lamp], rule="set_price", price=LAMP_PRICE)
         response = self._publish([lamp])
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data["published"], 1, response.data)
@@ -353,22 +353,22 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         self.assertEqual((whole["price"], whole["buyer_pays"]), (None, None))
         self.assertEqual(row["category"]["id"], str(self.lighting.pk))
 
-        # Preview a price by poly level: the mid model has no price, so it gets an error row.
-        preview = self._preview_ok([lamp, chair], rule="tier_price", tier_prices={"low": LAMP_PRICE})
-        rows = {row["sku"]: row for row in preview["rows"]}
-        self.assertEqual(rows[LAMP_SKU]["new_price"], LAMP_PRICE)
-        self.assertEqual(rows[LAMP_SKU]["error"], "")
-        self.assertIn("mid", rows[CHAIR_SKU]["error"])
+        # Preview the hours price: the Chair has no hours or rate, so it gets an error row.
+        Product.objects.filter(pk=lamp.pk).update(hours_spent=Decimal("3"), hourly_rate=Decimal("10"))
+        preview = self._preview_ok([lamp, chair], rule="hours_price")
+        rows = {(row["sku"], row["package_kind"]): row for row in preview["rows"]}
+        self.assertEqual(rows[(LAMP_SKU, "whole")]["new_price"], "30.00")
+        self.assertEqual(rows[(LAMP_SKU, "whole")]["error"], "")
+        self.assertIn("hours", rows[(CHAIR_SKU, "whole")]["error"])
         self.assertEqual(preview["summary"]["errors"], 1)
         # Any row error refuses the whole save, keyed by model ID.
-        refused = self._apply([lamp, chair], preview["preview_token"], rule="tier_price",
-                              tier_prices={"low": LAMP_PRICE})
+        refused = self._apply([lamp, chair], preview["preview_token"], rule="hours_price")
         self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST, refused.data)
-        self.assertIn("mid", _row_errors(refused.data)[str(chair.pk)][0])
+        self.assertIn("hours", _row_errors(refused.data)[str(chair.pk)][0])
         self.assertIsNone(self._whole(lamp).price)
 
         # Save the Lamp alone; statuses do not change on save.
-        applied = self._price([lamp], rule="tier_price", tier_prices={"low": LAMP_PRICE})
+        applied = self._price([lamp], rule="set_price", price=LAMP_PRICE)
         self.assertEqual((applied["models"], applied["changed"]), (1, 1))
         lamp.refresh_from_db()
         self.assertEqual(lamp.price, Decimal(LAMP_PRICE))
@@ -691,12 +691,12 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         # The API's usual field-error shape: the body maps each refused model ID to its error
         # (docs/PRICING_PIPELINE.md, apply). Nothing is saved.
         _free, lamp, chair = self._stage_quality_approved()
-        preview = self._preview_ok([lamp, chair], rule="tier_price", tier_prices={"low": LAMP_PRICE})
-        refused = self._apply([lamp, chair], preview["preview_token"], rule="tier_price",
-                              tier_prices={"low": LAMP_PRICE})
+        Product.objects.filter(pk=lamp.pk).update(hours_spent=Decimal("3"), hourly_rate=Decimal("10"))
+        preview = self._preview_ok([lamp, chair], rule="hours_price")
+        refused = self._apply([lamp, chair], preview["preview_token"], rule="hours_price")
         self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(set(refused.data), {str(chair.pk)})
-        self.assertIn("No price was given", refused.data[str(chair.pk)][0])
+        self.assertIn("Enter the hours spent", refused.data[str(chair.pk)][0])
         lamp.refresh_from_db()
         self.assertNotEqual(lamp.price, Decimal(LAMP_PRICE))
 
