@@ -226,9 +226,11 @@
   z-index: 3;
   transform: translateY(-50%);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.125rem;
-  width: 3.25rem;
-  padding: 0.35rem 0.2rem;
+  width: max-content;
+  min-width: 3.25rem;
+  padding: 0.35rem;
   border-radius: 2rem;
   background: #4b4e52;
   color: #fff;
@@ -239,8 +241,10 @@
   justify-items: center;
   align-content: center;
   gap: 0.2rem;
+  min-width: 0;
   min-height: 2.65rem;
-  padding: 0.2rem;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
   border: 0;
   border-radius: 1rem;
   background: transparent;
@@ -248,11 +252,12 @@
   font: inherit;
   font-size: 0.625rem;
   line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.model-viewer__toolbar button:hover,
-.model-viewer__toolbar button[aria-pressed='true'] {
+.model-viewer__toolbar button:hover {
   background: #62666b;
 }
 
