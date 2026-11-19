@@ -22,9 +22,10 @@ export interface ModelViewerProps {
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.6
 const LIGHT_POSITIONS: [number, number, number][] = [
-  [0, 4, 5],
-  [-4.33, 4, -2.5],
-  [4.33, 4, -2.5],
+  [4, 5, 3], // Top-right
+  [-5, 1, 2], // Left
+  [0, 0, 5], // Front
+  [0, 6, 0], // Overhead
 ]
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
@@ -71,7 +72,8 @@ function SceneLights({
   backgroundBlur: number
 }) {
   const lightDirection = keyLightIndex ?? 0
-  const studioEnvironmentAngle = Math.PI / 4 - lightDirection * (2 * Math.PI / LIGHT_POSITIONS.length)
+  const [lightX, , lightZ] = LIGHT_POSITIONS[lightDirection]
+  const studioEnvironmentAngle = Math.PI / 4 + (keyLightIndex === null ? 0 : Math.atan2(lightX, lightZ))
   const naturalFallback = (
     <>
       <ambientLight intensity={0.18} />
@@ -88,7 +90,7 @@ function SceneLights({
             <directionalLight
               key={index}
               position={LIGHT_POSITIONS[(lightDirection + index) % LIGHT_POSITIONS.length]}
-              intensity={(keyLightIndex === null ? 0.85 : index === 0 ? 2.05 : 0.25) * lightMultiplier}
+              intensity={(keyLightIndex === null ? 2.55 / LIGHT_POSITIONS.length : index === 0 ? 1.8 : 0.25) * lightMultiplier}
             />
           ))}
           <CenterFillLight />
