@@ -22,11 +22,20 @@ export interface ModelViewerProps {
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.6
 const LIGHT_POSITIONS: [number, number, number][] = [
-  [4, 5, 3], // Top-right
-  [-5, 1, 2], // Left
+  [4, 3, 4], // Front-right
+  [5, 0, 0], // Right
+  [4, 3, -4], // Back-right
+  [0, 0, -5], // Back
+  [-4, 3, -4], // Back-left
+  [-5, 0, 0], // Left
+  [-4, 3, 4], // Front-left
   [0, 0, 5], // Front
   [0, 6, 0], // Overhead
 ]
+const KEY_LIGHT_INTENSITY = 1.8
+const CORNER_FILL_INTENSITY = 0.2
+const BALANCED_LIGHT_INTENSITY =
+  (KEY_LIGHT_INTENSITY + CORNER_FILL_INTENSITY * (LIGHT_POSITIONS.length - 1)) / LIGHT_POSITIONS.length
 
 function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
   const scene = useThree((state) => state.scene)
@@ -86,18 +95,24 @@ function SceneLights({
         <>
           <ambientLight intensity={0.1 * lightMultiplier} />
           <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          {LIGHT_POSITIONS.map((_, index) => (
-            <directionalLight
-              key={index}
-              position={LIGHT_POSITIONS[(lightDirection + index) % LIGHT_POSITIONS.length]}
-              intensity={(keyLightIndex === null ? 2.55 / LIGHT_POSITIONS.length : index === 0 ? 1.8 : 0.25) * lightMultiplier}
-            />
-          ))}
+          {LIGHT_POSITIONS.map((_, index) => {
+            const directionalIntensity = index === 0 ? KEY_LIGHT_INTENSITY : CORNER_FILL_INTENSITY
+            const intensity = keyLightIndex === null ? BALANCED_LIGHT_INTENSITY : directionalIntensity
+            return (
+              <directionalLight
+                key={index}
+                position={LIGHT_POSITIONS[(lightDirection + index) % LIGHT_POSITIONS.length]}
+                intensity={intensity * lightMultiplier}
+              />
+            )
+          })}
+          <directionalLight position={[0, 1, 5]} intensity={0.85 * lightMultiplier} />
+          <directionalLight position={[0, 1, -5]} intensity={0.85 * lightMultiplier} />
           <CenterFillLight />
         </>
       ) : !environmentFile ? naturalFallback : null}
       {environmentId === 'natural' && keyLightIndex !== null ? (
-        <directionalLight position={LIGHT_POSITIONS[keyLightIndex]} intensity={1.8} />
+        <directionalLight position={LIGHT_POSITIONS[keyLightIndex]} intensity={KEY_LIGHT_INTENSITY} />
       ) : null}
       {environmentFile ? (
         // Own Suspense so HDRI load does not remount/tear down PreviewModel
