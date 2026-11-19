@@ -45,15 +45,9 @@ function animationFrames() {
 }
 
 describe('product gallery navigation', () => {
-  it('requests fullscreen for only the viewer, excluding gallery controls and overlays', async () => {
+  it('keeps gallery controls and overlays outside the fullscreen viewer target', () => {
     render(<ProductImageGallery {...defaults} showStageChrome stageOverlays={<button>Wishlist</button>} />)
     const viewer = screen.getByTestId('model-preview').parentElement!
-    const requestFullscreen = vi.fn().mockResolvedValue(undefined)
-    Object.defineProperty(viewer, 'requestFullscreen', { value: requestFullscreen })
-
-    await userEvent.click(screen.getByRole('button', { name: 'View 3D model in fullscreen' }))
-
-    expect(requestFullscreen).toHaveBeenCalledOnce()
     expect(viewer).toContainElement(screen.getByTestId('model-preview'))
     expect(viewer).not.toContainElement(next())
     expect(viewer).not.toContainElement(previous())

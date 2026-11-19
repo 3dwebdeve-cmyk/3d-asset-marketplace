@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useImperativeHandle, type Ref } from 'react'
 import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Texture, Vector3 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +13,7 @@ const viewerMocks = vi.hoisted(() => {
     size: { width: 900, height: 450 },
     controls: null as { target: import('three').Vector3; update: () => void; saveState: () => void } | null,
     invalidate: vi.fn(),
+    toolbarControls: { reset: vi.fn(), dollyIn: vi.fn(), dollyOut: vi.fn() },
     clearGltfCache: vi.fn(),
     visible: true,
     webglAvailable: true,
@@ -53,7 +55,10 @@ vi.mock('@react-three/fiber', () => ({
 }))
 
 vi.mock('@react-three/drei', () => ({
-  OrbitControls: () => null,
+  OrbitControls: ({ ref }: { ref: Ref<typeof viewerMocks.toolbarControls> }) => {
+    useImperativeHandle(ref, () => viewerMocks.toolbarControls)
+    return null
+  },
   Environment: ({
     files,
     backgroundBlurriness,
@@ -193,6 +198,29 @@ describe('ModelViewer', () => {
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-dpr', '1.25')
     expect(screen.getByTestId('r3f-canvas')).toHaveAttribute('data-frameloop', 'always')
     expect(viewerMocks.renderScene!.background).toBeNull()
+  })
+
+  it('uses the toolbar to control lighting, the camera, and viewer fullscreen', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <div className="product-detail-stage__viewer">
+        <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />
+      </div>,
+    )
+    const requestFullscreen = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(container.firstElementChild, 'requestFullscreen', { value: requestFullscreen })
+
+    await user.click(screen.getByRole('button', { name: 'Lighting' }))
+    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'true')
+    await user.click(screen.getByRole('button', { name: 'Reset' }))
+    await user.click(screen.getByRole('button', { name: 'Zoom In' }))
+    await user.click(screen.getByRole('button', { name: 'Zoom Out' }))
+    await user.click(screen.getByRole('button', { name: 'Fullscreen' }))
+
+    expect(viewerMocks.toolbarControls.reset).toHaveBeenCalledOnce()
+    expect(viewerMocks.toolbarControls.dollyIn).toHaveBeenCalledWith(0.8)
+    expect(viewerMocks.toolbarControls.dollyOut).toHaveBeenCalledWith(0.8)
+    expect(requestFullscreen).toHaveBeenCalledOnce()
   })
 
   it('renders environment controls and defaults to Studio HDRI', async () => {

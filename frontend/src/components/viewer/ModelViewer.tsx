@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
@@ -258,6 +258,72 @@ function ModelViewerError({ message }: { message: string }) {
   )
 }
 
+function ViewerToolbar({
+  controls,
+  onLighting,
+  naturalLighting,
+}: {
+  controls: { current: ComponentRef<typeof OrbitControls> | null }
+  onLighting?: () => void
+  naturalLighting?: boolean
+}) {
+  const toolbar = useRef<HTMLDivElement>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+
+  function fullscreenTarget() {
+    return toolbar.current?.closest<HTMLElement>('.product-detail-stage__viewer')
+      ?? toolbar.current?.closest<HTMLElement>('.model-viewer-shell')
+  }
+
+  useEffect(() => {
+    function syncFullscreen() {
+      setFullscreen(Boolean(document.fullscreenElement && document.fullscreenElement === fullscreenTarget()))
+    }
+    document.addEventListener('fullscreenchange', syncFullscreen)
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen)
+  }, [])
+
+  async function toggleFullscreen() {
+    const target = fullscreenTarget()
+    try {
+      if (target && document.fullscreenElement === target) {
+        await document.exitFullscreen?.()
+      } else {
+        await target?.requestFullscreen?.()
+      }
+    } catch {
+      // Browsers can reject fullscreen for embedded viewers.
+    }
+  }
+
+  return (
+    <div ref={toolbar} className="model-viewer__toolbar" role="group" aria-label="3D view actions">
+      {onLighting ? (
+        <button type="button" onClick={onLighting} aria-pressed={naturalLighting}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" /></svg>
+          Lighting
+        </button>
+      ) : null}
+      <button type="button" onClick={() => controls.current?.reset()}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5H7m5-2a7 7 0 1 1-7 7" /></svg>
+        Reset
+      </button>
+      <button type="button" onClick={() => controls.current?.dollyIn(0.8)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6-6v12" /></svg>
+        Zoom In
+      </button>
+      <button type="button" onClick={() => controls.current?.dollyOut(0.8)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>
+        Zoom Out
+      </button>
+      <button type="button" onClick={() => void toggleFullscreen()}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v4m10-4h4v4m0 6v4h-4m-6 0H5v-4" /></svg>
+        {fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+      </button>
+    </div>
+  )
+}
+
 function ModelViewerCanvas({
   modelUrl,
   ariaLabel,
@@ -270,6 +336,7 @@ function ModelViewerCanvas({
   pixelRatio: number
 }) {
   const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
+  const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const [environmentStatus, setEnvironmentStatus] = useState<{
     path: string
     available: boolean
@@ -356,6 +423,7 @@ function ModelViewerCanvas({
           />
         </Suspense>
         <OrbitControls
+          ref={controls}
           makeDefault
           enableDamping
           dampingFactor={0.08}
@@ -364,6 +432,11 @@ function ModelViewerCanvas({
           maxPolarAngle={Math.PI * 0.92}
         />
       </Canvas>
+      <ViewerToolbar
+        controls={controls}
+        onLighting={() => setEnvironmentId((id) => id === 'studio' ? 'natural' : 'studio')}
+        naturalLighting={environmentId === 'natural'}
+      />
       <div className="model-viewer__controls" role="group" aria-label="Viewer controls">
         <div className="model-viewer__environment" role="radiogroup" aria-label="Lighting setup">
           {HDRI_ENVIRONMENTS.map((option) => (
@@ -407,6 +480,7 @@ function StableModelViewerCanvas({
   visible: boolean
   pixelRatio: number
 }) {
+  const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   return (
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
       <Canvas
@@ -423,6 +497,7 @@ function StableModelViewerCanvas({
           <PreviewModel key={modelUrl} url={modelUrl} wireframe={false} showGround={false} />
         </Suspense>
         <OrbitControls
+          ref={controls}
           makeDefault
           enableDamping
           dampingFactor={0.08}
@@ -431,6 +506,7 @@ function StableModelViewerCanvas({
           maxPolarAngle={Math.PI * 0.92}
         />
       </Canvas>
+      <ViewerToolbar controls={controls} />
       <ViewerProgressOverlay />
     </div>
   )
