@@ -1,12 +1,14 @@
-"""Pricing page service (docs/PRICING_PIPELINE.md, Part 2).
+"""Pricing page service (docs/PRICING_PIPELINE.md).
 
-The server calculates every price. The page sends model IDs and a rule: the hours rule (every
-package = hours x rate x its percent, with the sale only while the sale switch is on), one
-package's price, % off, $ off, or remove the sale; ``preview`` returns the calculated rows and a token; ``apply``
-recalculates under row locks, refuses when anything changed since the preview (the token
-differs), and saves everything or nothing with one price-history batch. A model without the
-chosen package is listed and left alone. ``publish`` puts priced models from "Waiting for price"
-on the store, one by one, with the publish checks (every package priced).
+The admin ticks models and types one rate and one percent per package. Every package price is
+calculated by the server:
+
+    base price    = hours spent x rate
+    package price = round(base price x percent / 100)     (whole dollars, half up)
+
+A model gets a price only for the packages it has. ``calculate`` shows the result and changes
+nothing. ``publish`` recalculates, saves each model's package prices and puts the model on the
+store, one model at a time: a model that fails stays waiting and its reason is returned.
 """
 
 from __future__ import annotations
@@ -14,63 +16,41 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime
 from datetime import timezone as dt_timezone
-from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Q, QuerySet
-from django.utils import timezone
 
 from config.currency import MINIMUM_CHECKOUT_AMOUNTS
 from products.errors import ProductError
-from products.models import PricingSettings, Product, ProductFile, ProductPriceChange
+from products.models import Product, ProductFile, ProductPriceChange
 from products.packages import (
-    DEFAULT_PACKAGE_PERCENTS,
     PACKAGE_KINDS,
     PACKAGE_LABELS,
     PACKAGE_ORDER,
-    PackageKind,
     bundle_warning,
     sync_summary_price,
 )
 from products.price_history import PriceState, record_price_change
-from products.services import MAX_DISCOUNT_SHARE, UPLOAD_KIND_FREE, ProductService
+from products.services import UPLOAD_KIND_FREE, ProductService
 
 TAB_WAITING = "waiting"
 TAB_LIVE = "live"
 TABS = frozenset({TAB_WAITING, TAB_LIVE})
 
-TIER_LOW = "low"
-TIER_MID = "mid"
-TIER_HIGH = "high"
-TIER_UNKNOWN = "unknown"
-TIERS = (TIER_LOW, TIER_MID, TIER_HIGH, TIER_UNKNOWN)
-DEFAULT_LOW_BELOW = 10_000
-DEFAULT_HIGH_ABOVE = 100_000
-
-RULE_SET_PRICE = "set_price"
-RULE_HOURS_PRICE = "hours_price"
-RULE_PERCENT_OFF = "percent_off"
-RULE_AMOUNT_OFF = "amount_off"
-RULE_REMOVE_SALE = "remove_sale"
-RULES = frozenset(
-    {RULE_SET_PRICE, RULE_HOURS_PRICE, RULE_PERCENT_OFF, RULE_AMOUNT_OFF, RULE_REMOVE_SALE}
-)
-# The hours rule carries its sale too, but only while the sale switch is on (sale_percent set).
-SALE_RULES = frozenset({RULE_PERCENT_OFF, RULE_AMOUNT_OFF, RULE_HOURS_PRICE})
-MAX_DISCOUNT_PERCENT = Decimal("90")
-MAX_PACKAGE_PERCENT = Decimal("200")
-WHOLE_DOLLAR = Decimal("1")
-
 MAX_MODELS_PER_ACTION = 200
-CONFIRM_DISCOUNT_SHARE = Decimal("0.50")
 CURRENCY = "USD"
 MINIMUM_PRICE = MINIMUM_CHECKOUT_AMOUNTS[CURRENCY]
 CENT = Decimal("0.01")
+WHOLE_DOLLAR = Decimal("1")
+MAX_RATE = Decimal("100000")
+MAX_PERCENT = Decimal("200")
+MAX_HOURS = Decimal("99999.99")
 
 LIST_ORDERINGS = frozenset(
     {
@@ -80,6 +60,8 @@ LIST_ORDERINGS = frozenset(
         "-price",
         "polygon_count",
         "-polygon_count",
+        "hours_spent",
+        "-hours_spent",
         "created_at",
         "-created_at",
     }
@@ -87,46 +69,7 @@ LIST_ORDERINGS = frozenset(
 
 
 class PricingConflict(ProductError):
-    """The prices changed since the preview; the page must preview again (HTTP 409)."""
-
-
-# ─── Poly levels ────────────────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class PolyThresholds:
-    """Low: fewer than ``low_below`` polygons. High: more than ``high_above``. Mid: between,
-    both ends included. No polygon count: unknown."""
-
-    low_below: int = DEFAULT_LOW_BELOW
-    high_above: int = DEFAULT_HIGH_ABOVE
-
-    def __post_init__(self) -> None:
-        if self.low_below < 1 or self.high_above < self.low_below:
-            raise ProductError(
-                "The Low limit must be at least 1 and not above the High limit.",
-                field="low_below",
-            )
-
-    def tier(self, polygon_count: int | None) -> str:
-        if polygon_count is None:
-            return TIER_UNKNOWN
-        if polygon_count < self.low_below:
-            return TIER_LOW
-        if polygon_count > self.high_above:
-            return TIER_HIGH
-        return TIER_MID
-
-    def tier_q(self, tier: str) -> Q:
-        if tier == TIER_UNKNOWN:
-            return Q(polygon_count__isnull=True)
-        if tier == TIER_LOW:
-            return Q(polygon_count__lt=self.low_below)
-        if tier == TIER_HIGH:
-            return Q(polygon_count__gt=self.high_above)
-        if tier == TIER_MID:
-            return Q(polygon_count__gte=self.low_below, polygon_count__lte=self.high_above)
-        raise ProductError("Poly level must be low, mid, high or unknown.", field="poly")
+    """The prices changed since the calculation; the page must calculate again (HTTP 409)."""
 
 
 # ─── Listing ────────────────────────────────────────────────────────────────
@@ -135,16 +78,14 @@ class PolyThresholds:
 def list_models(
     *,
     tab: str,
-    thresholds: PolyThresholds,
     category_id: UUID | None = None,
     subcategory_id: UUID | None = None,
-    poly: str | None = None,
     search: str | None = None,
     import_batch_id: str | None = None,
     ordering: str | None = None,
 ) -> QuerySet[Product]:
     """Models on the Pricing page. Waiting: paid models that passed QA. Live: paid models on
-    the store (free models never have a price or a sale)."""
+    the store (free models never have a price)."""
     queryset = (
         Product.objects.select_related("category")
         .prefetch_related("files")
@@ -163,8 +104,6 @@ def list_models(
         queryset = queryset.filter(Q(category_id=category_id) | Q(category__parent_id=category_id))
     if subcategory_id is not None:
         queryset = queryset.filter(category_id=subcategory_id)
-    if poly:
-        queryset = queryset.filter(thresholds.tier_q(poly))
     query = (search or "").strip()
     if query:
         queryset = queryset.filter(Q(name__icontains=query) | Q(sku__icontains=query.upper()))
@@ -176,7 +115,7 @@ def list_models(
 
 def list_batches(tab: str) -> list[str]:
     """Upload batch IDs of the models in a tab, newest first (for the batch filter)."""
-    queryset = list_models(tab=tab, thresholds=PolyThresholds()).exclude(import_batch_id="")
+    queryset = list_models(tab=tab).exclude(import_batch_id="")
     batches: list[str] = []
     for batch in queryset.order_by("-created_at").values_list("import_batch_id", flat=True):
         if batch not in batches:
@@ -184,165 +123,6 @@ def list_batches(tab: str) -> list[str]:
         if len(batches) == 50:
             break
     return batches
-
-
-# ─── Rules and calculation ──────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class PricingRule:
-    kind: str
-    # The package the rule prices; the other packages of each model are left as they are.
-    package_kind: str = PackageKind.WHOLE
-    thresholds: PolyThresholds = field(default_factory=PolyThresholds)
-    price: Decimal | None = None
-    # Hours rule: the default percent of each package, and the sale % (None: sale switch off).
-    default_percents: dict[str, Decimal] = field(default_factory=dict)
-    sale_percent: Decimal | None = None
-    percent: Decimal | None = None
-    amount: Decimal | None = None
-    round_99: bool = False
-    discount_ends_at: datetime | None = None
-
-    def canonical(self) -> dict[str, Any]:
-        return {
-            "kind": self.kind,
-            "package_kind": self.package_kind,
-            "low_below": self.thresholds.low_below,
-            "high_above": self.thresholds.high_above,
-            "price": _text(self.price),
-            "default_percents": {
-                kind: _text(value) for kind, value in sorted(self.default_percents.items())
-            },
-            "sale_percent": _text(self.sale_percent),
-            "percent": _text(self.percent),
-            "amount": _text(self.amount),
-            "round_99": self.round_99,
-            "discount_ends_at": _time_text(self.discount_ends_at),
-        }
-
-
-def package_summaries(
-    product: Product, now: datetime, override: PricingRow | None = None
-) -> list[dict[str, Any]]:
-    """Every package of a model with its price and sale, in PACKAGE_ORDER; ``override`` shows
-    one package with a preview row's new values. Reads ``product.files.all()`` (prefetched)."""
-    rows = sorted(
-        (row for row in product.files.all() if not row.is_preview and row.package_kind),
-        key=lambda row: PACKAGE_ORDER.index(row.package_kind),
-    )
-    summaries = []
-    for row in rows:
-        if override is not None and override.package is not None and row.pk == override.package.pk:
-            price, sale, ends_at = override.new_price, override.new_sale, override.new_ends_at
-        else:
-            price = row.price
-            sale = row.active_discount_price(now)
-            ends_at = row.discount_ends_at if sale is not None else None
-        effective = sale if sale is not None else price
-        summaries.append(
-            {
-                "kind": row.package_kind,
-                "label": PACKAGE_LABELS[row.package_kind],
-                "price": _text(price),
-                "sale_price": _text(sale),
-                "sale_ends_at": _time_text(ends_at),
-                "buyer_pays": _text(effective),
-            }
-        )
-    return summaries
-
-
-def summaries_bundle_warning(summaries: list[dict[str, Any]]) -> str:
-    """The bundle check on what buyers pay for the priced packages."""
-    return bundle_warning(
-        {row["kind"]: Decimal(row["buyer_pays"]) for row in summaries if row["buyer_pays"] is not None}
-    )
-
-
-@dataclass
-class PricingRow:
-    product: Product
-    # The chosen kind's package; None when the model has no such package (left alone).
-    package: ProductFile | None
-    tier: str
-    old_price: Decimal | None
-    old_sale: Decimal | None
-    old_ends_at: datetime | None
-    new_price: Decimal | None
-    new_sale: Decimal | None
-    new_ends_at: datetime | None
-    now: datetime
-    error: str = ""
-
-    @property
-    def old_effective(self) -> Decimal | None:
-        return self.old_sale if self.old_sale is not None else self.old_price
-
-    @property
-    def new_effective(self) -> Decimal | None:
-        return self.new_sale if self.new_sale is not None else self.new_price
-
-    @property
-    def discount_share(self) -> Decimal:
-        if self.new_sale is None or not self.new_price:
-            return Decimal("0")
-        return (self.new_price - self.new_sale) / self.new_price
-
-    @property
-    def changed(self) -> bool:
-        package = self.package
-        return package is not None and (
-            self.new_price != package.price
-            or self.new_sale != package.discount_price
-            or self.new_ends_at != package.discount_ends_at
-        )
-
-    def fingerprint(self) -> list[Any]:
-        product, package = self.product, self.package
-        return [
-            str(product.pk),
-            product.status,
-            str(package.pk) if package else None,
-            _text(package.price) if package else None,
-            _text(package.discount_price) if package else None,
-            _time_text(package.discount_ends_at) if package else None,
-            _text(self.new_price),
-            _text(self.new_sale),
-            _time_text(self.new_ends_at),
-            self.error,
-        ]
-
-    def to_dict(self) -> dict[str, Any]:
-        product = self.product
-        saving = self.new_price - self.new_sale if self.new_sale is not None else Decimal("0")
-        packages = package_summaries(product, self.now, override=self)
-        return {
-            "id": str(product.pk),
-            "name": product.name,
-            "sku": product.sku,
-            "status": product.status,
-            "polygon_count": product.polygon_count,
-            "poly_tier": self.tier,
-            "currency": product.currency,
-            "package_kind": self.package.package_kind if self.package else None,
-            "package_label": PACKAGE_LABELS[self.package.package_kind] if self.package else None,
-            "has_package": self.package is not None,
-            "old_price": _text(self.old_price),
-            "old_sale_price": _text(self.old_sale),
-            "old_sale_ends_at": _time_text(self.old_ends_at),
-            "new_price": _text(self.new_price),
-            "new_sale_price": _text(self.new_sale),
-            "new_sale_ends_at": _time_text(self.new_ends_at),
-            "amount_off": _text(saving),
-            "percent_off": str((self.discount_share * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)),
-            "buyer_pays": _text(self.new_effective),
-            "changed": self.changed and not self.error,
-            "error": self.error,
-            # Every package of the model, the chosen one with its new values.
-            "packages": packages,
-            "bundle_warning": summaries_bundle_warning(packages),
-        }
 
 
 def _text(value: Decimal | None) -> str | None:
@@ -354,285 +134,188 @@ def _time_text(value: datetime | None) -> str | None:
     return None if value is None else value.astimezone(dt_timezone.utc).isoformat()
 
 
-def ending_99(value: Decimal) -> Decimal:
-    """The highest price ending in .99 that is not above ``value``: 8.40 -> 7.99, 9.00 -> 8.99,
-    8.99 -> 8.99."""
-    return (value + CENT).to_integral_value(rounding=ROUND_FLOOR) - CENT
+def package_rows(product: Product) -> list[ProductFile]:
+    """A model's packages in PACKAGE_ORDER. Reads ``product.files.all()`` (prefetched)."""
+    return sorted(
+        (row for row in product.files.all() if not row.is_preview and row.package_kind),
+        key=lambda row: PACKAGE_ORDER.index(row.package_kind),
+    )
 
 
-def calculate(products: list[Product], rule: PricingRule, now: datetime) -> list[PricingRow]:
-    if rule.kind == RULE_HOURS_PRICE:
-        # One row per model and package, so each package's old and new price is shown and saved.
-        return [
-            _calculate_row(product, replace(rule, package_kind=kind), now)
-            for product in products
-            for kind in PACKAGE_ORDER
-        ]
-    return [_calculate_row(product, rule, now) for product in products]
+def package_summaries(product: Product, now: datetime) -> list[dict[str, Any]]:
+    """Every package of a model with its price and sale (what a buyer pays now)."""
+    summaries = []
+    for row in package_rows(product):
+        price = row.price
+        sale = row.active_discount_price(now)
+        effective = sale if sale is not None else price
+        summaries.append(
+            {
+                "kind": row.package_kind,
+                "label": PACKAGE_LABELS[row.package_kind],
+                "price": _text(price),
+                "sale_price": _text(sale),
+                "sale_ends_at": _time_text(row.discount_ends_at if sale is not None else None),
+                "buyer_pays": _text(effective),
+            }
+        )
+    return summaries
 
 
-def _percent_for(product: Product, kind: str, defaults: dict[str, Decimal]) -> Decimal:
-    """The model's own percent for a package, else the default."""
-    own = (product.package_percents or {}).get(kind)
-    if own is not None:
+def summaries_bundle_warning(summaries: list[dict[str, Any]]) -> str:
+    """The Whole File check on what buyers pay for the priced packages."""
+    return bundle_warning(
+        {row["kind"]: Decimal(row["buyer_pays"]) for row in summaries if row["buyer_pays"] is not None}
+    )
+
+
+# ─── The rate and the percents ──────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class PricingInput:
+    """The rate per hour and the percent of the base price for every package kind."""
+
+    rate: Decimal
+    percents: dict[str, Decimal]
+
+    @classmethod
+    def clean(cls, rate: Any, percents: Any) -> PricingInput:
         try:
-            return Decimal(str(own))
+            clean_rate = Decimal(str(rate)).quantize(CENT, rounding=ROUND_HALF_UP)
         except ArithmeticError:
-            pass
-    return defaults[kind]
-
-
-def _hours_row(row: PricingRow, rule: PricingRule) -> None:
-    """Hours rule: price = hours x rate x percent, to whole dollars; the sale (``sale_percent``,
-    whole dollars too) only while the sale switch is on, else any sale is cleared."""
-    product = row.product
-    hours, rate = product.hours_spent, product.hourly_rate
-    if not hours or not rate or hours <= 0 or rate <= 0:
-        row.error = "Enter the hours spent and the rate per hour first."
-        return
-    percent = _percent_for(product, rule.package_kind, rule.default_percents)
-    row.new_price = (hours * rate * percent / Decimal("100")).quantize(
-        WHOLE_DOLLAR, rounding=ROUND_HALF_UP
-    )
-    if rule.sale_percent is None:
-        row.new_sale = None
-        row.new_ends_at = None
-    else:
-        row.new_sale = (row.new_price * (Decimal("100") - rule.sale_percent) / Decimal("100")).quantize(
-            WHOLE_DOLLAR, rounding=ROUND_HALF_UP
-        )
-        row.new_ends_at = rule.discount_ends_at
-    row.error = _price_error(row)
-
-
-def _calculate_row(product: Product, rule: PricingRule, now: datetime) -> PricingRow:
-    tier = rule.thresholds.tier(product.polygon_count)
-    package = next(
-        (
-            row
-            for row in product.files.all()
-            if not row.is_preview and row.package_kind == rule.package_kind
-        ),
-        None,
-    )
-    active_sale = package.active_discount_price(now) if package is not None else None
-    # An ended sale that is still stored counts as no sale (it is cleared on save).
-    ends_at = package.discount_ends_at if active_sale is not None else None
-    price = package.price if package is not None else None
-    row = PricingRow(
-        product=product,
-        package=package,
-        tier=tier,
-        old_price=price,
-        old_sale=active_sale,
-        old_ends_at=ends_at,
-        new_price=price,
-        new_sale=active_sale,
-        new_ends_at=ends_at,
-        now=now,
-    )
-
-    eligible = _eligibility_error(product)
-    if eligible:
-        row.error = eligible
-        return row
-    if package is None:
-        # Listed as "no <label> package" by the page, and never changed.
-        return row
-
-    if rule.kind == RULE_HOURS_PRICE:
-        _hours_row(row, rule)
-        if row.error:
-            return row
-    elif rule.kind == RULE_SET_PRICE:
-        row.new_price = rule.price
-        if row.new_sale is not None and row.new_sale >= rule.price:
-            row.error = (
-                f"The running sale price {row.new_sale:.2f} would not be lower than the new "
-                "price. Remove the sale first, or choose a higher price."
+            raise ProductError("Enter the rate per hour.", field="rate") from None
+        if not Decimal("0") < clean_rate <= MAX_RATE:
+            raise ProductError(
+                f"The rate must be above 0 and at most {MAX_RATE:.0f}.", field="rate"
             )
-            return row
-    elif rule.kind in (RULE_PERCENT_OFF, RULE_AMOUNT_OFF):
-        base = package.price
-        if base is None or base < MINIMUM_PRICE:
-            row.error = "Set the price before giving a sale."
-            return row
-        if rule.kind == RULE_PERCENT_OFF:
-            sale = (base * (Decimal("100") - rule.percent) / Decimal("100")).quantize(
-                CENT, rounding=ROUND_HALF_UP
-            )
-        else:
-            sale = (base - rule.amount).quantize(CENT, rounding=ROUND_HALF_UP)
-        if rule.round_99:
-            sale = ending_99(sale)
-        row.new_sale = sale
-        row.new_ends_at = rule.discount_ends_at
-    elif rule.kind == RULE_REMOVE_SALE:
-        row.new_sale = None
-        row.new_ends_at = None
-    else:  # validated by the serializer; kept as a guard
-        row.error = "Unknown pricing rule."
-        return row
+        if not isinstance(percents, dict) or set(percents) != PACKAGE_KINDS:
+            raise ProductError("Enter a percent for every package.", field="percents")
+        clean_percents: dict[str, Decimal] = {}
+        for kind in PACKAGE_ORDER:
+            try:
+                value = Decimal(str(percents[kind])).quantize(CENT, rounding=ROUND_HALF_UP)
+            except ArithmeticError:
+                raise ProductError(
+                    f"Enter the {PACKAGE_LABELS[kind]} percent.", field="percents"
+                ) from None
+            if not Decimal("0") < value <= MAX_PERCENT:
+                raise ProductError(
+                    f"A percent must be above 0 and at most {MAX_PERCENT:.0f}.", field="percents"
+                )
+            clean_percents[kind] = value
+        return cls(clean_rate, clean_percents)
 
-    row.error = _price_error(row)
-    return row
+    def canonical(self) -> dict[str, Any]:
+        return {
+            "rate": _text(self.rate),
+            "percents": {kind: _text(value) for kind, value in self.percents.items()},
+        }
 
 
-def _eligibility_error(product: Product) -> str:
-    if product.status not in (Product.Status.AWAITING_PRICE, Product.Status.PUBLISHED):
-        return "Only models waiting for a price or on the store can be priced here."
-    if product.currency != CURRENCY:
-        return f"Only {CURRENCY} prices are supported."
-    if ProductService.upload_kind(product) == UPLOAD_KIND_FREE:
-        return "Free models have no price or sale."
-    return ""
-
-
-def _price_error(row: PricingRow) -> str:
-    if row.new_price is None:
-        # A package with no price yet keeps none (removing a sale it does not have).
-        return ""
-    if row.new_price < MINIMUM_PRICE:
-        return f"The price must be at least {MINIMUM_PRICE} {CURRENCY}."
-    if row.new_sale is None:
-        return ""
-    if row.new_sale < MINIMUM_PRICE:
-        return f"The sale price would be {row.new_sale:.2f}; the lowest allowed is {MINIMUM_PRICE}."
-    if row.new_sale >= row.new_price:
-        return "The sale price must be lower than the price."
-    if row.discount_share > MAX_DISCOUNT_SHARE:
-        return "A sale may take at most 90% off."
-    return ""
-
-
-# ─── Hours pricing inputs and default percents ──────────────────────────────
-
-
-def clean_percent(value: Any, *, field_name: str) -> Decimal:
-    """A package percent: above 0 and at most 200, two decimals."""
-    try:
-        percent = Decimal(str(value)).quantize(CENT, rounding=ROUND_HALF_UP)
-    except ArithmeticError:
-        raise ProductError("Enter a number.", field=field_name) from None
-    if not Decimal("0") < percent <= MAX_PACKAGE_PERCENT:
-        raise ProductError(
-            f"A package percent must be above 0 and at most {MAX_PACKAGE_PERCENT}.",
-            field=field_name,
-        )
-    return percent
-
-
-def _clean_percent_map(raw: Any, *, field_name: str, allow_null: bool) -> dict[str, Decimal | None]:
-    if not isinstance(raw, dict):
-        raise ProductError("Send the percents as an object.", field=field_name)
-    cleaned: dict[str, Decimal | None] = {}
-    for kind, value in raw.items():
-        if kind not in PACKAGE_KINDS:
-            raise ProductError(f"Unknown package: {kind}.", field=field_name)
-        if value is None and allow_null:
-            cleaned[kind] = None
-        else:
-            cleaned[kind] = clean_percent(value, field_name=field_name)
-    return cleaned
-
-
-def get_default_percents() -> dict[str, Decimal]:
-    """The default percent of every package kind (the stored ones over the built-in ones)."""
-    stored = PricingSettings.objects.filter(pk=1).values_list("package_percents", flat=True).first()
-    merged = dict(DEFAULT_PACKAGE_PERCENTS)
-    for kind, value in (stored or {}).items():
-        if kind in PACKAGE_KINDS:
-            merged[kind] = Decimal(str(value))
-    return {kind: merged[kind] for kind in PACKAGE_ORDER}
-
-
-def save_default_percents(raw: Any, *, actor) -> dict[str, Decimal]:
-    """Change some defaults. Prices already saved do not move; the next hours price uses them."""
-    changes = _clean_percent_map(raw, field_name="package_percents", allow_null=False)
-    with transaction.atomic():
-        row, _ = PricingSettings.objects.select_for_update().get_or_create(pk=1)
-        stored = {kind: str(value) for kind, value in get_default_percents().items()}
-        stored.update({kind: str(value) for kind, value in changes.items()})
-        row.package_percents = stored
-        row.updated_by = actor
-        row.save()
-    return get_default_percents()
-
-
-@transaction.atomic
-def save_inputs(items: list[dict[str, Any]], *, actor=None) -> int:
-    """Save each model's hours, rate per hour and own package percents (a ``None`` percent goes
-    back to the default). Only the keys sent change. Returns how many models changed."""
-    ids = _check_ids([item["id"] for item in items])
-    products = {
-        product.pk: product
-        for product in Product.objects.filter(pk__in=ids).order_by("pk").select_for_update()
-    }
-    if len(products) != len(ids):
-        raise ProductError("Some selected models no longer exist. Reload the page.", field="product_ids")
-    changed = 0
-    for item in {item["id"]: item for item in items}.values():
-        product = products[item["id"]]
-        update_fields = []
-        for name in ("hours_spent", "hourly_rate"):
-            if name in item and getattr(product, name) != item[name]:
-                setattr(product, name, item[name])
-                update_fields.append(name)
-        if "package_percents" in item:
-            percents = _clean_percent_map(
-                item["package_percents"], field_name="package_percents", allow_null=True
-            )
-            own = dict(product.package_percents or {})
-            for kind, value in percents.items():
-                if value is None:
-                    own.pop(kind, None)
-                else:
-                    own[kind] = str(value)
-            if own != (product.package_percents or {}):
-                product.package_percents = own
-                update_fields.append("package_percents")
-        if update_fields:
-            product.save(update_fields=[*update_fields, "updated_at"])
-            changed += 1
-    return changed
-
-
-# ─── Preview, apply, publish ────────────────────────────────────────────────
+# ─── Calculation ────────────────────────────────────────────────────────────
 
 
 @dataclass
-class PricingPreview:
+class PricedPackage:
+    package: ProductFile
+    old_price: Decimal | None
+    new_price: Decimal | None
+
+
+@dataclass
+class PricingRow:
+    product: Product
+    packages: list[PricedPackage] = field(default_factory=list)
+    error: str = ""
+
+    def fingerprint(self) -> list[Any]:
+        return [
+            str(self.product.pk),
+            self.product.status,
+            _text(self.product.hours_spent),
+            [[str(item.package.pk), _text(item.old_price), _text(item.new_price)] for item in self.packages],
+            self.error,
+        ]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": str(self.product.pk),
+            "name": self.product.name,
+            "sku": self.product.sku,
+            "hours_spent": _text(self.product.hours_spent),
+            "error": self.error,
+            "packages": [
+                {
+                    "kind": item.package.package_kind,
+                    "label": PACKAGE_LABELS[item.package.package_kind],
+                    "old_price": _text(item.old_price),
+                    "price": _text(item.new_price),
+                }
+                for item in self.packages
+            ],
+        }
+
+
+def calculate_row(product: Product, pricing_input: PricingInput) -> PricingRow:
+    """One model's package prices, or the reason it cannot be priced."""
+    row = PricingRow(product=product)
+    if product.status != Product.Status.AWAITING_PRICE:
+        row.error = "Only models waiting for a price can be priced here."
+        return row
+    if product.currency != CURRENCY:
+        row.error = f"Only {CURRENCY} prices are supported."
+        return row
+    if ProductService.upload_kind(product) == UPLOAD_KIND_FREE:
+        row.error = "Free models have no price."
+        return row
+    hours = product.hours_spent
+    if hours is None or hours <= 0:
+        row.error = "Enter the hours spent first."
+        return row
+    packages = package_rows(product)
+    if not packages:
+        row.error = "This model has no packages."
+        return row
+    base = hours * pricing_input.rate
+    for package in packages:
+        percent = pricing_input.percents[package.package_kind]
+        price = (base * percent / Decimal("100")).quantize(WHOLE_DOLLAR, rounding=ROUND_HALF_UP)
+        if price < MINIMUM_PRICE:
+            row.error = (
+                f"{PACKAGE_LABELS[package.package_kind]} would cost {price:.2f}; "
+                f"the lowest allowed is {MINIMUM_PRICE}."
+            )
+            row.packages = []
+            return row
+        row.packages.append(PricedPackage(package, package.price, price))
+    return row
+
+
+@dataclass
+class PricingPlan:
     rows: list[PricingRow]
-    rule: PricingRule
+    pricing_input: PricingInput
 
     @property
     def token(self) -> str:
-        payload = {"rule": self.rule.canonical(), "rows": [row.fingerprint() for row in self.rows]}
+        payload = {
+            "input": self.pricing_input.canonical(),
+            "rows": [row.fingerprint() for row in self.rows],
+        }
         return hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
 
-    @property
-    def needs_confirmation(self) -> bool:
-        return any(not row.error and row.discount_share > CONFIRM_DISCOUNT_SHARE for row in self.rows)
-
     def to_dict(self) -> dict[str, Any]:
-        ok_rows = [row for row in self.rows if not row.error]
+        ok = [row for row in self.rows if not row.error]
         return {
             "rows": [row.to_dict() for row in self.rows],
             "summary": {
-                "models": len({row.product.pk for row in self.rows}),
-                "changed": sum(1 for row in ok_rows if row.changed),
-                "errors": len({row.product.pk for row in self.rows if row.error}),
+                "models": len(self.rows),
+                "priced": len(ok),
+                "errors": len(self.rows) - len(ok),
                 "currency": CURRENCY,
-                "buyer_pays_before": _text(
-                    sum((row.old_effective or Decimal("0") for row in ok_rows), Decimal("0"))
-                ),
-                "buyer_pays_after": _text(
-                    sum((row.new_effective or Decimal("0") for row in ok_rows), Decimal("0"))
-                ),
-                "without_package": sum(1 for row in self.rows if row.package is None),
-                "needs_confirmation": self.needs_confirmation,
             },
             "preview_token": self.token,
         }
@@ -649,98 +332,85 @@ def _check_ids(product_ids: list[UUID]) -> list[UUID]:
     return ids
 
 
-def _load(ids: list[UUID], *, lock: bool) -> list[Product]:
-    queryset = Product.objects.filter(pk__in=ids).prefetch_related("files").order_by("pk")
-    if lock:
-        # Ordered by primary key, so two saves on overlapping selections cannot deadlock.
-        queryset = queryset.select_for_update(of=("self",))
-    products = list(queryset)
+def _load(ids: list[UUID]) -> list[Product]:
+    products = list(Product.objects.filter(pk__in=ids).prefetch_related("files").order_by("pk"))
     if len(products) != len(ids):
         raise ProductError("Some selected models no longer exist. Reload the page.", field="product_ids")
     return products
 
 
-def preview(product_ids: list[UUID], rule: PricingRule) -> PricingPreview:
-    ids = _check_ids(product_ids)
-    return PricingPreview(calculate(_load(ids, lock=False), rule, timezone.now()), rule)
+def calculate(product_ids: list[UUID], pricing_input: PricingInput) -> PricingPlan:
+    """The prices the selection would get. Changes nothing."""
+    products = _load(_check_ids(product_ids))
+    return PricingPlan([calculate_row(product, pricing_input) for product in products], pricing_input)
+
+
+# ─── Hours ──────────────────────────────────────────────────────────────────
 
 
 @transaction.atomic
-def apply(
+def save_hours(items: list[dict[str, Any]]) -> int:
+    """Set (or clear, with None) each model's hours spent. Returns how many models changed."""
+    ids = _check_ids([item["id"] for item in items])
+    products = {
+        product.pk: product
+        for product in Product.objects.filter(pk__in=ids).order_by("pk").select_for_update()
+    }
+    if len(products) != len(ids):
+        raise ProductError("Some selected models no longer exist. Reload the page.", field="product_ids")
+    changed = 0
+    for item in items:
+        product = products[item["id"]]
+        hours = item["hours_spent"]
+        if hours is not None and not Decimal("0") < hours <= MAX_HOURS:
+            raise ProductError("Hours must be above 0.", field="hours_spent")
+        if product.hours_spent != hours:
+            product.hours_spent = hours
+            product.save(update_fields=["hours_spent", "updated_at"])
+            changed += 1
+    return changed
+
+
+# ─── Publish ────────────────────────────────────────────────────────────────
+
+
+class _NotPublished(Exception):
+    """Raised inside a model's transaction to undo its price writes."""
+
+
+def publish(
     product_ids: list[UUID],
-    rule: PricingRule,
+    pricing_input: PricingInput,
     *,
     preview_token: str,
     confirm_count: int | None,
     actor,
 ) -> dict[str, Any]:
-    """Save the previewed prices: all or nothing, one history batch, rows locked."""
-    ids = _check_ids(product_ids)
-    result = PricingPreview(calculate(_load(ids, lock=True), rule, timezone.now()), rule)
-    if result.token != preview_token:
-        raise PricingConflict(
-            "Prices changed since the preview (or a sale ended). Preview again before saving.",
-            field="preview_token",
-        )
-    errors: dict[str, list[str]] = {}
-    for row in result.rows:
-        if row.error and row.error not in errors.setdefault(str(row.product.pk), []):
-            errors[str(row.product.pk)].append(row.error)
-    errors = {key: value for key, value in errors.items() if value}
-    if errors:
-        raise ProductError(
-            "Some models cannot take this price. Remove them from the selection or change the rule.",
-            field="product_ids",
-            errors=errors,
-        )
-    if result.needs_confirmation and confirm_count != len(ids):
-        raise ProductError(
-            f"A sale above 50% off needs confirmation: type the number of models ({len(ids)}).",
-            field="confirm_count",
-        )
+    """Save the calculated package prices and put the models on the store.
 
-    batch_id = f"pricing-{uuid.uuid4().hex[:16]}"
-    changed = 0
-    for row in result.rows:
-        if not row.changed:
-            continue
-        package = row.package
-        before = PriceState.of(package)
-        package.price = row.new_price
-        package.discount_price = row.new_sale
-        package.discount_ends_at = row.new_ends_at
-        package.save(update_fields=["price", "discount_price", "discount_ends_at", "updated_at"])
-        record_price_change(
-            package,
-            before,
-            source=ProductPriceChange.Source.PRICING_PAGE,
-            actor=actor,
-            batch_id=batch_id,
-        )
-        sync_summary_price(row.product)
-        changed += 1
-    return {
-        "batch_id": batch_id,
-        "models": len(ids),
-        "changed": changed,
-        "unchanged": len(result.rows) - changed,
-    }
-
-
-def publish(product_ids: list[UUID], *, confirm_count: int | None, actor) -> dict[str, Any]:
-    """Put priced models from Waiting for price on the store. Each model is checked and saved
-    on its own: one that fails stays waiting and its reason is returned."""
+    The calculation is repeated and refused with a conflict if it differs from what the admin
+    saw (``preview_token``). Each model is then saved and published on its own: one that fails
+    keeps its old prices, stays waiting, and its reason is returned.
+    """
     ids = _check_ids(product_ids)
     if confirm_count != len(ids):
         raise ProductError(
             f"Confirm the publish: send the number of selected models ({len(ids)}).",
             field="confirm_count",
         )
-    results: list[dict[str, Any]] = []
-    for product_id in sorted(ids):
-        results.append(_publish_one(product_id, actor=actor))
+    if calculate(ids, pricing_input).token != preview_token:
+        raise PricingConflict(
+            "Prices or hours changed since the calculation. Calculate again before publishing.",
+            field="preview_token",
+        )
+    batch_id = f"pricing-{uuid.uuid4().hex[:16]}"
+    results = [
+        _publish_one(product_id, pricing_input, batch_id=batch_id, actor=actor)
+        for product_id in sorted(ids)
+    ]
     published = [row for row in results if row["published"]]
     return {
+        "batch_id": batch_id,
         "models": len(ids),
         "published": len(published),
         "failed": len(ids) - len(published),
@@ -748,30 +418,52 @@ def publish(product_ids: list[UUID], *, confirm_count: int | None, actor) -> dic
     }
 
 
-def _publish_one(product_id: UUID, *, actor) -> dict[str, Any]:
-    with transaction.atomic():
-        product = (
-            Product.objects.select_for_update(of=("self",))
-            .prefetch_related("files")
-            .filter(pk=product_id)
-            .first()
-        )
-        if product is None:
-            return _publish_result(product_id, None, "This model no longer exists.")
-        reason = _publish_error(product)
-        if reason:
-            return _publish_result(product_id, product, reason)
-        product.status = Product.Status.PUBLISHED
-        product.pending_update = False
-        product.save(update_fields=["status", "pending_update", "updated_at"])
-    return _publish_result(product_id, product, "")
+def _publish_one(
+    product_id: UUID, pricing_input: PricingInput, *, batch_id: str, actor
+) -> dict[str, Any]:
+    reason = ""
+    product: Product | None = None
+    try:
+        with transaction.atomic():
+            product = (
+                Product.objects.select_for_update(of=("self",))
+                .prefetch_related("files")
+                .filter(pk=product_id)
+                .first()
+            )
+            if product is None:
+                return _result(product_id, None, "This model no longer exists.")
+            row = calculate_row(product, pricing_input)
+            if row.error:
+                raise _NotPublished(row.error)
+            for item in row.packages:
+                package = item.package
+                before = PriceState.of(package)
+                package.price = item.new_price
+                # A fresh price replaces any sale: a sale price could be above the new price.
+                package.discount_price = None
+                package.discount_ends_at = None
+                package.save(update_fields=["price", "discount_price", "discount_ends_at", "updated_at"])
+                record_price_change(
+                    package,
+                    before,
+                    source=ProductPriceChange.Source.PRICING_PAGE,
+                    actor=actor,
+                    batch_id=batch_id,
+                )
+            sync_summary_price(product)
+            publish_error = _publish_error(product)
+            if publish_error:
+                raise _NotPublished(publish_error)
+            product.status = Product.Status.PUBLISHED
+            product.pending_update = False
+            product.save(update_fields=["status", "pending_update", "updated_at"])
+    except _NotPublished as exc:
+        reason = str(exc)
+    return _result(product_id, product, reason)
 
 
 def _publish_error(product: Product) -> str:
-    if product.status != Product.Status.AWAITING_PRICE:
-        return "This model is not waiting for a price."
-    if ProductService.upload_kind(product) == UPLOAD_KIND_FREE:
-        return "Free models are published from QA."
     # Every package's price and running sale are checked by _validate_publish_ready.
     try:
         ProductService._validate_publish_ready(product, require_sku=True)
@@ -781,7 +473,7 @@ def _publish_error(product: Product) -> str:
     return ""
 
 
-def _publish_result(product_id: UUID, product: Product | None, reason: str) -> dict[str, Any]:
+def _result(product_id: UUID, product: Product | None, reason: str) -> dict[str, Any]:
     return {
         "id": str(product_id),
         "name": product.name if product else "",

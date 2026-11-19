@@ -1,12 +1,10 @@
-"""Pricing page API (docs/PRICING_PIPELINE.md, Part 2). Administrators only.
+"""Pricing page API (docs/PRICING_PIPELINE.md). Administrators only.
 
 GET  /api/v1/admin/products/pricing/            models in a tab, with filters
 GET  /api/v1/admin/products/pricing/batches/    upload batch IDs in a tab (filter list)
-POST /api/v1/admin/products/pricing/preview/    calculate a rule for the selection (no change)
-POST /api/v1/admin/products/pricing/apply/      Step 1: save the previewed prices
-POST /api/v1/admin/products/pricing/publish/    Step 2: put priced models on the store
-POST /api/v1/admin/products/pricing/inputs/     save the models' hours, rate and own percents
-GET/PUT /api/v1/admin/products/pricing/defaults/ the default percent of each package
+POST /api/v1/admin/products/pricing/calculate/  the prices the selection would get (no change)
+POST /api/v1/admin/products/pricing/publish/    save the calculated prices and publish
+POST /api/v1/admin/products/pricing/hours/      set the models' hours spent
 """
 
 from __future__ import annotations
@@ -27,13 +25,11 @@ from products import pricing
 from products.errors import ProductError
 from products.pagination import ProductPagination
 from products.pricing_serializers import (
-    PricingApplySerializer,
-    PricingDefaultsSerializer,
-    PricingInputsSerializer,
+    PricingCalculateSerializer,
+    PricingHoursSerializer,
     PricingListQuerySerializer,
     PricingPublishSerializer,
     PricingRowSerializer,
-    PricingRuleSerializer,
 )
 
 
@@ -59,14 +55,11 @@ class AdminPricingListView(_PricingView):
         query = PricingListQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         data = query.validated_data
-        thresholds = query.thresholds()
         try:
             queryset = pricing.list_models(
                 tab=data["tab"],
-                thresholds=thresholds,
                 category_id=data.get("category_id"),
                 subcategory_id=data.get("subcategory_id"),
-                poly=data.get("poly"),
                 search=data.get("search"),
                 import_batch_id=data.get("import_batch_id"),
                 ordering=data.get("ordering"),
@@ -75,9 +68,7 @@ class AdminPricingListView(_PricingView):
             return _error(exc)
         paginator = self.pagination_class()
         page = paginator.paginate_queryset(queryset, request, view=self)
-        serializer = PricingRowSerializer(
-            page, many=True, context={"thresholds": thresholds, "now": timezone.now()}
-        )
+        serializer = PricingRowSerializer(page, many=True, context={"now": timezone.now()})
         return paginator.get_paginated_response(serializer.data)
 
 
@@ -93,51 +84,19 @@ class AdminPricingBatchesView(_PricingView):
         return Response({"results": pricing.list_batches(tab)}, status=status.HTTP_200_OK)
 
 
-class AdminPricingPreviewView(_PricingView):
+class AdminPricingCalculateView(_PricingView):
     throttle_classes = [AdminPricingReadRateThrottle]
 
     def post(self, request: Request) -> Response:
-        serializer = PricingRuleSerializer(data=request.data)
+        serializer = PricingCalculateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            result = pricing.preview(
-                serializer.validated_data["product_ids"], serializer.build_rule()
+            plan = pricing.calculate(
+                serializer.validated_data["product_ids"], serializer.pricing_input()
             )
         except ProductError as exc:
             return _error(exc)
-        return Response(result.to_dict(), status=status.HTTP_200_OK)
-
-
-class AdminPricingApplyView(_PricingView):
-    throttle_classes = [AdminProductWriteRateThrottle]
-
-    def post(self, request: Request) -> Response:
-        serializer = PricingApplySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        rule = serializer.build_rule()
-        try:
-            result = pricing.apply(
-                data["product_ids"],
-                rule,
-                preview_token=data["preview_token"],
-                confirm_count=data.get("confirm_count"),
-                actor=request.user,
-            )
-        except ProductError as exc:
-            return _error(exc)
-        log_admin_action(
-            action="pricing_apply",
-            actor_id=str(request.user.pk),
-            target_id=result["batch_id"],
-            metadata={
-                "rule": rule.canonical(),
-                "models": result["models"],
-                "changed": result["changed"],
-                "product_ids": [str(pk) for pk in dict.fromkeys(data["product_ids"])],
-            },
-        )
-        return Response(result, status=status.HTTP_200_OK)
+        return Response(plan.to_dict(), status=status.HTTP_200_OK)
 
 
 class AdminPricingPublishView(_PricingView):
@@ -148,16 +107,22 @@ class AdminPricingPublishView(_PricingView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:
+            pricing_input = serializer.pricing_input()
             result = pricing.publish(
-                data["product_ids"], confirm_count=data["confirm_count"], actor=request.user
+                data["product_ids"],
+                pricing_input,
+                preview_token=data["preview_token"],
+                confirm_count=data["confirm_count"],
+                actor=request.user,
             )
         except ProductError as exc:
             return _error(exc)
         log_admin_action(
             action="pricing_publish",
             actor_id=str(request.user.pk),
+            target_id=result["batch_id"],
             metadata={
-                "models": result["models"],
+                "input": pricing_input.canonical(),
                 "published": [row["id"] for row in result["results"] if row["published"]],
                 "failed": [row["id"] for row in result["results"] if not row["published"]],
             },
@@ -165,56 +130,20 @@ class AdminPricingPublishView(_PricingView):
         return Response(result, status=status.HTTP_200_OK)
 
 
-class AdminPricingInputsView(_PricingView):
+class AdminPricingHoursView(_PricingView):
     throttle_classes = [AdminProductWriteRateThrottle]
 
     def post(self, request: Request) -> Response:
-        serializer = PricingInputsSerializer(data=request.data)
+        serializer = PricingHoursSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         items = serializer.validated_data["items"]
         try:
-            changed = pricing.save_inputs(items)
+            changed = pricing.save_hours(items)
         except ProductError as exc:
             return _error(exc)
         log_admin_action(
-            action="pricing_inputs",
+            action="pricing_hours",
             actor_id=str(request.user.pk),
             metadata={"models": len(items), "changed": changed},
         )
         return Response({"models": len(items), "changed": changed}, status=status.HTTP_200_OK)
-
-
-class AdminPricingDefaultsView(_PricingView):
-    def get_throttles(self):
-        throttle = (
-            AdminPricingReadRateThrottle
-            if self.request.method == "GET"
-            else AdminProductWriteRateThrottle
-        )
-        return [throttle()]
-
-    @staticmethod
-    def _body(percents) -> Response:
-        return Response(
-            {"package_percents": {kind: f"{value:.2f}" for kind, value in percents.items()}},
-            status=status.HTTP_200_OK,
-        )
-
-    def get(self, request: Request) -> Response:
-        return self._body(pricing.get_default_percents())
-
-    def put(self, request: Request) -> Response:
-        serializer = PricingDefaultsSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            percents = pricing.save_default_percents(
-                serializer.validated_data["package_percents"], actor=request.user
-            )
-        except ProductError as exc:
-            return _error(exc)
-        log_admin_action(
-            action="pricing_defaults",
-            actor_id=str(request.user.pk),
-            metadata={"package_percents": {kind: str(value) for kind, value in percents.items()}},
-        )
-        return self._body(percents)
