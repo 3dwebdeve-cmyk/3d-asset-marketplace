@@ -5,6 +5,8 @@ GET  /api/v1/admin/products/pricing/batches/    upload batch IDs in a tab (filte
 POST /api/v1/admin/products/pricing/preview/    calculate a rule for the selection (no change)
 POST /api/v1/admin/products/pricing/apply/      Step 1: save the previewed prices
 POST /api/v1/admin/products/pricing/publish/    Step 2: put priced models on the store
+POST /api/v1/admin/products/pricing/inputs/     save the models' hours, rate and own percents
+GET/PUT /api/v1/admin/products/pricing/defaults/ the default percent of each package
 """
 
 from __future__ import annotations
@@ -26,6 +28,8 @@ from products.errors import ProductError
 from products.pagination import ProductPagination
 from products.pricing_serializers import (
     PricingApplySerializer,
+    PricingDefaultsSerializer,
+    PricingInputsSerializer,
     PricingListQuerySerializer,
     PricingPublishSerializer,
     PricingRowSerializer,
@@ -159,3 +163,58 @@ class AdminPricingPublishView(_PricingView):
             },
         )
         return Response(result, status=status.HTTP_200_OK)
+
+
+class AdminPricingInputsView(_PricingView):
+    throttle_classes = [AdminProductWriteRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = PricingInputsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = serializer.validated_data["items"]
+        try:
+            changed = pricing.save_inputs(items)
+        except ProductError as exc:
+            return _error(exc)
+        log_admin_action(
+            action="pricing_inputs",
+            actor_id=str(request.user.pk),
+            metadata={"models": len(items), "changed": changed},
+        )
+        return Response({"models": len(items), "changed": changed}, status=status.HTTP_200_OK)
+
+
+class AdminPricingDefaultsView(_PricingView):
+    def get_throttles(self):
+        throttle = (
+            AdminPricingReadRateThrottle
+            if self.request.method == "GET"
+            else AdminProductWriteRateThrottle
+        )
+        return [throttle()]
+
+    @staticmethod
+    def _body(percents) -> Response:
+        return Response(
+            {"package_percents": {kind: f"{value:.2f}" for kind, value in percents.items()}},
+            status=status.HTTP_200_OK,
+        )
+
+    def get(self, request: Request) -> Response:
+        return self._body(pricing.get_default_percents())
+
+    def put(self, request: Request) -> Response:
+        serializer = PricingDefaultsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            percents = pricing.save_default_percents(
+                serializer.validated_data["package_percents"], actor=request.user
+            )
+        except ProductError as exc:
+            return _error(exc)
+        log_admin_action(
+            action="pricing_defaults",
+            actor_id=str(request.user.pk),
+            metadata={"package_percents": {kind: str(value) for kind, value in percents.items()}},
+        )
+        return self._body(percents)

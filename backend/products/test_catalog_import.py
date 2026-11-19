@@ -192,6 +192,27 @@ class CatalogImportAPITests(CatalogImportTestBase):
         self.assertEqual(len(gallery), 1)
         self.assertRegex(gallery[0].image_url, r"models/MDL-000142/gallery/01\.jpg\?v=[0-9a-f]{12}$")
 
+    def test_hours_spent_is_set_on_create_and_kept_on_a_reupload(self) -> None:
+        self._authenticate_as_admin()
+        self._post_batch([_happy_item(hours_spent=14.5)])
+        product = Product.objects.get(sku="MDL-000142")
+        self.assertEqual(product.hours_spent, Decimal("14.50"))
+
+        # An administrator's edit on the Pricing page is never overwritten by a re-upload.
+        Product.objects.filter(pk=product.pk).update(hours_spent=Decimal("20.00"))
+        self._post_batch([_happy_item(hours_spent=99)], batch_id="2026-09-03-run-02")
+        product.refresh_from_db()
+        self.assertEqual(product.hours_spent, Decimal("20.00"))
+
+        # A re-upload fills the hours when the model has none yet; a bad value is ignored.
+        Product.objects.filter(pk=product.pk).update(hours_spent=None)
+        self._post_batch([_happy_item(hours_spent="abc")], batch_id="2026-09-03-run-03")
+        product.refresh_from_db()
+        self.assertIsNone(product.hours_spent)
+        self._post_batch([_happy_item(hours_spent="7")], batch_id="2026-09-03-run-04")
+        product.refresh_from_db()
+        self.assertEqual(product.hours_spent, Decimal("7.00"))
+
     def test_reimport_updates_idempotently(self) -> None:
         self._authenticate_as_admin()
         first = self._post_batch([_happy_item()])
