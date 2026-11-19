@@ -282,7 +282,7 @@ describe('ModelViewer', () => {
       <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
     )
     await screen.findByTestId('viewer-environment')
-    expect(container.querySelectorAll('directionallight')).toHaveLength(3)
+    expect(container.querySelectorAll('directionallight')).toHaveLength(4)
 
     await user.click(screen.getByRole('radio', { name: 'Natural' }))
     await waitFor(() => {
@@ -300,7 +300,7 @@ describe('ModelViewer', () => {
       'data-files', '/hdri/studio.exr',
       )
     })
-    expect(container.querySelectorAll('directionallight')).toHaveLength(3)
+    expect(container.querySelectorAll('directionallight')).toHaveLength(4)
     expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
   })
 
