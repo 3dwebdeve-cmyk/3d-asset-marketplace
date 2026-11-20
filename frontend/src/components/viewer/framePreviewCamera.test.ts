@@ -5,15 +5,15 @@ import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera } from './framePreviewCamera'
 
 describe('initial preview camera framing', () => {
-  it('opens models from an elevated three-quarter angle on the opposite side of the old view', () => {
+  it('opens models 45 degrees to the left of the front and slightly above', () => {
     const model = fitPreviewScene(new Mesh(new BoxGeometry(1, 2, 3)))
     const camera = new PerspectiveCamera(42)
     const center = framePreviewCamera(camera, model, 2)!
     const direction = camera.position.clone().sub(center).normalize()
-    expect(direction.x).toBeGreaterThan(0)
+    expect(direction.x).toBeLessThan(0)
     expect(direction.y).toBeGreaterThan(0)
-    expect(direction.z).toBeLessThan(0)
-    expect(direction.x / -direction.z).toBeCloseTo(1.8 / 2.3)
+    expect(direction.z).toBeGreaterThan(0)
+    expect(Math.atan2(-direction.x, direction.z)).toBeCloseTo(Math.PI / 4)
   })
 
   it.each([
@@ -39,14 +39,14 @@ describe('initial preview camera framing', () => {
         for (const z of [bounds.min.z, bounds.max.z]) {
           const point = new Vector3(x, y, z).project(camera)
           occupied = Math.max(occupied, Math.abs(point.x), Math.abs(point.y))
-          expect(Math.abs(point.x)).toBeLessThanOrEqual(0.61)
-          expect(Math.abs(point.y)).toBeLessThanOrEqual(0.61)
+          expect(Math.abs(point.x)).toBeLessThanOrEqual(0.69)
+          expect(Math.abs(point.y)).toBeLessThanOrEqual(0.69)
           expect(point.z).toBeGreaterThan(-1)
           expect(point.z).toBeLessThan(1)
         }
       }
     }
-    expect(occupied).toBeGreaterThan(0.3)
+    expect(occupied).toBeCloseTo(0.68)
     expect(source.position.toArray()).toEqual([120, -30, 500])
     source.geometry.dispose()
     source.material.dispose()

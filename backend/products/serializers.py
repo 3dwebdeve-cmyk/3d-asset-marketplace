@@ -302,7 +302,6 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
             "vertex_count",
             "software_used",
             "pbr_ready",
-            "game_ready",
             "license_type",
             "average_rating",
             "review_count",

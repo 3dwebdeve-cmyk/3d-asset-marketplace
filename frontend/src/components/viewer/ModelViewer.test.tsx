@@ -1,7 +1,7 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useImperativeHandle, type Ref } from 'react'
-import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Texture, Vector3 } from 'three'
+import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,31 +61,10 @@ vi.mock('@react-three/drei', () => ({
     useImperativeHandle(ref, () => viewerMocks.toolbarControls)
     return null
   },
-  Environment: ({
-    files,
-    backgroundBlurriness,
-    background,
-    environmentIntensity,
-    children,
-  }: {
-    files?: string
-    backgroundBlurriness?: number
-    background?: boolean
-    environmentIntensity?: number
-    children?: import('react').ReactNode
-  }) => (
-    <div
-      data-testid="viewer-environment"
-      data-files={files ?? ''}
-      data-background-blurriness={backgroundBlurriness ?? ''}
-      data-background={String(background)}
-      data-intensity={environmentIntensity}
-    >
-      {children}
-    </div>
+  Environment: ({ files, background }: { files: string; background: boolean }) => (
+    <div data-testid="viewer-environment" data-files={files} data-background={background} />
   ),
-  Lightformer: () => null,
-  ContactShadows: () => null,
+  ContactShadows: () => <div data-testid="viewer-shadow" />,
   useGLTF: Object.assign(
     () => ({
       scene: viewerMocks.scene ?? new Object3D(),
@@ -101,7 +80,6 @@ vi.mock('./isWebGLAvailable', () => ({
 
 vi.mock('./useAdaptivePixelRatio', () => ({
   useAdaptivePixelRatio: () => viewerMocks.pixelRatio,
-  useAdaptiveShadowMapSize: () => 1024,
 }))
 
 vi.mock('./useViewportVisibility', () => ({
@@ -126,12 +104,6 @@ describe('ModelViewer', () => {
     viewerMocks.visible = true
     viewerMocks.webglAvailable = true
     viewerMocks.pixelRatio = 1.25
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-      }),
-    )
   })
 
   it('smoothly grows the model to its fitted size after loading', () => {
@@ -140,9 +112,9 @@ describe('ModelViewer', () => {
     const setScalar = vi.fn()
     Object.defineProperty(group, 'scale', { value: { setScalar }, configurable: true })
     const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
-    expect(group).toHaveAttribute('scale', '0.6')
+    expect(group).toHaveAttribute('scale', '0.35')
     act(() => { for (let i = 0; i < 15; i += 1) frame({} as never, 0.05, undefined) })
-    expect(setScalar.mock.calls[0][0]).toBeGreaterThan(0.6)
+    expect(setScalar.mock.calls[0][0]).toBeGreaterThan(0.35)
     expect(setScalar.mock.calls.at(-1)![0]).toBeLessThan(1)
     act(() => { for (let i = 0; i < 16; i += 1) frame({} as never, 0.05, undefined) })
     expect(setScalar.mock.calls.at(-1)![0]).toBeCloseTo(1)
@@ -163,19 +135,16 @@ describe('ModelViewer', () => {
     }
   })
 
-  it('fits loaded models on entry and resize while keeping user zoom across lighting changes', async () => {
+  it('fits loaded models on entry and resize while keeping user zoom across background color changes', async () => {
     viewerMocks.scene = new Mesh(new BoxGeometry(1, 12, 1))
     const { rerender } = render(<ModelViewer modelUrl="https://cdn.example.com/vase.glb" ariaLabel="Vase" />)
-    await screen.findByTestId('viewer-environment')
     const initialDistance = viewerMocks.camera!.position.length()
     expect(initialDistance).toBeGreaterThan(3.5)
     expect(viewerMocks.controls!.target.length()).toBeCloseTo(0)
     expect(viewerMocks.controls!.update).toHaveBeenCalled()
-    // Simulate the user zooming in. Changing lighting must preserve their view.
     viewerMocks.camera!.position.multiplyScalar(0.75)
     const userDistance = viewerMocks.camera!.position.length()
-    await userEvent.click(screen.getByRole('radio', { name: 'Natural' }))
-    await waitFor(() => expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true'))
+    await userEvent.click(screen.getByRole('button', { name: 'Change background color' }))
     expect(viewerMocks.camera!.position.length()).toBeCloseTo(userDistance)
     viewerMocks.size = { width: 300, height: 500 }
     rerender(<ModelViewer modelUrl="https://cdn.example.com/vase.glb" ariaLabel="Vase" />)
@@ -202,7 +171,7 @@ describe('ModelViewer', () => {
     expect(viewerMocks.renderScene!.background).toBeNull()
   })
 
-  it('uses the toolbar to control lighting, the camera, and viewer fullscreen', async () => {
+  it('uses the toolbar to control the camera and viewer fullscreen', async () => {
     const user = userEvent.setup()
     const { container } = render(
       <div className="product-detail-stage__viewer">
@@ -212,23 +181,6 @@ describe('ModelViewer', () => {
     const requestFullscreen = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(container.firstElementChild, 'requestFullscreen', { value: requestFullscreen })
 
-    const lighting = screen.getByRole('button', { name: 'Lighting' })
-    const keyLight = container.querySelector('directionallight')
-    const lightPositions = [
-      '4,3,4', '5,0,0', '4,3,-4', '0,0,-5', '-4,3,-4',
-      '-5,0,0', '-4,3,4', '0,0,5', '0,6,0',
-    ]
-    expect(Array.from(container.querySelectorAll('directionallight[position]'), (light) =>
-      light.getAttribute('position'),
-    )).toEqual([...lightPositions, '0,1,5', '0,1,-5'])
-    for (const position of [...lightPositions, lightPositions[0]]) {
-      await user.click(lighting)
-      expect(keyLight).toHaveAttribute('position', position)
-      expect(keyLight).toHaveAttribute('intensity', '1.8')
-      expect(container.querySelector('directionallight[position="0,1,5"]')).toHaveAttribute('intensity', '0.85')
-      expect(container.querySelector('directionallight[position="0,1,-5"]')).toHaveAttribute('intensity', '0.85')
-    }
-    expect(screen.getByRole('radio', { name: 'Studio' })).toHaveAttribute('aria-checked', 'true')
     await user.click(screen.getByRole('button', { name: 'Reset' }))
     await user.click(screen.getByRole('button', { name: 'Zoom In' }))
     await user.click(screen.getByRole('button', { name: 'Zoom Out' }))
@@ -240,172 +192,26 @@ describe('ModelViewer', () => {
     expect(requestFullscreen).toHaveBeenCalledOnce()
   })
 
-  it('toggles the vertical gradient and restores the default environment background', async () => {
-    const user = userEvent.setup()
-    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />)
-    await user.click(screen.getByRole('radio', { name: 'Natural' }))
-    const environment = await screen.findByTestId('viewer-environment')
-    expect(environment).toHaveAttribute('data-background', 'true')
+  it('switches HDRI illumination independently from the background', async () => {
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
 
-    const button = screen.getByRole('button', { name: 'Change background gradient' })
+    expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
+    expect(container.querySelector('directionallight, hemispherelight')).toBeNull()
+    const environment = () => screen.getByTestId('viewer-environment')
+    expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
+    expect(environment()).toHaveAttribute('data-background', 'false')
+    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(4)
+    await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
+    expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
+
+    const colorButton = screen.getByRole('button', { name: 'Change background color' })
     const canvas = screen.getByTestId('r3f-canvas')
-    await user.click(button)
-    expect(canvas.style.backgroundImage).toContain('linear-gradient')
-    expect(environment).toHaveAttribute('data-background', 'false')
-
-    await user.click(button)
+    await userEvent.click(colorButton)
+    expect(canvas.style.backgroundColor).toBe('rgb(167, 163, 165)')
     expect(canvas.style.backgroundImage).toBe('')
-    expect(environment).toHaveAttribute('data-background', 'true')
-    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'true')
-  })
-
-  it('renders environment controls and defaults to Studio HDRI', async () => {
-    render(
-      <ModelViewer
-        modelUrl="https://cdn.example.com/preview.glb"
-        ariaLabel="Interactive 3D preview of Demo Asset"
-      />,
-    )
-
-    expect(screen.getByRole('radio', { name: 'Studio' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'false')
-    expect(screen.queryByRole('radio', { name: 'Sky' })).not.toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-        'data-files',
-        '/hdri/studio.exr',
-      )
-      // Studio keeps the EXR's dark areas out of the neutral backdrop; lighting stays active.
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '1')
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-        'data-background-blurriness',
-        '0',
-      )
-    })
-  })
-
-  it('switches HDRI environment when user selects a different option', async () => {
-    const user = userEvent.setup()
-    render(
-      <ModelViewer
-        modelUrl="https://cdn.example.com/preview.glb"
-        ariaLabel="Interactive 3D preview of Demo Asset"
-      />,
-    )
-
-    await user.click(screen.getByRole('radio', { name: 'Natural' }))
-
-    expect(screen.getByRole('radio', { name: 'Natural' })).toHaveAttribute('aria-checked', 'true')
-    await waitFor(() => {
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-        'data-files',
-        '/hdri/forest_slope_1k.hdr',
-      )
-    })
-  })
-
-  it('removes studio lights when Natural lighting is active and restores them on return', async () => {
-    const user = userEvent.setup()
-    const { container } = render(
-      <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
-    )
-    await screen.findByTestId('viewer-environment')
-    expect(container.querySelectorAll('directionallight')).toHaveLength(12)
-
-    await user.click(screen.getByRole('radio', { name: 'Natural' }))
-    await waitFor(() => {
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-        'data-files', '/hdri/forest_slope_1k.hdr',
-      )
-    })
-    expect(container.querySelectorAll('directionallight')).toHaveLength(0)
-    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(0)
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true')
-
-    await user.click(screen.getByRole('radio', { name: 'Studio' }))
-    await waitFor(() => {
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-      'data-files', '/hdri/studio.exr',
-      )
-    })
-    expect(container.querySelectorAll('directionallight')).toHaveLength(12)
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
-  })
-
-  it('replaces a retained Natural HDRI background when returning to Studio', async () => {
-    const user = userEvent.setup()
-    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />)
-    await screen.findByTestId('viewer-environment')
-
-    await user.click(screen.getByRole('radio', { name: 'Natural' }))
-    await waitFor(() => {
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true')
-    })
-
-    viewerMocks.renderScene!.background = new Texture()
-    await user.click(screen.getByRole('radio', { name: 'Studio' }))
-
-    await waitFor(() => {
-      expect(viewerMocks.renderScene!.background).toBeNull()
-    })
-  })
-
-  it('clears the previous HDRI while the selected environment is pending', async () => {
-    const user = userEvent.setup()
-    const { container } = render(
-      <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
-    )
-    await screen.findByTestId('viewer-environment')
-    let resolveNatural!: (response: { ok: boolean }) => void
-    vi.mocked(fetch).mockReturnValueOnce(new Promise((resolve) => {
-      resolveNatural = resolve as typeof resolveNatural
-    }))
-
-    await user.click(screen.getByRole('radio', { name: 'Natural' }))
-    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('directionallight')).toHaveLength(0)
-    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(2)
-    expect(screen.getByTestId('r3f-canvas').querySelector('primitive')).toBeInTheDocument()
-
-    await act(async () => resolveNatural({ ok: true }))
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-      'data-files', '/hdri/forest_slope_1k.hdr',
-    )
-    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(0)
-  })
-
-  it('ignores a late response from a previously selected environment', async () => {
-    const user = userEvent.setup()
-    let resolveStudio!: (response: { ok: boolean }) => void
-    vi.mocked(fetch).mockReturnValueOnce(new Promise((resolve) => {
-      resolveStudio = resolve as typeof resolveStudio
-    }))
-    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />)
-    await user.click(screen.getByRole('radio', { name: 'Natural' }))
-    await screen.findByTestId('viewer-environment')
-
-    await act(async () => resolveStudio({ ok: true }))
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute(
-      'data-files', '/hdri/forest_slope_1k.hdr',
-    )
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'true')
-  })
-
-  it('uses only neutral fallback lights if Natural HDRI is unavailable', async () => {
-    const user = userEvent.setup()
-    const { container } = render(
-      <ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Product preview" />,
-    )
-    await screen.findByTestId('viewer-environment')
-    vi.mocked(fetch).mockResolvedValueOnce({ ok: false } as Response)
-    await user.click(screen.getByRole('radio', { name: 'Natural' }))
-
-    expect(await screen.findByText(/Natural HDRI is unavailable/)).toBeInTheDocument()
-    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('directionallight')).toHaveLength(0)
-    expect(container.querySelectorAll('ambientlight, hemispherelight')).toHaveLength(2)
+    await userEvent.click(colorButton)
+    expect(canvas.style.backgroundColor).toBe('')
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {

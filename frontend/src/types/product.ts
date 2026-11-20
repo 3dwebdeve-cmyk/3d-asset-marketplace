@@ -335,7 +335,6 @@ export interface PublicProductDetail {
   vertex_count: number | null
   software_used: string
   pbr_ready: boolean
-  game_ready: boolean
   license_type: ProductLicenseType
   average_rating: string
   review_count: number
