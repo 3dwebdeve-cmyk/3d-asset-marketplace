@@ -80,6 +80,7 @@ vi.mock('./isWebGLAvailable', () => ({
 
 vi.mock('./useAdaptivePixelRatio', () => ({
   useAdaptivePixelRatio: () => viewerMocks.pixelRatio,
+  useAdaptiveShadowMapSize: () => 512,
 }))
 
 vi.mock('./useViewportVisibility', () => ({
@@ -106,18 +107,43 @@ describe('ModelViewer', () => {
     viewerMocks.pixelRatio = 1.25
   })
 
-  it('smoothly grows the model to its fitted size after loading', () => {
+  it('starts a half orbit near the end of the opening zoom', () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     const group = container.querySelector('group')!
     const setScalar = vi.fn()
     Object.defineProperty(group, 'scale', { value: { setScalar }, configurable: true })
     const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
+    const center = viewerMocks.controls!.target
+    const openingOffset = viewerMocks.camera!.position.clone().sub(center)
     expect(group).toHaveAttribute('scale', '0.35')
+    expect(screen.queryByTestId('viewer-shadow')).not.toBeInTheDocument()
     act(() => { for (let i = 0; i < 15; i += 1) frame({} as never, 0.05, undefined) })
     expect(setScalar.mock.calls[0][0]).toBeGreaterThan(0.35)
     expect(setScalar.mock.calls.at(-1)![0]).toBeLessThan(1)
+    expect(viewerMocks.camera!.position.clone().sub(center).distanceTo(openingOffset)).toBeCloseTo(0)
     act(() => { for (let i = 0; i < 16; i += 1) frame({} as never, 0.05, undefined) })
     expect(setScalar.mock.calls.at(-1)![0]).toBeCloseTo(1)
+    expect(screen.getByTestId('viewer-shadow')).toBeInTheDocument()
+    expect(viewerMocks.camera!.position.clone().sub(center).distanceTo(openingOffset)).toBeGreaterThan(0)
+    act(() => { for (let i = 0; i < 30; i += 1) frame({} as never, 0.05, undefined) })
+    const offset = viewerMocks.camera!.position.clone().sub(center)
+    expect(offset.x).toBeCloseTo(-openingOffset.x)
+    expect(offset.y).toBeCloseTo(openingOffset.y)
+    expect(offset.z).toBeCloseTo(-openingOffset.z)
+  })
+
+  it('stops the opening orbit when Reset is clicked', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    Object.defineProperty(container.querySelector('group')!, 'scale', { value: { setScalar: vi.fn() } })
+    const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
+    act(() => { for (let i = 0; i < 33; i += 1) frame({} as never, 0.05, undefined) })
+    await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    const resetPosition = viewerMocks.camera!.position.clone()
+    act(() => { for (let i = 0; i < 30; i += 1) frame({} as never, 0.05, undefined) })
+    expect(viewerMocks.toolbarControls.reset).toHaveBeenCalledOnce()
+    expect(viewerMocks.camera!.position.equals(resetPosition)).toBe(true)
   })
 
   it('skips the entrance animation when reduced motion is preferred', () => {
