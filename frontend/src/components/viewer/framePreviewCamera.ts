@@ -3,7 +3,7 @@ import * as THREE from 'three'
 // Look toward the front from the left, 45 degrees off the model's +Z axis.
 export const PREVIEW_CAMERA_POSITION: [number, number, number] = [-1, 0.5, 1]
 
-/** Fit the model inside 55% of the viewport, leaving room for the controls. */
+/** Fit the model inside 68% of the viewport, leaving room for the controls. */
 export function framePreviewCamera(
   camera: THREE.PerspectiveCamera,
   model: THREE.Object3D,
@@ -21,7 +21,7 @@ export function framePreviewCamera(
   const direction = new THREE.Vector3(...PREVIEW_CAMERA_POSITION).normalize()
   const right = new THREE.Vector3().crossVectors(camera.up, direction).normalize()
   const up = new THREE.Vector3().crossVectors(direction, right)
-  const verticalLimit = Math.tan(verticalHalfFov) * 0.55
+  const verticalLimit = Math.tan(verticalHalfFov) * 0.68
   const horizontalLimit = verticalLimit * aspect
   const offset = new THREE.Vector3()
   let distance = sphere.radius * 1.01

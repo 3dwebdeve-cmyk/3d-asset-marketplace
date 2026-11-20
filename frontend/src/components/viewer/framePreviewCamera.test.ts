@@ -39,14 +39,14 @@ describe('initial preview camera framing', () => {
         for (const z of [bounds.min.z, bounds.max.z]) {
           const point = new Vector3(x, y, z).project(camera)
           occupied = Math.max(occupied, Math.abs(point.x), Math.abs(point.y))
-          expect(Math.abs(point.x)).toBeLessThanOrEqual(0.61)
-          expect(Math.abs(point.y)).toBeLessThanOrEqual(0.61)
+          expect(Math.abs(point.x)).toBeLessThanOrEqual(0.69)
+          expect(Math.abs(point.y)).toBeLessThanOrEqual(0.69)
           expect(point.z).toBeGreaterThan(-1)
           expect(point.z).toBeLessThan(1)
         }
       }
     }
-    expect(occupied).toBeGreaterThan(0.3)
+    expect(occupied).toBeCloseTo(0.68)
     expect(source.position.toArray()).toEqual([120, -30, 500])
     source.geometry.dispose()
     source.material.dispose()
