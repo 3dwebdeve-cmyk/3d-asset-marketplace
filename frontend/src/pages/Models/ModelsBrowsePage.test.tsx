@@ -157,7 +157,7 @@ beforeEach(() => {
   vi.mocked(productsApi.getPublicProduct).mockResolvedValue({
     ...samplePublicProducts.results[0],
     description: '', preview_model: '', preview_video: '', polygon_count: null, vertex_count: null,
-    pbr_ready: false, game_ready: false, packages: [], bundle_saving: null,
+    pbr_ready: false, packages: [], bundle_saving: null,
     images: [], updated_at: '2026-01-01T00:00:00Z',
     files: [{ id: 'file-1', file_name: 'chair.blend', file_format: 'blend', file_size: 100, version: '1', is_preview: false }],
   })
