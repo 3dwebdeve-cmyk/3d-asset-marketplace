@@ -42,13 +42,18 @@ function PreviewModel({
   url,
   wireframe,
   openingOrbit,
+  lightYaw,
+  lightIntensity,
 }: {
   url: string
   wireframe: boolean
   openingOrbit: { cancelled: boolean }
+  lightYaw: number
+  lightIntensity: number
 }) {
   const { scene } = useGLTF(url)
   const modelGroup = useRef<THREE.Group>(null)
+  const shadowLight = useRef<THREE.DirectionalLight>(null)
   const [entranceComplete, setEntranceComplete] = useState(false)
   const shadowResolution = useAdaptiveShadowMapSize()
   const reducedMotion = useMemo(
@@ -58,7 +63,17 @@ function PreviewModel({
   const entranceTime = useRef(0)
   const openingView = useRef<{ center: THREE.Vector3; offset: THREE.Vector3 } | null>(null)
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
-  const fitted = useMemo(() => fitPreviewScene(scene), [scene])
+  const fitted = useMemo(() => {
+    const model = fitPreviewScene(scene)
+    model.traverse((object) => {
+      const mesh = object as THREE.Mesh
+      if (!mesh.isMesh) return
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+      mesh.castShadow = materials.some((material) => !material.transparent)
+      mesh.receiveShadow = true
+    })
+    return model
+  }, [scene])
   const ground = useMemo(() => {
     const bounds = new THREE.Box3().setFromObject(fitted)
     if (bounds.isEmpty()) return null
@@ -73,6 +88,15 @@ function PreviewModel({
   const size = useThree((state) => state.size)
   const controls = useThree((state) => state.controls)
   const invalidate = useThree((state) => state.invalidate)
+  const shadowsReady = Boolean(ground) && (reducedMotion || entranceComplete)
+
+  useLayoutEffect(() => {
+    const shadow = shadowLight.current?.shadow
+    if (!shadowsReady || !shadow) return
+    shadow.camera.updateProjectionMatrix()
+    shadow.needsUpdate = true
+    invalidate()
+  }, [fitted, lightYaw, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -119,6 +143,24 @@ function PreviewModel({
 
   return (
     <>
+      <directionalLight
+        key={shadowResolution}
+        ref={shadowLight}
+        position={[Math.sin(lightYaw) * 3, 4, Math.cos(lightYaw) * 3]}
+        intensity={lightIntensity}
+        castShadow={shadowsReady}
+        shadow-autoUpdate={false}
+        shadow-mapSize={[shadowResolution, shadowResolution]}
+        shadow-camera-left={-1.7}
+        shadow-camera-right={1.7}
+        shadow-camera-top={1.7}
+        shadow-camera-bottom={-1.7}
+        shadow-camera-near={2}
+        shadow-camera-far={8}
+        shadow-normalBias={0.012}
+        shadow-bias={-0.0002}
+        shadow-radius={2.5}
+      />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
       </group>
@@ -402,6 +444,7 @@ function ModelViewerCanvas({
           camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
           dpr={pixelRatio}
+          shadows="percentage"
           frameloop={visible ? 'always' : 'never'}
         >
           <ambientLight intensity={0.45} />
@@ -421,6 +464,8 @@ function ModelViewerCanvas({
               url={modelUrl}
               wireframe={false}
               openingOrbit={openingOrbit}
+              lightYaw={preset.yaw + lightingYaw}
+              lightIntensity={0.35 * (1 + brightness / 100)}
             />
           </Suspense>
           <OrbitControls
