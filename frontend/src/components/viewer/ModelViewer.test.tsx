@@ -61,7 +61,9 @@ vi.mock('@react-three/drei', () => ({
     useImperativeHandle(ref, () => viewerMocks.toolbarControls)
     return null
   },
-  Environment: () => <div data-testid="viewer-environment" />,
+  Environment: ({ files, background }: { files: string; background: boolean }) => (
+    <div data-testid="viewer-environment" data-files={files} data-background={background} />
+  ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
   useGLTF: Object.assign(
     () => ({
@@ -190,15 +192,18 @@ describe('ModelViewer', () => {
     expect(requestFullscreen).toHaveBeenCalledOnce()
   })
 
-  it('uses neutral ambient illumination without lighting controls or scene effects', async () => {
+  it('switches HDRI illumination independently from the background', async () => {
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
 
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     expect(container.querySelector('directionallight, hemispherelight')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Lighting' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('radiogroup', { name: 'Lighting setup' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('viewer-shadow')).not.toBeInTheDocument()
+    const environment = () => screen.getByTestId('viewer-environment')
+    expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
+    expect(environment()).toHaveAttribute('data-background', 'false')
+    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(4)
+    await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
+    expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
 
     const colorButton = screen.getByRole('button', { name: 'Change background color' })
     const canvas = screen.getByTestId('r3f-canvas')

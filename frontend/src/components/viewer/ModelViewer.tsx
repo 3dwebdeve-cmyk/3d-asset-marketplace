@@ -1,12 +1,13 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls, useGLTF, useProgress } from '@react-three/drei'
+import { Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
+import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio } from './useAdaptivePixelRatio'
@@ -194,34 +195,100 @@ function ModelViewerCanvas({
   pixelRatio: number
 }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
+  const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
+    () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
+  )
+  const [lightingYaw, setLightingYaw] = useState(0)
+  const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
+
+  function startLightDrag(event: PointerEvent<HTMLDivElement>) {
+    if (!event.altKey || event.button !== 0 || lightDrag.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (controls.current) controls.current.enabled = false
+    lightDrag.current = { pointerId: event.pointerId, x: event.clientX }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function moveLightDrag(event: PointerEvent<HTMLDivElement>) {
+    const drag = lightDrag.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    event.stopPropagation()
+    const delta = (event.clientX - drag.x) / event.currentTarget.clientWidth * Math.PI * 2
+    drag.x = event.clientX
+    if (Number.isFinite(delta)) setLightingYaw((yaw) => (yaw + delta) % (Math.PI * 2))
+  }
+
+  function finishLightDrag(event: PointerEvent<HTMLDivElement>) {
+    if (lightDrag.current?.pointerId !== event.pointerId) return
+    event.stopPropagation()
+    lightDrag.current = null
+    if (controls.current) controls.current.enabled = true
+  }
+
   return (
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
-      <Canvas
-        className="model-viewer__canvas"
-        style={background ? { backgroundColor: background } : undefined}
-        camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        dpr={pixelRatio}
-        frameloop={visible ? 'always' : 'never'}
+      <div
+        className="model-viewer__surface"
+        onPointerDownCapture={startLightDrag}
+        onPointerMoveCapture={moveLightDrag}
+        onPointerUpCapture={finishLightDrag}
+        onPointerCancelCapture={finishLightDrag}
+        onLostPointerCapture={finishLightDrag}
       >
-        <ambientLight intensity={1.5} />
-        <Suspense fallback={null}>
-          <PreviewModel
-            key={modelUrl}
-            url={modelUrl}
-            wireframe={false}
+        <Canvas
+          className="model-viewer__canvas"
+          style={background ? { backgroundColor: background } : undefined}
+          camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          dpr={pixelRatio}
+          frameloop={visible ? 'always' : 'never'}
+        >
+          <ambientLight intensity={0.45} />
+          <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
+            <Suspense fallback={null}>
+              <Environment
+                files={preset.hdrPath}
+                background={false}
+                environmentIntensity={preset.intensity}
+                environmentRotation={[0, preset.yaw + lightingYaw, 0]}
+              />
+            </Suspense>
+          </ErrorBoundary>
+          <Suspense fallback={null}>
+            <PreviewModel
+              key={modelUrl}
+              url={modelUrl}
+              wireframe={false}
+            />
+          </Suspense>
+          <OrbitControls
+            ref={controls}
+            makeDefault
+            enableDamping
+            dampingFactor={0.08}
+            minDistance={0.5}
+            maxDistance={20}
+            maxPolarAngle={Math.PI * 0.92}
           />
-        </Suspense>
-        <OrbitControls
-          ref={controls}
-          makeDefault
-          enableDamping
-          dampingFactor={0.08}
-          minDistance={0.5}
-          maxDistance={20}
-          maxPolarAngle={Math.PI * 0.92}
-        />
-      </Canvas>
+        </Canvas>
+      </div>
+      <div className="model-viewer__lighting" role="group" aria-label="Lighting presets">
+        {HDRI_ENVIRONMENTS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={preset.id === option.id}
+            onClick={() => {
+              setPreset(option)
+              setLightingYaw(0)
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+        <span>Alt + drag to rotate lighting</span>
+      </div>
       <ViewerToolbar
         controls={controls}
         onBackgroundChange={onBackgroundChange}
