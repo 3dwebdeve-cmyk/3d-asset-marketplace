@@ -4,7 +4,7 @@ import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, us
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
-import { adjustEnvironment } from './adjustEnvironment'
+import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
@@ -176,33 +176,37 @@ const VIEWER_BACKGROUNDS = [
   'radial-gradient(ellipse farthest-side at center, #4E5459 0%, #373C40 55%, #202326 100%)',
 ] as const
 
-const DEFAULT_LIGHT_ADJUSTMENTS = { brightness: 100, contrast: 100, sharpness: 100 }
+type LightAdjustments = EnvironmentAdjustments & { brightness: number }
 
 const LIGHT_SLIDERS = [
-  { key: 'brightness', label: 'Brightness', min: 25, max: 200 },
-  { key: 'contrast', label: 'Contrast', min: 50, max: 150 },
-  { key: 'sharpness', label: 'Sharpness', min: 0, max: 100 },
+  { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
+  { key: 'contrast', label: 'Contrast', min: -50, max: 50, step: 1, unit: '%' },
+  { key: 'exposure', label: 'Exposure', min: -2, max: 2, step: 0.1, unit: ' EV' },
+  { key: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1, unit: '%' },
+  { key: 'highlights', label: 'Highlights', min: -100, max: 100, step: 1, unit: '%' },
+  { key: 'shadows', label: 'Shadows', min: -100, max: 100, step: 1, unit: '%' },
+  { key: 'gamma', label: 'Gamma', min: -0.5, max: 1, step: 0.05, unit: '' },
+  { key: 'sharpness', label: 'Sharpness', min: -100, max: 100, step: 1, unit: '%' },
 ] as const
 
-function ViewerEnvironment({ files, intensity, yaw, contrast, sharpness }: {
+function ViewerEnvironment({ files, intensity, yaw, adjustments }: {
   files: string
   intensity: number
   yaw: number
-  contrast: number
-  sharpness: number
+  adjustments: EnvironmentAdjustments
 }) {
   const source = useEnvironment({ files })
-  const [filtered, setFiltered] = useState({ contrast, sharpness })
+  const [filtered, setFiltered] = useState(adjustments)
 
   useEffect(() => {
     // Environment maps are expensive to filter and upload. Coalesce rapid slider inputs.
-    const timeout = window.setTimeout(() => setFiltered({ contrast, sharpness }), 90)
+    const timeout = window.setTimeout(() => setFiltered(adjustments), 90)
     return () => window.clearTimeout(timeout)
-  }, [contrast, sharpness])
+  }, [adjustments])
 
   const map = useMemo(
-    () => adjustEnvironment(source, filtered.contrast, filtered.sharpness),
-    [source, filtered.contrast, filtered.sharpness],
+    () => adjustEnvironment(source, filtered),
+    [source, filtered],
   )
   useEffect(() => {
     if (map !== source) return () => map.dispose()
@@ -221,13 +225,15 @@ function ViewerToolbar({
   onBackgroundChange,
   onCameraInteraction,
   adjustments,
-  onAdjustmentsChange,
+  onAdjustmentChange,
+  onResetAdjustments,
 }: {
   controls: { current: ComponentRef<typeof OrbitControls> | null }
   onBackgroundChange: () => void
   onCameraInteraction: () => void
-  adjustments: typeof DEFAULT_LIGHT_ADJUSTMENTS
-  onAdjustmentsChange: (adjustments: typeof DEFAULT_LIGHT_ADJUSTMENTS) => void
+  adjustments: LightAdjustments
+  onAdjustmentChange: (key: keyof LightAdjustments, value: number) => void
+  onResetAdjustments: () => void
 }) {
   const toolbar = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
@@ -309,21 +315,22 @@ function ViewerToolbar({
         </button>
       </div>
       <div id={lightControlsId} className="model-viewer__adjustments" role="group" aria-label="HDRI light adjustments" hidden={!showLightControls}>
-        {LIGHT_SLIDERS.map(({ key, label, min, max }) => (
+        {LIGHT_SLIDERS.map(({ key, label, min, max, step, unit }) => (
           <label key={key}>
             <span>{label}</span>
-            <span aria-hidden="true">{adjustments[key]}%</span>
+            <span aria-hidden="true">{adjustments[key] > 0 ? '+' : ''}{adjustments[key]}{unit}</span>
             <input
               type="range"
               aria-label={label}
               min={min}
               max={max}
+              step={step}
               value={adjustments[key]}
-              onChange={(event) => onAdjustmentsChange({ ...adjustments, [key]: event.currentTarget.valueAsNumber })}
+              onChange={(event) => onAdjustmentChange(key, event.currentTarget.valueAsNumber)}
             />
           </label>
         ))}
-        <button type="button" onClick={() => onAdjustmentsChange(DEFAULT_LIGHT_ADJUSTMENTS)}>Reset adjustments</button>
+        <button type="button" onClick={onResetAdjustments}>Reset adjustments</button>
       </div>
     </>
   )
@@ -349,7 +356,8 @@ function ModelViewerCanvas({
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
   const [lightingYaw, setLightingYaw] = useState(0)
-  const [adjustments, setAdjustments] = useState(DEFAULT_LIGHT_ADJUSTMENTS)
+  const [brightness, setBrightness] = useState(0)
+  const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_ENVIRONMENT_ADJUSTMENTS)
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -401,10 +409,9 @@ function ModelViewerCanvas({
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
-                intensity={preset.intensity * adjustments.brightness / 100}
+                intensity={preset.intensity * (1 + brightness / 100)}
                 yaw={preset.yaw + lightingYaw}
-                contrast={adjustments.contrast}
-                sharpness={adjustments.sharpness}
+                adjustments={environmentAdjustments}
               />
             </Suspense>
           </ErrorBoundary>
@@ -446,8 +453,15 @@ function ModelViewerCanvas({
       </div>
       <ViewerToolbar
         controls={controls}
-        adjustments={adjustments}
-        onAdjustmentsChange={setAdjustments}
+        adjustments={{ ...environmentAdjustments, brightness }}
+        onAdjustmentChange={(key, value) => {
+          if (key === 'brightness') setBrightness(value)
+          else setEnvironmentAdjustments((current) => ({ ...current, [key]: value }))
+        }}
+        onResetAdjustments={() => {
+          setBrightness(0)
+          setEnvironmentAdjustments(DEFAULT_ENVIRONMENT_ADJUSTMENTS)
+        }}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={cancelOpeningOrbit}
       />
