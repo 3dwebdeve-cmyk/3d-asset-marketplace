@@ -1,5 +1,5 @@
-import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -103,8 +103,10 @@ const sampleCategories = {
   ],
 }
 
-function renderProductsPage(initialEntry = '/console/products') {
-  const queryClient = createTestQueryClient()
+function renderProductsPage(
+  initialEntry = '/console/products',
+  queryClient: QueryClient = createTestQueryClient(),
+) {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
@@ -429,5 +431,91 @@ describe('AdminProductsPage QA sections', () => {
     renderProductsPage('/console/products')
     expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /free models/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('AdminProductsPage QA queue stays current', () => {
+  // The console's own cache settings (src/main.tsx). The default test client keeps nothing,
+  // so it could not show a stale QA queue.
+  const appQueryClient = () =>
+    new QueryClient({
+      defaultOptions: {
+        queries: { staleTime: 60_000, gcTime: 5 * 60_000, retry: false, refetchOnWindowFocus: false },
+      },
+    })
+  const uploadedModel = {
+    ...sampleProducts.results[0],
+    name: 'Banana Cluster',
+    status: 'pending_review' as const,
+    upload_kind: 'free' as const,
+  }
+  let uploaded = false
+
+  beforeEach(() => {
+    uploaded = false
+    // The uploader program adds a free model to QA; nothing else is in the catalog.
+    vi.mocked(productsApi.listAdminProducts).mockImplementation(async (params) => {
+      const listed =
+        uploaded &&
+        (!params?.status || params.status === 'pending_review') &&
+        params?.kind !== 'paid'
+      const rows = listed ? [uploadedModel] : []
+      return { ...sampleProducts, count: rows.length, results: params?.page_size === 1 ? [] : rows }
+    })
+  })
+
+  const freeTabCount = async (count: string) => {
+    const free = await screen.findByRole('tab', { name: /free models/i })
+    await waitFor(() => expect(within(free).getByText(count)).toBeInTheDocument())
+  }
+
+  it('shows the upload when switching back from All current statuses', async () => {
+    const user = userEvent.setup()
+    renderProductsPage('/console/products?status=pending_review', appQueryClient())
+    await freeTabCount('0')
+
+    uploaded = true
+    const statusFilter = screen.getByRole('combobox', { name: /filter by status/i })
+    await user.selectOptions(statusFilter, '')
+    expect(await screen.findByText('Banana Cluster')).toBeInTheDocument()
+
+    await user.selectOptions(statusFilter, 'pending_review')
+
+    await freeTabCount('1')
+    expect(await screen.findByText('Banana Cluster')).toBeInTheDocument()
+  })
+
+  it('checks an open QA queue for new uploads every 30 seconds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      renderProductsPage('/console/products?status=pending_review', appQueryClient())
+      await freeTabCount('0')
+
+      uploaded = true
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+
+      await freeTabCount('1')
+      expect(await screen.findByText('Banana Cluster')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('checks again when the admin comes back to the window', async () => {
+    renderProductsPage('/console/products?status=pending_review', appQueryClient())
+    await freeTabCount('0')
+
+    uploaded = true
+    try {
+      act(() => {
+        focusManager.setFocused(false)
+        focusManager.setFocused(true)
+      })
+
+      expect(await screen.findByText('Banana Cluster')).toBeInTheDocument()
+      await freeTabCount('1')
+    } finally {
+      focusManager.setFocused(undefined)
+    }
   })
 })
