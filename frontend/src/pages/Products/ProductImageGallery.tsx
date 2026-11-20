@@ -12,6 +12,7 @@ interface GalleryImage {
   id: string
   src: string
   alt: string
+  edgeColors?: ProductImage['edge_colors']
 }
 
 type StageViewMode = 'model' | 'image' | 'spin'
@@ -50,6 +51,7 @@ function buildGalleryImages(
       id: image.id,
       src: image.image_url,
       alt: `${productName} 3D model, image ${index + 1}`,
+      edgeColors: image.edge_colors,
     }))
 
   if (fromApi.length > 0) {
@@ -424,6 +426,7 @@ export function ProductImageGallery({
               key={activeImage.src}
               src={activeImage.src}
               alt={activeImage.alt}
+              edgeColors={activeImage.edgeColors}
               onError={() => markFailed(activeImage.id)}
             />
           </button>
