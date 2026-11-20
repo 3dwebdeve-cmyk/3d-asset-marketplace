@@ -16,8 +16,11 @@ test.describe('marketplace checkout commerce', () => {
     await expect(viewer.or(viewerLoading)).toBeVisible({ timeout: 45_000 })
     await expect(viewer).toBeVisible({ timeout: 60_000 })
 
-    // A model is sold per package: tick Whole File, then add it to the cart.
-    const packages = page.getByRole('region', { name: 'Choose your packages' })
+    // Open the purchase dialog before selecting a package.
+    await page.getByRole('button', { name: 'Choose packages', exact: true }).click()
+    const purchaseDialog = page.getByRole('dialog', { name: 'Product packages' })
+    await expect(purchaseDialog).toBeVisible()
+    const packages = purchaseDialog.getByRole('region', { name: 'Choose your packages' })
     await packages.getByRole('checkbox', { name: 'Whole File' }).check()
     await packages.getByRole('button', { name: 'Add selected to cart' }).click()
     await expect(packages.getByRole('link', { name: 'In cart' })).toBeVisible({
