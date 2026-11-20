@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -211,6 +211,8 @@ function renderProductDetails(initialPath = '/products/cyberpunk-drone-3d') {
 }
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal ??= function () { this.open = true }
+  HTMLDialogElement.prototype.close ??= function () { this.open = false }
   vi.clearAllMocks()
   resetAuthStore()
   resetAuthUiStore()
@@ -526,17 +528,27 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
-    // A model is bought per package: a guest can tick packages, then signs in to buy.
-    expect(screen.getByRole('checkbox', { name: 'Whole File' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sign in to buy' })).toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: 'Sign in to buy' })
+    expect(screen.queryByRole('checkbox', { name: 'Whole File' })).not.toBeInTheDocument()
+    await user.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Product packages' })
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Whole File' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Sign in to buy' }))
+    expect(useAuthUiStore.getState().mode).toBe('login')
+    expect(dialog).not.toHaveAttribute('open')
+    act(() => useAuthUiStore.getState().close())
+    expect(within(dialog).getByRole('checkbox', { name: 'Whole File' })).toBeChecked()
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(dialog).not.toHaveAttribute('open')
+    expect(trigger).toHaveFocus()
     expect(
-      screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }),
+      screen.getByRole('button', { name: /sign in to add cyberpunk drone 3d to wishlist/i }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^buy now$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /share link for/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/sign in to leave a review/i)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /sign in to add .+ to wishlist/i }))
+    await user.click(screen.getByRole('button', { name: /sign in to add cyberpunk drone 3d to wishlist/i }))
 
     expect(useAuthUiStore.getState().isOpen).toBe(true)
     expect(useAuthUiStore.getState().mode).toBe('login')
@@ -577,6 +589,7 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
+    await user.click(screen.getByRole('button', { name: 'Choose packages' }))
     await user.click(screen.getByRole('checkbox', { name: 'Whole File' }))
     expect(screen.getByRole('button', { name: /^buy now$/i })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Add selected to cart' }))
@@ -654,6 +667,7 @@ describe('ProductDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
+    await user.click(screen.getByRole('button', { name: 'Choose packages' }))
     await user.click(screen.getByRole('checkbox', { name: 'Whole File' }))
     await user.click(screen.getByRole('button', { name: /^buy now$/i }))
 
