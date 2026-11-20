@@ -242,10 +242,11 @@ describe('ModelViewer', () => {
     const colorButton = screen.getByRole('button', { name: 'Change background color' })
     const canvas = screen.getByTestId('r3f-canvas')
     await userEvent.click(colorButton)
-    expect(canvas.style.backgroundColor).toBe('rgb(167, 163, 165)')
-    expect(canvas.style.backgroundImage).toBe('')
+    expect(canvas.style.backgroundImage).toMatch(
+      /radial-gradient\(.*rgb\(104, 104, 104\) 0%.*rgb\(85, 85, 85\) 55%.*rgb\(60, 60, 60\) 100%/,
+    )
     await userEvent.click(colorButton)
-    expect(canvas.style.backgroundColor).toBe('')
+    expect(canvas.style.backgroundImage).toBe('')
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {

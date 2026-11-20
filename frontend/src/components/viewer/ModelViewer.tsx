@@ -175,7 +175,8 @@ function ModelViewerError({ message }: { message: string }) {
   )
 }
 
-const ALTERNATE_BACKGROUND = '#a7a3a5'
+const ALTERNATE_BACKGROUND =
+  'radial-gradient(ellipse farthest-side at center, #686868 0%, #555555 55%, #3C3C3C 100%)'
 
 type ViewerBackgroundProps = {
   background?: string
@@ -321,7 +322,7 @@ function ModelViewerCanvas({
       >
         <Canvas
           className="model-viewer__canvas"
-          style={background ? { backgroundColor: background } : undefined}
+          style={background ? { backgroundImage: background } : undefined}
           camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
           dpr={pixelRatio}
