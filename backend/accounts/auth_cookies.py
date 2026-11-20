@@ -86,14 +86,15 @@ def set_refresh_cookie(
 
 
 def clear_refresh_cookie(response: HttpResponse) -> None:
-    """Clear refresh cookies on current + legacy paths (one-release dual clear)."""
-    samesite = refresh_cookie_samesite()
-    paths = {
-        refresh_cookie_path(),
-        "/api/v1/auth/",
-        "/api/auth/",
-        "/api/",
+    """Delete the refresh cookies on the path ``set_refresh_cookie`` uses.
+
+    A response holds one Set-Cookie per cookie name (``response.cookies`` is keyed by name),
+    so deleting on several paths kept only the last delete. It went out for a path the cookie
+    was not on, and the browser kept its refresh cookie after sign-out.
+    """
+    common: dict[str, Any] = {
+        "path": refresh_cookie_path(),
+        "samesite": refresh_cookie_samesite(),
     }
-    for path in paths:
-        response.delete_cookie(refresh_cookie_name(), path=path, samesite=samesite)
-        response.delete_cookie(remember_cookie_name(), path=path, samesite=samesite)
+    response.delete_cookie(refresh_cookie_name(), **common)
+    response.delete_cookie(remember_cookie_name(), **common)
