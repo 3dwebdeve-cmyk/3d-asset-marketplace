@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
+import { ContactShadows, Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -10,7 +10,7 @@ import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamer
 import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
-import { useAdaptivePixelRatio } from './useAdaptivePixelRatio'
+import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 
 export interface ModelViewerProps {
@@ -21,34 +21,70 @@ export interface ModelViewerProps {
 
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
+const ORBIT_START = 1.2
+const ORBIT_END = 2.7
+const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
+
+function easeInOut(progress: number): number {
+  return progress * progress * (3 - 2 * progress)
+}
 
 function PreviewModel({
   url,
   wireframe,
+  openingOrbit,
 }: {
   url: string
   wireframe: boolean
+  openingOrbit: { cancelled: boolean }
 }) {
   const { scene } = useGLTF(url)
   const modelGroup = useRef<THREE.Group>(null)
+  const [entranceComplete, setEntranceComplete] = useState(false)
+  const shadowResolution = useAdaptiveShadowMapSize()
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false),
     [],
   )
   const entranceTime = useRef(0)
-  useFrame((_, delta) => {
-    if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
-    entranceTime.current = Math.min(entranceTime.current + Math.min(delta, 0.05), ENTRANCE_DURATION)
-    const progress = entranceTime.current / ENTRANCE_DURATION
-    const eased = progress * progress * (3 - 2 * progress)
-    modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * eased)
-  })
+  const openingView = useRef<{ center: THREE.Vector3; offset: THREE.Vector3 } | null>(null)
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
   const fitted = useMemo(() => fitPreviewScene(scene), [scene])
+  const ground = useMemo(() => {
+    const bounds = new THREE.Box3().setFromObject(fitted)
+    if (bounds.isEmpty()) return null
+    const size = bounds.getSize(new THREE.Vector3())
+    return {
+      y: bounds.min.y - 0.008,
+      scale: Math.max(size.x, size.z, 0.5) * 2,
+      far: Math.max(size.y * 1.5, 0.5),
+    }
+  }, [fitted])
   const camera = useThree((state) => state.camera)
   const size = useThree((state) => state.size)
   const controls = useThree((state) => state.controls)
   const invalidate = useThree((state) => state.invalidate)
+
+  useFrame((_, delta) => {
+    const end = openingOrbit.cancelled || !openingView.current ? ENTRANCE_DURATION : ORBIT_END
+    const previousTime = entranceTime.current
+    if (reducedMotion || previousTime >= end || !modelGroup.current) return
+
+    const time = Math.min(previousTime + Math.min(delta, 0.25), end)
+    entranceTime.current = time
+    if (previousTime < ENTRANCE_DURATION) {
+      const zoom = easeInOut(Math.min(time / ENTRANCE_DURATION, 1))
+      modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * zoom)
+      if (time >= ENTRANCE_DURATION) setEntranceComplete(true)
+    }
+
+    const view = openingView.current
+    if (!openingOrbit.cancelled && view && time > ORBIT_START) {
+      const orbit = easeInOut((time - ORBIT_START) / (ORBIT_END - ORBIT_START))
+      camera.position.copy(view.offset).applyAxisAngle(ORBIT_AXIS, Math.PI * orbit).add(view.center)
+      camera.lookAt(view.center)
+    }
+  })
 
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || size.width <= 0 || size.height <= 0) return
@@ -62,6 +98,7 @@ function PreviewModel({
     orbit?.target?.copy(center)
     orbit?.update?.()
     orbit?.saveState?.()
+    openingView.current = { center, offset: camera.position.clone().sub(center) }
     invalidate()
   }, [camera, controls, fitted, size.width, size.height, invalidate])
 
@@ -74,9 +111,22 @@ function PreviewModel({
   }, [fitted, wireframe])
 
   return (
-    <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
-      <primitive object={fitted} />
-    </group>
+    <>
+      <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
+        <primitive object={fitted} />
+      </group>
+      {ground && (reducedMotion || entranceComplete) ? (
+        <ContactShadows
+          position={[0, ground.y, 0]}
+          scale={ground.scale}
+          far={ground.far}
+          blur={3}
+          opacity={0.4}
+          resolution={shadowResolution}
+          frames={1}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -122,9 +172,11 @@ type ViewerBackgroundProps = {
 function ViewerToolbar({
   controls,
   onBackgroundChange,
+  onCameraInteraction,
 }: {
   controls: { current: ComponentRef<typeof OrbitControls> | null }
   onBackgroundChange: () => void
+  onCameraInteraction: () => void
 }) {
   const toolbar = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
@@ -161,15 +213,24 @@ function ViewerToolbar({
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" /><path d="m6 15 4-4 8 7" /></svg>
         BG Color
       </button>
-      <button type="button" onClick={() => controls.current?.reset()}>
+      <button type="button" onClick={() => {
+        onCameraInteraction()
+        controls.current?.reset()
+      }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5H7m5-2a7 7 0 1 1-7 7" /></svg>
         Reset
       </button>
-      <button type="button" onClick={() => controls.current?.dollyIn(0.8)}>
+      <button type="button" onClick={() => {
+        onCameraInteraction()
+        controls.current?.dollyIn(0.8)
+      }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6-6v12" /></svg>
         Zoom In
       </button>
-      <button type="button" onClick={() => controls.current?.dollyOut(0.8)}>
+      <button type="button" onClick={() => {
+        onCameraInteraction()
+        controls.current?.dollyOut(0.8)
+      }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>
         Zoom Out
       </button>
@@ -195,6 +256,8 @@ function ModelViewerCanvas({
   pixelRatio: number
 }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
+  const openingOrbit = useMemo(() => ({ cancelled: false }), [modelUrl])
+  const cancelOpeningOrbit = () => { openingOrbit.cancelled = true }
   const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
@@ -203,6 +266,7 @@ function ModelViewerCanvas({
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
     if (!event.altKey || event.button !== 0 || lightDrag.current) return
+    cancelOpeningOrbit()
     event.preventDefault()
     event.stopPropagation()
     if (controls.current) controls.current.enabled = false
@@ -260,11 +324,13 @@ function ModelViewerCanvas({
               key={modelUrl}
               url={modelUrl}
               wireframe={false}
+              openingOrbit={openingOrbit}
             />
           </Suspense>
           <OrbitControls
             ref={controls}
             makeDefault
+            onStart={cancelOpeningOrbit}
             enableDamping
             dampingFactor={0.08}
             minDistance={0.5}
@@ -292,6 +358,7 @@ function ModelViewerCanvas({
       <ViewerToolbar
         controls={controls}
         onBackgroundChange={onBackgroundChange}
+        onCameraInteraction={cancelOpeningOrbit}
       />
       <ViewerProgressOverlay />
     </div>
