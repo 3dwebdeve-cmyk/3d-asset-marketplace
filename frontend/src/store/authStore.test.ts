@@ -7,6 +7,19 @@ beforeEach(() => {
   resetAuthStore()
 })
 
+describe('auth store sign-out counter', () => {
+  it('goes up on every sign-out, so a refresh that started before it cannot restore the session', () => {
+    const before = useAuthStore.getState().sessionEpoch
+
+    useAuthStore.getState().setSession({ access: 'a', user: testUser })
+    expect(useAuthStore.getState().sessionEpoch).toBe(before)
+
+    useAuthStore.getState().clearSession()
+    expect(useAuthStore.getState().sessionEpoch).toBe(before + 1)
+  })
+
+})
+
 describe('auth store session hint', () => {
   it('starts false for a browser that never signed in', () => {
     expect(useAuthStore.getState().sessionHint).toBe(false)

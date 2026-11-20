@@ -30,6 +30,11 @@ interface AuthState {
   sessionHint: boolean
   /** One-shot redirect used after intentional sign-out. Not persisted. */
   postLogoutRedirect: string | null
+  /**
+   * Counts sign-outs in this tab. A refresh that started before a sign-out must not put its
+   * token back, so it compares this value before it writes anything. Not persisted.
+   */
+  sessionEpoch: number
   setSession: (session: AuthSession, options?: { remember?: boolean }) => void
   restoreAccess: (access: string) => void
   setUser: (user: AuthUser) => void
@@ -53,6 +58,7 @@ export const useAuthStore = create<AuthState>()(
       rememberSession: true,
       sessionHint: false,
       postLogoutRedirect: null,
+      sessionEpoch: 0,
       setSession: ({ access, user }, options) =>
         set({
           accessToken: access,
@@ -72,14 +78,15 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) => set({ user }),
       updateAccessToken: (access) => set({ accessToken: access }),
       clearSession: (options) =>
-        set({
+        set((state) => ({
           accessToken: null,
           user: null,
           isAuthenticated: false,
           rememberSession: true,
           sessionHint: false,
           postLogoutRedirect: options?.redirectTo ?? null,
-        }),
+          sessionEpoch: state.sessionEpoch + 1,
+        })),
       clearPostLogoutRedirect: () => set({ postLogoutRedirect: null }),
       setSessionHint: (hint) => set({ sessionHint: hint }),
     }),

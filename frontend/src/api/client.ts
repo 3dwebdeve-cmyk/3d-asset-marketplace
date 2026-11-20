@@ -45,15 +45,23 @@ async function requestFreshAccessToken(): Promise<string> {
  * second tab) can otherwise present the same refresh cookie twice; the loser
  * is already blacklisted and its 401 used to delete the replacement cookie.
  */
-let sessionRefresh: Promise<string> | null = null
+let sessionRefresh: { epoch: number; promise: Promise<string> } | null = null
 
+/** Shares one rotation per sign-out generation; a token from before a sign-out is never used. */
 export function refreshSessionAccessToken(): Promise<string> {
-  if (!sessionRefresh) {
-    sessionRefresh = requestFreshAccessToken().finally(() => {
-      sessionRefresh = null
+  const { sessionEpoch } = useAuthStore.getState()
+  if (sessionRefresh?.epoch !== sessionEpoch) {
+    const promise = requestFreshAccessToken().finally(() => {
+      if (sessionRefresh?.promise === promise) sessionRefresh = null
     })
+    sessionRefresh = { epoch: sessionEpoch, promise }
   }
-  return sessionRefresh
+  return sessionRefresh.promise.then((access) => {
+    if (useAuthStore.getState().sessionEpoch !== sessionEpoch) {
+      throw new Error('Signed out while refreshing the session.')
+    }
+    return access
+  })
 }
 
 export const apiClient = axios.create({

@@ -190,7 +190,6 @@ class AdministratorSessionsAreNotLimitedTests(APITestCase):
 
     def test_signing_out_ends_the_admin_access_token_at_once(self) -> None:
         client = self._sign_in()
-        other_device = self._sign_in()
         admin_me = reverse("accounts:admin-me")
         self.assertEqual(client.get(admin_me).status_code, status.HTTP_200_OK)
 
@@ -199,4 +198,26 @@ class AdministratorSessionsAreNotLimitedTests(APITestCase):
         self.assertEqual(logout.status_code, status.HTTP_204_NO_CONTENT)
         # The token is still inside its 30 minutes, but the session behind it has ended.
         self.assertEqual(client.get(admin_me).status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(other_device.get(admin_me).status_code, status.HTTP_200_OK)
+
+    def test_administrator_sign_out_ends_every_admin_device(self) -> None:
+        client = self._sign_in()
+        other_device = self._sign_in()
+        admin_me = reverse("accounts:admin-me")
+
+        logout = client.post(reverse("accounts:logout"), {}, format="json")
+
+        self.assertEqual(logout.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(other_device.get(admin_me).status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_administrator_sign_out_works_with_an_expired_access_header(self) -> None:
+        client = self._sign_in()
+        other_device = self._sign_in()
+        client.credentials(HTTP_AUTHORIZATION="Bearer not-a-valid-access-token")
+
+        logout = client.post(reverse("accounts:logout"), {}, format="json")
+
+        self.assertEqual(logout.status_code, status.HTTP_204_NO_CONTENT, logout.data)
+        self.assertEqual(
+            other_device.get(reverse("accounts:admin-me")).status_code,
+            status.HTTP_401_UNAUTHORIZED,
+        )
