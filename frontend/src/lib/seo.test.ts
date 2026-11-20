@@ -37,7 +37,6 @@ const product: PublicProductDetail = {
   vertex_count: 8000,
   software_used: 'Blender',
   pbr_ready: true,
-  game_ready: true,
   license_type: 'standard',
   average_rating: '4.50',
   review_count: 8,

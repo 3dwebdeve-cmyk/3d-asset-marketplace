@@ -103,7 +103,6 @@ const sampleDetail: PublicProductDetail = {
   vertex_count: 8000,
   software_used: 'Blender',
   pbr_ready: true,
-  game_ready: true,
   license_type: 'standard',
   average_rating: '4.80',
   review_count: 12,
@@ -288,7 +287,8 @@ describe('ProductDetailsPage', () => {
     expect(screen.queryByText(/^triangles$/i)).not.toBeInTheDocument()
     expect(screen.getByText(/^vertices$/i)).toBeInTheDocument()
     expect(screen.getByText('8,000')).toBeInTheDocument()
-    expect(screen.getByText(/^game ready$/i)).toBeInTheDocument()
+    expect(screen.queryByText(/^game ready$/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^download size$/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/^geometry$/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /close/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show 3d preview/i })).toBeInTheDocument()
