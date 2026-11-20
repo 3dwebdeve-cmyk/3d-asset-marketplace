@@ -146,6 +146,24 @@ class AdminMfaFlowTests(APITestCase):
         self.assertEqual(me.status_code, status.HTTP_200_OK)
         self.assertIn("Administrator sign-in to 3D Asset Marketplace", [m.subject for m in mail.outbox])
 
+    def test_admin_sign_in_is_never_remembered_or_cached(self) -> None:
+        secret, _codes = self._enroll()
+        data = self._login()
+        later = NOW + 60
+        self.clock.stop()
+        with patch("accounts.mfa.time.time", return_value=later):
+            # The form asks to be remembered; an administrator session still is not.
+            response = self._verify(data["mfa_token"], code=_code(secret, later), remember_me=True)
+        self.clock.start()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        refresh_cookie = response.cookies["refresh_token"]
+        self.assertTrue(refresh_cookie.value)
+        # No Max-Age / Expires: the cookie ends with the browser session.
+        self.assertEqual(refresh_cookie["max-age"], "")
+        self.assertEqual(refresh_cookie["expires"], "")
+        self.assertEqual(response.cookies[settings.JWT_REFRESH_REMEMBER_COOKIE_NAME].value, "")
+        self.assertIn("no-store", response["Cache-Control"])
+
     def test_code_cannot_be_replayed(self) -> None:
         secret, _codes = self._enroll()
         token = self._login()["mfa_token"]
@@ -341,7 +359,33 @@ class AdminSessionLimitTests(APITestCase):
         access = AccessToken(response.data["access"])
         self.assertEqual(access["auth_time"], signed_in)
         self.assertLessEqual(access["exp"], signed_in + 8 * 3600)
-        self.assertLessEqual(int(self.client.cookies["refresh_token"]["max-age"]), 8 * 3600)
+        # Even a remembered browser gets a browser-session cookie for an administrator.
+        self.assertEqual(response.cookies["refresh_token"]["max-age"], "")
+        self.assertEqual(response.cookies[settings.JWT_REFRESH_REMEMBER_COOKIE_NAME].value, "")
+
+    @override_settings(ADMIN_IDLE_MINUTES=60)
+    def test_unused_admin_session_ends_after_the_idle_limit(self) -> None:
+        from rest_framework_simplejwt.tokens import RefreshToken
+
+        signed_in = int(time.time()) - 3600
+        before = int(time.time())
+        admin_refresh = RefreshToken(
+            AuthenticationService.build_tokens(self.admin, auth_time=signed_in, mfa=True)["refresh"]
+        )
+        # Valid for the idle hour from now, not the rest of the 8-hour session.
+        self.assertGreaterEqual(admin_refresh["exp"], before + 3600)
+        self.assertLessEqual(admin_refresh["exp"], int(time.time()) + 3600)
+        customer_refresh = RefreshToken(
+            AuthenticationService.build_tokens(self.customer, auth_time=signed_in)["refresh"]
+        )
+        self.assertGreater(customer_refresh["exp"], before + 29 * 24 * 3600)
+
+    @override_settings(ADMIN_IDLE_MINUTES=5)
+    def test_idle_limit_always_outlasts_the_access_token(self) -> None:
+        from accounts.tokens import admin_idle_seconds
+
+        access = settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"].total_seconds()
+        self.assertEqual(admin_idle_seconds(), int(access) + 15 * 60)
 
     def test_admin_refresh_without_second_factor_is_rejected(self) -> None:
         tokens = AuthenticationService.build_tokens(self.admin)

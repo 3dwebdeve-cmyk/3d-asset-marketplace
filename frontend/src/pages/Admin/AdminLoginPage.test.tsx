@@ -98,7 +98,7 @@ describe('AdminLoginPage', () => {
     expect(vi.mocked(authApi.adminLoginUser).mock.calls[0]?.[0]).toEqual({
       email: 'admin@example.com',
       password: 'StrongPass123!',
-      remember_me: true,
+      remember_me: false,
     })
   })
 
@@ -123,7 +123,7 @@ describe('AdminLoginPage', () => {
     await waitFor(() => expect(screen.getByText('Admin Dashboard')).toBeInTheDocument())
     expect(authApi.adminMfaVerify).toHaveBeenCalledWith({
       mfa_token: 'mfa-token',
-      remember_me: true,
+      remember_me: false,
       code: '123456',
     })
     expect(useAuthStore.getState().accessToken).toBe('access-token')
@@ -224,6 +224,6 @@ describe('AdminLoginPage', () => {
     await user.click(screen.getByRole('button', { name: /i have saved these codes/i }))
 
     await waitFor(() => expect(screen.getByText('Admin Dashboard')).toBeInTheDocument())
-    expect(authApi.adminMfaConfirm).toHaveBeenCalledWith('mfa-token', '123456', true)
+    expect(authApi.adminMfaConfirm).toHaveBeenCalledWith('mfa-token', '123456', false)
   })
 })

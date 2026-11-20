@@ -43,6 +43,12 @@
 /*.mp4
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 
+# The administrator console is never stored (the Worker sets the same header; nginx.conf too).
+/console
+  Cache-Control: no-store, no-cache, must-revalidate, private
+/console/*
+  Cache-Control: no-store, no-cache, must-revalidate, private
+
 # ---- Preload -------------------------------------------------------------------------------
 # The big picture at the top of a page is otherwise only found after the JavaScript has run, which
 # on a slow phone is seconds later. A Link header lets the browser start fetching it as soon as the

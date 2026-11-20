@@ -48,7 +48,8 @@ export async function loginWithGoogle(
 export async function adminLoginUser(payload: LoginPayload): Promise<AdminLoginResponse> {
   const response = await apiClient.post<AdminLoginResponse>('/api/v1/auth/admin/login/', {
     ...payload,
-    remember_me: payload.remember_me ?? true,
+    // Administrator sessions are never remembered (the server enforces this too).
+    remember_me: false,
   })
   return response.data
 }

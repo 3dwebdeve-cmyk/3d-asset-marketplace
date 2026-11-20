@@ -18,6 +18,17 @@ def admin_session_max_seconds() -> int:
     return int(getattr(settings, "ADMIN_SESSION_MAX_HOURS", 8)) * 3600
 
 
+def admin_idle_seconds() -> int:
+    """How long an unused administrator refresh token stays valid.
+
+    The browser only refreshes once the access token has expired, so the window must outlast
+    it: anything shorter would sign out an administrator who is working.
+    """
+    access = settings.SIMPLE_JWT.get("ACCESS_TOKEN_LIFETIME", timedelta(minutes=30))
+    floor = int(access.total_seconds()) + 15 * 60
+    return max(int(getattr(settings, "ADMIN_IDLE_MINUTES", 60)) * 60, floor)
+
+
 def admin_session_expired(auth_time, *, now: float | None = None) -> bool:
     """True when an administrator session is past its limit, or has no sign-in time."""
     try:
@@ -50,13 +61,19 @@ class VersionedRefreshToken(RefreshToken):
         return token
 
     def cap_to_admin_session(self) -> None:
-        """End the refresh token no later than the administrator session limit."""
+        """End the refresh token at the administrator session limit or idle limit, if sooner.
+
+        Each refresh issues a new token, so the idle limit restarts while the console is used.
+        """
         session_end = int(self["auth_time"]) + admin_session_max_seconds()
         if session_end < int(self["exp"]):
             self.set_exp(
                 from_time=datetime.fromtimestamp(int(self["auth_time"]), tz=timezone.utc),
                 lifetime=timedelta(seconds=admin_session_max_seconds()),
             )
+        idle_end = int(time.time()) + admin_idle_seconds()
+        if idle_end < int(self["exp"]):
+            self.set_exp(lifetime=timedelta(seconds=admin_idle_seconds()))
 
 
 def access_token_with_version(refresh: RefreshToken, *, admin: bool = False) -> str:
