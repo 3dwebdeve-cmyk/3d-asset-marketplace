@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -8,6 +9,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import UntypedToken
 
 from accounts.auth_cookies import (
     clear_refresh_cookie,
@@ -458,35 +461,56 @@ class AdminCurrentUserView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-def _refresh_session_id(raw: str):
-    """``sid`` of a refresh token that was already verified (and may now be blacklisted)."""
-    from rest_framework_simplejwt.exceptions import TokenError
-    from rest_framework_simplejwt.tokens import UntypedToken
-
+def _unverified_claims(raw: str) -> dict:
+    """Claims of a refresh token that blacklist_refresh_token has already verified."""
     try:
-        return UntypedToken(raw, verify=False).payload.get("sid")
+        return UntypedToken(raw, verify=False).payload
     except TokenError:
+        return {}
+
+
+def _request_user(request: Request):
+    """The user named by a valid access header, else None. A stale header must not block sign-out."""
+    try:
+        user = request.user
+    except AuthenticationFailed:
         return None
+    return user if user.is_authenticated else None
+
+
+def _end_device_session(refresh: str) -> None:
+    """Revoke the session behind a refresh token. An administrator is signed out everywhere."""
+    claims = _unverified_claims(refresh)
+    user = get_user_model().objects.filter(pk=claims.get("user_id")).first()
+    if AuthenticationService.is_administrator(user):
+        AuthenticationService.blacklist_all_refresh_tokens(user)  # also ends every session
+    else:
+        sessions.end_session(claims.get("sid"))
 
 
 class LogoutView(APIView):
-    """Blacklist the refresh cookie and clear it. Cookie-only; no JSON refresh."""
+    """Blacklist the refresh cookie, end its session and clear the cookies. Cookie-only."""
 
     permission_classes = [AllowAny]
+    # DRF authenticates and throttles before post() runs, and both reject a stale access
+    # header, which would stop the cookie from being revoked. post() reads the user itself.
+    throttle_classes = ()
+
+    def perform_authentication(self, request: Request) -> None:
+        pass
 
     def post(self, request: Request) -> Response:
-        refresh = get_refresh_from_request(request)
         response = Response(status=status.HTTP_204_NO_CONTENT)
-
+        refresh = get_refresh_from_request(request)
         if refresh:
-            user = request.user if getattr(request.user, "is_authenticated", False) else None
             try:
-                AuthenticationService.blacklist_refresh_token(refresh, user=user)
-                sessions.end_session(_refresh_session_id(refresh))
+                AuthenticationService.blacklist_refresh_token(
+                    refresh, user=_request_user(request)
+                )
             except AuthenticationError as exc:
-                clear_refresh_cookie(response)
-                raise AuthenticationFailed(exc.message) from exc
-
+                response = Response({"detail": exc.message}, status=status.HTTP_401_UNAUTHORIZED)
+            else:
+                _end_device_session(refresh)
         clear_refresh_cookie(response)
         return response
 
