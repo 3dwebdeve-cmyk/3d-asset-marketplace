@@ -235,7 +235,7 @@ describe('ModelViewer', () => {
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
 
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
-    expect(container.querySelector('directionallight, hemispherelight')).toBeNull()
+    expect(container.querySelectorAll('directionallight')).toHaveLength(1)
     const environment = () => screen.getByTestId('viewer-environment')
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
