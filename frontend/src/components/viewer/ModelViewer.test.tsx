@@ -267,14 +267,29 @@ describe('ModelViewer', () => {
     expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
-    fireEvent.change(brightness, { target: { value: '150' } })
+    fireEvent.change(brightness, { target: { value: '50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.35)
-    fireEvent.change(screen.getByRole('slider', { name: 'Contrast' }), { target: { value: '125' } })
-    fireEvent.change(screen.getByRole('slider', { name: 'Sharpness' }), { target: { value: '50' } })
+    fireEvent.change(brightness, { target: { value: '-50' } })
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.45)
+    const extraSliders = [
+      ['Contrast', '-25'],
+      ['Exposure', '-1.5'],
+      ['Saturation', '-25'],
+      ['Highlights', '-30'],
+      ['Shadows', '-30'],
+      ['Gamma', '-0.25'],
+      ['Sharpness', '-50'],
+    ]
+    for (const [name, value] of extraSliders) {
+      const slider = screen.getByRole('slider', { name })
+      fireEvent.change(slider, { target: { value } })
+      expect(slider).toHaveValue(value)
+    }
     await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
-    expect(brightness).toHaveValue('100')
-    expect(screen.getByRole('slider', { name: 'Contrast' })).toHaveValue('100')
-    expect(screen.getByRole('slider', { name: 'Sharpness' })).toHaveValue('100')
+    expect(brightness).toHaveValue('0')
+    for (const [name] of extraSliders) {
+      expect(screen.getByRole('slider', { name })).toHaveValue('0')
+    }
     expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '0.9')
   })
 
