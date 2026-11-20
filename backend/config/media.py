@@ -49,6 +49,8 @@ PLUGIN_PUBLIC_PREFIX = "plugins/"
 PLUGIN_PUBLIC_SUFFIXES = (".webp", ".jpg", ".jpeg", ".png")
 # Free models live under free-models/{Model_ID}/ in the public bucket, zip included.
 FREE_MODELS_PREFIX = "free-models/"
+# Free plugins live under free-plugins/{Plugin_ID}/ in the public bucket, zip included.
+FREE_PLUGINS_PREFIX = "free-plugins/"
 # 360° turntable frames live under 360/{Model_ID}/ for paid and free models alike
 # (360_<ID>_01.jpg ... 360_<ID>_36.jpg). Only JPEG frames there are ever public.
 SPIN_PUBLIC_PREFIX = "360/"
@@ -102,9 +104,15 @@ def is_free_model_path(storage_path: str) -> bool:
     return relative is not None and relative.startswith(FREE_MODELS_PREFIX)
 
 
+def is_free_plugin_path(storage_path: str) -> bool:
+    relative = media_relative_path(storage_path)
+    return relative is not None and relative.startswith(FREE_PLUGINS_PREFIX)
+
+
 def is_public_media_path(relative: str) -> bool:
     normalized = relative.replace("\\", "/")
-    if any(normalized.startswith(prefix) for prefix in (*PUBLIC_MEDIA_PREFIXES, FREE_MODELS_PREFIX)):
+    public_prefixes = (*PUBLIC_MEDIA_PREFIXES, FREE_MODELS_PREFIX, FREE_PLUGINS_PREFIX)
+    if any(normalized.startswith(prefix) for prefix in public_prefixes):
         return True
     return (
         normalized.startswith(BATCH_PUBLIC_PREFIX)
@@ -185,8 +193,9 @@ def private_object_exists(storage_path: str) -> bool:
 
 
 def package_object_exists(storage_path: str) -> bool:
-    """A package key exists: free models' zips in the public bucket, the rest private."""
-    if not is_free_model_path(storage_path):
+    """A package key exists: free models' and free plugins' zips in the public bucket, the
+    rest private."""
+    if not (is_free_model_path(storage_path) or is_free_plugin_path(storage_path)):
         return private_object_exists(storage_path)
     relative = media_relative_path(storage_path)
     try:

@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from django.http import HttpResponse, HttpResponseRedirect
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -14,9 +15,12 @@ from accounts.throttles import (
     AdminPluginWriteRateThrottle,
     AdminUploadRateThrottle,
     CatalogSearchRateThrottle,
+    DownloadRateThrottle,
 )
 from config.api_helpers import domain_error_response, parse_uuid
 from config.http_cache import PublicCatalogCacheMixin
+from config.media import is_free_plugin_path, media_relative_path
+from config.storages import build_public_media_url
 from plugins.models import Plugin
 from plugins.pagination import PluginPagination
 from plugins.serializers import (
@@ -139,6 +143,31 @@ class PluginDetailView(PublicCatalogCacheMixin, APIView):
         return Response(
             PluginDetailPublicSerializer(plugin).data,
             status=status.HTTP_200_OK,
+        )
+
+
+class PluginFreeDownloadView(APIView):
+    """GET /api/v1/plugins/<slug>/free-download/ — a free plugin's zip, no account needed.
+
+    Mirrors the free model download. Only a plugin uploaded as free is served: its zip is
+    already public under free-plugins/, so this redirects to it and exposes nothing new.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [DownloadRateThrottle]
+
+    def get(self, request: Request, slug: str) -> HttpResponse:
+        try:
+            plugin = PluginService.get_public_by_slug(slug)
+        except PluginError as exc:
+            raise NotFound(exc.message) from exc
+        if not plugin.is_free or plugin.price != 0:
+            raise NotFound("This plugin is not a free download.")
+        package = plugin.files.order_by("-is_primary", "-created_at").first()
+        if package is None or not is_free_plugin_path(package.storage_path):
+            raise NotFound("File not found.")
+        return HttpResponseRedirect(
+            build_public_media_url(media_relative_path(package.storage_path))
         )
 
 

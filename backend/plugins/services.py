@@ -9,12 +9,20 @@ from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 from django.utils import timezone
 
-from config.media import private_object_exists
+from config.media import is_free_plugin_path, package_object_exists, private_object_exists
 from config.currency import normalize_currency, validate_catalog_prices
 from plugins.models import Plugin, PluginCategory, PluginFile, PluginImage
 from plugins.storage import PluginMediaStorageService
 from plugins.upload_rules import ValidatedPluginFileUpload
 from products.upload_rules import ValidatedProductImageUpload
+
+
+def _package_exists(storage_path: str) -> bool:
+    """A free plugin's zip is in the public bucket; every other package is private."""
+    if is_free_plugin_path(storage_path):
+        return package_object_exists(storage_path)
+    return private_object_exists(storage_path)
+
 
 class PluginError(Exception):
     def __init__(self, message: str, field: str | None = None) -> None:
@@ -432,6 +440,7 @@ class PluginService:
         )
         if data.price is not None or data.discount_price is not None or data.clear_discount_price:
             cls._validate_pricing(price, discount)
+            cls._validate_free_price(plugin, price, discount)
             plugin.price = price
             plugin.discount_price = discount
             update_fields.extend(["price", "discount_price"])
@@ -599,6 +608,14 @@ class PluginService:
         return normalized
 
     @staticmethod
+    def _validate_free_price(plugin: Plugin, price: Decimal, discount: Decimal | None) -> None:
+        """A plugin uploaded as free has public files: anyone can fetch them, so it is never sold."""
+        if plugin.is_free and (price != 0 or discount is not None):
+            raise PluginError(
+                "This plugin was uploaded as free: its price must be 0.", field="price"
+            )
+
+    @staticmethod
     def _validate_pricing(price: Decimal, discount: Decimal | None) -> None:
         if price < Decimal("0.00"):
             raise PluginError("Price cannot be negative.", field="price")
@@ -632,7 +649,7 @@ class PluginService:
                 "At least one plugin package file is required before publish.",
                 field="files",
             )
-        if not any(private_object_exists(row.storage_path) for row in files):
+        if not any(_package_exists(row.storage_path) for row in files):
             raise PluginError(
                 "Plugin package object is missing from private storage. "
                 "Upload the package before publish.",
@@ -712,6 +729,7 @@ class PluginService:
             if not live_update:
                 raise PluginError("Set the price (0 for a free plugin).", field="price")
             price, discount_price = plugin.price, plugin.discount_price
+        cls._validate_free_price(plugin, price, discount_price)
         if currency:
             plugin.currency = cls._normalize_currency(currency)
         cls._validate_pricing(price, discount_price)

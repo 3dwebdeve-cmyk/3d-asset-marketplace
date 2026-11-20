@@ -48,6 +48,16 @@ IMPORT_REASONS: dict[str, tuple[str, str]] = {
     "category_ambiguous": ("Several categories have the sheet's category name and none has a code.", "Set the code on the right one in /console > Categories, then upload again."),
     "category_inactive": ("The category for this code is switched off in /console.", "Switch the category on in /console > Categories, then upload again."),
     "category_rejected": ("An administrator rejected the new category for this code.", "Approve the category, or merge it into another one, in /console > Categories; then upload again."),
+    # Plugins (the Plugin Uploader sends them on the same import, with product_type "plugin")
+    "invalid_product_type": ("The item's product type is not one the website knows (model or plugin).", "Update the uploader, then upload again."),
+    "invalid_plugin_id": ("The Plugin ID is not valid (it must look like PLUG-MAX-000001 or PLG-MAX-000001).", "Fix the Plugin ID, then upload again."),
+    "missing_description": ("The plugin has no description.", "Add the description in the sheet, then upload again."),
+    "invalid_manifest": ("The plugin's manifest is not valid or is too large.", "Upload the plugin again with the uploader."),
+    "unknown_category": ("No active plugin category has the code in this Plugin ID.", "Add the code to the right plugin category in /console, or switch it on, then upload again."),
+    "category_mismatch": ("The plugin's category code does not match its Plugin ID.", "Check the Plugin ID and its category, then upload again."),
+    "plugin_id_in_use": ("This Plugin ID already belongs to another plugin.", "Check the Plugin ID in the sheet."),
+    "live_free_change": ("This plugin is on sale and the upload would move it between free and paid.", "Set the plugin to Draft in /console first, then upload again."),
+    "import_error": ("The website hit an unexpected error with this plugin.", "Upload again; if it happens again, send the Plugin ID to the developer."),
     # Unexpected
     "internal_error": ("The website hit an unexpected error with this model.", "Upload again; if it happens again, send the Model ID to the developer."),
     "product_error": ("The website could not save this model.", "Upload again; if it happens again, send the Model ID to the developer."),
