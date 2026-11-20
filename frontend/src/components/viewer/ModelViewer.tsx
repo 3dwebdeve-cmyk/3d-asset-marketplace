@@ -133,8 +133,8 @@ function PreviewModel({
           position={[0, ground.y, 0]}
           scale={ground.scale}
           far={ground.far}
-          blur={3}
-          opacity={0.4}
+          blur={3.4}
+          opacity={0.46}
           resolution={shadowResolution}
           frames={1}
         />

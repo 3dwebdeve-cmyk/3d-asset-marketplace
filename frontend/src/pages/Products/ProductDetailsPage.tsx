@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useLayoutEffect } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { getPublicProduct, listPublicProducts } from '../../api/productsApi'
@@ -19,6 +19,8 @@ import { formatMoney } from '../../lib/format'
 import { discountPercent, formatSaleEnd } from '../../lib/pricing'
 import { NOINDEX_CATEGORY_SLUGS, categoryPath } from '../../lib/categorySeo'
 import { buildBreadcrumbJsonLd, buildProductJsonLd } from '../../lib/seo'
+import { useAuthStore } from '../../store/authStore'
+import { useAuthUiStore } from '../../store/authUiStore'
 import { NotFoundPage } from '../NotFound/NotFoundPage'
 import { isFreeProduct } from '../../types/product'
 import type { ProductLicenseType, PublicProductDetail } from '../../types/product'
@@ -66,6 +68,54 @@ function ProductDetailSkeleton() {
   )
 }
 
+function PurchaseDialog({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  const authOpen = useAuthUiStore((state) => state.isOpen)
+  const signedIn = useAuthStore((state) => state.isAuthenticated && Boolean(state.accessToken))
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const titleId = useId()
+
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open && !authOpen && !dialog.open) dialog.showModal()
+    if ((!open || authOpen) && dialog.open) {
+      dialog.close()
+      triggerRef.current?.focus()
+    }
+  }, [open, authOpen])
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="ui-button ui-button--primary"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        {signedIn ? 'Choose packages' : 'Sign in to buy'}
+      </button>
+      <dialog
+        ref={dialogRef}
+        className="product-purchase-dialog"
+        aria-labelledby={titleId}
+        onCancel={(event) => {
+          event.preventDefault()
+          setOpen(false)
+        }}
+      >
+        <div className="product-purchase-dialog__header">
+          <h2 id={titleId}>Product packages</h2>
+          <button type="button" aria-label="Close product packages" onClick={() => setOpen(false)}>×</button>
+        </div>
+        {children}
+      </dialog>
+    </>
+  )
+}
+
 function ProductDetailContent({ product }: { product: PublicProductDetail }) {
   const isFree = isFreeProduct(product)
   const hasDiscount = !isFree && Boolean(
@@ -90,6 +140,57 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
 
   const relatedProducts =
     relatedQuery.data?.results.filter((item) => item.id !== product.id).slice(0, 4) ?? []
+
+  const purchasePanel = (
+    <div className="product-hub-detail__purchase">
+      <div className="product-hub-detail__purchase-row">
+        <div className="product-hub-detail__purchase-info">
+          <div className="product-detail-purchase__price">
+            {/* With several packages the price shown is the cheapest one. */}
+            {!isFree && product.packages.length > 1 ? (
+              <span className="product-detail-purchase__price-from">From</span>
+            ) : null}
+            {isFree ? (
+              <span className="product-detail-purchase__price-current">Free</span>
+            ) : hasDiscount && product.discount_price ? (
+              <>
+                <span className="product-detail-purchase__price-current">
+                  {formatMoney(product.discount_price, product.currency)}
+                </span>
+                <span className="product-detail-purchase__price-original">
+                  {formatMoney(product.price, product.currency)}
+                </span>
+                {salePercent !== null ? (
+                  <span className="product-detail-badge product-detail-badge--sale">
+                    -{salePercent}%
+                  </span>
+                ) : (
+                  <span className="product-detail-badge product-detail-badge--sale">Sale</span>
+                )}
+              </>
+            ) : (
+              <span className="product-detail-purchase__price-current">
+                {formatMoney(product.price, product.currency)}
+              </span>
+            )}
+          </div>
+          {hasDiscount && product.discount_ends_at ? (
+            <p className="product-detail-purchase__sale-ends">
+              Sale ends {formatSaleEnd(product.discount_ends_at)}
+            </p>
+          ) : null}
+
+          <p className="product-hub-detail__license">
+            <span className="product-hub-detail__license-check" aria-hidden="true">
+              ✓
+            </span>
+            {licenseLabel(product.license_type)} License
+          </p>
+        </div>
+      </div>
+      <PackageOptions product={product} isFree={isFree} />
+    </div>
+  )
 
   return (
     <>
@@ -162,56 +263,9 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
         <aside className="product-hub-detail__aside" aria-label="Product purchase details">
           <ProductSpecs product={product} />
 
-          <div className="product-hub-detail__purchase">
-            <div className="product-hub-detail__purchase-row">
-              <div className="product-hub-detail__purchase-info">
-                <div className="product-detail-purchase__price">
-                  {/* With several packages the price shown is the cheapest one. */}
-                  {!isFree && product.packages.length > 1 ? (
-                    <span className="product-detail-purchase__price-from">From</span>
-                  ) : null}
-                  {isFree ? (
-                    <span className="product-detail-purchase__price-current">Free</span>
-                  ) : hasDiscount && product.discount_price ? (
-                    <>
-                      <span className="product-detail-purchase__price-current">
-                        {formatMoney(product.discount_price, product.currency)}
-                      </span>
-                      <span className="product-detail-purchase__price-original">
-                        {formatMoney(product.price, product.currency)}
-                      </span>
-                      {salePercent !== null ? (
-                        <span className="product-detail-badge product-detail-badge--sale">
-                          -{salePercent}%
-                        </span>
-                      ) : (
-                        <span className="product-detail-badge product-detail-badge--sale">Sale</span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="product-detail-purchase__price-current">
-                      {formatMoney(product.price, product.currency)}
-                    </span>
-                  )}
-                </div>
-                {hasDiscount && product.discount_ends_at ? (
-                  <p className="product-detail-purchase__sale-ends">
-                    Sale ends {formatSaleEnd(product.discount_ends_at)}
-                  </p>
-                ) : null}
-
-                <p className="product-hub-detail__license">
-                  <span className="product-hub-detail__license-check" aria-hidden="true">
-                    ✓
-                  </span>
-                  {licenseLabel(product.license_type)} License
-                </p>
-              </div>
-
-            </div>
-            <PackageOptions product={product} isFree={isFree} />
-
-          </div>
+          {isFree || product.packages.length === 0 ? purchasePanel : (
+            <PurchaseDialog key={product.id}>{purchasePanel}</PurchaseDialog>
+          )}
 
           <div className="product-hub-detail__lower-grid">
             <section className="product-detail-related" aria-labelledby="product-related-heading">
