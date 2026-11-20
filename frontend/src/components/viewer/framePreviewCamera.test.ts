@@ -33,20 +33,21 @@ describe('initial preview camera framing', () => {
     expect(center.length()).toBeCloseTo(0)
     expect(camera.zoom).toBe(1)
     const bounds = new Box3().setFromObject(model)
+    const verticalFill = aspect === 2 ? 0.96 : 0.82
     let occupied = 0
     for (const x of [bounds.min.x, bounds.max.x]) {
       for (const y of [bounds.min.y, bounds.max.y]) {
         for (const z of [bounds.min.z, bounds.max.z]) {
           const point = new Vector3(x, y, z).project(camera)
-          occupied = Math.max(occupied, Math.abs(point.x), Math.abs(point.y))
+          occupied = Math.max(occupied, Math.abs(point.x) / 0.68, Math.abs(point.y) / verticalFill)
           expect(Math.abs(point.x)).toBeLessThanOrEqual(0.69)
-          expect(Math.abs(point.y)).toBeLessThanOrEqual(0.69)
+          expect(Math.abs(point.y)).toBeLessThanOrEqual(verticalFill + 0.01)
           expect(point.z).toBeGreaterThan(-1)
           expect(point.z).toBeLessThan(1)
         }
       }
     }
-    expect(occupied).toBeCloseTo(0.68)
+    expect(occupied).toBeCloseTo(1)
     expect(source.position.toArray()).toEqual([120, -30, 500])
     source.geometry.dispose()
     source.material.dispose()

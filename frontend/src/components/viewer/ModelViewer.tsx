@@ -1,9 +1,10 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
+import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
+import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
+import { adjustEnvironment } from './adjustEnvironment'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
@@ -175,6 +176,41 @@ const VIEWER_BACKGROUNDS = [
   'radial-gradient(ellipse farthest-side at center, #4E5459 0%, #373C40 55%, #202326 100%)',
 ] as const
 
+const DEFAULT_LIGHT_ADJUSTMENTS = { brightness: 100, contrast: 100, sharpness: 100 }
+
+const LIGHT_SLIDERS = [
+  { key: 'brightness', label: 'Brightness', min: 25, max: 200 },
+  { key: 'contrast', label: 'Contrast', min: 50, max: 150 },
+  { key: 'sharpness', label: 'Sharpness', min: 0, max: 100 },
+] as const
+
+function ViewerEnvironment({ files, intensity, yaw, contrast, sharpness }: {
+  files: string
+  intensity: number
+  yaw: number
+  contrast: number
+  sharpness: number
+}) {
+  const source = useEnvironment({ files })
+  const [filtered, setFiltered] = useState({ contrast, sharpness })
+
+  useEffect(() => {
+    // Environment maps are expensive to filter and upload. Coalesce rapid slider inputs.
+    const timeout = window.setTimeout(() => setFiltered({ contrast, sharpness }), 90)
+    return () => window.clearTimeout(timeout)
+  }, [contrast, sharpness])
+
+  const map = useMemo(
+    () => adjustEnvironment(source, filtered.contrast, filtered.sharpness),
+    [source, filtered.contrast, filtered.sharpness],
+  )
+  useEffect(() => {
+    if (map !== source) return () => map.dispose()
+  }, [map, source])
+
+  return <Environment map={map} background={false} environmentIntensity={intensity} environmentRotation={[0, yaw, 0]} />
+}
+
 type ViewerBackgroundProps = {
   background?: string
   onBackgroundChange: () => void
@@ -184,13 +220,19 @@ function ViewerToolbar({
   controls,
   onBackgroundChange,
   onCameraInteraction,
+  adjustments,
+  onAdjustmentsChange,
 }: {
   controls: { current: ComponentRef<typeof OrbitControls> | null }
   onBackgroundChange: () => void
   onCameraInteraction: () => void
+  adjustments: typeof DEFAULT_LIGHT_ADJUSTMENTS
+  onAdjustmentsChange: (adjustments: typeof DEFAULT_LIGHT_ADJUSTMENTS) => void
 }) {
   const toolbar = useRef<HTMLDivElement>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const [showLightControls, setShowLightControls] = useState(false)
+  const lightControlsId = useId()
 
   function fullscreenTarget() {
     return toolbar.current?.closest<HTMLElement>('.product-detail-stage__viewer')
@@ -219,43 +261,71 @@ function ViewerToolbar({
   }
 
   return (
-    <div ref={toolbar} className="model-viewer__toolbar" role="group" aria-label="3D view actions">
-      <button type="button" onClick={onBackgroundChange} aria-label="Change background color">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" /><path d="m6 15 4-4 8 7" /></svg>
-        BG Color
-      </button>
-      <button type="button" onClick={() => {
-        onCameraInteraction()
-        const orbit = controls.current
-        if (!orbit) return
-        const damping = orbit.enableDamping
-        orbit.enableDamping = false
-        orbit.update()
-        orbit.reset()
-        orbit.enableDamping = damping
-      }}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5H7m5-2a7 7 0 1 1-7 7" /></svg>
-        Reset
-      </button>
-      <button type="button" onClick={() => {
-        onCameraInteraction()
-        controls.current?.dollyIn(0.8)
-      }}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6-6v12" /></svg>
-        Zoom In
-      </button>
-      <button type="button" onClick={() => {
-        onCameraInteraction()
-        controls.current?.dollyOut(0.8)
-      }}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>
-        Zoom Out
-      </button>
-      <button type="button" onClick={() => void toggleFullscreen()}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v4m10-4h4v4m0 6v4h-4m-6 0H5v-4" /></svg>
-        {fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-      </button>
-    </div>
+    <>
+      <div ref={toolbar} className="model-viewer__toolbar" role="group" aria-label="3D view actions">
+        <button type="button" onClick={onBackgroundChange} aria-label="Change background color">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" /><path d="m6 15 4-4 8 7" /></svg>
+          BG Color
+        </button>
+        <button
+          type="button"
+          aria-expanded={showLightControls}
+          aria-controls={lightControlsId}
+          onClick={() => setShowLightControls((open) => !open)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2" /></svg>
+          Light Controls
+        </button>
+        <button type="button" onClick={() => {
+          onCameraInteraction()
+          const orbit = controls.current
+          if (!orbit) return
+          const damping = orbit.enableDamping
+          orbit.enableDamping = false
+          orbit.update()
+          orbit.reset()
+          orbit.enableDamping = damping
+        }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5H7m5-2a7 7 0 1 1-7 7" /></svg>
+          Reset
+        </button>
+        <button type="button" onClick={() => {
+          onCameraInteraction()
+          controls.current?.dollyIn(0.8)
+        }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6-6v12" /></svg>
+          Zoom In
+        </button>
+        <button type="button" onClick={() => {
+          onCameraInteraction()
+          controls.current?.dollyOut(0.8)
+        }}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>
+          Zoom Out
+        </button>
+        <button type="button" onClick={() => void toggleFullscreen()}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v4m10-4h4v4m0 6v4h-4m-6 0H5v-4" /></svg>
+          {fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+        </button>
+      </div>
+      <div id={lightControlsId} className="model-viewer__adjustments" role="group" aria-label="HDRI light adjustments" hidden={!showLightControls}>
+        {LIGHT_SLIDERS.map(({ key, label, min, max }) => (
+          <label key={key}>
+            <span>{label}</span>
+            <span aria-hidden="true">{adjustments[key]}%</span>
+            <input
+              type="range"
+              aria-label={label}
+              min={min}
+              max={max}
+              value={adjustments[key]}
+              onChange={(event) => onAdjustmentsChange({ ...adjustments, [key]: event.currentTarget.valueAsNumber })}
+            />
+          </label>
+        ))}
+        <button type="button" onClick={() => onAdjustmentsChange(DEFAULT_LIGHT_ADJUSTMENTS)}>Reset adjustments</button>
+      </div>
+    </>
   )
 }
 
@@ -279,6 +349,7 @@ function ModelViewerCanvas({
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
   const [lightingYaw, setLightingYaw] = useState(0)
+  const [adjustments, setAdjustments] = useState(DEFAULT_LIGHT_ADJUSTMENTS)
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -328,11 +399,12 @@ function ModelViewerCanvas({
           <ambientLight intensity={0.45} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
-              <Environment
+              <ViewerEnvironment
                 files={preset.hdrPath}
-                background={false}
-                environmentIntensity={preset.intensity}
-                environmentRotation={[0, preset.yaw + lightingYaw, 0]}
+                intensity={preset.intensity * adjustments.brightness / 100}
+                yaw={preset.yaw + lightingYaw}
+                contrast={adjustments.contrast}
+                sharpness={adjustments.sharpness}
               />
             </Suspense>
           </ErrorBoundary>
@@ -374,6 +446,8 @@ function ModelViewerCanvas({
       </div>
       <ViewerToolbar
         controls={controls}
+        adjustments={adjustments}
+        onAdjustmentsChange={setAdjustments}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={cancelOpeningOrbit}
       />

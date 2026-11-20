@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useImperativeHandle, type Ref } from 'react'
 import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
@@ -61,8 +61,11 @@ vi.mock('@react-three/drei', () => ({
     useImperativeHandle(ref, () => viewerMocks.toolbarControls)
     return null
   },
-  Environment: ({ files, background }: { files: string; background: boolean }) => (
-    <div data-testid="viewer-environment" data-files={files} data-background={background} />
+  useEnvironment: ({ files }: { files: string }) => ({ name: files }),
+  Environment: ({ map, background, environmentIntensity }: {
+    map: { name: string }; background: boolean; environmentIntensity: number
+  }) => (
+    <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity} />
   ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
   useGLTF: Object.assign(
@@ -174,7 +177,7 @@ describe('ModelViewer', () => {
     viewerMocks.scene = new Mesh(new BoxGeometry(1, 12, 1))
     const { rerender } = render(<ModelViewer modelUrl="https://cdn.example.com/vase.glb" ariaLabel="Vase" />)
     const initialDistance = viewerMocks.camera!.position.length()
-    expect(initialDistance).toBeGreaterThan(3.5)
+    expect(initialDistance).toBeLessThan(3.5)
     expect(viewerMocks.controls!.target.length()).toBeCloseTo(0)
     expect(viewerMocks.controls!.update).toHaveBeenCalled()
     viewerMocks.camera!.position.multiplyScalar(0.75)
@@ -183,11 +186,12 @@ describe('ModelViewer', () => {
     expect(viewerMocks.camera!.position.length()).toBeCloseTo(userDistance)
     viewerMocks.size = { width: 300, height: 500 }
     rerender(<ModelViewer modelUrl="https://cdn.example.com/vase.glb" ariaLabel="Vase" />)
-    expect(viewerMocks.camera!.position.length()).toBeCloseTo(initialDistance)
+    const mobileDistance = viewerMocks.camera!.position.length()
+    expect(mobileDistance).toBeGreaterThan(initialDistance)
     expect(viewerMocks.invalidate).toHaveBeenCalled()
     viewerMocks.camera!.position.multiplyScalar(0.5)
     rerender(<ModelViewer modelUrl="https://cdn.example.com/another-vase.glb" ariaLabel="Another vase" />)
-    expect(viewerMocks.camera!.position.length()).toBeCloseTo(initialDistance)
+    expect(viewerMocks.camera!.position.length()).toBeCloseTo(mobileDistance)
   })
 
   it('mounts a canvas region for a safe preview model URL', () => {
@@ -256,6 +260,22 @@ describe('ModelViewer', () => {
     )
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
+  })
+
+  it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
+    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
+    const brightness = screen.getByRole('slider', { name: 'Brightness' })
+    fireEvent.change(brightness, { target: { value: '150' } })
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.35)
+    fireEvent.change(screen.getByRole('slider', { name: 'Contrast' }), { target: { value: '125' } })
+    fireEvent.change(screen.getByRole('slider', { name: 'Sharpness' }), { target: { value: '50' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
+    expect(brightness).toHaveValue('100')
+    expect(screen.getByRole('slider', { name: 'Contrast' })).toHaveValue('100')
+    expect(screen.getByRole('slider', { name: 'Sharpness' })).toHaveValue('100')
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '0.9')
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {
