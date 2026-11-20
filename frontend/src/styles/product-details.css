@@ -273,6 +273,48 @@
   stroke-linejoin: round;
 }
 
+.model-viewer__adjustments {
+  position: absolute;
+  box-sizing: border-box;
+  z-index: 4;
+  top: 50%;
+  right: 5rem;
+  transform: translateY(-50%);
+  width: min(13rem, calc(100% - 6rem));
+  max-height: calc(100% - 1rem);
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid #babfc9;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #252932;
+  font-size: 0.8rem;
+}
+
+.model-viewer__adjustments label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem;
+  margin-bottom: 0.625rem;
+}
+
+.model-viewer__adjustments input {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  accent-color: #1554d1;
+}
+
+.model-viewer__adjustments button {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid #b7bdca;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 .model-viewer__progress {
   position: absolute;
   left: 1rem;
