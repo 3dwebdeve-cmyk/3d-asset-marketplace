@@ -8,10 +8,10 @@ from django.utils.text import slugify
 
 from config.validators import validate_storage_path
 
-PLUGIN_ID_PATTERN = r"^PLG-[A-Z]{3}-\d{6}$"
+PLUGIN_ID_PATTERN = r"^(PLG|PLUG)-[A-Z]{3}-\d{6}$"
 PLUGIN_ID_VALIDATOR = RegexValidator(
     regex=PLUGIN_ID_PATTERN,
-    message="Plugin ID must look like PLG-ABC-000001.",
+    message="Plugin ID must look like PLG-ABC-000001 or PLUG-ABC-000001.",
 )
 PLUGIN_CATEGORY_CODE_VALIDATOR = RegexValidator(
     regex=r"^[A-Z]{3}$",
@@ -47,7 +47,8 @@ class PluginCategory(models.Model):
     slug = models.SlugField(max_length=255, unique=True)
     description = models.TextField(blank=True)
     image = models.URLField(blank=True)
-    # Three-letter code used in plugin IDs (PLG-<CODE>-000001); blank until assigned.
+    # Three-letter code used in plugin IDs (PLG-<CODE>-000001 or PLUG-<CODE>-000001); blank
+    # until assigned.
     code = models.CharField(
         max_length=3,
         unique=True,
@@ -110,7 +111,10 @@ class Plugin(models.Model):
         null=True,
         blank=True,
         validators=[PLUGIN_ID_VALIDATOR],
-        help_text="Stable external Plugin_ID (e.g. PLG-ANI-000001). Used for batch upsert.",
+        help_text=(
+            "Stable external Plugin_ID (e.g. PLG-ANI-000001 or PLUG-ANI-000001). "
+            "Used for batch upsert."
+        ),
     )
     import_batch_id = models.CharField(max_length=64, blank=True, default="")
     import_source = models.CharField(max_length=64, blank=True, default="")
@@ -123,6 +127,9 @@ class Plugin(models.Model):
         validators=[MinValueValidator(Decimal("0.00"))],
     )
     currency = models.CharField(max_length=3, default="USD")
+    # Uploaded as free: its zip and thumbnail are public under free-plugins/<ID>/, so it can
+    # only be published at price 0 (anyone can fetch a public file).
+    is_free = models.BooleanField(default=False)
     discount_price = models.DecimalField(
         max_digits=10,
         decimal_places=2,

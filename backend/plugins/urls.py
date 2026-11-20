@@ -17,6 +17,7 @@ from plugins.views import (
     PluginCategoryDetailView,
     PluginCategoryListView,
     PluginDetailView,
+    PluginFreeDownloadView,
     PluginListView,
 )
 
@@ -25,6 +26,11 @@ app_name = "plugins"
 urlpatterns = [
     path("", PluginListView.as_view(), name="plugin-list"),
     path("<slug:slug>/", PluginDetailView.as_view(), name="plugin-detail"),
+    path(
+        "<slug:slug>/free-download/",
+        PluginFreeDownloadView.as_view(),
+        name="plugin-free-download",
+    ),
 ]
 
 category_urlpatterns = [

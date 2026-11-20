@@ -728,6 +728,11 @@ class CatalogImportMediaSerializer(serializers.Serializer):
 
 
 class CatalogImportItemSerializer(serializers.Serializer):
+    # Blank (the Model Uploader sends none) or "model" is a model. The Plugin Uploader marks its
+    # items "plugin", and the uploader route imports those as plugins (plugins.ingest_adapter).
+    product_type = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=64
+    )
     model_id = serializers.CharField(required=False, allow_blank=True, default="", max_length=64)
     name = serializers.CharField(required=False, allow_blank=True, default="", max_length=255)
     # The sheet's category name: only used to link or create the category of the code in

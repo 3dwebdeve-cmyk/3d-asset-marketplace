@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from config.media import media_relative_path, private_object_exists
+from config.media import (
+    is_free_plugin_path,
+    media_relative_path,
+    package_object_exists,
+    private_object_exists,
+)
 from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
 
@@ -114,4 +119,7 @@ class PublishedPackageAuditService:
 
     @staticmethod
     def _package_ok(storage_path: str) -> bool:
+        if is_free_plugin_path(storage_path):
+            # A free plugin's zip is in the public bucket.
+            return package_object_exists(storage_path)
         return private_object_exists(storage_path)

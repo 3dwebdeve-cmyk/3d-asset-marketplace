@@ -30,7 +30,7 @@ class PluginCategorySerializer(serializers.ModelSerializer):
 
 
 def _validate_category_code(value: str) -> str:
-    """Three letters used in plugin IDs (PLG-ANI-000001). Blank means no code."""
+    """Three letters used in plugin IDs (PLG-ANI-000001, PLUG-ANI-000001). Blank means no code."""
     normalized = value.strip().upper()
     if normalized and not re.fullmatch(r"[A-Z]{3}", normalized):
         raise serializers.ValidationError("Category code must be three letters, such as ANI.")
@@ -128,6 +128,7 @@ class PluginListPublicSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "is_free",
             "thumbnail",
             "version",
             "compatibility",
@@ -178,6 +179,7 @@ class PluginAdminSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "discount_price",
+            "is_free",
             "thumbnail",
             "version",
             "compatibility",
@@ -210,6 +212,7 @@ class PluginAdminSerializer(serializers.ModelSerializer):
             "average_rating",
             "review_count",
             "total_downloads",
+            "is_free",
             "plugin_id",
             "import_batch_id",
             "import_source",
