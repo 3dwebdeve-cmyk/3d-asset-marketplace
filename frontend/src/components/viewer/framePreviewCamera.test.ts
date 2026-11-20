@@ -5,15 +5,15 @@ import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera } from './framePreviewCamera'
 
 describe('initial preview camera framing', () => {
-  it('opens models from an elevated three-quarter angle on the opposite side of the old view', () => {
+  it('opens models 45 degrees to the left of the front and slightly above', () => {
     const model = fitPreviewScene(new Mesh(new BoxGeometry(1, 2, 3)))
     const camera = new PerspectiveCamera(42)
     const center = framePreviewCamera(camera, model, 2)!
     const direction = camera.position.clone().sub(center).normalize()
-    expect(direction.x).toBeGreaterThan(0)
+    expect(direction.x).toBeLessThan(0)
     expect(direction.y).toBeGreaterThan(0)
-    expect(direction.z).toBeLessThan(0)
-    expect(direction.x / -direction.z).toBeCloseTo(1.8 / 2.3)
+    expect(direction.z).toBeGreaterThan(0)
+    expect(Math.atan2(-direction.x, direction.z)).toBeCloseTo(Math.PI / 4)
   })
 
   it.each([

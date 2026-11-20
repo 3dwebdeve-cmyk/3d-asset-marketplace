@@ -110,9 +110,9 @@ describe('ModelViewer', () => {
     const setScalar = vi.fn()
     Object.defineProperty(group, 'scale', { value: { setScalar }, configurable: true })
     const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
-    expect(group).toHaveAttribute('scale', '0.6')
+    expect(group).toHaveAttribute('scale', '0.35')
     act(() => { for (let i = 0; i < 15; i += 1) frame({} as never, 0.05, undefined) })
-    expect(setScalar.mock.calls[0][0]).toBeGreaterThan(0.6)
+    expect(setScalar.mock.calls[0][0]).toBeGreaterThan(0.35)
     expect(setScalar.mock.calls.at(-1)![0]).toBeLessThan(1)
     act(() => { for (let i = 0; i < 16; i += 1) frame({} as never, 0.05, undefined) })
     expect(setScalar.mock.calls.at(-1)![0]).toBeCloseTo(1)

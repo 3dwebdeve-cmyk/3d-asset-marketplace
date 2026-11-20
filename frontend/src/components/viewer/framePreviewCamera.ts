@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 
-// Elevated three-quarter view from the opposite side of the old rear-facing view.
-export const PREVIEW_CAMERA_POSITION: [number, number, number] = [1.8, 1.2, -2.3]
+// Look toward the front from the left, 45 degrees off the model's +Z axis.
+export const PREVIEW_CAMERA_POSITION: [number, number, number] = [-1, 0.5, 1]
 
-/** Fit the model inside 55% of the viewport, leaving room for its shadow and controls. */
+/** Fit the model inside 55% of the viewport, leaving room for the controls. */
 export function framePreviewCamera(
   camera: THREE.PerspectiveCamera,
   model: THREE.Object3D,

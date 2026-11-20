@@ -19,7 +19,7 @@ export interface ModelViewerProps {
 }
 
 const ENTRANCE_DURATION = 1.5
-const ENTRANCE_START_SCALE = 0.6
+const ENTRANCE_START_SCALE = 0.35
 
 function PreviewModel({
   url,
@@ -39,7 +39,7 @@ function PreviewModel({
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
     entranceTime.current = Math.min(entranceTime.current + Math.min(delta, 0.05), ENTRANCE_DURATION)
     const progress = entranceTime.current / ENTRANCE_DURATION
-    const eased = 1 - (1 - progress) ** 3
+    const eased = progress * progress * (3 - 2 * progress)
     modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * eased)
   })
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
