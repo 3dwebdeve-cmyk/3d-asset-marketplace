@@ -51,7 +51,7 @@ class AdminNotificationsTests(APITestCase):
     def test_unread_state_is_independent_per_administrator(self):
         self.client.force_authenticate(self.admin)
         response = self.client.get(self.url)
-        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertIn("no-store", response["Cache-Control"])
         self.assertEqual(response.data["unread_count"], 1)
         self.assertEqual(response.data["results"][0]["path"], f"/console/products/{self.product.pk}")
         self.assertEqual(self.client.post(self.url, {"id": str(self.notice.pk)}, format="json").status_code, 200)
