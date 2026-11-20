@@ -13,7 +13,7 @@ const viewerMocks = vi.hoisted(() => {
     size: { width: 900, height: 450 },
     controls: null as { target: import('three').Vector3; update: () => void; saveState: () => void } | null,
     invalidate: vi.fn(),
-    toolbarControls: { reset: vi.fn(), dollyIn: vi.fn(), dollyOut: vi.fn() },
+    toolbarControls: { reset: vi.fn(), update: vi.fn(), dollyIn: vi.fn(), dollyOut: vi.fn(), enableDamping: true },
     clearGltfCache: vi.fn(),
     visible: true,
     webglAvailable: true,
@@ -107,7 +107,7 @@ describe('ModelViewer', () => {
     viewerMocks.pixelRatio = 1.25
   })
 
-  it('starts a half orbit near the end of the opening zoom', () => {
+  it('starts the opening zoom from the rear and finishes a half orbit at the front', () => {
     viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     const group = container.querySelector('group')!
@@ -116,6 +116,8 @@ describe('ModelViewer', () => {
     const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
     const center = viewerMocks.controls!.target
     const openingOffset = viewerMocks.camera!.position.clone().sub(center)
+    expect(openingOffset.x).toBeGreaterThan(0)
+    expect(openingOffset.z).toBeLessThan(0)
     expect(group).toHaveAttribute('scale', '0.35')
     expect(screen.queryByTestId('viewer-shadow')).not.toBeInTheDocument()
     act(() => { for (let i = 0; i < 15; i += 1) frame({} as never, 0.05, undefined) })
@@ -131,6 +133,8 @@ describe('ModelViewer', () => {
     expect(offset.x).toBeCloseTo(-openingOffset.x)
     expect(offset.y).toBeCloseTo(openingOffset.y)
     expect(offset.z).toBeCloseTo(-openingOffset.z)
+    expect(offset.x).toBeLessThan(0)
+    expect(offset.z).toBeGreaterThan(0)
   })
 
   it('stops the opening orbit when Reset is clicked', async () => {
@@ -147,6 +151,7 @@ describe('ModelViewer', () => {
   })
 
   it('skips the entrance animation when reduced motion is preferred', () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     vi.stubGlobal('matchMedia', () => ({ matches: true }))
     try {
       const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
@@ -156,6 +161,9 @@ describe('ModelViewer', () => {
       const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
       act(() => frame({} as never, 0.05, undefined))
       expect(setScalar).not.toHaveBeenCalled()
+      const offset = viewerMocks.camera!.position.clone().sub(viewerMocks.controls!.target)
+      expect(offset.x).toBeLessThan(0)
+      expect(offset.z).toBeGreaterThan(0)
     } finally {
       vi.unstubAllGlobals()
     }
