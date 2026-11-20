@@ -247,6 +247,14 @@ describe('ModelViewer', () => {
       /radial-gradient\(.*rgb\(104, 104, 104\) 0%.*rgb\(85, 85, 85\) 55%.*rgb\(60, 60, 60\) 100%/,
     )
     await userEvent.click(colorButton)
+    expect(canvas.style.backgroundImage).toMatch(
+      /radial-gradient\(.*rgb\(51, 60, 77\) 0%.*rgb\(32, 38, 51\) 55%.*rgb\(17, 21, 30\) 100%/,
+    )
+    await userEvent.click(colorButton)
+    expect(canvas.style.backgroundImage).toMatch(
+      /radial-gradient\(.*rgb\(78, 84, 89\) 0%.*rgb\(55, 60, 64\) 55%.*rgb\(32, 35, 38\) 100%/,
+    )
+    await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
   })
 
