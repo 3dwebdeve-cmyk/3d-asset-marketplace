@@ -29,6 +29,17 @@ function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
 }
 
+function applyOpeningOrbit(
+  camera: THREE.Camera,
+  view: { center: THREE.Vector3; offset: THREE.Vector3 },
+  time: number,
+) {
+  const progress = THREE.MathUtils.clamp((time - ORBIT_START) / (ORBIT_END - ORBIT_START), 0, 1)
+  const angleFromFront = Math.PI * (easeInOut(progress) - 1)
+  camera.position.copy(view.offset).applyAxisAngle(ORBIT_AXIS, angleFromFront).add(view.center)
+  camera.lookAt(view.center)
+}
+
 function PreviewModel({
   url,
   wireframe,
@@ -80,9 +91,7 @@ function PreviewModel({
 
     const view = openingView.current
     if (!openingOrbit.cancelled && view && time > ORBIT_START) {
-      const orbit = easeInOut((time - ORBIT_START) / (ORBIT_END - ORBIT_START))
-      camera.position.copy(view.offset).applyAxisAngle(ORBIT_AXIS, Math.PI * orbit).add(view.center)
-      camera.lookAt(view.center)
+      applyOpeningOrbit(camera, view, time)
     }
   })
 
@@ -98,9 +107,13 @@ function PreviewModel({
     orbit?.target?.copy(center)
     orbit?.update?.()
     orbit?.saveState?.()
-    openingView.current = { center, offset: camera.position.clone().sub(center) }
+    const view = { center, offset: camera.position.clone().sub(center) }
+    openingView.current = view
+    if (!reducedMotion && !openingOrbit.cancelled && entranceTime.current < ORBIT_END) {
+      applyOpeningOrbit(camera, view, entranceTime.current)
+    }
     invalidate()
-  }, [camera, controls, fitted, size.width, size.height, invalidate])
+  }, [camera, controls, fitted, size.width, size.height, invalidate, openingOrbit, reducedMotion])
 
   useEffect(() => {
     applyWireframe(fitted, wireframe)
@@ -215,7 +228,13 @@ function ViewerToolbar({
       </button>
       <button type="button" onClick={() => {
         onCameraInteraction()
-        controls.current?.reset()
+        const orbit = controls.current
+        if (!orbit) return
+        const damping = orbit.enableDamping
+        orbit.enableDamping = false
+        orbit.update()
+        orbit.reset()
+        orbit.enableDamping = damping
       }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v5H7m5-2a7 7 0 1 1-7 7" /></svg>
         Reset
