@@ -150,3 +150,44 @@ class CatalogIngestAPITests(APITestCase):
         scopes = [throttle.scope for throttle in CatalogIngestImportView.throttle_classes]
         self.assertEqual(scopes, ["catalog_ingest"])
         self.assertEqual(settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["catalog_ingest"], "30/min")
+
+    def test_model_and_plugin_items_in_one_batch_are_each_imported_their_own_way(self) -> None:
+        from plugins.models import Plugin, PluginCategory
+        from plugins.test_plugin_ingest_adapter import exe_item, put_plugin_objects
+
+        PluginCategory.objects.create(name="Max", slug="max", code="MAX")
+        put_plugin_objects("plugins", "PLUG-MAX-000001")
+        envelope = self._envelope()
+        envelope["items"].append(exe_item())
+        self.client.credentials(HTTP_AUTHORIZATION=self._key_header())
+
+        response = self.client.post(self.url, envelope, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["created"], 2)
+        rows = {row["model_id"]: row for row in response.data["results"]}
+        self.assertEqual(rows["FUR-CHR-000123"]["action"], "created")
+        self.assertIn("product_id", rows["FUR-CHR-000123"])
+        self.assertNotIn("plugin_id", rows["FUR-CHR-000123"])
+        self.assertEqual(rows["PLUG-MAX-000001"]["plugin_id"], "PLUG-MAX-000001")
+        product = Product.objects.get(sku="FUR-CHR-000123")
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+        self.assertEqual(
+            Plugin.objects.get(plugin_id="PLUG-MAX-000001").status, Plugin.Status.PENDING_REVIEW
+        )
+        self.assertEqual(ActivityLog.objects.get(action="catalog_ingest_import").metadata["created"], 2)
+
+    def test_unknown_product_type_is_refused_per_item(self) -> None:
+        envelope = self._envelope()
+        envelope["items"][0]["product_type"] = "book"
+        self.client.credentials(HTTP_AUTHORIZATION=self._key_header())
+
+        response = self.client.post(self.url, envelope, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            response.data["results"],
+            [{"model_id": "FUR-CHR-000123", "action": "skipped", "reason": "invalid_product_type"}],
+        )
+        self.assertEqual(response.data["skipped"], 1)
+        self.assertFalse(Product.objects.exists())

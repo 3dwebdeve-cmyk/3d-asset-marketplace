@@ -204,6 +204,29 @@ class PluginIngestAPITests(APITestCase):
         response = self.client.get(self.next_ids_url)
         self.assertEqual(response.data["next_sequence"], 1)
 
+    def test_plug_and_plg_ids_are_both_accepted_and_counted(self) -> None:
+        _put_objects("PLG-ANI-000001")
+        _put_objects("PLUG-ANI-000005")
+
+        response = self._post(
+            [
+                _item(),
+                _item("PLUG-ANI-000005", name="Rig Tool"),
+                _item("PLUGX-ANI-000006", name="Wrong Prefix"),
+            ]
+        )
+
+        actions = {row["plugin_id"]: (row["action"], row.get("reason", "")) for row in response.data["results"]}
+        self.assertEqual(
+            actions,
+            {
+                "PLG-ANI-000001": ("created", ""),
+                "PLUG-ANI-000005": ("created", ""),
+                "PLUGX-ANI-000006": ("skipped", "invalid_plugin_id"),
+            },
+        )
+        self.assertEqual(self.client.get(self.next_ids_url).data["last_sequence"], 5)
+
 
 class PluginIngestAuthTests(APITestCase):
     def setUp(self) -> None:

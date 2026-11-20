@@ -31,6 +31,7 @@ from config.media import (
 )
 from config.storages import build_public_media_url
 from config.http_cache import PublicCatalogCacheMixin
+from plugins.ingest_adapter import add_other_rows, import_plugin_items, split_by_product_type
 from products.catalog_import import CatalogImportService
 from products.file_check import check_product_files, summarize
 from products.import_reasons import describe_reason
@@ -577,41 +578,58 @@ class CatalogIngestImportView(APIView):
         serializer = CatalogImportEnvelopeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        import_source = data.get("import_source") or "catalog-bridge"
+        actor_id = str(request.user.pk)
 
+        # The Plugin Uploader sends its plugins here too, marked product_type "plugin".
+        models, plugin_items, unknown = split_by_product_type(
+            data["items"], request.data["items"]
+        )
         batch = CatalogImportService.import_batch(
             import_batch_id=data["import_batch_id"],
-            import_source=data.get("import_source") or "catalog-bridge",
-            items=data["items"],
-            actor_id=str(request.user.pk),
+            import_source=import_source,
+            items=models,
+            actor_id=actor_id,
         )
+        plugins = (
+            import_plugin_items(
+                plugin_items,
+                import_batch_id=data["import_batch_id"],
+                import_source=import_source,
+                actor_id=actor_id,
+            )
+            if plugin_items
+            else None
+        )
+        body = batch.to_dict()
+        audit = batch.audit_metadata()
+        add_other_rows(body, audit, plugins=plugins, plugin_items=plugin_items, unknown=unknown)
 
         key_prefix = request.auth.key_prefix
         logger.info(
-            "catalog_ingest key_prefix=%s batch_id=%s items=%s created=%s updated=%s "
-            "skipped=%s failed=%s preview_not_scanned=%s",
+            "catalog_ingest key_prefix=%s batch_id=%s items=%s plugins=%s created=%s "
+            "updated=%s skipped=%s failed=%s preview_not_scanned=%s",
             key_prefix,
             data["import_batch_id"],
             len(data["items"]),
-            batch.created,
-            batch.updated,
-            batch.skipped,
-            batch.failed,
+            len(plugin_items),
+            body["created"],
+            body["updated"],
+            body["skipped"],
+            body["failed"],
             "true" if batch.not_scanned_model_ids else "false",
         )
         log_admin_action(
             action="catalog_ingest_import",
-            actor_id=str(request.user.pk),
+            actor_id=actor_id,
             target_id=data["import_batch_id"],
             metadata={
                 "key_prefix": key_prefix,
-                "created": batch.created,
-                "updated": batch.updated,
-                "skipped": batch.skipped,
-                "failed": batch.failed,
-                **batch.audit_metadata(),
+                **{key: body[key] for key in ("created", "updated", "skipped", "failed")},
+                **audit,
             },
         )
-        return Response(batch.to_dict(), status=status.HTTP_200_OK)
+        return Response(body, status=status.HTTP_200_OK)
 
 
 # How many of the uploader's latest imports the admin Imports panel lists.

@@ -9,6 +9,9 @@ The sheet's name, description and category are used on a plugin's first upload o
 that the administrator owns them (edited in /console), and a re-upload changes the files only.
 A published plugin that is uploaded again stays on sale with its new files and waits in the
 review queue (``pending_update``), the same way models do.
+
+A free plugin (``is_free``) has both files public under ``free-plugins/<Plugin_ID>/``; a paid
+one uses ``plugins/<Plugin_ID>/`` only. A live plugin cannot switch between the two here.
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ from typing import Any
 
 from django.db import IntegrityError, transaction
 
-from config.media import media_relative_path, private_object_exists
+from config.media import media_relative_path, package_object_exists
 from plugins.models import (
     PLUGIN_ID_PATTERN,
     Plugin,
@@ -36,6 +39,8 @@ logger = logging.getLogger(__name__)
 
 _PLUGIN_ID_RE = re.compile(PLUGIN_ID_PATTERN)
 _THUMBNAIL_SUFFIXES = (".webp", ".jpg", ".jpeg", ".png")
+_PAID_ROOT = "plugins"
+_FREE_ROOT = "free-plugins"
 # Row warning: a re-upload kept the name or description an administrator owns.
 CONSOLE_TEXT_KEPT = "console_text_kept"
 # Row warning: the plugin is live; it stays on sale and waits in the review queue as an update.
@@ -182,9 +187,14 @@ class PluginImportService:
         category: PluginCategory | None = None
         if not Plugin.objects.filter(plugin_id=plugin_id).exists():
             category = cls._resolve_category(category_code)
+        is_free = item.get("is_free") is True
         media = item.get("media") or {}
-        thumbnail_url = cls._check_thumbnail(plugin_id, str(media.get("thumbnail_key") or ""))
-        package_key = cls._check_package(plugin_id, str(media.get("package_key") or ""))
+        thumbnail_url = cls._check_thumbnail(
+            plugin_id, str(media.get("thumbnail_key") or ""), is_free=is_free
+        )
+        package_key = cls._check_package(
+            plugin_id, str(media.get("package_key") or ""), is_free=is_free
+        )
         package_size = int(media.get("package_file_size") or 0)
         manifest = item.get("manifest") or {}
         warnings: list[str] = []
@@ -202,6 +212,7 @@ class PluginImportService:
                         manifest=manifest,
                         import_batch_id=import_batch_id,
                         import_source=import_source,
+                        is_free=is_free,
                     )
                 except IntegrityError:
                     # Two uploads raced on the same new ID; the second one loses.
@@ -212,6 +223,10 @@ class PluginImportService:
                     # Same ID, different plugin: refuse rather than overwrite someone else's row.
                     raise PluginImportSkip("plugin_id_in_use")
                 live_update = existing.status == Plugin.Status.PUBLISHED
+                if live_update and existing.is_free != is_free:
+                    # A live plugin's buyers download from where its files are now; set it to
+                    # Draft in /console before it moves between free and paid.
+                    raise PluginImportSkip("live_free_change")
                 if cls._sheet_text_differs(existing, name=name, description=description):
                     warnings.append(CONSOLE_TEXT_KEPT)
                 plugin = cls._update(
@@ -221,6 +236,7 @@ class PluginImportService:
                     import_batch_id=import_batch_id,
                     import_source=import_source,
                     live_update=live_update,
+                    is_free=is_free,
                 )
                 if live_update:
                     warnings.append(LIVE_UPDATE_IN_QA)
@@ -296,9 +312,9 @@ class PluginImportService:
         return True
 
     @staticmethod
-    def _object_key(plugin_id: str, raw_key: str) -> str:
+    def _object_key(plugin_id: str, raw_key: str, *, is_free: bool) -> str:
         relative = media_relative_path(raw_key.strip())
-        prefix = f"plugins/{plugin_id}/"
+        prefix = f"{_FREE_ROOT if is_free else _PAID_ROOT}/{plugin_id}/"
         if (
             relative is None
             or ".." in relative
@@ -309,8 +325,8 @@ class PluginImportService:
         return relative
 
     @classmethod
-    def _check_thumbnail(cls, plugin_id: str, raw_key: str) -> str:
-        key = cls._object_key(plugin_id, raw_key)
+    def _check_thumbnail(cls, plugin_id: str, raw_key: str, *, is_free: bool) -> str:
+        key = cls._object_key(plugin_id, raw_key, is_free=is_free)
         if not key.lower().endswith(_THUMBNAIL_SUFFIXES):
             raise PluginImportSkip("invalid_object_key")
         try:
@@ -322,12 +338,14 @@ class PluginImportService:
             raise PluginImportSkip(exc.message) from None
 
     @classmethod
-    def _check_package(cls, plugin_id: str, raw_key: str) -> str:
-        key = cls._object_key(plugin_id, raw_key)
+    def _check_package(cls, plugin_id: str, raw_key: str, *, is_free: bool) -> str:
+        key = cls._object_key(plugin_id, raw_key, is_free=is_free)
         # The uploader names the package after the ID, and only a .zip is a package.
-        if key != f"plugins/{plugin_id}/{plugin_id}.zip":
+        root = _FREE_ROOT if is_free else _PAID_ROOT
+        if key != f"{root}/{plugin_id}/{plugin_id}.zip":
             raise PluginImportSkip("invalid_object_key")
-        if not private_object_exists(key):
+        # A free zip is in the public bucket, a paid one in the private bucket.
+        if not package_object_exists(key):
             raise PluginImportSkip("missing_package_object")
         return key
 
@@ -343,6 +361,7 @@ class PluginImportService:
         manifest: dict[str, Any],
         import_batch_id: str,
         import_source: str,
+        is_free: bool,
     ) -> Plugin:
         return Plugin.objects.create(
             plugin_id=plugin_id,
@@ -351,8 +370,9 @@ class PluginImportService:
             description=description,
             category=category,
             thumbnail=thumbnail_url,
-            # A reviewer sets the real price when approving.
+            # A reviewer sets the real price when approving (0 for a free plugin).
             price=Decimal("0.00"),
+            is_free=is_free,
             version=cls._manifest_version(manifest) or "1.0",
             manifest=manifest,
             import_batch_id=import_batch_id,
@@ -370,6 +390,7 @@ class PluginImportService:
         import_batch_id: str,
         import_source: str,
         live_update: bool,
+        is_free: bool,
     ) -> Plugin:
         """Update a re-uploaded plugin's files only; the administrator owns its text.
 
@@ -383,6 +404,7 @@ class PluginImportService:
         plugin.version = cls._manifest_version(manifest) or plugin.version
         plugin.import_batch_id = import_batch_id
         plugin.import_source = import_source
+        plugin.is_free = is_free
         if not live_update:
             plugin.status = Plugin.Status.PENDING_REVIEW
         plugin.pending_update = live_update
@@ -395,6 +417,7 @@ class PluginImportService:
                 "version",
                 "import_batch_id",
                 "import_source",
+                "is_free",
                 "status",
                 "pending_update",
                 "qa_notes",
