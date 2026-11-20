@@ -107,7 +107,7 @@ describe('ModelViewer', () => {
     viewerMocks.pixelRatio = 1.25
   })
 
-  it('starts the opening zoom from the rear and finishes a half orbit at the front', () => {
+  it('zooms and completes a half orbit together from rear to front', () => {
     viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     const group = container.querySelector('group')!
@@ -120,15 +120,16 @@ describe('ModelViewer', () => {
     expect(openingOffset.z).toBeLessThan(0)
     expect(group).toHaveAttribute('scale', '0.35')
     expect(screen.queryByTestId('viewer-shadow')).not.toBeInTheDocument()
-    act(() => { for (let i = 0; i < 15; i += 1) frame({} as never, 0.05, undefined) })
+    act(() => frame({} as never, 0.05, undefined))
     expect(setScalar.mock.calls[0][0]).toBeGreaterThan(0.35)
+    expect(viewerMocks.camera!.position.clone().sub(center).distanceTo(openingOffset)).toBeGreaterThan(0)
+    act(() => { for (let i = 0; i < 14; i += 1) frame({} as never, 0.05, undefined) })
     expect(setScalar.mock.calls.at(-1)![0]).toBeLessThan(1)
-    expect(viewerMocks.camera!.position.clone().sub(center).distanceTo(openingOffset)).toBeCloseTo(0)
+    const halfway = viewerMocks.camera!.position.clone().sub(center)
+    expect(halfway.x * openingOffset.x + halfway.z * openingOffset.z).toBeCloseTo(0)
     act(() => { for (let i = 0; i < 16; i += 1) frame({} as never, 0.05, undefined) })
     expect(setScalar.mock.calls.at(-1)![0]).toBeCloseTo(1)
     expect(screen.getByTestId('viewer-shadow')).toBeInTheDocument()
-    expect(viewerMocks.camera!.position.clone().sub(center).distanceTo(openingOffset)).toBeGreaterThan(0)
-    act(() => { for (let i = 0; i < 30; i += 1) frame({} as never, 0.05, undefined) })
     const offset = viewerMocks.camera!.position.clone().sub(center)
     expect(offset.x).toBeCloseTo(-openingOffset.x)
     expect(offset.y).toBeCloseTo(openingOffset.y)
@@ -142,7 +143,7 @@ describe('ModelViewer', () => {
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     Object.defineProperty(container.querySelector('group')!, 'scale', { value: { setScalar: vi.fn() } })
     const frame = vi.mocked(useFrame).mock.calls.at(-1)![0]
-    act(() => { for (let i = 0; i < 33; i += 1) frame({} as never, 0.05, undefined) })
+    act(() => { for (let i = 0; i < 15; i += 1) frame({} as never, 0.05, undefined) })
     await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
     const resetPosition = viewerMocks.camera!.position.clone()
     act(() => { for (let i = 0; i < 30; i += 1) frame({} as never, 0.05, undefined) })
@@ -244,6 +245,14 @@ describe('ModelViewer', () => {
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toMatch(
       /radial-gradient\(.*rgb\(104, 104, 104\) 0%.*rgb\(85, 85, 85\) 55%.*rgb\(60, 60, 60\) 100%/,
+    )
+    await userEvent.click(colorButton)
+    expect(canvas.style.backgroundImage).toMatch(
+      /radial-gradient\(.*rgb\(51, 60, 77\) 0%.*rgb\(32, 38, 51\) 55%.*rgb\(17, 21, 30\) 100%/,
+    )
+    await userEvent.click(colorButton)
+    expect(canvas.style.backgroundImage).toMatch(
+      /radial-gradient\(.*rgb\(78, 84, 89\) 0%.*rgb\(55, 60, 64\) 55%.*rgb\(32, 35, 38\) 100%/,
     )
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
