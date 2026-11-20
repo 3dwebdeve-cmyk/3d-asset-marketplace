@@ -168,8 +168,12 @@ function ModelViewerError({ message }: { message: string }) {
   )
 }
 
-const ALTERNATE_BACKGROUND =
-  'radial-gradient(ellipse farthest-side at center, #686868 0%, #555555 55%, #3C3C3C 100%)'
+const VIEWER_BACKGROUNDS = [
+  undefined,
+  'radial-gradient(ellipse farthest-side at center, #686868 0%, #555555 55%, #3C3C3C 100%)',
+  'radial-gradient(ellipse farthest-side at center, #333C4D 0%, #202633 55%, #11151E 100%)',
+  'radial-gradient(ellipse farthest-side at center, #4E5459 0%, #373C40 55%, #202326 100%)',
+] as const
 
 type ViewerBackgroundProps = {
   background?: string
@@ -379,9 +383,9 @@ function ModelViewerCanvas({
 }
 
 export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps) {
-  const [useAlternateBackground, setUseAlternateBackground] = useState(false)
-  const background = useAlternateBackground ? ALTERNATE_BACKGROUND : undefined
-  const cycleBackground = () => setUseAlternateBackground((enabled) => !enabled)
+  const [backgroundIndex, setBackgroundIndex] = useState(0)
+  const background = VIEWER_BACKGROUNDS[backgroundIndex]
+  const cycleBackground = () => setBackgroundIndex((index) => (index + 1) % VIEWER_BACKGROUNDS.length)
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
   const pixelRatio = useAdaptivePixelRatio()
