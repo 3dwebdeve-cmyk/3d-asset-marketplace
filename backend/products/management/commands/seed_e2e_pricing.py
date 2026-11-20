@@ -41,17 +41,18 @@ class Scenario:
     sale: str | None = None
     sale_ends_in_hours: int | None = None  # negative: the sale already ended
     pending_update: bool = False
+    hours: str | None = None  # hours spent, as the uploader sends it
 
 
 SCENARIOS: tuple[Scenario, ...] = (
     # QA queue
     Scenario("PRC-FREE-QA", "E2E Free Lamp In QA", "pending_review", True, "0.00", 8_000, "lighting", BATCH_1),
-    Scenario("PRC-PAID-QA", "E2E Paid Chair In QA", "pending_review", False, "25.00", 50_000, "chairs", BATCH_1),
+    Scenario("PRC-PAID-QA", "E2E Paid Chair In QA", "pending_review", False, "25.00", 50_000, "chairs", BATCH_1, hours="8"),
     # Waiting for price
-    Scenario("PRC-WAIT-LOW", "E2E Low Poly Stool", "awaiting_price", False, "0.00", 5_000, "chairs", BATCH_1),
-    Scenario("PRC-WAIT-MID", "E2E Mid Poly Armchair", "awaiting_price", False, "30.00", 50_000, "chairs", BATCH_2),
+    Scenario("PRC-WAIT-LOW", "E2E Low Poly Stool", "awaiting_price", False, "0.00", 5_000, "chairs", BATCH_1, hours="4"),
+    Scenario("PRC-WAIT-MID", "E2E Mid Poly Armchair", "awaiting_price", False, "30.00", 50_000, "chairs", BATCH_2, hours="6"),
     Scenario("PRC-WAIT-HIGH", "E2E High Poly Sofa", "awaiting_price", False, "0.00", 250_000, "chairs", BATCH_2),
-    Scenario("PRC-WAIT-UNKNOWN", "E2E Desk Lamp No Poly Count", "awaiting_price", False, "15.00", None, "lighting", BATCH_2),
+    Scenario("PRC-WAIT-UNKNOWN", "E2E Desk Lamp No Poly Count", "awaiting_price", False, "15.00", None, "lighting", BATCH_2, hours="2"),
     # Live
     Scenario("PRC-LIVE", "E2E Live Dining Chair", "published", False, "40.00", 20_000, "chairs", BATCH_1),
     Scenario("PRC-LIVE-SALE", "E2E Live Lounge Chair On Sale", "published", False, "50.00", 60_000, "chairs", BATCH_1, sale="35.00", sale_ends_in_hours=24 * 7),
@@ -75,6 +76,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         if getattr(settings, "DEPLOYMENT_PROFILE", "") not in {"test", "development"}:
             raise CommandError("seed_e2e_pricing only runs with DEPLOYMENT_PROFILE=test or development.")
+        if getattr(settings, "R2_ENABLED", False):
+            # The fixture zips would land in the real buckets (models/PRC-*, free-models/PRC-*).
+            raise CommandError(
+                "seed_e2e_pricing never writes to the real R2 buckets: set R2_FORCE_OFF=True "
+                "(e2e/local/Start-LocalStack.ps1 does)."
+            )
 
         furniture, _ = Category.objects.get_or_create(slug="e2e-furniture", defaults={"name": "E2E Furniture"})
         chairs, _ = Category.objects.update_or_create(
@@ -107,6 +114,7 @@ class Command(BaseCommand):
                     "discount_ends_at": sale_ends_at,
                     "preview_model": preview_model,
                     "polygon_count": scenario.polygons,
+                    "hours_spent": Decimal(scenario.hours) if scenario.hours else None,
                     "preview_triangle_count": scenario.polygons // 4 if scenario.polygons else None,
                     "has_preview": True,
                     "has_package": True,

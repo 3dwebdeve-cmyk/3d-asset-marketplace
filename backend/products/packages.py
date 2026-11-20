@@ -36,8 +36,6 @@ PACKAGE_DESCRIPTIONS: dict[str, str] = {
     PackageKind.ENVIRONMENT: "The model placed in its environment scene.",
     PackageKind.WHOLE: "Everything in one download: every package of this model.",
 }
-
-
 def line_title(name: str, kind: str) -> str:
     """A cart or order line's title: "<model name> - <package label>" (the model name alone
     for a line with no package, such as a plugin)."""

@@ -22,7 +22,9 @@ deleted, so the real value in `backend/.env` takes over (this wrote test files t
 buckets on 2026-11-10). Use an explicit switch. Before anything starts, the script runs
 `python manage.py check_safe_settings`, which reads the effective settings and stops the run if R2
 or Sentry would be used. If you run `runserver` or a seed command yourself against `backend/.env`,
-set `R2_FORCE_OFF=True` and `SENTRY_FORCE_OFF=True` and run that check first.
+set `R2_FORCE_OFF=True` and `SENTRY_FORCE_OFF=True` and run that check first. `seed_e2e_pricing` also
+refuses to run while R2 is on, and the Docker E2E stack (`docker-compose.e2e.yml`) sets both
+switches and runs the check in CI before it seeds anything.
 
 The profile is `test`, which is the only profile in which the seed commands run. The admin signs in
 with a password; there is no authenticator in E2E. Never point these scripts at a server.

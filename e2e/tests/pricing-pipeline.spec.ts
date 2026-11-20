@@ -1,6 +1,6 @@
 import { expect, test as base, type BrowserContext, type Locator, type Page } from '@playwright/test'
 
-import { loginAsAdmin, loginAsBuyer } from '../helpers/auth'
+import { loginAsAdmin } from '../helpers/auth'
 
 /**
  * Browser journey through the admin pricing pipeline (docs/PRICING_PIPELINE.md, Part 3) on the
@@ -43,16 +43,6 @@ const WAIT_MID = { sku: 'PRC-WAIT-MID', name: 'E2E Mid Poly Armchair' }
 const WAIT_HIGH = { sku: 'PRC-WAIT-HIGH', name: 'E2E High Poly Sofa' }
 const WAIT_UNKNOWN = { sku: 'PRC-WAIT-UNKNOWN', name: 'E2E Desk Lamp No Poly Count' }
 const LIVE = { sku: 'PRC-LIVE', name: 'E2E Live Dining Chair', slug: 'prc-live' }
-const LIVE_ENDED = { sku: 'PRC-LIVE-ENDED', name: 'E2E Live Floor Lamp Sale Ended', slug: 'prc-live-ended' }
-
-// Calculator "By poly level" prices used in step 4 (Unknown is left empty on purpose).
-const TIER = { low: '9.00', mid: '19.99', high: '49.00' }
-// PRC-PAID-QA (mid) + PRC-WAIT-LOW (low) + PRC-WAIT-MID (mid); PRC-WAIT-HIGH has no price.
-const PUBLISH_TOTAL = '$48.98'
-
-// Sale end used in step 6 and checked in step 7: a fixed, far-future local time. Playwright loads
-// this file again for later steps, so a value computed from "now" can move a minute between them.
-const SALE_END_LOCAL = '2099-06-15T18:30'
 
 /** Console errors and failed page loads, printed per test so a run surfaces them. */
 function watchConsole(page: Page): string[] {
@@ -81,8 +71,14 @@ function pricingRow(page: Page, sku: string): Locator {
     .filter({ has: page.getByText(sku, { exact: true }) })
 }
 
-function previewSection(page: Page): Locator {
-  return page.getByRole('region', { name: 'Preview' })
+/** Type the rate and the five percents into the Model Pricing box: Whole File = hours x 20. */
+async function fillPricingBox(page: Page) {
+  await page.getByLabel('Rate per hour (USD)').fill('20')
+  await page.getByLabel('With Light Rig percent').fill('60')
+  await page.getByLabel('Without Light Rig percent').fill('50')
+  await page.getByLabel('With Environment percent').fill('30')
+  await page.getByLabel('GLB Only percent').fill('25')
+  await page.getByLabel('Whole File percent').fill('100')
 }
 
 async function openPricing(page: Page, tab: 'waiting' | 'live' = 'waiting') {
@@ -189,23 +185,13 @@ test.describe('admin pricing pipeline', () => {
     await expect(pricingRow(page, FREE_QA.sku)).toHaveCount(0)
     await expect(pricingRow(page, LIVE.sku)).toHaveCount(0)
 
-    // Row details: poly level, the Whole File package's price (or "Not set"), the "From" price.
+    // Row details: the hours (typed, empty for the High Poly Sofa), the Whole File variation's
+    // price (or "Not set"), the "From" price.
     const paidRow = pricingRow(page, PAID_QA.sku)
-    await expect(paidRow).toContainText('Mid poly')
+    await expect(paidRow.getByLabel(`Hours for ${PAID_QA.name}`)).toHaveValue('8.00')
     await expect(paidRow).toContainText('$25.00')
     await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('Not set')
-    await expect(pricingRow(page, WAIT_UNKNOWN.sku)).toContainText('Unknown')
-
-    // Poly level.
-    await page.getByLabel('Poly level', { exact: true }).selectOption('high')
-    await expect(pricingRow(page, WAIT_HIGH.sku)).toBeVisible()
-    await expect(pricingRow(page, WAIT_MID.sku)).toHaveCount(0)
-    await expect(pricingRow(page, WAIT_LOW.sku)).toHaveCount(0)
-    await page.getByLabel('Poly level', { exact: true }).selectOption('mid')
-    await expect(pricingRow(page, WAIT_MID.sku)).toBeVisible()
-    await expect(pricingRow(page, PAID_QA.sku)).toBeVisible()
-    await expect(pricingRow(page, WAIT_HIGH.sku)).toHaveCount(0)
-    await page.getByLabel('Poly level', { exact: true }).selectOption('')
+    await expect(pricingRow(page, WAIT_HIGH.sku).getByLabel(`Hours for ${WAIT_HIGH.name}`)).toHaveValue('')
 
     // Category (main category includes its subcategories), then subcategory.
     const subcategory = page.getByLabel('Subcategory')
@@ -245,85 +231,8 @@ test.describe('admin pricing pipeline', () => {
     reportConsole(errors)
   })
 
-  test('4. Calculator by poly level: preview, a note for the unpriced level, save', async ({ adminPage: page }) => {
+  test('4. Model Pricing box: calculate beside each variation, publish; a model without hours stays', async ({ adminPage: page }) => {
     const errors = watchConsole(page)
-    await openPricing(page)
-
-    const selection = page.locator('.admin-pricing__selection')
-    for (const model of [PAID_QA, WAIT_LOW, WAIT_MID, WAIT_UNKNOWN]) {
-      await page.getByRole('checkbox', { name: `Select ${model.name}` }).check()
-    }
-    await expect(selection).toContainText('4 selected')
-
-    await page.getByRole('radio', { name: 'Set the price' }).check()
-    await page.getByRole('radio', { name: 'By poly level' }).check()
-    await page.getByLabel('Low poly (USD)').fill(TIER.low)
-    await page.getByLabel('Mid poly (USD)').fill(TIER.mid)
-    await page.getByLabel('High poly (USD)').fill(TIER.high)
-    await page.getByRole('button', { name: 'Calculate preview (4)' }).click()
-
-    const preview = previewSection(page)
-    await expect(preview).toBeVisible()
-    const previewRow = (sku: string) => preview.getByRole('row').filter({ hasText: sku })
-    await expect(previewRow(PAID_QA.sku)).toContainText(`$25.00 → $${TIER.mid}`)
-    await expect(previewRow(WAIT_LOW.sku)).toContainText(`— → $${TIER.low}`)
-    await expect(previewRow(WAIT_MID.sku)).toContainText(`$30.00 → $${TIER.mid}`)
-    // The model whose level got no price has a note and blocks the save.
-    const unknownNote = previewRow(WAIT_UNKNOWN.sku).locator('td').last()
-    await expect(unknownNote).not.toHaveText(/^(Changes|No change)$/)
-    await expect(unknownNote).not.toBeEmpty()
-    await expect(preview).toContainText('1 cannot take this price')
-    await expect(preview.getByText(/Remove the models with a note from the selection/)).toBeVisible()
-    await expect(preview.getByRole('button', { name: 'Save prices' })).toBeDisabled()
-
-    // Deselecting clears the preview; recalculate without the Unknown model.
-    await page.getByRole('checkbox', { name: `Select ${WAIT_UNKNOWN.name}` }).uncheck()
-    await expect(preview).toBeHidden()
-    await page.getByRole('button', { name: 'Calculate preview (3)' }).click()
-    await expect(preview).toBeVisible()
-    await expect(preview).toContainText('3 models, 3 will change')
-    await expect(preview).toContainText(`Whole File: buyers pay $55.00 → ${PUBLISH_TOTAL} in total`)
-    await expect(preview.getByRole('row').filter({ hasText: WAIT_UNKNOWN.sku })).toHaveCount(0)
-    const save = preview.getByRole('button', { name: 'Save prices' })
-    await expect(save).toBeEnabled()
-    await save.click()
-
-    await expect(toast(page, 'Saved: 3 model prices changed.')).toBeVisible()
-    await expect(preview).toBeHidden()
-    await expect(pricingRow(page, PAID_QA.sku)).toContainText(`$${TIER.mid}`)
-    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText(`$${TIER.low}`)
-    await expect(pricingRow(page, WAIT_MID.sku)).toContainText(`$${TIER.mid}`)
-    await expect(pricingRow(page, WAIT_UNKNOWN.sku)).toContainText('$15.00')
-    // Saving does not publish: the models are still waiting and still selected.
-    await expect(pricingRow(page, WAIT_LOW.sku)).toBeVisible()
-    await expect(selection).toContainText('3 selected')
-
-    reportConsole(errors)
-  })
-
-  // Fixed: the publish summary used the rows as they were when ticked, so right after "Save
-  // prices" it added up the old prices and counted newly priced models as "no price yet".
-  test('5a. Publish summary right after saving uses the saved prices', async ({ adminPage: page }) => {
-    await openPricing(page)
-    await page.getByRole('checkbox', { name: `Select ${WAIT_UNKNOWN.name}` }).check()
-    await page.getByRole('radio', { name: 'Set the price' }).check()
-    await page.getByRole('radio', { name: 'One price for all' }).check()
-    await page.getByLabel('Price (USD)').fill('12.00')
-    await page.getByRole('button', { name: 'Calculate preview (1)' }).click()
-    await previewSection(page).getByRole('button', { name: 'Save prices' }).click()
-    await expect(toast(page, 'Saved: 1 model price changed.')).toBeVisible()
-    await expect(pricingRow(page, WAIT_UNKNOWN.sku)).toContainText('$12.00')
-
-    await page.getByRole('button', { name: 'Publish selected (1)' }).click()
-    const summary = page.getByRole('dialog', { name: 'Publish 1 model?' })
-    await expect(summary).toContainText('with the package prices shown')
-    await expect(summary).not.toContainText('no price yet')
-    await summary.getByRole('button', { name: 'Cancel' }).click()
-  })
-
-  test('5. Publish selected: summary, confirm, results; the unpriced model stays waiting', async ({ adminPage: page }) => {
-    const errors = watchConsole(page)
-    // A fresh page, so the summary reads the saved prices (see 5a).
     await openPricing(page)
 
     const selection = page.locator('.admin-pricing__selection')
@@ -331,188 +240,59 @@ test.describe('admin pricing pipeline', () => {
       await page.getByRole('checkbox', { name: `Select ${model.name}` }).check()
     }
     await expect(selection).toContainText('4 selected')
+
+    // Nothing to publish before a calculation.
+    await expect(page.getByRole('button', { name: 'Publish selected (4)' })).toBeDisabled()
+    await fillPricingBox(page)
+    await page.getByRole('button', { name: 'Calculate prices (4)' }).click()
+
+    // The new price shows right beside the model's variation (hours 8 / 4 / 6, rate $20, Whole 100%).
+    await expect(pricingRow(page, PAID_QA.sku)).toContainText('Whole File: $25.00 → $160.00')
+    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('Whole File: Not set → $80.00')
+    await expect(pricingRow(page, WAIT_MID.sku)).toContainText('Whole File: $30.00 → $120.00')
+    // The model without hours says why and gets no price.
+    await expect(pricingRow(page, WAIT_HIGH.sku)).toContainText('Enter the hours spent first.')
+    await expect(page.locator('.admin-pricing__calc-summary')).toContainText('3 of 4 models priced')
+
+    // Changing a box clears the calculation.
+    await page.getByLabel('Whole File percent').fill('90')
+    await expect(pricingRow(page, PAID_QA.sku)).not.toContainText('→')
+    await expect(page.getByRole('button', { name: 'Publish selected (4)' })).toBeDisabled()
+    await page.getByLabel('Whole File percent').fill('100')
+    await page.getByRole('button', { name: 'Calculate prices (4)' }).click()
+    await expect(pricingRow(page, PAID_QA.sku)).toContainText('→ $160.00')
+
+    // Publish: summary first, then the results.
     await page.getByRole('button', { name: 'Publish selected (4)' }).click()
-
     const summary = page.getByRole('dialog', { name: 'Publish 4 models?' })
-    await expect(summary).toBeVisible()
-    await expect(summary).toContainText(/1 (has|have) a package with no price yet and will stay waiting/)
+    await expect(summary).toContainText('1 cannot be priced and will stay waiting')
     await summary.getByRole('button', { name: 'Publish 4 models' }).click()
-
     const results = page.getByRole('region', { name: /published, .* not published/ })
     await expect(results.getByRole('heading')).toHaveText('3 published, 1 not published')
     await expect(toast(page, '3 models published.')).toBeVisible()
-    await expect(summary).toBeHidden()
-    const reason = results.getByRole('listitem').filter({ hasText: WAIT_HIGH.name })
-    await expect(reason).toBeVisible()
-    await expect(reason).toContainText(/price/i)
+    await expect(results.getByRole('listitem').filter({ hasText: WAIT_HIGH.name })).toContainText('hours')
 
-    // The unpriced model stays waiting (and selected); the published ones leave the tab.
+    // The unpriced model stays waiting; the published ones are on the Live tab at their prices.
     await expect(pricingRow(page, WAIT_HIGH.sku)).toBeVisible()
-    await expect(pricingRow(page, WAIT_HIGH.sku)).toContainText('Not set')
     await expect(pricingRow(page, PAID_QA.sku)).toHaveCount(0)
-    await expect(pricingRow(page, WAIT_LOW.sku)).toHaveCount(0)
-    await expect(pricingRow(page, WAIT_MID.sku)).toHaveCount(0)
-    await expect(selection).toContainText('1 selected')
-
-    // The published models are on the Live tab now.
     await page.getByRole('tab', { name: /Live models/ }).click()
     await searchPricing(page, 'PRC-')
-    await expect(pricingRow(page, PAID_QA.sku)).toContainText(`$${TIER.mid}`)
-    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText(`$${TIER.low}`)
+    await expect(pricingRow(page, PAID_QA.sku)).toContainText('$160.00')
+    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('$80.00')
+    await expect(pricingRow(page, WAIT_MID.sku)).toContainText('$120.00')
 
     reportConsole(errors)
   })
 
-  test('6. Live tab: a big sale needs typed confirmation; a 20% sale with an end is saved', async ({ adminPage: page }) => {
-    const errors = watchConsole(page)
-    await openPricing(page, 'live')
-
-    await searchPricing(page, LIVE.sku)
-    const liveRow = pricingRow(page, LIVE.sku)
-    await expect(liveRow).toBeVisible()
-    await expect(page.getByRole('button', { name: /Publish selected/ })).toHaveCount(0)
-    await page.getByRole('checkbox', { name: `Select ${LIVE.name}` }).check()
-
-    await page.getByRole('radio', { name: 'Give a sale' }).check()
-    await page.getByRole('radio', { name: 'Percentage off' }).check()
-    await page.getByLabel('Percent off (up to 90)').fill('60')
-    await page.getByRole('button', { name: 'Calculate preview (1)' }).click()
-
-    const preview = previewSection(page)
-    await expect(preview).toBeVisible()
-    await expect(preview.getByRole('row').filter({ hasText: LIVE.sku })).toContainText('$16.00')
-    const confirm = preview.getByLabel('This sale takes more than 50% off. Type 1 to confirm.')
-    const save = preview.getByRole('button', { name: 'Save prices' })
-    await expect(confirm).toBeVisible()
-    await expect(save).toBeDisabled()
-    await confirm.fill('2')
-    await expect(save).toBeDisabled()
-    await confirm.fill('1')
-    await expect(save).toBeEnabled()
-
-    // Changing the rule clears the preview; 20% off does not need confirmation.
-    await page.getByLabel('Percent off (up to 90)').fill('20')
-    await expect(preview).toBeHidden()
-    await page.getByLabel('Sale ends (your local time, optional)').fill(SALE_END_LOCAL)
-    await page.getByRole('button', { name: 'Calculate preview (1)' }).click()
-    await expect(preview).toBeVisible()
-    const row = preview.getByRole('row').filter({ hasText: LIVE.sku })
-    await expect(row).toContainText('$32.00')
-    await expect(row).toContainText('$8.00 (20')
-    await expect(row).toContainText(/until /)
-    await expect(preview.getByLabel(/Type 1 to confirm/)).toHaveCount(0)
-    await expect(save).toBeEnabled()
-    await save.click()
-
-    await expect(toast(page, 'Saved: 1 model price changed.')).toBeVisible()
-    await expect(liveRow).toContainText('$32.00')
-    await expect(liveRow).toContainText(/until /)
-    await expect(liveRow.locator('td').last()).toHaveText('$32.00')
-
-    reportConsole(errors)
-  })
-
-  // Fixed: "Calculate preview" and "Publish selected" render their panel at the bottom of the page
-  // (AdminPricingPage.tsx:606, 656), below the table and the calculator. At 1280x720 with only a
-  // handful of rows the panel already starts below the fold (preview top ~867px, summary ~795px),
-  // so the click looks like it did nothing. Expected: the panel scrolls into view (or is a modal
-  // with focus moved to it). This test only previews and cancels; it changes no data.
-  test('6a. The preview and the publish summary open where the admin can see them', async ({ adminPage: page }) => {
-    await openPricing(page, 'live')
-    await searchPricing(page, LIVE.sku)
-    await page.getByRole('checkbox', { name: `Select ${LIVE.name}` }).check()
-    await page.getByRole('radio', { name: 'Give a sale' }).check()
-    await page.getByLabel('Percent off (up to 90)').fill('10')
-    await page.getByRole('button', { name: 'Calculate preview (1)' }).click()
-    await expect(previewSection(page)).toBeInViewport()
-
+  test('6a. The publish summary opens where the admin can see it (changes no data)', async ({ adminPage: page }) => {
     await openPricing(page)
-    await page.getByRole('checkbox', { name: `Select ${WAIT_HIGH.name}` }).check()
+    await page.getByRole('checkbox', { name: `Select ${WAIT_UNKNOWN.name}` }).check()
+    await fillPricingBox(page)
+    await page.getByRole('button', { name: 'Calculate prices (1)' }).click()
     await page.getByRole('button', { name: 'Publish selected (1)' }).click()
     const summary = page.getByRole('dialog', { name: 'Publish 1 model?' })
     await expect(summary).toBeInViewport()
     await summary.getByRole('button', { name: 'Cancel' }).click()
-  })
-
-})
-
-test.describe('shop and buyer after pricing', () => {
-  test('7. Shop: the sale shows on the card and the product page; an ended sale does not', async ({ page }) => {
-    const errors = watchConsole(page)
-
-    await page.goto('/3d-models?search=E2E%20Live')
-    const card = page.locator('article.product-card').filter({ has: page.getByRole('link', { name: LIVE.name, exact: true }) })
-    await expect(card).toBeVisible()
-    await expect(card).toContainText('-20%')
-    await expect(card).toContainText('$ 32.00')
-    await expect(card).toContainText('$ 40.00')
-
-    const endedCard = page.locator('article.product-card').filter({ has: page.getByRole('link', { name: LIVE_ENDED.name, exact: true }) })
-    await expect(endedCard).toBeVisible()
-    await expect(endedCard).toContainText('$ 60.00')
-    // (Its name contains "Sale Ended", so check the badge and prices rather than the word.)
-    await expect(endedCard.locator('.product-card__badge-discount')).toHaveCount(0)
-    await expect(endedCard.locator('.product-card__price--original')).toHaveCount(0)
-    await expect(endedCard).not.toContainText('%')
-    await expect(endedCard).not.toContainText('45.00')
-
-    await page.goto(`/products/${LIVE.slug}`)
-    await expect(page.getByRole('heading', { name: LIVE.name })).toBeVisible()
-    const purchase = page.getByRole('complementary', { name: 'Product purchase details' })
-    const price = purchase.locator('.product-detail-purchase__price')
-    await expect(price.locator('.product-detail-purchase__price-current')).toHaveText('$32.00')
-    const original = price.locator('.product-detail-purchase__price-original')
-    await expect(original).toHaveText('$40.00')
-    await expect(original).toHaveCSS('text-decoration-line', 'line-through')
-    await expect(price).toContainText('-20%')
-    const expectedEnd = await page.evaluate(
-      (local) => new Date(local).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
-      SALE_END_LOCAL,
-    )
-    await expect(purchase.getByText(`Sale ends ${expectedEnd}`)).toBeVisible()
-
-    await page.goto(`/products/${LIVE_ENDED.slug}`)
-    await expect(page.getByRole('heading', { name: LIVE_ENDED.name })).toBeVisible()
-    const endedPurchase = page.getByRole('complementary', { name: 'Product purchase details' })
-    await expect(endedPurchase.locator('.product-detail-purchase__price-current')).toHaveText('$60.00')
-    await expect(endedPurchase.locator('.product-detail-purchase__price-original')).toHaveCount(0)
-    await expect(endedPurchase.getByText(/Sale ends/)).toHaveCount(0)
-    await expect(endedPurchase).not.toContainText('$45.00')
-
-    reportConsole(errors)
-  })
-
-  test('8. Buyer: the cart charges the sale price', async ({ page }) => {
-    const errors = watchConsole(page)
-    await loginAsBuyer(page)
-
-    // The buyer's cart survives a re-seed: start from a cart without this model.
-    await page.goto('/cart')
-    await expect(page.getByRole('heading', { name: 'Your cart' })).toBeVisible()
-    const clear = page.getByRole('button', { name: 'Clear cart' })
-    if (await clear.isVisible()) {
-      await clear.click()
-      await expect(page.getByText(/Your cart is empty/)).toBeVisible()
-    }
-
-    await page.goto(`/products/${LIVE.slug}`)
-    await expect(page.getByRole('heading', { name: LIVE.name })).toBeVisible()
-    const purchase = page.getByRole('complementary', { name: 'Product purchase details' })
-    // A model is sold per package: tick Whole File (the one package), then add it.
-    await purchase.getByRole('checkbox', { name: 'Whole File' }).check()
-    await purchase.getByRole('button', { name: 'Add selected to cart' }).click()
-    await expect(purchase.getByRole('link', { name: 'In cart' })).toBeVisible({ timeout: 15_000 })
-
-    await page.goto('/cart')
-    await expect(page.getByRole('heading', { name: 'Your cart' })).toBeVisible()
-    const line = page.locator('.cart-page__line').filter({ hasText: LIVE.name })
-    await expect(line).toBeVisible()
-    await expect(line.locator('.cart-line-item__price')).toHaveText('$32.00')
-    await expect(page.getByRole('checkbox', { name: `Buy ${LIVE.name} - Whole File` })).toBeChecked()
-    await expect(page.locator('.cart-summary--total')).toContainText('$32.00')
-    // Stops before paying: checkout-flow.spec.ts covers the simulated payment.
-
-    reportConsole(errors)
   })
 })
 
@@ -527,7 +307,7 @@ test.describe('pricing pages at phone width', () => {
 
   test('Pricing page fits a 390px screen', async ({ adminPage: page }) => {
     await openPricing(page, 'live')
-    await expect(page.getByRole('heading', { name: 'Calculator' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Pricing', exact: true })).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('pricing-390.png'), fullPage: true })
     // The table is wider than the phone; its wrapper scrolls sideways to the price columns.
     const tableWrap = page.locator('.admin-pricing__layout .admin-table-wrap').first()
@@ -537,7 +317,7 @@ test.describe('pricing pages at phone width', () => {
     await expectNoHorizontalScroll(page)
   })
 
-  test('Product page with a sale fits a 390px screen', async ({ adminPage: page }) => {
+  test('Product page fits a 390px screen', async ({ adminPage: page }) => {
     await page.goto(`/products/${LIVE.slug}`)
     await expect(page.getByRole('heading', { name: LIVE.name })).toBeVisible()
     await page.screenshot({ path: test.info().outputPath('product-390.png'), fullPage: true })

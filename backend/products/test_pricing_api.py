@@ -1,7 +1,8 @@
-"""Pricing page API (docs/PRICING_PIPELINE.md, Part 2).
+"""Pricing page API (docs/PRICING_PIPELINE.md).
 
-The server calculates every price; save is all-or-nothing and refused when anything changed
-since the preview; publish checks each model on its own.
+The server calculates every price (hours x rate x the package's percent, whole dollars); a model
+only gets a price for the packages it has; publish saves the calculated prices and puts each model
+on the store on its own.
 """
 
 from __future__ import annotations
@@ -20,13 +21,19 @@ from rest_framework.test import APITestCase
 from accounts.models import ActivityLog, Role, User
 from categories.models import Category
 from products.models import Product, ProductFile, ProductPriceChange
-from products.pricing import ending_99
+from products.packages import PACKAGE_ORDER
 
 PASSWORD = "Pricing-Strong-Pass-2026!"
 
-
-def _money(value: str) -> Decimal:
-    return Decimal(value)
+# One rate and one percent per package, as the admin types them.
+RATE = "20"
+PERCENTS = {
+    "with_light_rig": "60",
+    "without_light_rig": "50",
+    "glb_only": "25",
+    "environment": "30",
+    "whole": "100",
+}
 
 
 @patch("products.services.package_object_exists", return_value=True)
@@ -66,14 +73,15 @@ class PricingApiTests(APITestCase):
         name: str,
         *,
         status_value: str = Product.Status.AWAITING_PRICE,
-        price: str = "20.00",
+        hours: str | None = "10",
+        kinds: tuple[str, ...] = ("whole",),
         polygons: int | None = 50_000,
         category: Category | None = None,
         free: bool = False,
         batch: str = "batch-a",
-        sale: str | None = None,
-        sale_ends_at=None,
+        price: str | None = None,
     ) -> Product:
+        """A model with one package row per kind in ``kinds`` (unpriced unless ``price``)."""
         self._sku += 1
         sku = f"MDL-{self._sku:06d}"
         product = Product.objects.create(
@@ -82,52 +90,55 @@ class PricingApiTests(APITestCase):
             slug=f"{name.lower().replace(' ', '-')}-{self._sku}",
             sku=sku,
             import_batch_id=batch,
-            price=_money(price),
-            discount_price=_money(sale) if sale else None,
-            discount_ends_at=sale_ends_at,
+            price=Decimal(price or "0.00"),
             preview_model="https://cdn.example.com/preview.glb",
             polygon_count=polygons,
             preview_triangle_count=(polygons // 4) if polygons else None,
+            hours_spent=Decimal(hours) if hours is not None else None,
             status=status_value,
         )
         folder = "free-models" if free else "models"
-        # One Whole File package with the product's price, as the 0016 migration leaves an
-        # older model (a paid model at 0 has no price yet).
-        ProductFile.objects.create(
-            product=product,
-            file_name=f"{sku}_whole.zip",
-            file_format="zip",
-            file_size=100,
-            storage_path=f"{folder}/{sku}/{sku}_whole.zip",
-            package_kind="whole",
-            price=product.price if product.price > 0 or free else None,
-            discount_price=product.discount_price,
-            discount_ends_at=product.discount_ends_at,
-        )
+        for kind in kinds:
+            ProductFile.objects.create(
+                product=product,
+                file_name=f"{sku}_{kind}.zip",
+                file_format="zip",
+                file_size=100,
+                storage_path=f"{folder}/{sku}/{sku}_{kind}.zip",
+                package_kind=kind,
+                price=Decimal(price) if price else None,
+            )
         return product
 
     def _list(self, **params):
         return self.client.get(reverse("products_admin:admin-pricing"), params)
 
-    def _preview(self, products, **rule):
-        body = {"product_ids": [str(p.pk) for p in products], **rule}
-        return self.client.post(reverse("products_admin:admin-pricing-preview"), body, format="json")
+    def _body(self, products, **extra) -> dict:
+        return {
+            "product_ids": [str(p.pk) for p in products],
+            "rate": RATE,
+            "percents": PERCENTS,
+            **extra,
+        }
 
-    def _apply(self, products, token: str, confirm_count=None, **rule):
-        body = {"product_ids": [str(p.pk) for p in products], "preview_token": token, **rule}
-        if confirm_count is not None:
-            body["confirm_count"] = confirm_count
-        return self.client.post(reverse("products_admin:admin-pricing-apply"), body, format="json")
+    def _calculate(self, products, **extra):
+        return self.client.post(
+            reverse("products_admin:admin-pricing-calculate"), self._body(products, **extra), format="json"
+        )
 
-    def _publish(self, products, confirm_count=None):
-        ids = [str(p.pk) for p in products]
-        body = {"product_ids": ids, "confirm_count": len(ids) if confirm_count is None else confirm_count}
+    def _publish(self, products, *, confirm_count=None, token=None, **extra):
+        if token is None:
+            token = self._calculate(products, **extra).data["preview_token"]
+        body = self._body(
+            products,
+            preview_token=token,
+            confirm_count=len(products) if confirm_count is None else confirm_count,
+            **extra,
+        )
         return self.client.post(reverse("products_admin:admin-pricing-publish"), body, format="json")
 
-    def _preview_and_apply(self, products, confirm_count=None, **rule):
-        preview = self._preview(products, **rule)
-        self.assertEqual(preview.status_code, status.HTTP_200_OK, preview.data)
-        return self._apply(products, preview.data["preview_token"], confirm_count, **rule)
+    def _prices(self, product: Product) -> dict[str, Decimal | None]:
+        return {row.package_kind: row.price for row in product.files.filter(is_preview=False)}
 
     # -- access -----------------------------------------------------------------------------
 
@@ -135,13 +146,21 @@ class PricingApiTests(APITestCase):
         model = self._model("Chair")
         self._login(self.customer)
         self.assertEqual(self._list(tab="waiting").status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self._calculate([model]).status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(
-            self._preview([model], rule="set_price", price="9.00").status_code,
+            self.client.post(
+                reverse("products_admin:admin-pricing-hours"),
+                {"items": [{"id": str(model.pk), "hours_spent": "5"}]},
+                format="json",
+            ).status_code,
             status.HTTP_403_FORBIDDEN,
         )
         self.client.credentials()
         self.assertEqual(self._list(tab="waiting").status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(self._publish([model]).status_code, status.HTTP_401_UNAUTHORIZED)
+        publish = self.client.post(
+            reverse("products_admin:admin-pricing-publish"), self._body([model]), format="json"
+        )
+        self.assertEqual(publish.status_code, status.HTTP_401_UNAUTHORIZED)
 
     @override_settings(ADMIN_MFA_REQUIRED=True)
     def test_an_admin_without_the_authenticator_mark_is_refused(self, _exists) -> None:
@@ -149,7 +168,13 @@ class PricingApiTests(APITestCase):
         refused = (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
         self.assertIn(self._list(tab="waiting").status_code, refused)
         model = self._model("Chair")
-        self.assertIn(self._publish([model]).status_code, refused)
+        self.assertIn(self._calculate([model]).status_code, refused)
+        self.assertIn(
+            self.client.post(
+                reverse("products_admin:admin-pricing-publish"), self._body([model]), format="json"
+            ).status_code,
+            refused,
+        )
         model.refresh_from_db()
         self.assertEqual(model.status, Product.Status.AWAITING_PRICE)
 
@@ -157,8 +182,8 @@ class PricingApiTests(APITestCase):
 
     def test_tabs_list_waiting_and_live_paid_models_only(self, _exists) -> None:
         waiting = self._model("Waiting Chair")
-        live = self._model("Live Chair", status_value=Product.Status.PUBLISHED)
-        self._model("Free Chair", status_value=Product.Status.PUBLISHED, price="0.00", free=True)
+        live = self._model("Live Chair", status_value=Product.Status.PUBLISHED, price="20.00")
+        self._model("Free Chair", status_value=Product.Status.PUBLISHED, free=True, price="0")
         self._model("Free Waiting", free=True)
         self._model("In QA", status_value=Product.Status.PENDING_REVIEW)
 
@@ -169,11 +194,11 @@ class PricingApiTests(APITestCase):
         self.assertEqual(live_ids, {str(live.pk)})
         self.assertEqual(self._list(tab="other").status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_filters_category_subcategory_poly_search_and_batch(self, _exists) -> None:
-        low = self._model("Low Stool", polygons=9_999, batch="batch-1")
-        mid = self._model("Mid Chair", polygons=10_000)
-        high = self._model("High Sofa", polygons=100_001, category=self.furniture)
-        unknown = self._model("Lamp", polygons=None, category=self.lighting, batch="batch-1")
+    def test_filters_category_subcategory_search_and_batch(self, _exists) -> None:
+        stool = self._model("Low Stool", batch="batch-1")
+        chair = self._model("Mid Chair")
+        sofa = self._model("High Sofa", category=self.furniture)
+        lamp = self._model("Lamp", category=self.lighting, batch="batch-1")
 
         def ids(**params):
             response = self._list(tab="waiting", **params)
@@ -181,277 +206,289 @@ class PricingApiTests(APITestCase):
             return {row["id"] for row in response.data["results"]}
 
         # A main category includes its subcategories.
-        self.assertEqual(ids(category_id=self.furniture.pk), {str(low.pk), str(mid.pk), str(high.pk)})
-        self.assertEqual(ids(subcategory_id=self.chairs.pk), {str(low.pk), str(mid.pk)})
-        self.assertEqual(ids(poly="low"), {str(low.pk)})
-        self.assertEqual(ids(poly="mid"), {str(mid.pk)})
-        self.assertEqual(ids(poly="high"), {str(high.pk)})
-        self.assertEqual(ids(poly="unknown"), {str(unknown.pk)})
-        # The admin can move the limits.
-        self.assertEqual(ids(poly="low", low_below=10_001), {str(low.pk), str(mid.pk)})
-        self.assertEqual(ids(search="sofa"), {str(high.pk)})
-        self.assertEqual(ids(search=high.sku.lower()), {str(high.pk)})
-        self.assertEqual(ids(import_batch_id="batch-1"), {str(low.pk), str(unknown.pk)})
-        rows = {row["id"]: row for row in self._list(tab="waiting").data["results"]}
-        self.assertEqual(rows[str(mid.pk)]["poly_tier"], "mid")
-        self.assertEqual(rows[str(unknown.pk)]["poly_tier"], "unknown")
-        self.assertEqual(
-            self._list(tab="waiting", low_below=500, high_above=100).status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
+        self.assertEqual(ids(category_id=self.furniture.pk), {str(stool.pk), str(chair.pk), str(sofa.pk)})
+        self.assertEqual(ids(subcategory_id=self.chairs.pk), {str(stool.pk), str(chair.pk)})
+        self.assertEqual(ids(search="sofa"), {str(sofa.pk)})
+        self.assertEqual(ids(search=sofa.sku.lower()), {str(sofa.pk)})
+        self.assertEqual(ids(import_batch_id="batch-1"), {str(stool.pk), str(lamp.pk)})
+
+    def test_the_list_shows_hours_polygons_and_each_package(self, _exists) -> None:
+        self._model("Oak Chair", hours="12.5", kinds=("glb_only", "whole"), polygons=12_480)
+
+        row = self._list(tab="waiting").data["results"][0]
+
+        self.assertEqual((row["hours_spent"], row["polygon_count"]), ("12.50", 12_480))
+        self.assertEqual([item["kind"] for item in row["packages"]], ["glb_only", "whole"])
+        self.assertEqual({item["price"] for item in row["packages"]}, {None})
 
     def test_batches_lists_the_tab_upload_batches(self, _exists) -> None:
         self._model("A", batch="batch-old")
         self._model("B", batch="batch-new")
-        self._model("Live", status_value=Product.Status.PUBLISHED, batch="batch-live")
+        self._model("Live", status_value=Product.Status.PUBLISHED, batch="batch-live", price="20.00")
 
         response = self.client.get(reverse("products_admin:admin-pricing-batches"), {"tab": "waiting"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["results"], ["batch-new", "batch-old"])
 
-    # -- preview: the calculator -------------------------------------------------------------
+    # -- calculate ---------------------------------------------------------------------------
 
-    def test_set_price_and_price_per_poly_level(self, _exists) -> None:
-        low = self._model("Low", polygons=5_000)
-        high = self._model("High", polygons=500_000)
-        unknown = self._model("Unknown", polygons=None)
+    def test_a_model_with_all_five_packages_gets_five_prices(self, _exists) -> None:
+        model = self._model("Chair", hours="10", kinds=PACKAGE_ORDER)  # base 10 x 20 = 200
 
-        one = self._preview([low, high], rule="set_price", price="12.00")
-        self.assertEqual([r["new_price"] for r in one.data["rows"]], ["12.00", "12.00"])
+        response = self._calculate([model])
 
-        tiers = self._preview(
-            [low, high, unknown], rule="tier_price", tier_prices={"low": "5.00", "high": "25.00"}
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        row = response.data["rows"][0]
+        self.assertEqual(
+            {item["kind"]: item["price"] for item in row["packages"]},
+            {
+                "with_light_rig": "120.00",
+                "without_light_rig": "100.00",
+                "glb_only": "50.00",
+                "environment": "60.00",
+                "whole": "200.00",
+            },
         )
-        rows = {r["id"]: r for r in tiers.data["rows"]}
-        self.assertEqual(rows[str(low.pk)]["new_price"], "5.00")
-        self.assertEqual(rows[str(high.pk)]["new_price"], "25.00")
-        self.assertIn("No price was given for unknown", rows[str(unknown.pk)]["error"])
-        self.assertEqual(tiers.data["summary"]["errors"], 1)
+        self.assertEqual([item["kind"] for item in row["packages"]], list(PACKAGE_ORDER))
+        self.assertEqual(response.data["summary"], {"models": 1, "priced": 1, "errors": 0, "currency": "USD"})
 
-    def test_percent_and_amount_off_with_the_99_ending(self, _exists) -> None:
-        model = self._model("Chair", price="10.50")
+    def test_a_model_is_priced_only_for_the_packages_it_has(self, _exists) -> None:
+        full = self._model("Full", hours="10", kinds=PACKAGE_ORDER)
+        partial = self._model("Partial", hours="5", kinds=("glb_only", "whole"))
 
-        percent = self._preview([model], rule="percent_off", percent="20")
-        self.assertEqual(percent.data["rows"][0]["new_sale_price"], "8.40")
-        self.assertEqual(percent.data["rows"][0]["amount_off"], "2.10")
-        self.assertEqual(percent.data["rows"][0]["percent_off"], "20.0")
+        rows = {row["id"]: row for row in self._calculate([full, partial]).data["rows"]}
 
-        rounded = self._preview([model], rule="percent_off", percent="20", round_99=True)
-        self.assertEqual(rounded.data["rows"][0]["new_sale_price"], "7.99")
-
-        amount = self._preview([model], rule="amount_off", amount="3")
-        self.assertEqual(amount.data["rows"][0]["new_sale_price"], "7.50")
-        self.assertEqual(amount.data["rows"][0]["buyer_pays"], "7.50")
-
-    def test_ending_99(self, _exists) -> None:
-        self.assertEqual(ending_99(Decimal("8.40")), Decimal("7.99"))
-        self.assertEqual(ending_99(Decimal("9.00")), Decimal("8.99"))
-        self.assertEqual(ending_99(Decimal("8.99")), Decimal("8.99"))
-
-    def test_row_errors(self, _exists) -> None:
-        cheap = self._model("Cheap", price="1.00")
-        on_sale = self._model(
-            "On Sale",
-            status_value=Product.Status.PUBLISHED,
-            price="20.00",
-            sale="15.00",
-            sale_ends_at=timezone.now() + timedelta(days=3),
+        self.assertEqual(len(rows[str(full.pk)]["packages"]), 5)
+        self.assertEqual(
+            {item["kind"]: item["price"] for item in rows[str(partial.pk)]["packages"]},
+            {"glb_only": "25.00", "whole": "100.00"},  # base 5 x 20 = 100
         )
-        free = self._model("Free", status_value=Product.Status.PUBLISHED, price="0.00", free=True)
-        in_qa = self._model("In QA", status_value=Product.Status.PENDING_REVIEW)
 
-        below_minimum = self._preview([cheap], rule="set_price", price="0.40").data["rows"][0]
-        self.assertIn("at least 0.50", below_minimum["error"])
-        too_deep = self._preview([cheap], rule="amount_off", amount="0.60").data["rows"][0]
-        self.assertIn("lowest allowed is 0.50", too_deep["error"])
-        over_90 = self._preview([on_sale], rule="amount_off", amount="18.50").data["rows"][0]
-        self.assertIn("at most 90%", over_90["error"])
-        under_sale = self._preview([on_sale], rule="set_price", price="14.00").data["rows"][0]
-        self.assertIn("Remove the sale first", under_sale["error"])
-        self.assertIn("Free models", self._preview([free], rule="remove_sale").data["rows"][0]["error"])
-        self.assertIn("Only models waiting", self._preview([in_qa], rule="remove_sale").data["rows"][0]["error"])
-
-    def test_request_limits(self, _exists) -> None:
+    def test_calculating_changes_nothing(self, _exists) -> None:
         model = self._model("Chair")
-        too_many = self.client.post(
-            reverse("products_admin:admin-pricing-preview"),
-            {"product_ids": [str(model.pk)] * 201, "rule": "remove_sale"},
-            format="json",
-        )
-        self.assertEqual(too_many.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            self._preview([model], rule="percent_off", percent="91").status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-        past = (timezone.now() - timedelta(hours=1)).isoformat()
-        self.assertEqual(
-            self._preview([model], rule="percent_off", percent="10", discount_ends_at=past).status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-        self.assertEqual(
-            self._preview([model], rule="set_price").status_code, status.HTTP_400_BAD_REQUEST
-        )
-        missing = self.client.post(
-            reverse("products_admin:admin-pricing-preview"),
-            {"product_ids": ["00000000-0000-0000-0000-000000000000"], "rule": "remove_sale"},
-            format="json",
-        )
-        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_an_ended_stored_sale_counts_as_no_sale(self, _exists) -> None:
-        model = self._model(
-            "Chair",
-            status_value=Product.Status.PUBLISHED,
-            sale="15.00",
-            sale_ends_at=timezone.now() - timedelta(hours=1),
-        )
+        self._calculate([model])
 
-        row = self._preview([model], rule="set_price", price="14.00").data["rows"][0]
-
-        self.assertEqual(row["error"], "")
-        self.assertIsNone(row["old_sale_price"])
-        self.assertIsNone(row["new_sale_price"])
-
-    # -- apply (Step 1) ----------------------------------------------------------------------
-
-    def test_apply_saves_prices_with_one_history_batch_and_an_audit_entry(self, _exists) -> None:
-        first = self._model("First", polygons=5_000)
-        second = self._model("Second", polygons=200_000)
-
-        response = self._preview_and_apply(
-            [first, second], rule="tier_price", tier_prices={"low": "5.00", "high": "30.00"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(response.data["changed"], 2)
-        first.refresh_from_db()
-        second.refresh_from_db()
-        self.assertEqual((first.price, second.price), (Decimal("5.00"), Decimal("30.00")))
-        self.assertEqual(first.status, Product.Status.AWAITING_PRICE)
-        changes = ProductPriceChange.objects.filter(batch_id=response.data["batch_id"])
-        self.assertEqual(changes.count(), 2)
-        self.assertTrue(all(c.source == "pricing_page" and c.changed_by == self.admin for c in changes))
-        self.assertTrue(
-            ActivityLog.objects.filter(action="pricing_apply", target_id=response.data["batch_id"]).exists()
-        )
-
-    def test_a_sale_with_an_end_date_is_saved(self, _exists) -> None:
-        model = self._model("Chair", status_value=Product.Status.PUBLISHED, price="40.00")
-        ends = (timezone.now() + timedelta(days=7)).replace(microsecond=0)
-
-        response = self._preview_and_apply(
-            [model], rule="percent_off", percent="25", discount_ends_at=ends.isoformat()
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        model.refresh_from_db()
-        self.assertEqual(model.discount_price, Decimal("30.00"))
-        self.assertEqual(model.discount_ends_at, ends)
-        self.assertEqual(model.effective_price(), Decimal("30.00"))
-
-    def test_apply_is_refused_when_prices_changed_since_the_preview(self, _exists) -> None:
-        model = self._model("Chair", price="20.00")
-        preview = self._preview([model], rule="percent_off", percent="10")
-        # Someone else changes the package's price meanwhile.
-        ProductFile.objects.filter(product=model).update(price=Decimal("25.00"))
-
-        response = self._apply([model], preview.data["preview_token"], rule="percent_off", percent="10")
-
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
-        self.assertIsNone(ProductFile.objects.get(product=model).discount_price)
-
-    def test_a_token_from_another_rule_is_refused(self, _exists) -> None:
-        model = self._model("Chair", price="20.00")
-        preview = self._preview([model], rule="percent_off", percent="10")
-
-        response = self._apply([model], preview.data["preview_token"], rule="percent_off", percent="60", confirm_count=1)
-
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
-
-    def test_apply_saves_nothing_when_any_row_has_an_error(self, _exists) -> None:
-        good = self._model("Good", price="20.00")
-        bad = self._model("Bad", price="1.00")
-
-        response = self._preview_and_apply([good, bad], rule="amount_off", amount="0.80")
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
-        good.refresh_from_db()
-        self.assertIsNone(good.discount_price)
+        self.assertEqual(self._prices(model), {"whole": None})
         self.assertFalse(ProductPriceChange.objects.exists())
 
-    def test_more_than_half_off_needs_the_typed_count(self, _exists) -> None:
-        first = self._model("First", status_value=Product.Status.PUBLISHED, price="20.00")
-        second = self._model("Second", status_value=Product.Status.PUBLISHED, price="20.00")
-        rule = {"rule": "percent_off", "percent": "60"}
-        preview = self._preview([first, second], **rule)
-        self.assertTrue(preview.data["summary"]["needs_confirmation"])
-        token = preview.data["preview_token"]
+    def test_prices_round_to_whole_dollars(self, _exists) -> None:
+        model = self._model("Chair", hours="1.5", kinds=("glb_only", "whole"))
+        body = self._body([model], rate="7")  # base 10.5; GLB 25% = 2.625
 
-        self.assertEqual(self._apply([first, second], token, **rule).status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            self._apply([first, second], token, confirm_count=1, **rule).status_code,
-            status.HTTP_400_BAD_REQUEST,
+        response = self.client.post(reverse("products_admin:admin-pricing-calculate"), body, format="json")
+
+        prices = {item["kind"]: item["price"] for item in response.data["rows"][0]["packages"]}
+        self.assertEqual(prices, {"glb_only": "3.00", "whole": "11.00"})
+
+    def test_a_model_without_hours_has_an_error_and_the_others_are_priced(self, _exists) -> None:
+        ready = self._model("Ready")
+        no_hours = self._model("No Hours", hours=None)
+
+        response = self._calculate([ready, no_hours])
+
+        rows = {row["id"]: row for row in response.data["rows"]}
+        self.assertEqual(rows[str(ready.pk)]["error"], "")
+        self.assertIn("hours", rows[str(no_hours.pk)]["error"])
+        self.assertEqual(rows[str(no_hours.pk)]["packages"], [])
+        self.assertEqual(response.data["summary"]["errors"], 1)
+
+    def test_a_package_that_rounds_below_the_minimum_is_an_error(self, _exists) -> None:
+        model = self._model("Cheap", hours="1", kinds=("glb_only", "whole"))
+
+        response = self.client.post(
+            reverse("products_admin:admin-pricing-calculate"),
+            self._body([model], rate="1"),  # base 1; GLB 25% = 0.25 -> 0
+            format="json",
         )
-        ok = self._apply([first, second], token, confirm_count=2, **rule)
-        self.assertEqual(ok.status_code, status.HTTP_200_OK, ok.data)
-        first.refresh_from_db()
-        self.assertEqual(first.discount_price, Decimal("8.00"))
 
-    def test_remove_sale_and_unchanged_rows(self, _exists) -> None:
-        on_sale = self._model(
-            "On Sale", status_value=Product.Status.PUBLISHED, sale="15.00",
-            sale_ends_at=timezone.now() + timedelta(days=1),
+        row = response.data["rows"][0]
+        self.assertIn("GLB Only", row["error"])
+        self.assertEqual(row["packages"], [])
+
+    def test_only_waiting_paid_models_are_priced(self, _exists) -> None:
+        live = self._model("Live", status_value=Product.Status.PUBLISHED, price="20.00")
+        free = self._model("Free", free=True)
+
+        rows = {row["id"]: row for row in self._calculate([live, free]).data["rows"]}
+
+        self.assertIn("waiting for a price", rows[str(live.pk)]["error"])
+        self.assertIn("Free", rows[str(free.pk)]["error"])
+
+    def test_the_rate_and_percents_are_validated(self, _exists) -> None:
+        model = self._model("Chair")
+        url = reverse("products_admin:admin-pricing-calculate")
+        bad_bodies = [
+            self._body([model], rate="0"),
+            self._body([model], rate="100001"),
+            self._body([model], percents={**PERCENTS, "whole": "0"}),
+            self._body([model], percents={**PERCENTS, "whole": "201"}),
+            self._body([model], percents={key: value for key, value in PERCENTS.items() if key != "whole"}),
+            self._body([model], percents={**PERCENTS, "bogus": "10"}),
+            {**self._body([model]), "product_ids": []},
+            {**self._body([model]), "product_ids": ["not-an-id"]},
+        ]
+        for body in bad_bodies:
+            self.assertEqual(
+                self.client.post(url, body, format="json").status_code, status.HTTP_400_BAD_REQUEST, body
+            )
+
+    def test_at_most_200_models_per_action(self, _exists) -> None:
+        models = [self._model(f"M{index}") for index in range(3)]
+        with patch("products.pricing.MAX_MODELS_PER_ACTION", 2), patch(
+            "products.pricing_serializers.MAX_MODELS_PER_ACTION", 2
+        ):
+            response = self._calculate(models)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # -- hours -------------------------------------------------------------------------------
+
+    def test_hours_can_be_set_and_cleared(self, _exists) -> None:
+        model = self._model("Chair", hours=None)
+        url = reverse("products_admin:admin-pricing-hours")
+
+        response = self.client.post(
+            url, {"items": [{"id": str(model.pk), "hours_spent": "7.5"}]}, format="json"
         )
-        no_sale = self._model("No Sale", status_value=Product.Status.PUBLISHED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data, {"models": 1, "changed": 1})
+        model.refresh_from_db()
+        self.assertEqual(model.hours_spent, Decimal("7.50"))
 
-        response = self._preview_and_apply([on_sale, no_sale], rule="remove_sale")
+        again = self.client.post(
+            url, {"items": [{"id": str(model.pk), "hours_spent": "7.5"}]}, format="json"
+        )
+        self.assertEqual(again.data["changed"], 0)
+        cleared = self.client.post(
+            url, {"items": [{"id": str(model.pk), "hours_spent": None}]}, format="json"
+        )
+        self.assertEqual(cleared.data["changed"], 1)
+        model.refresh_from_db()
+        self.assertIsNone(model.hours_spent)
+
+    def test_bad_hours_are_refused(self, _exists) -> None:
+        model = self._model("Chair")
+        url = reverse("products_admin:admin-pricing-hours")
+        for item in ({"hours_spent": "0"}, {"hours_spent": "-3"}, {"hours_spent": "abc"}):
+            response = self.client.post(url, {"items": [{"id": str(model.pk), **item}]}, format="json")
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, item)
+        duplicate = self.client.post(
+            url, {"items": [{"id": str(model.pk), "hours_spent": "1"}] * 2}, format="json"
+        )
+        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # -- publish -----------------------------------------------------------------------------
+
+    def test_publish_saves_the_prices_with_history_and_puts_the_model_on_the_store(self, _exists) -> None:
+        full = self._model("Full", hours="10", kinds=PACKAGE_ORDER)
+        partial = self._model("Partial", hours="5", kinds=("glb_only", "whole"))
+
+        response = self._publish([full, partial])
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual((response.data["changed"], response.data["unchanged"]), (1, 1))
-        on_sale.refresh_from_db()
-        self.assertIsNone(on_sale.discount_price)
-        self.assertIsNone(on_sale.discount_ends_at)
-        self.assertEqual(ProductPriceChange.objects.filter(product=no_sale).count(), 0)
+        self.assertEqual((response.data["published"], response.data["failed"]), (2, 0))
+        full.refresh_from_db()
+        partial.refresh_from_db()
+        self.assertEqual(full.status, Product.Status.PUBLISHED)
+        self.assertEqual(self._prices(full)["with_light_rig"], Decimal("120.00"))
+        self.assertEqual(self._prices(partial), {"glb_only": Decimal("25.00"), "whole": Decimal("100.00")})
+        # The model's own price is its cheapest package.
+        self.assertEqual((full.price, partial.price), (Decimal("50.00"), Decimal("25.00")))
+        changes = ProductPriceChange.objects.filter(batch_id=response.data["batch_id"])
+        self.assertEqual(changes.count(), 7)
+        self.assertTrue(all(c.source == "pricing_page" and c.changed_by == self.admin for c in changes))
+        self.assertTrue(
+            ActivityLog.objects.filter(
+                action="pricing_publish", target_id=response.data["batch_id"]
+            ).exists()
+        )
 
-    # -- publish (Step 2) --------------------------------------------------------------------
+    def test_a_model_that_cannot_be_priced_stays_waiting_and_the_others_go_live(self, _exists) -> None:
+        ready = self._model("Ready")
+        no_hours = self._model("No Hours", hours=None)
 
-    def test_publish_puts_priced_models_on_the_store_and_reports_the_rest(self, _exists) -> None:
-        priced = self._model("Priced", price="20.00")
-        unpriced = self._model("Unpriced", price="0.00")
-        live = self._model("Live", status_value=Product.Status.PUBLISHED)
+        response = self._publish([ready, no_hours])
 
-        response = self._publish([priced, unpriced, live])
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         results = {row["id"]: row for row in response.data["results"]}
-        self.assertTrue(results[str(priced.pk)]["published"])
-        self.assertIn("Set a price", results[str(unpriced.pk)]["reason"])
-        self.assertIn("not waiting", results[str(live.pk)]["reason"])
-        self.assertEqual((response.data["published"], response.data["failed"]), (1, 2))
-        priced.refresh_from_db()
-        unpriced.refresh_from_db()
-        self.assertEqual(priced.status, Product.Status.PUBLISHED)
-        self.assertEqual(unpriced.status, Product.Status.AWAITING_PRICE)
-        self.assertTrue(ActivityLog.objects.filter(action="pricing_publish").exists())
+        self.assertTrue(results[str(ready.pk)]["published"])
+        self.assertFalse(results[str(no_hours.pk)]["published"])
+        self.assertIn("hours", results[str(no_hours.pk)]["reason"])
+        no_hours.refresh_from_db()
+        self.assertEqual(no_hours.status, Product.Status.AWAITING_PRICE)
+        self.assertEqual(self._prices(no_hours), {"whole": None})
+
+    def test_publish_is_refused_when_the_calculation_is_stale(self, _exists) -> None:
+        model = self._model("Chair", hours="10")
+        token = self._calculate([model]).data["preview_token"]
+        Product.objects.filter(pk=model.pk).update(hours_spent=Decimal("11"))
+
+        response = self._publish([model], token=token)
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        model.refresh_from_db()
+        self.assertEqual(model.status, Product.Status.AWAITING_PRICE)
+        self.assertEqual(self._prices(model), {"whole": None})
+
+    def test_a_token_for_other_percents_is_refused(self, _exists) -> None:
+        model = self._model("Chair")
+        token = self._calculate([model]).data["preview_token"]
+
+        response = self._publish(
+            [model], token=token, percents={**PERCENTS, "whole": "90"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     def test_publish_needs_the_summary_confirmation(self, _exists) -> None:
-        model = self._model("Priced")
-        self.assertEqual(self._publish([model], confirm_count=2).status_code, status.HTTP_400_BAD_REQUEST)
+        model = self._model("Chair")
+
+        response = self._publish([model], confirm_count=2)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         model.refresh_from_db()
         self.assertEqual(model.status, Product.Status.AWAITING_PRICE)
 
-    def test_publish_runs_the_publish_checks(self, _exists) -> None:
+    def test_publish_replaces_a_stored_sale_with_the_new_price(self, _exists) -> None:
+        model = self._model("Chair", hours="10")
+        ProductFile.objects.filter(product=model).update(
+            price=Decimal("500.00"),
+            discount_price=Decimal("400.00"),
+            discount_ends_at=timezone.now() + timedelta(days=3),
+        )
+
+        self._publish([model])
+
+        package = model.files.get(is_preview=False)
+        self.assertEqual(
+            (package.price, package.discount_price, package.discount_ends_at),
+            (Decimal("200.00"), None, None),
+        )
+
+    def test_a_publish_check_that_fails_undoes_the_prices(self, _exists) -> None:
+        model = self._model("Chair")
+
+        with patch("products.pricing._publish_error", return_value="files: Package file missing."):
+            response = self._publish([model])
+
+        row = response.data["results"][0]
+        self.assertFalse(row["published"])
+        self.assertIn("Package file missing", row["reason"])
+        model.refresh_from_db()
+        self.assertEqual(model.status, Product.Status.AWAITING_PRICE)
+        self.assertEqual(self._prices(model), {"whole": None})
+        self.assertFalse(ProductPriceChange.objects.exists())
+
+    def test_a_model_with_no_preview_and_no_360_can_be_published(self, _exists) -> None:
         model = self._model("No Preview")
-        Product.objects.filter(pk=model.pk).update(preview_model="")
+        Product.objects.filter(pk=model.pk).update(preview_model="", spin_images=[])
 
         row = self._publish([model]).data["results"][0]
 
-        self.assertFalse(row["published"])
-        self.assertIn("preview_model", row["reason"])
+        self.assertTrue(row["published"], row)
 
-    def test_a_published_model_appears_in_the_shop(self, _exists) -> None:
-        model = self._model("Shop Chair", price="20.00")
+    def test_a_published_model_appears_in_the_shop_at_its_price(self, _exists) -> None:
+        model = self._model("Shop Chair", hours="1")  # base 20; whole 100% = 20
         self._publish([model])
         self.client.credentials()
 

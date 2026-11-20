@@ -62,14 +62,13 @@ $safe = [ordered]@{
   # Email is printed to the backend log, never sent.
   EMAIL_BACKEND                = 'django.core.mail.backends.console.EmailBackend'
   ALLOW_CONSOLE_EMAIL          = 'True'
-  BREVO_API_KEY                = ''
-  GOOGLE_OAUTH_CLIENT_ID       = ''
+  # Not blank: a blank value is deleted on Windows and the real one in backend/.env would win.
+  # (The console email backend above already stops any mail, so no Brevo key is needed.)
+  GOOGLE_OAUTH_CLIENT_ID       = 'e2e-local-disabled.apps.googleusercontent.com'
   ADMIN_MFA_REQUIRED           = 'False'
   PASSWORD_BREACH_CHECK        = 'False'
   CATALOG_IMPORT_SCAN_REQUIRED = 'False'
-  PACKAGE_SCAN_HOST            = ''
   EDGE_REQUIRE                 = 'False'
-  EDGE_SHARED_SECRET           = ''
   ALLOW_LOCALHOST_FRONTEND     = 'True'
   JWT_REFRESH_COOKIE_SECURE    = 'False'
   SECURE_SSL_REDIRECT          = 'False'

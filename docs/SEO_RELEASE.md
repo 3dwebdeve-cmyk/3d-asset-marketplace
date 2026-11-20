@@ -11,8 +11,8 @@ ordinary previous/next links. Search, filter and alternate-sort views use `noind
 Old `/3d-models?max_price=0` links redirect to `/free-3d-models` while retaining other filters.
 The free collection enters the sitemap only when it contains published models.
 
-Product pages show verified package formats, software, geometry counts, traits, licenses
-and download size. Missing specifications remain omitted. When images exist, product
+Product pages show verified package formats, software, geometry counts, PBR status, licenses
+and the viewer type. Missing specifications remain omitted. When images exist, product
 pages start with an image; selecting the 3D thumbnail loads the interactive viewer.
 
 After deployment:

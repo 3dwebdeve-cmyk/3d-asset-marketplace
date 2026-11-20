@@ -194,7 +194,7 @@ class QAStatusFlowTests(CatalogImportTestBase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("files", response.data)
-        self.assertIn("preview_model", response.data)
+        self.assertNotIn("preview_model", response.data)
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
 

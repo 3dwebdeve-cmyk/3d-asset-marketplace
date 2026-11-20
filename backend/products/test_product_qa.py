@@ -196,7 +196,8 @@ class ProductQAWorkflowAPITests(APITestCase):
         response = self.client.post(self._approve_url(product.pk), {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("files", response.data)
-        self.assertIn("preview_model", response.data)
+        # A model with no preview and no 360° is allowed: it is not a publish gate.
+        self.assertNotIn("preview_model", response.data)
 
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)

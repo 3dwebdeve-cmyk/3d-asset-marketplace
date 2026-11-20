@@ -1,12 +1,11 @@
 import { apiClient } from './client'
 import type {
   PaginatedPricingRows,
-  PricingApplyRequest,
-  PricingApplyResult,
+  PricingCalculation,
+  PricingInputBody,
   PricingListParams,
-  PricingPreview,
+  PricingPublishRequest,
   PricingPublishResult,
-  PricingRuleRequest,
   PricingTab,
 } from '../types/pricing'
 
@@ -24,26 +23,24 @@ export async function listPricingBatches(tab: PricingTab): Promise<string[]> {
   return response.data.results
 }
 
-/** The server calculates every price; nothing changes until applyPricing. */
-export async function previewPricing(body: PricingRuleRequest): Promise<PricingPreview> {
-  const response = await apiClient.post<PricingPreview>(`${BASE}/preview/`, body)
+/** The prices the selection would get. The server calculates; nothing is saved. */
+export async function calculatePricing(body: PricingInputBody): Promise<PricingCalculation> {
+  const response = await apiClient.post<PricingCalculation>(`${BASE}/calculate/`, body)
   return response.data
 }
 
-/** Step 1: save the previewed prices. 409 means something changed since the preview. */
-export async function applyPricing(body: PricingApplyRequest): Promise<PricingApplyResult> {
-  const response = await apiClient.post<PricingApplyResult>(`${BASE}/apply/`, body)
+/** Save the calculated prices and put the models on the store. 409: calculate again. */
+export async function publishPricing(body: PricingPublishRequest): Promise<PricingPublishResult> {
+  const response = await apiClient.post<PricingPublishResult>(`${BASE}/publish/`, body)
   return response.data
 }
 
-/** Step 2: put priced models from Waiting for price on the store. */
-export async function publishPricing(
-  productIds: string[],
-  confirmCount: number,
-): Promise<PricingPublishResult> {
-  const response = await apiClient.post<PricingPublishResult>(`${BASE}/publish/`, {
-    product_ids: productIds,
-    confirm_count: confirmCount,
+/** Set (or clear, with null) the hours spent of some models. */
+export async function savePricingHours(
+  items: { id: string; hours_spent: string | null }[],
+): Promise<{ models: number; changed: number }> {
+  const response = await apiClient.post<{ models: number; changed: number }>(`${BASE}/hours/`, {
+    items,
   })
   return response.data
 }

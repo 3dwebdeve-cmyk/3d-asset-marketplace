@@ -118,6 +118,9 @@ class Product(PricedMixin, models.Model):
     # Set only by the catalog import; the frames live under 360/<sku>/ in the public bucket.
     spin_images = models.JSONField(default=list, blank=True)
     polygon_count = models.PositiveIntegerField(null=True, blank=True)
+    # Hours spent on the model: sent by the uploader, editable on the Pricing page. The Pricing
+    # page prices from it (hours x rate x package percent).
+    hours_spent = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
     vertex_count = models.PositiveIntegerField(null=True, blank=True)
     material_count = models.PositiveIntegerField(null=True, blank=True)
     texture_map_types = models.JSONField(default=list, blank=True)

@@ -2,10 +2,10 @@ from django.urls import path
 
 from products.price_history_views import AdminProductPriceHistoryView
 from products.pricing_views import (
-    AdminPricingApplyView,
     AdminPricingBatchesView,
+    AdminPricingCalculateView,
+    AdminPricingHoursView,
     AdminPricingListView,
-    AdminPricingPreviewView,
     AdminPricingPublishView,
 )
 from products.views import (
@@ -49,9 +49,9 @@ admin_urlpatterns = [
     # Pricing page (docs/PRICING_PIPELINE.md, Part 2).
     path("pricing/", AdminPricingListView.as_view(), name="admin-pricing"),
     path("pricing/batches/", AdminPricingBatchesView.as_view(), name="admin-pricing-batches"),
-    path("pricing/preview/", AdminPricingPreviewView.as_view(), name="admin-pricing-preview"),
-    path("pricing/apply/", AdminPricingApplyView.as_view(), name="admin-pricing-apply"),
+    path("pricing/calculate/", AdminPricingCalculateView.as_view(), name="admin-pricing-calculate"),
     path("pricing/publish/", AdminPricingPublishView.as_view(), name="admin-pricing-publish"),
+    path("pricing/hours/", AdminPricingHoursView.as_view(), name="admin-pricing-hours"),
     path(
         "<uuid:product_id>/",
         AdminProductDetailView.as_view(),

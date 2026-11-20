@@ -263,11 +263,34 @@ class PreviewOrSpinTests(PackagesImportTestBase):
         self.assertEqual(product.preview_model, "")
         self.assertEqual(len(product.spin_images), 36)
 
-    def test_no_preview_and_no_360_is_refused(self) -> None:
+    def test_a_model_with_no_preview_and_no_360_is_created(self) -> None:
         item = _item(glb_checksum="", media={"preview_key": "", "spin_keys": []})
-        self.assertEqual(self._row(item).get("reason"), "missing_preview")
-        partial = _item(media={"preview_key": "", "spin_keys": spin_frame_keys("ELE-000001")[:35]})
-        self.assertEqual(self._row(partial).get("reason"), "missing_preview")
+        row = self._row(item)
+        self.assertEqual(row["action"], "created", row)
+        product = Product.objects.get(sku="ELE-000001")
+        self.assertFalse(product.has_preview)
+        self.assertEqual((product.preview_model, product.spin_images), ("", []))
+
+    def test_a_partial_360_is_refused(self) -> None:
+        partial = _item(
+            glb_checksum="",
+            media={"preview_key": "", "spin_keys": spin_frame_keys("ELE-000001")[:35]},
+        )
+        self.assertEqual(self._row(partial).get("reason"), "invalid_spin_keys")
+
+    def test_qa_approves_a_model_with_no_preview_and_no_360(self) -> None:
+        self._row(_item(glb_checksum="", media={"preview_key": "", "spin_keys": []}))
+        product = Product.objects.get(sku="ELE-000001")
+        Category.objects.filter(pk=product.category_id).update(is_active=True, pending_approval=False)
+
+        response = self.client.post(
+            reverse("products_admin:admin-product-approve", kwargs={"product_id": product.pk}),
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.AWAITING_PRICE)
 
     def test_a_preview_needs_its_checksum(self) -> None:
         self.assertEqual(self._row(_item(glb_checksum="")).get("reason"), "missing_glb_checksum")
@@ -431,11 +454,11 @@ class ApprovalAndPublishRuleTests(PackagesImportTestBase):
         errors = self._publish_errors(product)
         self.assertTrue(errors["price"][0].startswith("Whole File: its sale price 1.00 is not allowed"))
 
-    def test_publish_needs_every_zip_in_storage_and_a_preview_or_360(self) -> None:
+    def test_publish_needs_every_zip_in_storage_but_no_preview_or_360(self) -> None:
         self._row(_spin_only_item(kinds=("with_light_rig", "whole")))
         product = Product.objects.get(sku="ELE-000001")
         ProductFile.objects.filter(product=product).update(price=Decimal("20.00"))
-        ProductService._validate_publish_ready(product, require_sku=True)  # 360 only is enough
+        ProductService._validate_publish_ready(product, require_sku=True)  # a 360 alone is enough
 
         default_storage.delete("models/ELE-000001/ELE-000001_with_light_rig.zip")
         Product.objects.filter(pk=product.pk).update(spin_images=[])
@@ -444,7 +467,8 @@ class ApprovalAndPublishRuleTests(PackagesImportTestBase):
             errors["files"],
             ["Package file missing from storage: With Light Rig. Upload the model again."],
         )
-        self.assertIn("preview_model", errors)
+        # No preview and no 360° is allowed: only the missing zip blocks the publish.
+        self.assertNotIn("preview_model", errors)
 
 
 class AdminPackageUploadTests(PackagesImportTestBase):
