@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { useNavigate } from 'react-router-dom'
 
@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore'
 
 export function useAdminSession() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const accessToken = useAuthStore((state) => state.accessToken)
   const storedUser = useAuthStore((state) => state.user)
   const setUser = useAuthStore((state) => state.setUser)
@@ -49,9 +50,15 @@ export function useAdminSession() {
 
   const logoutMutation = useMutation({
     mutationFn: () => logoutUser(),
-    onSettled: () => {
+    onSettled: (_data, error) => {
+      // Nothing from the admin session stays in this tab, even if the server did not confirm.
+      queryClient.clear()
       clearSession({ redirectTo: ADMIN_LOGIN })
-      toast.success('Signed out')
+      if (error) {
+        toast.error('Signed out on this browser, but the server did not confirm it. Sign out again.')
+      } else {
+        toast.success('Signed out')
+      }
       navigate(ADMIN_LOGIN, { replace: true })
     },
   })
