@@ -1,16 +1,16 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
+import { Environment, OrbitControls, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
 import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
-import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, type HdriEnvironmentId } from './hdriEnvironments'
+import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
-import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
+import { useAdaptivePixelRatio } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 
 export interface ModelViewerProps {
@@ -20,134 +20,17 @@ export interface ModelViewerProps {
 }
 
 const ENTRANCE_DURATION = 1.5
-const ENTRANCE_START_SCALE = 0.6
-const LIGHT_POSITIONS: [number, number, number][] = [
-  [4, 3, 4], // Front-right
-  [5, 0, 0], // Right
-  [4, 3, -4], // Back-right
-  [0, 0, -5], // Back
-  [-4, 3, -4], // Back-left
-  [-5, 0, 0], // Left
-  [-4, 3, 4], // Front-left
-  [0, 0, 5], // Front
-  [0, 6, 0], // Overhead
-]
-const KEY_LIGHT_INTENSITY = 1.8
-const CORNER_FILL_INTENSITY = 0.2
-const BALANCED_LIGHT_INTENSITY =
-  (KEY_LIGHT_INTENSITY + CORNER_FILL_INTENSITY * (LIGHT_POSITIONS.length - 1)) / LIGHT_POSITIONS.length
-
-function SceneBackground({ showEnvironment }: { showEnvironment: boolean }) {
-  const scene = useThree((state) => state.scene)
-
-  useLayoutEffect(() => {
-    if (showEnvironment) {
-      return
-    }
-
-    // Clear any HDRI restored by Drei so the canvas gradient shows through.
-    scene.background = null
-    scene.backgroundBlurriness = 0
-  }, [scene, showEnvironment])
-
-  return null
-}
-
-function CenterFillLight() {
-  const light = useRef<THREE.DirectionalLight>(null)
-
-  useFrame(({ camera }) => {
-    if (light.current) camera.getWorldPosition(light.current.position)
-  })
-
-  return <directionalLight ref={light} intensity={0.7} />
-}
-
-function SceneLights({
-  environmentId,
-  environmentFile,
-  environmentIntensity,
-  lightMultiplier,
-  keyLightIndex,
-  showBackground,
-  backgroundBlur,
-}: {
-  environmentId: HdriEnvironmentId
-  environmentFile: string | null
-  environmentIntensity: number
-  lightMultiplier: number
-  keyLightIndex: number | null
-  showBackground: boolean
-  backgroundBlur: number
-}) {
-  const lightDirection = keyLightIndex ?? 0
-  const [lightX, , lightZ] = LIGHT_POSITIONS[lightDirection]
-  const studioEnvironmentAngle = Math.PI / 4 + (keyLightIndex === null ? 0 : Math.atan2(lightX, lightZ))
-  const naturalFallback = (
-    <>
-      <ambientLight intensity={0.18} />
-      <hemisphereLight args={['#ffffff', '#c4cad3', 0.3]} />
-    </>
-  )
-  return (
-    <>
-      {environmentId === 'studio' ? (
-        <>
-          <ambientLight intensity={0.1 * lightMultiplier} />
-          <hemisphereLight args={['#ffffff', '#ffffff', 0.2 * lightMultiplier]} />
-          {LIGHT_POSITIONS.map((_, index) => {
-            const directionalIntensity = index === 0 ? KEY_LIGHT_INTENSITY : CORNER_FILL_INTENSITY
-            const intensity = keyLightIndex === null ? BALANCED_LIGHT_INTENSITY : directionalIntensity
-            return (
-              <directionalLight
-                key={index}
-                position={LIGHT_POSITIONS[(lightDirection + index) % LIGHT_POSITIONS.length]}
-                intensity={intensity * lightMultiplier}
-              />
-            )
-          })}
-          <directionalLight position={[0, 1, 5]} intensity={0.85 * lightMultiplier} />
-          <directionalLight position={[0, 1, -5]} intensity={0.85 * lightMultiplier} />
-          <CenterFillLight />
-        </>
-      ) : !environmentFile ? naturalFallback : null}
-      {environmentId === 'natural' && keyLightIndex !== null ? (
-        <directionalLight position={LIGHT_POSITIONS[keyLightIndex]} intensity={KEY_LIGHT_INTENSITY} />
-      ) : null}
-      {environmentFile ? (
-        // Own Suspense so HDRI load does not remount/tear down PreviewModel
-        // (Canvas wraps all children in one Suspense boundary).
-        <Suspense
-          key={environmentFile}
-          fallback={environmentId === 'natural' ? naturalFallback : null}
-        >
-          {/* Blur must be passed to drei Environment — it applies background in useLayoutEffect;
-              a separate useEffect often runs before the HDRI texture exists and gets reset to 0. */}
-          <Environment
-            files={environmentFile}
-            background={showBackground}
-            environmentIntensity={environmentIntensity}
-            environmentRotation={environmentId === 'studio' ? [0, studioEnvironmentAngle, 0] : [0, 0, 0]}
-            backgroundBlurriness={showBackground ? backgroundBlur : 0}
-          />
-        </Suspense>
-      ) : null}
-    </>
-  )
-}
+const ENTRANCE_START_SCALE = 0.35
 
 function PreviewModel({
   url,
   wireframe,
-  showGround,
 }: {
   url: string
   wireframe: boolean
-  showGround: boolean
 }) {
   const { scene } = useGLTF(url)
   const modelGroup = useRef<THREE.Group>(null)
-  const [entranceComplete, setEntranceComplete] = useState(false)
   const reducedMotion = useMemo(
     () => typeof window !== 'undefined' && (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false),
     [],
@@ -157,11 +40,9 @@ function PreviewModel({
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
     entranceTime.current = Math.min(entranceTime.current + Math.min(delta, 0.05), ENTRANCE_DURATION)
     const progress = entranceTime.current / ENTRANCE_DURATION
-    const eased = 1 - (1 - progress) ** 3
+    const eased = progress * progress * (3 - 2 * progress)
     modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * eased)
-    if (progress === 1) setEntranceComplete(true)
   })
-  const shadowMapSize = useAdaptiveShadowMapSize()
   // clone(true) shares geometries/materials with the useGLTF cache — never dispose them here.
   const fitted = useMemo(() => fitPreviewScene(scene), [scene])
   const camera = useThree((state) => state.camera)
@@ -184,36 +65,8 @@ function PreviewModel({
     invalidate()
   }, [camera, controls, fitted, size.width, size.height, invalidate])
 
-  const ground = useMemo(() => {
-    const box = new THREE.Box3().setFromObject(fitted)
-    if (box.isEmpty()) {
-      return null
-    }
-    const size = box.getSize(new THREE.Vector3())
-    const maxXZ = Math.max(size.x, size.z, 0.01)
-    return {
-      y: box.min.y - 0.02,
-      // Wide spread ambient shadow pool with smooth gradient falloff
-      shadowScaleSpread: Math.max(maxXZ * 5.25, 5.5),
-      // Soft mid body shadow for natural grounding
-      shadowScaleMid: Math.max(maxXZ * 3.5, 3.75),
-      // Gentle contact core under the model base
-      shadowScaleCore: Math.max(maxXZ * 1.7, 1.9),
-    }
-  }, [fitted])
-
   useEffect(() => {
     applyWireframe(fitted, wireframe)
-
-    fitted.traverse((object) => {
-      // Avoid relying on instanceof across module boundaries.
-      if ((object as THREE.Mesh).isMesh) {
-        const mesh = object as THREE.Mesh
-        // ContactShadows samples mesh depth to inherit the model silhouette.
-        mesh.castShadow = false
-        mesh.receiveShadow = false
-      }
-    })
 
     return () => {
       applyWireframe(fitted, false)
@@ -221,51 +74,9 @@ function PreviewModel({
   }, [fitted, wireframe])
 
   return (
-    <>
-      {showGround && ground ? (
-        <>
-          {/* Diffused wide spread shadow pool — broad scale and high blur for smooth, non-sharp dissipation */}
-          <ContactShadows
-            key={`${url}-spread-${entranceComplete}`}
-            position={[0, ground.y + 0.001, 0]}
-            opacity={0.26}
-            scale={ground.shadowScaleSpread}
-            blur={5}
-            far={4.0}
-            resolution={shadowMapSize}
-            frames={1}
-            color="#1e1e24"
-          />
-          {/* Soft mid body shadow — smooth falloff adding depth without sharp contours */}
-          <ContactShadows
-            key={`${url}-mid-${entranceComplete}`}
-            position={[0, ground.y + 0.002, 0]}
-            opacity={0.28}
-            scale={ground.shadowScaleMid}
-            blur={3.5}
-            far={2.8}
-            resolution={shadowMapSize}
-            frames={1}
-            color="#141418"
-          />
-          {/* Grounding core shadow — softly anchors the model to the floor */}
-          <ContactShadows
-            key={`${url}-core-${entranceComplete}`}
-            position={[0, ground.y + 0.003, 0]}
-            opacity={0.32}
-            scale={ground.shadowScaleCore}
-            blur={1.6}
-            far={1.8}
-            resolution={shadowMapSize}
-            frames={1}
-            color="#0c0c0e"
-          />
-        </>
-      ) : null}
-      <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
-        <primitive object={fitted} />
-      </group>
-    </>
+    <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
+      <primitive object={fitted} />
+    </group>
   )
 }
 
@@ -301,8 +112,7 @@ function ModelViewerError({ message }: { message: string }) {
   )
 }
 
-const VERTICAL_BACKGROUND_GRADIENT =
-  'linear-gradient(to bottom, #A7A3A5 0%, #9A9494 50%, #8C8380 100%)'
+const ALTERNATE_BACKGROUND = '#a7a3a5'
 
 type ViewerBackgroundProps = {
   background?: string
@@ -311,11 +121,9 @@ type ViewerBackgroundProps = {
 
 function ViewerToolbar({
   controls,
-  onLighting,
   onBackgroundChange,
 }: {
   controls: { current: ComponentRef<typeof OrbitControls> | null }
-  onLighting?: () => void
   onBackgroundChange: () => void
 }) {
   const toolbar = useRef<HTMLDivElement>(null)
@@ -349,13 +157,7 @@ function ViewerToolbar({
 
   return (
     <div ref={toolbar} className="model-viewer__toolbar" role="group" aria-label="3D view actions">
-      {onLighting ? (
-        <button type="button" onClick={onLighting} title="Cycle light direction">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" /></svg>
-          Lighting
-        </button>
-      ) : null}
-      <button type="button" onClick={onBackgroundChange} aria-label="Change background gradient">
+      <button type="button" onClick={onBackgroundChange} aria-label="Change background color">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" /><path d="m6 15 4-4 8 7" /></svg>
         BG Color
       </button>
@@ -392,194 +194,114 @@ function ModelViewerCanvas({
   visible: boolean
   pixelRatio: number
 }) {
-  const [environmentId, setEnvironmentId] = useState(DEFAULT_HDRI_ENVIRONMENT_ID)
-  const [keyLightIndex, setKeyLightIndex] = useState<number | null>(null)
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
-  const [environmentStatus, setEnvironmentStatus] = useState<{
-    path: string
-    available: boolean
-    error: string | null
-  } | null>(null)
-  const selectedEnvironment = useMemo(
-    () =>
-      HDRI_ENVIRONMENTS.find((option) => option.id === environmentId) ?? HDRI_ENVIRONMENTS[0],
-    [environmentId],
+  const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
+    () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
-  // Never pair an old HDRI with the newly selected preset's settings.
-  const currentStatus = environmentStatus?.path === selectedEnvironment.hdrPath
-    ? environmentStatus
-    : null
-  const environmentFile = currentStatus?.available ? currentStatus.path : null
-  const environmentError = currentStatus?.error ?? null
-  const showEnvironmentBackground = selectedEnvironment.background && !background
+  const [lightingYaw, setLightingYaw] = useState(0)
+  const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
-  useEffect(() => {
-    const controller = new AbortController()
-    const hdrPath = selectedEnvironment.hdrPath
-    if (typeof fetch !== 'function') {
-      setEnvironmentStatus({ path: hdrPath, available: true, error: null })
-      return () => controller.abort()
-    }
+  function startLightDrag(event: PointerEvent<HTMLDivElement>) {
+    if (!event.altKey || event.button !== 0 || lightDrag.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (controls.current) controls.current.enabled = false
+    lightDrag.current = { pointerId: event.pointerId, x: event.clientX }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
 
-    fetch(hdrPath, { method: 'HEAD', signal: controller.signal })
-      .then((response) => {
-        if (controller.signal.aborted) return
-        if (response.ok) {
-          setEnvironmentStatus({ path: hdrPath, available: true, error: null })
-          return
-        }
-        setEnvironmentStatus({
-          path: hdrPath,
-          available: false,
-          error: `${selectedEnvironment.label} HDRI is unavailable. Using default preview lighting.`,
-        })
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setEnvironmentStatus({
-            path: hdrPath,
-            available: false,
-            error: `${selectedEnvironment.label} HDRI failed to load. Using default preview lighting.`,
-          })
-        }
-      })
+  function moveLightDrag(event: PointerEvent<HTMLDivElement>) {
+    const drag = lightDrag.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    event.stopPropagation()
+    const delta = (event.clientX - drag.x) / event.currentTarget.clientWidth * Math.PI * 2
+    drag.x = event.clientX
+    if (Number.isFinite(delta)) setLightingYaw((yaw) => (yaw + delta) % (Math.PI * 2))
+  }
 
-    return () => controller.abort()
-  }, [selectedEnvironment.hdrPath, selectedEnvironment.label])
+  function finishLightDrag(event: PointerEvent<HTMLDivElement>) {
+    if (lightDrag.current?.pointerId !== event.pointerId) return
+    event.stopPropagation()
+    lightDrag.current = null
+    if (controls.current) controls.current.enabled = true
+  }
 
   return (
     <div className="model-viewer" role="group" aria-label={ariaLabel}>
-      <Canvas
-        className="model-viewer__canvas"
-        style={background ? { backgroundImage: background } : undefined}
-        camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        onCreated={({ gl }) => {
-          // Commerce tone mapping compresses highlights while preserving
-          // product colors and the shading in bright fabric/materials.
-          gl.toneMapping = THREE.NeutralToneMapping
-          gl.toneMappingExposure = 0.9
-        }}
-        dpr={pixelRatio}
-        frameloop={visible ? 'always' : 'never'}
+      <div
+        className="model-viewer__surface"
+        onPointerDownCapture={startLightDrag}
+        onPointerMoveCapture={moveLightDrag}
+        onPointerUpCapture={finishLightDrag}
+        onPointerCancelCapture={finishLightDrag}
+        onLostPointerCapture={finishLightDrag}
       >
-        <SceneLights
-          environmentId={selectedEnvironment.id}
-          environmentFile={environmentFile}
-          environmentIntensity={selectedEnvironment.environmentIntensity}
-          lightMultiplier={selectedEnvironment.lightMultiplier}
-          keyLightIndex={keyLightIndex}
-          showBackground={showEnvironmentBackground}
-          backgroundBlur={selectedEnvironment.backgroundBlur}
-        />
-        <SceneBackground
-          showEnvironment={showEnvironmentBackground && Boolean(environmentFile)}
-        />
-        <Suspense fallback={null}>
-          <PreviewModel
-            key={modelUrl}
-            url={modelUrl}
-            wireframe={false}
-            showGround={selectedEnvironment.showGround}
+        <Canvas
+          className="model-viewer__canvas"
+          style={background ? { backgroundColor: background } : undefined}
+          camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
+          gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+          dpr={pixelRatio}
+          frameloop={visible ? 'always' : 'never'}
+        >
+          <ambientLight intensity={0.45} />
+          <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
+            <Suspense fallback={null}>
+              <Environment
+                files={preset.hdrPath}
+                background={false}
+                environmentIntensity={preset.intensity}
+                environmentRotation={[0, preset.yaw + lightingYaw, 0]}
+              />
+            </Suspense>
+          </ErrorBoundary>
+          <Suspense fallback={null}>
+            <PreviewModel
+              key={modelUrl}
+              url={modelUrl}
+              wireframe={false}
+            />
+          </Suspense>
+          <OrbitControls
+            ref={controls}
+            makeDefault
+            enableDamping
+            dampingFactor={0.08}
+            minDistance={0.5}
+            maxDistance={20}
+            maxPolarAngle={Math.PI * 0.92}
           />
-        </Suspense>
-        <OrbitControls
-          ref={controls}
-          makeDefault
-          enableDamping
-          dampingFactor={0.08}
-          minDistance={0.5}
-          maxDistance={20}
-          maxPolarAngle={Math.PI * 0.92}
-        />
-      </Canvas>
+        </Canvas>
+      </div>
+      <div className="model-viewer__lighting" role="group" aria-label="Lighting presets">
+        {HDRI_ENVIRONMENTS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={preset.id === option.id}
+            onClick={() => {
+              setPreset(option)
+              setLightingYaw(0)
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+        <span>Alt + drag to rotate lighting</span>
+      </div>
       <ViewerToolbar
         controls={controls}
-        onLighting={() => setKeyLightIndex((index) => ((index ?? -1) + 1) % LIGHT_POSITIONS.length)}
         onBackgroundChange={onBackgroundChange}
       />
-      <div className="model-viewer__controls" role="group" aria-label="Viewer controls">
-        <div className="model-viewer__environment" role="radiogroup" aria-label="Lighting setup">
-          {HDRI_ENVIRONMENTS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={`model-viewer__chip${environmentId === option.id ? ' model-viewer__chip--active' : ''
-                }`}
-              role="radio"
-              aria-checked={environmentId === option.id}
-              onClick={() => setEnvironmentId(option.id)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {environmentError ? (
-        <p className="model-viewer__hint" role="status" aria-live="polite">
-          {environmentError}
-        </p>
-      ) : null}
-      <ViewerProgressOverlay />
-    </div>
-  )
-}
-
-/**
- * Minimal recovery scene used when an optional HDRI or shadow effect fails.
- * Keeping this path free of environment textures and post-processing lets a
- * valid GLB remain usable on browsers that cannot render the enhanced scene.
- */
-function StableModelViewerCanvas({
-  modelUrl,
-  ariaLabel,
-  visible,
-  pixelRatio,
-  background,
-  onBackgroundChange,
-}: ViewerBackgroundProps & {
-  modelUrl: string
-  ariaLabel: string
-  visible: boolean
-  pixelRatio: number
-}) {
-  const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
-  return (
-    <div className="model-viewer" role="group" aria-label={ariaLabel}>
-      <Canvas
-        className="model-viewer__canvas"
-        style={background ? { backgroundImage: background } : undefined}
-        camera={{ position: [0, 0.9, 2.8], fov: 42, near: 0.1, far: 200 }}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
-        dpr={pixelRatio}
-        frameloop={visible ? 'always' : 'never'}
-      >
-        <ambientLight intensity={0.45} />
-        <hemisphereLight args={['#ffffff', '#c4cad3', 0.5]} />
-        <directionalLight position={[5, 8, 4]} intensity={1.1} />
-        <Suspense fallback={null}>
-          <PreviewModel key={modelUrl} url={modelUrl} wireframe={false} showGround={false} />
-        </Suspense>
-        <OrbitControls
-          ref={controls}
-          makeDefault
-          enableDamping
-          dampingFactor={0.08}
-          minDistance={0.5}
-          maxDistance={20}
-          maxPolarAngle={Math.PI * 0.92}
-        />
-      </Canvas>
-      <ViewerToolbar controls={controls} onBackgroundChange={onBackgroundChange} />
       <ViewerProgressOverlay />
     </div>
   )
 }
 
 export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps) {
-  const [useVerticalBackground, setUseVerticalBackground] = useState(false)
-  const background = useVerticalBackground ? VERTICAL_BACKGROUND_GRADIENT : undefined
-  const cycleBackground = () => setUseVerticalBackground((enabled) => !enabled)
+  const [useAlternateBackground, setUseAlternateBackground] = useState(false)
+  const background = useAlternateBackground ? ALTERNATE_BACKGROUND : undefined
+  const cycleBackground = () => setUseAlternateBackground((enabled) => !enabled)
   const trimmedUrl = modelUrl.trim()
   const safe = isSafePreviewModelUrl(trimmedUrl)
   const pixelRatio = useAdaptivePixelRatio()
@@ -610,22 +332,9 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
     >
       <ErrorBoundary
         fallback={
-          <ErrorBoundary
-            fallback={
-              <div className="model-viewer model-viewer--empty">
-                <ModelViewerError message="The preview model could not be loaded. It may be missing or unsupported." />
-              </div>
-            }
-          >
-            <StableModelViewerCanvas
-              modelUrl={trimmedUrl}
-              ariaLabel={ariaLabel}
-              visible={visible}
-              pixelRatio={pixelRatio}
-              background={background}
-              onBackgroundChange={cycleBackground}
-            />
-          </ErrorBoundary>
+          <div className="model-viewer model-viewer--empty">
+            <ModelViewerError message="The preview model could not be loaded. It may be missing or unsupported." />
+          </div>
         }
       >
         <ModelViewerCanvas

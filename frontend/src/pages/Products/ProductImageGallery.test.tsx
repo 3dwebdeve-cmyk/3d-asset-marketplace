@@ -57,17 +57,13 @@ describe('product gallery navigation', () => {
     expect(screen.queryByRole('button', { name: 'Previous preview' })).not.toBeInTheDocument()
   })
 
-  it('matches backgrounds only for image previews and removes them on return to the 3D viewer', async () => {
+  it('switches between the source image and the 3D viewer', async () => {
     render(<ProductImageGallery {...defaults} />)
-    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Show image 1 of 2' }))
     const image = within(stage()).getByAltText('Chair 3D model, image 1')
-    Object.defineProperties(image, { naturalWidth: { value: 500 }, naturalHeight: { value: 500 } })
-    fireEvent.load(image)
-    expect(stage().querySelector('.product-detail-stage__image-preview')).toBeInTheDocument()
-    expect(stage().querySelectorAll('.product-detail-stage__image-edge')).toHaveLength(0)
+    expect(image).toHaveClass('product-detail-stage__image')
     await userEvent.click(screen.getByRole('button', { name: 'Show 3D preview' }))
-    expect(stage().querySelector('.product-detail-stage__image-preview')).not.toBeInTheDocument()
+    expect(image).not.toBeInTheDocument()
     expect(screen.getByTestId('model-preview')).toBeInTheDocument()
   })
 

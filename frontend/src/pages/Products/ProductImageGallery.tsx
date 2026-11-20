@@ -3,7 +3,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
 import type { ProductImage } from '../../types/product'
-import { ProductImagePreview, type SideColours } from './ProductImagePreview'
+import { ProductImagePreview } from './ProductImagePreview'
 import { hasSpin } from '../../lib/spin'
 import { ProductSpinViewer } from './ProductSpinViewer'
 import { ZoomableImage } from './ZoomableImage'
@@ -12,7 +12,6 @@ interface GalleryImage {
   id: string
   src: string
   alt: string
-  sideColours: SideColours | null
 }
 
 type StageViewMode = 'model' | 'image' | 'spin'
@@ -51,7 +50,6 @@ function buildGalleryImages(
       id: image.id,
       src: image.image_url,
       alt: `${productName} 3D model, image ${index + 1}`,
-      sideColours: image.edge_colors ?? null,
     }))
 
   if (fromApi.length > 0) {
@@ -59,7 +57,7 @@ function buildGalleryImages(
   }
 
   if (thumbnail.trim()) {
-    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model`, sideColours: null }]
+    return [{ id: 'thumbnail', src: thumbnail, alt: `${productName} 3D model` }]
   }
 
   return []
@@ -346,7 +344,7 @@ export function ProductImageGallery({
   return (
     <div className="product-detail-gallery">
       <div
-        className="product-detail-stage"
+        className={`product-detail-stage${showImageStage && !activeFailed ? ' product-detail-stage--image' : ''}`}
         ref={stageRef}
         role="region"
         aria-label={`${productName} media gallery`}
@@ -426,7 +424,6 @@ export function ProductImageGallery({
               key={activeImage.src}
               src={activeImage.src}
               alt={activeImage.alt}
-              sideColours={activeImage.sideColours}
               onError={() => markFailed(activeImage.id)}
             />
           </button>
