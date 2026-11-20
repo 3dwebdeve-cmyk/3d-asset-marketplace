@@ -25,6 +25,9 @@ import { adminPriceLabel, isLiveUpdate, productStatusLabel } from '../../types/p
 import type { AdminProductCreatePayload, ProductStatus, ProductUploadKind } from '../../types/product'
 import { UploaderImportsPanel } from './UploaderImportsPanel'
 
+/** How often an open QA queue checks for models the uploader sent. */
+const QA_REFRESH_MS = 30_000
+
 const emptyCreateForm: AdminProductCreatePayload = {
   category_id: '',
   name: '',
@@ -51,6 +54,12 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
     setSearchParams(params)
   }
   const statusFilter = archived ? 'archived' : searchParams.get('status')?.trim() ?? ''
+  const isQaQueue = statusFilter === 'pending_review'
+  // Models arrive from the uploader program, which this page never hears about. The app-wide
+  // 60 s cache kept showing an empty QA queue after an upload, so these lists ask again on every
+  // open, filter change and return to the window, and the QA queue also checks every 30 s.
+  const freshList = { staleTime: 0, refetchOnWindowFocus: true } as const
+  const qaPolling = { refetchInterval: isQaQueue ? QA_REFRESH_MS : false } as const
   // The QA queue has a Free and a Paid section (docs/PRICING_PIPELINE.md).
   const qaKind: ProductUploadKind = searchParams.get('kind') === 'paid' ? 'paid' : 'free'
   const importBatchFilter = searchParams.get('import_batch_id')?.trim() ?? ''
@@ -86,6 +95,8 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
         page_size: pageSize,
         ordering: '-created_at',
       }),
+    ...freshList,
+    ...qaPolling,
   })
 
   const qaCountsQuery = useQuery({
@@ -97,7 +108,9 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
       ])
       return { free: free.count, paid: paid.count }
     },
-    enabled: statusFilter === 'pending_review',
+    enabled: isQaQueue,
+    ...freshList,
+    ...qaPolling,
   })
 
   const categoriesQuery = useQuery({
@@ -116,6 +129,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
       ])
       return { total: total.count, published: published.count, draft: draft.count, archived: archivedProducts.count }
     },
+    ...freshList,
   })
 
   const folderCountsQuery = useQuery({
@@ -232,7 +246,6 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
   }
 
   const categoryOptions = categoriesQuery.data?.results ?? []
-  const isQaQueue = statusFilter === 'pending_review'
   const visibleProducts = productsQuery.data?.results ?? []
   // Only rows on screen can be selected; a filter change drops hidden ones from the count.
   const visibleSelectedIds = visibleProducts
