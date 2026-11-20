@@ -21,8 +21,6 @@ export interface ModelViewerProps {
 
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
-const ORBIT_START = 1.2
-const ORBIT_END = 2.7
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
 
 function easeInOut(progress: number): number {
@@ -32,10 +30,9 @@ function easeInOut(progress: number): number {
 function applyOpeningOrbit(
   camera: THREE.Camera,
   view: { center: THREE.Vector3; offset: THREE.Vector3 },
-  time: number,
+  progress: number,
 ) {
-  const progress = THREE.MathUtils.clamp((time - ORBIT_START) / (ORBIT_END - ORBIT_START), 0, 1)
-  const angleFromFront = Math.PI * (easeInOut(progress) - 1)
+  const angleFromFront = Math.PI * (progress - 1)
   camera.position.copy(view.offset).applyAxisAngle(ORBIT_AXIS, angleFromFront).add(view.center)
   camera.lookAt(view.center)
 }
@@ -77,22 +74,18 @@ function PreviewModel({
   const invalidate = useThree((state) => state.invalidate)
 
   useFrame((_, delta) => {
-    const end = openingOrbit.cancelled || !openingView.current ? ENTRANCE_DURATION : ORBIT_END
-    const previousTime = entranceTime.current
-    if (reducedMotion || previousTime >= end || !modelGroup.current) return
+    if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
 
-    const time = Math.min(previousTime + Math.min(delta, 0.25), end)
+    const time = Math.min(entranceTime.current + Math.min(delta, 0.25), ENTRANCE_DURATION)
     entranceTime.current = time
-    if (previousTime < ENTRANCE_DURATION) {
-      const zoom = easeInOut(Math.min(time / ENTRANCE_DURATION, 1))
-      modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * zoom)
-      if (time >= ENTRANCE_DURATION) setEntranceComplete(true)
-    }
+    const progress = easeInOut(time / ENTRANCE_DURATION)
+    modelGroup.current.scale.setScalar(ENTRANCE_START_SCALE + (1 - ENTRANCE_START_SCALE) * progress)
 
     const view = openingView.current
-    if (!openingOrbit.cancelled && view && time > ORBIT_START) {
-      applyOpeningOrbit(camera, view, time)
+    if (!openingOrbit.cancelled && view) {
+      applyOpeningOrbit(camera, view, progress)
     }
+    if (time === ENTRANCE_DURATION) setEntranceComplete(true)
   })
 
   useLayoutEffect(() => {
@@ -109,8 +102,8 @@ function PreviewModel({
     orbit?.saveState?.()
     const view = { center, offset: camera.position.clone().sub(center) }
     openingView.current = view
-    if (!reducedMotion && !openingOrbit.cancelled && entranceTime.current < ORBIT_END) {
-      applyOpeningOrbit(camera, view, entranceTime.current)
+    if (!reducedMotion && !openingOrbit.cancelled && entranceTime.current < ENTRANCE_DURATION) {
+      applyOpeningOrbit(camera, view, easeInOut(entranceTime.current / ENTRANCE_DURATION))
     }
     invalidate()
   }, [camera, controls, fitted, size.width, size.height, invalidate, openingOrbit, reducedMotion])
