@@ -88,14 +88,15 @@ describe('product gallery navigation', () => {
     expect(counter()).toHaveTextContent('1 / 3')
   })
 
-  it('scrolls thumbnails when the wheel is over the gallery heading or navigation', () => {
+  it('scrolls thumbnails when the wheel is over the thumbnail rail or navigation', () => {
     const advance = animationFrames()
     render(<ProductImageGallery {...defaults} />)
     const strip = screen.getByRole('list', { name: 'Product image thumbnails' })
     Object.defineProperties(strip, {
       scrollWidth: { value: 1000 }, clientWidth: { value: 300 },
     })
-    expect(fireEvent.wheel(screen.getByRole('heading', { name: 'Gallery' }), { deltaY: 100 })).toBe(false)
+    expect(screen.queryByRole('heading', { name: 'Gallery' })).toBeNull()
+    expect(fireEvent.wheel(screen.getByRole('region', { name: 'Gallery thumbnails' }), { deltaY: 100 })).toBe(false)
     advance(500)
     expect(strip.scrollLeft).toBe(100)
     strip.scrollLeft = 200

@@ -368,7 +368,7 @@ describe('ProductDetailsPage', () => {
       expect(product.image).toEqual(expect.arrayContaining(['https://cdn.example.com/thumb.jpg']))
     })
 
-    it('adds a breadcrumb trail through the category and links the category in the page', async () => {
+    it('adds a breadcrumb trail through the category without a category label above the title', async () => {
       renderProductDetails()
       await screen.findByRole('heading', { level: 1, name: /cyberpunk drone 3d/i })
 
@@ -380,7 +380,7 @@ describe('ProductDetailsPage', () => {
         'Sci-Fi Assets',
         'Cyberpunk Drone 3D',
       ])
-      expect(screen.getByRole('link', { name: 'Sci-Fi Assets' })).toHaveAttribute('href', '/3d-models/sci-fi-assets')
+      expect(screen.queryByRole('link', { name: 'Sci-Fi Assets' })).toBeNull()
     })
 
     it('keeps placeholder demo products out of search results, and indexes real ones', async () => {

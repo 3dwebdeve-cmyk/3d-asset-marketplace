@@ -444,12 +444,6 @@ export function ProductImageGallery({
 
       {hasThumbnails ? (
         <section ref={thumbnailRailRef} className="product-detail-gallery__rail" aria-label="Gallery thumbnails">
-          <div className="product-detail-gallery__rail-header">
-            <h3 className="product-detail-gallery__rail-title">Gallery</h3>
-            <span className="product-detail-gallery__rail-counter" aria-hidden="true">
-              {stagePosition} / {totalCount}
-            </span>
-          </div>
           <div className="product-detail-gallery__rail-controls">
             <button
               type="button"
