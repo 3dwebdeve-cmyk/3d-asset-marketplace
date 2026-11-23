@@ -23,8 +23,8 @@ export interface ModelViewerProps {
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
-const SHADOW_LIGHT_INTENSITY = 0.7
-const AMBIENT_FILL_INTENSITY = 0.25
+const SHADOW_LIGHT_INTENSITY = 0.9
+const AMBIENT_FILL_INTENSITY = 0.15
 
 function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
@@ -167,26 +167,15 @@ function PreviewModel({
         <primitive object={fitted} />
       </group>
       {ground && shadowsReady ? (
-        <>
-          <mesh
-            name="Directional floor shadow"
-            position={[0, ground.y - 0.01, 0]}
-            rotation={[-Math.PI / 2, 0, 0]}
-            receiveShadow
-          >
-            <planeGeometry args={[ground.scale * 2, ground.scale * 2]} />
-            <shadowMaterial color="#171a21" opacity={0.32} transparent depthWrite={false} />
-          </mesh>
-          <ContactShadows
-            position={[0, ground.y, 0]}
-            scale={ground.scale}
-            far={ground.far}
-            blur={3.4}
-            opacity={0.46}
-            resolution={shadowResolution}
-            frames={1}
-          />
-        </>
+        <ContactShadows
+          position={[0, ground.y, 0]}
+          scale={ground.scale}
+          far={ground.far}
+          blur={3.4}
+          opacity={0.46}
+          resolution={shadowResolution}
+          frames={1}
+        />
       ) : null}
     </>
   )
