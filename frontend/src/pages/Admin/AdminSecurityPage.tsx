@@ -9,6 +9,7 @@ import { FormField } from '../../components/ui/FormField'
 import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
+import { AdminSessionsSection } from './AdminSessionsSection'
 import '../../styles/auth.css'
 
 const STATUS_KEY = ['auth', 'admin', 'mfa', 'recovery-codes']
@@ -107,6 +108,8 @@ export function AdminSecurityPage() {
             </Button>
           </form>
         ) : null}
+
+        <AdminSessionsSection />
       </section>
     </main>
   )

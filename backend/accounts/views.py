@@ -33,6 +33,7 @@ from accounts.serializers import (
     AdminMfaSetupSerializer,
     AdminMfaVerifySerializer,
     AdminRecoveryCodesSerializer,
+    AdminSessionSerializer,
     AdminStepUpSerializer,
     AdminUserCreateSerializer,
     AdminUserResponseSerializer,
@@ -62,7 +63,7 @@ from accounts.services import (
     PasswordResetService,
     ProfileService,
 )
-from accounts import login_guard, mfa, refresh_reuse, sessions, step_up
+from accounts import login_guard, mfa, refresh_reuse, session_binding, sessions, step_up
 from accounts.security_notices import (
     deliver_mfa_enrollment_code,
     notify_admin_sign_in,
@@ -305,6 +306,7 @@ class AdminLoginView(APIView):
         return _issue_auth_response(
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
+            request=request,
         )
 
 
@@ -368,6 +370,8 @@ class AdminMfaConfirmView(_AdminMfaStepView):
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
             mfa_passed=True,
+            # Records this browser and network on the session (accounts.session_binding).
+            request=request,
         )
         response.data["recovery_codes"] = recovery_codes
         return response
@@ -404,6 +408,8 @@ class AdminMfaVerifyView(_AdminMfaStepView):
             user,
             remember=bool(serializer.validated_data.get("remember_me", True)),
             mfa_passed=True,
+            # Records this browser and network on the session (accounts.session_binding).
+            request=request,
         )
 
 
@@ -493,6 +499,78 @@ class AdminStepUpView(APIView):
             {"step_up_until": until.isoformat(), "expires_in": step_up.window_seconds()},
             status=status.HTTP_200_OK,
         )
+
+
+class AdminSessionListView(APIView):
+    """The current administrator's signed-in browsers (Console -> Security)."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+
+    def get(self, request: Request) -> Response:
+        serializer = AdminSessionSerializer(
+            sessions.active_sessions(request.user),
+            many=True,
+            context={"current_session_id": step_up.session_id(request)},
+        )
+        return Response({"results": serializer.data}, status=status.HTTP_200_OK)
+
+
+def _current_session_response() -> Response:
+    return Response(
+        {
+            "detail": "This is the browser you are using. Use Sign out instead.",
+            "code": "current_session",
+        },
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+class AdminSessionDetailView(APIView):
+    """Sign out one of the current administrator's other browsers.
+
+    Asks for a fresh authenticator code, so a copied session cannot sign the real
+    administrator out of their own browsers.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator, step_up.RequiresAdminStepUp]
+
+    def delete(self, request: Request, session_id) -> Response:
+        if str(session_id) == step_up.session_id(request):
+            return _current_session_response()
+        if not sessions.end_user_session(
+            session_id, request.user, reason=sessions.REASON_SIGNED_OUT_REMOTELY
+        ):
+            raise NotFound("That browser is not signed in.")
+        log_admin_action(
+            action="admin_session_signed_out",
+            actor_id=str(request.user.pk),
+            target_id=str(session_id),
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminSessionSignOutOthersView(APIView):
+    """Sign out every browser of the current administrator except this one."""
+
+    permission_classes = [IsAuthenticated, IsAdministrator, step_up.RequiresAdminStepUp]
+
+    def post(self, request: Request) -> Response:
+        current = step_up.session_id(request)
+        if not sessions.is_active(current, request.user):
+            return Response(
+                {"detail": "Your session has ended. Please sign in again.", "code": "session_ended"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        ended = sessions.end_other_sessions(
+            request.user, keep_session_id=current, reason=sessions.REASON_SIGNED_OUT_REMOTELY
+        )
+        log_admin_action(
+            action="admin_sessions_signed_out_others",
+            actor_id=str(request.user.pk),
+            target_id=current,
+            metadata={"signed_out": ended},
+        )
+        return Response({"signed_out": ended}, status=status.HTTP_200_OK)
 
 
 class CurrentUserView(APIView):
@@ -639,6 +717,11 @@ class CookieTokenRefreshView(APIView):
             session_id = old_refresh.payload.get("sid")
             if session_id and not sessions.is_active(session_id, user):
                 return _session_ended_response(session_id)
+            if is_admin and session_id:
+                # A different browser presenting this session ends it (accounts.session_binding).
+                ended_session = session_binding.check_refresh(session_id, user, request)
+                if ended_session:
+                    return _session_ended_response(ended_session)
 
             # Recheck token validity after obtaining the account lock. Concurrent
             # requests must not both consume the same refresh token.

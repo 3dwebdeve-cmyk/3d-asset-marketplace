@@ -271,6 +271,12 @@ ADMIN_REFRESH_REUSE_GRACE_SECONDS = config(
 )
 if not 0 <= ADMIN_REFRESH_REUSE_GRACE_SECONDS <= 300:
     raise ImproperlyConfigured("ADMIN_REFRESH_REUSE_GRACE_SECONDS must be between 0 and 300.")
+# An administrator session belongs to the browser that signed in. A refresh from a different
+# browser (Edge with a cookie copied from Chrome, say) ends the session; version updates of the
+# same browser do not (accounts.session_binding).
+ADMIN_SESSION_BROWSER_LOCK = config("ADMIN_SESSION_BROWSER_LOCK", cast=bool, default=True)
+# Email the administrator when their session's network address changes (alert only).
+ADMIN_SESSION_IP_ALERTS = config("ADMIN_SESSION_IP_ALERTS", cast=bool, default=True)
 # Reject passwords found in known breaches (Have I Been Pwned range API; only the first
 # five characters of the password's SHA-1 leave the server). Fails open if unreachable.
 PASSWORD_BREACH_CHECK = config("PASSWORD_BREACH_CHECK", cast=bool, default=not _running_tests)

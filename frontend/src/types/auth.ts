@@ -74,6 +74,17 @@ export interface AdminStepUpResponse {
   expires_in: number
 }
 
+/** One browser signed in to the current administrator account (Console -> Security). */
+export interface AdminSession {
+  id: string
+  user_agent: string
+  ip_address: string | null
+  created_at: string
+  last_used_at: string
+  /** The browser making this request. */
+  current: boolean
+}
+
 export interface RefreshResponse {
   access: string
 }
