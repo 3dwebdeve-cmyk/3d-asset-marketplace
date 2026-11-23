@@ -559,16 +559,18 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                       {adminPriceLabel(product)}
                     </td>
                     <td>
+                      <div className="products-actions">
                       <Link
-                        className="auth-link products-manage"
+                        className="products-action products-action--manage"
                         to={`/console/${archived ? 'archived' : 'products'}/${product.id}`}
                       >
                         <AdminIcon name="settings" size={15} /> Manage
-                      </Link>{' '}
+                      </Link>
                       {archived ? (
                         <Button
                           type="button"
                           variant="secondary"
+                          className="products-action products-action--restore"
                           disabled={restoreMutation.isPending}
                           isLoading={restoreMutation.isPending && restoreMutation.variables === product.id}
                           onClick={() => {
@@ -584,12 +586,14 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                       {!archived ? <Button
                         type="button"
                         variant="secondary"
+                        className="products-action products-action--delete"
                         disabled={deleteMutation.isPending}
                         onClick={() => confirmDelete([product.id])}
                         aria-label={`Delete ${product.name}`}
                       >
                         <AdminIcon name="trash" size={15} /> Delete
                       </Button> : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
