@@ -438,7 +438,7 @@ function ModelViewerCanvas({
   const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
-  const studio = 'studio' in preset ? preset.studio : undefined
+  const studio = preset.id === 'small-09' ? preset.studio : undefined
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
