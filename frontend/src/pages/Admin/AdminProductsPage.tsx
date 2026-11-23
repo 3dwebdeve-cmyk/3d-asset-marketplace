@@ -8,6 +8,7 @@ import {
   bulkDeleteAdminProducts,
   createAdminProduct,
   listAdminProducts,
+  purgeAdminProduct,
   restoreAdminProduct,
 } from '../../api/productsApi'
 import { AdminIcon } from '../../components/admin/AdminIcon'
@@ -20,7 +21,13 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { getApiErrorMessage } from '../../lib/apiError'
 import { toast } from '../../lib/toast'
-import { PRODUCT_ARCHIVE_CONFIRMATION, PRODUCTS_ARCHIVE_CONFIRMATION, PRODUCT_RESTORE_CONFIRMATION } from '../../lib/productArchive'
+import {
+  PRODUCT_ARCHIVE_CONFIRMATION,
+  PRODUCT_PURGE_CONFIRMATION,
+  PRODUCT_PURGE_SUCCESS,
+  PRODUCTS_ARCHIVE_CONFIRMATION,
+  PRODUCT_RESTORE_CONFIRMATION,
+} from '../../lib/productArchive'
 import { adminPriceLabel, isLiveUpdate, productStatusLabel } from '../../types/product'
 import type { AdminProductCreatePayload, ProductStatus, ProductUploadKind } from '../../types/product'
 import { UploaderImportsPanel } from './UploaderImportsPanel'
@@ -68,6 +75,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
   const [createForm, setCreateForm] = useState<AdminProductCreatePayload>(emptyCreateForm)
   const [createError, setCreateError] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [purgeError, setPurgeError] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
 
   const productsQuery = useQuery({
@@ -185,6 +193,16 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
       await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
     },
     onError: (error) => setRestoreError(getApiErrorMessage(error, 'Could not restore product. Please try again.')),
+  })
+
+  const purgeMutation = useMutation({
+    mutationFn: (productId: string) => purgeAdminProduct(productId),
+    onSuccess: async () => {
+      setPurgeError(null)
+      toast.success(PRODUCT_PURGE_SUCCESS)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'products'] })
+    },
+    onError: (error) => setPurgeError(getApiErrorMessage(error, 'Could not delete the model. Please try again.')),
   })
 
   const confirmDelete = (ids: string[]) => {
@@ -351,6 +369,7 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
           </div>
         ) : null}
         {restoreError ? <Alert variant="error" message={restoreError} /> : null}
+        {purgeError ? <Alert variant="error" message={purgeError} /> : null}
         {!archived && showCreate ? (
           <form className="admin-create-form" onSubmit={onCreateSubmit} noValidate>
             {createError ? <Alert variant="error" message={createError} /> : null}
@@ -581,6 +600,24 @@ export function AdminProductsPage({ archived = false }: { archived?: boolean }) 
                           }}
                         >
                           Restore to Products
+                        </Button>
+                      ) : null}
+                      {archived ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="products-action products-action--delete"
+                          disabled={purgeMutation.isPending}
+                          isLoading={purgeMutation.isPending && purgeMutation.variables === product.id}
+                          aria-label={`Delete ${product.name} permanently`}
+                          onClick={() => {
+                            if (window.confirm(PRODUCT_PURGE_CONFIRMATION)) {
+                              setPurgeError(null)
+                              purgeMutation.mutate(product.id)
+                            }
+                          }}
+                        >
+                          <AdminIcon name="trash" size={15} /> Delete
                         </Button>
                       ) : null}
                       {!archived ? <Button

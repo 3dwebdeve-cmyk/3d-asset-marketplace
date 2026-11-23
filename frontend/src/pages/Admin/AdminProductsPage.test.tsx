@@ -20,6 +20,7 @@ vi.mock('../../api/productsApi', async () => {
     bulkDeleteAdminProducts: vi.fn(),
     listUploaderImports: vi.fn(),
     restoreAdminProduct: vi.fn(),
+    purgeAdminProduct: vi.fn(),
   }
 })
 
@@ -184,6 +185,39 @@ describe('AdminProductsPage', () => {
     expect(screen.getByRole('button', { name: 'Restore to Products' })).toBeEnabled()
   })
 
+  it('deletes an archived row permanently after confirmation', async () => {
+    const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
+    vi.mocked(productsApi.listAdminProducts).mockResolvedValue({ ...sampleProducts, results: [archivedProduct] })
+    vi.mocked(productsApi.purgeAdminProduct).mockImplementation(async () => {
+      vi.mocked(productsApi.listAdminProducts).mockResolvedValue({ ...sampleProducts, count: 0, results: [] })
+    })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderProductsPage('/console/archived')
+    const button = await screen.findByRole('button', { name: 'Delete Oak Chair permanently' })
+    expect(button).toHaveTextContent('Delete')
+    await userEvent.click(button)
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('cannot be undone'))
+    expect(productsApi.purgeAdminProduct).toHaveBeenCalledWith(productId)
+    await waitFor(() => expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument())
+  })
+
+  it('keeps the archived row when the permanent delete is cancelled', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete Oak Chair permanently' }))
+    expect(productsApi.purgeAdminProduct).not.toHaveBeenCalled()
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+  })
+
+  it('reports a refused permanent delete and keeps the archived row', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(productsApi.purgeAdminProduct).mockRejectedValue(new Error('Failed'))
+    renderProductsPage('/console/archived')
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete Oak Chair permanently' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not delete the model. Please try again.')
+    expect(screen.getByText('Oak Chair')).toBeInTheDocument()
+  })
+
   it('moves a deleted row into Archived and hides deletion controls there', async () => {
     const archivedProduct = { ...sampleProducts.results[0], status: 'archived' as const }
     vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -203,7 +237,10 @@ describe('AdminProductsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Archived products' })).toBeInTheDocument()
     expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Manage' })).toHaveAttribute('href', `/console/archived/${productId}`)
-    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
+    // No archive-again controls; the only delete there is the permanent one.
+    expect(screen.queryByRole('button', { name: /delete selected/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete Oak Chair' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Oak Chair permanently' })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /create product/i })).not.toBeInTheDocument()
   })
