@@ -23,6 +23,10 @@ REASON_REPLACED = "replaced"
 REASON_SIGNED_OUT_EVERYWHERE = "signed_out_everywhere"
 # An administrator refresh token came back after it was rotated (accounts.refresh_reuse).
 REASON_REFRESH_REUSED = "refresh_reused"
+# Ended from another of the same administrator's browsers (Console -> Security).
+REASON_SIGNED_OUT_REMOTELY = "signed_out_remotely"
+# A different browser tried to use an administrator session (accounts.session_binding).
+REASON_BROWSER_CHANGED = "browser_changed"
 
 
 def max_sessions() -> int:
@@ -147,3 +151,31 @@ def has_step_up(session_id, user: User) -> bool:
     return UserSession.objects.filter(
         pk=sid, user=user, revoked_at__isnull=True, step_up_until__gt=timezone.now()
     ).exists()
+
+
+def active_sessions(user: User):
+    """This account's signed-in browsers, most recently used first."""
+    return UserSession.objects.filter(user=user, revoked_at__isnull=True).order_by(
+        "-last_used_at", "-created_at"
+    )
+
+
+def end_user_session(session_id, user: User, *, reason: str) -> bool:
+    """End one of ``user``'s own sessions. False when it is not theirs or has already ended."""
+    sid = _parse(session_id)
+    if sid is None:
+        return False
+    return bool(
+        UserSession.objects.filter(pk=sid, user=user, revoked_at__isnull=True).update(
+            revoked_at=timezone.now(), revoked_reason=reason
+        )
+    )
+
+
+def end_other_sessions(user: User, *, keep_session_id, reason: str) -> int:
+    """End every session of ``user`` except ``keep_session_id``. Returns how many ended."""
+    keep = _parse(keep_session_id)
+    queryset = UserSession.objects.filter(user=user, revoked_at__isnull=True)
+    if keep is not None:
+        queryset = queryset.exclude(pk=keep)
+    return queryset.update(revoked_at=timezone.now(), revoked_reason=reason)
