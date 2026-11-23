@@ -273,6 +273,8 @@ describe('ModelViewer', () => {
     expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
+    expect(brightness).toHaveValue('3')
+    expect(screen.getByRole('slider', { name: 'Exposure' })).toHaveValue('-0.7')
     fireEvent.change(brightness, { target: { value: '50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.2)
     fireEvent.change(brightness, { target: { value: '-50' } })
@@ -292,11 +294,11 @@ describe('ModelViewer', () => {
       expect(slider).toHaveValue(value)
     }
     await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
-    expect(brightness).toHaveValue('0')
+    expect(brightness).toHaveValue('3')
     for (const [name] of extraSliders) {
-      expect(screen.getByRole('slider', { name })).toHaveValue('0')
+      expect(screen.getByRole('slider', { name })).toHaveValue(name === 'Exposure' ? '-0.7' : '0')
     }
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '0.8')
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.824)
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {

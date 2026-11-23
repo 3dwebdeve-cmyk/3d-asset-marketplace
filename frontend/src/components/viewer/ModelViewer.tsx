@@ -234,6 +234,9 @@ const VIEWER_BACKGROUNDS = [
 
 type LightAdjustments = EnvironmentAdjustments & { brightness: number }
 
+const DEFAULT_VIEWER_BRIGHTNESS = 3
+const DEFAULT_VIEWER_ENVIRONMENT = { ...DEFAULT_ENVIRONMENT_ADJUSTMENTS, exposure: -0.7 }
+
 const LIGHT_SLIDERS = [
   { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
   { key: 'contrast', label: 'Contrast', min: -50, max: 50, step: 1, unit: '%' },
@@ -437,8 +440,8 @@ function ModelViewerCanvas({
   )
   const studio = preset.id === 'small-09' ? preset.studio : undefined
   const [lightingYaw, setLightingYaw] = useState(0)
-  const [brightness, setBrightness] = useState(0)
-  const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_ENVIRONMENT_ADJUSTMENTS)
+  const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
+  const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -544,8 +547,8 @@ function ModelViewerCanvas({
           else setEnvironmentAdjustments((current) => ({ ...current, [key]: value }))
         }}
         onResetAdjustments={() => {
-          setBrightness(0)
-          setEnvironmentAdjustments(DEFAULT_ENVIRONMENT_ADJUSTMENTS)
+          setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
+          setEnvironmentAdjustments(DEFAULT_VIEWER_ENVIRONMENT)
         }}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={startManualCamera}
