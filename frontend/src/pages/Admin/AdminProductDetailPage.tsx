@@ -539,22 +539,6 @@ export function AdminProductDetailPage() {
                       autoComplete="off"
                     />
                   </FormField>
-                  <FormField
-                    id="detail-short-description"
-                    label="Short description"
-                    className="admin-product-form__full"
-                  >
-                    <Input
-                      id="detail-short-description"
-                      value={form.short_description ?? ''}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          short_description: event.target.value,
-                        }))
-                      }
-                    />
-                  </FormField>
                   <FormField id="detail-description" label="Description" className="admin-product-form__full">
                     <textarea
                       id="detail-description"
