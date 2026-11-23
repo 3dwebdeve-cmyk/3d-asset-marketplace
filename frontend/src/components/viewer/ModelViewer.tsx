@@ -259,6 +259,24 @@ function ViewerEnvironment({ files, intensity, yaw, adjustments }: {
   return <Environment map={map} background={false} environmentIntensity={intensity} environmentRotation={[0, yaw, 0]} />
 }
 
+function ViewerExposure({ exposure }: { exposure?: number }) {
+  const renderer = useThree((state) => state.gl)
+  const invalidate = useThree((state) => state.invalidate)
+
+  useLayoutEffect(() => {
+    if (!renderer || exposure === undefined) return
+    const previousExposure = renderer.toneMappingExposure
+    renderer.toneMappingExposure = exposure
+    invalidate()
+    return () => {
+      renderer.toneMappingExposure = previousExposure
+      invalidate()
+    }
+  }, [renderer, exposure, invalidate])
+
+  return null
+}
+
 type ViewerBackgroundProps = {
   background?: string
   onBackgroundChange: () => void
@@ -399,6 +417,7 @@ function ModelViewerCanvas({
   const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
+  const studio = preset.id === 'small-09' ? preset.studio : undefined
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(0)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_ENVIRONMENT_ADJUSTMENTS)
@@ -449,7 +468,8 @@ function ModelViewerCanvas({
           shadows="percentage"
           frameloop={visible ? 'always' : 'never'}
         >
-          <ambientLight intensity={AMBIENT_FILL_INTENSITY} />
+          <ViewerExposure exposure={studio?.exposure} />
+          <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
@@ -466,8 +486,8 @@ function ModelViewerCanvas({
               url={modelUrl}
               wireframe={false}
               openingOrbit={openingOrbit}
-              lightYaw={preset.yaw + lightingYaw}
-              lightIntensity={SHADOW_LIGHT_INTENSITY * (1 + brightness / 100)}
+              lightYaw={preset.yaw + lightingYaw + (studio?.keyYawOffset ?? 0)}
+              lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100)}
             />
           </Suspense>
           <OrbitControls
