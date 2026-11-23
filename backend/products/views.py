@@ -663,12 +663,12 @@ class CatalogIngestImportView(APIView):
         return Response(body, status=status.HTTP_200_OK)
 
 
-# How many of the uploader's latest imports the admin Imports panel lists.
-UPLOADER_IMPORTS_SHOWN = 5
+# The QA queue shows only the uploader's latest import.
+UPLOADER_IMPORTS_SHOWN = 1
 
 
 class AdminUploaderImportsView(APIView):
-    """GET /api/v1/admin/products/uploader-imports/: the uploader's latest imports, each with
+    """GET /api/v1/admin/products/uploader-imports/: the uploader's latest import, with
     every model that did not reach QA, its name, and the reason in words with the next step.
 
     Read from the import's audit rows; the texts come from products.import_reasons.

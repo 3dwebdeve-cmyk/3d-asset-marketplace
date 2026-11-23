@@ -372,8 +372,10 @@ describe('AdminProductsPage', () => {
     ])
     renderProductsPage('/console/products?status=pending_review')
 
-    expect(await screen.findByRole('heading', { name: 'Recent uploader imports' })).toBeInTheDocument()
-    expect(screen.getByText(/2 new, 0 updated to QA, 1 not imported/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Last uploader import' })).toBeInTheDocument()
+    const stats = screen.getAllByRole('listitem').map((item) => item.textContent)
+    expect(stats).toEqual(expect.arrayContaining(['2 new', '0 updated', '1 not imported']))
+    expect(screen.getByText('Show why')).toBeInTheDocument()
     const refused = screen.getByText('OUT-000003').closest('li')
     expect(refused).toHaveTextContent(
       'OUT-000003 (Garden Bench): No category has the code of this ID. Next step: Set the code on the right category.',
