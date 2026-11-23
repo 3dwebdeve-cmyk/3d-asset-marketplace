@@ -38,7 +38,7 @@ class AdminSearchTests(APITestCase):
         self.client.force_authenticate(self.admin)
         response = self.client.get(self.url, {"q": " CHAIR "})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Cache-Control"], "no-store")
+        self.assertIn("no-store", response["Cache-Control"])
         for key, record in (("products", self.product), ("plugins", self.plugin),
                             ("users", self.customer), ("orders", self.order)):
             self.assertEqual(response.data[key][0]["id"], str(record.id))

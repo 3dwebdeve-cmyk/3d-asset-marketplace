@@ -96,6 +96,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Near the top so it sees every answer last: sign-in and admin answers are never cached.
+    'config.no_store.NoStoreMiddleware',
     # Before everything that reads the visitor IP (admin lock, throttles, login lockout).
     'config.edge.TrustedEdgeMiddleware',
     'config.admin_lock.DjangoAdminLockMiddleware',
@@ -239,6 +241,11 @@ if DEPLOYMENT_PROFILE in {"staging", "production"} and not ADMIN_MFA_REQUIRED:
 MFA_SECRET_KEY = config("MFA_SECRET_KEY", default="").strip() or SECRET_KEY
 # Hard limit on an administrator session from the 2FA sign-in, refreshes included.
 ADMIN_SESSION_MAX_HOURS = config("ADMIN_SESSION_MAX_HOURS", default=8, cast=int)
+# An administrator session that is not used for this long ends, even inside the hard limit.
+# Browsers that "continue where you left off" bring session cookies back after a restart; this
+# is what stops a restarted computer from opening straight into the console. Never shorter
+# than the access-token lifetime plus a margin (accounts.tokens.admin_idle_seconds).
+ADMIN_IDLE_MINUTES = config("ADMIN_IDLE_MINUTES", default=60, cast=int)
 # Reject passwords found in known breaches (Have I Been Pwned range API; only the first
 # five characters of the password's SHA-1 leave the server). Fails open if unreachable.
 PASSWORD_BREACH_CHECK = config("PASSWORD_BREACH_CHECK", cast=bool, default=not _running_tests)

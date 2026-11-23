@@ -66,18 +66,19 @@ export function useAdminLoginForm(): UseAdminLoginFormResult {
       adminLoginUser({
         email: values.email,
         password: values.password,
-        remember_me: values.remember_me,
+        remember_me: false,
       }),
-    onSuccess: (data: AdminLoginResponse, variables: LoginFormValues) => {
+    onSuccess: (data: AdminLoginResponse) => {
+      // Never remembered: the console session ends with the browser session or an idle hour.
       if (isAdminMfaChallenge(data)) {
         setMfaPending({
           mfaToken: data.mfa_token,
           setupRequired: data.setup_required,
-          remember: Boolean(variables.remember_me),
+          remember: false,
         })
         return
       }
-      completeSignIn(data, Boolean(variables.remember_me))
+      completeSignIn(data, false)
     },
   })
 
