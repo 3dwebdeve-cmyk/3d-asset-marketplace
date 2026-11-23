@@ -55,7 +55,9 @@
 
 .product-detail-stage--image {
   box-sizing: border-box;
-  height: var(--product-stage-height);
+  width: fit-content;
+  max-width: 100%;
+  min-height: 0;
 }
 
 .product-detail-stage__main {
@@ -74,9 +76,8 @@
 
 .product-detail-stage__image {
   border-radius: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  max-width: 100%;
+  height: auto;
   display: block;
   background: transparent;
 }
