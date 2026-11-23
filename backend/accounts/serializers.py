@@ -131,6 +131,20 @@ class AdminRecoveryCodesSerializer(serializers.Serializer):
     code = serializers.CharField(write_only=True, max_length=16)
 
 
+class AdminStepUpSerializer(serializers.Serializer):
+    """A fresh authenticator code, or one recovery code, before a dangerous console action."""
+
+    code = serializers.CharField(write_only=True, max_length=16, required=False, allow_blank=True, default="")
+    recovery_code = serializers.CharField(
+        write_only=True, max_length=32, required=False, allow_blank=True, default=""
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        if bool(attrs.get("code")) == bool(attrs.get("recovery_code")):
+            raise serializers.ValidationError("Enter either an authenticator code or a recovery code.")
+        return attrs
+
+
 class GoogleLoginSerializer(serializers.Serializer):
     id_token = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
     remember_me = serializers.BooleanField(required=False, default=True)

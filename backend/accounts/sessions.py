@@ -21,13 +21,15 @@ from accounts.models import User, UserSession
 REASON_LOGOUT = "logout"
 REASON_REPLACED = "replaced"
 REASON_SIGNED_OUT_EVERYWHERE = "signed_out_everywhere"
+# An administrator refresh token came back after it was rotated (accounts.refresh_reuse).
+REASON_REFRESH_REUSED = "refresh_reused"
 
 
 def max_sessions() -> int:
     return max(1, int(getattr(settings, "MAX_CUSTOMER_SESSIONS", 2)))
 
 
-def _client_ip(request: HttpRequest | None) -> str | None:
+def client_ip(request: HttpRequest | None) -> str | None:
     if request is None:
         return None
     from accounts.throttles import LoginRateThrottle
@@ -57,7 +59,7 @@ def start_session(
         user=user,
         device_hash=device_hash,
         user_agent=_user_agent(request) if request is not None else "",
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     )
     stale = (
         list(
@@ -107,15 +109,41 @@ def touch(session_id) -> None:
         )
 
 
-def end_session(session_id, *, reason: str = REASON_LOGOUT) -> None:
+def end_session(session_id, *, reason: str = REASON_LOGOUT) -> bool:
+    """End one session. True only for the call that ended it (False if it had already ended)."""
     sid = _parse(session_id)
-    if sid is not None:
+    if sid is None:
+        return False
+    return bool(
         UserSession.objects.filter(pk=sid, revoked_at__isnull=True).update(
             revoked_at=timezone.now(), revoked_reason=reason
         )
+    )
 
 
 def end_all_sessions(user: User, *, reason: str = REASON_SIGNED_OUT_EVERYWHERE) -> None:
     UserSession.objects.filter(user=user, revoked_at__isnull=True).update(
         revoked_at=timezone.now(), revoked_reason=reason
     )
+
+
+def grant_step_up(session_id, user: User, *, until) -> bool:
+    """Allow dangerous administrator actions on this session until ``until``."""
+    sid = _parse(session_id)
+    if sid is None:
+        return False
+    return bool(
+        UserSession.objects.filter(pk=sid, user=user, revoked_at__isnull=True).update(
+            step_up_until=until
+        )
+    )
+
+
+def has_step_up(session_id, user: User) -> bool:
+    """True while this active session is inside a step-up window."""
+    sid = _parse(session_id)
+    if sid is None:
+        return False
+    return UserSession.objects.filter(
+        pk=sid, user=user, revoked_at__isnull=True, step_up_until__gt=timezone.now()
+    ).exists()

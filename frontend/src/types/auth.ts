@@ -62,6 +62,18 @@ export interface AdminMfaVerifyPayload {
   remember_me: boolean
 }
 
+/** A fresh authenticator code (or one recovery code) before a dangerous console action. */
+export interface AdminStepUpPayload {
+  code?: string
+  recovery_code?: string
+}
+
+export interface AdminStepUpResponse {
+  step_up_until: string
+  /** Seconds the code keeps working for other protected actions. */
+  expires_in: number
+}
+
 export interface RefreshResponse {
   access: string
 }

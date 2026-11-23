@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { AdminIcon, navIconFor } from '../components/admin/AdminIcon'
 import { AdminGlobalSearch } from '../components/admin/AdminGlobalSearch'
 import { AdminNotifications } from '../components/admin/AdminNotifications'
+import { AdminStepUpDialog } from '../components/admin/AdminStepUpDialog'
 import { Button } from '../components/ui/Button'
 import { ErrorState } from '../components/ui/ErrorState'
 import { Spinner } from '../components/ui/Spinner'
@@ -210,6 +211,8 @@ export function AdminLayout() {
           <Outlet />
         </div>
       </div>
+
+      <AdminStepUpDialog />
     </div>
   )
 }

@@ -246,6 +246,31 @@ ADMIN_SESSION_MAX_HOURS = config("ADMIN_SESSION_MAX_HOURS", default=8, cast=int)
 # is what stops a restarted computer from opening straight into the console. Never shorter
 # than the access-token lifetime plus a margin (accounts.tokens.admin_idle_seconds).
 ADMIN_IDLE_MINUTES = config("ADMIN_IDLE_MINUTES", default=60, cast=int)
+# Dangerous console actions (user role or status changes, permanent deletes, pricing publish,
+# catalog import, order status) ask for a fresh authenticator code. One code opens a short
+# window for the session that entered it (accounts.step_up). It follows ADMIN_MFA_REQUIRED, so
+# the test runner and password-only local setups keep working.
+ADMIN_STEP_UP_REQUIRED = config(
+    "ADMIN_STEP_UP_REQUIRED", cast=bool, default=ADMIN_MFA_REQUIRED
+)
+if ADMIN_STEP_UP_REQUIRED and not ADMIN_MFA_REQUIRED:
+    raise ImproperlyConfigured("ADMIN_STEP_UP_REQUIRED needs ADMIN_MFA_REQUIRED=True.")
+if DEPLOYMENT_PROFILE in {"staging", "production"} and not ADMIN_STEP_UP_REQUIRED:
+    raise ImproperlyConfigured(
+        "ADMIN_STEP_UP_REQUIRED cannot be turned off on staging or production."
+    )
+ADMIN_STEP_UP_MINUTES = config("ADMIN_STEP_UP_MINUTES", default=5, cast=int)
+if not 1 <= ADMIN_STEP_UP_MINUTES <= 30:
+    raise ImproperlyConfigured("ADMIN_STEP_UP_MINUTES must be between 1 and 30.")
+# Each refresh replaces the administrator's refresh cookie. The old one coming back means two
+# browsers hold the same cookie, which is what a copied cookie looks like. Within this many
+# seconds of the rotation it is a race between tabs and is only refused; after that the session
+# ends for every browser holding it (accounts.refresh_reuse).
+ADMIN_REFRESH_REUSE_GRACE_SECONDS = config(
+    "ADMIN_REFRESH_REUSE_GRACE_SECONDS", default=30, cast=int
+)
+if not 0 <= ADMIN_REFRESH_REUSE_GRACE_SECONDS <= 300:
+    raise ImproperlyConfigured("ADMIN_REFRESH_REUSE_GRACE_SECONDS must be between 0 and 300.")
 # Reject passwords found in known breaches (Have I Been Pwned range API; only the first
 # five characters of the password's SHA-1 leave the server). Fails open if unreachable.
 PASSWORD_BREACH_CHECK = config("PASSWORD_BREACH_CHECK", cast=bool, default=not _running_tests)
@@ -537,6 +562,7 @@ REST_FRAMEWORK = {
         "auth_password_reset_email": "3/hour",
         "auth_password_reset_confirm": "10/hour",
         "auth_change_password": "10/hour",
+        "auth_admin_step_up": "30/hour",
         "auth_email_verification_resend": "5/hour",
         "auth_email_verification_resend_email": "3/hour",
         "auth_email_verification_confirm": "10/hour",

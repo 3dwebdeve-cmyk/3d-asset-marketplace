@@ -85,6 +85,13 @@ class ChangePasswordRateThrottle(UserRateThrottle):
     scope = "auth_change_password"
 
 
+class AdminStepUpRateThrottle(UserRateThrottle):
+    """Codes entered before dangerous console actions. Wrong codes also count toward the
+    sign-in lockout (accounts.login_guard), which is what stops guessing."""
+
+    scope = "auth_admin_step_up"
+
+
 class EmailVerificationResendRateThrottle(IPRateThrottle):
     scope = "auth_email_verification_resend"
 

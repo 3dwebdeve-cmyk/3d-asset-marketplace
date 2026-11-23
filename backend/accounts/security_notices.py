@@ -82,6 +82,15 @@ def notify_admin_sign_in(request: HttpRequest, user: User, *, method: str) -> No
     enqueue_after_commit(send_admin_sign_in_alert_task, str(user.pk), _user_agent(request), method)
 
 
+def notify_admin_session_reused(user: User, *, user_agent: str, ip_address: str) -> None:
+    from accounts.tasks import send_admin_session_reused_alert_task
+    from config.celery_utils import enqueue_after_commit
+
+    enqueue_after_commit(
+        send_admin_session_reused_alert_task, str(user.pk), user_agent, ip_address
+    )
+
+
 def notify_mfa_enabled(user: User) -> None:
     from accounts.tasks import send_mfa_enabled_task
     from config.celery_utils import enqueue_after_commit
@@ -173,6 +182,27 @@ def deliver_admin_sign_in_alert(user: User, user_agent: str, method: str) -> Non
         event_type="admin_sign_in",
         subject="Administrator sign-in to 3D Asset Marketplace",
         body="\n".join(lines) + "\n",
+    )
+
+
+def deliver_admin_session_reused_alert(user: User, user_agent: str, ip_address: str) -> None:
+    _deliver(
+        user,
+        event_type="admin_session_reused",
+        subject="Your administrator session was ended for safety",
+        body=(
+            "Your 3D Asset Marketplace administrator session was just ended, because the same "
+            "sign-in was used from two browsers.\n\n"
+            f"When: {_when()}\n"
+            f"Browser that used the old sign-in: {safe_email_text(user_agent) or 'unknown'}\n"
+            f"Network address: {safe_email_text(ip_address) or 'unknown'}\n\n"
+            "Every browser using that session is now signed out. Sign in again with your "
+            "password and authenticator code to continue.\n\n"
+            "This can happen when a browser copies another browser's cookies (for example "
+            "Microsoft Edge importing data from Chrome). If that does not explain it, "
+            "someone may have copied your sign-in: change your password and tell the other "
+            "administrators.\n"
+        ),
     )
 
 

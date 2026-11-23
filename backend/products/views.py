@@ -15,6 +15,7 @@ from accounts.activity_service import ActivityLogService
 from accounts.authentication import CatalogApiKeyAuthentication
 from accounts.permissions import CatalogIngestIPAllowed, HasCatalogApiKey, IsAdministrator
 from accounts.security_log import log_admin_action
+from accounts.step_up import RequiresAdminStepUp
 from accounts.throttles import (
     AdminProductWriteRateThrottle,
     AdminUploadRateThrottle,
@@ -385,10 +386,11 @@ class AdminProductPurgeView(APIView):
     """POST /api/v1/admin/products/<id>/purge/ — delete an archived model for good.
 
     Removes the model's records and every stored file. Refused (409) for a model that is
-    not archived or is in any order, so buyers never lose a download.
+    not archived or is in any order, so buyers never lose a download. Cannot be undone, so it
+    asks for a fresh authenticator code (accounts.step_up).
     """
 
-    permission_classes = [IsAuthenticated, IsAdministrator]
+    permission_classes = [IsAuthenticated, IsAdministrator, RequiresAdminStepUp]
     throttle_classes = [AdminProductWriteRateThrottle]
     parser_classes = [JSONParser]
 
@@ -415,9 +417,10 @@ class AdminProductBulkDeleteView(APIView):
     """POST /api/admin/products/bulk-delete/ — delete selected products.
 
     All selected products are archived; product files and buyer downloads are retained.
+    A selection can be large, so it asks for a fresh authenticator code (accounts.step_up).
     """
 
-    permission_classes = [IsAuthenticated, IsAdministrator]
+    permission_classes = [IsAuthenticated, IsAdministrator, RequiresAdminStepUp]
     throttle_classes = [AdminProductWriteRateThrottle]
     parser_classes = [JSONParser]
 
@@ -565,9 +568,12 @@ class AdminProductFileDetailView(APIView):
 
 
 class AdminCatalogImportView(APIView):
-    """POST /api/admin/products/import/ — batch upsert pending_review by Model_ID/SKU."""
+    """POST /api/admin/products/import/ — batch upsert pending_review by Model_ID/SKU.
 
-    permission_classes = [IsAuthenticated, IsAdministrator]
+    Writes many models at once, so it asks for a fresh authenticator code (accounts.step_up).
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator, RequiresAdminStepUp]
     throttle_classes = [AdminProductWriteRateThrottle]
     parser_classes = [JSONParser]
 

@@ -33,6 +33,7 @@ from accounts.serializers import (
     AdminMfaSetupSerializer,
     AdminMfaVerifySerializer,
     AdminRecoveryCodesSerializer,
+    AdminStepUpSerializer,
     AdminUserCreateSerializer,
     AdminUserResponseSerializer,
     AdminUserUpdateSerializer,
@@ -61,7 +62,7 @@ from accounts.services import (
     PasswordResetService,
     ProfileService,
 )
-from accounts import login_guard, mfa, sessions
+from accounts import login_guard, mfa, refresh_reuse, sessions, step_up
 from accounts.security_notices import (
     deliver_mfa_enrollment_code,
     notify_admin_sign_in,
@@ -71,6 +72,7 @@ from accounts.security_notices import (
 from accounts.tokens import admin_session_expired
 from django.db import transaction
 from accounts.throttles import (
+    AdminStepUpRateThrottle,
     AvatarUploadRateThrottle,
     ChangePasswordRateThrottle,
     EmailVerificationConfirmRateThrottle,
@@ -440,6 +442,59 @@ class AdminRecoveryCodesView(APIView):
         return Response({"recovery_codes": mfa.replace_recovery_codes(request.user)})
 
 
+class AdminStepUpView(APIView):
+    """A fresh authenticator code before dangerous console actions (``accounts.step_up``).
+
+    A correct code, or one recovery code, opens a short window on this administrator's
+    session. Wrong codes count toward the same lockout as sign-in.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminStepUpRateThrottle]
+
+    def post(self, request: Request) -> Response:
+        serializer = AdminStepUpSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not sessions.is_active(step_up.session_id(request), request.user):
+            # Checked before the code, so a code is never spent on a session that cannot use it.
+            return Response(
+                {"detail": "Your session has ended. Please sign in again.", "code": "session_ended"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        client_ip = AdminStepUpRateThrottle().get_ident(request)
+        if login_guard.is_locked(request.user.email, client_ip):
+            return _login_locked_response()
+        try:
+            method = mfa.verify_second_factor(
+                request.user,
+                code=serializer.validated_data.get("code", ""),
+                recovery_code=serializer.validated_data.get("recovery_code", ""),
+            )
+        except mfa.MfaError as exc:
+            login_guard.record_failure(request.user.email, client_ip)
+            log_auth_failure(scope="admin_step_up", email=request.user.email)
+            return _mfa_error(str(exc))
+
+        until = step_up.grant(request)
+        if until is None:
+            # The session ended while the code was being checked.
+            return Response(
+                {"detail": "Your session has ended. Please sign in again.", "code": "session_ended"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        log_admin_action(
+            action="admin_step_up",
+            actor_id=str(request.user.pk),
+            target_id=step_up.session_id(request),
+            metadata={"method": method},
+        )
+        return Response(
+            {"step_up_until": until.isoformat(), "expires_in": step_up.window_seconds()},
+            status=status.HTTP_200_OK,
+        )
+
+
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -605,6 +660,13 @@ class CookieTokenRefreshView(APIView):
             if session_id:
                 sessions.touch(session_id)
         except TokenError as exc:
+            already_rotated = "blacklist" in str(exc).lower()
+            if already_rotated:
+                # An administrator cookie used again after its rotation is a copied cookie:
+                # end the session for every browser holding it (accounts.refresh_reuse).
+                ended_session = refresh_reuse.end_session_if_reused(raw, request)
+                if ended_session:
+                    return _session_ended_response(ended_session)
             response = Response(
                 {"detail": "Token is invalid or expired", "code": "token_not_valid"},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -613,7 +675,7 @@ class CookieTokenRefreshView(APIView):
             # races the successful rotation's Set-Cookie and signs the buyer out
             # when checkout returns from Stripe. Expired or malformed tokens
             # still clear the dead cookie.
-            if "blacklist" not in str(exc).lower():
+            if not already_rotated:
                 clear_refresh_cookie(response)
             return response
 
@@ -809,7 +871,8 @@ def _admin_user_error_response(exc: AdminUserError) -> Response:
 
 
 class AdminUserListCreateView(APIView):
-    permission_classes = [IsAuthenticated, IsAdministrator]
+    # Creating an account (it may be another administrator) asks for a fresh code.
+    permission_classes = [IsAuthenticated, IsAdministrator, step_up.RequiresAdminStepUp]
     pagination_class = AdminUserPagination
 
     def get(self, request: Request) -> Response:
@@ -868,8 +931,25 @@ class AdminUserListCreateView(APIView):
         )
 
 
+def _changes_account_access(target, validated: dict) -> bool:
+    """True when the update changes the role, active status or email verification.
+
+    Those decide what the account can do. The console form sends every field on each save, so
+    a value equal to the current one is not a change; name, phone and country edits never ask.
+    """
+    role = validated.get("role")
+    if role is not None and role != getattr(getattr(target, "role", None), "role_name", None):
+        return True
+    return any(
+        validated.get(field) is not None and validated[field] != getattr(target, field)
+        for field in ("is_active", "email_verified")
+    )
+
+
 class AdminUserDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsAdministrator]
+    # Deactivating asks for a fresh code; an update asks only when it changes access (patch()).
+    permission_classes = [IsAuthenticated, IsAdministrator, step_up.RequiresAdminStepUp]
+    step_up_methods = frozenset({"DELETE"})
 
     def get(self, request: Request, user_id) -> Response:
         try:
@@ -890,6 +970,8 @@ class AdminUserDetailView(APIView):
 
         serializer = AdminUserUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        if _changes_account_access(target, serializer.validated_data):
+            step_up.require(request)
 
         try:
             user = AdminUserService.update_user(

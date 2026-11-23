@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
+from accounts.step_up import RequiresAdminStepUp
 from accounts.throttles import AdminOrderWriteRateThrottle, LicenseVerifyRateThrottle
 from config.api_helpers import domain_error_response, parse_choice, parse_uuid
 from downloads.services import DownloadService
@@ -131,7 +132,8 @@ class AdminOrderListCreateView(APIView):
 
 
 class AdminOrderDetailView(APIView):
-    permission_classes = [IsAuthenticated, IsAdministrator]
+    # Changing an order's status asks for a fresh authenticator code (accounts.step_up).
+    permission_classes = [IsAuthenticated, IsAdministrator, RequiresAdminStepUp]
     throttle_classes = [AdminOrderWriteRateThrottle]
 
     def get(self, request: Request, order_id: UUID) -> Response:

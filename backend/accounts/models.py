@@ -245,6 +245,10 @@ class UserSession(models.Model):
     last_used_at = models.DateTimeField(auto_now_add=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
     revoked_reason = models.CharField(max_length=32, blank=True)
+    # Administrator sessions only: a fresh authenticator code allows dangerous console
+    # actions until this moment (accounts.step_up). Kept here, not on the JWT, so a copied
+    # access token never carries it and ending the session ends it too.
+    step_up_until = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "user_sessions"
