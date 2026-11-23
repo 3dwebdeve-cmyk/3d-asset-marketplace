@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import worker, { SECURITY_HEADERS, type WorkerEnv } from './index'
+import worker, { CONSOLE_CACHE_CONTROL, SECURITY_HEADERS, type WorkerEnv } from './index'
 
 const BACKEND_ORIGIN = 'https://threed-asset-marketplace.onrender.com'
 
@@ -29,6 +29,39 @@ describe('Cloudflare API proxy', () => {
 
     expect(await response.text()).toBe('spa')
     expect(env.ASSETS.fetch).toHaveBeenCalledWith(request)
+  })
+
+  it('never lets a browser keep an administrator console page', async () => {
+    for (const path of ['/console', '/console/', '/console/login', '/Console/products?page=2']) {
+      const response = await worker.fetch(
+        new Request(`https://marketplace.example${path}`),
+        createEnv(new Response('spa', { headers: { 'Content-Type': 'text/html', ETag: '"v1"' } })),
+      )
+      expect(response.headers.get('Cache-Control'), path).toBe(CONSOLE_CACHE_CONTROL)
+      expect(response.headers.get('Pragma'), path).toBe('no-cache')
+      expect(response.headers.get('ETag'), path).toBeNull()
+      expect(response.headers.get('Content-Security-Policy'), path).toContain("default-src 'self'")
+    }
+  })
+
+  it('leaves shop pages that only look like the console alone', async () => {
+    for (const path of ['/', '/consoles', '/products/console-table']) {
+      const response = await worker.fetch(
+        new Request(`https://marketplace.example${path}`),
+        createEnv(new Response('spa', { headers: { 'Content-Type': 'text/html' } })),
+      )
+      expect(response.headers.get('Cache-Control'), path).not.toBe(CONSOLE_CACHE_CONTROL)
+    }
+  })
+
+  it('marks the console no-store in _headers and nginx.conf as well', () => {
+    const headersFile = readFileSync('public/_headers', 'utf-8')
+    for (const pattern of ['/console', '/console/*']) {
+      expect(headersFile).toContain(`\n${pattern}\n  Cache-Control: ${CONSOLE_CACHE_CONTROL}\n`.replace(/\n/g, headersFile.includes('\r\n') ? '\r\n' : '\n'))
+    }
+    const nginx = readFileSync('nginx.conf', 'utf-8')
+    expect(nginx).toContain(`"${CONSOLE_CACHE_CONTROL}";`)
+    expect(nginx).toMatch(/^ {4}add_header Cache-Control \$console_cache_control always;$/m)
   })
 
   it('adds the security headers to static responses', async () => {

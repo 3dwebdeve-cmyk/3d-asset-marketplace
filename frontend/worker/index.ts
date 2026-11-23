@@ -27,6 +27,7 @@ import { isKnownAppPath } from './routes'
 import { applyCatalogSeo, catalogApiUrl, modelSummaries } from './catalogSeo'
 import { hasCatalogFilters, readCatalogPage } from '../src/lib/modelCatalogSeo'
 import { ALL_MODELS_SEO } from '../src/lib/categorySeo'
+import { isAdminSpaPath } from '../src/config/adminPaths'
 
 interface AssetsBinding {
   fetch(request: Request): Promise<Response>
@@ -63,6 +64,24 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
   'Content-Security-Policy':
     "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' blob: https://accounts.google.com https://*.googleapis.com https://*.sentry.io https://*.ingest.sentry.io https://pub-a20fb6d206fc47a1b1e5e247e82838e0.r2.dev https://0d3f756f61c3239ec77f9941c82c20c3.r2.cloudflarestorage.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/v1/security/csp-report/",
+}
+
+// The administrator console is never kept by a browser or the edge, so Back after sign-out or
+// a restored browser cannot show it again. React Router matches /Console too, hence lower case.
+export const CONSOLE_CACHE_CONTROL = 'no-store, no-cache, must-revalidate, private'
+
+function isConsolePage(pathname: string): boolean {
+  return isAdminSpaPath(pathname.toLowerCase().replace(/\/+$/, '') || '/')
+}
+
+function withNoStore(response: Response): Response {
+  const headers = new Headers(response.headers)
+  headers.set('Cache-Control', CONSOLE_CACHE_CONTROL)
+  headers.set('Pragma', 'no-cache')
+  headers.set('Expires', '0')
+  headers.delete('ETag')
+  headers.delete('Last-Modified')
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 
 function withSecurityHeaders(response: Response): Response {
@@ -387,7 +406,8 @@ export async function handleRequest(
     return withSecurityHeaders(await robotsTxt(request, env, incomingUrl))
   }
   if (!isApiPath(incomingUrl.pathname) && incomingUrl.pathname !== SITEMAP_PATH) {
-    return handleSitePath(request, env, incomingUrl)
+    const page = await handleSitePath(request, env, incomingUrl)
+    return isConsolePage(incomingUrl.pathname) ? withNoStore(page) : page
   }
 
   let origin: URL

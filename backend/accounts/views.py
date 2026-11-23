@@ -68,7 +68,7 @@ from accounts.security_notices import (
     notify_mfa_enabled,
     register_sign_in,
 )
-from accounts.tokens import admin_session_expired, admin_session_max_seconds
+from accounts.tokens import admin_session_expired
 from django.db import transaction
 from accounts.throttles import (
     AvatarUploadRateThrottle,
@@ -117,12 +117,9 @@ def _issue_auth_response(
         },
         status=status.HTTP_200_OK,
     )
-    set_refresh_cookie(
-        response,
-        tokens["refresh"],
-        remember=remember,
-        max_age_seconds=admin_session_max_seconds() if is_admin else None,
-    )
+    # An administrator session is never remembered: the cookie ends with the browser session,
+    # whatever the sign-in form sent (see also the idle limit in accounts.tokens).
+    set_refresh_cookie(response, tokens["refresh"], remember=remember and not is_admin)
     return response
 
 
@@ -621,12 +618,8 @@ class CookieTokenRefreshView(APIView):
             return response
 
         response = Response({"access": tokens["access"]}, status=status.HTTP_200_OK)
-        set_refresh_cookie(
-            response,
-            tokens["refresh"],
-            remember=remember,
-            max_age_seconds=admin_session_max_seconds() if is_admin else None,
-        )
+        # Never remembered for an administrator, even if an older sign-in left the remember cookie.
+        set_refresh_cookie(response, tokens["refresh"], remember=remember and not is_admin)
         return response
 
 
