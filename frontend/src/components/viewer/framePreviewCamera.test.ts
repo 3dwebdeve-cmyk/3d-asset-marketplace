@@ -62,7 +62,7 @@ describe('initial preview camera framing', () => {
     expect(camera.position.length()).toBeGreaterThan(desktopDistance)
   })
 
-  it.each([2, 0.6])('limits manual zoom to 90%% of the viewport at aspect %s', (aspect) => {
+  it.each([2, 0.6])('allows close-ups while keeping the camera outside the model at aspect %s', (aspect) => {
     const bounds = new Box3(new Vector3(-0.9, -0.35, -0.4), new Vector3(0.9, 0.35, 0.4))
     const camera = new PerspectiveCamera(42, aspect, 0.02, 200)
     const center = bounds.getCenter(new Vector3())
@@ -83,7 +83,7 @@ describe('initial preview camera framing', () => {
           }
         }
       }
-      expect(fill).toBeCloseTo(0.9)
+      expect(fill).toBeGreaterThan(1)
     }
   })
 
