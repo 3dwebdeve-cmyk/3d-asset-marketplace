@@ -2,7 +2,7 @@ import { Box3, BoxGeometry, Mesh, MeshBasicMaterial, Object3D, PerspectiveCamera
 import { describe, expect, it } from 'vitest'
 
 import { fitPreviewScene } from './fitPreviewScene'
-import { framePreviewCamera } from './framePreviewCamera'
+import { clampPreviewZoom, framePreviewCamera } from './framePreviewCamera'
 
 describe('initial preview camera framing', () => {
   it('opens models 45 degrees to the left of the front and slightly above', () => {
@@ -60,6 +60,31 @@ describe('initial preview camera framing', () => {
     const desktopDistance = camera.position.length()
     framePreviewCamera(camera, model, 0.6)
     expect(camera.position.length()).toBeGreaterThan(desktopDistance)
+  })
+
+  it.each([2, 0.6])('limits manual zoom to 90%% of the viewport at aspect %s', (aspect) => {
+    const bounds = new Box3(new Vector3(-0.9, -0.35, -0.4), new Vector3(0.9, 0.35, 0.4))
+    const camera = new PerspectiveCamera(42, aspect, 0.02, 200)
+    const center = bounds.getCenter(new Vector3())
+
+    for (const direction of [new Vector3(1, 0.4, 1), new Vector3(-1, 0.3, 0), new Vector3(0, 1, -0.2)]) {
+      camera.position.copy(direction.normalize()).multiplyScalar(0.01)
+      camera.lookAt(center)
+      clampPreviewZoom(camera, bounds, center)
+      expect(bounds.containsPoint(camera.position)).toBe(false)
+
+      let fill = 0
+      for (const x of [bounds.min.x, bounds.max.x]) {
+        for (const y of [bounds.min.y, bounds.max.y]) {
+          for (const z of [bounds.min.z, bounds.max.z]) {
+            const point = new Vector3(x, y, z).project(camera)
+            fill = Math.max(fill, Math.abs(point.x), Math.abs(point.y))
+            expect(point.z).toBeGreaterThan(-1)
+          }
+        }
+      }
+      expect(fill).toBeCloseTo(0.9)
+    }
   })
 
   it('leaves the camera alone for empty models and zero-size viewports', () => {
