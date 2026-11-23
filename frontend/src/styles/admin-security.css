@@ -1,0 +1,53 @@
+/* Console -> Security: signed-in browsers */
+.security-sessions {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.security-sessions__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.security-sessions__header h2 {
+  margin: 0 0 0.35rem;
+}
+
+.security-sessions__header .home-page__subtitle {
+  margin: 0;
+}
+
+/* Phones: the table scrolls inside its frame instead of widening the page. */
+.security-sessions .admin-table-wrap {
+  overflow-x: auto;
+}
+
+.security-sessions .admin-table td {
+  white-space: nowrap;
+}
+
+.security-sessions__browser {
+  margin-right: 0.5rem;
+}
+
+.security-sessions__current {
+  display: inline-flex;
+  padding: 3px 10px;
+  border-radius: 18px;
+  background: #123b2c;
+  color: #55e7a4;
+  font-size: 12px;
+}
+
+.security-sessions__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

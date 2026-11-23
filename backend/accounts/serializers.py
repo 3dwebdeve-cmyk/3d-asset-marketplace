@@ -131,6 +131,20 @@ class AdminRecoveryCodesSerializer(serializers.Serializer):
     code = serializers.CharField(write_only=True, max_length=16)
 
 
+class AdminSessionSerializer(serializers.Serializer):
+    """One signed-in browser of the current administrator (Console -> Security)."""
+
+    id = serializers.UUIDField(read_only=True)
+    user_agent = serializers.CharField(read_only=True)
+    ip_address = serializers.CharField(read_only=True, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    last_used_at = serializers.DateTimeField(read_only=True)
+    current = serializers.SerializerMethodField()
+
+    def get_current(self, session) -> bool:
+        return str(session.pk) == self.context.get("current_session_id")
+
+
 class AdminStepUpSerializer(serializers.Serializer):
     """A fresh authenticator code, or one recovery code, before a dangerous console action."""
 

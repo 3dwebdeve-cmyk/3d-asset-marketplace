@@ -91,6 +91,36 @@ def notify_admin_session_reused(user: User, *, user_agent: str, ip_address: str)
     )
 
 
+def notify_admin_session_browser_changed(
+    user: User, *, signed_in_browser: str, new_browser: str, ip_address: str
+) -> None:
+    from accounts.tasks import send_admin_session_browser_changed_alert_task
+    from config.celery_utils import enqueue_after_commit
+
+    enqueue_after_commit(
+        send_admin_session_browser_changed_alert_task,
+        str(user.pk),
+        signed_in_browser,
+        new_browser,
+        ip_address,
+    )
+
+
+def notify_admin_session_ip_changed(
+    user: User, *, previous_ip_address: str, ip_address: str, user_agent: str
+) -> None:
+    from accounts.tasks import send_admin_session_ip_changed_alert_task
+    from config.celery_utils import enqueue_after_commit
+
+    enqueue_after_commit(
+        send_admin_session_ip_changed_alert_task,
+        str(user.pk),
+        previous_ip_address,
+        ip_address,
+        user_agent,
+    )
+
+
 def notify_mfa_enabled(user: User) -> None:
     from accounts.tasks import send_mfa_enabled_task
     from config.celery_utils import enqueue_after_commit
@@ -202,6 +232,51 @@ def deliver_admin_session_reused_alert(user: User, user_agent: str, ip_address: 
             "Microsoft Edge importing data from Chrome). If that does not explain it, "
             "someone may have copied your sign-in: change your password and tell the other "
             "administrators.\n"
+        ),
+    )
+
+
+def deliver_admin_session_browser_changed_alert(
+    user: User, signed_in_browser: str, new_browser: str, ip_address: str
+) -> None:
+    _deliver(
+        user,
+        event_type="admin_session_browser_changed",
+        subject="Your administrator session was ended: a different browser used it",
+        body=(
+            "Your 3D Asset Marketplace administrator session was just ended, because a "
+            "different browser tried to use it.\n\n"
+            f"When: {_when()}\n"
+            f"Signed in with: {safe_email_text(signed_in_browser) or 'unknown'}\n"
+            f"Tried to use it: {safe_email_text(new_browser) or 'unknown'}\n"
+            f"Network address: {safe_email_text(ip_address) or 'unknown'}\n\n"
+            "Every browser using that session is now signed out. Sign in again with your "
+            "password and authenticator code to continue.\n\n"
+            "This can happen when one browser copies another browser's cookies (for example "
+            "Microsoft Edge importing data from Chrome). If that does not explain it, "
+            "someone may have copied your sign-in: change your password and tell the other "
+            "administrators.\n"
+        ),
+    )
+
+
+def deliver_admin_session_ip_changed_alert(
+    user: User, previous_ip_address: str, ip_address: str, user_agent: str
+) -> None:
+    _deliver(
+        user,
+        event_type="admin_session_ip_changed",
+        subject="Your administrator session is now used from a different network",
+        body=(
+            "Your 3D Asset Marketplace administrator session is now being used from a "
+            "different network address.\n\n"
+            f"When: {_when()}\n"
+            f"Before: {safe_email_text(previous_ip_address) or 'unknown'}\n"
+            f"Now: {safe_email_text(ip_address) or 'unknown'}\n"
+            f"Browser: {safe_email_text(user_agent) or 'unknown'}\n\n"
+            "If you changed network (another Wi-Fi, a VPN, a phone hotspot), no action is "
+            "needed. If not, open Console > Security, sign out the browsers you do not "
+            "recognise, and change your password.\n"
         ),
     )
 

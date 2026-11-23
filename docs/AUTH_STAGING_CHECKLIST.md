@@ -43,6 +43,16 @@ Staging and production refuse to start with `ADMIN_MFA_REQUIRED=False`.
   replaced, that session ends on every browser holding it and the administrator gets an email
   ("Your administrator session was ended for safety"). Sign in again. A browser that imports
   another browser's cookies (Edge importing from Chrome) causes this too.
+- **Signed-in browsers:** Console -> Security lists every browser signed in to your
+  administrator account (browser, network address, when it signed in and was last used).
+  Sign out one, or all except this one; both ask for an authenticator code.
+- **Session tied to its browser (`ADMIN_SESSION_BROWSER_LOCK`, default on):** if a different
+  browser presents the session (Edge with a cookie copied from Chrome), the session ends
+  everywhere and you get an email. Only the browser family is compared, so browser updates and
+  Chrome DevTools' Android emulation are fine. DevTools' **iPhone** emulation reports Safari
+  and signs you out; use a private window for that.
+- **New network alert (`ADMIN_SESSION_IP_ALERTS`, default on):** when a session's network
+  address changes, you get one email per change. The session keeps working.
 - **Keys:** authenticator secrets are derived from `MFA_SECRET_KEY` and never stored. Set a
   dedicated `MFA_SECRET_KEY` (at least 32 random bytes) so rotating `SECRET_KEY` does not
   reset every administrator. Changing `MFA_SECRET_KEY` itself resets everyone's

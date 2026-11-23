@@ -4,6 +4,7 @@ import type {
   AdminMfaConfirmResponse,
   AdminMfaSetupResponse,
   AdminMfaVerifyPayload,
+  AdminSession,
   AdminStepUpPayload,
   AdminStepUpResponse,
   AdminUser,
@@ -214,6 +215,25 @@ export async function getAdminRecoveryCodesStatus(): Promise<AdminRecoveryCodesS
     '/api/v1/auth/admin/mfa/recovery-codes/',
   )
   return response.data
+}
+
+export async function getAdminSessions(): Promise<AdminSession[]> {
+  const response = await apiClient.get<{ results: AdminSession[] }>('/api/v1/auth/admin/sessions/')
+  return response.data.results
+}
+
+/** Signs out another browser of this administrator. Asks for an authenticator code first. */
+export async function endAdminSession(sessionId: string): Promise<void> {
+  await apiClient.delete(`/api/v1/auth/admin/sessions/${sessionId}/`)
+}
+
+/** Signs out every other browser of this administrator. Returns how many were signed out. */
+export async function signOutOtherAdminSessions(): Promise<number> {
+  const response = await apiClient.post<{ signed_out: number }>(
+    '/api/v1/auth/admin/sessions/sign-out-others/',
+    {},
+  )
+  return response.data.signed_out
 }
 
 /** Opens a short window for dangerous console actions on this session (403 `step_up_required`). */
