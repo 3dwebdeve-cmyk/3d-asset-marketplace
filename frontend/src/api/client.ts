@@ -6,11 +6,13 @@ import axios, {
 
 import {
   SESSION_REPLACED_MESSAGE,
+  getApiErrorCode,
   isHttpUnauthorized,
   isSessionReplaced,
 } from '../lib/apiError'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
+import { requestStepUp } from '../store/stepUpStore'
 import type { RefreshResponse } from '../types/auth'
 
 const SESSION_EXPIRED_TOAST_ID = 'session-expired'
@@ -23,6 +25,13 @@ const API_PREFIX = '/api/v1'
 
 interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean
+  /** Already repeated once after the administrator entered an authenticator code. */
+  _stepUpRetry?: boolean
+}
+
+/** The server wants a fresh authenticator code before this dangerous console action. */
+function isStepUpRequired(error: AxiosError): boolean {
+  return error.response?.status === 403 && getApiErrorCode(error) === 'step_up_required'
 }
 
 async function requestFreshAccessToken(): Promise<string> {
@@ -93,6 +102,18 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined
+
+    if (originalRequest && !originalRequest._stepUpRetry && isStepUpRequired(error)) {
+      originalRequest._stepUpRetry = true
+      try {
+        await requestStepUp()
+      } catch {
+        // Cancelled: the caller gets the server's own message ("Enter a code ...").
+        return Promise.reject(error)
+      }
+      return apiClient(originalRequest)
+    }
+
     const { updateAccessToken, clearSession, isAuthenticated, accessToken } =
       useAuthStore.getState()
 

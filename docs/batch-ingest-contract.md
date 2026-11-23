@@ -8,6 +8,12 @@ Contract between the 3D production pipeline and the catalog importer
 | 3ds Max plugin + Windows uploader exe | `POST /api/v1/catalog-ingest/import/` | `Authorization: Api-Key <key>` |
 | Administrator (console, scripts) | `POST /api/v1/admin/products/import/` | Administrator JWT with MFA |
 
+The administrator route also asks for a fresh authenticator code (step-up). Without one in
+the last `ADMIN_STEP_UP_MINUTES` (default 5) it answers `403` with `"code": "step_up_required"`.
+A script first sends `POST /api/v1/auth/admin/step-up/` with `{"code": "<6-digit code>"}` and
+the same administrator JWT, then repeats the import. The uploader exe's API-key route is not
+affected.
+
 Fixtures live in `docs/fixtures/batch-ingest/` (`happy`, `mismatch`, `gate-failures`).
 
 ## 3ds Max pipeline
