@@ -1,7 +1,41 @@
-/* Admin product edit form (/console/products/:id): grouped sections in a 3 / 2 / 1 column grid. */
+/* Admin product edit form (/console/products/:id): product details across the top,
+   Pricing and Settings side by side, the form buttons centred under them. */
 
 .admin-layout .admin-product-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.25rem;
+}
+
+.admin-layout .admin-product-form > :not(.admin-product-form__section),
+.admin-layout .admin-product-form > [aria-labelledby='admin-product-details-title'] {
+  grid-column: 1 / -1;
+}
+
+/* Product details: each input is as wide as its text, not stretched across a column. */
+.admin-layout [aria-labelledby='admin-product-details-title'] > .admin-product-form__grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.admin-layout [aria-labelledby='admin-product-details-title'] > .admin-product-form__grid > .form-field {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.admin-layout [aria-labelledby='admin-product-details-title'] > .admin-product-form__grid > .admin-product-form__full {
+  flex-basis: 100%;
+}
+
+.admin-layout [aria-labelledby='admin-product-details-title'] :is(input.ui-input, select.ui-input) {
+  width: auto;
+  min-width: 12rem;
+  max-width: 100%;
+  field-sizing: content;
+}
+
+/* Pricing and Settings are half width, so their fields wrap to fit. */
+.admin-layout .admin-product-form > .admin-product-form__section:not([aria-labelledby='admin-product-details-title']) > .admin-product-form__grid {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
 }
 
 .admin-layout .admin-product-form__section {
@@ -103,11 +137,10 @@
   cursor: pointer;
 }
 
-/* Actions stay together at the bottom of the form. */
+/* Actions sit right under Pricing and Settings, centred between them. */
 .admin-layout .admin-product-form__actions {
+  justify-content: center;
   gap: 0.75rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid #303038;
 }
 
 .admin-layout .admin-product-form__actions .ui-button {
@@ -133,6 +166,8 @@
 }
 
 .admin-layout .admin-file-check--quiet {
+  width: fit-content;
+  max-width: 100%;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -213,9 +248,121 @@
   font-weight: 600;
 }
 
-@media (max-width: 1024px) {
-  .admin-layout .admin-product-form__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+/* Images and model files: 3D preview and 360° side by side, the product images full
+   width, Packages and 3D model files side by side. */
+.admin-layout .admin-media-section--product {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-layout .admin-media-section--product > :not(.admin-media-panel),
+.admin-layout .admin-media-section--product > .admin-media-panel--images {
+  grid-column: 1 / -1;
+}
+
+.admin-layout .admin-media-section--product > .admin-media-panel {
+  align-content: start;
+  min-width: 0;
+}
+
+/* Small buttons that fit inside an image card or a package row. */
+.admin-layout .admin-media-section--product :is(.admin-media-item__actions, .admin-packages-table) .ui-button {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+/* Product images: square cards, two in a row, sized so about four fit on one screen. */
+.admin-layout .admin-media-panel--images > .admin-media-upload {
+  justify-self: start;
+  width: 16rem;
+  min-height: 6rem;
+}
+
+.admin-layout .admin-media-panel--images .admin-media-list {
+  grid-template-columns: repeat(2, minmax(0, 22rem));
+  gap: 1rem;
+}
+
+.admin-layout .admin-media-panel--images .admin-media-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0.75rem;
+}
+
+.admin-layout .admin-media-panel--images .admin-media-thumb {
+  flex: 1 1 0;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  object-fit: contain;
+}
+
+.admin-layout .admin-media-panel--images .admin-media-item__content {
+  flex: 0 0 auto;
+  gap: 0.25rem;
+}
+
+.admin-layout .admin-media-panel--images .admin-media-item__meta {
+  font-size: 0.8rem;
+}
+
+.admin-layout .admin-media-panel--images .admin-media-item__actions {
+  justify-content: space-between;
+}
+
+/* Packages: a compact table with Download and Remove inside each row. */
+.admin-layout .admin-media-panel--packages .admin-packages-table {
+  font-size: 0.9rem;
+}
+
+.admin-layout .admin-media-panel--packages .admin-packages-table :is(th, td) {
+  padding: 0.5rem;
+  vertical-align: middle;
+}
+
+.admin-layout .admin-media-panel--packages .admin-packages-table :is(th, td):last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.admin-layout .admin-media-panel--packages .admin-packages-table td:last-child .ui-button {
+  margin-left: 0.5rem;
+}
+
+/* 3D model files: the fields on the left, a simple upload box on the right. */
+.admin-layout .admin-media-panel--files {
+  grid-template-columns: minmax(0, 1fr) 10rem;
+  column-gap: 1rem;
+}
+
+.admin-layout .admin-media-panel--files > * {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.admin-layout .admin-media-panel--files > .admin-media-upload {
+  grid-column: 2;
+  grid-row: 1 / span 6;
+  align-self: start;
+  width: 100%;
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 0.75rem;
+}
+
+.admin-layout .admin-media-panel--files > :is(.admin-media-list, .home-page__subtitle:last-child) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1100px) {
+  .admin-layout .admin-product-form,
+  .admin-layout .admin-media-section--product {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -224,11 +371,21 @@
     padding: 1rem;
   }
 
-  .admin-layout .admin-product-form__grid {
+  .admin-layout .admin-product-form__actions .ui-button {
+    flex: 1 1 100%;
+  }
+
+  .admin-layout .admin-media-panel--images .admin-media-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-layout .admin-media-panel--files {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .admin-layout .admin-product-form__actions .ui-button {
-    flex: 1 1 100%;
+  .admin-layout .admin-media-panel--files > .admin-media-upload {
+    grid-column: 1;
+    grid-row: auto;
+    width: 10rem;
   }
 }
