@@ -273,7 +273,12 @@
   font-size: 0.85rem;
 }
 
-/* Product images: square cards, two in a row, sized so about four fit on one screen. */
+/* 3D preview: the same white stage as the live product page. */
+.admin-layout .admin-media-section--product .model-viewer {
+  background: #fff;
+}
+
+/* Product images: square cards, four in a row across the card. */
 .admin-layout .admin-media-panel--images > .admin-media-upload {
   justify-self: start;
   width: 16rem;
@@ -281,7 +286,7 @@
 }
 
 .admin-layout .admin-media-panel--images .admin-media-list {
-  grid-template-columns: repeat(2, minmax(0, 22rem));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -364,6 +369,10 @@
   .admin-layout .admin-media-section--product {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .admin-layout .admin-media-panel--images .admin-media-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -373,10 +382,6 @@
 
   .admin-layout .admin-product-form__actions .ui-button {
     flex: 1 1 100%;
-  }
-
-  .admin-layout .admin-media-panel--images .admin-media-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-layout .admin-media-panel--files {
