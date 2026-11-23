@@ -162,6 +162,26 @@ def send_admin_sign_in_alert_task(
     retry_jitter=True,
     max_retries=5,
     queue="email",
+    name="accounts.send_admin_session_reused_alert",
+)
+def send_admin_session_reused_alert_task(
+    self, user_id: str, user_agent: str = "", ip_address: str = ""
+) -> None:
+    from accounts.security_notices import deliver_admin_session_reused_alert
+
+    user = _load_user(user_id, "admin_session_reused_alert")
+    if user is not None:
+        deliver_admin_session_reused_alert(user, user_agent, ip_address)
+
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True,
+    max_retries=5,
+    queue="email",
     name="accounts.send_mfa_enabled",
 )
 def send_mfa_enabled_task(self, user_id: str) -> None:

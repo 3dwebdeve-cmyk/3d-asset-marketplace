@@ -46,7 +46,7 @@ or weak, so a gap shows up as a failed deploy; read the Render log for the exact
 ## Do not set on Render
 
 - Anything starting `R2_BACKUP_` (the app refuses to start if the backup key reaches it)
-- `ADMIN_MFA_REQUIRED=False`, `ALLOW_CONSOLE_EMAIL`, `ALLOW_LOCALHOST_FRONTEND`, `E2E_STRIPE_SIMULATE`
+- `ADMIN_MFA_REQUIRED=False`, `ADMIN_STEP_UP_REQUIRED=False`, `ALLOW_CONSOLE_EMAIL`, `ALLOW_LOCALHOST_FRONTEND`, `E2E_STRIPE_SIMULATE`
 
 ## Backups
 

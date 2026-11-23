@@ -4,6 +4,8 @@ import type {
   AdminMfaConfirmResponse,
   AdminMfaSetupResponse,
   AdminMfaVerifyPayload,
+  AdminStepUpPayload,
+  AdminStepUpResponse,
   AdminUser,
   AdminUserCreatePayload,
   AdminUserListParams,
@@ -211,6 +213,12 @@ export async function getAdminRecoveryCodesStatus(): Promise<AdminRecoveryCodesS
   const response = await apiClient.get<AdminRecoveryCodesStatus>(
     '/api/v1/auth/admin/mfa/recovery-codes/',
   )
+  return response.data
+}
+
+/** Opens a short window for dangerous console actions on this session (403 `step_up_required`). */
+export async function adminStepUp(payload: AdminStepUpPayload): Promise<AdminStepUpResponse> {
+  const response = await apiClient.post<AdminStepUpResponse>('/api/v1/auth/admin/step-up/', payload)
   return response.data
 }
 

@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsAdministrator
 from accounts.security_log import log_admin_action
+from accounts.step_up import RequiresAdminStepUp
 from accounts.throttles import AdminPricingReadRateThrottle, AdminProductWriteRateThrottle
 from config.api_helpers import domain_error_response
 from products import pricing
@@ -100,6 +101,8 @@ class AdminPricingCalculateView(_PricingView):
 
 
 class AdminPricingPublishView(_PricingView):
+    # Puts prices on the live store: asks for a fresh authenticator code (accounts.step_up).
+    permission_classes = [*_PricingView.permission_classes, RequiresAdminStepUp]
     throttle_classes = [AdminProductWriteRateThrottle]
 
     def post(self, request: Request) -> Response:

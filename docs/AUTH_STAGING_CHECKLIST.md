@@ -31,6 +31,18 @@ Staging and production refuse to start with `ADMIN_MFA_REQUIRED=False`.
   They are signed out everywhere and set up a new authenticator at the next sign-in.
 - **Sessions:** an administrator session ends `ADMIN_SESSION_MAX_HOURS` (default 8) after
   sign-in, however often the console refreshes. Customers keep 30 days.
+- **Dangerous actions ask for a code again:** creating a user, changing a user's role, active
+  status or email verification, deactivating a user, deleting models for good (purge, bulk
+  delete), importing a catalog, publishing prices and changing an order's status. The console
+  shows a "Confirm it's you" box; a correct authenticator code (or one recovery code) keeps
+  working for `ADMIN_STEP_UP_MINUTES` (default 5) on that browser only. Wrong codes count
+  toward the login lockout. Staging and production refuse to start with
+  `ADMIN_STEP_UP_REQUIRED=False`. Archiving or deactivating (which can be undone) does not ask.
+- **Copied sign-in cookie:** each refresh replaces the administrator's cookie. If an old one
+  comes back more than `ADMIN_REFRESH_REUSE_GRACE_SECONDS` (default 30) after it was
+  replaced, that session ends on every browser holding it and the administrator gets an email
+  ("Your administrator session was ended for safety"). Sign in again. A browser that imports
+  another browser's cookies (Edge importing from Chrome) causes this too.
 - **Keys:** authenticator secrets are derived from `MFA_SECRET_KEY` and never stored. Set a
   dedicated `MFA_SECRET_KEY` (at least 32 random bytes) so rotating `SECRET_KEY` does not
   reset every administrator. Changing `MFA_SECRET_KEY` itself resets everyone's
