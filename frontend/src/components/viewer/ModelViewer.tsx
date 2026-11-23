@@ -184,7 +184,7 @@ function PreviewModel({
           scale={ground.scale}
           far={ground.far}
           blur={3.4}
-          opacity={0.46}
+          opacity={0.25}
           resolution={shadowResolution}
           frames={1}
         />
