@@ -38,6 +38,7 @@ from products.import_reasons import describe_reason
 from products.models import Product
 from products.packages import PACKAGE_KINDS, PACKAGE_ORDER
 from products.pagination import ProductPagination
+from products.purge import purge_archived_product
 from products.serializers import (
     CatalogImportEnvelopeSerializer,
     ProductAdminSerializer,
@@ -380,6 +381,36 @@ class AdminProductRestoreView(APIView):
         return Response(ProductAdminSerializer(restored).data, status=status.HTTP_200_OK)
 
 
+class AdminProductPurgeView(APIView):
+    """POST /api/v1/admin/products/<id>/purge/ — delete an archived model for good.
+
+    Removes the model's records and every stored file. Refused (409) for a model that is
+    not archived or is in any order, so buyers never lose a download.
+    """
+
+    permission_classes = [IsAuthenticated, IsAdministrator]
+    throttle_classes = [AdminProductWriteRateThrottle]
+    parser_classes = [JSONParser]
+
+    def post(self, request: Request, product_id: UUID) -> Response:
+        try:
+            ProductService.get_by_id(product_id)
+            summary = purge_archived_product(product_id)
+        except ProductError as exc:
+            if exc.field is None:
+                raise NotFound(exc.message) from exc
+            return domain_error_response(
+                exc, default_code="product_error", http_status=status.HTTP_409_CONFLICT
+            )
+        log_admin_action(
+            action="product_purge",
+            actor_id=str(request.user.pk),
+            target_id=str(product_id),
+            metadata=summary,
+        )
+        return Response({"deleted": str(product_id)}, status=status.HTTP_200_OK)
+
+
 class AdminProductBulkDeleteView(APIView):
     """POST /api/admin/products/bulk-delete/ — delete selected products.
 
@@ -632,12 +663,12 @@ class CatalogIngestImportView(APIView):
         return Response(body, status=status.HTTP_200_OK)
 
 
-# How many of the uploader's latest imports the admin Imports panel lists.
-UPLOADER_IMPORTS_SHOWN = 5
+# The QA queue shows only the uploader's latest import.
+UPLOADER_IMPORTS_SHOWN = 1
 
 
 class AdminUploaderImportsView(APIView):
-    """GET /api/v1/admin/products/uploader-imports/: the uploader's latest imports, each with
+    """GET /api/v1/admin/products/uploader-imports/: the uploader's latest import, with
     every model that did not reach QA, its name, and the reason in words with the next step.
 
     Read from the import's audit rows; the texts come from products.import_reasons.
