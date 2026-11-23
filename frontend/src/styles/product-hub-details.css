@@ -2293,3 +2293,45 @@ body:has(.product-purchase-dialog[open]) {
   top: 0.45rem;
   right: 0;
 }
+
+/* Product page: the title, viewer and thumbnails fit in one desktop screen,
+   and the specs card starts level with the title just below the nav bar. */
+.product-hub-detail--fit.product-detail-page {
+  padding-top: 1rem;
+}
+
+/* The media column's gap already spaces the title from the viewer. */
+.product-hub-detail--fit .product-hub-detail__header {
+  margin-bottom: 0;
+}
+
+.product-hub-detail--fit .product-hub-detail__meta {
+  margin-top: 0.25rem;
+}
+
+@media (min-width: 960px) {
+  /* Viewport minus the nav bar, title row, thumbnail rail and spacing. */
+  .product-hub-detail--fit .product-detail-stage {
+    --product-stage-height: clamp(360px, calc(100vh - 15.5rem), 720px);
+  }
+
+  .product-hub-detail--fit .product-detail-stage__empty,
+  .product-hub-detail--fit .product-detail-stage__viewer {
+    min-height: var(--product-stage-height);
+  }
+
+  .product-hub-detail--fit .product-detail-stage__viewer .model-viewer {
+    height: var(--product-stage-height);
+    min-height: var(--product-stage-height);
+  }
+
+  /* Render images keep their shape inside the same height, centred in the column. */
+  .product-hub-detail--fit .product-detail-stage--image {
+    margin-inline: auto;
+  }
+
+  .product-hub-detail--fit .product-detail-stage__image {
+    width: auto;
+    max-height: var(--product-stage-height);
+  }
+}
