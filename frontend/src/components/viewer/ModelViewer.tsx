@@ -23,6 +23,8 @@ export interface ModelViewerProps {
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
+const SHADOW_LIGHT_INTENSITY = 0.7
+const AMBIENT_FILL_INTENSITY = 0.25
 
 function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
@@ -157,23 +159,34 @@ function PreviewModel({
         shadow-camera-bottom={-1.7}
         shadow-camera-near={2}
         shadow-camera-far={8}
-        shadow-normalBias={0.012}
+        shadow-normalBias={0.006}
         shadow-bias={-0.0002}
         shadow-radius={2.5}
       />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
       </group>
-      {ground && (reducedMotion || entranceComplete) ? (
-        <ContactShadows
-          position={[0, ground.y, 0]}
-          scale={ground.scale}
-          far={ground.far}
-          blur={3.4}
-          opacity={0.46}
-          resolution={shadowResolution}
-          frames={1}
-        />
+      {ground && shadowsReady ? (
+        <>
+          <mesh
+            name="Directional floor shadow"
+            position={[0, ground.y - 0.01, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            receiveShadow
+          >
+            <planeGeometry args={[ground.scale * 2, ground.scale * 2]} />
+            <shadowMaterial color="#171a21" opacity={0.32} transparent depthWrite={false} />
+          </mesh>
+          <ContactShadows
+            position={[0, ground.y, 0]}
+            scale={ground.scale}
+            far={ground.far}
+            blur={3.4}
+            opacity={0.46}
+            resolution={shadowResolution}
+            frames={1}
+          />
+        </>
       ) : null}
     </>
   )
@@ -447,7 +460,7 @@ function ModelViewerCanvas({
           shadows="percentage"
           frameloop={visible ? 'always' : 'never'}
         >
-          <ambientLight intensity={0.45} />
+          <ambientLight intensity={AMBIENT_FILL_INTENSITY} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
@@ -465,7 +478,7 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               lightYaw={preset.yaw + lightingYaw}
-              lightIntensity={0.35 * (1 + brightness / 100)}
+              lightIntensity={SHADOW_LIGHT_INTENSITY * (1 + brightness / 100)}
             />
           </Suspense>
           <OrbitControls
