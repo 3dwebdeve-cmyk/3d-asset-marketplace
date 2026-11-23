@@ -77,6 +77,11 @@ export async function restoreAdminProduct(productId: string): Promise<AdminProdu
   return response.data
 }
 
+/** Delete an archived model for good: its records and every stored file. Refused for a bought model. */
+export async function purgeAdminProduct(productId: string): Promise<void> {
+  await apiClient.post(`/api/v1/admin/products/${productId}/purge/`, {})
+}
+
 /**
  * QA approve: sends an empty body (the server refuses a price). A free model is published;
  * a paid model moves to Waiting for price; a live update stays published.

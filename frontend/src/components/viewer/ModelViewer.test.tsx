@@ -9,6 +9,7 @@ const viewerMocks = vi.hoisted(() => {
   return {
     scene: null as import('three').Object3D | null,
     renderScene: null as import('three').Scene | null,
+    renderer: { toneMappingExposure: 1 },
     camera: null as import('three').PerspectiveCamera | null,
     size: { width: 900, height: 450 },
     controls: null as { target: import('three').Vector3; update: () => void; saveState: () => void } | null,
@@ -40,6 +41,7 @@ vi.mock('@react-three/fiber', () => ({
   ),
   useThree: (selector?: (state: {
     scene: import('three').Scene
+    gl: typeof viewerMocks.renderer
     camera: import('three').PerspectiveCamera
     size: { width: number; height: number }
     controls: typeof viewerMocks.controls
@@ -47,6 +49,7 @@ vi.mock('@react-three/fiber', () => ({
   }) => unknown) => {
     const state = {
       scene: viewerMocks.renderScene ?? new Scene(),
+      gl: viewerMocks.renderer,
       camera: viewerMocks.camera!,
       size: viewerMocks.size,
       controls: viewerMocks.controls,
@@ -101,6 +104,7 @@ describe('ModelViewer', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     viewerMocks.scene = new Object3D()
     viewerMocks.renderScene = new Scene()
+    viewerMocks.renderer = { toneMappingExposure: 1 }
     viewerMocks.camera = new PerspectiveCamera(42, 2, 0.1, 200)
     viewerMocks.camera.position.set(0, 0.9, 2.3)
     viewerMocks.size = { width: 900, height: 450 }
@@ -239,10 +243,12 @@ describe('ModelViewer', () => {
     const environment = () => screen.getByTestId('viewer-environment')
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
+    expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
     expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(4)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
     expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
+    expect(viewerMocks.renderer.toneMappingExposure).toBe(1)
 
     const colorButton = screen.getByRole('button', { name: 'Change background color' })
     const canvas = screen.getByTestId('r3f-canvas')
@@ -268,9 +274,9 @@ describe('ModelViewer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
     fireEvent.change(brightness, { target: { value: '50' } })
-    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.35)
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.2)
     fireEvent.change(brightness, { target: { value: '-50' } })
-    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.45)
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.4)
     const extraSliders = [
       ['Contrast', '-25'],
       ['Exposure', '-1.5'],
@@ -290,7 +296,7 @@ describe('ModelViewer', () => {
     for (const [name] of extraSliders) {
       expect(screen.getByRole('slider', { name })).toHaveValue('0')
     }
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '0.9')
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-intensity', '0.8')
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {

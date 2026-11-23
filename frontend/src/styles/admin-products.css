@@ -394,26 +394,71 @@
   color:#ffb1ab
 }
 
-.products-manage {
-  display:inline-flex;
-  align-items:center;
-  gap:7px;
-  padding:9px 13px;
-  margin-right:12px;
-  color:#ff8b7f!important;
-  background:linear-gradient(#5a1010,#3c0c0c);
-  border:1px solid #691212;
-  border-radius:9px;
-  text-decoration:none
+/* Row actions: Manage, Delete (or Restore on the archive). One size for every button. */
+.products-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.admin-products-page .admin-table td:last-child .ui-button {
-  min-height:35px;
-  padding:7px 14px;
-  display:inline-flex;
-  align-items:center;
-  gap:7px;
-  background:linear-gradient(#29292d,#202023)
+.admin-products-page .products-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: auto;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-products-page .products-action:focus-visible {
+  outline: 2px solid #ff5a4f;
+  outline-offset: 2px;
+}
+
+.admin-products-page .products-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-products-page .products-action--manage {
+  color: #ff8b7f;
+  background: #3c0c0c;
+  border: 1px solid #691212;
+}
+
+.admin-products-page .products-action--manage:hover {
+  color: #ffffff;
+  background: #5a1010;
+  border-color: #8a1a1a;
+}
+
+.admin-products-page .products-action--delete,
+.admin-products-page .products-action--restore {
+  color: #e4e4e7;
+  background: #232327;
+  border: 1px solid #36363c;
+}
+
+.admin-products-page .products-action--delete:hover:not(:disabled) {
+  color: #ffffff;
+  background: #b3131b;
+  border-color: #d42a2a;
+}
+
+.admin-products-page .products-action--restore:hover:not(:disabled) {
+  color: #ffffff;
+  background: #2e2e34;
+  border-color: #4a4a52;
 }
 
 
@@ -467,6 +512,91 @@
   padding:20px;
   border:1px solid #402020;
   border-radius:16px
+}
+
+/* QA queue: one compact card for the uploader's latest import. */
+.uploader-import {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: linear-gradient(145deg, #111113, #09090b);
+  border: 1px solid #27272b;
+  border-radius: 14px;
+  font-size: 13px;
+}
+
+.uploader-import__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.uploader-import__head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.uploader-import__head time {
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+.uploader-import__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.uploader-import__stats li {
+  padding: 4px 10px;
+  background: #1c1c20;
+  border: 1px solid #2c2c31;
+  border-radius: 999px;
+  color: #d4d4d8;
+  font-size: 12px;
+}
+
+.uploader-import__stats strong {
+  color: #ffffff;
+}
+
+.uploader-import__stats li.is-warning {
+  background: #3c2d0c;
+  border-color: #5c4512;
+  color: #ffd166;
+}
+
+.uploader-import__stats li.is-warning strong {
+  color: #ffd166;
+}
+
+.uploader-import__refused {
+  flex-basis: 100%;
+}
+
+.uploader-import__refused summary {
+  width: max-content;
+  color: #ff8b7f;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.uploader-import__refused ul {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #d4d4d8;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 

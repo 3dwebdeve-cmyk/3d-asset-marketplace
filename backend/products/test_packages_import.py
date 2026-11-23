@@ -5,6 +5,7 @@ and the admin Imports panel."""
 from __future__ import annotations
 
 import tempfile
+from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -537,6 +538,18 @@ class UploaderImportsPanelTests(PackagesImportTestBase):
                 }
             ],
         )
+
+    def test_only_the_latest_import_is_returned(self) -> None:
+        older = ActivityLog.objects.create(action="catalog_ingest_import", target_id="old-run", metadata={"created": 2})
+        newer = ActivityLog.objects.create(action="catalog_ingest_import", target_id="new-run", metadata={"created": 1})
+        now = timezone.now()
+        ActivityLog.objects.filter(pk=older.pk).update(created_at=now - timedelta(hours=1))
+        ActivityLog.objects.filter(pk=newer.pk).update(created_at=now)
+
+        response = self.client.get(reverse("products_admin:admin-uploader-imports"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["import_batch_id"] for row in response.data["results"]], ["new-run"])
 
     def test_only_administrators_see_the_panel(self) -> None:
         self.client.credentials()
