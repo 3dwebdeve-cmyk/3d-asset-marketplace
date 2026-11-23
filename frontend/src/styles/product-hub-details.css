@@ -2310,9 +2310,21 @@ body:has(.product-purchase-dialog[open]) {
 }
 
 @media (min-width: 960px) {
-  /* Viewport minus the nav bar, title row, thumbnail rail and spacing. */
+  /* Height: the viewport minus the nav bar, title row, thumbnail rail and spacing.
+     Width: the render shape (about 1.9 : 1) at that height, so the 3D viewer, the
+     render images and the thumbnail rail share one frame, centred in the column. */
+  .product-hub-detail--fit {
+    --fit-stage-height: clamp(360px, calc(100vh - 15.5rem), 720px);
+    --fit-media-ratio: 1.9;
+  }
+
+  .product-hub-detail--fit .product-detail-gallery {
+    width: min(100%, calc(var(--fit-stage-height) * var(--fit-media-ratio)));
+    margin-inline: auto;
+  }
+
   .product-hub-detail--fit .product-detail-stage {
-    --product-stage-height: clamp(360px, calc(100vh - 15.5rem), 720px);
+    --product-stage-height: var(--fit-stage-height);
   }
 
   .product-hub-detail--fit .product-detail-stage__empty,
@@ -2320,18 +2332,27 @@ body:has(.product-purchase-dialog[open]) {
     min-height: var(--product-stage-height);
   }
 
-  .product-hub-detail--fit .product-detail-stage__viewer .model-viewer {
+  .product-hub-detail--fit .product-detail-stage__viewer .model-viewer,
+  .product-hub-detail--fit .product-detail-stage__spin .product-spin__surface {
     height: var(--product-stage-height);
     min-height: var(--product-stage-height);
   }
 
-  /* Render images keep their shape inside the same height, centred in the column. */
+  /* A render fills the same frame; one of another shape is centred inside it. */
   .product-hub-detail--fit .product-detail-stage--image {
-    margin-inline: auto;
+    width: 100%;
+    height: var(--product-stage-height);
+  }
+
+  .product-hub-detail--fit .product-detail-stage--image .product-detail-stage__main {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .product-hub-detail--fit .product-detail-stage__image {
     width: auto;
-    max-height: var(--product-stage-height);
+    max-width: 100%;
+    max-height: 100%;
   }
 }

@@ -1,5 +1,8 @@
 /* Price history panel on the admin product page. */
+/* As wide as its content: the closed bar fits its title, the open one its table. */
 .admin-layout .admin-price-history {
+  width: fit-content;
+  max-width: 100%;
   margin: 1.25rem 0 0;
   border: 1px solid #303038;
   border-radius: 12px;
@@ -16,6 +19,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1.5rem;
   width: 100%;
   padding: 0.75rem 1.25rem;
   border: 0;

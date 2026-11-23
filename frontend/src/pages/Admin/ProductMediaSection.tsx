@@ -189,7 +189,7 @@ export function ProductMediaSection({
   const freeKinds = PACKAGE_ORDER.filter((kind) => !packages.some((row) => row.package_kind === kind))
 
   return (
-    <section className="admin-media-section" aria-labelledby="product-media-title">
+    <section className="admin-media-section admin-media-section--product" aria-labelledby="product-media-title">
       <h2 id="product-media-title">Images and model files</h2>
       <p className="home-page__subtitle">
         Upload gallery images for thumbnails and downloadable 3D model files for customers.
@@ -235,7 +235,7 @@ export function ProductMediaSection({
         )}
       </div>
 
-      <div className="admin-media-panel">
+      <div className="admin-media-panel admin-media-panel--images">
         <h3 className="admin-media-panel__title">Product images</h3>
         <p className="admin-media-panel__hint">
           Primary uploads become the product thumbnail automatically. Max {PRODUCT_IMAGE_MAX_MB}{' '}
@@ -329,7 +329,7 @@ export function ProductMediaSection({
         )}
       </div>
 
-      <div className="admin-media-panel">
+      <div className="admin-media-panel admin-media-panel--packages">
         <h3 className="admin-media-panel__title">Packages</h3>
         <p className="admin-media-panel__hint">
           Each package is one zip, sold on its own. Prices are set on the Pricing page.
@@ -375,7 +375,7 @@ export function ProductMediaSection({
         )}
       </div>
 
-      <div className="admin-media-panel">
+      <div className="admin-media-panel admin-media-panel--files">
         <h3 className="admin-media-panel__title">3D model files</h3>
         <p className="admin-media-panel__hint">
           Upload source and delivery formats for this product. Packages max{' '}
