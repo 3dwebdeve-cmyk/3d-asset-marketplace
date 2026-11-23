@@ -7,7 +7,7 @@ import { ErrorBoundary } from '../ErrorBoundary'
 import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
-import { framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
+import { clampPreviewZoom, framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
 import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
@@ -49,7 +49,7 @@ function PreviewModel({
 }: {
   url: string
   wireframe: boolean
-  openingOrbit: { cancelled: boolean }
+  openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
   lightIntensity: number
 }) {
@@ -76,8 +76,8 @@ function PreviewModel({
     })
     return model
   }, [scene])
+  const bounds = useMemo(() => new THREE.Box3().setFromObject(fitted), [fitted])
   const ground = useMemo(() => {
-    const bounds = new THREE.Box3().setFromObject(fitted)
     if (bounds.isEmpty()) return null
     const size = bounds.getSize(new THREE.Vector3())
     return {
@@ -85,7 +85,7 @@ function PreviewModel({
       scale: Math.max(size.x, size.z, 0.5) * 2,
       far: Math.max(size.y * 1.5, 0.5),
     }
-  }, [fitted])
+  }, [bounds])
   const camera = useThree((state) => state.camera)
   const size = useThree((state) => state.size)
   const controls = useThree((state) => state.controls)
@@ -134,6 +134,18 @@ function PreviewModel({
     }
     invalidate()
   }, [camera, controls, fitted, size.width, size.height, invalidate, openingOrbit, reducedMotion])
+
+  useEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera)) return
+    const orbit = controls as ComponentRef<typeof OrbitControls> | null
+    function clamp() {
+      if (openingOrbit.manualCamera && orbit && camera instanceof THREE.PerspectiveCamera) {
+        clampPreviewZoom(camera, bounds, orbit.target)
+      }
+    }
+    orbit?.addEventListener?.('change', clamp)
+    return () => orbit?.removeEventListener?.('change', clamp)
+  }, [camera, controls, bounds, openingOrbit])
 
   useEffect(() => {
     applyWireframe(fitted, wireframe)
@@ -286,6 +298,7 @@ function ViewerToolbar({
   controls,
   onBackgroundChange,
   onCameraInteraction,
+  onResetCamera,
   adjustments,
   onAdjustmentChange,
   onResetAdjustments,
@@ -293,6 +306,7 @@ function ViewerToolbar({
   controls: { current: ComponentRef<typeof OrbitControls> | null }
   onBackgroundChange: () => void
   onCameraInteraction: () => void
+  onResetCamera: () => void
   adjustments: LightAdjustments
   onAdjustmentChange: (key: keyof LightAdjustments, value: number) => void
   onResetAdjustments: () => void
@@ -345,7 +359,7 @@ function ViewerToolbar({
           Light Controls
         </button>
         <button type="button" onClick={() => {
-          onCameraInteraction()
+        onResetCamera()
           const orbit = controls.current
           if (!orbit) return
           const damping = orbit.enableDamping
@@ -412,8 +426,12 @@ function ModelViewerCanvas({
   pixelRatio: number
 }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
-  const openingOrbit = useMemo(() => ({ cancelled: false }), [modelUrl])
+  const openingOrbit = useMemo(() => ({ cancelled: false, manualCamera: false }), [modelUrl])
   const cancelOpeningOrbit = () => { openingOrbit.cancelled = true }
+  const startManualCamera = () => {
+    cancelOpeningOrbit()
+    openingOrbit.manualCamera = true
+  }
   const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
@@ -493,10 +511,10 @@ function ModelViewerCanvas({
           <OrbitControls
             ref={controls}
             makeDefault
-            onStart={cancelOpeningOrbit}
+            onStart={startManualCamera}
             enableDamping
             dampingFactor={0.08}
-            minDistance={0.5}
+            minDistance={0.001}
             maxDistance={20}
             maxPolarAngle={Math.PI * 0.92}
           />
@@ -530,7 +548,11 @@ function ModelViewerCanvas({
           setEnvironmentAdjustments(DEFAULT_ENVIRONMENT_ADJUSTMENTS)
         }}
         onBackgroundChange={onBackgroundChange}
-        onCameraInteraction={cancelOpeningOrbit}
+        onCameraInteraction={startManualCamera}
+        onResetCamera={() => {
+          cancelOpeningOrbit()
+          openingOrbit.manualCamera = false
+        }}
       />
       <ViewerProgressOverlay />
     </div>

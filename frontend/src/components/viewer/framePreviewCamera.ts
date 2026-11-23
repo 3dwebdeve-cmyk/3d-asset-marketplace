@@ -3,6 +3,44 @@ import * as THREE from 'three'
 // Look toward the front from the left, 45 degrees off the model's +Z axis.
 export const PREVIEW_CAMERA_POSITION: [number, number, number] = [-1, 0.5, 1]
 
+export function clampPreviewZoom(
+  camera: THREE.PerspectiveCamera,
+  bounds: THREE.Box3,
+  target: THREE.Vector3,
+): void {
+  if (bounds.isEmpty() || !Number.isFinite(camera.aspect) || camera.aspect <= 0) return
+  const direction = camera.position.clone().sub(target).normalize()
+  if (direction.lengthSq() === 0) return
+  const right = new THREE.Vector3().crossVectors(camera.up, direction).normalize()
+  const up = new THREE.Vector3().crossVectors(direction, right)
+  const center = bounds.getCenter(new THREE.Vector3())
+  const halfHeight = Math.tan(THREE.MathUtils.degToRad(camera.getEffectiveFOV()) / 2) * 0.9
+  const halfWidth = halfHeight * camera.aspect
+  const offset = new THREE.Vector3()
+  let distance = 0
+
+  // Fit about the model center, but check near-plane clearance from the actual orbit target.
+  const panDepth = offset.copy(center).sub(target).dot(direction)
+  for (const x of [bounds.min.x, bounds.max.x]) {
+    for (const y of [bounds.min.y, bounds.max.y]) {
+      for (const z of [bounds.min.z, bounds.max.z]) {
+        offset.set(x, y, z).sub(center)
+        const depth = offset.dot(direction)
+        distance = Math.max(
+          distance,
+          depth + panDepth + Math.abs(offset.dot(right)) / halfWidth,
+          depth + panDepth + Math.abs(offset.dot(up)) / halfHeight,
+          depth + panDepth + camera.near * 2,
+        )
+      }
+    }
+  }
+  if (camera.position.distanceToSquared(target) < distance ** 2) {
+    camera.position.copy(target).addScaledVector(direction, distance)
+    camera.updateMatrixWorld()
+  }
+}
+
 /** Bring the model closer while reserving horizontal room for viewer controls. */
 export function framePreviewCamera(
   camera: THREE.PerspectiveCamera,
