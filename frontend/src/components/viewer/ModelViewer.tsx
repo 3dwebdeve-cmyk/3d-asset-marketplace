@@ -13,6 +13,7 @@ import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
+import '../../styles/model-viewer.css'
 
 export interface ModelViewerProps {
   modelUrl: string

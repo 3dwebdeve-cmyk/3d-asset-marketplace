@@ -1,0 +1,240 @@
+/* The 3D model viewer (components/viewer/ModelViewer): canvas, lighting presets,
+   toolbar, adjustments and loading states. Loaded by the viewer itself, so it looks
+   the same on the product page and in the admin console. */
+
+.model-viewer-shell {
+  width: 100%;
+}
+
+.model-viewer {
+  position: relative;
+  width: 100%;
+  height: min(64vh, 540px);
+  min-height: 360px;
+  border-radius: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg-primary) 70%, var(--bg-card));
+}
+
+.model-viewer__surface {
+  width: 100%;
+  height: 100%;
+}
+
+.model-viewer__lighting {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  max-width: calc(100% - 6rem);
+  color: #252932;
+  font-size: 0.75rem;
+}
+
+.model-viewer__lighting button {
+  border: 1px solid #b7bdca;
+  border-radius: 999px;
+  padding: 0.25rem 0.625rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.model-viewer__lighting button[aria-pressed='true'] {
+  border-color: #1554d1;
+  background: #e7efff;
+  color: #123b96;
+}
+
+.model-viewer__lighting span {
+  flex-basis: 100%;
+}
+
+.model-viewer__canvas {
+  background: #e6e8ec;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  touch-action: none;
+}
+
+.model-viewer__toolbar {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  z-index: 3;
+  transform: translateY(-50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.0625rem;
+  width: max-content;
+  min-width: 2.5rem;
+  max-height: calc(100% - 1rem);
+  padding: 0.4rem 0.125rem;
+  overflow-y: auto;
+  border-radius: 2rem;
+  background: #4b4e52;
+  color: #fff;
+}
+
+.model-viewer__toolbar button {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.125rem;
+  min-width: 0;
+  min-height: 3.125rem;
+  margin: 0;
+  padding: 0.125rem;
+  border: 0;
+  border-radius: 1rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.5625rem;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.model-viewer__toolbar button:hover {
+  background: #62666b;
+}
+
+.model-viewer__toolbar button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.model-viewer__toolbar svg {
+  width: 1.0625rem;
+  height: 1.0625rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.model-viewer__adjustments {
+  position: absolute;
+  box-sizing: border-box;
+  z-index: 4;
+  top: 50%;
+  right: 5rem;
+  transform: translateY(-50%);
+  width: min(13rem, calc(100% - 6rem));
+  max-height: calc(100% - 1rem);
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid #babfc9;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #252932;
+  font-size: 0.8rem;
+}
+
+.model-viewer__adjustments label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem;
+  margin-bottom: 0.625rem;
+}
+
+.model-viewer__adjustments input {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 0;
+  accent-color: #1554d1;
+}
+
+.model-viewer__adjustments button {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid #b7bdca;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.model-viewer__progress {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 2;
+  display: grid;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.model-viewer__progress-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-main) 12%, var(--bg-card));
+}
+
+.model-viewer__progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--action-color);
+  transition: width 0.2s ease;
+}
+
+.model-viewer__progress-label,
+.model-viewer__fallback-title,
+.model-viewer__error-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.model-viewer__progress-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.model-viewer--empty,
+.model-viewer--loading {
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  padding: 1.5rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.model-viewer__fallback-body,
+.model-viewer__error-body {
+  margin: 0;
+  max-width: 26rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.model-viewer__error {
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  height: 100%;
+  padding: 1.5rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+@media (max-width: 639px) {
+  .model-viewer {
+    height: min(52vh, 380px);
+    min-height: 280px;
+  }
+}
