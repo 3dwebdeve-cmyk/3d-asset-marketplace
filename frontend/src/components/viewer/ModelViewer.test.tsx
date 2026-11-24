@@ -9,7 +9,7 @@ const viewerMocks = vi.hoisted(() => {
   return {
     scene: null as import('three').Object3D | null,
     renderScene: null as import('three').Scene | null,
-    renderer: { toneMappingExposure: 1 },
+    renderer: { toneMappingExposure: 1, toneMapping: 4 } as { toneMappingExposure: number; toneMapping: number },
     camera: null as import('three').PerspectiveCamera | null,
     size: { width: 900, height: 450 },
     controls: null as { target: import('three').Vector3; update: () => void; saveState: () => void } | null,
@@ -65,10 +65,15 @@ vi.mock('@react-three/drei', () => ({
     return null
   },
   useEnvironment: ({ files }: { files: string }) => ({ name: files }),
-  Environment: ({ map, background, environmentIntensity }: {
-    map: { name: string }; background: boolean; environmentIntensity: number
+  Environment: ({ map, background, environmentIntensity, children }: {
+    map?: { name: string }; background?: boolean; environmentIntensity: number; children?: import('react').ReactNode
   }) => (
-    <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity} />
+    <div data-testid="viewer-environment" data-files={map?.name} data-background={background} data-intensity={environmentIntensity}>
+      {children}
+    </div>
+  ),
+  Lightformer: ({ name, position, intensity }: { name: string; position: number[]; intensity: number }) => (
+    <div data-testid="studio-panel" data-name={name} data-position={position.join(',')} data-intensity={intensity} />
   ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
   useGLTF: Object.assign(
@@ -104,7 +109,7 @@ describe('ModelViewer', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     viewerMocks.scene = new Object3D()
     viewerMocks.renderScene = new Scene()
-    viewerMocks.renderer = { toneMappingExposure: 1 }
+    viewerMocks.renderer = { toneMappingExposure: 1, toneMapping: 4 }
     viewerMocks.camera = new PerspectiveCamera(42, 2, 0.1, 200)
     viewerMocks.camera.position.set(0, 0.9, 2.3)
     viewerMocks.size = { width: 900, height: 450 }
@@ -236,16 +241,23 @@ describe('ModelViewer', () => {
   })
 
   it('switches HDRI illumination independently from the background', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
 
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     expect(container.querySelectorAll('directionallight')).toHaveLength(1)
+    const keyLight = () => container.querySelector('directionallight')
+    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
     const environment = () => screen.getByTestId('viewer-environment')
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
     expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(5)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
+    expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
     expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(1)
@@ -268,23 +280,44 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
-  it('uses a single broad left-side light for Light 111', async () => {
-    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
-    await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
-    expect(screen.queryByRole('slider', { name: 'Sunlight' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
-    expect(container.querySelector('ambientlight, directionallight')).toBeNull()
-    const suns = container.querySelectorAll('rectarealight')
-    expect(suns).toHaveLength(1)
-    expect(suns[0]).toHaveAttribute('width', '4')
-    const [x, y, z] = (suns[0].getAttribute('position') ?? '').split(',').map(Number)
-    expect(x).toBeLessThan(0)
-    expect(z).toBeCloseTo(x)
-    expect(Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI).toBeCloseTo(15)
-    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
-    expect(screen.getByTestId('viewer-environment')).toBeInTheDocument()
-    expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)
+  it('lights Light 111 as a neutral product studio with a 60 degree front-left shadow key', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    try {
+      const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+      await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
+
+      expect(container.querySelector('ambientlight, rectarealight')).toBeNull()
+      expect(viewerMocks.renderer.toneMapping).toBe(7) // THREE.NeutralToneMapping
+      const environment = screen.getByTestId('viewer-environment')
+      expect(environment).not.toHaveAttribute('data-files')
+      const panels = Array.from(screen.getAllByTestId('studio-panel'), (panel) => panel.getAttribute('data-name'))
+      expect(panels).toEqual(['Overhead', 'Key softbox', 'Right fill', 'Rim', 'Floor bounce'])
+
+      // Camera opens at [-1, 0.5, 1], so its front-left is world -X.
+      const key = container.querySelector('directionallight')!
+      const [x, y, z] = key.getAttribute('position')!.split(',').map(Number)
+      expect(x).toBeLessThan(0)
+      expect(z).toBeCloseTo(0)
+      expect(Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI).toBeCloseTo(60)
+      expect(key).toHaveAttribute('shadow-radius', '6')
+      expect(container.querySelector('shadowmaterial')).toHaveAttribute('opacity', '0.22')
+
+      const keyIntensity = Number(key.getAttribute('intensity'))
+      fireEvent.change(screen.getByRole('slider', { name: 'Brightness' }), { target: { value: '50' } })
+      expect(Number(container.querySelector('directionallight')!.getAttribute('intensity'))).toBeGreaterThan(keyIntensity)
+      expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.5)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
+      expect(viewerMocks.renderer.toneMapping).toBe(4)
+      expect(screen.queryByTestId('studio-panel')).not.toBeInTheDocument()
+      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
+      expect(container.querySelector('shadowmaterial')).toBeNull()
+      expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
