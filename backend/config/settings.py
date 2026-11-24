@@ -214,6 +214,10 @@ R2_PRIVATE_BUCKET = config("R2_PRIVATE_BUCKET", default="").strip()
 if R2_PUBLIC_BUCKET and R2_PUBLIC_BUCKET == R2_PRIVATE_BUCKET:
     raise ImproperlyConfigured("R2 public and private buckets must be different.")
 R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
+# The public bucket's old address while saved addresses move to R2_PUBLIC_BASE_URL
+# (manage.py rewrite_public_media_host). Addresses on it still count as the site's own files.
+# Remove it once the command reports nothing left and the old address is switched off.
+R2_PUBLIC_BASE_URL_PREVIOUS = config("R2_PUBLIC_BASE_URL_PREVIOUS", default="").strip()
 R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=60, cast=int)
 # The backup token belongs only on the backup host (.env.backup). In the app, code
 # execution would expose every backup, so staging and production refuse to start.

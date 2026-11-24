@@ -13,11 +13,10 @@ from dataclasses import asdict, dataclass
 from pathlib import PurePosixPath
 
 from botocore.exceptions import BotoCoreError, ClientError
-from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import Storage, default_storage
 
-from config.media import is_public_media_path, media_relative_path
+from config.media import is_public_media_path, matching_public_base, media_relative_path
 from config.storages import call_with_storage_retries, get_public_storage, get_private_storage
 from products.models import Product
 
@@ -111,5 +110,4 @@ def _exists_in(candidates: list[Storage], relative: str) -> str:
 
 
 def _is_our_url(url: str) -> bool:
-    public_base = str(getattr(settings, "R2_PUBLIC_BASE_URL", "") or "").rstrip("/")
-    return bool(public_base and url.startswith(f"{public_base}/")) or "/media/" in url
+    return matching_public_base(url) is not None or "/media/" in url
