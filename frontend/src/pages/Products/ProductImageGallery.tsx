@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { LazyModelViewer } from '../../components/viewer/LazyModelViewer'
+import type { ModelViewerProps } from '../../components/viewer/ModelViewer'
 import { isSafePreviewModelUrl } from '../../components/viewer/isSafePreviewModelUrl'
 import type { ProductImage } from '../../types/product'
 import { ProductImagePreview } from './ProductImagePreview'
@@ -25,6 +26,7 @@ interface ProductImageGalleryProps {
   thumbnail: string
   images: ProductImage[]
   previewModelUrl: string
+  viewerPresentation?: ModelViewerProps['presentation']
   /** 360° frames; the 360° item appears only with all 36. It is second, never first. */
   spinImages?: string[]
   showStageChrome?: boolean
@@ -85,6 +87,7 @@ export function ProductImageGallery({
   thumbnail,
   images,
   previewModelUrl,
+  viewerPresentation,
   spinImages,
   showStageChrome = false,
   showPreviewModeThumbs = false,
@@ -366,6 +369,7 @@ export function ProductImageGallery({
           <div className="product-detail-stage__viewer">
             <LazyModelViewer
               modelUrl={previewModelUrl.trim()}
+              presentation={viewerPresentation}
               ariaLabel={`Interactive 3D preview of ${productName}`}
             />
           </div>

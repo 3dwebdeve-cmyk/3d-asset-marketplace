@@ -273,6 +273,26 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
+  it('applies a product-specific exposure only while Studio Light 19 is selected', async () => {
+    render(
+      <ModelViewer
+        modelUrl="https://cdn.example.com/preview.glb"
+        ariaLabel="PC case"
+        presentation={{ cameraPosition: [1, 0.5, 1], studioLight19: { yaw: Math.PI / 3, exposure: -0.5 } }}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
+    const exposure = screen.getByRole('slider', { name: 'Exposure' })
+    expect(exposure).toHaveValue('-0.7')
+    await userEvent.click(screen.getByRole('button', { name: 'Studio Light 19' }))
+    expect(exposure).toHaveValue('-0.5')
+    fireEvent.change(exposure, { target: { value: '0' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
+    expect(exposure).toHaveValue('-0.5')
+    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
+    expect(exposure).toHaveValue('-0.7')
+  })
+
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
     render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()

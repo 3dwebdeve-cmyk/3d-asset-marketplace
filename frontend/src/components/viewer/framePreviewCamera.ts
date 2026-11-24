@@ -30,6 +30,7 @@ export function framePreviewCamera(
   camera: THREE.PerspectiveCamera,
   model: THREE.Object3D,
   aspect: number,
+  position = PREVIEW_CAMERA_POSITION,
 ): THREE.Vector3 | null {
   const box = new THREE.Box3().setFromObject(model)
   if (box.isEmpty() || !Number.isFinite(aspect) || aspect <= 0) return null
@@ -40,7 +41,7 @@ export function framePreviewCamera(
   camera.aspect = aspect
   camera.zoom = 1
   const verticalHalfFov = THREE.MathUtils.degToRad(camera.fov) / 2
-  const direction = new THREE.Vector3(...PREVIEW_CAMERA_POSITION).normalize()
+  const direction = new THREE.Vector3(...position).normalize()
   const right = new THREE.Vector3().crossVectors(camera.up, direction).normalize()
   const up = new THREE.Vector3().crossVectors(direction, right)
   const viewportHalfHeight = Math.tan(verticalHalfFov)

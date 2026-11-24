@@ -19,6 +19,10 @@ export interface ModelViewerProps {
   modelUrl: string
   ariaLabel: string
   className?: string
+  presentation?: {
+    cameraPosition: [number, number, number]
+    studioLight19: { yaw: number; exposure: number }
+  }
 }
 
 const ENTRANCE_DURATION = 1.5
@@ -47,12 +51,14 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
+  cameraPosition,
 }: {
   url: string
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
   lightIntensity: number
+  cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
   const modelGroup = useRef<THREE.Group>(null)
@@ -118,7 +124,7 @@ function PreviewModel({
 
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || size.width <= 0 || size.height <= 0) return
-    const center = framePreviewCamera(camera, fitted, size.width / size.height)
+    const center = framePreviewCamera(camera, fitted, size.width / size.height, cameraPosition)
     if (!center) return
     const orbit = controls as {
       target?: THREE.Vector3
@@ -134,7 +140,7 @@ function PreviewModel({
       applyOpeningOrbit(camera, view, easeInOut(entranceTime.current / ENTRANCE_DURATION))
     }
     invalidate()
-  }, [camera, controls, fitted, size.width, size.height, invalidate, openingOrbit, reducedMotion])
+  }, [camera, cameraPosition, controls, fitted, size.width, size.height, invalidate, openingOrbit, reducedMotion])
 
   useEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return
@@ -423,11 +429,13 @@ function ModelViewerCanvas({
   pixelRatio,
   background,
   onBackgroundChange,
+  presentation,
 }: ViewerBackgroundProps & {
   modelUrl: string
   ariaLabel: string
   visible: boolean
   pixelRatio: number
+  presentation?: ModelViewerProps['presentation']
 }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const openingOrbit = useMemo(() => ({ cancelled: false, manualCamera: false }), [modelUrl])
@@ -440,9 +448,11 @@ function ModelViewerCanvas({
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
   const studio = 'studio' in preset ? preset.studio : undefined
+  const studioOverride = preset.id === 'studio-light-19' ? presentation?.studioLight19 : undefined
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
+  const environmentYaw = preset.yaw + (studioOverride?.yaw ?? 0) + lightingYaw
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -484,7 +494,7 @@ function ModelViewerCanvas({
         <Canvas
           className="model-viewer__canvas"
           style={background ? { backgroundImage: background } : undefined}
-          camera={{ position: PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
+          camera={{ position: presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
           dpr={pixelRatio}
           shadows="percentage"
@@ -497,7 +507,7 @@ function ModelViewerCanvas({
               <ViewerEnvironment
                 files={preset.hdrPath}
                 intensity={preset.intensity * (1 + brightness / 100)}
-                yaw={preset.yaw + lightingYaw}
+                yaw={environmentYaw}
                 adjustments={environmentAdjustments}
               />
             </Suspense>
@@ -508,7 +518,8 @@ function ModelViewerCanvas({
               url={modelUrl}
               wireframe={false}
               openingOrbit={openingOrbit}
-              lightYaw={preset.yaw + lightingYaw + (studio?.keyYawOffset ?? 0)}
+              cameraPosition={presentation?.cameraPosition}
+              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
               lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100)}
             />
           </Suspense>
@@ -531,6 +542,13 @@ function ModelViewerCanvas({
             type="button"
             aria-pressed={preset.id === option.id}
             onClick={() => {
+              if (presentation && option.id !== preset.id &&
+                (option.id === 'studio-light-19' || preset.id === 'studio-light-19')) {
+                const exposure = option.id === 'studio-light-19'
+                  ? presentation.studioLight19.exposure
+                  : DEFAULT_VIEWER_ENVIRONMENT.exposure
+                setEnvironmentAdjustments((current) => ({ ...current, exposure }))
+              }
               setPreset(option)
               setLightingYaw(0)
             }}
@@ -549,7 +567,10 @@ function ModelViewerCanvas({
         }}
         onResetAdjustments={() => {
           setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
-          setEnvironmentAdjustments(DEFAULT_VIEWER_ENVIRONMENT)
+          setEnvironmentAdjustments({
+            ...DEFAULT_VIEWER_ENVIRONMENT,
+            exposure: studioOverride?.exposure ?? DEFAULT_VIEWER_ENVIRONMENT.exposure,
+          })
         }}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={startManualCamera}
@@ -563,7 +584,7 @@ function ModelViewerCanvas({
   )
 }
 
-export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps) {
+export function ModelViewer({ modelUrl, ariaLabel, className, presentation }: ModelViewerProps) {
   const [backgroundIndex, setBackgroundIndex] = useState(0)
   const background = VIEWER_BACKGROUNDS[backgroundIndex]
   const cycleBackground = () => setBackgroundIndex((index) => (index + 1) % VIEWER_BACKGROUNDS.length)
@@ -604,6 +625,7 @@ export function ModelViewer({ modelUrl, ariaLabel, className }: ModelViewerProps
       >
         <ModelViewerCanvas
           modelUrl={trimmedUrl}
+          presentation={presentation}
           ariaLabel={ariaLabel}
           visible={visible}
           pixelRatio={pixelRatio}

@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { WishlistToggle } from '../../components/wishlist/WishlistToggle'
+import type { ModelViewerProps } from '../../components/viewer/ModelViewer'
 import {
   buildProductMetaDescription,
   buildProductPageTitle,
@@ -33,6 +34,10 @@ import '../../styles/product-hub-details.css'
 import '../../styles/products-browse.css'
 
 const RELATED_PAGE_SIZE = 5
+const PC_CASE_VIEWER_PRESENTATION: ModelViewerProps['presentation'] = {
+  cameraPosition: [1, 0.5, 1],
+  studioLight19: { yaw: Math.PI / 3, exposure: -0.5 },
+}
 
 function licenseLabel(license: ProductLicenseType): string {
   switch (license) {
@@ -223,6 +228,7 @@ function ProductDetailContent({ product }: { product: PublicProductDetail }) {
             thumbnail={product.thumbnail}
             images={product.images}
             previewModelUrl={product.preview_model}
+            viewerPresentation={product.slug === 'black-gaming-pc-case' ? PC_CASE_VIEWER_PRESENTATION : undefined}
             spinImages={product.spin_images}
             showPreviewModeThumbs
             showStageChrome
