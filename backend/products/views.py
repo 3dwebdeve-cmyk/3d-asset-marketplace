@@ -24,12 +24,7 @@ from accounts.throttles import (
     DownloadRateThrottle,
 )
 from config.api_helpers import domain_error_response, parse_uuid
-from config.media import (
-    PrivateFileNotFound,
-    is_free_model_path,
-    media_relative_path,
-    resolve_private_download,
-)
+from config.media import is_free_model_path, media_relative_path
 from config.storages import build_public_media_url
 from config.http_cache import PublicCatalogCacheMixin
 from plugins.ingest_adapter import add_other_rows, import_plugin_items, split_by_product_type
@@ -56,6 +51,7 @@ from products.serializers import (
     ProductUpdateSerializer,
 )
 from products.services import (
+    UPLOAD_KIND_FREE,
     UPLOAD_KINDS,
     ProductCreateData,
     ProductError,
@@ -155,8 +151,11 @@ class ProductFreeDownloadView(APIView):
     account needed.
 
     ``package`` picks the package; without it, the first kind in PACKAGE_ORDER the model has.
-    An unknown or missing kind is 404. Redirects to the file: the public free-models/ object,
-    or a short-lived signed link when the zip is in the private bucket.
+    An unknown or missing kind is 404. Redirects to the public free-models/ object.
+
+    Only a model uploaded as free (its zips under free-models/) is served, and only a package
+    whose own price is 0. A price of 0 alone never makes a model free: a paid model shows 0
+    while it waits for its prices. A zip in the private bucket is never handed out here.
     """
 
     permission_classes = [AllowAny]
@@ -167,12 +166,15 @@ class ProductFreeDownloadView(APIView):
             product = ProductService.get_public_by_slug(slug)
         except ProductError as exc:
             raise NotFound(exc.message) from exc
-        if not product.is_free:
+        if not product.is_free or ProductService.upload_kind(product) != UPLOAD_KIND_FREE:
             raise NotFound("This model is not a free download.")
         packages = {
             row.package_kind: row
             for row in product.files.all()
-            if not row.is_preview and row.package_kind in PACKAGE_KINDS
+            if not row.is_preview
+            and row.package_kind in PACKAGE_KINDS
+            and row.price == 0
+            and is_free_model_path(row.storage_path)
         }
         wanted = request.query_params.get("package")
         if wanted is None:
@@ -180,15 +182,9 @@ class ProductFreeDownloadView(APIView):
         package = packages.get(wanted) if wanted else None
         if package is None:
             raise NotFound("This model has no such package.")
-        if is_free_model_path(package.storage_path):
-            return HttpResponseRedirect(
-                build_public_media_url(media_relative_path(package.storage_path))
-            )
-        try:
-            result = resolve_private_download(package.storage_path, file_name=package.file_name)
-        except PrivateFileNotFound:
-            raise NotFound("File not found.") from None
-        return HttpResponseRedirect(result["download_url"]) if isinstance(result, dict) else result
+        return HttpResponseRedirect(
+            build_public_media_url(media_relative_path(package.storage_path))
+        )
 
 
 class AdminProductListCreateView(APIView):

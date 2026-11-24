@@ -158,6 +158,9 @@ DATABASES = {
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        # Django's default list names username/first_name/last_name, which this User model
+        # does not have, so the name was never compared. Compare the fields it does have.
+        'OPTIONS': {'user_attributes': ('email', 'full_name')},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
@@ -617,6 +620,11 @@ SPECTACULAR_SETTINGS = {
         "PluginLicenseEnum": "plugins.models.Plugin.LicenseType",
     },
 }
+
+# A password reset link works for 15 minutes (Django's default is 3 days) and stops working
+# once the password changes. Email verification links have their own, longer limit below.
+PASSWORD_RESET_TIMEOUT = 15 * 60
+EMAIL_VERIFICATION_TIMEOUT = 24 * 60 * 60
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),

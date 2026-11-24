@@ -326,6 +326,40 @@ class FreeDownloadTests(PackageSellingTestBase):
             with self.subTest(query=query):
                 self.assertEqual(self.free_download(query).status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_a_paid_model_at_price_zero_is_not_a_free_download(self) -> None:
+        """A live paid model whose summary price fell to 0 (all prices removed) keeps its
+        private zips private: price 0 alone never makes a model free."""
+        paid = Product.objects.create(
+            category=self.category, name="Paid Lamp", slug="paid-lamp", price=Decimal("0.00"),
+            status=Product.Status.PUBLISHED,
+        )
+        sell_package(paid, "whole", "0.00")  # private products/files/ zip
+        unpriced = sell_package(paid, "glb_only", "0.00")
+        ProductFile.objects.filter(pk=unpriced.pk).update(price=None)
+
+        for query in ("", "?package=whole", "?package=glb_only"):
+            with self.subTest(query=query):
+                response = self.client.get(
+                    reverse("products:product-free-download", kwargs={"slug": "paid-lamp"}) + query
+                )
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_a_private_zip_of_a_free_model_is_never_handed_out(self) -> None:
+        """Older free models kept their zip in the private bucket; only free-models/ is served."""
+        private = sell_package(self.free, "with_light_rig", "0.00")
+        self.assertFalse(private.storage_path.startswith("free-models/"))
+
+        self.assertEqual(
+            self.free_download("?package=with_light_rig").status_code, status.HTTP_404_NOT_FOUND
+        )
+        self.assertTrue(self.free_download("?package=whole")["Location"].endswith("FREE-1_whole.zip"))
+
+    def test_a_priced_package_of_a_free_model_is_not_served(self) -> None:
+        ProductFile.objects.filter(product=self.free, package_kind="whole").update(price=Decimal("5.00"))
+
+        self.assertEqual(self.free_download("?package=whole").status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(self.free_download()["Location"].endswith("FREE-1_glb_only.zip"))
+
 
 class StorefrontTests(PackageSellingTestBase):
     def test_the_product_page_lists_the_priced_packages_in_package_order(self) -> None:

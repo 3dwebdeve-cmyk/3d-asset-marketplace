@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -851,6 +852,9 @@ class PasswordResetConfirmView(APIView):
                 {"detail": exc.message},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        except DjangoValidationError as exc:
+            # Same shape as a form error, so the page shows it under the password field.
+            raise ValidationError({"new_password": list(exc.messages)}) from exc
 
         response = Response(
             {"detail": "Password has been reset. You can sign in with your new password."},
