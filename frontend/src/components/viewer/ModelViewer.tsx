@@ -28,7 +28,6 @@ const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
 const LIGHT_HORIZONTAL_DISTANCE = 3
-const SUNLIGHT_ELEVATION = Math.PI / 12
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
 
@@ -52,15 +51,13 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
-  lightHeight = 4,
   cameraPosition,
 }: {
   url: string
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
-  lightIntensity: number
-  lightHeight?: number
+  lightIntensity: number | null
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -108,7 +105,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightHeight, lightYaw, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -167,12 +164,12 @@ function PreviewModel({
 
   return (
     <>
-      <directionalLight
+      {lightIntensity !== null && <directionalLight
         key={shadowResolution}
         ref={shadowLight}
         position={[
           Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-          lightHeight,
+          4,
           Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
         ]}
         intensity={lightIntensity}
@@ -188,7 +185,7 @@ function PreviewModel({
         shadow-normalBias={0.006}
         shadow-bias={-0.0002}
         shadow-radius={2.5}
-      />
+      />}
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
       </group>
@@ -246,15 +243,13 @@ const VIEWER_BACKGROUNDS = [
   'radial-gradient(ellipse farthest-side at center, #4E5459 0%, #373C40 55%, #202326 100%)',
 ] as const
 
-type LightAdjustments = EnvironmentAdjustments & { brightness: number; sunlight?: number }
+type LightAdjustments = EnvironmentAdjustments & { brightness: number }
 
 const DEFAULT_VIEWER_BRIGHTNESS = 3
-const DEFAULT_SUNLIGHT = 80
 const DEFAULT_VIEWER_ENVIRONMENT = { ...DEFAULT_ENVIRONMENT_ADJUSTMENTS, exposure: -0.7 }
 
 const LIGHT_SLIDERS = [
   { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
-  { key: 'sunlight', label: 'Sunlight', min: 0, max: 200, step: 1, unit: '%' },
   { key: 'contrast', label: 'Contrast', min: -50, max: 50, step: 1, unit: '%' },
   { key: 'exposure', label: 'Exposure', min: -2, max: 2, step: 0.1, unit: ' EV' },
   { key: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1, unit: '%' },
@@ -412,11 +407,10 @@ function ViewerToolbar({
       <div id={lightControlsId} className="model-viewer__adjustments" role="group" aria-label="HDRI light adjustments" hidden={!showLightControls}>
         {LIGHT_SLIDERS.map(({ key, label, min, max, step, unit }) => {
           const value = adjustments[key]
-          if (value === undefined) return null
           return (
             <label key={key}>
               <span>{label}</span>
-              <span aria-hidden="true">{key !== 'sunlight' && value > 0 ? '+' : ''}{value}{unit}</span>
+              <span aria-hidden="true">{value > 0 ? '+' : ''}{value}{unit}</span>
               <input
                 type="range"
                 aria-label={label}
@@ -461,14 +455,11 @@ function ModelViewerCanvas({
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
   const studio = 'studio' in preset ? preset.studio : undefined
-  const hasSunlight = preset.id === 'studio-light-123'
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
-  const [sunlight, setSunlight] = useState(DEFAULT_SUNLIGHT)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
-  const sunYaw = Math.atan2(cameraPosition[0], cameraPosition[2]) - Math.PI / 2 + lightingYaw
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -517,8 +508,8 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={studio?.exposure} />
-          <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
-          <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
+          {preset.hdrPath && <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />}
+          {preset.hdrPath && <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
@@ -527,7 +518,7 @@ function ModelViewerCanvas({
                 adjustments={environmentAdjustments}
               />
             </Suspense>
-          </ErrorBoundary>
+          </ErrorBoundary>}
           <Suspense fallback={null}>
             <PreviewModel
               key={modelUrl}
@@ -535,9 +526,8 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={hasSunlight ? sunYaw : environmentYaw + (studio?.keyYawOffset ?? 0)}
-              lightHeight={hasSunlight ? LIGHT_HORIZONTAL_DISTANCE * Math.tan(SUNLIGHT_ELEVATION) : undefined}
-              lightIntensity={hasSunlight ? sunlight / 100 : (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100)}
+              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
+              lightIntensity={preset.hdrPath ? (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100) : null}
             />
           </Suspense>
           <OrbitControls
@@ -570,15 +560,13 @@ function ModelViewerCanvas({
       </div>
       <ViewerToolbar
         controls={controls}
-        adjustments={{ ...environmentAdjustments, brightness, sunlight: hasSunlight ? sunlight : undefined }}
+        adjustments={{ ...environmentAdjustments, brightness }}
         onAdjustmentChange={(key, value) => {
           if (key === 'brightness') setBrightness(value)
-          else if (key === 'sunlight') setSunlight(value)
           else setEnvironmentAdjustments((current) => ({ ...current, [key]: value }))
         }}
         onResetAdjustments={() => {
           setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
-          if (hasSunlight) setSunlight(DEFAULT_SUNLIGHT)
           setEnvironmentAdjustments(DEFAULT_VIEWER_ENVIRONMENT)
         }}
         onBackgroundChange={onBackgroundChange}

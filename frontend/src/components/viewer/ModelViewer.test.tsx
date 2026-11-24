@@ -268,24 +268,16 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
-  it('controls the Studio Light 123 sun independently of the HDRI', async () => {
+  it('removes all viewer lighting when Studio Light 123 is selected', async () => {
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
-    expect(screen.queryByRole('slider', { name: 'Sunlight' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Studio Light 123' }))
-    const sunlight = screen.getByRole('slider', { name: 'Sunlight' })
-    const sun = container.querySelector('directionallight')
-    const environment = screen.getByTestId('viewer-environment')
-    const intensity = environment.getAttribute('data-intensity')
-    expect(sun).toHaveAttribute('intensity', '0.8')
-    const [x, y, z] = (sun?.getAttribute('position') ?? '').split(',').map(Number)
-    expect(Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI).toBeCloseTo(15)
-    fireEvent.change(sunlight, { target: { value: '0' } })
-    expect(sun).toHaveAttribute('intensity', '0')
-    expect(environment.getAttribute('data-intensity')).toBe(intensity)
-    await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
-    expect(sunlight).toHaveValue('80')
-    expect(sun).toHaveAttribute('intensity', '0.8')
+    expect(screen.queryByRole('slider', { name: 'Sunlight' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
+    expect(container.querySelector('ambientlight, directionallight')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
+    expect(screen.getByTestId('viewer-environment')).toBeInTheDocument()
+    expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
