@@ -1,22 +1,19 @@
 import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
+import { ContactShadows, Environment, Lightformer, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
-import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
 import { clampPreviewZoom, framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
-import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
+import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, orbitPosition } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 import '../../styles/model-viewer.css'
-
-RectAreaLightUniformsLib.init()
 
 export interface ModelViewerProps {
   modelUrl: string
@@ -33,6 +30,9 @@ const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
 const LIGHT_HORIZONTAL_DISTANCE = 3
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
+const STUDIO_PANEL_DISTANCE = 5
+// The fitted model is at most 1.8 units across, so any floor shadow lands well inside this plane.
+const FLOOR_SHADOW_SIZE = 8
 
 function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
@@ -54,15 +54,24 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
+  lightElevation,
   detailedSelfShadows,
+  softShadows = false,
+  floorShadowOpacity,
   cameraPosition,
 }: {
   url: string
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
-  lightIntensity: number | null
+  lightIntensity: number
+  /** Angle of the key light above the floor. Omitted keeps the legacy fixed height. */
+  lightElevation?: number
   detailedSelfShadows: boolean
+  /** Wider shadow filtering for a large-softbox look. */
+  softShadows?: boolean
+  /** Opacity of the key light's cast shadow on an invisible floor. Omitted shows only the contact shadow. */
+  floorShadowOpacity?: number
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -114,7 +123,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, softShadows, floorShadowOpacity, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -173,13 +182,13 @@ function PreviewModel({
 
   const lightPosition: [number, number, number] = [
     Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-    4,
+    lightElevation === undefined ? 4 : LIGHT_HORIZONTAL_DISTANCE * Math.tan(lightElevation),
     Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
   ]
 
   return (
     <>
-      {lightIntensity !== null && <directionalLight
+      <directionalLight
         key={shadowResolution}
         ref={shadowLight}
         position={lightPosition}
@@ -195,11 +204,17 @@ function PreviewModel({
         shadow-camera-far={8}
         shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
         shadow-bias={-0.0002}
-        shadow-radius={2.5}
-      />}
+        shadow-radius={softShadows ? 6 : 2.5}
+      />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
       </group>
+      {ground && shadowsReady && floorShadowOpacity ? (
+        <mesh rotation-x={-Math.PI / 2} position={[0, ground.y - 0.002, 0]} receiveShadow>
+          <planeGeometry args={[FLOOR_SHADOW_SIZE, FLOOR_SHADOW_SIZE]} />
+          <shadowMaterial transparent opacity={floorShadowOpacity} />
+        </mesh>
+      ) : null}
       {ground && shadowsReady ? (
         <ContactShadows
           position={[0, ground.y, 0]}
@@ -294,6 +309,50 @@ function ViewerEnvironment({ files, intensity, yaw, adjustments }: {
   }, [map, source])
 
   return <Environment map={map} background={false} environmentIntensity={intensity} environmentRotation={[0, yaw, 0]} />
+}
+
+type ProductStudio = Extract<(typeof HDRI_ENVIRONMENTS)[number], { productStudio: unknown }>['productStudio']
+
+/** A white studio room built from glowing panels: soft fill from every side and something for metals to reflect. */
+function ProductStudioEnvironment({ studio, frontYaw, intensity }: {
+  studio: ProductStudio
+  frontYaw: number
+  intensity: number
+}) {
+  return (
+    <Environment resolution={256} environmentIntensity={intensity}>
+      <color attach="background" args={[studio.roomColor]} />
+      {studio.panels.map(({ name, yaw, elevation, intensity: panelIntensity, scale }) => (
+        <Lightformer
+          key={name}
+          name={name}
+          form="rect"
+          intensity={panelIntensity}
+          scale={[scale[0], scale[1]]}
+          position={orbitPosition(frontYaw + yaw, elevation, STUDIO_PANEL_DISTANCE)}
+        />
+      ))}
+    </Environment>
+  )
+}
+
+/** Swap the renderer's tone mapping while mounted, restoring the previous mode afterwards. */
+function ViewerToneMapping({ mapping }: { mapping?: THREE.ToneMapping }) {
+  const renderer = useThree((state) => state.gl)
+  const invalidate = useThree((state) => state.invalidate)
+
+  useLayoutEffect(() => {
+    if (!renderer || mapping === undefined) return
+    const previousMapping = renderer.toneMapping
+    renderer.toneMapping = mapping
+    invalidate()
+    return () => {
+      renderer.toneMapping = previousMapping
+      invalidate()
+    }
+  }, [renderer, mapping, invalidate])
+
+  return null
 }
 
 function ViewerExposure({ exposure }: { exposure?: number }) {
@@ -471,7 +530,7 @@ function ModelViewerCanvas({
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
-  const areaLights = 'areaLights' in preset ? preset.areaLights : undefined
+  const productStudio = 'productStudio' in preset ? preset.productStudio : undefined
   const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
   const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
@@ -522,6 +581,7 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={studio?.exposure} />
+          <ViewerToneMapping mapping={productStudio ? THREE.NeutralToneMapping : undefined} />
           {preset.hdrPath && <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />}
           {preset.hdrPath && <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
@@ -533,20 +593,13 @@ function ModelViewerCanvas({
               />
             </Suspense>
           </ErrorBoundary>}
-          {areaLights?.map(({ name, yaw, elevation, intensity, size }) => {
-            const azimuth = openingCameraYaw + yaw + lightingYaw
-            const radius = LIGHT_HORIZONTAL_DISTANCE * Math.cos(elevation)
-            return (
-              <rectAreaLight
-                key={name}
-                position={[Math.sin(azimuth) * radius, LIGHT_HORIZONTAL_DISTANCE * Math.sin(elevation), Math.cos(azimuth) * radius]}
-                rotation={[-elevation, azimuth, 0, 'YXZ']}
-                intensity={intensity * brightnessMultiplier}
-                width={size}
-                height={size}
-              />
-            )
-          })}
+          {productStudio && (
+            <ProductStudioEnvironment
+              studio={productStudio}
+              frontYaw={openingCameraYaw + lightingYaw}
+              intensity={preset.intensity * brightnessMultiplier}
+            />
+          )}
           <Suspense fallback={null}>
             <PreviewModel
               key={modelUrl}
@@ -554,9 +607,14 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
-              lightIntensity={areaLights ? null : (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
-              detailedSelfShadows={preset.id === 'small-09'}
+              lightYaw={productStudio
+                ? openingCameraYaw + productStudio.key.yaw + lightingYaw
+                : environmentYaw + (studio?.keyYawOffset ?? 0)}
+              lightElevation={productStudio?.key.elevation}
+              lightIntensity={(productStudio?.key.intensity ?? studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
+              detailedSelfShadows={preset.id === 'small-09' || productStudio !== undefined}
+              softShadows={productStudio !== undefined}
+              floorShadowOpacity={productStudio?.floorShadowOpacity}
             />
           </Suspense>
           <OrbitControls
