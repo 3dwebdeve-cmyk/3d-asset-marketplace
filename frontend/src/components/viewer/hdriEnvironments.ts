@@ -28,6 +28,26 @@ export const HDRI_ENVIRONMENTS = [
       floorShadowOpacity: 0.22,
     },
   },
+  {
+    // Daylight: a strong sun from behind-left so its shadows fall toward the viewer, a weaker
+    // shadowless sun opposite it to lift the dark sides, and a bright sky all around. Shadows
+    // harden at contact and soften with distance; ambient occlusion darkens creases.
+    id: 'sun-1', label: 'Sun1', hdrPath: null, intensity: 0.85, yaw: 0,
+    productStudio: {
+      key: { yaw: -Math.PI * 0.75, elevation: Math.PI * 55 / 180, intensity: 2 },
+      fill: { yaw: Math.PI / 4, elevation: Math.PI * 35 / 180, intensity: 0.6 },
+      roomColor: '#454545',
+      panels: [
+        { name: 'Sky', yaw: 0, elevation: Math.PI * 0.45, intensity: 1, scale: [10, 10] },
+        { name: 'Sun disc', yaw: -Math.PI * 0.75, elevation: Math.PI * 55 / 180, intensity: 6, scale: [1.2, 1.2] },
+        { name: 'Fill sun disc', yaw: Math.PI / 4, elevation: Math.PI * 35 / 180, intensity: 2, scale: [1.2, 1.2] },
+        { name: 'Ground bounce', yaw: 0, elevation: -Math.PI / 3, intensity: 0.35, scale: [10, 10] },
+      ],
+      floorShadowOpacity: 0.3,
+      contactHardeningShadows: true,
+      ambientOcclusion: true,
+    },
+  },
 ] as const
 
 export const DEFAULT_HDRI_ENVIRONMENT_ID = 'small-09'
