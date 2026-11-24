@@ -440,3 +440,10 @@
 @media(max-width:600px){.custom-studio .brief-cta{padding-inline:20px}}
 /* Wide screens: smaller gap above Continue (placed last so it overrides the base 40px). */
 @media(min-width:1500px){.custom-studio .brief-selector-wrap--compact .brief-selector-actions{margin-top:12px}}
+/* Banner: no yellow underline under "We'll make it." */
+.custom-studio .hero h1 .highlight{background:none}
+/* Eye-catching intro paragraph and step labels. */
+.custom-studio .hive-enquiry-copy > h2 + p{font-size:17px;line-height:1.55;font-weight:600;color:#2c3a4b}
+.custom-studio .brief-selector-wrap--compact .brief-selector-steps li{font-weight:600}
+@media(min-width:901px){.custom-studio .brief-selector-wrap--compact .brief-selector-steps li{font-size:15px}}
+@media(max-width:480px){.custom-studio .hive-enquiry-copy > h2 + p{font-size:16px}}
