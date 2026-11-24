@@ -76,6 +76,9 @@ vi.mock('@react-three/drei', () => ({
     <div data-testid="studio-panel" data-name={name} data-position={position.join(',')} data-intensity={intensity} />
   ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
+  SoftShadows: ({ size, samples }: { size: number; samples: number }) => (
+    <div data-testid="contact-hardening-shadows" data-size={size} data-samples={samples} />
+  ),
   useGLTF: Object.assign(
     () => ({
       scene: viewerMocks.scene ?? new Object3D(),
@@ -84,6 +87,16 @@ vi.mock('@react-three/drei', () => ({
   ),
   useProgress: () => ({ active: false, progress: 100, loaded: 1, total: 1 }),
 }))
+
+vi.mock('@react-three/postprocessing', () => ({
+  EffectComposer: ({ children }: { children?: import('react').ReactNode }) => <div data-testid="effect-composer">{children}</div>,
+  N8AO: ({ aoRadius, intensity }: { aoRadius: number; intensity: number }) => (
+    <div data-testid="ambient-occlusion" data-radius={aoRadius} data-intensity={intensity} />
+  ),
+  ToneMapping: ({ mode }: { mode: number }) => <div data-testid="effect-tone-mapping" data-mode={mode} />,
+}))
+
+vi.mock('postprocessing', () => ({ ToneMappingMode: { NEUTRAL: 8 } }))
 
 vi.mock('./isWebGLAvailable', () => ({
   isWebGLAvailable: () => viewerMocks.webglAvailable,
@@ -254,7 +267,7 @@ describe('ModelViewer', () => {
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
-    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(5)
+    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(6)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
     expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
@@ -315,6 +328,62 @@ describe('ModelViewer', () => {
       expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
       expect(container.querySelector('shadowmaterial')).toBeNull()
       expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('lights Sun1 with a shadowing back-left sun, an opposite fill sun, soft contact shadows and AO', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    try {
+      const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+      await userEvent.click(screen.getByRole('button', { name: 'Sun1' }))
+
+      const lights = Array.from(container.querySelectorAll('directionallight'))
+      expect(lights).toHaveLength(2)
+      const fill = lights.find((light) => light.getAttribute('name') === 'Fill sun')!
+      const sun = lights.find((light) => light !== fill)!
+      const azimuth = (light: Element) => {
+        const [x, , z] = light.getAttribute('position')!.split(',').map(Number)
+        return Math.atan2(x, z)
+      }
+      const elevation = (light: Element) => {
+        const [x, y, z] = light.getAttribute('position')!.split(',').map(Number)
+        return Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI
+      }
+      // Camera opens at azimuth -45deg; behind-left of it is -180deg, opposite (front-right) is 0deg.
+      expect(Math.abs(azimuth(sun))).toBeCloseTo(Math.PI)
+      expect(azimuth(fill)).toBeCloseTo(0)
+      expect(elevation(sun)).toBeCloseTo(55)
+      expect(elevation(fill)).toBeCloseTo(35)
+      expect(Number(fill.getAttribute('intensity'))).toBeLessThan(Number(sun.getAttribute('intensity')))
+
+      expect(screen.getByTestId('contact-hardening-shadows')).toBeInTheDocument()
+      expect(container.querySelector('shadowmaterial')).toHaveAttribute('opacity', '0.3')
+      expect(await screen.findByTestId('ambient-occlusion')).toBeInTheDocument()
+      expect(screen.getByTestId('effect-tone-mapping')).toHaveAttribute('data-mode', '8')
+      expect(Array.from(screen.getAllByTestId('studio-panel'), (panel) => panel.getAttribute('data-name')))
+        .toEqual(['Sky', 'Sun disc', 'Fill sun disc', 'Ground bounce'])
+
+      // Alt + drag turns both suns together and keeps them opposite.
+      const surface = container.querySelector('.model-viewer__surface')!
+      Object.defineProperty(surface, 'clientWidth', { value: 400 })
+      Object.defineProperty(surface, 'setPointerCapture', { value: vi.fn() })
+      fireEvent.pointerDown(surface, { altKey: true, button: 0, pointerId: 1, clientX: 100 })
+      fireEvent.pointerMove(surface, { pointerId: 1, clientX: 200 })
+      fireEvent.pointerUp(surface, { pointerId: 1 })
+      const turned = Array.from(container.querySelectorAll('directionallight'))
+      const turnedFill = turned.find((light) => light.getAttribute('name') === 'Fill sun')!
+      const turnedSun = turned.find((light) => light !== turnedFill)!
+      expect(azimuth(turnedFill)).toBeCloseTo(Math.PI / 2)
+      expect(Math.cos(azimuth(turnedSun) - azimuth(turnedFill))).toBeCloseTo(-1)
+
+      await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
+      expect(screen.queryByTestId('contact-hardening-shadows')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('ambient-occlusion')).not.toBeInTheDocument()
+      expect(container.querySelectorAll('directionallight')).toHaveLength(1)
+      expect(viewerMocks.renderer.toneMapping).toBe(7)
     } finally {
       vi.unstubAllGlobals()
     }

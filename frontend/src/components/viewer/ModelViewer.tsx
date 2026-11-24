@@ -1,6 +1,6 @@
-import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
+import { lazy, Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, Lightformer, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
+import { ContactShadows, Environment, Lightformer, OrbitControls, SoftShadows, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -24,6 +24,8 @@ export interface ModelViewerProps {
   }
 }
 
+const DaylightEffects = lazy(() => import('./DaylightEffects'))
+
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
@@ -33,6 +35,7 @@ const AMBIENT_FILL_INTENSITY = 0.15
 const STUDIO_PANEL_DISTANCE = 5
 // The fitted model is at most 1.8 units across, so any floor shadow lands well inside this plane.
 const FLOOR_SHADOW_SIZE = 8
+const FILL_SUN_DISTANCE = 6
 
 function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
@@ -57,6 +60,7 @@ function PreviewModel({
   lightElevation,
   detailedSelfShadows,
   softShadows = false,
+  contactHardeningShadows = false,
   floorShadowOpacity,
   cameraPosition,
 }: {
@@ -70,6 +74,8 @@ function PreviewModel({
   detailedSelfShadows: boolean
   /** Wider shadow filtering for a large-softbox look. */
   softShadows?: boolean
+  /** PCSS is active: shadows harden at contact and soften with distance. The shadow map type changes with it. */
+  contactHardeningShadows?: boolean
   /** Opacity of the key light's cast shadow on an invisible floor. Omitted shows only the contact shadow. */
   floorShadowOpacity?: number
   cameraPosition?: [number, number, number]
@@ -123,7 +129,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, softShadows, floorShadowOpacity, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, softShadows, contactHardeningShadows, floorShadowOpacity, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -189,7 +195,8 @@ function PreviewModel({
   return (
     <>
       <directionalLight
-        key={shadowResolution}
+        // Remount when the shadow map type changes so the light gets a fresh, correctly typed map.
+        key={`${shadowResolution}-${contactHardeningShadows}`}
         ref={shadowLight}
         position={lightPosition}
         intensity={lightIntensity}
@@ -212,7 +219,8 @@ function PreviewModel({
       {ground && shadowsReady && floorShadowOpacity ? (
         <mesh rotation-x={-Math.PI / 2} position={[0, ground.y - 0.002, 0]} receiveShadow>
           <planeGeometry args={[FLOOR_SHADOW_SIZE, FLOOR_SHADOW_SIZE]} />
-          <shadowMaterial transparent opacity={floorShadowOpacity} />
+          {/* No depth write: ambient occlusion should only see the model, not the invisible floor. */}
+          <shadowMaterial transparent depthWrite={false} opacity={floorShadowOpacity} />
         </mesh>
       ) : null}
       {ground && shadowsReady ? (
@@ -531,6 +539,9 @@ function ModelViewerCanvas({
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
   const productStudio = 'productStudio' in preset ? preset.productStudio : undefined
+  const fillSun = productStudio && 'fill' in productStudio ? productStudio.fill : undefined
+  const contactHardeningShadows = Boolean(productStudio && 'contactHardeningShadows' in productStudio && productStudio.contactHardeningShadows)
+  const ambientOcclusion = Boolean(productStudio && 'ambientOcclusion' in productStudio && productStudio.ambientOcclusion)
   const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
   const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
@@ -581,7 +592,20 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={studio?.exposure} />
-          <ViewerToneMapping mapping={productStudio ? THREE.NeutralToneMapping : undefined} />
+          {productStudio && !ambientOcclusion && <ViewerToneMapping mapping={THREE.NeutralToneMapping} />}
+          {ambientOcclusion && (
+            <Suspense fallback={<ViewerToneMapping mapping={THREE.NeutralToneMapping} />}>
+              <DaylightEffects halfResolution={pixelRatio < 1.5} />
+            </Suspense>
+          )}
+          {contactHardeningShadows && <SoftShadows size={20} samples={12} focus={0} />}
+          {fillSun && (
+            <directionalLight
+              name="Fill sun"
+              position={orbitPosition(openingCameraYaw + fillSun.yaw + lightingYaw, fillSun.elevation, FILL_SUN_DISTANCE)}
+              intensity={fillSun.intensity * brightnessMultiplier}
+            />
+          )}
           {preset.hdrPath && <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />}
           {preset.hdrPath && <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
@@ -613,7 +637,8 @@ function ModelViewerCanvas({
               lightElevation={productStudio?.key.elevation}
               lightIntensity={(productStudio?.key.intensity ?? studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
               detailedSelfShadows={preset.id === 'small-09' || productStudio !== undefined}
-              softShadows={productStudio !== undefined}
+              softShadows={productStudio !== undefined && !contactHardeningShadows}
+              contactHardeningShadows={contactHardeningShadows}
               floorShadowOpacity={productStudio?.floorShadowOpacity}
             />
           </Suspense>
