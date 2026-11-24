@@ -2,6 +2,7 @@ import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
@@ -14,6 +15,8 @@ import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 import '../../styles/model-viewer.css'
+
+RectAreaLightUniformsLib.init()
 
 export interface ModelViewerProps {
   modelUrl: string
@@ -51,13 +54,17 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
+  lightHeight = 4,
+  lightSize,
   cameraPosition,
 }: {
   url: string
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
-  lightIntensity: number | null
+  lightIntensity: number
+  lightHeight?: number
+  lightSize?: number
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -105,7 +112,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightHeight, lightIntensity, lightYaw, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -162,16 +169,26 @@ function PreviewModel({
     }
   }, [fitted, wireframe])
 
+  const lightPosition: [number, number, number] = [
+    Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
+    lightHeight,
+    Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
+  ]
+
   return (
     <>
-      {lightIntensity !== null && <directionalLight
+      {lightSize !== undefined ? (
+        <rectAreaLight
+          position={lightPosition}
+          rotation={[-Math.atan2(lightHeight, LIGHT_HORIZONTAL_DISTANCE), lightYaw, 0, 'YXZ']}
+          intensity={lightIntensity}
+          width={lightSize}
+          height={lightSize}
+        />
+      ) : <directionalLight
         key={shadowResolution}
         ref={shadowLight}
-        position={[
-          Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-          4,
-          Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-        ]}
+        position={lightPosition}
         intensity={lightIntensity}
         castShadow={shadowsReady}
         shadow-autoUpdate={false}
@@ -460,6 +477,11 @@ function ModelViewerCanvas({
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
+  const sun = 'sun' in preset ? preset.sun : undefined
+  const lightYaw = sun
+    ? Math.atan2(cameraPosition[0], cameraPosition[2]) - Math.PI / 2 + lightingYaw
+    : environmentYaw + (studio?.keyYawOffset ?? 0)
+  const lightIntensity = sun?.intensity ?? studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -526,8 +548,10 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
-              lightIntensity={preset.hdrPath ? (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100) : null}
+              lightYaw={lightYaw}
+              lightHeight={sun ? LIGHT_HORIZONTAL_DISTANCE * Math.tan(sun.elevation) : undefined}
+              lightSize={sun?.size}
+              lightIntensity={lightIntensity * (1 + brightness / 100)}
             />
           </Suspense>
           <OrbitControls
