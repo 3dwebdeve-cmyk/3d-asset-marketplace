@@ -5,11 +5,13 @@ from uuid import uuid4
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
+from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils.crypto import constant_time_compare
 from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.http import base36_to_int, urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.token_blacklist.models import (
     BlacklistedToken,
@@ -34,11 +36,31 @@ dev_mail_logger = logging.getLogger("accounts.dev_mail")
 
 
 class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
-    """Token invalidates once email_verified becomes True."""
+    """Token invalidates once email_verified becomes True.
+
+    Django checks every token against PASSWORD_RESET_TIMEOUT (15 minutes here), which is too
+    short for a sign-up email, so a verification link uses EMAIL_VERIFICATION_TIMEOUT instead.
+    """
 
     def _make_hash_value(self, user, timestamp) -> str:
         email_verified = getattr(user, "email_verified", False)
         return f"{user.pk}{user.email}{email_verified}{timestamp}"
+
+    def check_token(self, user, token) -> bool:
+        # Same steps as Django's check_token, with this link's own time limit.
+        if not (user and token):
+            return False
+        try:
+            ts_b36, _ = token.split("-")
+            ts = base36_to_int(ts_b36)
+        except ValueError:
+            return False
+        for secret in [self.secret, *self.secret_fallbacks]:
+            if constant_time_compare(self._make_token_with_timestamp(user, ts, secret), token):
+                break
+        else:
+            return False
+        return (self._num_seconds(self._now()) - ts) <= settings.EMAIL_VERIFICATION_TIMEOUT
 
 
 email_verification_token_generator = EmailVerificationTokenGenerator()
@@ -462,6 +484,8 @@ class PasswordResetService:
         body = (
             "We received a request to reset your password.\n\n"
             f"Open this link to choose a new password:\n{reset_link}\n\n"
+            "The link works once and expires in 15 minutes. If it has expired, ask for a new "
+            "one on the sign-in page.\n\n"
             "If you did not request this, you can ignore this email."
         )
         log_id = MailLogService.record_queued(
@@ -494,6 +518,10 @@ class PasswordResetService:
         if user is None or not password_reset_token_generator.check_token(user, token):
             log_password_reset(action="confirm_failure", email=None)
             raise AuthenticationError("Invalid or expired password reset link.")
+
+        # Checked only for a valid link, with the account, so the similarity rule compares
+        # the password with this person's email and name. Raises ValidationError.
+        validate_password(new_password, user)
 
         user.set_password(new_password)
         AuthenticationService.bump_token_version(user)

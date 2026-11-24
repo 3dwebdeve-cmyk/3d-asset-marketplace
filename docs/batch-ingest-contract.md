@@ -52,6 +52,11 @@ Upload every zip **before** calling the import: the import checks each one is th
 imports at price 0, QA publishes them as free, and they cannot be published paid. Anyone can download them, without an account, through
 `GET /api/v1/products/<slug>/free-download/`, which redirects to the zip.
 
+The free download serves only a model uploaded as free (zips under `free-models/`), and only a
+package whose own price is 0. A price of 0 alone does not make a model free (a paid model shows 0
+while it waits for its prices), and a zip in the private bucket is never handed out without a
+purchase.
+
 ## Storage layout
 
 - Public objects: `models/<Model_ID>/` (thumbnail, gallery images, preview `.glb`).
