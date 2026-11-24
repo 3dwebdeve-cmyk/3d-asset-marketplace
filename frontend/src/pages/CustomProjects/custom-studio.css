@@ -345,7 +345,7 @@
 @media(max-width:600px){.custom-studio .project-process{padding:32px 20px 40px}.custom-studio .project-process-heading h2{font-size:28px;letter-spacing:-.7px}.custom-studio .project-process-grid{grid-template-columns:1fr;gap:32px;max-width:380px}.custom-studio .project-process-card{min-height:0;padding:20px 24px}.custom-studio .project-process-card:not(:last-child)::after{display:block;content:'\2193';left:50%;top:calc(100% + 2px);transform:translateX(-50%);font-size:26px}}
 
 /* Enquiry panel below the custom project banner. */
-.custom-studio .hive-enquiry{background:#f2f4f6;padding:48px 2.5% 72px;color:#17232d}
+.custom-studio .hive-enquiry{background:#f2f4f6;padding:0 2.5% 72px;color:#17232d}
 /* Match the banner: same 2.5% side gap, copy starts where the banner's text starts. */
 .custom-studio .hive-enquiry-layout{max-width:none;margin:0;padding-left:44px;display:grid;grid-template-columns:minmax(0,.84fr) minmax(0,1.4fr);gap:48px;align-items:start}
 .custom-studio .hive-enquiry-copy{text-align:left}
@@ -375,7 +375,19 @@
 .custom-studio .brief-selector-wrap--compact .brief-selector-card input{appearance:auto;opacity:0;width:1px;height:1px;top:0;right:0}
 .custom-studio .brief-selector-wrap--compact .brief-selector-title{font-weight:700;font-size:15px;line-height:21px}
 .custom-studio .brief-selector-wrap--compact .brief-selector-description{font-size:13px;line-height:18px;color:#657383}/* Wide screens: all eight services in 4 columns x 2 rows so they fit above the fold. */
-@media(min-width:1500px){.custom-studio .brief-selector-wrap--compact .brief-selector-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-studio .brief-selector-wrap--compact .brief-selector-card{padding:18px 16px}.custom-studio .brief-selector-wrap--compact .brief-selector-actions{margin-top:24px}}
+@media(min-width:1500px){.custom-studio .brief-selector-wrap--compact .brief-selector-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-studio .brief-selector-wrap--compact .brief-selector-card{min-height:0;padding:16px}.custom-studio .brief-selector-wrap--compact .brief-selector-actions{margin-top:16px}}
+/* Wide screens: tighten spacing so the whole enquiry section fits in one 1080p screen. */
+@media(min-width:1500px){
+  .custom-studio .brief-selector-wrap--compact .brief-selector{padding:24px 32px}
+  .custom-studio .brief-selector-wrap--compact .brief-selector-steps{margin-bottom:16px}
+  .custom-studio .hive-enquiry-layout{grid-template-columns:minmax(0,.92fr) minmax(0,1.4fr)}
+  .custom-studio .hive-enquiry-copy h2{font-size:38px;letter-spacing:-1.2px;margin-bottom:16px}
+  .custom-studio .hive-enquiry-copy p{margin-bottom:16px}
+  .custom-studio .hive-enquiry-timeline{margin-bottom:16px}
+  .custom-studio .hive-enquiry-timeline li{padding-bottom:10px}
+  .custom-studio .hive-enquiry-timeline p{margin:0}
+  .custom-studio .hive-enquiry-copy .hive-enquiry-note{padding:12px 16px}
+}
 .custom-studio .brief-selector-wrap--compact .brief-selector-actions{margin-top:40px;flex-wrap:wrap}
 .custom-studio .brief-selector-wrap--compact .brief-selector-actions>span{background:transparent;color:#657383;font-size:11px;margin-right:auto;padding:0}
 .custom-studio .brief-selector-wrap--compact .brief-selector-actions>button{background:#06f;color:#fff;padding:13px 24px;font-weight:600}
