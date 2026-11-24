@@ -27,6 +27,8 @@ export interface ModelViewerProps {
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
+const LIGHT_HORIZONTAL_DISTANCE = 3
+const SUNLIGHT_ELEVATION = Math.PI / 12
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
 
@@ -168,7 +170,11 @@ function PreviewModel({
       <directionalLight
         key={shadowResolution}
         ref={shadowLight}
-        position={[Math.sin(lightYaw) * 3, lightHeight, Math.cos(lightYaw) * 3]}
+        position={[
+          Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
+          lightHeight,
+          Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
+        ]}
         intensity={lightIntensity}
         castShadow={shadowsReady}
         shadow-autoUpdate={false}
@@ -530,7 +536,7 @@ function ModelViewerCanvas({
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
               lightYaw={hasSunlight ? sunYaw : environmentYaw + (studio?.keyYawOffset ?? 0)}
-              lightHeight={hasSunlight ? 3 : undefined}
+              lightHeight={hasSunlight ? LIGHT_HORIZONTAL_DISTANCE * Math.tan(SUNLIGHT_ELEVATION) : undefined}
               lightIntensity={hasSunlight ? sunlight / 100 : (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100)}
             />
           </Suspense>
