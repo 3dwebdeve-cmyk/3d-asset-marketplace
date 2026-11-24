@@ -418,3 +418,22 @@
 .custom-studio .brief-detail-grid--project .brief-detail-field textarea{min-height:100px}
 .custom-studio .brief-detail-grid--project+.brief-detail-actions{justify-content:space-between}
 @media(max-width:380px){.custom-studio .brief-detail-grid--project{grid-template-columns:1fr}}
+
+/* Information area aligned with the banner text; benefits (left) and FAQ (right) side by side. */
+.custom-studio .studio-information{padding-inline:calc(2.5% + 44px)}
+.custom-studio .studio-information .studio-info{max-width:none;margin:0;padding-left:0;padding-right:0}
+.custom-studio .studio-benefits-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:72px;align-items:start;border-top:1px solid #dce4ef}
+.custom-studio .studio-benefits-row .studio-info.studio-benefits{border-top:0}
+.custom-studio .studio-benefits-row .studio-benefits .studio-info-grid{grid-template-columns:1fr;gap:24px}
+.custom-studio .studio-faq--side{padding:56px 0 42px;background:transparent}
+.custom-studio .studio-faq--side .studio-faq-inner{max-width:none;border-top:0;padding:0}
+.custom-studio .studio-faq--side h2{font-size:36px;margin-bottom:20px}
+.custom-studio .studio-faq--side .faq-list{max-width:none}
+@media(max-width:900px){.custom-studio .studio-benefits-row{grid-template-columns:1fr;gap:0}.custom-studio .studio-faq--side{padding-top:8px}}
+@media(max-width:600px){.custom-studio .studio-information{padding-inline:20px}.custom-studio .studio-faq--side{padding:0 0 32px}.custom-studio .studio-faq--side h2{font-size:28px}}
+/* FAQ column sits further right, reaching the banner's right edge. */
+@media(min-width:901px){.custom-studio .studio-benefits-row{grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:120px}.custom-studio .studio-faq--side{margin-right:-44px}}
+/* Closing call-to-action aligned with the banner text like the sections above. */
+.custom-studio .brief-cta{padding-inline:calc(2.5% + 44px)}
+.custom-studio .brief-cta--simple .brief-cta-inner{max-width:none;margin:0;padding-left:0;padding-right:0}
+@media(max-width:600px){.custom-studio .brief-cta{padding-inline:20px}}
