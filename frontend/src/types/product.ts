@@ -278,7 +278,7 @@ export interface PublicProduct {
   formats?: string[]
   /** The product page has a 360° view (for the card's "360°" badge). */
   has_360?: boolean
-  /** The lowest price among the model's packages, for a "From $X" card; null with one package. */
+  /** The lowest package price displayed on the card; null with one package. */
   price_from?: string | null
   category: CategoryParent
   license_type: ProductLicenseType
