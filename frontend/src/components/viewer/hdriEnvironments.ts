@@ -10,7 +10,7 @@ export const HDRI_ENVIRONMENTS = [
     studio: { ambient: 0.09, keyIntensity: 0.8, keyYawOffset: -Math.PI / 6, exposure: 0.9 },
   },
   { id: 'small-08', label: 'Small Studio 08', hdrPath: '/hdri/small-studio-08.hdr', intensity: 1, yaw: Math.PI / 4 },
-  { id: 'studio-light-123', label: 'Studio Light 123', hdrPath: null, intensity: 0, yaw: 0 },
+  { id: 'light-111', label: 'Light 111', hdrPath: null, intensity: 0, yaw: 0, sun: { intensity: 2.5, elevation: Math.PI / 12, size: 4 } },
 ] as const
 
 export const DEFAULT_HDRI_ENVIRONMENT_ID = 'small-09'
