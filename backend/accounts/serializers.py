@@ -234,16 +234,12 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs: dict) -> dict:
+        # The password rules run in PasswordResetService.confirm_reset, once the link has named
+        # the account, so "too similar to your email or name" is checked too.
         if attrs["new_password"] != attrs["new_password_confirm"]:
             raise serializers.ValidationError(
                 {"new_password_confirm": "Passwords do not match."}
             )
-
-        try:
-            validate_password(attrs["new_password"])
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError({"new_password": list(exc.messages)}) from exc
-
         return attrs
 
 

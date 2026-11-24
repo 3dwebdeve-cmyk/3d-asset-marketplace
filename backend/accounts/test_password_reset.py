@@ -177,6 +177,51 @@ class PasswordResetAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("new_password_confirm", response.data)
 
+    def _confirm(self, token: str, new_password: str):
+        return self.client.post(
+            self.confirm_url,
+            {
+                "uid": urlsafe_base64_encode(force_bytes(str(self.user.pk))),
+                "token": token,
+                "new_password": new_password,
+                "new_password_confirm": new_password,
+            },
+            format="json",
+        )
+
+    def test_confirm_reset_rejects_a_password_like_the_account_email_or_name(self) -> None:
+        token = password_reset_token_generator.make_token(self.user)
+
+        for similar in ("reset-user@example.com", "Reset User"):
+            with self.subTest(password=similar):
+                response = self._confirm(token, similar)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("new_password", response.data)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.password))
+        # A rejected password leaves the link usable for a better one.
+        self.assertEqual(self._confirm(token, "BrandNewPass123!").status_code, status.HTTP_200_OK)
+
+    def test_confirm_reset_applies_the_other_password_rules(self) -> None:
+        token = password_reset_token_generator.make_token(self.user)
+
+        for weak in ("password123", "12345678901"):
+            with self.subTest(password=weak):
+                response = self._confirm(token, weak)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("new_password", response.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(self.password))
+
+    def test_an_invalid_link_is_refused_before_the_password_rules(self) -> None:
+        """A bad link answers "invalid link" whatever the password, so the rules never run
+        for an account the caller has not proved access to."""
+        response = self._confirm("invalid-token", "reset-user@example.com")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["detail"], "Invalid or expired password reset link.")
+
     def test_confirm_reset_rejects_reused_token(self) -> None:
         uid = urlsafe_base64_encode(force_bytes(str(self.user.pk)))
         token = password_reset_token_generator.make_token(self.user)

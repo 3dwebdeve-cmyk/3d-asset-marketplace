@@ -128,11 +128,12 @@ class FreeAndPaidApprovalTests(APITestCase):
         response = self._approve(product, {"pricing": "paid", "price": "10.00"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_free_model_with_a_private_zip_downloads_without_sign_in(self) -> None:
+    def test_free_model_with_a_private_zip_has_no_free_download(self) -> None:
+        """Only zips under free-models/ are free downloads: a private zip is never handed out
+        without a purchase, even when the model's price is 0."""
         product = self._publish_free()
         response = self._free_download(product)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_paid_model_has_no_free_download(self) -> None:
         self._authenticate_as_admin()
