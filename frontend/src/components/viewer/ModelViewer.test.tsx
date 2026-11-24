@@ -245,11 +245,6 @@ describe('ModelViewer', () => {
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
     expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(5)
-    const studioLight = screen.getByRole('button', { name: 'Studio Light 19' })
-    await userEvent.click(studioLight)
-    expect(studioLight).toHaveAttribute('aria-pressed', 'true')
-    expect(environment()).toHaveAttribute('data-files', '/hdri/studio-light-19.hdr')
-    expect(environment()).toHaveAttribute('data-background', 'false')
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
     expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
@@ -273,24 +268,23 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
-  it('applies a product-specific exposure only while Studio Light 19 is selected', async () => {
-    render(
-      <ModelViewer
-        modelUrl="https://cdn.example.com/preview.glb"
-        ariaLabel="PC case"
-        presentation={{ cameraPosition: [1, 0.5, 1], studioLight19: { yaw: Math.PI / 3, exposure: -0.5 } }}
-      />,
-    )
+  it('controls the Studio Light 123 sun independently of the HDRI', async () => {
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
-    const exposure = screen.getByRole('slider', { name: 'Exposure' })
-    expect(exposure).toHaveValue('-0.7')
-    await userEvent.click(screen.getByRole('button', { name: 'Studio Light 19' }))
-    expect(exposure).toHaveValue('-0.5')
-    fireEvent.change(exposure, { target: { value: '0' } })
+    expect(screen.queryByRole('slider', { name: 'Sunlight' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Studio Light 123' }))
+    const sunlight = screen.getByRole('slider', { name: 'Sunlight' })
+    const sun = container.querySelector('directionallight')
+    const environment = screen.getByTestId('viewer-environment')
+    const intensity = environment.getAttribute('data-intensity')
+    expect(sun).toHaveAttribute('intensity', '0.8')
+    expect(Number(sun?.getAttribute('position')?.split(',')[1])).toBe(3)
+    fireEvent.change(sunlight, { target: { value: '0' } })
+    expect(sun).toHaveAttribute('intensity', '0')
+    expect(environment.getAttribute('data-intensity')).toBe(intensity)
     await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
-    expect(exposure).toHaveValue('-0.5')
-    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
-    expect(exposure).toHaveValue('-0.7')
+    expect(sunlight).toHaveValue('80')
+    expect(sun).toHaveAttribute('intensity', '0.8')
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
