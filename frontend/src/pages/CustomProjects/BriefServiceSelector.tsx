@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { BriefProjectDetails } from './BriefProjectDetails'
 
 const services = [
-  ['Product 3D modeling', 'Accurate models from photos, CAD or sketches. AI product 3D Model.', 'chair'],
-  ['Product renders', 'Studio and marketplace images on white or colour. AI product render.', 'bottles'],
-  ['Lifestyle and scene renders', 'Your product placed in a styled environment. AI lifestyle and scene render.', 'sofa'],
-  ['Furniture visualization', 'Room sets, material variants, catalogues.', 'table'],
-  ['Packaging design', 'Pack mockups, dielines and shelf visuals.', 'packaging'],
-  ['3D animation', 'Product spins, explainers and ad films.', 'animation'],
-  ['AR and Web3D assets', 'Optimised models for viewers and configurators.', 'headset'],
-  ['Something else', 'Not listed? Describe it and we’ll scope it.', 'spheres'],
+  ['Product 3D modeling', 'Accurate models from photos, CAD or sketches.', 'AI product 3D Model.', 'chair'],
+  ['Product renders', 'Studio and marketplace images on white or colour.', 'AI product render.', 'bottles'],
+  ['Lifestyle and scene renders', 'Your product placed in a styled environment.', 'AI lifestyle and scene render.', 'sofa'],
+  ['Furniture visualization', 'Room sets, material variants, catalogues.', 'AI furniture visuals.', 'table'],
+  ['Packaging design', 'Pack mockups, dielines and shelf visuals.', 'AI packaging mockups.', 'packaging'],
+  ['3D animation', 'Product spins, explainers and ad films.', 'AI product videos.', 'animation'],
+  ['AR and Web3D assets', 'Optimised models for viewers and configurators.', 'AI-generated 3D assets.', 'headset'],
+  ['Something else', 'Not listed? Describe it and we’ll scope it.', '', 'spheres'],
 ] as const
 
 export function BriefServiceSelector({ compact = false }: { compact?: boolean }) {
@@ -37,10 +37,10 @@ export function BriefServiceSelector({ compact = false }: { compact?: boolean })
       <div hidden={step !== 0}><h3 ref={serviceHeading} tabIndex={-1}>What do you need?</h3>
       <p className="brief-selector-help">{compact ? 'Choose one or more. We’ll suggest matching options on the next step.' : 'Choose one or more services for your project.'}</p>
       <div className="brief-selector-grid">
-        {services.map(([title, description, image]) => <label className="brief-selector-card" key={title}>
+        {services.map(([title, description, ai, image]) => <label className="brief-selector-card" key={title}>
           <input type="checkbox" checked={selected.includes(title)} onChange={() => setSelected(current => current.includes(title) ? current.filter(value => value !== title) : [...current, title])} />
           {!compact && <img src={`/images/brief-services/${image}.webp`} alt="" loading="lazy" width="180" height="130" />}
-          <span className="brief-selector-title">{title}</span><span className="brief-selector-description">{compact ? description.replace(/ AI .*$/, '') : description}</span>
+          <span className="brief-selector-title">{title}</span><span className="brief-selector-description">{description}{ai && <> / <span className="brief-selector-ai">{ai}</span></>}</span>
         </label>)}
       </div>
       <div className="brief-selector-actions"><span role="status">{selected.length} {selected.length === 1 ? 'service' : 'services'} selected</span><button disabled={!selected.length} onClick={() => setStep(1)}>Continue <span aria-hidden="true">→</span></button></div></div>
