@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { HDRI_ENVIRONMENTS } from './hdriEnvironments'
 
 describe('viewer HDRI assets', () => {
-  it.each(HDRI_ENVIRONMENTS)('ships a decodable, browser-sized $label panorama', ({ hdrPath }) => {
+  it.each(HDRI_ENVIRONMENTS.filter((preset) => preset.hdrPath !== null))('ships a decodable, browser-sized $label panorama', ({ hdrPath }) => {
     const bytes = readFileSync(resolve('public', hdrPath.slice(1)))
     const { width, height, data } = new HDRLoader().setDataType(FloatType).parse(
       bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
