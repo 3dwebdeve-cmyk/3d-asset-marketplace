@@ -40,7 +40,7 @@ export function BriefServiceSelector({ compact = false }: { compact?: boolean })
         {services.map(([title, description, ai, image]) => <label className="brief-selector-card" key={title}>
           <input type="checkbox" checked={selected.includes(title)} onChange={() => setSelected(current => current.includes(title) ? current.filter(value => value !== title) : [...current, title])} />
           {!compact && <img src={`/images/brief-services/${image}.webp`} alt="" loading="lazy" width="180" height="130" />}
-          <span className="brief-selector-title">{title}</span><span className="brief-selector-description">{description}{ai && <> <span className="brief-selector-ai">{ai}</span></>}</span>
+          <span className="brief-selector-title">{title}</span><span className="brief-selector-description">{description}{ai && <> / <span className="brief-selector-ai">{ai}</span></>}</span>
         </label>)}
       </div>
       <div className="brief-selector-actions"><span role="status">{selected.length} {selected.length === 1 ? 'service' : 'services'} selected</span><button disabled={!selected.length} onClick={() => setStep(1)}>Continue <span aria-hidden="true">→</span></button></div></div>
