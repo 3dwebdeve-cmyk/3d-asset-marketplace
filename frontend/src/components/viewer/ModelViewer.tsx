@@ -21,7 +21,6 @@ export interface ModelViewerProps {
   className?: string
   presentation?: {
     cameraPosition: [number, number, number]
-    studioLight19: { yaw: number; exposure: number }
   }
 }
 
@@ -51,6 +50,7 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
+  lightHeight = 4,
   cameraPosition,
 }: {
   url: string
@@ -58,6 +58,7 @@ function PreviewModel({
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
   lightIntensity: number
+  lightHeight?: number
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -105,7 +106,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightYaw, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightHeight, lightYaw, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -167,7 +168,7 @@ function PreviewModel({
       <directionalLight
         key={shadowResolution}
         ref={shadowLight}
-        position={[Math.sin(lightYaw) * 3, 4, Math.cos(lightYaw) * 3]}
+        position={[Math.sin(lightYaw) * 3, lightHeight, Math.cos(lightYaw) * 3]}
         intensity={lightIntensity}
         castShadow={shadowsReady}
         shadow-autoUpdate={false}
@@ -239,13 +240,15 @@ const VIEWER_BACKGROUNDS = [
   'radial-gradient(ellipse farthest-side at center, #4E5459 0%, #373C40 55%, #202326 100%)',
 ] as const
 
-type LightAdjustments = EnvironmentAdjustments & { brightness: number }
+type LightAdjustments = EnvironmentAdjustments & { brightness: number; sunlight?: number }
 
 const DEFAULT_VIEWER_BRIGHTNESS = 3
+const DEFAULT_SUNLIGHT = 80
 const DEFAULT_VIEWER_ENVIRONMENT = { ...DEFAULT_ENVIRONMENT_ADJUSTMENTS, exposure: -0.7 }
 
 const LIGHT_SLIDERS = [
   { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
+  { key: 'sunlight', label: 'Sunlight', min: 0, max: 200, step: 1, unit: '%' },
   { key: 'contrast', label: 'Contrast', min: -50, max: 50, step: 1, unit: '%' },
   { key: 'exposure', label: 'Exposure', min: -2, max: 2, step: 0.1, unit: ' EV' },
   { key: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1, unit: '%' },
@@ -401,21 +404,25 @@ function ViewerToolbar({
         </button>
       </div>
       <div id={lightControlsId} className="model-viewer__adjustments" role="group" aria-label="HDRI light adjustments" hidden={!showLightControls}>
-        {LIGHT_SLIDERS.map(({ key, label, min, max, step, unit }) => (
-          <label key={key}>
-            <span>{label}</span>
-            <span aria-hidden="true">{adjustments[key] > 0 ? '+' : ''}{adjustments[key]}{unit}</span>
-            <input
-              type="range"
-              aria-label={label}
-              min={min}
-              max={max}
-              step={step}
-              value={adjustments[key]}
-              onChange={(event) => onAdjustmentChange(key, event.currentTarget.valueAsNumber)}
-            />
-          </label>
-        ))}
+        {LIGHT_SLIDERS.map(({ key, label, min, max, step, unit }) => {
+          const value = adjustments[key]
+          if (value === undefined) return null
+          return (
+            <label key={key}>
+              <span>{label}</span>
+              <span aria-hidden="true">{key !== 'sunlight' && value > 0 ? '+' : ''}{value}{unit}</span>
+              <input
+                type="range"
+                aria-label={label}
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                onChange={(event) => onAdjustmentChange(key, event.currentTarget.valueAsNumber)}
+              />
+            </label>
+          )
+        })}
         <button type="button" onClick={onResetAdjustments}>Reset adjustments</button>
       </div>
     </>
@@ -448,11 +455,14 @@ function ModelViewerCanvas({
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
   const studio = 'studio' in preset ? preset.studio : undefined
-  const studioOverride = preset.id === 'studio-light-19' ? presentation?.studioLight19 : undefined
+  const hasSunlight = preset.id === 'studio-light-123'
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
+  const [sunlight, setSunlight] = useState(DEFAULT_SUNLIGHT)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
-  const environmentYaw = preset.yaw + (studioOverride?.yaw ?? 0) + lightingYaw
+  const environmentYaw = preset.yaw + lightingYaw
+  const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
+  const sunYaw = Math.atan2(cameraPosition[0], cameraPosition[2]) - Math.PI / 2 + lightingYaw
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -494,7 +504,7 @@ function ModelViewerCanvas({
         <Canvas
           className="model-viewer__canvas"
           style={background ? { backgroundImage: background } : undefined}
-          camera={{ position: presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION, fov: 42, near: 0.1, far: 200 }}
+          camera={{ position: cameraPosition, fov: 42, near: 0.1, far: 200 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
           dpr={pixelRatio}
           shadows="percentage"
@@ -519,8 +529,9 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
-              lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100)}
+              lightYaw={hasSunlight ? sunYaw : environmentYaw + (studio?.keyYawOffset ?? 0)}
+              lightHeight={hasSunlight ? 3 : undefined}
+              lightIntensity={hasSunlight ? sunlight / 100 : (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * (1 + brightness / 100)}
             />
           </Suspense>
           <OrbitControls
@@ -542,13 +553,6 @@ function ModelViewerCanvas({
             type="button"
             aria-pressed={preset.id === option.id}
             onClick={() => {
-              if (presentation && option.id !== preset.id &&
-                (option.id === 'studio-light-19' || preset.id === 'studio-light-19')) {
-                const exposure = option.id === 'studio-light-19'
-                  ? presentation.studioLight19.exposure
-                  : DEFAULT_VIEWER_ENVIRONMENT.exposure
-                setEnvironmentAdjustments((current) => ({ ...current, exposure }))
-              }
               setPreset(option)
               setLightingYaw(0)
             }}
@@ -560,17 +564,16 @@ function ModelViewerCanvas({
       </div>
       <ViewerToolbar
         controls={controls}
-        adjustments={{ ...environmentAdjustments, brightness }}
+        adjustments={{ ...environmentAdjustments, brightness, sunlight: hasSunlight ? sunlight : undefined }}
         onAdjustmentChange={(key, value) => {
           if (key === 'brightness') setBrightness(value)
+          else if (key === 'sunlight') setSunlight(value)
           else setEnvironmentAdjustments((current) => ({ ...current, [key]: value }))
         }}
         onResetAdjustments={() => {
           setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
-          setEnvironmentAdjustments({
-            ...DEFAULT_VIEWER_ENVIRONMENT,
-            exposure: studioOverride?.exposure ?? DEFAULT_VIEWER_ENVIRONMENT.exposure,
-          })
+          if (hasSunlight) setSunlight(DEFAULT_SUNLIGHT)
+          setEnvironmentAdjustments(DEFAULT_VIEWER_ENVIRONMENT)
         }}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={startManualCamera}

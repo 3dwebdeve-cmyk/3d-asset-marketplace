@@ -36,7 +36,6 @@ import '../../styles/products-browse.css'
 const RELATED_PAGE_SIZE = 5
 const PC_CASE_VIEWER_PRESENTATION: ModelViewerProps['presentation'] = {
   cameraPosition: [1, 0.5, 1],
-  studioLight19: { yaw: Math.PI / 3, exposure: -0.5 },
 }
 
 function licenseLabel(license: ProductLicenseType): string {
