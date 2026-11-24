@@ -59,6 +59,25 @@ SPIN_PUBLIC_SUFFIXES = (".jpg", ".jpeg")
 SPIN_FRAME_COUNT = 36
 
 
+def public_base_urls() -> tuple[str, ...]:
+    """The public bucket's addresses, current first: R2_PUBLIC_BASE_URL, then
+    R2_PUBLIC_BASE_URL_PREVIOUS while saved addresses move to the new one. No trailing "/"."""
+    bases: list[str] = []
+    for name in ("R2_PUBLIC_BASE_URL", "R2_PUBLIC_BASE_URL_PREVIOUS"):
+        base = str(getattr(settings, name, "") or "").strip().rstrip("/")
+        if base and base not in bases:
+            bases.append(base)
+    return tuple(bases)
+
+
+def matching_public_base(url: str) -> str | None:
+    """The public base ``url`` starts with (current or previous), or None."""
+    for base in public_base_urls():
+        if url == base or url.startswith(f"{base}/"):
+            return base
+    return None
+
+
 def media_relative_path(storage_path: str) -> str | None:
     """Resolve a stored URL or relative key to an object key / MEDIA relative path."""
     if not storage_path:
@@ -66,10 +85,8 @@ def media_relative_path(storage_path: str) -> str | None:
 
     # Imported media URLs carry a "?v=<hash>" cache-buster; the key is the path alone.
     value = storage_path.strip().split("#", 1)[0].split("?", 1)[0]
-    public_base = str(getattr(settings, "R2_PUBLIC_BASE_URL", "") or "").rstrip("/")
-    if public_base and (
-        value == public_base or value.startswith(f"{public_base}/")
-    ):
+    public_base = matching_public_base(value)
+    if public_base:
         relative = value[len(public_base) :].lstrip("/")
     else:
         media_marker = "/media/"

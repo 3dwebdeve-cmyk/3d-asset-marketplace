@@ -205,6 +205,14 @@ describe('Cloudflare API proxy', () => {
     expect(connectSrc).not.toContain('*.cloudflarestorage.com')
   })
 
+  it('lets the 3D viewer load previews from the public bucket domain', () => {
+    const connectSrc = SECURITY_HEADERS['Content-Security-Policy']
+      .split(';')
+      .find((directive) => directive.trim().startsWith('connect-src'))
+
+    expect(connectSrc).toContain('https://media.assethive3d.com')
+  })
+
   it('forwards API paths and query strings to the configured backend', async () => {
     const upstreamFetch = vi.fn().mockResolvedValue(
       Response.json({ status: 'ok' }, { headers: { 'Set-Cookie': 'refresh_token=token' } }),
