@@ -9,7 +9,7 @@ const viewerMocks = vi.hoisted(() => {
   return {
     scene: null as import('three').Object3D | null,
     renderScene: null as import('three').Scene | null,
-    renderer: { toneMappingExposure: 1, toneMapping: 4 } as { toneMappingExposure: number; toneMapping: number },
+    renderer: { toneMappingExposure: 1 },
     camera: null as import('three').PerspectiveCamera | null,
     size: { width: 900, height: 450 },
     controls: null as { target: import('three').Vector3; update: () => void; saveState: () => void } | null,
@@ -65,20 +65,12 @@ vi.mock('@react-three/drei', () => ({
     return null
   },
   useEnvironment: ({ files }: { files: string }) => ({ name: files }),
-  Environment: ({ map, background, environmentIntensity, children }: {
-    map?: { name: string }; background?: boolean; environmentIntensity: number; children?: import('react').ReactNode
+  Environment: ({ map, background, environmentIntensity }: {
+    map: { name: string }; background: boolean; environmentIntensity: number
   }) => (
-    <div data-testid="viewer-environment" data-files={map?.name} data-background={background} data-intensity={environmentIntensity}>
-      {children}
-    </div>
-  ),
-  Lightformer: ({ name, position, intensity }: { name: string; position: number[]; intensity: number }) => (
-    <div data-testid="studio-panel" data-name={name} data-position={position.join(',')} data-intensity={intensity} />
+    <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity} />
   ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
-  SoftShadows: ({ size, samples }: { size: number; samples: number }) => (
-    <div data-testid="contact-hardening-shadows" data-size={size} data-samples={samples} />
-  ),
   useGLTF: Object.assign(
     () => ({
       scene: viewerMocks.scene ?? new Object3D(),
@@ -87,16 +79,6 @@ vi.mock('@react-three/drei', () => ({
   ),
   useProgress: () => ({ active: false, progress: 100, loaded: 1, total: 1 }),
 }))
-
-vi.mock('@react-three/postprocessing', () => ({
-  EffectComposer: ({ children }: { children?: import('react').ReactNode }) => <div data-testid="effect-composer">{children}</div>,
-  N8AO: ({ aoRadius, intensity }: { aoRadius: number; intensity: number }) => (
-    <div data-testid="ambient-occlusion" data-radius={aoRadius} data-intensity={intensity} />
-  ),
-  ToneMapping: ({ mode }: { mode: number }) => <div data-testid="effect-tone-mapping" data-mode={mode} />,
-}))
-
-vi.mock('postprocessing', () => ({ ToneMappingMode: { NEUTRAL: 8 } }))
 
 vi.mock('./isWebGLAvailable', () => ({
   isWebGLAvailable: () => viewerMocks.webglAvailable,
@@ -122,7 +104,7 @@ describe('ModelViewer', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     viewerMocks.scene = new Object3D()
     viewerMocks.renderScene = new Scene()
-    viewerMocks.renderer = { toneMappingExposure: 1, toneMapping: 4 }
+    viewerMocks.renderer = { toneMappingExposure: 1 }
     viewerMocks.camera = new PerspectiveCamera(42, 2, 0.1, 200)
     viewerMocks.camera.position.set(0, 0.9, 2.3)
     viewerMocks.size = { width: 900, height: 450 }
@@ -267,7 +249,7 @@ describe('ModelViewer', () => {
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
-    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(6)
+    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(4)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
     expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
@@ -291,102 +273,6 @@ describe('ModelViewer', () => {
     )
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
-  })
-
-  it('lights Light 111 as a neutral product studio with a 60 degree front-left shadow key', async () => {
-    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
-    vi.stubGlobal('matchMedia', () => ({ matches: true }))
-    try {
-      const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
-      await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
-      await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
-
-      expect(container.querySelector('ambientlight, rectarealight')).toBeNull()
-      expect(viewerMocks.renderer.toneMapping).toBe(7) // THREE.NeutralToneMapping
-      const environment = screen.getByTestId('viewer-environment')
-      expect(environment).not.toHaveAttribute('data-files')
-      const panels = Array.from(screen.getAllByTestId('studio-panel'), (panel) => panel.getAttribute('data-name'))
-      expect(panels).toEqual(['Overhead', 'Key softbox', 'Right fill', 'Rim', 'Floor bounce'])
-
-      // Camera opens at [-1, 0.5, 1], so its front-left is world -X.
-      const key = container.querySelector('directionallight')!
-      const [x, y, z] = key.getAttribute('position')!.split(',').map(Number)
-      expect(x).toBeLessThan(0)
-      expect(z).toBeCloseTo(0)
-      expect(Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI).toBeCloseTo(60)
-      expect(key).toHaveAttribute('shadow-radius', '6')
-      expect(container.querySelector('shadowmaterial')).toHaveAttribute('opacity', '0.22')
-
-      const keyIntensity = Number(key.getAttribute('intensity'))
-      fireEvent.change(screen.getByRole('slider', { name: 'Brightness' }), { target: { value: '50' } })
-      expect(Number(container.querySelector('directionallight')!.getAttribute('intensity'))).toBeGreaterThan(keyIntensity)
-      expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.5)
-
-      await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
-      expect(viewerMocks.renderer.toneMapping).toBe(4)
-      expect(screen.queryByTestId('studio-panel')).not.toBeInTheDocument()
-      expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
-      expect(container.querySelector('shadowmaterial')).toBeNull()
-      expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)
-    } finally {
-      vi.unstubAllGlobals()
-    }
-  })
-
-  it('lights Sun1 with a shadowing back-left sun, an opposite fill sun, soft contact shadows and AO', async () => {
-    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
-    vi.stubGlobal('matchMedia', () => ({ matches: true }))
-    try {
-      const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
-      await userEvent.click(screen.getByRole('button', { name: 'Sun1' }))
-
-      const lights = Array.from(container.querySelectorAll('directionallight'))
-      expect(lights).toHaveLength(2)
-      const fill = lights.find((light) => light.getAttribute('name') === 'Fill sun')!
-      const sun = lights.find((light) => light !== fill)!
-      const azimuth = (light: Element) => {
-        const [x, , z] = light.getAttribute('position')!.split(',').map(Number)
-        return Math.atan2(x, z)
-      }
-      const elevation = (light: Element) => {
-        const [x, y, z] = light.getAttribute('position')!.split(',').map(Number)
-        return Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI
-      }
-      // Camera opens at azimuth -45deg; behind-left of it is -180deg, opposite (front-right) is 0deg.
-      expect(Math.abs(azimuth(sun))).toBeCloseTo(Math.PI)
-      expect(azimuth(fill)).toBeCloseTo(0)
-      expect(elevation(sun)).toBeCloseTo(55)
-      expect(elevation(fill)).toBeCloseTo(35)
-      expect(Number(fill.getAttribute('intensity'))).toBeLessThan(Number(sun.getAttribute('intensity')))
-
-      expect(screen.getByTestId('contact-hardening-shadows')).toBeInTheDocument()
-      expect(container.querySelector('shadowmaterial')).toHaveAttribute('opacity', '0.3')
-      expect(await screen.findByTestId('ambient-occlusion')).toBeInTheDocument()
-      expect(screen.getByTestId('effect-tone-mapping')).toHaveAttribute('data-mode', '8')
-      expect(Array.from(screen.getAllByTestId('studio-panel'), (panel) => panel.getAttribute('data-name')))
-        .toEqual(['Sky', 'Sun disc', 'Fill sun disc', 'Ground bounce'])
-
-      // Alt + drag turns both suns together and keeps them opposite.
-      const surface = container.querySelector('.model-viewer__surface')!
-      Object.defineProperty(surface, 'clientWidth', { value: 400 })
-      Object.defineProperty(surface, 'setPointerCapture', { value: vi.fn() })
-      fireEvent.pointerDown(surface, { altKey: true, button: 0, pointerId: 1, clientX: 100 })
-      fireEvent.pointerMove(surface, { pointerId: 1, clientX: 200 })
-      fireEvent.pointerUp(surface, { pointerId: 1 })
-      const turned = Array.from(container.querySelectorAll('directionallight'))
-      const turnedFill = turned.find((light) => light.getAttribute('name') === 'Fill sun')!
-      const turnedSun = turned.find((light) => light !== turnedFill)!
-      expect(azimuth(turnedFill)).toBeCloseTo(Math.PI / 2)
-      expect(Math.cos(azimuth(turnedSun) - azimuth(turnedFill))).toBeCloseTo(-1)
-
-      await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
-      expect(screen.queryByTestId('contact-hardening-shadows')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('ambient-occlusion')).not.toBeInTheDocument()
-      expect(container.querySelectorAll('directionallight')).toHaveLength(1)
-      expect(viewerMocks.renderer.toneMapping).toBe(7)
-    } finally {
-      vi.unstubAllGlobals()
-    }
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {

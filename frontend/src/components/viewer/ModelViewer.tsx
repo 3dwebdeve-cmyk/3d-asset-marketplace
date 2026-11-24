@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
+import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, Lightformer, OrbitControls, SoftShadows, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
+import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -8,7 +8,7 @@ import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdj
 import { applyWireframe } from './applyWireframe'
 import { fitPreviewScene } from './fitPreviewScene'
 import { clampPreviewZoom, framePreviewCamera, PREVIEW_CAMERA_POSITION } from './framePreviewCamera'
-import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS, orbitPosition } from './hdriEnvironments'
+import { DEFAULT_HDRI_ENVIRONMENT_ID, HDRI_ENVIRONMENTS } from './hdriEnvironments'
 import { isSafePreviewModelUrl } from './isSafePreviewModelUrl'
 import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
@@ -24,18 +24,12 @@ export interface ModelViewerProps {
   }
 }
 
-const DaylightEffects = lazy(() => import('./DaylightEffects'))
-
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
 const LIGHT_HORIZONTAL_DISTANCE = 3
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
-const STUDIO_PANEL_DISTANCE = 5
-// The fitted model is at most 1.8 units across, so any floor shadow lands well inside this plane.
-const FLOOR_SHADOW_SIZE = 8
-const FILL_SUN_DISTANCE = 6
 
 function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
@@ -57,11 +51,7 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
-  lightElevation,
   detailedSelfShadows,
-  softShadows = false,
-  contactHardeningShadows = false,
-  floorShadowOpacity,
   cameraPosition,
 }: {
   url: string
@@ -69,15 +59,7 @@ function PreviewModel({
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
   lightIntensity: number
-  /** Angle of the key light above the floor. Omitted keeps the legacy fixed height. */
-  lightElevation?: number
   detailedSelfShadows: boolean
-  /** Wider shadow filtering for a large-softbox look. */
-  softShadows?: boolean
-  /** PCSS is active: shadows harden at contact and soften with distance. The shadow map type changes with it. */
-  contactHardeningShadows?: boolean
-  /** Opacity of the key light's cast shadow on an invisible floor. Omitted shows only the contact shadow. */
-  floorShadowOpacity?: number
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -129,7 +111,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, softShadows, contactHardeningShadows, floorShadowOpacity, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -188,15 +170,14 @@ function PreviewModel({
 
   const lightPosition: [number, number, number] = [
     Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-    lightElevation === undefined ? 4 : LIGHT_HORIZONTAL_DISTANCE * Math.tan(lightElevation),
+    4,
     Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
   ]
 
   return (
     <>
       <directionalLight
-        // Remount when the shadow map type changes so the light gets a fresh, correctly typed map.
-        key={`${shadowResolution}-${contactHardeningShadows}`}
+        key={shadowResolution}
         ref={shadowLight}
         position={lightPosition}
         intensity={lightIntensity}
@@ -211,18 +192,11 @@ function PreviewModel({
         shadow-camera-far={8}
         shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
         shadow-bias={-0.0002}
-        shadow-radius={softShadows ? 6 : 2.5}
+        shadow-radius={2.5}
       />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
       </group>
-      {ground && shadowsReady && floorShadowOpacity ? (
-        <mesh rotation-x={-Math.PI / 2} position={[0, ground.y - 0.002, 0]} receiveShadow>
-          <planeGeometry args={[FLOOR_SHADOW_SIZE, FLOOR_SHADOW_SIZE]} />
-          {/* No depth write: ambient occlusion should only see the model, not the invisible floor. */}
-          <shadowMaterial transparent depthWrite={false} opacity={floorShadowOpacity} />
-        </mesh>
-      ) : null}
       {ground && shadowsReady ? (
         <ContactShadows
           position={[0, ground.y, 0]}
@@ -317,50 +291,6 @@ function ViewerEnvironment({ files, intensity, yaw, adjustments }: {
   }, [map, source])
 
   return <Environment map={map} background={false} environmentIntensity={intensity} environmentRotation={[0, yaw, 0]} />
-}
-
-type ProductStudio = Extract<(typeof HDRI_ENVIRONMENTS)[number], { productStudio: unknown }>['productStudio']
-
-/** A white studio room built from glowing panels: soft fill from every side and something for metals to reflect. */
-function ProductStudioEnvironment({ studio, frontYaw, intensity }: {
-  studio: ProductStudio
-  frontYaw: number
-  intensity: number
-}) {
-  return (
-    <Environment resolution={256} environmentIntensity={intensity}>
-      <color attach="background" args={[studio.roomColor]} />
-      {studio.panels.map(({ name, yaw, elevation, intensity: panelIntensity, scale }) => (
-        <Lightformer
-          key={name}
-          name={name}
-          form="rect"
-          intensity={panelIntensity}
-          scale={[scale[0], scale[1]]}
-          position={orbitPosition(frontYaw + yaw, elevation, STUDIO_PANEL_DISTANCE)}
-        />
-      ))}
-    </Environment>
-  )
-}
-
-/** Swap the renderer's tone mapping while mounted, restoring the previous mode afterwards. */
-function ViewerToneMapping({ mapping }: { mapping?: THREE.ToneMapping }) {
-  const renderer = useThree((state) => state.gl)
-  const invalidate = useThree((state) => state.invalidate)
-
-  useLayoutEffect(() => {
-    if (!renderer || mapping === undefined) return
-    const previousMapping = renderer.toneMapping
-    renderer.toneMapping = mapping
-    invalidate()
-    return () => {
-      renderer.toneMapping = previousMapping
-      invalidate()
-    }
-  }, [renderer, mapping, invalidate])
-
-  return null
 }
 
 function ViewerExposure({ exposure }: { exposure?: number }) {
@@ -538,11 +468,6 @@ function ModelViewerCanvas({
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
-  const productStudio = 'productStudio' in preset ? preset.productStudio : undefined
-  const fillSun = productStudio && 'fill' in productStudio ? productStudio.fill : undefined
-  const contactHardeningShadows = Boolean(productStudio && 'contactHardeningShadows' in productStudio && productStudio.contactHardeningShadows)
-  const ambientOcclusion = Boolean(productStudio && 'ambientOcclusion' in productStudio && productStudio.ambientOcclusion)
-  const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
   const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
@@ -592,38 +517,17 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={studio?.exposure} />
-          {productStudio && !ambientOcclusion && <ViewerToneMapping mapping={THREE.NeutralToneMapping} />}
-          {ambientOcclusion && (
-            <Suspense fallback={<ViewerToneMapping mapping={THREE.NeutralToneMapping} />}>
-              <DaylightEffects halfResolution={pixelRatio < 1.5} />
-            </Suspense>
-          )}
-          {contactHardeningShadows && <SoftShadows size={20} samples={12} focus={0} />}
-          {fillSun && (
-            <directionalLight
-              name="Fill sun"
-              position={orbitPosition(openingCameraYaw + fillSun.yaw + lightingYaw, fillSun.elevation, FILL_SUN_DISTANCE)}
-              intensity={fillSun.intensity * brightnessMultiplier}
-            />
-          )}
-          {preset.hdrPath && <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />}
-          {preset.hdrPath && <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
+          <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
+          <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
-                intensity={preset.intensity * (1 + brightness / 100)}
+                intensity={preset.intensity * brightnessMultiplier}
                 yaw={environmentYaw}
                 adjustments={environmentAdjustments}
               />
             </Suspense>
-          </ErrorBoundary>}
-          {productStudio && (
-            <ProductStudioEnvironment
-              studio={productStudio}
-              frontYaw={openingCameraYaw + lightingYaw}
-              intensity={preset.intensity * brightnessMultiplier}
-            />
-          )}
+          </ErrorBoundary>
           <Suspense fallback={null}>
             <PreviewModel
               key={modelUrl}
@@ -631,15 +535,9 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={productStudio
-                ? openingCameraYaw + productStudio.key.yaw + lightingYaw
-                : environmentYaw + (studio?.keyYawOffset ?? 0)}
-              lightElevation={productStudio?.key.elevation}
-              lightIntensity={(productStudio?.key.intensity ?? studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
-              detailedSelfShadows={preset.id === 'small-09' || productStudio !== undefined}
-              softShadows={productStudio !== undefined && !contactHardeningShadows}
-              contactHardeningShadows={contactHardeningShadows}
-              floorShadowOpacity={productStudio?.floorShadowOpacity}
+              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
+              lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
+              detailedSelfShadows={preset.id === 'small-09'}
             />
           </Suspense>
           <OrbitControls
