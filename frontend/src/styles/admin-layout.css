@@ -923,3 +923,65 @@
   background: rgb(59 130 246 / 14%);
   color: #93c5fd;
 }
+
+/* ---------- Protected action prompt (step-up code) ---------- */
+/* It reuses the light sign-in card, so repaint it to match the dark console. */
+
+.admin-layout .auth-modal__backdrop {
+  background: rgb(0 0 0 / 70%);
+}
+
+.admin-layout .auth-modal__panel.auth-card {
+  width: min(100%, 460px);
+  padding: 1.75rem;
+  border: 1px solid #3a3a42;
+  border-radius: 16px;
+  background: var(--admin-panel-2);
+  color: #ffffff;
+  box-shadow: 0 24px 60px rgb(0 0 0 / 55%);
+}
+
+.admin-layout .auth-modal__panel .auth-card__header {
+  margin-bottom: 1.25rem;
+}
+
+.admin-layout .auth-modal__panel .auth-card__eyebrow {
+  color: var(--admin-red-strong);
+}
+
+.admin-layout .auth-modal__panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: #ffffff;
+}
+
+.admin-layout .auth-modal__panel :is(.auth-card__subtitle, .auth-card__hint) {
+  color: #e4e4e7;
+}
+
+.admin-layout .auth-modal__panel .form-field__label {
+  color: #ffffff;
+}
+
+.admin-layout .auth-modal__panel .ui-input {
+  background: #2a2a30;
+  border-color: #3a3a42;
+  color: #ffffff;
+}
+
+.admin-layout .auth-modal__panel .ui-input:focus {
+  outline: 2px solid var(--admin-red);
+  outline-offset: 0;
+  border-color: var(--admin-red);
+}
+
+.admin-layout .auth-modal__panel .ui-button--primary {
+  background: var(--admin-red);
+  color: #ffffff;
+}
+
+.admin-layout .auth-modal__panel .ui-alert--error {
+  background: rgb(239 43 43 / 14%);
+  border-color: var(--accent-border);
+  color: #ffffff;
+}
