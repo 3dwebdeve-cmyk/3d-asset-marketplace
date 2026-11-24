@@ -54,6 +54,7 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
+  detailedSelfShadows,
   cameraPosition,
 }: {
   url: string
@@ -61,6 +62,7 @@ function PreviewModel({
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
   lightIntensity: number | null
+  detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -87,6 +89,10 @@ function PreviewModel({
     return model
   }, [scene])
   const bounds = useMemo(() => new THREE.Box3().setFromObject(fitted), [fitted])
+  // A tighter light-space frame gives small gaps between surfaces more shadow-map texels.
+  const shadowHalfExtent = detailedSelfShadows && !bounds.isEmpty()
+    ? Math.max(0.5, bounds.getBoundingSphere(new THREE.Sphere()).radius + 0.1)
+    : 1.7
   const ground = useMemo(() => {
     if (bounds.isEmpty()) return null
     const size = bounds.getSize(new THREE.Vector3())
@@ -108,7 +114,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -181,13 +187,13 @@ function PreviewModel({
         castShadow={shadowsReady}
         shadow-autoUpdate={false}
         shadow-mapSize={[shadowResolution, shadowResolution]}
-        shadow-camera-left={-1.7}
-        shadow-camera-right={1.7}
-        shadow-camera-top={1.7}
-        shadow-camera-bottom={-1.7}
+        shadow-camera-left={-shadowHalfExtent}
+        shadow-camera-right={shadowHalfExtent}
+        shadow-camera-top={shadowHalfExtent}
+        shadow-camera-bottom={-shadowHalfExtent}
         shadow-camera-near={2}
         shadow-camera-far={8}
-        shadow-normalBias={0.006}
+        shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
         shadow-bias={-0.0002}
         shadow-radius={2.5}
       />}
@@ -550,6 +556,7 @@ function ModelViewerCanvas({
               cameraPosition={presentation?.cameraPosition}
               lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
               lightIntensity={areaLights ? null : (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
+              detailedSelfShadows={preset.id === 'small-09'}
             />
           </Suspense>
           <OrbitControls

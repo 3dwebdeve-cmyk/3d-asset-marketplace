@@ -236,16 +236,23 @@ describe('ModelViewer', () => {
   })
 
   it('switches HDRI illumination independently from the background', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
 
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     expect(container.querySelectorAll('directionallight')).toHaveLength(1)
+    const keyLight = () => container.querySelector('directionallight')
+    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
     const environment = () => screen.getByTestId('viewer-environment')
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
     expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(5)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
+    expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
     expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(1)
