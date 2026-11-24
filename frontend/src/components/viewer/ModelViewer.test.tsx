@@ -236,16 +236,23 @@ describe('ModelViewer', () => {
   })
 
   it('switches HDRI illumination independently from the background', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
 
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     expect(container.querySelectorAll('directionallight')).toHaveLength(1)
+    const keyLight = () => container.querySelector('directionallight')
+    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
     const environment = () => screen.getByTestId('viewer-environment')
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
     expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(5)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
+    expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
     expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(1)
@@ -268,20 +275,27 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
-  it('uses a single broad left-side light for Light 111', async () => {
+  it('uses a left key, right fill, and upper rear light for Light 111', async () => {
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
     expect(screen.queryByRole('slider', { name: 'Sunlight' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
     expect(container.querySelector('ambientlight, directionallight')).toBeNull()
-    const suns = container.querySelectorAll('rectarealight')
-    expect(suns).toHaveLength(1)
-    expect(suns[0]).toHaveAttribute('width', '4')
-    const [x, y, z] = (suns[0].getAttribute('position') ?? '').split(',').map(Number)
+    const lights = container.querySelectorAll('rectarealight')
+    expect(lights).toHaveLength(3)
+    const [key, fill, rear] = Array.from(lights, (light) => ({
+      position: (light.getAttribute('position') ?? '').split(',').map(Number),
+      intensity: Number(light.getAttribute('intensity')),
+    }))
+    const [x, y, z] = key.position
     expect(x).toBeLessThan(0)
     expect(z).toBeCloseTo(x)
     expect(Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI).toBeCloseTo(15)
+    expect(fill.position[0] + fill.position[2]).toBeGreaterThan(0)
+    expect(rear.position[1]).toBeGreaterThan(fill.position[1])
+    expect(fill.intensity).toBeLessThan(key.intensity)
+    expect(rear.intensity).toBeLessThan(fill.intensity)
     await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
     expect(screen.getByTestId('viewer-environment')).toBeInTheDocument()
     expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)

@@ -54,17 +54,15 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
-  lightHeight = 4,
-  lightSize,
+  detailedSelfShadows,
   cameraPosition,
 }: {
   url: string
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
-  lightIntensity: number
-  lightHeight?: number
-  lightSize?: number
+  lightIntensity: number | null
+  detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -91,6 +89,10 @@ function PreviewModel({
     return model
   }, [scene])
   const bounds = useMemo(() => new THREE.Box3().setFromObject(fitted), [fitted])
+  // A tighter light-space frame gives small gaps between surfaces more shadow-map texels.
+  const shadowHalfExtent = detailedSelfShadows && !bounds.isEmpty()
+    ? Math.max(0.5, bounds.getBoundingSphere(new THREE.Sphere()).radius + 0.1)
+    : 1.7
   const ground = useMemo(() => {
     if (bounds.isEmpty()) return null
     const size = bounds.getSize(new THREE.Vector3())
@@ -112,7 +114,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightHeight, lightIntensity, lightYaw, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -171,21 +173,13 @@ function PreviewModel({
 
   const lightPosition: [number, number, number] = [
     Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-    lightHeight,
+    4,
     Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
   ]
 
   return (
     <>
-      {lightSize !== undefined ? (
-        <rectAreaLight
-          position={lightPosition}
-          rotation={[-Math.atan2(lightHeight, LIGHT_HORIZONTAL_DISTANCE), lightYaw, 0, 'YXZ']}
-          intensity={lightIntensity}
-          width={lightSize}
-          height={lightSize}
-        />
-      ) : <directionalLight
+      {lightIntensity !== null && <directionalLight
         key={shadowResolution}
         ref={shadowLight}
         position={lightPosition}
@@ -193,13 +187,13 @@ function PreviewModel({
         castShadow={shadowsReady}
         shadow-autoUpdate={false}
         shadow-mapSize={[shadowResolution, shadowResolution]}
-        shadow-camera-left={-1.7}
-        shadow-camera-right={1.7}
-        shadow-camera-top={1.7}
-        shadow-camera-bottom={-1.7}
+        shadow-camera-left={-shadowHalfExtent}
+        shadow-camera-right={shadowHalfExtent}
+        shadow-camera-top={shadowHalfExtent}
+        shadow-camera-bottom={-shadowHalfExtent}
         shadow-camera-near={2}
         shadow-camera-far={8}
-        shadow-normalBias={0.006}
+        shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
         shadow-bias={-0.0002}
         shadow-radius={2.5}
       />}
@@ -477,11 +471,9 @@ function ModelViewerCanvas({
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
-  const sun = 'sun' in preset ? preset.sun : undefined
-  const lightYaw = sun
-    ? Math.atan2(cameraPosition[0], cameraPosition[2]) - Math.PI / 2 + lightingYaw
-    : environmentYaw + (studio?.keyYawOffset ?? 0)
-  const lightIntensity = sun?.intensity ?? studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY
+  const areaLights = 'areaLights' in preset ? preset.areaLights : undefined
+  const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
+  const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -541,6 +533,20 @@ function ModelViewerCanvas({
               />
             </Suspense>
           </ErrorBoundary>}
+          {areaLights?.map(({ name, yaw, elevation, intensity, size }) => {
+            const azimuth = openingCameraYaw + yaw + lightingYaw
+            const radius = LIGHT_HORIZONTAL_DISTANCE * Math.cos(elevation)
+            return (
+              <rectAreaLight
+                key={name}
+                position={[Math.sin(azimuth) * radius, LIGHT_HORIZONTAL_DISTANCE * Math.sin(elevation), Math.cos(azimuth) * radius]}
+                rotation={[-elevation, azimuth, 0, 'YXZ']}
+                intensity={intensity * brightnessMultiplier}
+                width={size}
+                height={size}
+              />
+            )
+          })}
           <Suspense fallback={null}>
             <PreviewModel
               key={modelUrl}
@@ -548,10 +554,9 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={lightYaw}
-              lightHeight={sun ? LIGHT_HORIZONTAL_DISTANCE * Math.tan(sun.elevation) : undefined}
-              lightSize={sun?.size}
-              lightIntensity={lightIntensity * (1 + brightness / 100)}
+              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
+              lightIntensity={areaLights ? null : (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
+              detailedSelfShadows={preset.id === 'small-09'}
             />
           </Suspense>
           <OrbitControls

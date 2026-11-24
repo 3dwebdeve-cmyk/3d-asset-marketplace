@@ -17,7 +17,7 @@ function ReferenceFilePreview({ file }: { file: File }) {
 function Chips({ title, help, values, selected, onChange }: {title:string;help:string;values:string[];selected:string[];onChange:(value:string[])=>void}) {
   return <fieldset className={`brief-detail-chips${title === 'Purpose' ? ' brief-purpose-chips' : ''}`}><legend>{title}</legend><p>{help}</p><div>{values.map(value => <label key={value}><input type="checkbox" checked={selected.includes(value)} onChange={() => onChange(selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value])} /><span>{value}</span></label>)}</div></fieldset>
 }
-export function BriefProjectDetails({step, setStep, onReset, services}:{step:number;setStep:(step:number)=>void;onReset:()=>void;services:readonly (readonly [string,string,string])[]}) {
+export function BriefProjectDetails({step, setStep, onReset, services}:{step:number;setStep:(step:number)=>void;onReset:()=>void;services:readonly (readonly [string,string,string,string])[]}) {
   const [scope, setScope] = useState('')
   const [specs, setSpecs] = useState('')
   const [purpose, setPurpose] = useState<string[]>([])
