@@ -12,6 +12,12 @@ const services = [
   ['Something else', 'Not listed? Describe it and we’ll scope it.', '', 'spheres'],
 ] as const
 
+function EnquirySteps({ step }: { step: number }) {
+  return <ol className="brief-selector-steps" aria-label="Enquiry steps">
+    {['Service', 'Project details', 'Your contact'].map((label, index) => <li key={label} aria-current={index === step ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}
+  </ol>
+}
+
 export function BriefServiceSelector({ compact = false }: { compact?: boolean }) {
   const [selected, setSelected] = useState<string[]>([])
   const [step, setStep] = useState(0)
@@ -31,15 +37,13 @@ export function BriefServiceSelector({ compact = false }: { compact?: boolean })
   return <section className={`brief-selector-wrap${compact ? ' brief-selector-wrap--compact' : ''}`} aria-label={compact ? 'Project enquiry' : undefined} aria-labelledby={compact ? undefined : 'brief-selector-heading'}>
     <div className="brief-selector">
       {!compact && <h2 id="brief-selector-heading">Brief the Hive. Get a Price and timeline in 16 hours.</h2>}
-      <ol className="brief-selector-steps" aria-label="Enquiry steps">
-        {['Service', 'Project details', 'Your contact'].map((label, index) => <li key={label} aria-current={index === step ? 'step' : undefined}><span>{index + 1}</span>{label}</li>)}
-      </ol>
+      <EnquirySteps step={step} />
       <div hidden={step !== 0}><h3 ref={serviceHeading} tabIndex={-1}>What do you need?</h3>
-      <p className="brief-selector-help">{compact ? 'Choose one or more. We’ll suggest matching options on the next step.' : 'Choose one or more services for your project.'}</p>
+      {!compact && <p className="brief-selector-help">Choose one or more services for your project.</p>}
       <div className="brief-selector-grid">
         {services.map(([title, description, ai, image]) => <label className="brief-selector-card" key={title}>
           <input type="checkbox" checked={selected.includes(title)} onChange={() => setSelected(current => current.includes(title) ? current.filter(value => value !== title) : [...current, title])} />
-          {!compact && <img src={`/images/brief-services/${image}.webp`} alt="" loading="lazy" width="180" height="130" />}
+          <img src={`/images/brief-services/${image}${compact ? '-illustrated.png' : '.webp'}`} alt="" loading="lazy" width={compact ? 260 : 180} height={compact ? 260 : 130} />
           <span className="brief-selector-title">{title}</span><span className="brief-selector-description">{description}{ai && <> / <span className="brief-selector-ai">{ai}</span></>}</span>
         </label>)}
       </div>

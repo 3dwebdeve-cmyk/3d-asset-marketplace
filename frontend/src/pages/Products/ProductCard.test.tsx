@@ -56,9 +56,9 @@ describe('ProductCard 360° badge', () => {
 })
 
 describe('ProductCard price', () => {
-  it('shows "From" the lowest package price when the model has several packages', () => {
+  it('shows the lowest package price without a prefix when the model has several packages', () => {
     renderCard(product({ price_from: '9.00' }))
-    expect(screen.getByText('From $ 9.00')).toBeInTheDocument()
+    expect(screen.getByText('$ 9.00')).toBeInTheDocument()
     expect(screen.queryByText('$ 20.00')).not.toBeInTheDocument()
   })
 

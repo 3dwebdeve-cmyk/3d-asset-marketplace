@@ -1,5 +1,5 @@
 import styles from './custom-studio.css?raw'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent } from '@testing-library/react'
 import { submitContactForm } from '../../api/contactApi'
@@ -73,5 +73,30 @@ describe('CustomProjectsLandingPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue →' }))
     expect(screen.getByRole('heading', { name: 'Your contact details' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Have a brief? Send it today.' })).not.toBeInTheDocument()
+  })
+  it('keeps project details and contact inline on the landing page', async () => {
+    vi.useFakeTimers()
+    vi.mocked(submitContactForm).mockResolvedValue({ detail: 'Accepted' })
+    render(<CustomProjectsLandingPage />)
+    const form = within(screen.getByRole('region', { name: 'Project enquiry' }))
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Product 3D modeling/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(form.getByRole('heading', { name: 'Describe your project' })).toHaveFocus()
+    fireEvent.change(form.getByRole('textbox', { name: /Scope of work/ }), { target: { value: 'Three product models' } })
+    fireEvent.click(form.getByRole('button', { name: 'Back' }))
+    expect(form.getByRole('heading', { name: 'What do you need?' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(form.getByRole('textbox', { name: /Scope of work/ })).toHaveValue('Three product models')
+    fireEvent.click(form.getByRole('button', { name: /Continue/ }))
+    expect(form.getByRole('heading', { name: 'Your contact details' })).toHaveFocus()
+    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Test Customer' } })
+    fireEvent.change(form.getByRole('textbox', { name: 'Email' }), { target: { value: 'test@example.com' } })
+    fireEvent.click(form.getByRole('checkbox', { name: /30% payment/ }))
+    await act(async () => { fireEvent.submit(form.getByRole('button', { name: /Send enquiry/ }).closest('form')!) })
+    expect(form.getByRole('heading', { name: 'Thank you for your enquiry' })).toBeVisible()
+    act(() => { vi.advanceTimersByTime(2000) })
+    expect(screen.getByRole('heading', { name: 'What do you need?' })).toHaveFocus()
   })
 })
