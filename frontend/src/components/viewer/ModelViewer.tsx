@@ -54,17 +54,13 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightIntensity,
-  lightHeight = 4,
-  lightSize,
   cameraPosition,
 }: {
   url: string
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
-  lightIntensity: number
-  lightHeight?: number
-  lightSize?: number
+  lightIntensity: number | null
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -112,7 +108,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightHeight, lightIntensity, lightYaw, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -171,21 +167,13 @@ function PreviewModel({
 
   const lightPosition: [number, number, number] = [
     Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-    lightHeight,
+    4,
     Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
   ]
 
   return (
     <>
-      {lightSize !== undefined ? (
-        <rectAreaLight
-          position={lightPosition}
-          rotation={[-Math.atan2(lightHeight, LIGHT_HORIZONTAL_DISTANCE), lightYaw, 0, 'YXZ']}
-          intensity={lightIntensity}
-          width={lightSize}
-          height={lightSize}
-        />
-      ) : <directionalLight
+      {lightIntensity !== null && <directionalLight
         key={shadowResolution}
         ref={shadowLight}
         position={lightPosition}
@@ -477,11 +465,9 @@ function ModelViewerCanvas({
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
-  const sun = 'sun' in preset ? preset.sun : undefined
-  const lightYaw = sun
-    ? Math.atan2(cameraPosition[0], cameraPosition[2]) - Math.PI / 2 + lightingYaw
-    : environmentYaw + (studio?.keyYawOffset ?? 0)
-  const lightIntensity = sun?.intensity ?? studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY
+  const areaLights = 'areaLights' in preset ? preset.areaLights : undefined
+  const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
+  const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -541,6 +527,20 @@ function ModelViewerCanvas({
               />
             </Suspense>
           </ErrorBoundary>}
+          {areaLights?.map(({ name, yaw, elevation, intensity, size }) => {
+            const azimuth = openingCameraYaw + yaw + lightingYaw
+            const radius = LIGHT_HORIZONTAL_DISTANCE * Math.cos(elevation)
+            return (
+              <rectAreaLight
+                key={name}
+                position={[Math.sin(azimuth) * radius, LIGHT_HORIZONTAL_DISTANCE * Math.sin(elevation), Math.cos(azimuth) * radius]}
+                rotation={[-elevation, azimuth, 0, 'YXZ']}
+                intensity={intensity * brightnessMultiplier}
+                width={size}
+                height={size}
+              />
+            )
+          })}
           <Suspense fallback={null}>
             <PreviewModel
               key={modelUrl}
@@ -548,10 +548,8 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={lightYaw}
-              lightHeight={sun ? LIGHT_HORIZONTAL_DISTANCE * Math.tan(sun.elevation) : undefined}
-              lightSize={sun?.size}
-              lightIntensity={lightIntensity * (1 + brightness / 100)}
+              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
+              lightIntensity={areaLights ? null : (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
             />
           </Suspense>
           <OrbitControls
