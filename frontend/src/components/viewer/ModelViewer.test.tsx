@@ -268,13 +268,20 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
-  it('removes all viewer lighting when Studio Light 123 is selected', async () => {
+  it('uses a single broad left-side light for Light 111', async () => {
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Studio Light 123' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
     expect(screen.queryByRole('slider', { name: 'Sunlight' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
     expect(container.querySelector('ambientlight, directionallight')).toBeNull()
+    const suns = container.querySelectorAll('rectarealight')
+    expect(suns).toHaveLength(1)
+    expect(suns[0]).toHaveAttribute('width', '4')
+    const [x, y, z] = (suns[0].getAttribute('position') ?? '').split(',').map(Number)
+    expect(x).toBeLessThan(0)
+    expect(z).toBeCloseTo(x)
+    expect(Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI).toBeCloseTo(15)
     await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
     expect(screen.getByTestId('viewer-environment')).toBeInTheDocument()
     expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)
