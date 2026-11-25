@@ -244,12 +244,12 @@ describe('ModelViewer', () => {
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     const lights = container.querySelectorAll('directionallight')
     expect(lights).toHaveLength(2)
-    expect(Number(lights[1].getAttribute('intensity'))).toBeCloseTo(0.824)
+    expect(Number(lights[1].getAttribute('intensity'))).toBeCloseTo(0.864)
     const [rightX, rightY, rightZ] = (lights[1].getAttribute('position') ?? '').split(',').map(Number)
     expect(rightX + rightZ).toBeGreaterThan(0)
     expect(rightY).toBeGreaterThan(4)
     const keyLight = () => container.querySelector('directionallight')
-    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.824)
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.864)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
@@ -268,7 +268,7 @@ describe('ModelViewer', () => {
     }
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(keyLight()).toHaveAttribute('shadow-bias', '-0.0002')
-    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.927)
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.972)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
     expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
@@ -293,32 +293,21 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
-  it('lights the Custom HDRI studio from the viewer side, in front, with a large soft sun', async () => {
+  it('lights the Custom HDRI studio from above and to the left, with a large soft sun', async () => {
     viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
 
     const environment = screen.getByTestId('viewer-environment')
     expect(environment).toHaveAttribute('data-files', '/hdri/custom-hdri.hdr')
-    expect(environment).toHaveAttribute('data-background', 'true')
-    expect(Number(environment.getAttribute('data-background-intensity'))).toBeGreaterThan(1)
+    expect(environment).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
-
-    // Only this preset shows its HDRI as the backdrop, and picking a viewer background colour hides it.
-    await userEvent.click(screen.getByRole('button', { name: 'Change background color' }))
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
-    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
-    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
-    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
 
     const keyLight = container.querySelector('directionallight')
     expect(keyLight).toHaveAttribute('shadow-radius', '6')
-    // The opening camera sits at -X/+Z. The light must be in line with it (front light from the
-    // viewer's side), just above the model's level.
     const [x, y, z] = String(keyLight?.getAttribute('position')).split(',').map(Number)
-    expect(Math.atan2(x, z)).toBeCloseTo(Math.atan2(-1, 1))
-    expect(y).toBeGreaterThan(0)
-    expect(y).toBeLessThan(Math.hypot(x, z))
+    expect(Math.atan2(x, z)).toBeCloseTo(Math.atan2(-1, 1) - Math.PI / 12)
+    expect(Math.atan2(y, Math.hypot(x, z))).toBeCloseTo(Math.PI / 4)
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
@@ -326,32 +315,32 @@ describe('ModelViewer', () => {
     expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
-    expect(brightness).toHaveValue('3')
-    expect(screen.getByRole('slider', { name: 'Exposure' })).toHaveValue('-0.7')
+    expect(brightness).toHaveValue('8')
     fireEvent.change(brightness, { target: { value: '50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.2)
     fireEvent.change(brightness, { target: { value: '-50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.4)
     const extraSliders = [
-      ['Contrast', '-25'],
-      ['Exposure', '-1.5'],
-      ['Saturation', '-25'],
-      ['Highlights', '-30'],
-      ['Shadows', '-30'],
-      ['Gamma', '-0.25'],
-      ['Sharpness', '-50'],
+      ['Contrast', '-25', '-50'],
+      ['Exposure', '-1.5', '-1.1'],
+      ['Saturation', '-25', '-4'],
+      ['Highlights', '-30', '-32'],
+      ['Shadows', '-30', '-45'],
+      ['Gamma', '-0.25', '-0.1'],
+      ['Sharpness', '-50', '0'],
     ]
-    for (const [name, value] of extraSliders) {
+    for (const [name, value, defaultValue] of extraSliders) {
       const slider = screen.getByRole('slider', { name })
+      expect(slider).toHaveValue(defaultValue)
       fireEvent.change(slider, { target: { value } })
       expect(slider).toHaveValue(value)
     }
     await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
-    expect(brightness).toHaveValue('3')
-    for (const [name] of extraSliders) {
-      expect(screen.getByRole('slider', { name })).toHaveValue(name === 'Exposure' ? '-0.7' : '0')
+    expect(brightness).toHaveValue('8')
+    for (const [name, , defaultValue] of extraSliders) {
+      expect(screen.getByRole('slider', { name })).toHaveValue(defaultValue)
     }
-    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.824)
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.864)
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {
