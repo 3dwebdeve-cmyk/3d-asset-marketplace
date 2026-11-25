@@ -277,10 +277,10 @@ const VIEWER_BACKGROUNDS = [
 
 type LightAdjustments = EnvironmentAdjustments & { brightness: number }
 
-const DEFAULT_VIEWER_BRIGHTNESS = 3
+const DEFAULT_VIEWER_BRIGHTNESS = 8
 const DEFAULT_VIEWER_ENVIRONMENT = {
   ...DEFAULT_ENVIRONMENT_ADJUSTMENTS,
-  contrast: -14,
+  contrast: -50,
   exposure: -1.1,
   saturation: -4,
   highlights: -32,

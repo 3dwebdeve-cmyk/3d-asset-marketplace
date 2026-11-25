@@ -242,12 +242,12 @@ describe('ModelViewer', () => {
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     const lights = container.querySelectorAll('directionallight')
     expect(lights).toHaveLength(2)
-    expect(Number(lights[1].getAttribute('intensity'))).toBeCloseTo(0.824)
+    expect(Number(lights[1].getAttribute('intensity'))).toBeCloseTo(0.864)
     const [rightX, rightY, rightZ] = (lights[1].getAttribute('position') ?? '').split(',').map(Number)
     expect(rightX + rightZ).toBeGreaterThan(0)
     expect(rightY).toBeGreaterThan(4)
     const keyLight = () => container.querySelector('directionallight')
-    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.824)
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.864)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
@@ -266,7 +266,7 @@ describe('ModelViewer', () => {
     }
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(keyLight()).toHaveAttribute('shadow-bias', '-0.0002')
-    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.927)
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.972)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
     expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
@@ -296,13 +296,13 @@ describe('ModelViewer', () => {
     expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
-    expect(brightness).toHaveValue('3')
+    expect(brightness).toHaveValue('8')
     fireEvent.change(brightness, { target: { value: '50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.2)
     fireEvent.change(brightness, { target: { value: '-50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.4)
     const extraSliders = [
-      ['Contrast', '-25', '-14'],
+      ['Contrast', '-25', '-50'],
       ['Exposure', '-1.5', '-1.1'],
       ['Saturation', '-25', '-4'],
       ['Highlights', '-30', '-32'],
@@ -317,11 +317,11 @@ describe('ModelViewer', () => {
       expect(slider).toHaveValue(value)
     }
     await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
-    expect(brightness).toHaveValue('3')
+    expect(brightness).toHaveValue('8')
     for (const [name, , defaultValue] of extraSliders) {
       expect(screen.getByRole('slider', { name })).toHaveValue(defaultValue)
     }
-    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.824)
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.864)
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {
