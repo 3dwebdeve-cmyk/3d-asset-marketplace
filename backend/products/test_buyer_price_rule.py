@@ -338,7 +338,7 @@ class ImportHistoryTests(CatalogImportTestBase):
         self.assertIsNone(product.discount_ends_at)
         # The package's price changed (a free upload's packages are free).
         change = ProductPriceChange.objects.get(product=product)
-        self.assertEqual(change.package_kind, "glb_only")
+        self.assertEqual(change.package_kind, "whole")  # the import's package
         self.assertEqual(change.source, ProductPriceChange.Source.IMPORT)
         self.assertIsNone(change.changed_by)
         self.assertEqual(change.old_price, Decimal("45.00"))
