@@ -53,6 +53,7 @@ function PreviewModel({
   lightYaw,
   lightElevation,
   lightIntensity,
+  lightColor,
   detailedSelfShadows,
   cameraPosition,
 }: {
@@ -62,6 +63,7 @@ function PreviewModel({
   lightYaw: number
   lightElevation: number
   lightIntensity: number
+  lightColor: string
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
@@ -185,6 +187,7 @@ function PreviewModel({
         ref={shadowLight}
         position={lightPosition}
         intensity={lightIntensity}
+        color={lightColor}
         castShadow={shadowsReady}
         shadow-autoUpdate={false}
         shadow-mapSize={[shadowResolution, shadowResolution]}
@@ -543,6 +546,7 @@ function ModelViewerCanvas({
               lightYaw={studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : environmentYaw}
               lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
               lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
+              lightColor={'keyColor' in preset ? preset.keyColor : '#ffffff'}
               detailedSelfShadows={preset.id === 'small-09'}
             />
           </Suspense>
