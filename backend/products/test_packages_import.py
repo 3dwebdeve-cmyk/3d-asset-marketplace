@@ -447,13 +447,29 @@ class ApprovalAndPublishRuleTests(PackagesImportTestBase):
         ProductService._validate_publish_ready(product, require_sku=True)
 
     def test_publish_refuses_a_package_sale_that_breaks_the_rules(self) -> None:
-        self._row(_item())
+        self._row(_item(kinds=("with_light_rig", "whole")))
         product = Product.objects.get(sku="ELE-000001")
-        ProductFile.objects.filter(package_kind="whole").update(
+        ProductFile.objects.filter(package_kind="with_light_rig").update(
             price=Decimal("20.00"), discount_price=Decimal("1.00")
         )
         errors = self._publish_errors(product)
-        self.assertTrue(errors["price"][0].startswith("Whole File: its sale price 1.00 is not allowed"))
+        self.assertTrue(errors["price"][0].startswith("With Light Rig: its sale price 1.00 is not allowed"))
+
+    def test_publish_does_not_price_or_check_whole_file(self) -> None:
+        """Whole File is delivered by All variations: it has no price, and a price or sale stored
+        on its row is never checked or required at publish."""
+        self._row(_item(kinds=("with_light_rig", "whole")))
+        product = Product.objects.get(sku="ELE-000001")
+        ProductFile.objects.filter(package_kind="with_light_rig").update(price=Decimal("20.00"))
+        self.assertIsNone(ProductFile.objects.get(product=product, package_kind="whole").price)
+
+        ProductService._validate_publish_ready(product, require_sku=True)  # no price on Whole File
+
+        # Even a sale that breaks the rules on the Whole File row is not this check's business.
+        ProductFile.objects.filter(package_kind="whole").update(
+            price=Decimal("20.00"), discount_price=Decimal("1.00")
+        )
+        ProductService._validate_publish_ready(product, require_sku=True)
 
     def test_publish_needs_every_zip_in_storage_but_no_preview_or_360(self) -> None:
         self._row(_spin_only_item(kinds=("with_light_rig", "whole")))

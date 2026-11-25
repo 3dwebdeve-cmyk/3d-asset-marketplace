@@ -17,7 +17,7 @@ from orders.models import Order, OrderItem
 from payments.models import Payment, StripeWebhookEvent
 from plugins.models import Plugin, PluginCategory
 from products.models import Product, ProductFile
-from products.testing import sell_package
+from products.testing import SOLD_PACKAGE_KIND, sell_package
 
 
 class _FakeStripeObject:
@@ -101,8 +101,8 @@ class PaymentsTestMixin:
             cart=cart,
             product_type=product_type,
             product_id=product_id,
-            # A model is bought per package; the tests buy its GLB Only package.
-            package_kind="glb_only" if product_type == "product" else "",
+            # A model is bought per package; the tests buy SOLD_PACKAGE_KIND.
+            package_kind=SOLD_PACKAGE_KIND if product_type == "product" else "",
             quantity=quantity,
         )
 
