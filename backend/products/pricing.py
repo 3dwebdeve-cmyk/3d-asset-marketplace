@@ -1,11 +1,13 @@
 """Pricing page service (docs/PRICING_PIPELINE.md).
 
-The admin ticks models and types one rate and one percent per single package (Whole File is
-not priced: All variations sells it at a discount of its packages). Every package price is
-calculated by the server:
+The admin works in one of two sections. Variations: a model with variations is priced with one
+rate and one percent per single package (Whole File is not priced there: All variations sells it
+at a discount of its packages). Single zip: a model whose only zip is the Whole File zip is priced
+with one box, the multiplier, and no percents. Every price is calculated by the server:
 
-    base price    = hours spent x rate
-    package price = round(base price x percent / 100)     (whole dollars, half up)
+    base price    = hours spent x rate (the multiplier, for a single zip)
+    package price = round(base price x percent / 100)     (whole dollars, half up; 100% for a
+                                                           single zip, so its price is the base)
 
 A model gets a price only for the packages it has. ``calculate`` shows the result and changes
 nothing. ``publish`` recalculates, saves each model's package prices and puts the model on the
@@ -25,15 +27,17 @@ from typing import Any
 from uuid import UUID
 
 from django.db import transaction
-from django.db.models import Q, QuerySet
+from django.db.models import Exists, OuterRef, Q, QuerySet
 
 from config.currency import MINIMUM_CHECKOUT_AMOUNTS
 from products.errors import ProductError
 from products.models import Product, ProductFile, ProductPriceChange
 from products.packages import (
     PACKAGE_LABELS,
-    PACKAGE_ORDER,
     SINGLE_KINDS,
+    PackageKind,
+    is_single_zip,
+    sold_package_rows,
     sync_summary_price,
 )
 from products.price_history import PriceState, record_price_change
@@ -42,6 +46,12 @@ from products.services import UPLOAD_KIND_FREE, ProductService
 TAB_WAITING = "waiting"
 TAB_LIVE = "live"
 TABS = frozenset({TAB_WAITING, TAB_LIVE})
+
+# The two sections of the page: models with variations, and single-zip models (Whole File only).
+KIND_VARIATIONS = "variations"
+KIND_SINGLE_ZIP = "single_zip"
+KINDS = frozenset({KIND_VARIATIONS, KIND_SINGLE_ZIP})
+SINGLE_ZIP_PERCENT = Decimal("100")
 
 MAX_MODELS_PER_ACTION = 200
 CURRENCY = "USD"
@@ -83,9 +93,11 @@ def list_models(
     search: str | None = None,
     import_batch_id: str | None = None,
     ordering: str | None = None,
+    kind: str | None = None,
 ) -> QuerySet[Product]:
     """Models on the Pricing page. Waiting: paid models that passed QA. Live: paid models on
-    the store (free models never have a price)."""
+    the store (free models never have a price). ``kind`` keeps one section: single-zip models
+    (their only zip is Whole File) or the models with variations."""
     queryset = (
         Product.objects.select_related("category")
         .prefetch_related("files")
@@ -98,6 +110,17 @@ def list_models(
     else:
         raise ProductError("Tab must be 'waiting' or 'live'.", field="tab")
     queryset = queryset.filter(free_upload=False)
+
+    if kind is not None:
+        if kind not in KINDS:
+            raise ProductError("Kind must be variations or single_zip.", field="kind")
+        packages = ProductFile.objects.filter(product=OuterRef("pk"), is_preview=False)
+        queryset = queryset.annotate(
+            has_whole_zip=Exists(packages.filter(package_kind=PackageKind.WHOLE)),
+            has_variations=Exists(packages.filter(package_kind__in=SINGLE_KINDS)),
+        )
+        single_zip = Q(has_whole_zip=True, has_variations=False)
+        queryset = queryset.filter(single_zip) if kind == KIND_SINGLE_ZIP else queryset.exclude(single_zip)
 
     if category_id is not None:
         # A main category includes its subcategories.
@@ -135,16 +158,9 @@ def _time_text(value: datetime | None) -> str | None:
 
 
 def package_rows(product: Product) -> list[ProductFile]:
-    """A model's priced packages (not Whole File) in PACKAGE_ORDER. Reads ``product.files.all()``
-    (prefetched)."""
-    return sorted(
-        (
-            row
-            for row in product.files.all()
-            if not row.is_preview and row.package_kind in SINGLE_KINDS
-        ),
-        key=lambda row: PACKAGE_ORDER.index(row.package_kind),
-    )
+    """A model's priced packages in PACKAGE_ORDER: its variations (not Whole File), or for a
+    single-zip model its one zip. Reads ``product.files.all()`` (prefetched)."""
+    return sold_package_rows(product.files.all())
 
 
 def package_summaries(product: Product, now: datetime) -> list[dict[str, Any]]:
@@ -172,13 +188,17 @@ def package_summaries(product: Product, now: datetime) -> list[dict[str, Any]]:
 
 @dataclass(frozen=True)
 class PricingInput:
-    """The rate per hour and the percent of the base price for every package kind."""
+    """The rate per hour and the percent of the base price for every package kind. For the Single
+    zip section there are no percents: the rate is the multiplier and the price is the base."""
 
     rate: Decimal
     percents: dict[str, Decimal]
+    kind: str = KIND_VARIATIONS
 
     @classmethod
-    def clean(cls, rate: Any, percents: Any) -> PricingInput:
+    def clean(cls, rate: Any, percents: Any, kind: str = KIND_VARIATIONS) -> PricingInput:
+        if kind not in KINDS:
+            raise ProductError("Kind must be variations or single_zip.", field="kind")
         try:
             clean_rate = Decimal(str(rate)).quantize(CENT, rounding=ROUND_HALF_UP)
         except ArithmeticError:
@@ -187,25 +207,30 @@ class PricingInput:
             raise ProductError(
                 f"The rate must be above 0 and at most {MAX_RATE:.0f}.", field="rate"
             )
+        if kind == KIND_SINGLE_ZIP:
+            if percents:
+                raise ProductError("A single zip is priced without percents.", field="percents")
+            return cls(clean_rate, {}, kind)
         if not isinstance(percents, dict) or set(percents) != set(SINGLE_KINDS):
             raise ProductError("Enter a percent for every package.", field="percents")
         clean_percents: dict[str, Decimal] = {}
-        for kind in SINGLE_KINDS:
+        for package_kind in SINGLE_KINDS:
             try:
-                value = Decimal(str(percents[kind])).quantize(CENT, rounding=ROUND_HALF_UP)
+                value = Decimal(str(percents[package_kind])).quantize(CENT, rounding=ROUND_HALF_UP)
             except ArithmeticError:
                 raise ProductError(
-                    f"Enter the {PACKAGE_LABELS[kind]} percent.", field="percents"
+                    f"Enter the {PACKAGE_LABELS[package_kind]} percent.", field="percents"
                 ) from None
             if not Decimal("0") < value <= MAX_PERCENT:
                 raise ProductError(
                     f"A percent must be above 0 and at most {MAX_PERCENT:.0f}.", field="percents"
                 )
-            clean_percents[kind] = value
-        return cls(clean_rate, clean_percents)
+            clean_percents[package_kind] = value
+        return cls(clean_rate, clean_percents, kind)
 
     def canonical(self) -> dict[str, Any]:
         return {
+            "kind": self.kind,
             "rate": _text(self.rate),
             "percents": {kind: _text(value) for kind, value in self.percents.items()},
         }
@@ -271,13 +296,20 @@ def calculate_row(product: Product, pricing_input: PricingInput) -> PricingRow:
     if hours is None or hours <= 0:
         row.error = "Enter the hours spent first."
         return row
+    single_zip = is_single_zip(product.files.all())
+    if pricing_input.kind == KIND_SINGLE_ZIP and not single_zip:
+        row.error = "This model has variations: price it in the Variations section."
+        return row
+    if pricing_input.kind == KIND_VARIATIONS and single_zip:
+        row.error = "This model is a single zip: price it in the Single zip section."
+        return row
     packages = package_rows(product)
     if not packages:
         row.error = "This model has no packages."
         return row
     base = hours * pricing_input.rate
     for package in packages:
-        percent = pricing_input.percents[package.package_kind]
+        percent = SINGLE_ZIP_PERCENT if single_zip else pricing_input.percents[package.package_kind]
         price = (base * percent / Decimal("100")).quantize(WHOLE_DOLLAR, rounding=ROUND_HALF_UP)
         if price < MINIMUM_PRICE:
             row.error = (

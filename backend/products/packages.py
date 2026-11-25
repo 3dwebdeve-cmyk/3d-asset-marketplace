@@ -29,17 +29,18 @@ class PackageKind(models.TextChoices):
 PACKAGE_ORDER: tuple[str, ...] = tuple(PackageKind.values)
 PACKAGE_KINDS: frozenset[str] = frozenset(PACKAGE_ORDER)
 
-# The packages a buyer picks one by one. Whole File is the zip that holds them all: no admin
-# prices it, and the buyer never picks it.
+# The packages a buyer picks one by one when a model has variations. Whole File is then the zip
+# that holds them all: no admin prices it, and All variations delivers it. A model whose only zip
+# is the Whole File zip is a single-zip model: that zip is its one package, priced and sold as is.
 SINGLE_KINDS: tuple[str, ...] = tuple(kind for kind in PACKAGE_ORDER if kind != PackageKind.WHOLE)
 
 # The line that buys every variation a model has at once: it is delivered as the Whole File zip,
 # and the buyer gets BUNDLE_DISCOUNT_PERCENT off the packages' total. It is not a package.
 BUNDLE_KIND = "bundle"
 BUNDLE_DISCOUNT_PERCENT = Decimal("25")
-# Every kind a cart or order line may be sold as now. Whole File stays a choice only so lines
-# bought before All variations keep their kind.
-LINE_KINDS: tuple[str, ...] = (*SINGLE_KINDS, BUNDLE_KIND)
+# Every kind a cart or order line may be sold as. Whole File is one only for a single-zip model
+# (the cart and checkout refuse it for a model with variations).
+LINE_KINDS: tuple[str, ...] = (*SINGLE_KINDS, PackageKind.WHOLE, BUNDLE_KIND)
 LINE_KIND_CHOICES: list[tuple[str, str]] = [*PackageKind.choices, (BUNDLE_KIND, "All variations")]
 
 PACKAGE_LABELS: dict[str, str] = dict(LINE_KIND_CHOICES)
@@ -49,9 +50,27 @@ PACKAGE_DESCRIPTIONS: dict[str, str] = {
     PackageKind.WITHOUT_LIGHT_RIG: "The model with its textures, without any lights.",
     PackageKind.GLB_ONLY: "A single GLB file with its textures, for web, AR and game engines.",
     PackageKind.ENVIRONMENT: "The model placed in its environment scene.",
-    PackageKind.WHOLE: "Everything in one download: every package of this model.",
+    PackageKind.WHOLE: "The complete model in one download.",
     BUNDLE_KIND: "Every package of this model in one download, at 25% off the total.",
 }
+def is_single_zip(files: Iterable[ProductFile]) -> bool:
+    """A single-zip model: the Whole File zip is its only package (it has no variations)."""
+    kinds = {row.package_kind for row in files if not row.is_preview and row.package_kind}
+    return kinds == {PackageKind.WHOLE}
+
+
+def sold_package_rows(files: Iterable[ProductFile]) -> list[ProductFile]:
+    """The package rows an admin prices and a buyer picks, in PACKAGE_ORDER: the variations, or
+    for a single-zip model its one Whole File zip."""
+    rows = [row for row in files if not row.is_preview and row.package_kind]
+    if is_single_zip(rows):
+        return rows
+    return sorted(
+        (row for row in rows if row.package_kind in SINGLE_KINDS),
+        key=lambda row: PACKAGE_ORDER.index(row.package_kind),
+    )
+
+
 def line_title(name: str, kind: str) -> str:
     """A cart or order line's title: "<model name> - <package label>" (the model name alone
     for a line with no package, such as a plugin)."""

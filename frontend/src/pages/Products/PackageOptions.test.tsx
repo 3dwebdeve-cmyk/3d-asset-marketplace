@@ -307,4 +307,31 @@ describe('PackageOptions', () => {
     expect(screen.queryByText('All variations')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /buy now|sign in to buy/i })).not.toBeInTheDocument()
   })
+
+  it('lists the one zip of a single-zip model at its price, with no All variations', async () => {
+    const user = userEvent.setup()
+    signIn()
+    renderOptions({ product: product([pkg('whole', 'Whole File', '30.00')], NOT_OFFERED), isFree: false })
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('$30.00')).toBeInTheDocument()
+    expect(screen.queryByText('All variations')).not.toBeInTheDocument()
+
+    await user.click(await screen.findByRole('checkbox', { name: 'Whole File' }))
+    expect(screen.getByText('1 package: $30.00')).toBeInTheDocument()
+    await user.click(within(singlesFooter()).getByRole('button', { name: 'Add selected to cart' }))
+    await vi.waitFor(() =>
+      expect(cartApi.addCartItem).toHaveBeenCalledWith({ product_type: 'product', product_id: PRODUCT_ID, package_kind: 'whole', quantity: 1 }),
+    )
+  })
+
+  it('offers the download once the buyer owns the one zip of a single-zip model', async () => {
+    signIn()
+    vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([entitlement(['whole'])])
+    renderOptions({ product: product([pkg('whole', 'Whole File', '30.00')], NOT_OFFERED), isFree: false })
+
+    expect(await screen.findByText('You own every package of this model.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute('href', '/dashboard/downloads')
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
 })

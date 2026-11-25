@@ -12,7 +12,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -20,8 +20,11 @@ from rest_framework.test import APITestCase
 
 from accounts.models import ActivityLog, Role, User
 from categories.models import Category
+from products.errors import ProductError
 from products.models import Product, ProductFile, ProductPriceChange
 from products.packages import PACKAGE_ORDER, SINGLE_KINDS
+from products.pricing import PricingInput
+from products.testing import SINGLE_ZIP_KIND
 
 PASSWORD = "Pricing-Strong-Pass-2026!"
 
@@ -499,3 +502,121 @@ class PricingApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["price"], "5.00")
+
+    # -- the Single zip section ---------------------------------------------------------------
+    # A model whose only zip is the Whole File zip is priced on its own: base price = hours x a
+    # multiplier the admin types, with no percents. Models with variations keep the percents.
+
+    def _single_body(self, products, rate: str = "12.5", **extra) -> dict:
+        return {
+            "product_ids": [str(p.pk) for p in products],
+            "rate": rate,
+            "kind": "single_zip",
+            **extra,
+        }
+
+    def _calculate_single(self, products, **kwargs):
+        return self.client.post(
+            reverse("products_admin:admin-pricing-calculate"), self._single_body(products, **kwargs), format="json"
+        )
+
+    def test_the_list_splits_single_zip_models_from_models_with_variations(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        full = self._model("Full Chair", kinds=("with_light_rig", "glb_only", SINGLE_ZIP_KIND))
+        variation = self._model("Rig Chair", kinds=("with_light_rig",))
+
+        def ids(**params):
+            return {row["id"] for row in self._list(tab="waiting", **params).data["results"]}
+
+        self.assertEqual(ids(kind="single_zip"), {str(lone.pk)})
+        self.assertEqual(ids(kind="variations"), {str(full.pk), str(variation.pk)})
+        self.assertEqual(ids(), {str(lone.pk), str(full.pk), str(variation.pk)})
+        flags = {row["id"]: row["single_zip"] for row in self._list(tab="waiting").data["results"]}
+        self.assertEqual(flags, {str(lone.pk): True, str(full.pk): False, str(variation.pk): False})
+
+    def test_an_unknown_kind_is_refused(self, _exists) -> None:
+        self.assertEqual(self._list(tab="waiting", kind="bogus").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_single_zip_is_priced_by_hours_times_the_multiplier(self, _exists) -> None:
+        lone = self._model("Lone Lamp", hours="5", kinds=(SINGLE_ZIP_KIND,))  # 5 x 12.5 = 62.5
+
+        response = self._calculate_single([lone])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        row = response.data["rows"][0]
+        self.assertEqual(row["error"], "")
+        # Whole dollars, half up: 62.50 -> 63. No percent is involved.
+        self.assertEqual([(item["kind"], item["price"]) for item in row["packages"]], [("whole", "63.00")])
+        self.assertEqual(self._prices(lone), {"whole": None})  # calculating saves nothing
+
+    def test_a_single_zip_takes_no_percents(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        body = self._single_body([lone], percents=PERCENTS)
+        response = self.client.post(reverse("products_admin:admin-pricing-calculate"), body, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_each_section_refuses_the_other_kind_of_model(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        full = self._model("Full Chair", kinds=("with_light_rig", SINGLE_ZIP_KIND))
+
+        single_rows = {r["id"]: r for r in self._calculate_single([lone, full]).data["rows"]}
+        self.assertEqual(single_rows[str(lone.pk)]["error"], "")
+        self.assertIn("variations", single_rows[str(full.pk)]["error"])
+
+        variation_rows = {r["id"]: r for r in self._calculate([lone, full]).data["rows"]}
+        self.assertEqual(variation_rows[str(full.pk)]["error"], "")
+        self.assertIn("single zip", variation_rows[str(lone.pk)]["error"])
+
+    def test_publishing_a_single_zip_prices_its_zip_and_the_model_goes_live(self, _exists) -> None:
+        lone = self._model("Lone Lamp", hours="4", kinds=(SINGLE_ZIP_KIND,))  # 4 x 20 = 80
+        body = self._single_body([lone], rate="20")
+        token = self.client.post(reverse("products_admin:admin-pricing-calculate"), body, format="json").data["preview_token"]
+
+        response = self.client.post(
+            reverse("products_admin:admin-pricing-publish"),
+            {**body, "preview_token": token, "confirm_count": 1},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data["results"][0]["published"], response.data)
+        lone.refresh_from_db()
+        self.assertEqual(self._prices(lone), {"whole": Decimal("80.00")})
+        self.assertEqual((lone.status, lone.price), (Product.Status.PUBLISHED, Decimal("80.00")))
+        change = ProductPriceChange.objects.get(product=lone)
+        self.assertEqual((change.package_kind, change.new_price), ("whole", Decimal("80.00")))
+
+    def test_a_calculation_for_one_section_cannot_publish_the_other(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        token = self._calculate_single([lone]).data["preview_token"]
+        body = {**self._body([lone]), "preview_token": token, "confirm_count": 1}  # the Variations section
+        response = self.client.post(reverse("products_admin:admin-pricing-publish"), body, format="json")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_a_single_zip_with_no_price_cannot_be_published_without_one(self, _exists) -> None:
+        """A single-zip model's zip is its package: unlike Whole File with variations, it needs
+        a price to go live."""
+        from products.services import ProductService
+
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        with self.assertRaises(ProductError) as raised:
+            ProductService._validate_publish_ready(lone, require_sku=True)
+        self.assertIn("price", raised.exception.errors)
+
+
+class PricingInputKindTests(SimpleTestCase):
+    """The section a calculation belongs to is part of its input and of its token."""
+
+    def test_the_input_keeps_the_section_it_was_asked_for(self) -> None:
+        variations = PricingInput.clean("20", PERCENTS)
+        self.assertEqual((variations.kind, set(variations.percents)), ("variations", set(SINGLE_KINDS)))
+        single = PricingInput.clean("20", {}, "single_zip")
+        self.assertEqual((single.kind, single.percents), ("single_zip", {}))
+        self.assertEqual(variations.canonical()["kind"], "variations")
+        self.assertNotEqual(variations.canonical(), single.canonical())
+
+    def test_a_single_zip_takes_no_percents_and_an_unknown_kind_is_refused(self) -> None:
+        with self.assertRaises(ProductError):
+            PricingInput.clean("20", PERCENTS, "single_zip")
+        with self.assertRaises(ProductError):
+            PricingInput.clean("20", PERCENTS, "bogus")

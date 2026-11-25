@@ -1,9 +1,11 @@
-"""Packages pipeline, Phase 4 (docs/PACKAGES_PIPELINE.md): selling packages, and All variations.
+"""Packages pipeline, Phase 4 (docs/PACKAGES_PIPELINE.md): selling packages, All variations and
+single-zip models.
 Ownership per package, the cart and checkout per package, downloads of owned packages only, the
 free download by package, and the storefront's package list, bundle offer and "from" price.
 
-A model's Whole File zip is not sold by itself: All variations (kind "bundle") sells every
-package the buyer does not own yet at 25% off, and delivers that zip."""
+With variations, the Whole File zip is not sold by itself: All variations (kind "bundle") sells
+every package the buyer does not own yet at 25% off, and delivers that zip. A single-zip model
+(its only zip is the Whole File zip) sells that zip as its one package, at its own price."""
 
 from __future__ import annotations
 
@@ -29,7 +31,7 @@ from payments.models import Payment
 from plugins.models import Plugin, PluginCategory
 from products.models import Product, ProductFile
 from products.packages import bundle_quote, sync_summary_price
-from products.testing import sell_package
+from products.testing import SINGLE_ZIP_KIND, sell_package
 
 SIGNED = {"download_url": "https://files.example/zip", "expires_in": 60, "file_name": "x.zip"}
 
@@ -464,7 +466,7 @@ class DownloadTests(PackageSellingTestBase):
 
         self.assertEqual([f["package_kind"] for f in entry["files"]], ["whole"])
         # Every package counts as owned, so the product page offers the download for each.
-        self.assertEqual(entry["package_kinds"], ["with_light_rig", "without_light_rig", "glb_only", "environment"])
+        self.assertEqual(entry["package_kinds"], ["with_light_rig", "without_light_rig", "glb_only", "environment", "whole"])
 
     def test_all_variations_after_a_single_package_lists_both_zips(self, _resolve) -> None:
         self.price_environment("12.00")
@@ -629,3 +631,99 @@ class StorefrontTests(PackageSellingTestBase):
 
         self.assertEqual(rows["oak-chair"]["price_from"], "7.00")
         self.assertIsNone(rows["desk"]["price_from"])
+
+
+@patch("downloads.services.resolve_private_download", return_value=SIGNED)
+class SingleZipSellingTests(PackageSellingTestBase):
+    """A model with only the Whole File zip is sold as that one package, at the price it was given:
+    no variations, no All variations, no 25% off."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.lamp = Product.objects.create(
+            category=self.category, name="Lone Lamp", slug="lone-lamp", price=Decimal("0.00"),
+            status=Product.Status.PUBLISHED,
+        )
+        self.lamp_zip = sell_package(self.lamp, SINGLE_ZIP_KIND, "30.00")
+        sync_summary_price(self.lamp)
+
+    def detail(self) -> dict:
+        self.client.force_authenticate(None)
+        data = self.client.get(reverse("products:product-detail", kwargs={"slug": "lone-lamp"})).data
+        self.client.force_authenticate(self.buyer)
+        return data
+
+    def download(self, file_row: ProductFile):
+        return self.client.get(
+            reverse("downloads:product-file-download", kwargs={"product_id": self.lamp.pk, "file_id": file_row.pk})
+        )
+
+    def test_the_product_page_lists_the_one_zip_at_its_price_and_no_bundle(self, _resolve) -> None:
+        data = self.detail()
+
+        self.assertEqual([(p["kind"], p["price"]) for p in data["packages"]], [("whole", "30.00")])
+        self.assertFalse(data["bundle"]["eligible"])
+        self.assertEqual(data["price"], "30.00")
+
+    def test_it_is_one_cart_line_at_the_price_given(self, _resolve) -> None:
+        self.assertEqual(self.add(SINGLE_ZIP_KIND, self.lamp).status_code, status.HTTP_201_CREATED)
+
+        cart = self.client.get(self.cart_url).data
+        line = cart["items"][0]
+        self.assertEqual((line["package_kind"], line["unit_price"]), ("whole", "30.00"))
+        self.assertEqual(line["catalog"]["title"], "Lone Lamp - Whole File")
+        self.assertEqual((cart["subtotal"], cart["total"]), ("30.00", "30.00"))
+
+    def test_a_running_sale_is_charged(self, _resolve) -> None:
+        ProductFile.objects.filter(pk=self.lamp_zip.pk).update(discount_price=Decimal("25.00"))
+        self.add(SINGLE_ZIP_KIND, self.lamp)
+        self.assertEqual(self.client.get(self.cart_url).data["items"][0]["unit_price"], "25.00")
+
+    def test_there_is_no_all_variations_to_buy(self, _resolve) -> None:
+        response = self.add("bundle", self.lamp)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, response.data)
+
+    def test_checkout_charges_the_zip_price_and_nothing_off(self, _resolve) -> None:
+        self.add(SINGLE_ZIP_KIND, self.lamp)
+
+        order = OrderService.create_from_cart(self.buyer)
+
+        item = order.items.get()
+        self.assertEqual(
+            (item.package_kind, item.purchase_price, item.title),
+            ("whole", Decimal("30.00"), "Lone Lamp - Whole File"),
+        )
+        self.assertEqual(order.total_amount, Decimal("30.00"))
+
+    def test_an_admin_order_can_sell_the_zip_and_a_model_with_variations_refuses_it(self, _resolve) -> None:
+        order = OrderService.create(
+            OrderCreateData(
+                user_id=self.buyer.pk,
+                items=(OrderItemCreateData("product", self.lamp.pk, 1, package_kind=SINGLE_ZIP_KIND),),
+            )
+        )
+        self.assertEqual(order.items.get().purchase_price, Decimal("30.00"))
+        with self.assertRaises(OrderError):
+            OrderService.create(
+                OrderCreateData(
+                    user_id=self.buyer.pk,
+                    items=(OrderItemCreateData("product", self.chair.pk, 1, package_kind=SINGLE_ZIP_KIND),),
+                )
+            )
+
+    def test_the_buyer_downloads_the_zip_after_paying_and_not_before(self, _resolve) -> None:
+        self.assertEqual(self.download(self.lamp_zip).status_code, status.HTTP_404_NOT_FOUND)
+
+        self.buy(SINGLE_ZIP_KIND, product=self.lamp)
+
+        self.assertEqual(self.download(self.lamp_zip).status_code, status.HTTP_200_OK)
+        entry = next(
+            row for row in self.client.get(reverse("downloads:download-entitlements")).data
+            if row["product_id"] == str(self.lamp.pk)
+        )
+        self.assertEqual([f["package_kind"] for f in entry["files"]], ["whole"])
+        self.assertIn("whole", entry["package_kinds"])
+
+    def test_an_owned_zip_cannot_be_bought_again(self, _resolve) -> None:
+        self.buy(SINGLE_ZIP_KIND, product=self.lamp)
+        self.assertEqual(self.add(SINGLE_ZIP_KIND, self.lamp).status_code, status.HTTP_400_BAD_REQUEST)
