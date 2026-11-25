@@ -149,26 +149,95 @@ describe('PackageOptions', () => {
     expect(screen.queryByText('All variations')).not.toBeInTheDocument()
   })
 
-  it('adds the bundle to the cart as one line', async () => {
-    const user = userEvent.setup()
+  it('keeps the All variations card to text: no buttons of its own', async () => {
     signIn()
     renderOptions({ product: product(), isFree: false })
 
     await screen.findByText('All variations')
-    await user.click(within(allVariations()).getByRole('button', { name: 'Add to cart' }))
+    expect(within(allVariations()).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(allVariations()).queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('shows no buy button until a package is ticked', async () => {
+    const user = userEvent.setup()
+    signIn()
+    renderOptions({ product: product(), isFree: false })
+
+    expect(screen.getByText('Tick the packages you want.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Buy now' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
+    expect(within(singlesFooter()).getByRole('button', { name: 'Buy now' })).toBeEnabled()
+  })
+
+  it('asks a visitor to sign in once a package is ticked', async () => {
+    const user = userEvent.setup()
+    renderOptions({ product: product(), isFree: false })
+
+    expect(screen.queryByRole('button', { name: 'Sign in to buy' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
+    expect(within(singlesFooter()).getByRole('button', { name: 'Sign in to buy' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Buy now' })).not.toBeInTheDocument()
+  })
+
+  it('adds up the ticked packages', async () => {
+    const user = userEvent.setup()
+    signIn()
+    renderOptions({ product: product(), isFree: false })
+
+    await user.click(screen.getByRole('checkbox', { name: 'With Light Rig' }))
+    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
+    expect(screen.getByText('2 packages: $24.00')).toBeInTheDocument()
+    expect(allVariations()).not.toHaveClass('package-options__bundle--active')
+
+    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
+    expect(screen.getByText('1 package: $15.00')).toBeInTheDocument()
+  })
+
+  it('takes the 25% off and states the price to pay once every package is ticked', async () => {
+    const user = userEvent.setup()
+    signIn()
+    renderOptions({ product: product(), isFree: false })
+
+    await user.click(screen.getByRole('checkbox', { name: 'With Light Rig' }))
+    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
+    await user.click(screen.getByRole('checkbox', { name: 'With Environment' }))
+
+    const total = within(singlesFooter())
+    expect(total.getByText(/All 3 packages, 25% off/)).toBeInTheDocument()
+    expect(total.getByText('$39.00').tagName).toBe('S')
+    expect(total.getByText('$29.00')).toBeInTheDocument()
+    expect(allVariations()).toHaveClass('package-options__bundle--active')
+
+    // Un-ticking one goes back to the plain sum.
+    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
+    expect(screen.getByText('2 packages: $30.00')).toBeInTheDocument()
+  })
+
+  it('adds All variations to the cart as one line once every package is ticked', async () => {
+    const user = userEvent.setup()
+    signIn()
+    renderOptions({ product: product(), isFree: false })
+
+    for (const name of ['With Light Rig', 'GLB Only', 'With Environment']) {
+      await user.click(screen.getByRole('checkbox', { name }))
+    }
+    await user.click(screen.getByRole('button', { name: 'Add selected to cart' }))
 
     await vi.waitFor(() => expect(cartApi.addCartItem).toHaveBeenCalledTimes(1))
     expect(cartApi.addCartItem).toHaveBeenCalledWith({ product_type: 'product', product_id: PRODUCT_ID, package_kind: 'bundle', quantity: 1 })
   })
 
-  it('buys All variations at once', async () => {
+  it('buys All variations at once when every package is ticked', async () => {
     const user = userEvent.setup()
     signIn()
     vi.mocked(paymentsApi.createCheckoutSession).mockReturnValue(new Promise(() => {}))
     renderOptions({ product: product(), isFree: false })
 
-    await screen.findByText('All variations')
-    await user.click(within(allVariations()).getByRole('button', { name: 'Buy now' }))
+    for (const name of ['With Light Rig', 'GLB Only', 'With Environment']) {
+      await user.click(screen.getByRole('checkbox', { name }))
+    }
+    await user.click(within(singlesFooter()).getByRole('button', { name: 'Buy now' }))
 
     await vi.waitFor(() =>
       expect(paymentsApi.createCheckoutSession).toHaveBeenCalledWith(expect.anything(), [
@@ -177,7 +246,8 @@ describe('PackageOptions', () => {
     )
   })
 
-  it('shows All variations as in the cart once it is there', async () => {
+  it('says All variations is in the cart rather than adding it twice', async () => {
+    const user = userEvent.setup()
     signIn()
     vi.mocked(cartApi.getCart).mockResolvedValue(cart([
       { id: 'line', product_type: 'product', product_id: PRODUCT_ID, package_kind: 'bundle', quantity: 1, unit_price: '29.00', line_total: '29.00', catalog: null },
@@ -185,32 +255,22 @@ describe('PackageOptions', () => {
     renderOptions({ product: product(), isFree: false })
 
     await screen.findByText('All variations')
-    expect(await within(allVariations()).findByRole('link', { name: 'In cart' })).toHaveAttribute('href', '/cart')
-    expect(within(allVariations()).queryByRole('button', { name: 'Buy now' })).not.toBeInTheDocument()
+    for (const name of ['With Light Rig', 'GLB Only', 'With Environment']) {
+      await user.click(screen.getByRole('checkbox', { name }))
+    }
+    expect(await screen.findByRole('link', { name: 'All variations is in your cart' })).toHaveAttribute('href', '/cart')
+    expect(screen.queryByRole('button', { name: 'Buy now' })).not.toBeInTheDocument()
   })
 
-  it('asks a visitor to sign in before offering All variations', () => {
-    renderOptions({ product: product(), isFree: false })
-
-    expect(within(allVariations()).getByRole('button', { name: 'Sign in to buy' })).toBeInTheDocument()
-    expect(within(allVariations()).queryByRole('button', { name: 'Buy now' })).not.toBeInTheDocument()
-  })
-
-  it('adds up the ticked packages', async () => {
+  it('charges the plain sum when the bundle is not offered, even with every package ticked', async () => {
     const user = userEvent.setup()
     signIn()
-    renderOptions({ product: product(), isFree: false })
+    renderOptions({ product: product(PACKAGES, NOT_OFFERED), isFree: false })
 
-    expect(screen.getByText('Tick the packages you want.')).toBeInTheDocument()
-    expect(within(singlesFooter()).getByRole('button', { name: 'Buy now' })).toBeDisabled()
-
-    await user.click(screen.getByRole('checkbox', { name: 'With Light Rig' }))
-    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
-    expect(screen.getByText('2 packages: $24.00')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
-    expect(screen.getByText('1 package: $15.00')).toBeInTheDocument()
-    expect(within(singlesFooter()).getByRole('button', { name: 'Buy now' })).toBeEnabled()
+    for (const name of ['With Light Rig', 'GLB Only', 'With Environment']) {
+      await user.click(screen.getByRole('checkbox', { name }))
+    }
+    expect(screen.getByText('3 packages: $39.00')).toBeInTheDocument()
   })
 
   it('adds one cart line per ticked package', async () => {
