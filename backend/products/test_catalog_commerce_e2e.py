@@ -119,6 +119,8 @@ class CatalogImportCommerceE2ETests(APITestCase):
         product = Product.objects.get(sku="MDL-000142")
         self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
         package = ProductFile.objects.get(product=product, is_preview=False)
+        # Whole File is not sold on its own: sell the imported zip as a single package.
+        ProductFile.objects.filter(pk=package.pk).update(package_kind="glb_only")
 
         self.client.credentials()
         public_before = self.client.get(self.public_list_url)
@@ -130,7 +132,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "quantity": 1,
             },
             format="json",
@@ -159,7 +161,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "quantity": 1,
             },
             format="json",
