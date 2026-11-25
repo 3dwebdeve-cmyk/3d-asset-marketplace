@@ -66,3 +66,10 @@ backend/.env.local
 
 # Local Compose overrides (copy docker-compose.override.example.yml). Never on servers.
 docker-compose.override.yml
+
+# Local-only 3D viewer playground (never committed, never built into the site)
+frontend/local-models/
+frontend/viewer-playground.html
+frontend/vite.local.config.ts
+frontend/src/dev/
+frontend/scripts/localModels.ts

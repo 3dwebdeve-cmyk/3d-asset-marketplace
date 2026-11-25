@@ -297,29 +297,29 @@ describe('ModelViewer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
     expect(brightness).toHaveValue('3')
-    expect(screen.getByRole('slider', { name: 'Exposure' })).toHaveValue('-0.7')
     fireEvent.change(brightness, { target: { value: '50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.2)
     fireEvent.change(brightness, { target: { value: '-50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.4)
     const extraSliders = [
-      ['Contrast', '-25'],
-      ['Exposure', '-1.5'],
-      ['Saturation', '-25'],
-      ['Highlights', '-30'],
-      ['Shadows', '-30'],
-      ['Gamma', '-0.25'],
-      ['Sharpness', '-50'],
+      ['Contrast', '-25', '-14'],
+      ['Exposure', '-1.5', '-0.7'],
+      ['Saturation', '-25', '-4'],
+      ['Highlights', '-30', '-32'],
+      ['Shadows', '-30', '-45'],
+      ['Gamma', '-0.25', '-0.1'],
+      ['Sharpness', '-50', '0'],
     ]
-    for (const [name, value] of extraSliders) {
+    for (const [name, value, defaultValue] of extraSliders) {
       const slider = screen.getByRole('slider', { name })
+      expect(slider).toHaveValue(defaultValue)
       fireEvent.change(slider, { target: { value } })
       expect(slider).toHaveValue(value)
     }
     await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
     expect(brightness).toHaveValue('3')
-    for (const [name] of extraSliders) {
-      expect(screen.getByRole('slider', { name })).toHaveValue(name === 'Exposure' ? '-0.7' : '0')
+    for (const [name, , defaultValue] of extraSliders) {
+      expect(screen.getByRole('slider', { name })).toHaveValue(defaultValue)
     }
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.824)
   })

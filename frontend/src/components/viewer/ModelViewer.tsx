@@ -33,12 +33,23 @@ const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
 const KEY_LIGHT_DISTANCE = 5
 const DEFAULT_KEY_ELEVATION = Math.atan2(4, 3)
 
-function directionalLightPosition(yaw: number, elevation: number): [number, number, number] {
-  const horizontalDistance = KEY_LIGHT_DISTANCE * Math.cos(elevation)
-  return [Math.sin(yaw) * horizontalDistance, KEY_LIGHT_DISTANCE * Math.sin(elevation), Math.cos(yaw) * horizontalDistance]
+function directionalLightPosition(yaw: number, elevation: number, distance = KEY_LIGHT_DISTANCE): [number, number, number] {
+  const horizontalDistance = distance * Math.cos(elevation)
+  return [Math.sin(yaw) * horizontalDistance, distance * Math.sin(elevation), Math.cos(yaw) * horizontalDistance]
 }
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
+const DEFAULT_SHADOW_RADIUS = 2.5
+
+type StudioLighting = {
+  ambient: number
+  keyIntensity: number
+  keyViewYawOffset: number
+  keyElevation: number
+  exposure: number
+  /** Penumbra of the key light's shadow; bigger reads as a bigger, softer light. */
+  shadowRadius?: number
+}
 
 function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
@@ -60,7 +71,10 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightElevation,
+  lightDistance = KEY_LIGHT_DISTANCE,
   lightIntensity,
+  shadowRadius = DEFAULT_SHADOW_RADIUS,
+  contactShadowOpacity = 0.25,
   detailedSelfShadows,
   cameraPosition,
 }: {
@@ -69,7 +83,10 @@ function PreviewModel({
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
   lightElevation: number
+  lightDistance?: number
   lightIntensity: number
+  shadowRadius?: number
+  contactShadowOpacity?: number
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
@@ -122,7 +139,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, lightDistance, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -179,7 +196,7 @@ function PreviewModel({
     }
   }, [fitted, wireframe])
 
-  const lightPosition = directionalLightPosition(lightYaw, lightElevation)
+  const lightPosition = directionalLightPosition(lightYaw, lightElevation, lightDistance)
 
   return (
     <>
@@ -196,10 +213,10 @@ function PreviewModel({
         shadow-camera-top={shadowHalfExtent}
         shadow-camera-bottom={-shadowHalfExtent}
         shadow-camera-near={2}
-        shadow-camera-far={8}
+        shadow-camera-far={lightDistance + 3}
         shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
         shadow-bias={-0.0002}
-        shadow-radius={2.5}
+        shadow-radius={shadowRadius}
       />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
@@ -210,7 +227,7 @@ function PreviewModel({
           scale={ground.scale}
           far={ground.far}
           blur={3.4}
-          opacity={0.25}
+          opacity={contactShadowOpacity}
           resolution={shadowResolution}
           frames={1}
         />
@@ -261,7 +278,15 @@ const VIEWER_BACKGROUNDS = [
 type LightAdjustments = EnvironmentAdjustments & { brightness: number }
 
 const DEFAULT_VIEWER_BRIGHTNESS = 3
-const DEFAULT_VIEWER_ENVIRONMENT = { ...DEFAULT_ENVIRONMENT_ADJUSTMENTS, exposure: -0.7 }
+const DEFAULT_VIEWER_ENVIRONMENT = {
+  ...DEFAULT_ENVIRONMENT_ADJUSTMENTS,
+  contrast: -14,
+  exposure: -0.7,
+  saturation: -4,
+  highlights: -32,
+  shadows: -45,
+  gamma: -0.1,
+}
 
 const LIGHT_SLIDERS = [
   { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
@@ -476,17 +501,52 @@ function ModelViewerCanvas({
   const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
-  const studio = 'studio' in preset ? preset.studio : undefined
+  const studio: StudioLighting | undefined = 'studio' in preset ? preset.studio : undefined
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
-  const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
   const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
+  const studioKeyYaw = studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : undefined
+  // Presets whose sun is painted on +Z turn with the key light so both always agree.
+  const environmentYaw = 'sunFollowsKey' in preset && studioKeyYaw !== undefined
+    ? studioKeyYaw
+    : preset.yaw + lightingYaw
   const brightnessMultiplier = 1 + brightness / 100
-  const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier
+  const isBananaModel = /banana/i.test(modelUrl + ' ' + ariaLabel)
+  const emphasizeBananaShadows = isBananaModel && preset.id === 'small-08'
+  const hasPcCaseFrontFill = (preset.id === 'small-08' || preset.id === 'small-09')
+    && /pc(?:[-_\s]|%20)*(?:case|cabinet)/i.test(modelUrl + ' ' + ariaLabel)
+  const hasPcCaseStudioLighting = hasPcCaseFrontFill && preset.id === 'small-09'
+  // Lower the ambient HDRI fill so the directional shadow is visible between overlapping bananas.
+  const environmentIntensity = preset.intensity * brightnessMultiplier * (emphasizeBananaShadows ? 0.35 : 1)
+  const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier * (emphasizeBananaShadows ? 1.15 : 1)
+  const detailedSelfShadows = preset.id === 'small-09' || isBananaModel
   const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
   const fillLights = 'fillLights' in preset ? preset.fillLights : undefined
+  const frontRightYaw = openingCameraYaw + (preset.id === 'small-09' ? Math.PI / 3 : Math.PI / 6)
+  const frontRightElevation = preset.id === 'small-09' ? -Math.PI / 6 : -Math.PI / 9
+  const studio09FillDistance = KEY_LIGHT_DISTANCE + 2.5
+  const frontRightPosition = directionalLightPosition(
+    frontRightYaw,
+    frontRightElevation,
+    preset.id === 'small-09' ? studio09FillDistance + 0.25 : KEY_LIGHT_DISTANCE,
+  )
+  const frontLeftYaw = openingCameraYaw - Math.PI / 4
+  const frontLeftElevation = -(7 * Math.PI) / 36
+  const frontLeftPosition = directionalLightPosition(frontLeftYaw, frontLeftElevation, studio09FillDistance)
+  const frontLeftPitch = Math.atan2(
+    -0.25 - frontLeftPosition[1],
+    Math.hypot(frontLeftPosition[0], frontLeftPosition[2]),
+  )
+  const lowerLeftYaw = openingCameraYaw - (2 * Math.PI) / 5
+  const lowerLeftElevation = -(2 * Math.PI) / 9
+  const upperRightSoftboxYaw = openingCameraYaw + (5 * Math.PI) / 12
+  const upperRightSoftboxElevation = (2 * Math.PI) / 9
+  const overheadLightYaw = openingCameraYaw + Math.PI
+  const overheadLightHeight = KEY_LIGHT_DISTANCE * Math.sin(Math.PI / 3) - 1.25
+  const overheadLightSetback = KEY_LIGHT_DISTANCE * Math.cos(Math.PI / 3) + 4
+  const overheadLightElevation = Math.atan2(overheadLightHeight, overheadLightSetback)
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -540,7 +600,7 @@ function ModelViewerCanvas({
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
-                intensity={preset.intensity * brightnessMultiplier}
+                intensity={environmentIntensity}
                 yaw={environmentYaw}
                 adjustments={environmentAdjustments}
               />
@@ -553,15 +613,22 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : environmentYaw}
-              lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
-              lightIntensity={keyIntensity}
-              detailedSelfShadows={preset.id === 'small-09'}
+              lightYaw={studioKeyYaw ?? environmentYaw}
+              shadowRadius={studio?.shadowRadius}
+              contactShadowOpacity={'contactShadowOpacity' in preset ? preset.contactShadowOpacity : undefined}
+              lightElevation={(studio?.keyElevation ?? DEFAULT_KEY_ELEVATION) - (hasPcCaseStudioLighting ? Math.PI / 12 : 0)}
+              lightDistance={hasPcCaseStudioLighting ? studio09FillDistance : undefined}
+              lightIntensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
+              detailedSelfShadows={detailedSelfShadows}
             />
             {upperRightLight && (
               <directionalLight
-                position={directionalLightPosition(openingCameraYaw + upperRightLight.viewYawOffset + lightingYaw, upperRightLight.elevation)}
-                intensity={keyIntensity}
+                position={directionalLightPosition(
+                  openingCameraYaw + upperRightLight.viewYawOffset + lightingYaw,
+                  upperRightLight.elevation - (hasPcCaseStudioLighting ? (5 * Math.PI) / 36 : 0),
+                  hasPcCaseStudioLighting ? studio09FillDistance : undefined,
+                )}
+                intensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
               />
             )}
             {fillLights?.map(({ name, viewYawOffset, elevation, intensity, width, height }) => {
@@ -571,12 +638,57 @@ function ModelViewerCanvas({
                   key={name}
                   position={directionalLightPosition(yaw, elevation)}
                   rotation={[-elevation, yaw, 0, 'YXZ']}
-                  intensity={intensity * brightnessMultiplier}
+                  intensity={intensity * brightnessMultiplier * (emphasizeBananaShadows ? 0.5 : 1)}
                   width={width}
                   height={height}
                 />
               )
             })}
+            {hasPcCaseFrontFill && (
+              <rectAreaLight
+                position={frontRightPosition}
+                rotation={[-frontRightElevation, frontRightYaw, 0, 'YXZ']}
+                intensity={(preset.id === 'small-09' ? 0.52 : 0.14) * brightnessMultiplier}
+                width={preset.id === 'small-09' ? 12.5 : 2}
+                height={preset.id === 'small-09' ? 8.75 : 2}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={frontLeftPosition}
+                rotation={[frontLeftPitch, frontLeftYaw, 0, 'YXZ']}
+                intensity={0.25 * brightnessMultiplier}
+                width={10}
+                height={6.75}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={directionalLightPosition(lowerLeftYaw, lowerLeftElevation, studio09FillDistance + 0.25)}
+                rotation={[-lowerLeftElevation, lowerLeftYaw, 0, 'YXZ']}
+                intensity={0.22 * brightnessMultiplier}
+                width={4.25}
+                height={3.5}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={directionalLightPosition(upperRightSoftboxYaw, upperRightSoftboxElevation, studio09FillDistance + 1.25)}
+                rotation={[-upperRightSoftboxElevation, upperRightSoftboxYaw, 0, 'YXZ']}
+                intensity={0.45 * brightnessMultiplier}
+                width={13}
+                height={8}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={directionalLightPosition(overheadLightYaw, overheadLightElevation, Math.hypot(overheadLightHeight, overheadLightSetback))}
+                rotation={[-overheadLightElevation, overheadLightYaw, 0, 'YXZ']}
+                intensity={0.74 * brightnessMultiplier}
+                width={16.5}
+                height={11.5}
+              />
+            )}
           </Suspense>
           <OrbitControls
             ref={controls}
