@@ -257,16 +257,9 @@ describe('ModelViewer', () => {
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
-    await userEvent.click(screen.getByRole('button', { name: 'Rogland Sunset' }))
     expect(container.querySelector('rectarealight')).toBeNull()
-    expect(container.querySelectorAll('directionallight')).toHaveLength(1)
-    expect(environment()).toHaveAttribute('data-intensity', '4')
-    expect(environment()).toHaveAttribute('data-background', 'true')
-    expect(environment()).toHaveAttribute('data-background-intensity', '1')
-    expect(environment()).toHaveAttribute('data-background-blur', '0.1')
-    expect(viewerMocks.renderer.toneMappingExposure).toBe(0.6)
-    expect(keyLight()).toHaveAttribute('shadow-bias', '0.005')
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    expect(container.querySelectorAll('directionallight')).toHaveLength(1)
     const fills = container.querySelectorAll('rectarealight')
     expect(fills).toHaveLength(2)
     expect(Number(fills[1].getAttribute('intensity'))).toBeLessThan(Number(fills[0].getAttribute('intensity')))
@@ -298,6 +291,34 @@ describe('ModelViewer', () => {
     )
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
+  })
+
+  it('lights the Custom HDRI studio from the viewer side, in front, with a large soft sun', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
+
+    const environment = screen.getByTestId('viewer-environment')
+    expect(environment).toHaveAttribute('data-files', '/hdri/custom-hdri.hdr')
+    expect(environment).toHaveAttribute('data-background', 'true')
+    expect(Number(environment.getAttribute('data-background-intensity'))).toBeGreaterThan(1)
+    expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
+
+    // Only this preset shows its HDRI as the backdrop, and picking a viewer background colour hides it.
+    await userEvent.click(screen.getByRole('button', { name: 'Change background color' }))
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
+    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
+    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
+
+    const keyLight = container.querySelector('directionallight')
+    expect(keyLight).toHaveAttribute('shadow-radius', '6')
+    // The opening camera sits at -X/+Z. The light must be in line with it (front light from the
+    // viewer's side), just above the model's level.
+    const [x, y, z] = String(keyLight?.getAttribute('position')).split(',').map(Number)
+    expect(Math.atan2(x, z)).toBeCloseTo(Math.atan2(-1, 1))
+    expect(y).toBeGreaterThan(0)
+    expect(y).toBeLessThan(Math.hypot(x, z))
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {

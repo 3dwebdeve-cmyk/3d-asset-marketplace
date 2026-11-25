@@ -82,6 +82,17 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
   const selectedKinds = selected.map((item) => item.kind)
   const allVariationsInCart = inCart(ALL_VARIATIONS)
   const showAllVariations = !isFree && !ownsEverything && offer?.eligible === true
+  // Every package the bundle covers is ticked: the buyer pays the All variations price, not the sum.
+  const allTicked =
+    showAllVariations &&
+    offer !== undefined &&
+    offer.kinds.length > 0 &&
+    selectedKinds.length === offer.kinds.length &&
+    offer.kinds.every((kind) => selectedKinds.includes(kind))
+  const payAsBundle = allTicked && offer !== undefined
+  const bundleAlreadyInCart = payAsBundle && allVariationsInCart
+  const payKinds: LineKind[] = payAsBundle ? [ALL_VARIATIONS] : selectedKinds
+  const hasSelection = selected.length > 0
 
   return (
     <section className="package-options" aria-labelledby={`package-options-${product.id}`}>
@@ -140,52 +151,15 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
       </ul>
 
       {showAllVariations && offer ? (
-        <div className="package-options__bundle">
-          <div className="package-options__bundle-text">
-            <h3 className="package-options__bundle-title">All variations</h3>
-            <p className="package-options__bundle-description">
-              {offer.kinds.length} packages in one download (the whole zip), with 25% off the total.
-            </p>
-          </div>
-          <div className="package-options__bundle-buy">
-            <p className="package-options__bundle-price" aria-live="polite">
-              <s className="package-options__price-original">{formatMoney(offer.subtotal, product.currency)}</s>{' '}
-              <span className="package-options__price-current">{formatMoney(offer.price, product.currency)}</span>
-            </p>
-            {isSignedIn ? (
-              allVariationsInCart ? (
-                <Link className="package-options__in-cart" to="/cart">In cart</Link>
-              ) : (
-                <div className="package-options__actions">
-                  <Button
-                    type="button"
-                    isLoading={isRedirecting}
-                    disabled={busy}
-                    onClick={() => buyNow('product', product.id, [ALL_VARIATIONS])}
-                  >
-                    Buy now
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    isLoading={isPending}
-                    disabled={busy}
-                    onClick={() => addPackages(product.id, [ALL_VARIATIONS])}
-                  >
-                    Add to cart
-                  </Button>
-                </div>
-              )
-            ) : (
-              <AuthEntryButton
-                mode="login"
-                returnTo={location.pathname}
-                className="ui-button ui-button--primary package-options__sign-in"
-              >
-                Sign in to buy
-              </AuthEntryButton>
-            )}
-          </div>
+        <div className={`package-options__bundle${payAsBundle ? ' package-options__bundle--active' : ''}`}>
+          <h3 className="package-options__bundle-title">All variations</h3>
+          <p className="package-options__bundle-description">
+            {offer.kinds.length} packages in one download (the whole zip), with 25% off the total.
+          </p>
+          <p className="package-options__bundle-price">
+            <s className="package-options__price-original">{formatMoney(offer.subtotal, product.currency)}</s>{' '}
+            <span className="package-options__price-current">{formatMoney(offer.price, product.currency)}</span>
+          </p>
         </div>
       ) : null}
 
@@ -194,33 +168,45 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
       ) : (
         <div className="package-options__footer">
           <p className="package-options__total" aria-live="polite">
-            {selected.length === 0
-              ? 'Tick the packages you want.'
-              : `${selected.length} package${selected.length === 1 ? '' : 's'}: ${formatMoney(total.toFixed(2), product.currency)}`}
+            {!hasSelection ? (
+              'Tick the packages you want.'
+            ) : payAsBundle && offer ? (
+              <>
+                All {offer.kinds.length} packages, 25% off:{' '}
+                <s className="package-options__price-original">{formatMoney(offer.subtotal, product.currency)}</s>{' '}
+                <span className="package-options__total-pay">{formatMoney(offer.price, product.currency)}</span>
+              </>
+            ) : (
+              `${selected.length} package${selected.length === 1 ? '' : 's'}: ${formatMoney(total.toFixed(2), product.currency)}`
+            )}
           </p>
-          {isSignedIn ? (
-            <div className="package-options__actions">
-              <Button
-                type="button"
-                isLoading={isRedirecting}
-                disabled={selected.length === 0 || busy}
-                onClick={() => buyNow('product', product.id, selectedKinds)}
-              >
-                Buy now
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                isLoading={isPending}
-                disabled={selected.length === 0 || busy}
-                onClick={() => {
-                  addPackages(product.id, selectedKinds)
-                  setTicked(new Set())
-                }}
-              >
-                Add selected to cart
-              </Button>
-            </div>
+          {!hasSelection ? null : isSignedIn ? (
+            bundleAlreadyInCart ? (
+              <Link className="package-options__in-cart" to="/cart">All variations is in your cart</Link>
+            ) : (
+              <div className="package-options__actions">
+                <Button
+                  type="button"
+                  isLoading={isRedirecting}
+                  disabled={busy}
+                  onClick={() => buyNow('product', product.id, payKinds)}
+                >
+                  Buy now
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  isLoading={isPending}
+                  disabled={busy}
+                  onClick={() => {
+                    addPackages(product.id, payKinds)
+                    setTicked(new Set())
+                  }}
+                >
+                  Add selected to cart
+                </Button>
+              </div>
+            )
           ) : (
             <AuthEntryButton
               mode="login"

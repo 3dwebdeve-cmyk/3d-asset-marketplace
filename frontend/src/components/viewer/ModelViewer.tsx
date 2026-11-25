@@ -39,6 +39,20 @@ function directionalLightPosition(yaw: number, elevation: number): [number, numb
 }
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
+const DEFAULT_SHADOW_RADIUS = 2.5
+const DEFAULT_CONTACT_SHADOW_OPACITY = 0.25
+
+type StudioLighting = {
+  ambient: number
+  keyIntensity: number
+  keyViewYawOffset: number
+  keyElevation: number
+  exposure: number
+  /** Penumbra of the key light's shadow; bigger reads as a bigger, softer light. */
+  shadowRadius?: number
+  /** Opacity of the soft shadow under the model; lower it so the base does not look dim. */
+  contactShadowOpacity?: number
+}
 
 function easeInOut(progress: number): number {
   return progress * progress * (3 - 2 * progress)
@@ -61,7 +75,8 @@ function PreviewModel({
   lightYaw,
   lightElevation,
   lightIntensity,
-  shadowBias,
+  shadowRadius = DEFAULT_SHADOW_RADIUS,
+  contactShadowOpacity = DEFAULT_CONTACT_SHADOW_OPACITY,
   detailedSelfShadows,
   cameraPosition,
 }: {
@@ -71,7 +86,8 @@ function PreviewModel({
   lightYaw: number
   lightElevation: number
   lightIntensity: number
-  shadowBias: number
+  shadowRadius?: number
+  contactShadowOpacity?: number
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
@@ -124,7 +140,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowBias, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -200,8 +216,8 @@ function PreviewModel({
         shadow-camera-near={2}
         shadow-camera-far={8}
         shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
-        shadow-bias={shadowBias}
-        shadow-radius={2.5}
+        shadow-bias={-0.0002}
+        shadow-radius={shadowRadius}
       />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
@@ -212,7 +228,7 @@ function PreviewModel({
           scale={ground.scale}
           far={ground.far}
           blur={3.4}
-          opacity={0.25}
+          opacity={contactShadowOpacity}
           resolution={shadowResolution}
           frames={1}
         />
@@ -281,6 +297,7 @@ function ViewerEnvironment({ files, intensity, yaw, adjustments, background }: {
   intensity: number
   yaw: number
   adjustments: EnvironmentAdjustments
+  /** Show the HDRI itself as the backdrop (presets that ask for it); leave out for a transparent canvas. */
   background?: { intensity: number; blur: number }
 }) {
   const source = useEnvironment({ files })
@@ -482,13 +499,17 @@ function ModelViewerCanvas({
   const [preset, setPreset] = useState<(typeof HDRI_ENVIRONMENTS)[number]>(
     () => HDRI_ENVIRONMENTS.find((option) => option.id === DEFAULT_HDRI_ENVIRONMENT_ID)!,
   )
-  const studio = 'studio' in preset ? preset.studio : undefined
+  const studio: StudioLighting | undefined = 'studio' in preset ? preset.studio : undefined
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
-  const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
   const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
+  const studioKeyYaw = studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : undefined
+  // Presets whose sun is painted on +Z turn with the key light so both always agree.
+  const environmentYaw = 'sunFollowsKey' in preset && studioKeyYaw !== undefined
+    ? studioKeyYaw
+    : preset.yaw + lightingYaw
   const brightnessMultiplier = 1 + brightness / 100
   const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier
   const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
@@ -540,13 +561,13 @@ function ModelViewerCanvas({
           shadows="percentage"
           frameloop={visible ? 'always' : 'never'}
         >
-          <ViewerExposure exposure={'exposure' in preset ? preset.exposure : studio?.exposure} />
+          <ViewerExposure exposure={studio?.exposure} />
           <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
-                intensity={preset.intensity * brightnessMultiplier / (preset.id === 'rogland-sunset' ? 1 + DEFAULT_VIEWER_BRIGHTNESS / 100 : 1)}
+                intensity={preset.intensity * brightnessMultiplier}
                 yaw={environmentYaw}
                 adjustments={environmentAdjustments}
                 background={!background && 'background' in preset ? preset.background : undefined}
@@ -560,10 +581,11 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : environmentYaw}
+              lightYaw={studioKeyYaw ?? environmentYaw}
+              shadowRadius={studio?.shadowRadius}
+              contactShadowOpacity={studio?.contactShadowOpacity}
               lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
               lightIntensity={keyIntensity}
-              shadowBias={'shadowBias' in preset ? preset.shadowBias : -0.0002}
               detailedSelfShadows={preset.id === 'small-09'}
             />
             {upperRightLight && (
