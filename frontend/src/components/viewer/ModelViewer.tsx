@@ -37,6 +37,42 @@ function directionalLightPosition(yaw: number, elevation: number): [number, numb
   const horizontalDistance = KEY_LIGHT_DISTANCE * Math.cos(elevation)
   return [Math.sin(yaw) * horizontalDistance, KEY_LIGHT_DISTANCE * Math.sin(elevation), Math.cos(yaw) * horizontalDistance]
 }
+/** Where the key light should be right now (yaw and elevation, in radians); written every frame by CameraRelativeLighting. */
+type KeyLightRef = { current: { yaw: number; elevation: number } | undefined }
+
+const MAX_SUN_ELEVATION = THREE.MathUtils.degToRad(80)
+
+/**
+ * Keeps the sun, the HDRI backdrop and the shadow-casting key light tied to the viewer's eye while the
+ * camera orbits the model: the sun always sits in the camera's direction, `eyeLift` above the eye line, so
+ * the light seems to come from the viewer. The HDRI has its sun painted at `paintedSunElevation` on +Z, so
+ * the whole map is turned in 3D (first up or down, then left or right) to put that sun where it belongs.
+ * `offsetYaw` is how far the light sits to one side of the camera (the preset's own offset plus whatever
+ * the visitor set with Alt + drag).
+ */
+function CameraRelativeLighting({ offsetYaw, eyeLift, paintedSunElevation, keyLightRef }: {
+  offsetYaw: number
+  eyeLift: number
+  paintedSunElevation: number
+  keyLightRef: KeyLightRef
+}) {
+  useFrame((state) => {
+    const target = (state.controls as { target?: THREE.Vector3 } | null)?.target
+    const dx = state.camera.position.x - (target?.x ?? 0)
+    const dy = state.camera.position.y - (target?.y ?? 0)
+    const dz = state.camera.position.z - (target?.z ?? 0)
+    const horizontal = Math.hypot(dx, dz)
+    // Looking straight down or up has no azimuth: keep the last light position.
+    if (horizontal < 1e-4) return
+    const yaw = Math.atan2(dx, dz) + offsetYaw
+    const elevation = THREE.MathUtils.clamp(Math.atan2(dy, horizontal) + eyeLift, -MAX_SUN_ELEVATION, MAX_SUN_ELEVATION)
+    keyLightRef.current = { yaw, elevation }
+    // R = Ry(yaw) * Rx(-lift): raises the painted sun from its own height to `elevation`, then swings it round.
+    state.scene.environmentRotation.set(paintedSunElevation - elevation, yaw, 0, 'YXZ')
+    state.scene.backgroundRotation.set(paintedSunElevation - elevation, yaw, 0, 'YXZ')
+  })
+  return null
+}
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
 const DEFAULT_SHADOW_RADIUS = 2.5
@@ -52,6 +88,8 @@ type StudioLighting = {
   shadowRadius?: number
   /** Opacity of the soft shadow under the model; lower it so the base does not look dim. */
   contactShadowOpacity?: number
+  /** For presets whose light follows the camera: how far above the viewer's eye line the sun sits. */
+  keyEyeLift?: number
 }
 
 function easeInOut(progress: number): number {
@@ -77,6 +115,7 @@ function PreviewModel({
   lightIntensity,
   shadowRadius = DEFAULT_SHADOW_RADIUS,
   contactShadowOpacity = DEFAULT_CONTACT_SHADOW_OPACITY,
+  keyLightRef,
   detailedSelfShadows,
   cameraPosition,
 }: {
@@ -88,6 +127,8 @@ function PreviewModel({
   lightIntensity: number
   shadowRadius?: number
   contactShadowOpacity?: number
+  /** When set, the key light follows this position every frame instead of staying where the props put it. */
+  keyLightRef?: KeyLightRef
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
@@ -143,6 +184,16 @@ function PreviewModel({
   }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
+    const followed = keyLightRef?.current
+    const light = shadowLight.current
+    if (followed && light) {
+      const [x, y, z] = directionalLightPosition(followed.yaw, followed.elevation)
+      if (Math.abs(light.position.x - x) + Math.abs(light.position.y - y) + Math.abs(light.position.z - z) > 1e-4) {
+        light.position.set(x, y, z)
+        light.shadow.needsUpdate = true
+      }
+    }
+
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
 
     const time = Math.min(entranceTime.current + Math.min(delta, 0.25), ENTRANCE_DURATION)
@@ -515,6 +566,9 @@ function ModelViewerCanvas({
   const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
   const fillLights = 'fillLights' in preset ? preset.fillLights : undefined
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
+  // Presets whose sun is painted on +Z keep their light fixed on screen while the camera orbits.
+  const followsCamera = studio !== undefined && 'sunFollowsKey' in preset
+  const keyLightRef = useRef<{ yaw: number; elevation: number } | undefined>(undefined)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
     if (!event.altKey || event.button !== 0 || lightDrag.current) return
@@ -562,6 +616,14 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={studio?.exposure} />
+          {followsCamera && studio && (
+            <CameraRelativeLighting
+              offsetYaw={studio.keyViewYawOffset + lightingYaw}
+              eyeLift={studio.keyEyeLift ?? 0}
+              paintedSunElevation={studio.keyElevation}
+              keyLightRef={keyLightRef}
+            />
+          )}
           <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
@@ -584,6 +646,7 @@ function ModelViewerCanvas({
               lightYaw={studioKeyYaw ?? environmentYaw}
               shadowRadius={studio?.shadowRadius}
               contactShadowOpacity={studio?.contactShadowOpacity}
+              keyLightRef={followsCamera ? keyLightRef : undefined}
               lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
               lightIntensity={keyIntensity}
               detailedSelfShadows={preset.id === 'small-09'}
