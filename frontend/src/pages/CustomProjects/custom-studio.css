@@ -434,8 +434,6 @@
 .custom-studio .studio-benefits-row .studio-benefits article::before{content:counter(benefit,decimal-leading-zero) / '';position:absolute;top:16px;left:0;display:grid;place-items:center;width:30px;height:30px;border:1px solid #c7dcff;border-radius:50%;color:#0667db;font-size:11px}
 .custom-studio .studio-benefits-row .studio-benefits h3{font-size:15px;color:#111}
 .custom-studio .studio-benefits-row .studio-benefits article p{font-size:13px;color:#111}
-.custom-studio .studio-response-time{display:grid;gap:3px;margin-top:auto;padding:12px 14px;border:1px solid #e5e5e5;border-radius:8px;background:#fff}
-.custom-studio .studio-response-time span{color:#111;font-size:11px}
 .custom-studio .studio-faq--side{padding:24px;border-radius:12px;background:#fff;color:#222}
 .custom-studio .studio-faq--side .studio-faq-inner{max-width:none;border-top:0;padding:0}
 .custom-studio .studio-faq-intro{margin:0 0 8px;color:#626262;font-size:13px}
