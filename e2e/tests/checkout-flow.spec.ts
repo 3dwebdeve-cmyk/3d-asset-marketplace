@@ -21,7 +21,7 @@ test.describe('marketplace checkout commerce', () => {
     const purchaseDialog = page.getByRole('dialog', { name: 'Product packages' })
     await expect(purchaseDialog).toBeVisible()
     const packages = purchaseDialog.getByRole('region', { name: 'Choose your packages' })
-    await packages.getByRole('checkbox', { name: 'Whole File' }).check()
+    await packages.getByRole('checkbox', { name: 'GLB Only' }).check()
     await packages.getByRole('button', { name: 'Add selected to cart' }).click()
     await expect(packages.getByRole('link', { name: 'In cart' })).toBeVisible({
       timeout: 15_000,
@@ -33,7 +33,7 @@ test.describe('marketplace checkout commerce', () => {
 
     // Every cart line is ticked by default; checkout buys the ticked ones. The line names
     // the package.
-    await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Chair - Whole File' })).toBeChecked()
+    await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Chair - GLB Only' })).toBeChecked()
     await page.getByRole('button', { name: /^Checkout selected \(\d+\)$/ }).click()
 
     await expect(page).toHaveURL(/\/checkout\/success\?order_id=/, { timeout: 60_000 })

@@ -48,7 +48,7 @@ const product: PublicProductDetail = {
   ],
   files: [],
   packages: [],
-  bundle_saving: null,
+  bundle: { eligible: false, reason: '', kinds: [], subtotal: '0.00', price: '0.00' },
   created_at: '',
   updated_at: '',
 }

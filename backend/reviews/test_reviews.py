@@ -114,7 +114,7 @@ class ReviewAPITests(APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type=product_type,
-                        product_id=product_id or self.product.pk, package_kind="whole" if product_type == "product" else "",
+                        product_id=product_id or self.product.pk, package_kind="glb_only" if product_type == "product" else "",
                         quantity=1,
                     ),
                 ),
@@ -130,7 +130,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "rating": 5,
                 "review_text": "Great",
             },
@@ -148,7 +148,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "review_text": "Nice chair",
             },
             format="json",
@@ -180,7 +180,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "review_text": "   ",
             },
             format="json",
@@ -227,7 +227,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "rating": 5,
                 "review_text": "Excellent asset",
             },
@@ -250,7 +250,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "rating": 4,
                 "review_text": "Good",
             },
@@ -261,7 +261,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "review_text": "Even better",
             },
             format="json",
@@ -276,7 +276,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
         )
         self.assertEqual(listing.data["results"][0]["review_text"], "Even better")
@@ -294,7 +294,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "rating": 4,
                 "review_text": "Good",
             },
@@ -305,7 +305,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "rating": 5,
                 "review_text": "Another comment",
             },
@@ -336,7 +336,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "review_text": "Comment 6",
             },
             format="json",
@@ -377,7 +377,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
         )
 
@@ -393,7 +393,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
         )
         self.assertEqual(eligibility.status_code, status.HTTP_200_OK)
@@ -405,7 +405,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "review_text": "Solid",
             },
             format="json",
@@ -416,7 +416,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
         )
         self.assertEqual(mine.status_code, status.HTTP_200_OK)
@@ -427,7 +427,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
         )
         self.assertTrue(eligibility2.data["has_reviewed"])
@@ -528,7 +528,7 @@ class ReviewAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.draft_product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "rating": 5,
             },
             format="json",
@@ -547,7 +547,7 @@ class ReviewAPITests(APITestCase):
                 items=(
                     OrderItemCreateData(
                         product_type="product",
-                        product_id=self.product.pk, package_kind="whole",
+                        product_id=self.product.pk, package_kind="glb_only",
                         quantity=1,
                     ),
                 ),

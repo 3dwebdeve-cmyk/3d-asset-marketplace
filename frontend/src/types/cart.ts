@@ -1,4 +1,4 @@
-import type { PackageKind } from '../lib/packages'
+import type { LineKind } from '../lib/packages'
 
 export type CartProductType = 'product' | 'plugin'
 
@@ -12,10 +12,8 @@ export interface CartCatalogItem {
   name: string
   /** "<model name> - <package label>" for a model; the name for a plugin. */
   title: string
-  package_kind: PackageKind | ''
+  package_kind: LineKind | ''
   package_label: string
-  /** On a Whole File line when the cart also holds other packages of that model. */
-  bundle_hint: string
   slug: string
   thumbnail: string
   price: string | null
@@ -30,8 +28,8 @@ export interface CartItem {
   id: string
   product_type: CartProductType
   product_id: string
-  /** The package of a model; '' for a plugin. */
-  package_kind: PackageKind | ''
+  /** The package of a model, or 'bundle'; '' for a plugin. */
+  package_kind: LineKind | ''
   quantity: number
   unit_price: string | null
   line_total: string | null
@@ -52,8 +50,8 @@ export interface Cart {
 export interface CartAddPayload {
   product_type: CartProductType
   product_id: string
-  /** Required for a model; leave out for a plugin. */
-  package_kind?: PackageKind
+  /** Required for a model (a package, or 'bundle' for All variations); leave out for a plugin. */
+  package_kind?: LineKind
   quantity?: number
 }
 

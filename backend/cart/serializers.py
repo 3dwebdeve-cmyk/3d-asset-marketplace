@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from cart.models import CartItem
-from products.packages import PACKAGE_ORDER
+from products.packages import LINE_KINDS
 
 
 class CartAddSerializer(serializers.Serializer):
@@ -9,7 +9,7 @@ class CartAddSerializer(serializers.Serializer):
     product_id = serializers.UUIDField()
     # Required for a model (which package to buy); blank for a plugin.
     package_kind = serializers.ChoiceField(
-        choices=PACKAGE_ORDER, required=False, allow_blank=True, default=""
+        choices=LINE_KINDS, required=False, allow_blank=True, default=""
     )
     quantity = serializers.IntegerField(
         required=False,
@@ -17,6 +17,10 @@ class CartAddSerializer(serializers.Serializer):
         min_value=1,
         max_value=CartItem.MAX_QUANTITY,
     )
+
+
+class BundleQuoteQuerySerializer(serializers.Serializer):
+    product_id = serializers.UUIDField()
 
 
 class CartUpdateQuantitySerializer(serializers.Serializer):
@@ -32,8 +36,6 @@ class CartCatalogSerializer(serializers.Serializer):
     title = serializers.CharField()
     package_kind = serializers.CharField(allow_blank=True)
     package_label = serializers.CharField(allow_blank=True)
-    # On a Whole File line when the cart also holds other packages of that model.
-    bundle_hint = serializers.CharField(allow_blank=True)
     slug = serializers.SlugField()
     thumbnail = serializers.URLField(allow_blank=True)
     price = serializers.CharField(allow_null=True)

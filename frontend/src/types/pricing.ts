@@ -1,7 +1,7 @@
 /** Pricing page API (docs/PRICING_PIPELINE.md; per package: docs/PACKAGES_PIPELINE.md).
  * Money is a string with two decimals. */
 
-import type { PackageKind } from '../lib/packages'
+import type { PackageKind, PricedKind } from '../lib/packages'
 
 export type PricingTab = 'waiting' | 'live'
 
@@ -37,8 +37,6 @@ export interface PricingRow {
   /** The cheapest priced package's price: what the store shows as "From". */
   buyer_pays: string
   packages: PricingPackage[]
-  /** Server bundle check: Whole File should be the better deal; '' when fine. Never blocks. */
-  bundle_warning: string
   import_batch_id: string
   created_at: string
 }
@@ -65,7 +63,7 @@ export interface PricingListParams {
 export interface PricingInputBody {
   product_ids: string[]
   rate: string
-  percents: Record<PackageKind, string>
+  percents: Record<PricedKind, string>
 }
 
 export interface PricingCalcPackage {

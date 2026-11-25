@@ -178,7 +178,7 @@ class Command(BaseCommand):
                 "version": "1.0",
                 "is_preview": False,
                 # The one package carries the product's price.
-                "package_kind": PackageKind.WHOLE,
+                "package_kind": PackageKind.GLB_ONLY,
                 "price": product.price,
             },
         )

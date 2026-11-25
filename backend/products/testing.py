@@ -116,7 +116,7 @@ def price_packages(product, price: str, **sale) -> None:
     sync_summary_price(product)
 
 
-def sell_package(product, kind: str = "whole", price=None, **sale):
+def sell_package(product, kind: str = "glb_only", price=None, **sale):
     """Give ``product`` a priced package of this kind (the product's own price and sale by
     default), as a model is sold after the Pricing page. Returns the package row."""
     from products.models import ProductFile

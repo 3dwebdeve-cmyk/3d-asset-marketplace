@@ -9,13 +9,13 @@ import {
   updateCartItemQuantity,
 } from '../api/cartApi'
 import { getApiErrorMessage } from '../lib/apiError'
-import type { PackageKind } from '../lib/packages'
+import type { LineKind } from '../lib/packages'
 import { toast } from '../lib/toast'
 import { useAuthStore } from '../store/authStore'
 import type { CartProductType } from '../types/cart'
 
 /** One cart line: a plugin, or one package of a model. */
-function cartKey(type: CartProductType, id: string, packageKind: PackageKind | '' = ''): string {
+function cartKey(type: CartProductType, id: string, packageKind: LineKind | '' = ''): string {
   return `${type}:${id}:${packageKind}`
 }
 
@@ -48,7 +48,7 @@ export function useCart() {
 
   // A model's packages: one cart line each, added one after another.
   const addPackagesMutation = useMutation({
-    mutationFn: async ({ productId, packageKinds }: { productId: string; packageKinds: PackageKind[] }) => {
+    mutationFn: async ({ productId, packageKinds }: { productId: string; packageKinds: LineKind[] }) => {
       for (const kind of packageKinds) {
         await addCartItem({ product_type: 'product', product_id: productId, package_kind: kind, quantity: 1 })
       }
@@ -107,7 +107,7 @@ export function useCart() {
 
   /** Whether the line is in the cart: a plugin, or one package of a model. */
   const isInCart = useCallback(
-    (productType: CartProductType, productId: string, packageKind: PackageKind | '' = '') =>
+    (productType: CartProductType, productId: string, packageKind: LineKind | '' = '') =>
       lookup.has(cartKey(productType, productId, packageKind)),
     [lookup],
   )
@@ -124,7 +124,7 @@ export function useCart() {
   )
 
   const addPackages = useCallback(
-    (productId: string, packageKinds: PackageKind[]) => {
+    (productId: string, packageKinds: LineKind[]) => {
       if (!isSignedIn || packageKinds.length === 0) {
         return
       }

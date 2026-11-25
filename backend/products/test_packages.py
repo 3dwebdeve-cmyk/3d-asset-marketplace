@@ -18,10 +18,13 @@ from categories.models import Category
 from orders.models import Order, OrderItem
 from products.models import Product, ProductFile
 from products.packages import (
+    BUNDLE_KIND,
+    LINE_KINDS,
     PACKAGE_DESCRIPTIONS,
     PACKAGE_KINDS,
     PACKAGE_LABELS,
     PACKAGE_ORDER,
+    SINGLE_KINDS,
     PackageKind,
     sync_summary_price,
 )
@@ -52,9 +55,14 @@ class PackageKindsTests(TestCase):
             {"glb_only", "with_light_rig", "without_light_rig", "environment", "whole"},
         )
         self.assertEqual(len(PACKAGE_ORDER), len(PACKAGE_KINDS))
-        self.assertEqual(set(PACKAGE_LABELS), PACKAGE_KINDS)
-        self.assertEqual(set(PACKAGE_DESCRIPTIONS), PACKAGE_KINDS)
+        # All variations is a cart and order line, not a package: it has a label and a
+        # description too, and Whole File is the one kind nobody prices.
+        self.assertEqual(set(PACKAGE_LABELS), PACKAGE_KINDS | {BUNDLE_KIND})
+        self.assertEqual(set(PACKAGE_DESCRIPTIONS), PACKAGE_KINDS | {BUNDLE_KIND})
         self.assertEqual(PACKAGE_LABELS[PackageKind.WHOLE], "Whole File")
+        self.assertEqual(PACKAGE_LABELS[BUNDLE_KIND], "All variations")
+        self.assertEqual(set(SINGLE_KINDS), PACKAGE_KINDS - {"whole"})
+        self.assertEqual(LINE_KINDS, (*SINGLE_KINDS, BUNDLE_KIND))
 
 
 class PricedMixinTests(TestCase):
