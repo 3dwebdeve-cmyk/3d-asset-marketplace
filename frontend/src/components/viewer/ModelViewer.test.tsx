@@ -65,10 +65,12 @@ vi.mock('@react-three/drei', () => ({
     return null
   },
   useEnvironment: ({ files }: { files: string }) => ({ name: files }),
-  Environment: ({ map, background, environmentIntensity }: {
+  Environment: ({ map, background, environmentIntensity, backgroundIntensity, backgroundBlurriness }: {
     map: { name: string }; background: boolean; environmentIntensity: number
+    backgroundIntensity?: number; backgroundBlurriness?: number
   }) => (
-    <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity} />
+    <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity}
+      data-background-intensity={backgroundIntensity} data-background-blur={backgroundBlurriness} />
   ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
   useGLTF: Object.assign(
@@ -250,11 +252,21 @@ describe('ModelViewer', () => {
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
-    await userEvent.click(screen.getByRole('button', { name: 'Goegap' }))
-    expect(environment()).toHaveAttribute('data-files', '/hdri/goegap.hdr')
     await userEvent.click(screen.getByRole('button', { name: 'Quarry 04' }))
     expect(environment()).toHaveAttribute('data-files', '/hdri/quarry_04.hdr')
+    expect(Number(environment().getAttribute('data-intensity'))).toBeCloseTo(1.35 * 1.03)
+    expect(keyLight()).toHaveAttribute('color', '#fff1d9')
+    await userEvent.click(screen.getByRole('button', { name: 'Rogland Sunset' }))
+    expect(environment()).toHaveAttribute('data-intensity', '4')
+    expect(environment()).toHaveAttribute('data-background', 'true')
+    expect(environment()).toHaveAttribute('data-background-intensity', '1')
+    expect(environment()).toHaveAttribute('data-background-blur', '0.1')
+    expect(viewerMocks.renderer.toneMappingExposure).toBe(0.6)
+    expect(keyLight()).toHaveAttribute('shadow-bias', '0.005')
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    expect(environment()).toHaveAttribute('data-background', 'false')
+    expect(keyLight()).toHaveAttribute('shadow-bias', '-0.0002')
+    expect(keyLight()).toHaveAttribute('color', '#ffffff')
     expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.927)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
     expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
