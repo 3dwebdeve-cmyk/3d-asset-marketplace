@@ -2,6 +2,7 @@ import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
@@ -14,6 +15,8 @@ import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 import '../../styles/model-viewer.css'
+
+RectAreaLightUniformsLib.init()
 
 export interface ModelViewerProps {
   modelUrl: string
@@ -489,6 +492,7 @@ function ModelViewerCanvas({
   const brightnessMultiplier = 1 + brightness / 100
   const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier
   const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
+  const fillLights = 'fillLights' in preset ? preset.fillLights : undefined
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -568,6 +572,19 @@ function ModelViewerCanvas({
                 intensity={keyIntensity}
               />
             )}
+            {fillLights?.map(({ name, viewYawOffset, elevation, intensity, width, height }) => {
+              const yaw = openingCameraYaw + viewYawOffset + lightingYaw
+              return (
+                <rectAreaLight
+                  key={name}
+                  position={directionalLightPosition(yaw, elevation)}
+                  rotation={[-elevation, yaw, 0, 'YXZ']}
+                  intensity={intensity * brightnessMultiplier}
+                  width={width}
+                  height={height}
+                />
+              )
+            })}
           </Suspense>
           <OrbitControls
             ref={controls}

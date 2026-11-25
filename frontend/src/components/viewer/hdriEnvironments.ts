@@ -1,6 +1,16 @@
 export const HDRI_ENVIRONMENTS = [
   { id: 'loft', label: 'Loft Hall', hdrPath: '/hdri/loft-hall.hdr', intensity: 0.85, yaw: Math.PI / 4 },
-  { id: 'brown', label: 'Brown Studio', hdrPath: '/hdri/brown-studio.hdr', intensity: 1, yaw: Math.PI / 4 },
+  {
+    id: 'brown',
+    label: 'Brown Studio',
+    hdrPath: '/hdri/brown-studio.hdr',
+    intensity: 1,
+    yaw: Math.PI / 4,
+    fillLights: [
+      { name: 'Lower front', viewYawOffset: -Math.PI / 12, elevation: -Math.PI / 24, intensity: 0.45, width: 4, height: 2 },
+      { name: 'Lower right', viewYawOffset: Math.PI / 3, elevation: -Math.PI / 36, intensity: 0.25, width: 3, height: 2 },
+    ],
+  },
   {
     id: 'small-09',
     label: 'Small Studio 09',

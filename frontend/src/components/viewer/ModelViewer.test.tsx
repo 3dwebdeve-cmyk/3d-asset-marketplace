@@ -258,6 +258,7 @@ describe('ModelViewer', () => {
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
     await userEvent.click(screen.getByRole('button', { name: 'Rogland Sunset' }))
+    expect(container.querySelector('rectarealight')).toBeNull()
     expect(container.querySelectorAll('directionallight')).toHaveLength(1)
     expect(environment()).toHaveAttribute('data-intensity', '4')
     expect(environment()).toHaveAttribute('data-background', 'true')
@@ -266,6 +267,12 @@ describe('ModelViewer', () => {
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.6)
     expect(keyLight()).toHaveAttribute('shadow-bias', '0.005')
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
+    const fills = container.querySelectorAll('rectarealight')
+    expect(fills).toHaveLength(2)
+    expect(Number(fills[1].getAttribute('intensity'))).toBeLessThan(Number(fills[0].getAttribute('intensity')))
+    for (const fill of fills) {
+      expect(Number(fill.getAttribute('position')?.split(',')[1])).toBeLessThan(0)
+    }
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(keyLight()).toHaveAttribute('shadow-bias', '-0.0002')
     expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.927)
