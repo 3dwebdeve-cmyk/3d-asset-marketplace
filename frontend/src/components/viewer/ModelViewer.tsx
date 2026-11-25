@@ -2,6 +2,7 @@ import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
@@ -14,6 +15,8 @@ import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 import '../../styles/model-viewer.css'
+
+RectAreaLightUniformsLib.init()
 
 export interface ModelViewerProps {
   modelUrl: string
@@ -29,6 +32,11 @@ const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
 const KEY_LIGHT_DISTANCE = 5
 const DEFAULT_KEY_ELEVATION = Math.atan2(4, 3)
+
+function directionalLightPosition(yaw: number, elevation: number): [number, number, number] {
+  const horizontalDistance = KEY_LIGHT_DISTANCE * Math.cos(elevation)
+  return [Math.sin(yaw) * horizontalDistance, KEY_LIGHT_DISTANCE * Math.sin(elevation), Math.cos(yaw) * horizontalDistance]
+}
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
 
@@ -53,7 +61,6 @@ function PreviewModel({
   lightYaw,
   lightElevation,
   lightIntensity,
-  lightColor,
   shadowBias,
   detailedSelfShadows,
   cameraPosition,
@@ -64,7 +71,6 @@ function PreviewModel({
   lightYaw: number
   lightElevation: number
   lightIntensity: number
-  lightColor: string
   shadowBias: number
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
@@ -175,12 +181,7 @@ function PreviewModel({
     }
   }, [fitted, wireframe])
 
-  const lightHorizontalDistance = KEY_LIGHT_DISTANCE * Math.cos(lightElevation)
-  const lightPosition: [number, number, number] = [
-    Math.sin(lightYaw) * lightHorizontalDistance,
-    KEY_LIGHT_DISTANCE * Math.sin(lightElevation),
-    Math.cos(lightYaw) * lightHorizontalDistance,
-  ]
+  const lightPosition = directionalLightPosition(lightYaw, lightElevation)
 
   return (
     <>
@@ -189,7 +190,6 @@ function PreviewModel({
         ref={shadowLight}
         position={lightPosition}
         intensity={lightIntensity}
-        color={lightColor}
         castShadow={shadowsReady}
         shadow-autoUpdate={false}
         shadow-mapSize={[shadowResolution, shadowResolution]}
@@ -490,6 +490,9 @@ function ModelViewerCanvas({
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
   const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
   const brightnessMultiplier = 1 + brightness / 100
+  const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier
+  const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
+  const fillLights = 'fillLights' in preset ? preset.fillLights : undefined
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -559,11 +562,29 @@ function ModelViewerCanvas({
               cameraPosition={presentation?.cameraPosition}
               lightYaw={studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : environmentYaw}
               lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
-              lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
-              lightColor={'keyColor' in preset ? preset.keyColor : '#ffffff'}
+              lightIntensity={keyIntensity}
               shadowBias={'shadowBias' in preset ? preset.shadowBias : -0.0002}
               detailedSelfShadows={preset.id === 'small-09'}
             />
+            {upperRightLight && (
+              <directionalLight
+                position={directionalLightPosition(openingCameraYaw + upperRightLight.viewYawOffset + lightingYaw, upperRightLight.elevation)}
+                intensity={keyIntensity}
+              />
+            )}
+            {fillLights?.map(({ name, viewYawOffset, elevation, intensity, width, height }) => {
+              const yaw = openingCameraYaw + viewYawOffset + lightingYaw
+              return (
+                <rectAreaLight
+                  key={name}
+                  position={directionalLightPosition(yaw, elevation)}
+                  rotation={[-elevation, yaw, 0, 'YXZ']}
+                  intensity={intensity * brightnessMultiplier}
+                  width={width}
+                  height={height}
+                />
+              )
+            })}
           </Suspense>
           <OrbitControls
             ref={controls}
