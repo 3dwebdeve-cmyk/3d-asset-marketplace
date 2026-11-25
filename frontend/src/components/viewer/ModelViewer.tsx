@@ -2,6 +2,7 @@ import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
@@ -14,6 +15,8 @@ import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 import '../../styles/model-viewer.css'
+
+RectAreaLightUniformsLib.init()
 
 export interface ModelViewerProps {
   modelUrl: string
@@ -251,13 +254,14 @@ const VIEWER_BACKGROUNDS = [
   'radial-gradient(ellipse farthest-side at center, #4E5459 0%, #373C40 55%, #202326 100%)',
 ] as const
 
-type LightAdjustments = EnvironmentAdjustments & { brightness: number }
+type LightAdjustments = EnvironmentAdjustments & { brightness: number; fillLight: number }
 
 const DEFAULT_VIEWER_BRIGHTNESS = 3
 const DEFAULT_VIEWER_ENVIRONMENT = { ...DEFAULT_ENVIRONMENT_ADJUSTMENTS, exposure: -0.7 }
 
 const LIGHT_SLIDERS = [
   { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
+  { key: 'fillLight', label: 'Fill Light', min: 0, max: 100, step: 1, unit: '%' },
   { key: 'contrast', label: 'Contrast', min: -50, max: 50, step: 1, unit: '%' },
   { key: 'exposure', label: 'Exposure', min: -2, max: 2, step: 0.1, unit: ' EV' },
   { key: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1, unit: '%' },
@@ -322,6 +326,7 @@ function ViewerToolbar({
   onCameraInteraction,
   onResetCamera,
   adjustments,
+  showFillLight,
   onAdjustmentChange,
   onResetAdjustments,
 }: {
@@ -330,6 +335,7 @@ function ViewerToolbar({
   onCameraInteraction: () => void
   onResetCamera: () => void
   adjustments: LightAdjustments
+  showFillLight: boolean
   onAdjustmentChange: (key: keyof LightAdjustments, value: number) => void
   onResetAdjustments: () => void
 }) {
@@ -414,11 +420,12 @@ function ViewerToolbar({
       </div>
       <div id={lightControlsId} className="model-viewer__adjustments" role="group" aria-label="HDRI light adjustments" hidden={!showLightControls}>
         {LIGHT_SLIDERS.map(({ key, label, min, max, step, unit }) => {
+          if (key === 'fillLight' && !showFillLight) return null
           const value = adjustments[key]
           return (
             <label key={key}>
               <span>{label}</span>
-              <span aria-hidden="true">{value > 0 ? '+' : ''}{value}{unit}</span>
+              <span aria-hidden="true">{key === 'fillLight' && value === 0 ? 'Off' : `${value > 0 && key !== 'fillLight' ? '+' : ''}${value}${unit}`}</span>
               <input
                 type="range"
                 aria-label={label}
@@ -466,8 +473,12 @@ function ModelViewerCanvas({
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
+  const [fillLightLevel, setFillLightLevel] = useState(0)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
+  const fillLight = 'fillLight' in preset ? preset.fillLight : undefined
+  const fillAzimuth = Math.atan2(cameraPosition[0], cameraPosition[2]) + lightingYaw + (fillLight?.yaw ?? 0)
+  const fillRadius = LIGHT_HORIZONTAL_DISTANCE * Math.cos(fillLight?.elevation ?? 0)
   const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
@@ -528,6 +539,15 @@ function ModelViewerCanvas({
               />
             </Suspense>
           </ErrorBoundary>
+          {fillLight && fillLightLevel > 0 && (
+            <rectAreaLight
+              position={[Math.sin(fillAzimuth) * fillRadius, LIGHT_HORIZONTAL_DISTANCE * Math.sin(fillLight.elevation), Math.cos(fillAzimuth) * fillRadius]}
+              rotation={[-fillLight.elevation, fillAzimuth, 0, 'YXZ']}
+              intensity={fillLight.intensity * fillLightLevel / 100}
+              width={fillLight.size}
+              height={fillLight.size}
+            />
+          )}
           <Suspense fallback={null}>
             <PreviewModel
               key={modelUrl}
@@ -570,13 +590,16 @@ function ModelViewerCanvas({
       </div>
       <ViewerToolbar
         controls={controls}
-        adjustments={{ ...environmentAdjustments, brightness }}
+        adjustments={{ ...environmentAdjustments, brightness, fillLight: fillLightLevel }}
+        showFillLight={Boolean(fillLight)}
         onAdjustmentChange={(key, value) => {
           if (key === 'brightness') setBrightness(value)
+          else if (key === 'fillLight') setFillLightLevel(value)
           else setEnvironmentAdjustments((current) => ({ ...current, [key]: value }))
         }}
         onResetAdjustments={() => {
           setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
+          setFillLightLevel(0)
           setEnvironmentAdjustments(DEFAULT_VIEWER_ENVIRONMENT)
         }}
         onBackgroundChange={onBackgroundChange}
