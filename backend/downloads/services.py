@@ -25,7 +25,7 @@ from orders.entitlements import (
 from orders.models import Order, OrderItem
 from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
-from products.packages import BUNDLE_KIND, PACKAGE_LABELS, PACKAGE_ORDER, SINGLE_KINDS, PackageKind
+from products.packages import BUNDLE_KIND, PACKAGE_LABELS, PACKAGE_ORDER, PackageKind
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -151,7 +151,7 @@ class DownloadService:
                 # or every file for an order from before packages.
                 downloadable = download_kinds.get(product_id, frozenset())
                 files = [row for row in product_files.get(product_id, []) if row.package_kind in downloadable]
-                package_kinds = [kind for kind in SINGLE_KINDS if kind in owned]
+                package_kinds = [kind for kind in PACKAGE_ORDER if kind in owned]
             elif product_type == PRODUCT_TYPE_PLUGIN:
                 catalog = plugins.get(product_id)
                 files = plugin_files.get(product_id, [])

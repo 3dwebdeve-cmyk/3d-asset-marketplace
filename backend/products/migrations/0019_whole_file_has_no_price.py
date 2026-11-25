@@ -7,15 +7,23 @@ SINGLE_ORDER = ["with_light_rig", "without_light_rig", "glb_only", "environment"
 
 
 def clear_whole_file_prices(apps, schema_editor):
-    """All variations replaces the Whole File price: nobody prices Whole File any more.
+    """With variations, All variations replaces the Whole File price: nobody prices Whole File
+    there any more. A single-zip model (Whole File is its only zip) keeps its price: that zip is
+    its one package.
 
-    Its prices are cleared, and each model's summary price is recomputed from its single
-    packages (as products.packages.sync_summary_price does), so a Whole File price that was the
-    cheapest is not left on the model.
+    The Whole File prices of models that have variations are cleared, and each such model's
+    summary price is recomputed from its variations (as products.packages.sync_summary_price does),
+    so a Whole File price that was the cheapest is not left on the model.
     """
     Product = apps.get_model("products", "Product")
     ProductFile = apps.get_model("products", "ProductFile")
-    whole_rows = ProductFile.objects.filter(package_kind="whole").exclude(price__isnull=True)
+    with_variations = ProductFile.objects.filter(
+        is_preview=False, package_kind__in=SINGLE_ORDER
+    ).values("product_id")
+    whole_rows = (
+        ProductFile.objects.filter(package_kind="whole", product_id__in=with_variations)
+        .exclude(price__isnull=True)
+    )
     product_ids = set(whole_rows.values_list("product_id", flat=True))
     whole_rows.update(price=None, discount_price=None, discount_ends_at=None)
     for product in Product.objects.filter(pk__in=product_ids):

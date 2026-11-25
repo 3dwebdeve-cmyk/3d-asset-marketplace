@@ -7,6 +7,7 @@ import re
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
@@ -29,6 +30,8 @@ from products.packages import (
     PACKAGE_ORDER,
     SINGLE_KINDS,
     PackageKind,
+    is_single_zip,
+    sold_package_rows,
     sync_summary_price,
 )
 
@@ -65,7 +68,8 @@ class PackageKindsTests(TestCase):
         self.assertEqual(PACKAGE_LABELS[PackageKind.WHOLE], "Whole File")
         self.assertEqual(PACKAGE_LABELS[BUNDLE_KIND], "All variations")
         self.assertEqual(set(SINGLE_KINDS), PACKAGE_KINDS - {"whole"})
-        self.assertEqual(LINE_KINDS, (*SINGLE_KINDS, BUNDLE_KIND))
+        # Whole File is a line kind only for a single-zip model (the cart checks that).
+        self.assertEqual(LINE_KINDS, (*SINGLE_KINDS, PackageKind.WHOLE, BUNDLE_KIND))
 
 
 class PricedMixinTests(TestCase):
@@ -355,23 +359,46 @@ class PackagesMigrationTests(TransactionTestCase):
         self.assertEqual(OrderItem.objects.get().package_kind, "")
 
 
-class WholeFileIsNotSoldTests(SimpleTestCase):
-    """Whole File is the zip All variations delivers: it is never a cart or order line of its
-    own. These tests state that rule, and fail early if a test goes back to selling it."""
+class WholeFileIsSoldOnlyAsASingleZipTests(SimpleTestCase):
+    """Whole File is the zip All variations delivers. It is sold on its own only when it is a
+    model's one zip (a single-zip model). These tests state the rule, and fail early if a test
+    goes back to selling Whole File by hand."""
 
-    def test_whole_file_is_not_a_kind_a_line_can_hold_or_a_cart_accepts(self) -> None:
-        self.assertNotIn("whole", LINE_KINDS)
+    @staticmethod
+    def _files(*kinds: str, preview: bool = False) -> list:
+        return [SimpleNamespace(package_kind=kind, is_preview=preview) for kind in kinds]
+
+    def test_a_model_is_a_single_zip_only_when_whole_file_is_its_only_package(self) -> None:
+        self.assertTrue(is_single_zip(self._files("whole")))
+        self.assertFalse(is_single_zip(self._files("whole", "glb_only")))
+        self.assertFalse(is_single_zip(self._files("with_light_rig", "glb_only")))
+        self.assertFalse(is_single_zip([]))
+        # A preview or a file without a kind is not a package.
+        extras = self._files("glb_only", preview=True) + self._files("")
+        self.assertTrue(is_single_zip(self._files("whole") + extras))
+
+    def test_the_sold_packages_are_the_variations_or_a_single_zips_one_zip(self) -> None:
+        with_variations = sold_package_rows(self._files("whole", "glb_only", "with_light_rig"))
+        self.assertEqual([row.package_kind for row in with_variations], ["with_light_rig", "glb_only"])
+        self.assertEqual([row.package_kind for row in sold_package_rows(self._files("whole"))], ["whole"])
+
+    def test_whole_file_is_a_line_kind_but_a_cart_checks_it_is_a_single_zip(self) -> None:
+        self.assertIn("whole", LINE_KINDS)
         self.assertNotIn("whole", SINGLE_KINDS)
         serializer = CartAddSerializer(
-            data={"product_type": "product", "product_id": "5f1c6f0e-2f55-4d62-9f3e-0a9d6d1f2b11", "package_kind": "whole"}
+            data={
+                "product_type": "product",
+                "product_id": "5f1c6f0e-2f55-4d62-9f3e-0a9d6d1f2b11",
+                "package_kind": "whole",
+            }
         )
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("package_kind", serializer.errors)
+        self.assertTrue(serializer.is_valid())  # the service refuses it for a model with variations
 
     def test_no_test_sells_whole_file_by_hand(self) -> None:
-        """A cart or order line in a test uses SOLD_PACKAGE_KIND (products.testing), never a
-        hand-written "whole": when the sold kind changes, every test follows it from one place.
-        Creating a Whole File zip row (ProductFile) or an old Whole File order line is fine."""
+        """A cart or order line in a test uses SOLD_PACKAGE_KIND or SINGLE_ZIP_KIND
+        (products.testing), never a hand-written "whole": when the sold kind changes, every test
+        follows it from one place. Creating a Whole File zip row (ProductFile) or an old Whole File
+        order line is fine."""
         backend = Path(__file__).resolve().parents[1]
         by_hand = re.compile(
             r'"package_kind":\s*"whole"'  # a cart or order payload
@@ -385,5 +412,5 @@ class WholeFileIsNotSoldTests(SimpleTestCase):
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
                 if by_hand.search(line):
                     offenders.append(f"{path.relative_to(backend)}:{number}: {line.strip()}")
-        message = "Sell SOLD_PACKAGE_KIND, not Whole File:\n" + "\n".join(offenders)
+        message = "Use SOLD_PACKAGE_KIND or SINGLE_ZIP_KIND, not a hand-written whole:\n" + "\n".join(offenders)
         self.assertEqual(offenders, [], message)

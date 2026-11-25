@@ -29,7 +29,9 @@ from products.packages import (
     LINE_KINDS,
     PACKAGE_LABELS,
     SINGLE_KINDS,
+    PackageKind,
     bundle_quote,
+    is_single_zip,
     line_title,
 )
 
@@ -317,6 +319,11 @@ class CartService:
                         field="package_kind",
                     )
                 return quote.price, product.currency
+            if package_kind == PackageKind.WHOLE and not is_single_zip(product.files.all()):
+                raise CartError(
+                    "This model is sold by its variations: choose a variation, or All variations.",
+                    field="package_kind",
+                )
             package = ProductFile.objects.filter(
                 product=product, is_preview=False, package_kind=package_kind
             ).first()
@@ -474,6 +481,8 @@ class CartService:
                 and product.category.is_active
                 and not product.is_free
                 and package.price is not None
+                # Whole File is sold on its own only by a single-zip model.
+                and (package.package_kind != PackageKind.WHOLE or is_single_zip(product.files.all()))
             ),
         }
 

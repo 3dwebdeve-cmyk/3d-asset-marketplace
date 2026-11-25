@@ -119,6 +119,9 @@ def price_packages(product, price: str, **sale) -> None:
 # The one package kind tests buy and price. Whole File is never sold on its own (All variations
 # sells it), so no test fixture, cart line or order line may name a kind by hand: use this.
 SOLD_PACKAGE_KIND = "glb_only"
+# The kind of the one zip of a single-zip model, sold as its only package. Only a single-zip
+# model may sell it: use this constant, never a hand-written "whole".
+SINGLE_ZIP_KIND = "whole"
 
 
 def sell_package(product, kind: str = SOLD_PACKAGE_KIND, price=None, **sale):

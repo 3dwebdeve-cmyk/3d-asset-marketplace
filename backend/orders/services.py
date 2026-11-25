@@ -15,7 +15,15 @@ from accounts.models import User
 from orders.models import Order, OrderItem
 from plugins.models import Plugin
 from products.models import Product, ProductFile
-from products.packages import BUNDLE_KIND, LINE_KINDS, PACKAGE_LABELS, bundle_quote, line_title
+from products.packages import (
+    BUNDLE_KIND,
+    LINE_KINDS,
+    PACKAGE_LABELS,
+    PackageKind,
+    bundle_quote,
+    is_single_zip,
+    line_title,
+)
 
 
 class OrderError(Exception):
@@ -607,6 +615,11 @@ class OrderService:
                         field=f"{field_prefix}.package_kind",
                     )
                 return quote.price, product.currency, line_title(product.name, BUNDLE_KIND), product.slug
+            if package_kind == PackageKind.WHOLE and not is_single_zip(product.files.all()):
+                raise OrderError(
+                    "This model is sold by its variations: choose a variation, or All variations.",
+                    field=f"{field_prefix}.package_kind",
+                )
             package = ProductFile.objects.filter(
                 product=product, is_preview=False, package_kind=package_kind
             ).first()

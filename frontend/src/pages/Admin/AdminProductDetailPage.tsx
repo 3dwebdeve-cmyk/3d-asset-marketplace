@@ -585,7 +585,7 @@ export function AdminProductDetailPage() {
                               <td>
                                 {file.price !== null ? (
                                   `${product.currency} ${file.price}`
-                                ) : file.package_kind === 'whole' ? (
+                                ) : file.package_kind === 'whole' && product.files.some((other) => other.package_kind !== '' && other.package_kind !== 'whole') ? (
                                   <em>Sold in All variations</em>
                                 ) : (
                                   <em>Not set</em>
