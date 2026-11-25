@@ -27,7 +27,8 @@ export interface ModelViewerProps {
 const ENTRANCE_DURATION = 1.5
 const ENTRANCE_START_SCALE = 0.35
 const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
-const LIGHT_HORIZONTAL_DISTANCE = 3
+const KEY_LIGHT_DISTANCE = 5
+const DEFAULT_KEY_ELEVATION = Math.atan2(4, 3)
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
 
@@ -50,6 +51,7 @@ function PreviewModel({
   wireframe,
   openingOrbit,
   lightYaw,
+  lightElevation,
   lightIntensity,
   detailedSelfShadows,
   cameraPosition,
@@ -58,6 +60,7 @@ function PreviewModel({
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
+  lightElevation: number
   lightIntensity: number
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
@@ -111,7 +114,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -168,10 +171,11 @@ function PreviewModel({
     }
   }, [fitted, wireframe])
 
+  const lightHorizontalDistance = KEY_LIGHT_DISTANCE * Math.cos(lightElevation)
   const lightPosition: [number, number, number] = [
-    Math.sin(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
-    4,
-    Math.cos(lightYaw) * LIGHT_HORIZONTAL_DISTANCE,
+    Math.sin(lightYaw) * lightHorizontalDistance,
+    KEY_LIGHT_DISTANCE * Math.sin(lightElevation),
+    Math.cos(lightYaw) * lightHorizontalDistance,
   ]
 
   return (
@@ -468,6 +472,7 @@ function ModelViewerCanvas({
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
+  const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
   const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
@@ -535,7 +540,8 @@ function ModelViewerCanvas({
               wireframe={false}
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
-              lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
+              lightYaw={studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : environmentYaw}
+              lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
               lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
               detailedSelfShadows={preset.id === 'small-09'}
             />

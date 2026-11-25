@@ -7,7 +7,7 @@ export const HDRI_ENVIRONMENTS = [
     hdrPath: '/hdri/small-studio-09.hdr',
     intensity: 0.8,
     yaw: Math.PI / 4,
-    studio: { ambient: 0.09, keyIntensity: 0.8, keyYawOffset: -Math.PI / 6, exposure: 0.9 },
+    studio: { ambient: 0.09, keyIntensity: 0.8, keyViewYawOffset: -Math.PI / 3, keyElevation: Math.PI / 9, exposure: 0.9 },
     areaLights: [
       { name: 'Fill', yaw: -Math.PI / 4, elevation: Math.PI / 12, intensity: 0.45, size: 4 },
     ],
