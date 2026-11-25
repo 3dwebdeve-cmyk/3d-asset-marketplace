@@ -21,16 +21,6 @@ export const HDRI_ENVIRONMENTS = [
     upperRightLight: { viewYawOffset: Math.PI / 3, elevation: Math.PI / 3 },
   },
   { id: 'small-08', label: 'Small Studio 08', hdrPath: '/hdri/small-studio-08.hdr', intensity: 1, yaw: Math.PI / 4 },
-  {
-    id: 'rogland-sunset',
-    label: 'Rogland Sunset',
-    hdrPath: '/hdri/rogland_sunset.hdr',
-    intensity: 4,
-    yaw: Math.PI / 4,
-    exposure: 0.6,
-    background: { intensity: 1, blur: 0.1 },
-    shadowBias: 0.005,
-  },
 ] as const
 
 export const DEFAULT_HDRI_ENVIRONMENT_ID = 'small-09'
