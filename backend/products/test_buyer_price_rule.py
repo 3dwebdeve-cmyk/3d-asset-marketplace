@@ -100,7 +100,7 @@ class BuyerPricePathsTests(TestCase):
             discount_price=Decimal("79.99"),
             discount_ends_at=timezone.now() + timedelta(hours=1),
         )
-        # The model is sold as its Whole File package, with the same price and sale.
+        # The model is sold as its GLB Only package, with the same price and sale.
         sell_package(self.product)
 
     def _end_the_sale(self) -> None:
@@ -110,19 +110,19 @@ class BuyerPricePathsTests(TestCase):
         ProductFile.objects.filter(product=self.product).update(discount_ends_at=ended)
 
     def test_cart_snapshot_while_the_sale_runs(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk, "whole")
+        CartService.add_item(self.customer, "product", self.product.pk, "glb_only")
         envelope = CartService.get_cart_envelope(self.customer)
-        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "whole")]
+        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "glb_only")]
         self.assertEqual(snapshot["discount_price"], "79.99")
         self.assertEqual(snapshot["effective_price"], "79.99")
         self.assertEqual(envelope.totals.total, Decimal("79.99"))
 
     def test_cart_snapshot_after_the_sale_ended(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk, "whole")
+        CartService.add_item(self.customer, "product", self.product.pk, "glb_only")
         self._end_the_sale()
 
         envelope = CartService.get_cart_envelope(self.customer)
-        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "whole")]
+        snapshot = envelope.snapshots[(CartItem.ProductType.PRODUCT, self.product.pk, "glb_only")]
         self.assertIsNone(snapshot["discount_price"])
         self.assertEqual(snapshot["price"], "100.00")
         self.assertEqual(snapshot["effective_price"], "100.00")
@@ -130,7 +130,7 @@ class BuyerPricePathsTests(TestCase):
         self.assertEqual(envelope.totals.total, Decimal("100.00"))
 
     def test_checkout_charges_the_normal_price_when_the_sale_ended_after_add_to_cart(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk, "whole")
+        CartService.add_item(self.customer, "product", self.product.pk, "glb_only")
         self._end_the_sale()
 
         order = OrderService.create_from_cart(self.customer)
@@ -140,7 +140,7 @@ class BuyerPricePathsTests(TestCase):
         self.assertEqual(order.total_amount, Decimal("100.00"))
 
     def test_checkout_charges_the_sale_price_while_it_runs(self) -> None:
-        CartService.add_item(self.customer, "product", self.product.pk, "whole")
+        CartService.add_item(self.customer, "product", self.product.pk, "glb_only")
 
         order = OrderService.create_from_cart(self.customer)
 
@@ -149,7 +149,7 @@ class BuyerPricePathsTests(TestCase):
     def test_direct_order_uses_the_rule(self) -> None:
         data = OrderCreateData(
             user_id=self.customer.pk,
-            items=(OrderItemCreateData("product", self.product.pk, 1, package_kind="whole"),),
+            items=(OrderItemCreateData("product", self.product.pk, 1, package_kind="glb_only"),),
         )
         self.assertEqual(OrderService.create(data).items.get().purchase_price, Decimal("79.99"))
 
@@ -338,7 +338,7 @@ class ImportHistoryTests(CatalogImportTestBase):
         self.assertIsNone(product.discount_ends_at)
         # The package's price changed (a free upload's packages are free).
         change = ProductPriceChange.objects.get(product=product)
-        self.assertEqual(change.package_kind, "whole")
+        self.assertEqual(change.package_kind, "whole")  # the import's package
         self.assertEqual(change.source, ProductPriceChange.Source.IMPORT)
         self.assertIsNone(change.changed_by)
         self.assertEqual(change.old_price, Decimal("45.00"))

@@ -5,7 +5,7 @@ import { createCheckoutSession } from '../api/paymentsApi'
 import { getApiErrorMessage } from '../lib/apiError'
 import { rememberCheckoutOrderId } from '../lib/checkoutReturn'
 import { currentAcceptedLegalPayload } from '../lib/legalDocuments'
-import type { PackageKind } from '../lib/packages'
+import type { LineKind } from '../lib/packages'
 import { toast } from '../lib/toast'
 import type { CartProductType } from '../types/cart'
 import type { CheckoutItem } from '../types/payment'
@@ -14,7 +14,7 @@ interface BuyNowPayload {
   productType: CartProductType
   productId: string
   /** A model's packages (one line each); empty for a plugin. */
-  packageKinds: PackageKind[]
+  packageKinds: LineKind[]
 }
 
 export function useBuyNow() {
@@ -55,7 +55,7 @@ export function useBuyNow() {
 
   return {
     /** Buy a plugin, or the given packages of a model, at once. */
-    buyNow: (productType: CartProductType, productId: string, packageKinds: PackageKind[] = []) => {
+    buyNow: (productType: CartProductType, productId: string, packageKinds: LineKind[] = []) => {
       buyNowMutation.mutate({ productType, productId, packageKinds })
     },
     isRedirecting: buyNowMutation.isPending || buyNowMutation.isSuccess,

@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from django.utils import timezone
+
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
@@ -11,11 +13,14 @@ from accounts.throttles import CartWriteRateThrottle
 from config.api_helpers import domain_error_response
 from cart.models import CartItem
 from cart.serializers import (
+    BundleQuoteQuerySerializer,
     CartAddSerializer,
     CartSerializer,
     CartUpdateQuantitySerializer,
 )
 from cart.services import CartEnvelope, CartError, CartService, line_key
+from products.models import Product
+from products.packages import bundle_payload, bundle_quote
 
 
 def _cart_error_response(exc: CartError) -> Response:
@@ -96,6 +101,27 @@ class CartView(APIView):
         except CartError as exc:
             return _cart_error_response(exc)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BundleQuoteView(APIView):
+    """What All variations costs the signed-in buyer for one model: the packages they do not
+    own yet, at the bundle price, or why it is not offered."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        serializer = BundleQuoteQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        product_id = serializer.validated_data["product_id"]
+        product = Product.objects.filter(pk=product_id).prefetch_related("files").first()
+        if product is None or product.status != Product.Status.PUBLISHED:
+            raise NotFound("Product not found.")
+        quote = bundle_quote(
+            product.files.all(),
+            CartService.owned_kinds(request.user, product_id),
+            now=timezone.now(),
+        )
+        return Response(bundle_payload(quote))
 
 
 class CartItemDetailView(APIView):

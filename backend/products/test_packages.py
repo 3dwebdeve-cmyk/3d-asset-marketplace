@@ -3,25 +3,31 @@ the summary price, the package constraints, and the 0016 migration's data step."
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TestCase, TransactionTestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 from django.utils import timezone
 
 from accounts.models import Role, User
 from cart.models import Cart, CartItem
+from cart.serializers import CartAddSerializer
 from categories.models import Category
 from orders.models import Order, OrderItem
 from products.models import Product, ProductFile
 from products.packages import (
+    BUNDLE_KIND,
+    LINE_KINDS,
     PACKAGE_DESCRIPTIONS,
     PACKAGE_KINDS,
     PACKAGE_LABELS,
     PACKAGE_ORDER,
+    SINGLE_KINDS,
     PackageKind,
     sync_summary_price,
 )
@@ -52,9 +58,14 @@ class PackageKindsTests(TestCase):
             {"glb_only", "with_light_rig", "without_light_rig", "environment", "whole"},
         )
         self.assertEqual(len(PACKAGE_ORDER), len(PACKAGE_KINDS))
-        self.assertEqual(set(PACKAGE_LABELS), PACKAGE_KINDS)
-        self.assertEqual(set(PACKAGE_DESCRIPTIONS), PACKAGE_KINDS)
+        # All variations is a cart and order line, not a package: it has a label and a
+        # description too, and Whole File is the one kind nobody prices.
+        self.assertEqual(set(PACKAGE_LABELS), PACKAGE_KINDS | {BUNDLE_KIND})
+        self.assertEqual(set(PACKAGE_DESCRIPTIONS), PACKAGE_KINDS | {BUNDLE_KIND})
         self.assertEqual(PACKAGE_LABELS[PackageKind.WHOLE], "Whole File")
+        self.assertEqual(PACKAGE_LABELS[BUNDLE_KIND], "All variations")
+        self.assertEqual(set(SINGLE_KINDS), PACKAGE_KINDS - {"whole"})
+        self.assertEqual(LINE_KINDS, (*SINGLE_KINDS, BUNDLE_KIND))
 
 
 class PricedMixinTests(TestCase):
@@ -342,3 +353,37 @@ class PackagesMigrationTests(TransactionTestCase):
         self.assertEqual(CartItem.objects.get(product_type="product").package_kind, "whole")
         self.assertEqual(CartItem.objects.get(product_type="plugin").package_kind, "")
         self.assertEqual(OrderItem.objects.get().package_kind, "")
+
+
+class WholeFileIsNotSoldTests(SimpleTestCase):
+    """Whole File is the zip All variations delivers: it is never a cart or order line of its
+    own. These tests state that rule, and fail early if a test goes back to selling it."""
+
+    def test_whole_file_is_not_a_kind_a_line_can_hold_or_a_cart_accepts(self) -> None:
+        self.assertNotIn("whole", LINE_KINDS)
+        self.assertNotIn("whole", SINGLE_KINDS)
+        serializer = CartAddSerializer(
+            data={"product_type": "product", "product_id": "5f1c6f0e-2f55-4d62-9f3e-0a9d6d1f2b11", "package_kind": "whole"}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("package_kind", serializer.errors)
+
+    def test_no_test_sells_whole_file_by_hand(self) -> None:
+        """A cart or order line in a test uses SOLD_PACKAGE_KIND (products.testing), never a
+        hand-written "whole": when the sold kind changes, every test follows it from one place.
+        Creating a Whole File zip row (ProductFile) or an old Whole File order line is fine."""
+        backend = Path(__file__).resolve().parents[1]
+        by_hand = re.compile(
+            r'"package_kind":\s*"whole"'  # a cart or order payload
+            r'|\(\s*"product",[^)]*,\s*"whole"\s*\)'  # a (type, id, kind) line key
+            r'|add_item\([^)]*"whole"'  # CartService.add_item
+        )
+        offenders = []
+        for path in sorted(backend.glob("*/test*.py")):
+            if path == Path(__file__).resolve() or path.parent.name.startswith("."):
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                if by_hand.search(line):
+                    offenders.append(f"{path.relative_to(backend)}:{number}: {line.strip()}")
+        message = "Sell SOLD_PACKAGE_KIND, not Whole File:\n" + "\n".join(offenders)
+        self.assertEqual(offenders, [], message)

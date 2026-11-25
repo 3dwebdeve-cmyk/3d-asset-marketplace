@@ -20,6 +20,19 @@ export const PACKAGE_LABELS: Record<PackageKind, string> = {
   whole: 'Whole File',
 }
 
+/** The packages an admin prices: every package but Whole File, which All variations sells. */
+export type PricedKind = Exclude<PackageKind, 'whole'>
+
+export const PRICED_KINDS: PricedKind[] = PACKAGE_ORDER.filter((kind): kind is PricedKind => kind !== 'whole')
+
+/** What a cart or order line is: one package of a model, or All variations (every package). */
+export type LineKind = PackageKind | 'bundle'
+
+export const LINE_LABELS: Record<LineKind, string> = {
+  ...PACKAGE_LABELS,
+  bundle: 'All variations',
+}
+
 /** Package rows (files with a kind), in PACKAGE_ORDER. */
 export function sortedPackages<T extends { package_kind: PackageKind | '' }>(files: readonly T[]): T[] {
   return files

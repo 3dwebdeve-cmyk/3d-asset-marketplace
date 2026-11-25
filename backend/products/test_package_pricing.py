@@ -1,6 +1,6 @@
 """Packages pipeline, Phase 3 (docs/PACKAGES_PIPELINE.md): each package has its own price and
-history, the product price is a summary, the list shows every package and the Whole File check,
-ended package sales are cleared, and no product form sets a price."""
+history, the product price is a summary, the list shows the priced packages, ended package sales
+are cleared, and no product form sets a price. Whole File is never priced: All variations sells it."""
 
 from __future__ import annotations
 
@@ -10,14 +10,12 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from products.models import Product, ProductFile, ProductPriceChange
-from products.packages import bundle_warning
 from products.test_pricing_api import PricingApiTests
 
 _HELPERS = PricingApiTests.__dict__
@@ -34,19 +32,19 @@ class PackagePricingTests(APITestCase):
     _publish = _HELPERS["_publish"]
     _prices = _HELPERS["_prices"]
 
-    def _chair(self, *, whole: str | None = "29.00", rig: str | None = None) -> Product:
-        """A model waiting for its prices with Whole File and With Light Rig."""
-        product = self._model("Racing Chair", kinds=("with_light_rig", "whole"))
-        ProductFile.objects.filter(product=product, package_kind="whole").update(
-            price=None if whole is None else Decimal(whole)
+    def _chair(self, *, glb: str | None = "29.00", rig: str | None = None) -> Product:
+        """A model waiting for its prices with GLB Only and With Light Rig."""
+        product = self._model("Racing Chair", kinds=("with_light_rig", "glb_only"))
+        ProductFile.objects.filter(product=product, package_kind="glb_only").update(
+            price=None if glb is None else Decimal(glb)
         )
         ProductFile.objects.filter(product=product, package_kind="with_light_rig").update(
             price=None if rig is None else Decimal(rig)
         )
         return product
 
-    def test_the_list_shows_every_package_in_order_and_the_bundle_check(self, _exists) -> None:
-        chair = self._chair(whole="40.00", rig="20.00")
+    def test_the_list_shows_every_priced_package_in_order(self, _exists) -> None:
+        chair = self._chair(glb="40.00", rig="20.00")
         ProductFile.objects.create(
             product=chair,
             file_name="x_without_light_rig.zip",
@@ -61,25 +59,22 @@ class PackagePricingTests(APITestCase):
 
         self.assertEqual(
             [row["kind"] for row in listed["packages"]],
-            ["with_light_rig", "without_light_rig", "whole"],
+            ["with_light_rig", "without_light_rig", "glb_only"],
         )
-        self.assertEqual(
-            listed["bundle_warning"],
-            "Whole File (40.00) is not cheaper than the other packages together (35.00).",
-        )
+        self.assertNotIn("bundle_warning", listed)
 
     def test_publishing_prices_each_package_and_the_product_price_is_the_cheapest(self, _exists) -> None:
-        chair = self._chair(whole=None, rig=None)  # 10 hours x 20 = 200; rig 60%, whole 100%
+        chair = self._chair(glb=None, rig=None)  # 10 hours x 20 = 200; rig 60%, GLB 25%
 
         response = self._publish([chair])
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(response.data["results"][0]["published"], response.data)
-        self.assertEqual(self._prices(chair), {"whole": Decimal("200.00"), "with_light_rig": Decimal("120.00")})
+        self.assertEqual(self._prices(chair), {"glb_only": Decimal("50.00"), "with_light_rig": Decimal("120.00")})
         chair.refresh_from_db()
-        self.assertEqual(chair.price, Decimal("120.00"))
+        self.assertEqual(chair.price, Decimal("50.00"))
         changes = {c.package_kind: c for c in ProductPriceChange.objects.filter(product=chair)}
-        self.assertEqual(set(changes), {"whole", "with_light_rig"})
+        self.assertEqual(set(changes), {"glb_only", "with_light_rig"})
         self.assertIsNone(changes["with_light_rig"].old_price)
 
     def test_the_live_tab_lists_paid_models_on_the_store(self, _exists) -> None:
@@ -90,7 +85,7 @@ class PackagePricingTests(APITestCase):
         self.assertNotIn(free.name, names)
 
     def test_ended_package_sales_are_cleared_with_history_and_the_summary_follows(self, _exists) -> None:
-        chair = self._chair(whole="30.00", rig="20.00")
+        chair = self._chair(glb="30.00", rig="20.00")
         past = timezone.now() - timedelta(minutes=5)
         ProductFile.objects.filter(product=chair, package_kind="with_light_rig").update(
             discount_price=Decimal("15.00"), discount_ends_at=past
@@ -134,32 +129,11 @@ class PackagePricingTests(APITestCase):
         self.assertEqual(created.data["price"], "0.00")
 
     def test_the_history_api_names_the_package(self, _exists) -> None:
-        chair = self._chair(whole=None)
+        chair = self._chair(glb=None)
         self._publish([chair])
         history = self.client.get(
             reverse("products_admin:admin-product-price-history", kwargs={"product_id": chair.pk})
         )
         self.assertEqual(history.status_code, status.HTTP_200_OK, history.data)
-        self.assertEqual({row["package_label"] for row in history.data["results"]}, {"Whole File", "With Light Rig"})
+        self.assertEqual({row["package_label"] for row in history.data["results"]}, {"GLB Only", "With Light Rig"})
 
-
-class BundleWarningTests(SimpleTestCase):
-    def test_whole_file_should_be_cheaper_than_the_others_together(self) -> None:
-        self.assertEqual(
-            bundle_warning({"whole": Decimal("35.00"), "with_light_rig": Decimal("20.00"), "glb_only": Decimal("15.00")}),
-            "Whole File (35.00) is not cheaper than the other packages together (35.00).",
-        )
-
-    def test_whole_file_should_not_cost_less_than_one_package(self) -> None:
-        self.assertEqual(
-            bundle_warning({"whole": Decimal("18.00"), "with_light_rig": Decimal("19.00"), "glb_only": Decimal("15.00")}),
-            "Whole File (18.00) costs less than With Light Rig alone (19.00).",
-        )
-
-    def test_a_good_bundle_and_a_model_without_two_packages_give_no_warning(self) -> None:
-        self.assertEqual(
-            bundle_warning({"whole": Decimal("29.00"), "with_light_rig": Decimal("19.00"), "glb_only": Decimal("15.00")}),
-            "",
-        )
-        self.assertEqual(bundle_warning({"whole": Decimal("29.00")}), "")
-        self.assertEqual(bundle_warning({"with_light_rig": Decimal("19.00"), "glb_only": Decimal("9.00")}), "")

@@ -8,6 +8,7 @@ from cart.services import CartService
 from payments.test_payments import PaymentsTestMixin
 from products.models import Product
 from products.services import ProductError, ProductService, ProductUpdateData
+from products.testing import SOLD_PACKAGE_KIND
 
 
 class CatalogVisibilityTests(PaymentsTestMixin, APITestCase):
@@ -23,8 +24,8 @@ class CatalogVisibilityTests(PaymentsTestMixin, APITestCase):
 
         self._add_to_cart("product", self.product.pk)
         envelope = CartService.get_cart_envelope(self.user)
-        # A cart line is one package of a model (the mixin's cart line is its Whole File).
-        snapshot = envelope.snapshots[("product", self.product.pk, "whole")]
+        # A cart line is one package of a model (the mixin's cart line is its SOLD_PACKAGE_KIND).
+        snapshot = envelope.snapshots[("product", self.product.pk, SOLD_PACKAGE_KIND)]
         self.assertFalse(snapshot["is_available"])
 
     def test_explicit_slug_is_honoured_when_a_name_is_sent_too(self) -> None:

@@ -796,3 +796,12 @@ D7 (extra files) was answered on 2026-11-16; see Decisions above.
 | CAT §6 Docs and tests | 2 |
 | CAT After you deploy | 5 |
 | CAT Other things #1-#4 | 5 (#1, #3), E10 (#2 done), Phase 1 test (#4) |
+
+---
+
+> **Update (All variations):** Whole File is no longer a priced or purchasable package. The
+> Pricing page prices four packages, the Whole File zip stays in the private bucket, and the
+> "bundle check", `bundle_saving` and the cart's Whole File hint are gone. A buyer picks single
+> packages or **All variations** (25% off every package they do not own, delivered as the Whole
+> File zip). The rules are in `docs/PRICING_PIPELINE.md`, "All variations". Where the phases above
+> say Whole File is bought or priced, read that section instead.

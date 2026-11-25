@@ -125,7 +125,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.published_product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
             format="json",
         )
@@ -156,7 +156,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.published_product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
             format="json",
         )
@@ -185,7 +185,7 @@ class CartAPITests(APITestCase):
         payload = {
             "product_type": "product",
             "product_id": str(self.published_product.pk),
-            "package_kind": "whole",
+            "package_kind": "glb_only",
             "quantity": 2,
         }
         first = self.client.post(self.cart_url, payload, format="json")
@@ -242,7 +242,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.published_product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
             format="json",
         )
@@ -253,7 +253,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.eur_product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
             },
             format="json",
         )
@@ -267,7 +267,7 @@ class CartAPITests(APITestCase):
             {
                 "product_type": "product",
                 "product_id": str(self.discounted_product.pk),
-                "package_kind": "whole",
+                "package_kind": "glb_only",
                 "quantity": 2,
             },
             format="json",
@@ -296,7 +296,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
-            package_kind="whole",
+            package_kind="glb_only",
         )
         self.authenticate()
         url = reverse("cart:cart-item-detail", kwargs={"item_id": item.pk})
@@ -313,7 +313,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
-            package_kind="whole",
+            package_kind="glb_only",
         )
         self.authenticate()
         url = reverse("cart:cart-item-detail", kwargs={"item_id": item.pk})
@@ -328,7 +328,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
-            package_kind="whole",
+            package_kind="glb_only",
         )
         self.authenticate(self.customer)
         url = reverse("cart:cart-item-detail", kwargs={"item_id": item.pk})
@@ -343,7 +343,7 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
-            package_kind="whole",
+            package_kind="glb_only",
         )
         self.authenticate()
         response = self.client.delete(self.cart_url)
@@ -357,14 +357,14 @@ class CartAPITests(APITestCase):
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.archived_product.pk,
             quantity=2,
-            package_kind="whole",
+            package_kind="glb_only",
         )
         CartItem.objects.create(
             cart=cart,
             product_type=CartItem.ProductType.PRODUCT,
             product_id=self.published_product.pk,
             quantity=1,
-            package_kind="whole",
+            package_kind="glb_only",
         )
         self.authenticate()
         response = self.client.get(self.cart_url)
@@ -386,7 +386,7 @@ class CartAPITests(APITestCase):
         payload = {
             "product_type": "product",
             "product_id": str(self.published_product.pk),
-            "package_kind": "whole",
+            "package_kind": "glb_only",
         }
         first = self.client.post(self.cart_url, payload, format="json")
         second = self.client.post(self.cart_url, payload, format="json")
@@ -426,7 +426,7 @@ class OwnedItemTests(APITestCase):
 
         response = self.client.post(
             self.cart_url,
-            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "whole"},
+            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "glb_only"},
             format="json",
         )
 
@@ -441,7 +441,7 @@ class OwnedItemTests(APITestCase):
         for product in (self.published_product, self.discounted_product):
             self.client.post(
                 self.cart_url,
-                {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
+                {"product_type": "product", "product_id": str(product.pk), "package_kind": "glb_only"},
                 format="json",
             )
         self.give_customer(self.published_product)
@@ -458,12 +458,12 @@ class OwnedItemTests(APITestCase):
         for product in (self.published_product, self.discounted_product):
             self.client.post(
                 self.cart_url,
-                {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
+                {"product_type": "product", "product_id": str(product.pk), "package_kind": "glb_only"},
                 format="json",
             )
 
         order = OrderService.create_from_cart(
-            self.customer, selected={("product", self.discounted_product.pk, "whole")}
+            self.customer, selected={("product", self.discounted_product.pk, "glb_only")}
         )
 
         self.assertEqual([item.product_id for item in order.items.all()], [self.discounted_product.pk])
@@ -476,7 +476,7 @@ class OwnedItemTests(APITestCase):
         self.authenticate()
         self.client.post(
             self.cart_url,
-            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "whole"},
+            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "glb_only"},
             format="json",
         )
         Product.objects.filter(pk=self.published_product.pk).update(price=0, discount_price=None)
@@ -493,7 +493,7 @@ class OwnedItemTests(APITestCase):
         for product in (self.published_product, self.discounted_product):
             self.client.post(
                 self.cart_url,
-                {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
+                {"product_type": "product", "product_id": str(product.pk), "package_kind": "glb_only"},
                 format="json",
             )
         # An administrator switches one product's currency while it sits in the cart.
@@ -515,7 +515,7 @@ class OwnedItemTests(APITestCase):
 
         response = self.client.post(
             self.cart_url,
-            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "whole"},
+            {"product_type": "product", "product_id": str(self.published_product.pk), "package_kind": "glb_only"},
             format="json",
         )
 

@@ -16,11 +16,16 @@ from django.utils import timezone
 from config.media import PrivateFileNotFound, resolve_private_download
 from config.sentry import capture_download_spike
 from downloads.models import DownloadHistory
-from orders.entitlements import kinds_of_line, owned_package_kinds, user_owns_catalog_item
+from orders.entitlements import (
+    download_kinds_by_product,
+    download_kinds_of_line,
+    owned_package_kinds,
+    user_owns_catalog_item,
+)
 from orders.models import Order, OrderItem
 from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
-from products.packages import PACKAGE_LABELS, PACKAGE_ORDER
+from products.packages import BUNDLE_KIND, PACKAGE_LABELS, PACKAGE_ORDER, SINGLE_KINDS, PackageKind
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -125,6 +130,7 @@ class DownloadService:
 
         product_files = cls.downloadable_product_files(product_ids)
         owned_kinds = owned_package_kinds(user, product_ids)
+        download_kinds = download_kinds_by_product(user, product_ids)
 
         plugin_files: dict[UUID, list[PluginFile]] = {}
         if plugin_ids:
@@ -141,10 +147,11 @@ class DownloadService:
             if product_type == PRODUCT_TYPE_PRODUCT:
                 catalog = products.get(product_id)
                 owned = owned_kinds.get(product_id, frozenset())
-                # Only the packages bought (Whole File, or an order from before packages, owns
-                # them all, and the files without a kind).
-                files = [row for row in product_files.get(product_id, []) if row.package_kind in owned]
-                package_kinds = [kind for kind in PACKAGE_ORDER if kind in owned]
+                # Only the files bought: one package's zip, the Whole File zip for All variations,
+                # or every file for an order from before packages.
+                downloadable = download_kinds.get(product_id, frozenset())
+                files = [row for row in product_files.get(product_id, []) if row.package_kind in downloadable]
+                package_kinds = [kind for kind in SINGLE_KINDS if kind in owned]
             elif product_type == PRODUCT_TYPE_PLUGIN:
                 catalog = plugins.get(product_id)
                 files = plugin_files.get(product_id, [])
@@ -235,8 +242,8 @@ class DownloadService:
         cls, user: User, product_id: UUID, file_id: UUID
     ) -> FileResponse | dict[str, Any]:
         file_row = cls.get_product_file(product_id, file_id)
-        # Only a package the user bought (the same answer whether the file exists or not).
-        if file_row.package_kind not in owned_package_kinds(user, [product_id]).get(product_id, ()):
+        # Only a file the user bought (the same answer whether the file exists or not).
+        if file_row.package_kind not in download_kinds_by_product(user, [product_id]).get(product_id, ()):
             raise DownloadError("File not found.")
         return cls._deliver_owned_file(
             user=user,
@@ -284,7 +291,7 @@ class DownloadService:
                 ptype, product_id, kind = key
                 if ptype != PRODUCT_TYPE_PRODUCT:
                     continue
-                covered = kinds_of_line(kind)
+                covered = download_kinds_of_line(kind)
                 for row in product_rows.get(product_id, []):
                     if row.package_kind not in covered:
                         continue
@@ -375,7 +382,11 @@ class DownloadService:
             product_id=product_id,
         )
         if product_type == PRODUCT_TYPE_PRODUCT:
-            lines = lines.filter(package_kind__in={package_kind, "whole", ""})
+            # A line from before packages, and an old Whole File line, give every file.
+            kinds = {package_kind, PackageKind.WHOLE, ""}
+            if package_kind == PackageKind.WHOLE:
+                kinds.add(BUNDLE_KIND)
+            lines = lines.filter(package_kind__in=kinds)
         item = (
             lines
             .exclude(order__payment__status="disputed")

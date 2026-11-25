@@ -125,13 +125,15 @@ base price     = hours_spent x rate                          (per model; one rat
 package price  = round(base price x percent / 100)           (whole dollars, half up)
 ```
 
-- The admin types **one rate** and **one percent for each of the five packages** (With Light Rig,
-  Without Light Rig, With Environment, GLB Only, Whole File). They apply to every ticked model.
+- The admin types **one rate** and **one percent for each of the four single packages** (With
+  Light Rig, Without Light Rig, With Environment, GLB Only). They apply to every ticked model.
+  **Whole File has no percent and no price**: All variations sells it (see "All variations").
+  A request with a Whole File percent, or without one of the four, is refused (400).
 - Each model's `hours_spent` comes from the uploader (`docs/batch-ingest-contract.md`) and can be
   edited on the page.
 - A model is priced only for the packages it **has**: a model with three packages gets three
   prices, the percents of the other two are not used for it.
-- Rate: above 0, at most 100,000. Percent: above 0, at most 200. All five percents are required.
+- Rate: above 0, at most 100,000. Percent: above 0, at most 200. All four percents are required.
 
 ### `GET pricing/?tab=waiting|live`
 
@@ -141,7 +143,7 @@ package price  = round(base price x percent / 100)           (whole dollars, hal
   `hours_spent`, `created_at`, each also with a leading `-`), `page`, `page_size`.
 - Each row: the stored `price`, `discount_price`, `discount_ends_at`, `discount_active`,
   `buyer_pays`, `hours_spent`, `polygon_count`, `category`, `packages` (each with its price and
-  sale) and `bundle_warning`. `GET pricing/batches/?tab=` lists the upload batch IDs.
+  sale; Whole File is never listed). `GET pricing/batches/?tab=` lists the upload batch IDs.
 
 ### `POST pricing/calculate/`
 
@@ -213,3 +215,26 @@ Console menu item "Pricing". Code: `pages/Admin/AdminPricingPage.tsx`, `api/pric
 - **Product page**: the sale price, the normal price crossed out, the "-N%" badge, and
   "Sale ends …" in the visitor's own time when the sale has an end.
 - **Product card**: "-N%" instead of "Sale".
+
+## All variations (the bundle)
+
+A model is sold per package, and as **All variations**: every package the buyer does not own yet in
+one download, at **25% off** their total. Code: `products/packages.py` (`bundle_quote`,
+`BUNDLE_KIND = "bundle"`, `BUNDLE_DISCOUNT_PERCENT`), the cart and order line kind `bundle`.
+
+- **Price** = (the sum of the effective prices of the single packages the buyer does not own) x 75%,
+  rounded half up to whole dollars. The Whole File zip is never priced; its row has no price.
+- **Offered only when** the model has its Whole File zip, **no single package is on sale** (a
+  running sale on any package means no bundle), and **at least two packages are left to buy**. A
+  model with one package gets no bundle.
+- **Cart**: one line, kind `bundle`, quantity 1, title "<model> - All variations". Adding it
+  replaces the model's single-package lines; adding a single package removes it. It is priced for
+  the buyer on every cart read and at checkout, so a sale that starts later, or a package bought
+  meanwhile, changes or removes it (the line shows as unavailable and is not charged).
+- **API**: the public product detail has `bundle` ({eligible, reason, kinds, subtotal, price}) for
+  a buyer who owns nothing; the buyer's own price is `GET /api/v1/cart/bundle-quote/?product_id=`
+  (signed in). `packages` no longer lists Whole File and `bundle_saving` is gone.
+- **Order and delivery**: the order line has kind `bundle` at the bundle price. The buyer owns every
+  package (so no single package can be bought again) and downloads **the Whole File zip only**
+  (`orders/entitlements.py`: `kinds_of_line`, `download_kinds_of_line`). An old Whole File line,
+  and a line from before packages, still give every file.

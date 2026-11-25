@@ -13,6 +13,8 @@ export const HDRI_ENVIRONMENTS = [
     ],
   },
   { id: 'small-08', label: 'Small Studio 08', hdrPath: '/hdri/small-studio-08.hdr', intensity: 1, yaw: Math.PI / 4 },
+  { id: 'goegap', label: 'Goegap', hdrPath: '/hdri/goegap.hdr', intensity: 1, yaw: Math.PI / 4 },
+  { id: 'quarry-04', label: 'Quarry 04', hdrPath: '/hdri/quarry_04.hdr', intensity: 1, yaw: Math.PI / 4 },
 ] as const
 
 export const DEFAULT_HDRI_ENVIRONMENT_ID = 'small-09'

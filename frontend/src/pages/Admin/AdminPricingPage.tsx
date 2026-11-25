@@ -21,7 +21,7 @@ import { Input } from '../../components/ui/Input'
 import { Spinner } from '../../components/ui/Spinner'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { getApiErrorMessage } from '../../lib/apiError'
-import { PACKAGE_LABELS, PACKAGE_ORDER, type PackageKind } from '../../lib/packages'
+import { PACKAGE_LABELS, PRICED_KINDS, type PricedKind } from '../../lib/packages'
 import { toast } from '../../lib/toast'
 import { MAX_MODELS_PER_ACTION } from '../../types/pricing'
 import type {
@@ -40,13 +40,12 @@ const NUMBER_PATTERN = /^\d+(\.\d{1,2})?$/
 const MAX_RATE = 100_000
 const MAX_PERCENT = 200
 
-type Percents = Record<PackageKind, string>
+type Percents = Record<PricedKind, string>
 const EMPTY_PERCENTS: Percents = {
   with_light_rig: '',
   without_light_rig: '',
   glb_only: '',
   environment: '',
-  whole: '',
 }
 
 function money(value: string | null | undefined): string {
@@ -75,11 +74,9 @@ function isPositive(value: string, max: number): boolean {
  * a model that cannot be priced shows why instead. */
 function PackagePrices({
   packages,
-  warning,
   calculated,
 }: {
   packages: PricingPackage[]
-  warning: string
   calculated?: PricingCalcRow
 }) {
   if (packages.length === 0) return <em>No packages</em>
@@ -107,7 +104,6 @@ function PackagePrices({
         ))}
       </ul>
       {calculated?.error ? <p className="admin-pricing__row-error" role="alert">{calculated.error}</p> : null}
-      {warning ? <p className="admin-pricing__bundle-warning" role="note">{warning}</p> : null}
     </>
   )
 }
@@ -289,7 +285,7 @@ export function AdminPricingPage() {
     if (selectedIds.length === 0) return 'Tick at least one model.'
     if (Object.keys(hoursDraft).length > 0) return 'Finish typing the hours first (click outside the box to save).'
     if (!isPositive(rate, MAX_RATE)) return 'Enter the rate per hour, for example 20 or 12.50.'
-    for (const kind of PACKAGE_ORDER) {
+    for (const kind of PRICED_KINDS) {
       if (!isPositive(percents[kind], MAX_PERCENT)) {
         return `Enter the ${PACKAGE_LABELS[kind]} percent (above 0, at most ${MAX_PERCENT}).`
       }
@@ -297,7 +293,7 @@ export function AdminPricingPage() {
     return {
       product_ids: selectedIds,
       rate: rate.trim(),
-      percents: Object.fromEntries(PACKAGE_ORDER.map((kind) => [kind, percents[kind].trim()])) as Percents,
+      percents: Object.fromEntries(PRICED_KINDS.map((kind) => [kind, percents[kind].trim()])) as Percents,
     }
   }
 
@@ -465,7 +461,7 @@ export function AdminPricingPage() {
                     onChange={(event) => { setRate(event.target.value); resetCalculation() }}
                   />
                 </div>
-                {PACKAGE_ORDER.map((kind) => (
+                {PRICED_KINDS.map((kind) => (
                   <div className="admin-pricing__formula" key={kind}>
                     <label htmlFor={`pricing-percent-${kind}`}>{PACKAGE_LABELS[kind]} = Base price ×</label>
                     <span className="admin-pricing__percent">
@@ -580,7 +576,6 @@ export function AdminPricingPage() {
                       <td>
                         <PackagePrices
                           packages={row.packages}
-                          warning={row.bundle_warning}
                           calculated={calculatedById.get(row.id)}
                         />
                       </td>

@@ -27,7 +27,7 @@ function pkg(kind: PricingPackage['kind'], label: string, price: string | null =
   return { kind, label, price, sale_price: null, sale_ends_at: null, buyer_pays: price }
 }
 
-const whole = (price: string | null = null) => pkg('whole', 'Whole File', price)
+const environment = (price: string | null = null) => pkg('environment', 'With Environment', price)
 const glb = (price: string | null = null) => pkg('glb_only', 'GLB Only', price)
 
 function row(id: string, name: string, overrides: Partial<PricingRow> = {}): PricingRow {
@@ -48,8 +48,7 @@ function row(id: string, name: string, overrides: Partial<PricingRow> = {}): Pri
     discount_ends_at: null,
     discount_active: false,
     buyer_pays: '0.00',
-    packages: [glb(), whole()],
-    bundle_warning: '',
+    packages: [glb(), environment()],
     import_batch_id: 'batch-1',
     created_at: '2026-11-10T00:00:00Z',
     ...overrides,
@@ -58,8 +57,8 @@ function row(id: string, name: string, overrides: Partial<PricingRow> = {}): Pri
 
 const rows = [
   row('1', 'Oak Chair'),
-  row('2', 'Pine Stool', { hours_spent: null, packages: [whole()] }),
-  row('3', 'Elm Desk', { packages: [pkg('with_light_rig', 'With Light Rig'), whole()] }),
+  row('2', 'Pine Stool', { hours_spent: null, packages: [environment()] }),
+  row('3', 'Elm Desk', { packages: [pkg('with_light_rig', 'With Light Rig'), environment()] }),
 ]
 
 const TOKEN = 'a'.repeat(64)
@@ -71,7 +70,7 @@ function calculationOf(overrides: Partial<PricingCalculation> = {}): PricingCalc
         id: '1', name: 'Oak Chair', sku: 'MDL-1', hours_spent: '10.00', error: '',
         packages: [
           { kind: 'glb_only', label: 'GLB Only', old_price: null, price: '50.00' },
-          { kind: 'whole', label: 'Whole File', old_price: null, price: '200.00' },
+          { kind: 'environment', label: 'With Environment', old_price: null, price: '200.00' },
         ],
       },
       {
@@ -109,7 +108,6 @@ async function fillBox(user: ReturnType<typeof userEvent.setup>, rate = '20') {
     'Without Light Rig': '50',
     'GLB Only': '25',
     'With Environment': '30',
-    'Whole File': '100',
   }
   for (const [label, value] of Object.entries(percents)) {
     await user.type(screen.getByLabelText(`${label} percent`), value)
@@ -123,7 +121,7 @@ beforeEach(() => {
     count: params.page_size === 1 ? 7 : rows.length,
     next: null,
     previous: null,
-    results: params.tab === 'waiting' ? rows : [row('9', 'Live Lamp', { status: 'published', packages: [whole('20.00')], price: '20.00', buyer_pays: '20.00' })],
+    results: params.tab === 'waiting' ? rows : [row('9', 'Live Lamp', { status: 'published', packages: [environment('20.00')], price: '20.00', buyer_pays: '20.00' })],
   }))
   vi.mocked(pricingApi.listPricingBatches).mockResolvedValue(['batch-1'])
   vi.mocked(categoriesApi.listAdminCategories).mockResolvedValue({
@@ -152,7 +150,7 @@ describe('AdminPricingPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Model Pricing' })).toBeInTheDocument()
     expect(screen.getByLabelText('Rate per hour (USD)')).toBeInTheDocument()
-    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only', 'Whole File']) {
+    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only']) {
       expect(screen.getByLabelText(`${label} percent`)).toBeInTheDocument()
     }
   })
@@ -195,13 +193,13 @@ describe('AdminPricingPage', () => {
         product_ids: ['1', '2'],
         rate: '20',
         percents: {
-          with_light_rig: '60', without_light_rig: '50', glb_only: '25', environment: '30', whole: '100',
+          with_light_rig: '60', without_light_rig: '50', glb_only: '25', environment: '30',
         },
       }),
     )
     const oak = (await screen.findByText('Oak Chair')).closest('tr')!
     expect(oak).toHaveTextContent('GLB Only: Not set → $50.00')
-    expect(oak).toHaveTextContent('Whole File: Not set → $200.00')
+    expect(oak).toHaveTextContent('With Environment: Not set → $200.00')
     // A model that cannot be priced says why, next to the model.
     const pine = screen.getByText('Pine Stool').closest('tr')!
     expect(within(pine).getByRole('alert')).toHaveTextContent('Enter the hours spent first.')
@@ -309,16 +307,4 @@ describe('AdminPricingPage', () => {
     expect(screen.queryByLabelText(/hours for/i)).not.toBeInTheDocument()
   })
 
-  it('shows the bundle warning on a model', async () => {
-    vi.mocked(pricingApi.listPricingModels).mockResolvedValue({
-      count: 1, next: null, previous: null,
-      results: [row('1', 'Oak Chair', {
-        packages: [pkg('with_light_rig', 'With Light Rig', '10.00'), whole('12.00')],
-        bundle_warning: 'Whole File (12.00) is not cheaper than the other packages together (10.00).',
-      })],
-    })
-    renderPage()
-
-    expect(await screen.findByRole('note')).toHaveTextContent('Whole File (12.00) is not cheaper')
-  })
 })

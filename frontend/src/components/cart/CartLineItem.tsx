@@ -121,9 +121,6 @@ export function CartLineItem({
           <span>{optionLabel}</span>
         </p>
         <p className="cart-line-item__option-hint">{optionDescription}</p>
-        {catalog?.bundle_hint ? (
-          <p className="cart-line-item__bundle-hint" role="note">{catalog.bundle_hint}</p>
-        ) : null}
 
         <div className="cart-line-item__footer">
           <div

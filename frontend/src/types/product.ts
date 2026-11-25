@@ -344,10 +344,23 @@ export interface PublicProductDetail {
   files: PublicProductFile[]
   /** The packages for sale, in package order. */
   packages: PublicProductPackage[]
-  /** What Whole File saves against the other listed packages bought apart; null if nothing. */
-  bundle_saving: string | null
+  /** The All variations offer for a buyer who owns nothing of this model. */
+  bundle: BundleOffer
   created_at: string
   updated_at: string
+}
+
+/** All variations: every package of a model in one download at 25% off (the Whole File zip). */
+export interface BundleOffer {
+  eligible: boolean
+  /** Why it is not offered; '' when it is. */
+  reason: string
+  /** The packages it covers (the ones the buyer does not own yet). */
+  kinds: PackageKind[]
+  /** Those packages at their price now. */
+  subtotal: string
+  /** What the buyer pays. */
+  price: string
 }
 
 export interface PaginatedPublicProducts {

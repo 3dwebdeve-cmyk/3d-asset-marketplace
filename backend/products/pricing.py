@@ -1,6 +1,7 @@
 """Pricing page service (docs/PRICING_PIPELINE.md).
 
-The admin ticks models and types one rate and one percent per package. Every package price is
+The admin ticks models and types one rate and one percent per single package (Whole File is
+not priced: All variations sells it at a discount of its packages). Every package price is
 calculated by the server:
 
     base price    = hours spent x rate
@@ -30,10 +31,9 @@ from config.currency import MINIMUM_CHECKOUT_AMOUNTS
 from products.errors import ProductError
 from products.models import Product, ProductFile, ProductPriceChange
 from products.packages import (
-    PACKAGE_KINDS,
     PACKAGE_LABELS,
     PACKAGE_ORDER,
-    bundle_warning,
+    SINGLE_KINDS,
     sync_summary_price,
 )
 from products.price_history import PriceState, record_price_change
@@ -135,9 +135,14 @@ def _time_text(value: datetime | None) -> str | None:
 
 
 def package_rows(product: Product) -> list[ProductFile]:
-    """A model's packages in PACKAGE_ORDER. Reads ``product.files.all()`` (prefetched)."""
+    """A model's priced packages (not Whole File) in PACKAGE_ORDER. Reads ``product.files.all()``
+    (prefetched)."""
     return sorted(
-        (row for row in product.files.all() if not row.is_preview and row.package_kind),
+        (
+            row
+            for row in product.files.all()
+            if not row.is_preview and row.package_kind in SINGLE_KINDS
+        ),
         key=lambda row: PACKAGE_ORDER.index(row.package_kind),
     )
 
@@ -162,13 +167,6 @@ def package_summaries(product: Product, now: datetime) -> list[dict[str, Any]]:
     return summaries
 
 
-def summaries_bundle_warning(summaries: list[dict[str, Any]]) -> str:
-    """The Whole File check on what buyers pay for the priced packages."""
-    return bundle_warning(
-        {row["kind"]: Decimal(row["buyer_pays"]) for row in summaries if row["buyer_pays"] is not None}
-    )
-
-
 # ─── The rate and the percents ──────────────────────────────────────────────
 
 
@@ -189,10 +187,10 @@ class PricingInput:
             raise ProductError(
                 f"The rate must be above 0 and at most {MAX_RATE:.0f}.", field="rate"
             )
-        if not isinstance(percents, dict) or set(percents) != PACKAGE_KINDS:
+        if not isinstance(percents, dict) or set(percents) != set(SINGLE_KINDS):
             raise ProductError("Enter a percent for every package.", field="percents")
         clean_percents: dict[str, Decimal] = {}
-        for kind in PACKAGE_ORDER:
+        for kind in SINGLE_KINDS:
             try:
                 value = Decimal(str(percents[kind])).quantize(CENT, rounding=ROUND_HALF_UP)
             except ArithmeticError:
