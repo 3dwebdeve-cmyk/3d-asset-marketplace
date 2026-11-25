@@ -281,7 +281,7 @@ const DEFAULT_VIEWER_BRIGHTNESS = 3
 const DEFAULT_VIEWER_ENVIRONMENT = {
   ...DEFAULT_ENVIRONMENT_ADJUSTMENTS,
   contrast: -14,
-  exposure: -0.7,
+  exposure: -1.1,
   saturation: -4,
   highlights: -32,
   shadows: -45,

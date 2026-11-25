@@ -303,7 +303,7 @@ describe('ModelViewer', () => {
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.4)
     const extraSliders = [
       ['Contrast', '-25', '-14'],
-      ['Exposure', '-1.5', '-0.7'],
+      ['Exposure', '-1.5', '-1.1'],
       ['Saturation', '-25', '-4'],
       ['Highlights', '-30', '-32'],
       ['Shadows', '-30', '-45'],
