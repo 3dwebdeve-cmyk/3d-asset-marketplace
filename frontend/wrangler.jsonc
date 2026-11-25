@@ -35,5 +35,14 @@
   },
   "vars": {
     "SITE_URL": "https://assethive3d.com"
+  },
+  // Branch previews: Cloudflare Workers Builds runs `wrangler preview` for every branch that is not
+  // production, and it refuses to run without this block. SITE_URL is only the address the Worker
+  // writes into canonical links and the sitemap; it is not a secret and opens no production
+  // resource. Previews point at the real site, so a preview is never indexed as a copy of it.
+  "previews": {
+    "vars": {
+      "SITE_URL": "https://assethive3d.com"
+    }
   }
 }
