@@ -15,7 +15,7 @@ from accounts.models import User
 from orders.models import Order, OrderItem
 from plugins.models import Plugin
 from products.models import Product, ProductFile
-from products.packages import PACKAGE_KINDS, PACKAGE_LABELS, line_title
+from products.packages import BUNDLE_KIND, LINE_KINDS, PACKAGE_LABELS, bundle_quote, line_title
 
 
 class OrderError(Exception):
@@ -257,6 +257,7 @@ class OrderService:
                 item.product_id,
                 item.package_kind,
                 field_prefix=f"items[{index}]",
+                user=user,
             )
             if item_currency != currency:
                 raise OrderError(
@@ -574,6 +575,7 @@ class OrderService:
         package_kind: str,
         *,
         field_prefix: str,
+        user: User,
     ) -> tuple[Decimal, str, str, str]:
         if product_type != OrderItem.ProductType.PRODUCT and package_kind:
             raise OrderError("A plugin has no packages.", field=f"{field_prefix}.package_kind")
@@ -590,10 +592,21 @@ class OrderService:
                     "Product is not available for purchase.",
                     field=f"{field_prefix}.product_id",
                 )
-            if package_kind not in PACKAGE_KINDS:
+            if package_kind not in LINE_KINDS:
                 raise OrderError(
                     "Choose a package of this model.", field=f"{field_prefix}.package_kind"
                 )
+            if package_kind == BUNDLE_KIND:
+                from orders.entitlements import owned_package_kinds
+
+                owned = owned_package_kinds(user, [product_id]).get(product_id, frozenset())
+                quote = bundle_quote(product.files.all(), owned, now=timezone.now())
+                if not quote.eligible:
+                    raise OrderError(
+                        f"All variations is not available for this model: {quote.reason}",
+                        field=f"{field_prefix}.package_kind",
+                    )
+                return quote.price, product.currency, line_title(product.name, BUNDLE_KIND), product.slug
             package = ProductFile.objects.filter(
                 product=product, is_preview=False, package_kind=package_kind
             ).first()

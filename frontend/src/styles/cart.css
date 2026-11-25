@@ -466,11 +466,3 @@
     justify-content: space-between;
   }
 }
-/* A Whole File line when the cart also holds other packages of the same model. */
-.cart-line-item__bundle-hint {
-  margin: 0.35rem 0 0;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  color: var(--action-color);
-  font-weight: 600;
-}

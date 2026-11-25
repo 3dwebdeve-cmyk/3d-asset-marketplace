@@ -23,9 +23,17 @@ from products.models import Product
 from products.services import ProductService
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
 from products.test_catalog_reupload import _free_item
-from products.testing import price_packages
+from products.testing import moved_media, price_packages
 
 _SKU = "MDL-000142"
+
+
+def _single(item: dict) -> dict:
+    """The item with its one package uploaded as GLB Only: Whole File is not priced."""
+    media = moved_media(item["media"], "_whole.zip", "_glb_only.zip")
+    for package in media["packages"]:
+        package["kind"] = "glb_only"
+    return {**item, "media": media}
 
 
 class PricingReviewFixTests(CatalogImportTestBase):
@@ -142,7 +150,7 @@ class PricingReviewFixTests(CatalogImportTestBase):
         self.assertFalse(product.files.filter(discount_price__isnull=False).exists())
 
     def test_the_publish_check_refuses_a_sale_that_breaks_the_rules(self) -> None:
-        self._upload(_happy_item(), "2026-11-10-paid-06")
+        self._upload(_single(_happy_item()), "2026-11-10-paid-06")
         product = Product.objects.get(sku=_SKU)
         self._approve(product)
         # Older data: a 0.10 sale on a 29.99 package, stored before the rules existed.
@@ -151,12 +159,12 @@ class PricingReviewFixTests(CatalogImportTestBase):
         with self.assertRaises(ProductError) as raised:
             ProductService._validate_publish_ready(product, require_sku=True)
 
-        self.assertIn("Whole File: its sale price 0.10 is not allowed", " ".join(raised.exception.errors["price"]))
+        self.assertIn("GLB Only: its sale price 0.10 is not allowed", " ".join(raised.exception.errors["price"]))
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.AWAITING_PRICE)
 
     def test_pricing_the_model_replaces_a_stored_sale_so_it_can_be_published(self) -> None:
-        self._upload(_happy_item(), "2026-11-10-paid-07")
+        self._upload(_single(_happy_item()), "2026-11-10-paid-07")
         product = Product.objects.get(sku=_SKU)
         self._approve(product)
         price_packages(product, "29.99", discount_price=Decimal("0.10"))
@@ -165,8 +173,8 @@ class PricingReviewFixTests(CatalogImportTestBase):
             "product_ids": [str(product.pk)],
             "rate": "20",
             "percents": {
-                "with_light_rig": "60", "without_light_rig": "50", "glb_only": "25",
-                "environment": "30", "whole": "100",
+                "with_light_rig": "60", "without_light_rig": "50", "glb_only": "100",
+                "environment": "30",
             },
         }
         token = self.client.post(
@@ -181,5 +189,5 @@ class PricingReviewFixTests(CatalogImportTestBase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(response.data["results"][0]["published"], response.data)
-        package = product.files.get(is_preview=False, package_kind="whole")
+        package = product.files.get(is_preview=False, package_kind="glb_only")
         self.assertEqual((package.price, package.discount_price), (Decimal("30.00"), None))

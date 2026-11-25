@@ -36,7 +36,6 @@ const cartItem: CartItem = {
     title: 'Oak Chair - Whole File',
     package_kind: 'whole',
     package_label: 'Whole File',
-    bundle_hint: '',
     slug: 'oak-chair',
     thumbnail: 'https://example.com/chair.png',
     price: '29.99',

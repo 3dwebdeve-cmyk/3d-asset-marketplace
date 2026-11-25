@@ -17,7 +17,7 @@ from orders.models import Order, OrderItem
 from payments.models import Payment, StripeWebhookEvent
 from plugins.models import Plugin, PluginCategory
 from products.models import Product, ProductFile
-from products.testing import sell_package
+from products.testing import SOLD_PACKAGE_KIND, sell_package
 
 
 class _FakeStripeObject:
@@ -101,8 +101,8 @@ class PaymentsTestMixin:
             cart=cart,
             product_type=product_type,
             product_id=product_id,
-            # A model is bought per package; the tests buy its Whole File.
-            package_kind="whole" if product_type == "product" else "",
+            # A model is bought per package; the tests buy SOLD_PACKAGE_KIND.
+            package_kind=SOLD_PACKAGE_KIND if product_type == "product" else "",
             quantity=quantity,
         )
 
@@ -238,7 +238,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
 
         headers = {"HTTP_IDEMPOTENCY_KEY": "checkout-retry-2"}
         first = self.client.post(self.checkout_url, **headers)
-        # The model is sold as its Whole File package: that price changes.
+        # The model is sold as its GLB Only package: that price changes.
         ProductFile.objects.filter(product=self.product).update(price=self.product.price + 10)
         second = self.client.post(self.checkout_url, **headers)
 
@@ -299,7 +299,7 @@ class StripeWebhookTests(PaymentsTestMixin, APITestCase):
             order=self.order,
             product_type=OrderItem.ProductType.PRODUCT,
             product_id=self.product.pk,
-            package_kind="whole",
+            package_kind="glb_only",
             title="Hero Sword",
             slug="hero-sword",
             quantity=1,
@@ -705,7 +705,7 @@ class ConfirmCheckoutSessionTests(PaymentsTestMixin, APITestCase):
             order=self.order,
             product_type=OrderItem.ProductType.PRODUCT,
             product_id=self.product.pk,
-            package_kind="whole",
+            package_kind="glb_only",
             title=self.product.name,
             slug=self.product.slug,
             quantity=1,

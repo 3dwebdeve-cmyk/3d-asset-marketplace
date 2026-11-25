@@ -6,7 +6,7 @@ it goes through the real middleware, throttles, routing and JSON handling.
     python e2e/local/api_smoke.py [--base http://127.0.0.1:8001]
 
 Signs in as the seeded admin, lists "Waiting for price", calculates the price of PRC-WAIT-LOW
-(4 hours x rate 20 x Whole File 100%), publishes it and checks the public product API shows it
+(4 hours x rate 20 x GLB Only 100%), publishes it and checks the public product API shows it
 with that price.
 Start-LocalStack re-seeds a clean scenario, so run it on a fresh stack. Standard library only.
 """
@@ -28,9 +28,8 @@ RATE = "20"
 PERCENTS = {
     "with_light_rig": "60",
     "without_light_rig": "50",
-    "glb_only": "25",
+    "glb_only": "100",
     "environment": "30",
-    "whole": "100",
 }
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 
@@ -121,7 +120,7 @@ def run(base: str) -> None:
     calc_row = body["rows"][0]
     check(calc_row["error"] == "", "calculated row has no error", calc_row)
     prices = {item["kind"]: item["price"] for item in calc_row["packages"]}
-    check(prices == {"whole": PRICE}, f"the model's one package costs {PRICE}", prices)
+    check(prices == {"glb_only": PRICE}, f"the model's one package costs {PRICE}", prices)
     token_value = body["preview_token"]
 
     print("5. publish")

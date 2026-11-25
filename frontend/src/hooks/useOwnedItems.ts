@@ -52,5 +52,8 @@ export function useOwnedItems() {
     [packages],
   )
 
-  return { isOwned, ownedPackages }
+  /** False until the customer's library has loaded: a price for "the rest" needs it. */
+  const ownedLoaded = !isCustomer || query.isSuccess
+
+  return { isOwned, ownedPackages, ownedLoaded }
 }

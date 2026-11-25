@@ -12,7 +12,6 @@ from products.pricing import (
     MAX_MODELS_PER_ACTION,
     PricingInput,
     package_summaries,
-    summaries_bundle_warning,
 )
 
 _MONEY = {"max_digits": 10, "decimal_places": 2}
@@ -26,7 +25,6 @@ class PricingRowSerializer(serializers.ModelSerializer):
     buyer_pays = serializers.SerializerMethodField()
     # Every package with its price and sale (a package with no price is not sold yet).
     packages = serializers.SerializerMethodField()
-    bundle_warning = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -48,7 +46,6 @@ class PricingRowSerializer(serializers.ModelSerializer):
             "discount_active",
             "buyer_pays",
             "packages",
-            "bundle_warning",
             "import_batch_id",
             "created_at",
         )
@@ -73,9 +70,6 @@ class PricingRowSerializer(serializers.ModelSerializer):
 
     def get_packages(self, obj: Product) -> list[dict]:
         return self._packages(obj)
-
-    def get_bundle_warning(self, obj: Product) -> str:
-        return summaries_bundle_warning(self._packages(obj))
 
 
 class PricingListQuerySerializer(serializers.Serializer):

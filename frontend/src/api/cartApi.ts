@@ -4,6 +4,7 @@ import type {
   CartItem,
   CartUpdateQuantityPayload,
 } from '../types/cart'
+import type { BundleOffer } from '../types/product'
 import { apiClient } from './client'
 
 export async function getCart(): Promise<Cart> {
@@ -13,6 +14,14 @@ export async function getCart(): Promise<Cart> {
 
 export async function addCartItem(payload: CartAddPayload): Promise<CartItem> {
   const { data } = await apiClient.post<CartItem>('/api/v1/cart/', payload)
+  return data
+}
+
+/** What All variations costs this signed-in buyer for a model: the packages they do not own. */
+export async function getBundleQuote(productId: string): Promise<BundleOffer> {
+  const { data } = await apiClient.get<BundleOffer>('/api/v1/cart/bundle-quote/', {
+    params: { product_id: productId },
+  })
   return data
 }
 

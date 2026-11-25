@@ -10,8 +10,10 @@ from products.models import Product, ProductFile, ProductImage
 from products.packages import (
     PACKAGE_DESCRIPTIONS,
     PACKAGE_LABELS,
-    PACKAGE_ORDER,
+    SINGLE_KINDS,
     PackageKind,
+    bundle_payload,
+    bundle_quote,
 )
 from products.upload_rules import (
     validate_product_file_upload,
@@ -151,14 +153,14 @@ class BuyerPriceFieldsMixin(serializers.Serializer):
 
 
 def priced_packages(files) -> list[ProductFile]:
-    """A product's packages that are for sale (priced), in PACKAGE_ORDER. ``files`` are its
-    prefetched file rows."""
+    """A product's packages that are for sale (priced), in PACKAGE_ORDER. Whole File is not one
+    of them: All variations sells it. ``files`` are its prefetched file rows."""
     rows = {
         row.package_kind: row
         for row in files
-        if not row.is_preview and row.package_kind and row.price is not None
+        if not row.is_preview and row.package_kind in SINGLE_KINDS and row.price is not None
     }
-    return [rows[kind] for kind in PACKAGE_ORDER if kind in rows]
+    return [rows[kind] for kind in SINGLE_KINDS if kind in rows]
 
 
 def has_spin(obj: Product) -> bool:
@@ -257,9 +259,9 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
     formats = serializers.SerializerMethodField()
     # The packages for sale (priced), in PACKAGE_ORDER: one option each on the product page.
     packages = serializers.SerializerMethodField()
-    # What Whole File saves against buying the other listed packages one by one; null unless
-    # Whole File and at least one other package are listed (and it does save).
-    bundle_saving = serializers.SerializerMethodField()
+    # The All variations offer for a buyer who owns nothing of this model: whether it is offered,
+    # and its price. A buyer who owns some packages gets their own offer from the cart.
+    bundle = serializers.SerializerMethodField()
 
     def get_formats(self, obj: Product) -> list[str]:
         return product_formats(obj, obj.files.all())
@@ -271,15 +273,9 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
             priced_packages(obj.files.all()), many=True, context={"now": now}
         ).data
 
-    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2, allow_null=True))
-    def get_bundle_saving(self, obj: Product):
-        now = self._price_now()
-        prices = {row.package_kind: row.effective_price(now) for row in priced_packages(obj.files.all())}
-        whole = prices.pop(PackageKind.WHOLE, None)
-        if whole is None or not prices:
-            return None
-        saving = sum(prices.values()) - whole
-        return _PRICE_FIELD.to_representation(saving) if saving > 0 else None
+    @extend_schema_field(serializers.DictField())
+    def get_bundle(self, obj: Product) -> dict:
+        return bundle_payload(bundle_quote(obj.files.all(), now=self._price_now()))
 
     class Meta:
         model = Product
@@ -311,7 +307,7 @@ class ProductDetailPublicSerializer(BuyerPriceFieldsMixin, serializers.ModelSeri
             "files",
             "formats",
             "packages",
-            "bundle_saving",
+            "bundle",
             "created_at",
             "updated_at",
         )

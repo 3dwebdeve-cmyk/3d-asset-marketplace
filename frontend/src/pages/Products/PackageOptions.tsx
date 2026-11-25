@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 
+import { getBundleQuote } from '../../api/cartApi'
 import { freeDownloadUrl } from '../../api/productsApi'
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
 import { Button } from '../../components/ui/Button'
@@ -8,24 +10,17 @@ import { useBuyNow } from '../../hooks/useBuyNow'
 import { useCart } from '../../hooks/useCart'
 import { useOwnedItems } from '../../hooks/useOwnedItems'
 import { formatFileSize, formatMoney } from '../../lib/format'
-import type { PackageKind } from '../../lib/packages'
+import type { LineKind, PackageKind } from '../../lib/packages'
 import { formatSaleEnd } from '../../lib/pricing'
-import type { PublicProductDetail, PublicProductPackage } from '../../types/product'
+import type { BundleOffer, PublicProductDetail, PublicProductPackage } from '../../types/product'
 
 interface PackageOptionsProps {
-  product: Pick<PublicProductDetail, 'id' | 'slug' | 'name' | 'currency' | 'packages' | 'bundle_saving'>
+  product: Pick<PublicProductDetail, 'id' | 'slug' | 'name' | 'currency' | 'packages' | 'bundle'>
   /** A free model: every package is a free download, with no cart or checkout. */
   isFree: boolean
 }
 
-/** "Everything in one download – save $X (Y%)" for Whole File, or '' when it saves nothing. */
-function wholeFileSaving(whole: PublicProductPackage, saving: string | null, currency: string): string {
-  const amount = Number(saving)
-  if (!saving || !(amount > 0)) return ''
-  const apart = Number(whole.effective_price) + amount
-  const percent = Math.round((amount / apart) * 100)
-  return `Everything in one download – save ${formatMoney(saving, currency)} (${percent}%)`
-}
+const ALL_VARIATIONS: LineKind = 'bundle'
 
 function PackagePrice({ item, currency }: { item: PublicProductPackage; currency: string }) {
   if (item.discount_price) {
@@ -44,23 +39,34 @@ function PackagePrice({ item, currency }: { item: PublicProductPackage; currency
 
 /**
  * The model's packages on its page: one row each with its contents, size and price. A buyer
- * ticks the packages they want, then adds them to the cart or buys them at once. Owned
- * packages offer the download (Whole File owns them all); packages in the cart say so.
+ * ticks the packages they want, then adds them to the cart or buys them at once. When every
+ * variation is offered, All variations is one more choice: every package in one download at
+ * 25% off. Owned packages offer the download; packages in the cart say so.
  */
 export function PackageOptions({ product, isFree }: PackageOptionsProps) {
   const location = useLocation()
   const { isSignedIn, isInCart, addPackages, isPending } = useCart()
-  const { ownedPackages } = useOwnedItems()
+  const { ownedPackages, ownedLoaded } = useOwnedItems()
   const { buyNow, isRedirecting } = useBuyNow()
   const [ticked, setTicked] = useState<ReadonlySet<PackageKind>>(() => new Set())
 
   const owned = isSignedIn ? ownedPackages(product.id) : new Set<PackageKind>()
-  const ownsEverything = owned.has('whole')
-  const inCart = (kind: PackageKind) => isSignedIn && isInCart('product', product.id, kind)
+  const ownsEverything = product.packages.length > 0 && product.packages.every((item) => owned.has(item.kind))
+  const inCart = (kind: LineKind) => isSignedIn && isInCart('product', product.id, kind)
   const buyable = (kind: PackageKind) => !owned.has(kind) && !inCart(kind)
   const selected = product.packages.filter((item) => ticked.has(item.kind) && buyable(item.kind))
   const total = selected.reduce((sum, item) => sum + Number(item.effective_price), 0)
   const busy = isPending || isRedirecting
+
+  // A buyer who owns some packages is offered only the rest: ask the server for that price.
+  const ownsSome = isSignedIn && owned.size > 0
+  const restOffer = useQuery({
+    queryKey: ['bundle-quote', product.id],
+    queryFn: () => getBundleQuote(product.id),
+    enabled: ownsSome && !isFree && !ownsEverything,
+  })
+  // Until the buyer's library has loaded, the offer is not known: show none rather than the wrong price.
+  const offer: BundleOffer | undefined = !ownedLoaded ? undefined : ownsSome ? restOffer.data : product.bundle
 
   if (product.packages.length === 0) {
     return <p className="package-options__empty">This model is not for sale yet.</p>
@@ -74,6 +80,8 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
     })
 
   const selectedKinds = selected.map((item) => item.kind)
+  const allVariationsInCart = inCart(ALL_VARIATIONS)
+  const showAllVariations = !isFree && !ownsEverything && offer?.eligible === true
 
   return (
     <section className="package-options" aria-labelledby={`package-options-${product.id}`}>
@@ -83,14 +91,10 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
       <ul className="package-options__list">
         {product.packages.map((item) => {
           const id = `package-${product.id}-${item.kind}`
-          const saving = item.kind === 'whole' ? wholeFileSaving(item, product.bundle_saving, product.currency) : ''
           const isOwned = owned.has(item.kind)
           const isInCartNow = !isOwned && inCart(item.kind)
           return (
-            <li
-              key={item.kind}
-              className={`package-options__row${item.kind === 'whole' ? ' package-options__row--whole' : ''}`}
-            >
+            <li key={item.kind} className="package-options__row">
               <div className="package-options__main">
                 {!isFree && buyable(item.kind) ? (
                   <input
@@ -109,7 +113,6 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
                     <span className="package-options__label">{item.label}</span>
                   )}
                   <p className="package-options__description">{item.description}</p>
-                  {saving ? <p className="package-options__saving">{saving}</p> : null}
                 </div>
               </div>
               <div className="package-options__side">
@@ -135,6 +138,56 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
           )
         })}
       </ul>
+
+      {showAllVariations && offer ? (
+        <div className="package-options__bundle">
+          <div className="package-options__bundle-text">
+            <h3 className="package-options__bundle-title">All variations</h3>
+            <p className="package-options__bundle-description">
+              {offer.kinds.length} packages in one download (the whole zip), with 25% off the total.
+            </p>
+          </div>
+          <div className="package-options__bundle-buy">
+            <p className="package-options__bundle-price" aria-live="polite">
+              <s className="package-options__price-original">{formatMoney(offer.subtotal, product.currency)}</s>{' '}
+              <span className="package-options__price-current">{formatMoney(offer.price, product.currency)}</span>
+            </p>
+            {isSignedIn ? (
+              allVariationsInCart ? (
+                <Link className="package-options__in-cart" to="/cart">In cart</Link>
+              ) : (
+                <div className="package-options__actions">
+                  <Button
+                    type="button"
+                    isLoading={isRedirecting}
+                    disabled={busy}
+                    onClick={() => buyNow('product', product.id, [ALL_VARIATIONS])}
+                  >
+                    Buy now
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    isLoading={isPending}
+                    disabled={busy}
+                    onClick={() => addPackages(product.id, [ALL_VARIATIONS])}
+                  >
+                    Add to cart
+                  </Button>
+                </div>
+              )
+            ) : (
+              <AuthEntryButton
+                mode="login"
+                returnTo={location.pathname}
+                className="ui-button ui-button--primary package-options__sign-in"
+              >
+                Sign in to buy
+              </AuthEntryButton>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {isFree ? null : ownsEverything ? (
         <p className="package-options__owned">You own every package of this model.</p>

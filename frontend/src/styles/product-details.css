@@ -895,9 +895,49 @@ button.product-detail-cta__link {
   background: var(--bg-card);
 }
 
-.package-options__row--whole {
-  border-color: var(--action-color);
+/* All variations: every package in one download at 25% off, set apart from the single packages. */
+.package-options__bundle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem 0.75rem;
+  border: 1px solid var(--action-color);
+  border-radius: 10px;
+  background: var(--bg-card);
   box-shadow: inset 0 0 0 1px var(--action-color);
+}
+
+.package-options__bundle-text {
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.package-options__bundle-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.package-options__bundle-description {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.package-options__bundle-buy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.package-options__bundle-price {
+  margin: 0;
+  font-size: 1.05rem;
 }
 
 .package-options__main {
@@ -931,13 +971,6 @@ button.product-detail-cta__link {
   margin: 0.15rem 0 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
-}
-
-.package-options__saving {
-  margin: 0.3rem 0 0;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: var(--action-color);
 }
 
 .package-options__side {
