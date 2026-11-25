@@ -536,7 +536,7 @@ function ModelViewerCanvas({
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
               lightYaw={environmentYaw + (studio?.keyYawOffset ?? 0)}
-              lightIntensity={preset.hdrPath ? (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier : null}
+              lightIntensity={(studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier}
               detailedSelfShadows={preset.id === 'small-09'}
             />
           </Suspense>

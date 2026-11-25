@@ -241,8 +241,8 @@ describe('ModelViewer', () => {
 
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     expect(container.querySelectorAll('directionallight')).toHaveLength(1)
-    expect(container.querySelectorAll('rectarealight')).toHaveLength(1)
     const keyLight = () => container.querySelector('directionallight')
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.824)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
@@ -252,7 +252,7 @@ describe('ModelViewer', () => {
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
     expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(4)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
-    expect(container.querySelector('rectarealight')).toBeNull()
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.927)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
     expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
