@@ -8,12 +8,9 @@ export const HDRI_ENVIRONMENTS = [
     intensity: 0.8,
     yaw: Math.PI / 4,
     studio: { ambient: 0.09, keyIntensity: 0.8, keyViewYawOffset: -Math.PI / 3, keyElevation: Math.PI / 9, exposure: 0.9 },
-    areaLights: [
-      { name: 'Fill', yaw: -Math.PI / 4, elevation: Math.PI / 12, intensity: 0.45, size: 4 },
-    ],
+    upperRightLight: { viewYawOffset: Math.PI / 3, elevation: Math.PI / 3 },
   },
   { id: 'small-08', label: 'Small Studio 08', hdrPath: '/hdri/small-studio-08.hdr', intensity: 1, yaw: Math.PI / 4 },
-  { id: 'quarry-04', label: 'Quarry 04', hdrPath: '/hdri/quarry_04.hdr', intensity: 1.35, yaw: Math.PI / 4, keyColor: '#fff1d9' },
   {
     id: 'rogland-sunset',
     label: 'Rogland Sunset',
