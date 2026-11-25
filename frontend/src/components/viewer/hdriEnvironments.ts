@@ -21,11 +21,10 @@ export const HDRI_ENVIRONMENTS = [
     upperRightLight: { viewYawOffset: Math.PI / 3, elevation: Math.PI / 3 },
   },
   {
-    // Light grey-white studio with one huge, soft, round sun (a concave dish) in front of the model, made by
-    // scripts/make_custom_hdri.mjs.
+    // Light grey-white studio with one very large, soft sun (made by scripts/make_custom_hdri.mjs).
     // The sun sits on the HDRI's +Z axis and `sunFollowsKey` turns the map so it lines up with the
-    // shadow-casting key light, which sits in line with the opening camera (front light from the viewer's side), just above the horizon.
-    // From the opening angle that lights everything the viewer can see: the front, both sides and the top.
+    // shadow-casting key light, which is placed up and to the viewer's left of the opening camera.
+    // Seen from the opening angle that lights the top, front and one side of the model.
     id: 'custom-hdri',
     label: 'Custom HDRI',
     hdrPath: '/hdri/custom-hdri.hdr',
@@ -33,17 +32,26 @@ export const HDRI_ENVIRONMENTS = [
     yaw: 0,
     sunFollowsKey: true,
     studio: {
-      ambient: 0, // off on purpose: the HDRI sun is the only light
-      keyIntensity: 0, // off on purpose: the HDRI sun is the only light (shadow light kept for its angle)
-      keyViewYawOffset: 0, // sun sits in line with the camera (front light from the viewer's side)
-      keyElevation: (20 * Math.PI) / 180,
+      ambient: 0, // TEMP: was 0.04
+      keyIntensity: 0, // TEMP: was 0.7 (direct key light switched off to see the HDRI sun alone)
+      keyViewYawOffset: -Math.PI / 12,
+      keyElevation: (45 * Math.PI) / 180,
       exposure: 0.9,
       shadowRadius: 6,
-      contactShadowOpacity: 0.12,
     },
     background: { intensity: 3.8, blur: 0.2 },
   },
-  { id: 'small-08', label: 'Small Studio 08', hdrPath: '/hdri/small-studio-08.hdr', intensity: 1, yaw: Math.PI / 4 },
+  {
+    id: 'small-08',
+    label: 'Small Studio 08',
+    hdrPath: '/hdri/small-studio-08.hdr',
+    intensity: 1,
+    yaw: Math.PI / 4,
+    contactShadowOpacity: 0.75,
+    fillLights: [
+      { name: 'Lower right fill', viewYawOffset: (5 * Math.PI) / 12, elevation: -Math.PI / 12, intensity: 0.4, width: 3, height: 2 },
+    ],
+  },
 ] as const
 
 export const DEFAULT_HDRI_ENVIRONMENT_ID = 'small-09'
