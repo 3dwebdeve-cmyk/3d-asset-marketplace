@@ -10,10 +10,10 @@ from products.models import Product, ProductFile, ProductImage
 from products.packages import (
     PACKAGE_DESCRIPTIONS,
     PACKAGE_LABELS,
-    SINGLE_KINDS,
     PackageKind,
     bundle_payload,
     bundle_quote,
+    sold_package_rows,
 )
 from products.upload_rules import (
     validate_product_file_upload,
@@ -153,14 +153,10 @@ class BuyerPriceFieldsMixin(serializers.Serializer):
 
 
 def priced_packages(files) -> list[ProductFile]:
-    """A product's packages that are for sale (priced), in PACKAGE_ORDER. Whole File is not one
-    of them: All variations sells it. ``files`` are its prefetched file rows."""
-    rows = {
-        row.package_kind: row
-        for row in files
-        if not row.is_preview and row.package_kind in SINGLE_KINDS and row.price is not None
-    }
-    return [rows[kind] for kind in SINGLE_KINDS if kind in rows]
+    """A product's packages that are for sale (priced), in PACKAGE_ORDER: its variations, or for a
+    single-zip model its one zip. With variations, Whole File is not one of them: All variations
+    sells it. ``files`` are its prefetched file rows."""
+    return [row for row in sold_package_rows(files) if row.price is not None]
 
 
 def has_spin(obj: Product) -> bool:

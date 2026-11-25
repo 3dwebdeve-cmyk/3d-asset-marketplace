@@ -31,6 +31,7 @@ import type {
   PricingPackage,
   PricingPublishResult,
   PricingRow,
+  PricingKind,
   PricingTab,
 } from '../../types/pricing'
 import '../../styles/admin-pricing.css'
@@ -112,6 +113,8 @@ export function AdminPricingPage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: PricingTab = searchParams.get('tab') === 'live' ? 'live' : 'waiting'
+  // The section: models with variations, or single-zip models (Whole File is their only zip).
+  const kind: PricingKind = searchParams.get('kind') === 'single_zip' ? 'single_zip' : 'variations'
 
   // Filters
   const [categoryId, setCategoryId] = useState('')
@@ -144,6 +147,7 @@ export function AdminPricingPage() {
 
   const listParams = {
     tab,
+    kind,
     category_id: categoryId || undefined,
     subcategory_id: subcategoryId || undefined,
     search: search || undefined,
@@ -164,6 +168,14 @@ export function AdminPricingPage() {
   const liveCount = useQuery({
     queryKey: ['admin', 'pricing', 'count', 'live'],
     queryFn: () => listPricingModels({ tab: 'live', page_size: 1 }),
+  })
+  const variationsCount = useQuery({
+    queryKey: ['admin', 'pricing', 'count', tab, 'variations'],
+    queryFn: () => listPricingModels({ tab, kind: 'variations', page_size: 1 }),
+  })
+  const singleZipCount = useQuery({
+    queryKey: ['admin', 'pricing', 'count', tab, 'single_zip'],
+    queryFn: () => listPricingModels({ tab, kind: 'single_zip', page_size: 1 }),
   })
   const batchesQuery = useQuery({
     queryKey: ['admin', 'pricing', 'batches', tab],
@@ -200,6 +212,17 @@ export function AdminPricingPage() {
     setSelected(new Map())
     setHoursDraft({})
     setBatch('')
+    setPage(1)
+    setPublishResult(null)
+    resetCalculation()
+  }
+
+  const switchKind = (next: PricingKind) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('kind', next)
+    setSearchParams(params)
+    setSelected(new Map())
+    setHoursDraft({})
     setPage(1)
     setPublishResult(null)
     resetCalculation()
@@ -284,16 +307,22 @@ export function AdminPricingPage() {
   const buildBody = (): PricingInputBody | string => {
     if (selectedIds.length === 0) return 'Tick at least one model.'
     if (Object.keys(hoursDraft).length > 0) return 'Finish typing the hours first (click outside the box to save).'
-    if (!isPositive(rate, MAX_RATE)) return 'Enter the rate per hour, for example 20 or 12.50.'
-    for (const kind of PRICED_KINDS) {
-      if (!isPositive(percents[kind], MAX_PERCENT)) {
-        return `Enter the ${PACKAGE_LABELS[kind]} percent (above 0, at most ${MAX_PERCENT}).`
+    if (!isPositive(rate, MAX_RATE)) {
+      return kind === 'single_zip'
+        ? 'Enter the number to multiply the hours by, for example 20 or 12.50.'
+        : 'Enter the rate per hour, for example 20 or 12.50.'
+    }
+    // A single zip is priced by hours x the number: no percents.
+    if (kind === 'single_zip') return { product_ids: selectedIds, rate: rate.trim(), kind }
+    for (const priced of PRICED_KINDS) {
+      if (!isPositive(percents[priced], MAX_PERCENT)) {
+        return `Enter the ${PACKAGE_LABELS[priced]} percent (above 0, at most ${MAX_PERCENT}).`
       }
     }
     return {
       product_ids: selectedIds,
       rate: rate.trim(),
-      percents: Object.fromEntries(PRICED_KINDS.map((kind) => [kind, percents[kind].trim()])) as Percents,
+      percents: Object.fromEntries(PRICED_KINDS.map((priced) => [priced, percents[priced].trim()])) as Percents,
     }
   }
 
@@ -359,8 +388,9 @@ export function AdminPricingPage() {
           <div>
             <h1 id="admin-pricing-title">Pricing</h1>
             <p className="home-page__subtitle">
-              Tick the models, type the rate and the percents, calculate, then publish. Each model is
-              priced only for the variations it has.
+              {kind === 'single_zip'
+                ? 'Models with only one zip: tick them, type the number to multiply the hours by, calculate, then publish.'
+                : 'Tick the models, type the rate and the percents, calculate, then publish. Each model is priced only for the variations it has.'}
             </p>
           </div>
         </header>
@@ -379,6 +409,25 @@ export function AdminPricingPage() {
               aria-selected={tab === value}
               className={`admin-pricing__tab${tab === value ? ' admin-pricing__tab--active' : ''}`}
               onClick={() => switchTab(value)}
+            >
+              {label} <span className="products-count">{count ?? '—'}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="admin-pricing__kinds" role="group" aria-label="Model type">
+          {(
+            [
+              ['variations', 'Variations', variationsCount.data?.count],
+              ['single_zip', 'Single zip', singleZipCount.data?.count],
+            ] as const
+          ).map(([value, label, count]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={kind === value}
+              className={`admin-pricing__tab${kind === value ? ' admin-pricing__tab--active' : ''}`}
+              onClick={() => switchKind(value)}
             >
               {label} <span className="products-count">{count ?? '—'}</span>
             </button>
@@ -461,17 +510,17 @@ export function AdminPricingPage() {
                     onChange={(event) => { setRate(event.target.value); resetCalculation() }}
                   />
                 </div>
-                {PRICED_KINDS.map((kind) => (
-                  <div className="admin-pricing__formula" key={kind}>
-                    <label htmlFor={`pricing-percent-${kind}`}>{PACKAGE_LABELS[kind]} = Base price ×</label>
+                {kind === 'single_zip' ? null : PRICED_KINDS.map((priced) => (
+                  <div className="admin-pricing__formula" key={priced}>
+                    <label htmlFor={`pricing-percent-${priced}`}>{PACKAGE_LABELS[priced]} = Base price ×</label>
                     <span className="admin-pricing__percent">
                       <Input
-                        id={`pricing-percent-${kind}`}
+                        id={`pricing-percent-${priced}`}
                         inputMode="decimal"
-                        aria-label={`${PACKAGE_LABELS[kind]} percent`}
-                        value={percents[kind]}
+                        aria-label={`${PACKAGE_LABELS[priced]} percent`}
+                        value={percents[priced]}
                         onChange={(event) => {
-                          setPercents((current) => ({ ...current, [kind]: event.target.value }))
+                          setPercents((current) => ({ ...current, [priced]: event.target.value }))
                           resetCalculation()
                         }}
                       />

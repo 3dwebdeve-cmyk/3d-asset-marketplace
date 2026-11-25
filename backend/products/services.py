@@ -32,7 +32,7 @@ from products.models import (
     ProductImage,
     ProductPriceChange,
 )
-from products.packages import PACKAGE_LABELS, PACKAGE_ORDER, SINGLE_KINDS, sync_summary_price
+from products.packages import PACKAGE_LABELS, PACKAGE_ORDER, sold_package_rows, sync_summary_price
 from products.price_history import PriceState, record_price_change
 
 # A sale may take at most this share off a price (the Pricing page and the publish check).
@@ -664,9 +664,9 @@ class ProductService(ProductMediaService):
                 "Upload the model again."
             ]
         elif check_price:
-            # Whole File is not priced: All variations sells it at a discount of the others.
-            single_packages = [row for row in packages if row.package_kind in SINGLE_KINDS]
-            price_errors = cls._package_price_errors(product, single_packages)
+            # With variations, Whole File is not priced (All variations sells it at a discount of
+            # the others); a single-zip model's one zip is its package and must be priced.
+            price_errors = cls._package_price_errors(product, sold_package_rows(packages))
             if price_errors:
                 errors["price"] = price_errors
 
