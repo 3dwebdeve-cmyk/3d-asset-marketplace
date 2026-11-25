@@ -2,7 +2,6 @@ import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
-import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 import { adjustEnvironment, DEFAULT_ENVIRONMENT_ADJUSTMENTS, type EnvironmentAdjustments } from './adjustEnvironment'
@@ -15,8 +14,6 @@ import { isWebGLAvailable } from './isWebGLAvailable'
 import { useAdaptivePixelRatio, useAdaptiveShadowMapSize } from './useAdaptivePixelRatio'
 import { useViewportVisibility } from './useViewportVisibility'
 import '../../styles/model-viewer.css'
-
-RectAreaLightUniformsLib.init()
 
 export interface ModelViewerProps {
   modelUrl: string
@@ -61,7 +58,7 @@ function PreviewModel({
   wireframe: boolean
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
-  lightIntensity: number | null
+  lightIntensity: number
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
@@ -179,7 +176,7 @@ function PreviewModel({
 
   return (
     <>
-      {lightIntensity !== null && <directionalLight
+      <directionalLight
         key={shadowResolution}
         ref={shadowLight}
         position={lightPosition}
@@ -196,7 +193,7 @@ function PreviewModel({
         shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
         shadow-bias={-0.0002}
         shadow-radius={2.5}
-      />}
+      />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
         <primitive object={fitted} />
       </group>
@@ -471,8 +468,6 @@ function ModelViewerCanvas({
   const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
   const environmentYaw = preset.yaw + lightingYaw
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
-  const areaLights = 'areaLights' in preset ? preset.areaLights : undefined
-  const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
   const brightnessMultiplier = 1 + brightness / 100
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
 
@@ -522,31 +517,17 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={studio?.exposure} />
-          {preset.hdrPath && <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />}
-          {preset.hdrPath && <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
+          <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
+          <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
-                intensity={preset.intensity * (1 + brightness / 100)}
+                intensity={preset.intensity * brightnessMultiplier}
                 yaw={environmentYaw}
                 adjustments={environmentAdjustments}
               />
             </Suspense>
-          </ErrorBoundary>}
-          {areaLights?.map(({ name, yaw, elevation, intensity, size }) => {
-            const azimuth = openingCameraYaw + yaw + lightingYaw
-            const radius = LIGHT_HORIZONTAL_DISTANCE * Math.cos(elevation)
-            return (
-              <rectAreaLight
-                key={name}
-                position={[Math.sin(azimuth) * radius, LIGHT_HORIZONTAL_DISTANCE * Math.sin(elevation), Math.cos(azimuth) * radius]}
-                rotation={[-elevation, azimuth, 0, 'YXZ']}
-                intensity={intensity * brightnessMultiplier}
-                width={size}
-                height={size}
-              />
-            )
-          })}
+          </ErrorBoundary>
           <Suspense fallback={null}>
             <PreviewModel
               key={modelUrl}

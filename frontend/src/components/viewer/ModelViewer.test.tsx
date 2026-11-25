@@ -250,7 +250,7 @@ describe('ModelViewer', () => {
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
-    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(5)
+    expect(screen.getByRole('group', { name: 'Lighting presets' }).querySelectorAll('button')).toHaveLength(4)
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
     expect(container.querySelector('rectarealight')).toBeNull()
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
@@ -275,32 +275,6 @@ describe('ModelViewer', () => {
     )
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
-  })
-
-  it('uses a left key, right fill, and upper rear light for Light 111', async () => {
-    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
-    await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Light 111' }))
-    expect(screen.queryByRole('slider', { name: 'Sunlight' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('viewer-environment')).not.toBeInTheDocument()
-    expect(container.querySelector('ambientlight, directionallight')).toBeNull()
-    const lights = container.querySelectorAll('rectarealight')
-    expect(lights).toHaveLength(3)
-    const [key, fill, rear] = Array.from(lights, (light) => ({
-      position: (light.getAttribute('position') ?? '').split(',').map(Number),
-      intensity: Number(light.getAttribute('intensity')),
-    }))
-    const [x, y, z] = key.position
-    expect(x).toBeLessThan(0)
-    expect(z).toBeCloseTo(x)
-    expect(Math.atan2(y, Math.hypot(x, z)) * 180 / Math.PI).toBeCloseTo(15)
-    expect(fill.position[0] + fill.position[2]).toBeGreaterThan(0)
-    expect(rear.position[1]).toBeGreaterThan(fill.position[1])
-    expect(fill.intensity).toBeLessThan(key.intensity)
-    expect(rear.intensity).toBeLessThan(fill.intensity)
-    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
-    expect(screen.getByTestId('viewer-environment')).toBeInTheDocument()
-    expect(container.querySelectorAll('ambientlight, directionallight')).toHaveLength(2)
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
