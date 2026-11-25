@@ -33,9 +33,9 @@ const ORBIT_AXIS = new THREE.Vector3(0, 1, 0)
 const KEY_LIGHT_DISTANCE = 5
 const DEFAULT_KEY_ELEVATION = Math.atan2(4, 3)
 
-function directionalLightPosition(yaw: number, elevation: number): [number, number, number] {
-  const horizontalDistance = KEY_LIGHT_DISTANCE * Math.cos(elevation)
-  return [Math.sin(yaw) * horizontalDistance, KEY_LIGHT_DISTANCE * Math.sin(elevation), Math.cos(yaw) * horizontalDistance]
+function directionalLightPosition(yaw: number, elevation: number, distance = KEY_LIGHT_DISTANCE): [number, number, number] {
+  const horizontalDistance = distance * Math.cos(elevation)
+  return [Math.sin(yaw) * horizontalDistance, distance * Math.sin(elevation), Math.cos(yaw) * horizontalDistance]
 }
 /** Where the key light should be right now (yaw and elevation, in radians); written every frame by CameraRelativeLighting. */
 type KeyLightRef = { current: { yaw: number; elevation: number } | undefined }
@@ -76,7 +76,6 @@ function CameraRelativeLighting({ offsetYaw, eyeLift, paintedSunElevation, keyLi
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
 const DEFAULT_SHADOW_RADIUS = 2.5
-const DEFAULT_CONTACT_SHADOW_OPACITY = 0.25
 
 type StudioLighting = {
   ambient: number
@@ -86,8 +85,6 @@ type StudioLighting = {
   exposure: number
   /** Penumbra of the key light's shadow; bigger reads as a bigger, softer light. */
   shadowRadius?: number
-  /** Opacity of the soft shadow under the model; lower it so the base does not look dim. */
-  contactShadowOpacity?: number
   /** For presets whose light follows the camera: how far above the viewer's eye line the sun sits. */
   keyEyeLift?: number
 }
@@ -112,9 +109,10 @@ function PreviewModel({
   openingOrbit,
   lightYaw,
   lightElevation,
+  lightDistance = KEY_LIGHT_DISTANCE,
   lightIntensity,
   shadowRadius = DEFAULT_SHADOW_RADIUS,
-  contactShadowOpacity = DEFAULT_CONTACT_SHADOW_OPACITY,
+  contactShadowOpacity = 0.25,
   keyLightRef,
   detailedSelfShadows,
   cameraPosition,
@@ -124,6 +122,7 @@ function PreviewModel({
   openingOrbit: { cancelled: boolean; manualCamera: boolean }
   lightYaw: number
   lightElevation: number
+  lightDistance?: number
   lightIntensity: number
   shadowRadius?: number
   contactShadowOpacity?: number
@@ -181,13 +180,13 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, lightDistance, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     const followed = keyLightRef?.current
     const light = shadowLight.current
     if (followed && light) {
-      const [x, y, z] = directionalLightPosition(followed.yaw, followed.elevation)
+      const [x, y, z] = directionalLightPosition(followed.yaw, followed.elevation, lightDistance)
       if (Math.abs(light.position.x - x) + Math.abs(light.position.y - y) + Math.abs(light.position.z - z) > 1e-4) {
         light.position.set(x, y, z)
         light.shadow.needsUpdate = true
@@ -248,7 +247,7 @@ function PreviewModel({
     }
   }, [fitted, wireframe])
 
-  const lightPosition = directionalLightPosition(lightYaw, lightElevation)
+  const lightPosition = directionalLightPosition(lightYaw, lightElevation, lightDistance)
 
   return (
     <>
@@ -265,7 +264,7 @@ function PreviewModel({
         shadow-camera-top={shadowHalfExtent}
         shadow-camera-bottom={-shadowHalfExtent}
         shadow-camera-near={2}
-        shadow-camera-far={8}
+        shadow-camera-far={lightDistance + 3}
         shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
         shadow-bias={-0.0002}
         shadow-radius={shadowRadius}
@@ -329,8 +328,23 @@ const VIEWER_BACKGROUNDS = [
 
 type LightAdjustments = EnvironmentAdjustments & { brightness: number }
 
-const DEFAULT_VIEWER_BRIGHTNESS = 3
-const DEFAULT_VIEWER_ENVIRONMENT = { ...DEFAULT_ENVIRONMENT_ADJUSTMENTS, exposure: -0.7 }
+const DEFAULT_VIEWER_BRIGHTNESS = 8
+const DEFAULT_VIEWER_ENVIRONMENT = {
+  ...DEFAULT_ENVIRONMENT_ADJUSTMENTS,
+  contrast: -50,
+  exposure: -1.1,
+  saturation: -4,
+  highlights: -32,
+  shadows: -45,
+  gamma: -0.1,
+}
+
+/** Brightness and environment adjustments a preset starts with; most presets use the shared defaults. */
+function viewerDefaultsFor(preset: (typeof HDRI_ENVIRONMENTS)[number]) {
+  return 'viewerDefaults' in preset
+    ? preset.viewerDefaults
+    : { brightness: DEFAULT_VIEWER_BRIGHTNESS, environment: DEFAULT_VIEWER_ENVIRONMENT }
+}
 
 const LIGHT_SLIDERS = [
   { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
@@ -562,9 +576,43 @@ function ModelViewerCanvas({
     ? studioKeyYaw
     : preset.yaw + lightingYaw
   const brightnessMultiplier = 1 + brightness / 100
-  const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier
+  const isBananaModel = /banana/i.test(modelUrl + ' ' + ariaLabel)
+  const emphasizeBananaShadows = isBananaModel && preset.id === 'small-08'
+  const hasPcCaseFrontFill = (preset.id === 'small-08' || preset.id === 'small-09')
+    && /pc(?:[-_\s]|%20)*(?:case|cabinet)/i.test(modelUrl + ' ' + ariaLabel)
+  const hasPcCaseStudioLighting = hasPcCaseFrontFill && preset.id === 'small-09'
+  const contactShadowOpacity = hasPcCaseStudioLighting
+    ? 0.65
+    : 'contactShadowOpacity' in preset ? preset.contactShadowOpacity : undefined
+  // Lower the ambient HDRI fill so the directional shadow is visible between overlapping bananas.
+  const environmentIntensity = preset.intensity * brightnessMultiplier * (emphasizeBananaShadows ? 0.35 : 1)
+  const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier * (emphasizeBananaShadows ? 1.15 : 1)
+  const detailedSelfShadows = preset.id === 'small-09' || isBananaModel
   const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
   const fillLights = 'fillLights' in preset ? preset.fillLights : undefined
+  const frontRightYaw = openingCameraYaw + (preset.id === 'small-09' ? Math.PI / 3 : Math.PI / 6)
+  const frontRightElevation = preset.id === 'small-09' ? -Math.PI / 6 : -Math.PI / 9
+  const studio09FillDistance = KEY_LIGHT_DISTANCE + 2.5
+  const frontRightPosition = directionalLightPosition(
+    frontRightYaw,
+    frontRightElevation,
+    preset.id === 'small-09' ? studio09FillDistance + 0.25 : KEY_LIGHT_DISTANCE,
+  )
+  const frontLeftYaw = openingCameraYaw - Math.PI / 4
+  const frontLeftElevation = -(7 * Math.PI) / 36
+  const frontLeftPosition = directionalLightPosition(frontLeftYaw, frontLeftElevation, studio09FillDistance)
+  const frontLeftPitch = Math.atan2(
+    -0.25 - frontLeftPosition[1],
+    Math.hypot(frontLeftPosition[0], frontLeftPosition[2]),
+  )
+  const lowerLeftYaw = openingCameraYaw - (2 * Math.PI) / 5
+  const lowerLeftElevation = -(2 * Math.PI) / 9
+  const upperRightSoftboxYaw = openingCameraYaw + (5 * Math.PI) / 12
+  const upperRightSoftboxElevation = (2 * Math.PI) / 9
+  const overheadLightYaw = openingCameraYaw + Math.PI
+  const overheadLightHeight = KEY_LIGHT_DISTANCE * Math.sin(Math.PI / 3) - 1.25
+  const overheadLightSetback = KEY_LIGHT_DISTANCE * Math.cos(Math.PI / 3) + 4
+  const overheadLightElevation = Math.atan2(overheadLightHeight, overheadLightSetback)
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
   // Presets whose sun is painted on +Z keep their light fixed on screen while the camera orbits.
   const followsCamera = studio !== undefined && 'sunFollowsKey' in preset
@@ -629,7 +677,7 @@ function ModelViewerCanvas({
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
-                intensity={preset.intensity * brightnessMultiplier}
+                intensity={environmentIntensity}
                 yaw={environmentYaw}
                 adjustments={environmentAdjustments}
                 background={!background && 'background' in preset ? preset.background : undefined}
@@ -645,16 +693,21 @@ function ModelViewerCanvas({
               cameraPosition={presentation?.cameraPosition}
               lightYaw={studioKeyYaw ?? environmentYaw}
               shadowRadius={studio?.shadowRadius}
-              contactShadowOpacity={studio?.contactShadowOpacity}
+              contactShadowOpacity={contactShadowOpacity}
               keyLightRef={followsCamera ? keyLightRef : undefined}
-              lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
-              lightIntensity={keyIntensity}
-              detailedSelfShadows={preset.id === 'small-09'}
+              lightElevation={(studio?.keyElevation ?? DEFAULT_KEY_ELEVATION) - (hasPcCaseStudioLighting ? Math.PI / 12 : 0)}
+              lightDistance={hasPcCaseStudioLighting ? studio09FillDistance : undefined}
+              lightIntensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
+              detailedSelfShadows={detailedSelfShadows}
             />
             {upperRightLight && (
               <directionalLight
-                position={directionalLightPosition(openingCameraYaw + upperRightLight.viewYawOffset + lightingYaw, upperRightLight.elevation)}
-                intensity={keyIntensity}
+                position={directionalLightPosition(
+                  openingCameraYaw + upperRightLight.viewYawOffset + lightingYaw,
+                  upperRightLight.elevation - (hasPcCaseStudioLighting ? (5 * Math.PI) / 36 : 0),
+                  hasPcCaseStudioLighting ? studio09FillDistance : undefined,
+                )}
+                intensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
               />
             )}
             {fillLights?.map(({ name, viewYawOffset, elevation, intensity, width, height }) => {
@@ -664,12 +717,57 @@ function ModelViewerCanvas({
                   key={name}
                   position={directionalLightPosition(yaw, elevation)}
                   rotation={[-elevation, yaw, 0, 'YXZ']}
-                  intensity={intensity * brightnessMultiplier}
+                  intensity={intensity * brightnessMultiplier * (emphasizeBananaShadows ? 0.5 : 1)}
                   width={width}
                   height={height}
                 />
               )
             })}
+            {hasPcCaseFrontFill && (
+              <rectAreaLight
+                position={frontRightPosition}
+                rotation={[-frontRightElevation, frontRightYaw, 0, 'YXZ']}
+                intensity={(preset.id === 'small-09' ? 0.52 : 0.14) * brightnessMultiplier}
+                width={preset.id === 'small-09' ? 12.5 : 2}
+                height={preset.id === 'small-09' ? 8.75 : 2}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={frontLeftPosition}
+                rotation={[frontLeftPitch, frontLeftYaw, 0, 'YXZ']}
+                intensity={0.25 * brightnessMultiplier}
+                width={10}
+                height={6.75}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={directionalLightPosition(lowerLeftYaw, lowerLeftElevation, studio09FillDistance + 0.25)}
+                rotation={[-lowerLeftElevation, lowerLeftYaw, 0, 'YXZ']}
+                intensity={0.22 * brightnessMultiplier}
+                width={4.25}
+                height={3.5}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={directionalLightPosition(upperRightSoftboxYaw, upperRightSoftboxElevation, studio09FillDistance + 1.25)}
+                rotation={[-upperRightSoftboxElevation, upperRightSoftboxYaw, 0, 'YXZ']}
+                intensity={0.45 * brightnessMultiplier}
+                width={13}
+                height={8}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={directionalLightPosition(overheadLightYaw, overheadLightElevation, Math.hypot(overheadLightHeight, overheadLightSetback))}
+                rotation={[-overheadLightElevation, overheadLightYaw, 0, 'YXZ']}
+                intensity={0.74 * brightnessMultiplier}
+                width={16.5}
+                height={11.5}
+              />
+            )}
           </Suspense>
           <OrbitControls
             ref={controls}
@@ -690,6 +788,13 @@ function ModelViewerCanvas({
             type="button"
             aria-pressed={preset.id === option.id}
             onClick={() => {
+              // Entering or leaving a preset with its own starting brightness swaps the adjustments to match;
+              // moving between ordinary presets keeps whatever the visitor set with the sliders.
+              if (option.id !== preset.id && ('viewerDefaults' in option || 'viewerDefaults' in preset)) {
+                const defaults = viewerDefaultsFor(option)
+                setBrightness(defaults.brightness)
+                setEnvironmentAdjustments(defaults.environment)
+              }
               setPreset(option)
               setLightingYaw(0)
             }}
@@ -707,8 +812,9 @@ function ModelViewerCanvas({
           else setEnvironmentAdjustments((current) => ({ ...current, [key]: value }))
         }}
         onResetAdjustments={() => {
-          setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
-          setEnvironmentAdjustments(DEFAULT_VIEWER_ENVIRONMENT)
+          const defaults = viewerDefaultsFor(preset)
+          setBrightness(defaults.brightness)
+          setEnvironmentAdjustments(defaults.environment)
         }}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={startManualCamera}

@@ -22,10 +22,9 @@ export const HDRI_ENVIRONMENTS = [
   },
   {
     // Light grey-white studio with one huge, soft, round sun (a concave dish) in front of the model, made by
-    // scripts/make_custom_hdri.mjs.
-    // The sun sits on the HDRI's +Z axis and `sunFollowsKey` turns the map so it lines up with the
-    // shadow-casting key light, which sits in line with the opening camera (front light from the viewer's side), just above the horizon.
-    // From the opening angle that lights everything the viewer can see: the front, both sides and the top.
+    // scripts/make_custom_hdri.mjs. The sun is painted on the HDRI's +Z axis; `sunFollowsKey` turns the whole
+    // map (and the shadow-casting key light) so the sun stays on the viewer's eye line, a little above it,
+    // wherever they look from. Alt + drag turns it on top of that.
     id: 'custom-hdri',
     label: 'Custom HDRI',
     hdrPath: '/hdri/custom-hdri.hdr',
@@ -40,11 +39,27 @@ export const HDRI_ENVIRONMENTS = [
       keyEyeLift: (15 * Math.PI) / 180, // the sun sits this far above the viewer's eye line, wherever they look from
       exposure: 0.9,
       shadowRadius: 6,
-      contactShadowOpacity: 0.12,
     },
     background: { intensity: 3.8, blur: 0.2 },
+    contactShadowOpacity: 0.12, // lighter than the other presets so the base does not look dim
+    // Starting brightness this preset was tuned with. The shared defaults (contrast -50, exposure -1.1 EV,
+    // highlights -32 ...) are meant for the other presets and would flatten and dim this sun.
+    viewerDefaults: {
+      brightness: 3,
+      environment: { contrast: 0, exposure: -0.7, saturation: 0, highlights: 0, shadows: 0, gamma: 0, sharpness: 0 },
+    },
   },
-  { id: 'small-08', label: 'Small Studio 08', hdrPath: '/hdri/small-studio-08.hdr', intensity: 1, yaw: Math.PI / 4 },
+  {
+    id: 'small-08',
+    label: 'Small Studio 08',
+    hdrPath: '/hdri/small-studio-08.hdr',
+    intensity: 1,
+    yaw: Math.PI / 4,
+    contactShadowOpacity: 0.75,
+    fillLights: [
+      { name: 'Lower right fill', viewYawOffset: (5 * Math.PI) / 12, elevation: -Math.PI / 12, intensity: 0.4, width: 3, height: 2 },
+    ],
+  },
 ] as const
 
 export const DEFAULT_HDRI_ENVIRONMENT_ID = 'small-09'
