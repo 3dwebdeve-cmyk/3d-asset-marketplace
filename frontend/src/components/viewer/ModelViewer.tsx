@@ -518,6 +518,9 @@ function ModelViewerCanvas({
   const hasPcCaseFrontFill = (preset.id === 'small-08' || preset.id === 'small-09')
     && /pc(?:[-_\s]|%20)*(?:case|cabinet)/i.test(modelUrl + ' ' + ariaLabel)
   const hasPcCaseStudioLighting = hasPcCaseFrontFill && preset.id === 'small-09'
+  const contactShadowOpacity = hasPcCaseStudioLighting
+    ? 0.65
+    : 'contactShadowOpacity' in preset ? preset.contactShadowOpacity : undefined
   // Lower the ambient HDRI fill so the directional shadow is visible between overlapping bananas.
   const environmentIntensity = preset.intensity * brightnessMultiplier * (emphasizeBananaShadows ? 0.35 : 1)
   const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier * (emphasizeBananaShadows ? 1.15 : 1)
@@ -615,7 +618,7 @@ function ModelViewerCanvas({
               cameraPosition={presentation?.cameraPosition}
               lightYaw={studioKeyYaw ?? environmentYaw}
               shadowRadius={studio?.shadowRadius}
-              contactShadowOpacity={'contactShadowOpacity' in preset ? preset.contactShadowOpacity : undefined}
+              contactShadowOpacity={contactShadowOpacity}
               lightElevation={(studio?.keyElevation ?? DEFAULT_KEY_ELEVATION) - (hasPcCaseStudioLighting ? Math.PI / 12 : 0)}
               lightDistance={hasPcCaseStudioLighting ? studio09FillDistance : undefined}
               lightIntensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
