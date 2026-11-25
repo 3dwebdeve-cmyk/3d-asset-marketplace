@@ -61,7 +61,6 @@ function PreviewModel({
   lightYaw,
   lightElevation,
   lightIntensity,
-  shadowBias,
   detailedSelfShadows,
   cameraPosition,
 }: {
@@ -71,7 +70,6 @@ function PreviewModel({
   lightYaw: number
   lightElevation: number
   lightIntensity: number
-  shadowBias: number
   detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
@@ -124,7 +122,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowBias, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -200,7 +198,7 @@ function PreviewModel({
         shadow-camera-near={2}
         shadow-camera-far={8}
         shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
-        shadow-bias={shadowBias}
+        shadow-bias={-0.0002}
         shadow-radius={2.5}
       />
       <group ref={modelGroup} scale={reducedMotion ? 1 : ENTRANCE_START_SCALE}>
@@ -276,12 +274,11 @@ const LIGHT_SLIDERS = [
   { key: 'sharpness', label: 'Sharpness', min: -100, max: 100, step: 1, unit: '%' },
 ] as const
 
-function ViewerEnvironment({ files, intensity, yaw, adjustments, background }: {
+function ViewerEnvironment({ files, intensity, yaw, adjustments }: {
   files: string
   intensity: number
   yaw: number
   adjustments: EnvironmentAdjustments
-  background?: { intensity: number; blur: number }
 }) {
   const source = useEnvironment({ files })
   const [filtered, setFiltered] = useState(adjustments)
@@ -303,10 +300,7 @@ function ViewerEnvironment({ files, intensity, yaw, adjustments, background }: {
   return (
     <Environment
       map={map}
-      background={Boolean(background)}
-      backgroundIntensity={background?.intensity}
-      backgroundBlurriness={background?.blur}
-      backgroundRotation={[0, yaw, 0]}
+      background={false}
       environmentIntensity={intensity}
       environmentRotation={[0, yaw, 0]}
     />
@@ -540,16 +534,15 @@ function ModelViewerCanvas({
           shadows="percentage"
           frameloop={visible ? 'always' : 'never'}
         >
-          <ViewerExposure exposure={'exposure' in preset ? preset.exposure : studio?.exposure} />
+          <ViewerExposure exposure={studio?.exposure} />
           <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
-                intensity={preset.intensity * brightnessMultiplier / (preset.id === 'rogland-sunset' ? 1 + DEFAULT_VIEWER_BRIGHTNESS / 100 : 1)}
+                intensity={preset.intensity * brightnessMultiplier}
                 yaw={environmentYaw}
                 adjustments={environmentAdjustments}
-                background={!background && 'background' in preset ? preset.background : undefined}
               />
             </Suspense>
           </ErrorBoundary>
@@ -563,7 +556,6 @@ function ModelViewerCanvas({
               lightYaw={studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : environmentYaw}
               lightElevation={studio?.keyElevation ?? DEFAULT_KEY_ELEVATION}
               lightIntensity={keyIntensity}
-              shadowBias={'shadowBias' in preset ? preset.shadowBias : -0.0002}
               detailedSelfShadows={preset.id === 'small-09'}
             />
             {upperRightLight && (
