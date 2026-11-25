@@ -120,7 +120,7 @@ const sampleDetail: PublicProductDetail = {
       sale_ends_at: null,
     },
   ],
-  bundle_saving: null,
+  bundle: { eligible: false, reason: '', kinds: [], subtotal: '0.00', price: '0.00' },
   images: [
     {
       id: 'img-1',

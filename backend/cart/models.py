@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
-from products.packages import PackageKind
+from products.packages import LINE_KIND_CHOICES
 
 CART_ITEM_MAX_QUANTITY = 99
 
@@ -44,7 +44,7 @@ class CartItem(models.Model):
     product_id = models.UUIDField(db_index=True)
     # Which package of a product the line buys; blank for a plugin.
     package_kind = models.CharField(
-        max_length=32, choices=PackageKind.choices, blank=True, default=""
+        max_length=32, choices=LINE_KIND_CHOICES, blank=True, default=""
     )
     quantity = models.PositiveIntegerField(
         validators=[

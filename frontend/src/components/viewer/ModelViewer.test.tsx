@@ -65,10 +65,12 @@ vi.mock('@react-three/drei', () => ({
     return null
   },
   useEnvironment: ({ files }: { files: string }) => ({ name: files }),
-  Environment: ({ map, background, environmentIntensity }: {
+  Environment: ({ map, background, environmentIntensity, backgroundIntensity, backgroundBlurriness }: {
     map: { name: string }; background: boolean; environmentIntensity: number
+    backgroundIntensity?: number; backgroundBlurriness?: number
   }) => (
-    <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity} />
+    <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity}
+      data-background-intensity={backgroundIntensity} data-background-blur={backgroundBlurriness} />
   ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
   useGLTF: Object.assign(
@@ -289,6 +291,23 @@ describe('ModelViewer', () => {
     )
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
+  })
+
+  it('lights the Custom HDRI studio from above and to the left, with a large soft sun', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
+
+    const environment = screen.getByTestId('viewer-environment')
+    expect(environment).toHaveAttribute('data-files', '/hdri/custom-hdri.hdr')
+    expect(environment).toHaveAttribute('data-background', 'false')
+    expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
+
+    const keyLight = container.querySelector('directionallight')
+    expect(keyLight).toHaveAttribute('shadow-radius', '6')
+    const [x, y, z] = String(keyLight?.getAttribute('position')).split(',').map(Number)
+    expect(Math.atan2(x, z)).toBeCloseTo(Math.atan2(-1, 1) - Math.PI / 12)
+    expect(Math.atan2(y, Math.hypot(x, z))).toBeCloseTo(Math.PI / 4)
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {

@@ -6,13 +6,14 @@ serializers all loop over it; never write the kinds out again anywhere else.
 
 from __future__ import annotations
 
-from decimal import Decimal
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING, Any, Iterable
 
 from django.db import models
 
 if TYPE_CHECKING:
-    from products.models import Product
+    from products.models import Product, ProductFile
 
 
 class PackageKind(models.TextChoices):
@@ -27,15 +28,49 @@ class PackageKind(models.TextChoices):
 
 PACKAGE_ORDER: tuple[str, ...] = tuple(PackageKind.values)
 PACKAGE_KINDS: frozenset[str] = frozenset(PACKAGE_ORDER)
-PACKAGE_LABELS: dict[str, str] = dict(PackageKind.choices)
+
+# The packages a buyer picks one by one when a model has variations. Whole File is then the zip
+# that holds them all: no admin prices it, and All variations delivers it. A model whose only zip
+# is the Whole File zip is a single-zip model: that zip is its one package, priced and sold as is.
+SINGLE_KINDS: tuple[str, ...] = tuple(kind for kind in PACKAGE_ORDER if kind != PackageKind.WHOLE)
+
+# The line that buys every variation a model has at once: it is delivered as the Whole File zip,
+# and the buyer gets BUNDLE_DISCOUNT_PERCENT off the packages' total. It is not a package.
+BUNDLE_KIND = "bundle"
+BUNDLE_DISCOUNT_PERCENT = Decimal("25")
+# Every kind a cart or order line may be sold as. Whole File is one only for a single-zip model
+# (the cart and checkout refuse it for a model with variations).
+LINE_KINDS: tuple[str, ...] = (*SINGLE_KINDS, PackageKind.WHOLE, BUNDLE_KIND)
+LINE_KIND_CHOICES: list[tuple[str, str]] = [*PackageKind.choices, (BUNDLE_KIND, "All variations")]
+
+PACKAGE_LABELS: dict[str, str] = dict(LINE_KIND_CHOICES)
 # What a buyer gets in each package, shown beside its price.
 PACKAGE_DESCRIPTIONS: dict[str, str] = {
     PackageKind.WITH_LIGHT_RIG: "The model with its textures and the studio light rig.",
     PackageKind.WITHOUT_LIGHT_RIG: "The model with its textures, without any lights.",
     PackageKind.GLB_ONLY: "A single GLB file with its textures, for web, AR and game engines.",
     PackageKind.ENVIRONMENT: "The model placed in its environment scene.",
-    PackageKind.WHOLE: "Everything in one download: every package of this model.",
+    PackageKind.WHOLE: "The complete model in one download.",
+    BUNDLE_KIND: "Every package of this model in one download, at 25% off the total.",
 }
+def is_single_zip(files: Iterable[ProductFile]) -> bool:
+    """A single-zip model: the Whole File zip is its only package (it has no variations)."""
+    kinds = {row.package_kind for row in files if not row.is_preview and row.package_kind}
+    return kinds == {PackageKind.WHOLE}
+
+
+def sold_package_rows(files: Iterable[ProductFile]) -> list[ProductFile]:
+    """The package rows an admin prices and a buyer picks, in PACKAGE_ORDER: the variations, or
+    for a single-zip model its one Whole File zip."""
+    rows = [row for row in files if not row.is_preview and row.package_kind]
+    if is_single_zip(rows):
+        return rows
+    return sorted(
+        (row for row in rows if row.package_kind in SINGLE_KINDS),
+        key=lambda row: PACKAGE_ORDER.index(row.package_kind),
+    )
+
+
 def line_title(name: str, kind: str) -> str:
     """A cart or order line's title: "<model name> - <package label>" (the model name alone
     for a line with no package, such as a plugin)."""
@@ -72,28 +107,57 @@ def sync_summary_price(product: Product) -> None:
     product.save(update_fields=["price", "discount_price", "discount_ends_at", "updated_at"])
 
 
-def bundle_warning(effective_prices: dict[str, Decimal]) -> str:
-    """Why the Whole File price looks wrong, or "" (a warning on the Pricing page, never a block).
+@dataclass(frozen=True)
+class BundleQuote:
+    """What the All variations line costs a buyer now, and why it is or is not offered."""
 
-    ``effective_prices`` holds what a buyer pays now for each priced package, by kind. Whole File
-    should cost less than the other packages added together, and not less than the single most
-    expensive one (it holds all of them). Checked only with Whole File and at least one other.
+    # The packages the line covers: those the buyer does not own yet.
+    kinds: tuple[str, ...]
+    # Those packages at their price now.
+    subtotal: Decimal
+    # What the buyer pays: the subtotal less BUNDLE_DISCOUNT_PERCENT, in whole dollars.
+    price: Decimal
+    # Why it is not offered, or "" when it is.
+    reason: str
+
+    @property
+    def eligible(self) -> bool:
+        return not self.reason
+
+
+def bundle_quote(files: Iterable[ProductFile], owned: frozenset[str] = frozenset(), *, now) -> BundleQuote:
+    """The All variations price of a model for a buyer who owns the kinds in ``owned``.
+
+    Offered only when the model has the Whole File zip, no single package is on sale, and at
+    least two packages are left for the buyer to buy. A model with one package gets no bundle.
     """
-    others = {kind: price for kind, price in effective_prices.items() if kind != PackageKind.WHOLE}
-    whole = effective_prices.get(PackageKind.WHOLE)
-    if whole is None or not others:
-        return ""
-    together = sum(others.values(), Decimal("0.00"))
-    if whole >= together:
-        return (
-            f"Whole File ({whole:.2f}) is not cheaper than the other packages together "
-            f"({together:.2f})."
-        )
-    top_kind = max(others, key=lambda kind: (others[kind], -PACKAGE_ORDER.index(kind)))
-    if whole < others[top_kind]:
-        return (
-            f"Whole File ({whole:.2f}) costs less than {PACKAGE_LABELS[top_kind]} alone "
-            f"({others[top_kind]:.2f})."
-        )
-    return ""
+    rows = {row.package_kind: row for row in files if not row.is_preview and row.package_kind}
+    singles = [rows[kind] for kind in SINGLE_KINDS if kind in rows and rows[kind].price is not None]
+    open_rows = [row for row in singles if row.package_kind not in owned]
+    subtotal = sum((row.effective_price(now) for row in open_rows), Decimal("0.00"))
+    price = (subtotal * (100 - BUNDLE_DISCOUNT_PERCENT) / 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    if PackageKind.WHOLE not in rows:
+        reason = "This model has no Whole File zip to deliver."
+    elif any(row.active_discount_price(now) is not None for row in singles):
+        reason = "A package of this model is on sale."
+    elif len(open_rows) < 2:
+        reason = "Fewer than two packages are left to buy together."
+    else:
+        reason = ""
+    return BundleQuote(
+        kinds=tuple(row.package_kind for row in open_rows),
+        subtotal=subtotal,
+        price=price,
+        reason=reason,
+    )
 
+
+def bundle_payload(quote: BundleQuote) -> dict[str, Any]:
+    """The All variations offer as the API sends it."""
+    return {
+        "eligible": quote.eligible,
+        "reason": quote.reason,
+        "kinds": list(quote.kinds),
+        "subtotal": f"{quote.subtotal:.2f}",
+        "price": f"{quote.price:.2f}",
+    }

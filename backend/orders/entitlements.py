@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import QuerySet
 
 from orders.models import Order, OrderItem
-from products.packages import PACKAGE_KINDS, PackageKind
+from products.packages import BUNDLE_KIND, PACKAGE_KINDS, PackageKind
 
 User = get_user_model()
 
@@ -25,9 +25,33 @@ def paid_order_lines() -> QuerySet[OrderItem]:
 
 
 def kinds_of_line(kind: str) -> frozenset[str]:
-    """The package kinds one product order line gives: its own, or every one for Whole File
-    and for a line from before packages (blank kind)."""
-    return EVERY_PACKAGE if kind in ("", PackageKind.WHOLE) else frozenset({kind})
+    """The package kinds one product order line owns: its own, or every one for All variations,
+    Whole File and a line from before packages (blank kind)."""
+    return EVERY_PACKAGE if kind in ("", PackageKind.WHOLE, BUNDLE_KIND) else frozenset({kind})
+
+
+def download_kinds_of_line(kind: str) -> frozenset[str]:
+    """The files one product order line lets the buyer download. All variations gives only the
+    Whole File zip; a line from before packages and an old Whole File line give every file."""
+    if kind == BUNDLE_KIND:
+        return frozenset({PackageKind.WHOLE})
+    return kinds_of_line(kind)
+
+
+def download_kinds_by_product(user: User, product_ids: Iterable[UUID]) -> dict[UUID, frozenset[str]]:
+    """For each product, the file kinds the user may download: the union over their paid lines."""
+    product_ids = set(product_ids)
+    if not product_ids:
+        return {}
+    downloads: dict[UUID, frozenset[str]] = {}
+    rows = paid_order_lines().filter(
+        order__user=user,
+        product_type=OrderItem.ProductType.PRODUCT,
+        product_id__in=product_ids,
+    ).values_list("product_id", "package_kind")
+    for product_id, kind in rows:
+        downloads[product_id] = downloads.get(product_id, frozenset()) | download_kinds_of_line(kind)
+    return downloads
 
 
 def owned_package_kinds(user: User, product_ids: Iterable[UUID]) -> dict[UUID, frozenset[str]]:

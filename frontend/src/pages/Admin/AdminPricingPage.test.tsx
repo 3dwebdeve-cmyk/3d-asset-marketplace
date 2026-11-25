@@ -27,7 +27,7 @@ function pkg(kind: PricingPackage['kind'], label: string, price: string | null =
   return { kind, label, price, sale_price: null, sale_ends_at: null, buyer_pays: price }
 }
 
-const whole = (price: string | null = null) => pkg('whole', 'Whole File', price)
+const environment = (price: string | null = null) => pkg('environment', 'With Environment', price)
 const glb = (price: string | null = null) => pkg('glb_only', 'GLB Only', price)
 
 function row(id: string, name: string, overrides: Partial<PricingRow> = {}): PricingRow {
@@ -48,8 +48,8 @@ function row(id: string, name: string, overrides: Partial<PricingRow> = {}): Pri
     discount_ends_at: null,
     discount_active: false,
     buyer_pays: '0.00',
-    packages: [glb(), whole()],
-    bundle_warning: '',
+    packages: [glb(), environment()],
+    single_zip: false,
     import_batch_id: 'batch-1',
     created_at: '2026-11-10T00:00:00Z',
     ...overrides,
@@ -58,8 +58,8 @@ function row(id: string, name: string, overrides: Partial<PricingRow> = {}): Pri
 
 const rows = [
   row('1', 'Oak Chair'),
-  row('2', 'Pine Stool', { hours_spent: null, packages: [whole()] }),
-  row('3', 'Elm Desk', { packages: [pkg('with_light_rig', 'With Light Rig'), whole()] }),
+  row('2', 'Pine Stool', { hours_spent: null, packages: [environment()] }),
+  row('3', 'Elm Desk', { packages: [pkg('with_light_rig', 'With Light Rig'), environment()] }),
 ]
 
 const TOKEN = 'a'.repeat(64)
@@ -71,7 +71,7 @@ function calculationOf(overrides: Partial<PricingCalculation> = {}): PricingCalc
         id: '1', name: 'Oak Chair', sku: 'MDL-1', hours_spent: '10.00', error: '',
         packages: [
           { kind: 'glb_only', label: 'GLB Only', old_price: null, price: '50.00' },
-          { kind: 'whole', label: 'Whole File', old_price: null, price: '200.00' },
+          { kind: 'environment', label: 'With Environment', old_price: null, price: '200.00' },
         ],
       },
       {
@@ -109,7 +109,6 @@ async function fillBox(user: ReturnType<typeof userEvent.setup>, rate = '20') {
     'Without Light Rig': '50',
     'GLB Only': '25',
     'With Environment': '30',
-    'Whole File': '100',
   }
   for (const [label, value] of Object.entries(percents)) {
     await user.type(screen.getByLabelText(`${label} percent`), value)
@@ -123,7 +122,7 @@ beforeEach(() => {
     count: params.page_size === 1 ? 7 : rows.length,
     next: null,
     previous: null,
-    results: params.tab === 'waiting' ? rows : [row('9', 'Live Lamp', { status: 'published', packages: [whole('20.00')], price: '20.00', buyer_pays: '20.00' })],
+    results: params.tab === 'waiting' ? rows : [row('9', 'Live Lamp', { status: 'published', packages: [environment('20.00')], price: '20.00', buyer_pays: '20.00' })],
   }))
   vi.mocked(pricingApi.listPricingBatches).mockResolvedValue(['batch-1'])
   vi.mocked(categoriesApi.listAdminCategories).mockResolvedValue({
@@ -152,7 +151,7 @@ describe('AdminPricingPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Model Pricing' })).toBeInTheDocument()
     expect(screen.getByLabelText('Rate per hour (USD)')).toBeInTheDocument()
-    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only', 'Whole File']) {
+    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only']) {
       expect(screen.getByLabelText(`${label} percent`)).toBeInTheDocument()
     }
   })
@@ -195,13 +194,13 @@ describe('AdminPricingPage', () => {
         product_ids: ['1', '2'],
         rate: '20',
         percents: {
-          with_light_rig: '60', without_light_rig: '50', glb_only: '25', environment: '30', whole: '100',
+          with_light_rig: '60', without_light_rig: '50', glb_only: '25', environment: '30',
         },
       }),
     )
     const oak = (await screen.findByText('Oak Chair')).closest('tr')!
     expect(oak).toHaveTextContent('GLB Only: Not set → $50.00')
-    expect(oak).toHaveTextContent('Whole File: Not set → $200.00')
+    expect(oak).toHaveTextContent('With Environment: Not set → $200.00')
     // A model that cannot be priced says why, next to the model.
     const pine = screen.getByText('Pine Stool').closest('tr')!
     expect(within(pine).getByRole('alert')).toHaveTextContent('Enter the hours spent first.')
@@ -309,16 +308,97 @@ describe('AdminPricingPage', () => {
     expect(screen.queryByLabelText(/hours for/i)).not.toBeInTheDocument()
   })
 
-  it('shows the bundle warning on a model', async () => {
-    vi.mocked(pricingApi.listPricingModels).mockResolvedValue({
-      count: 1, next: null, previous: null,
-      results: [row('1', 'Oak Chair', {
-        packages: [pkg('with_light_rig', 'With Light Rig', '10.00'), whole('12.00')],
-        bundle_warning: 'Whole File (12.00) is not cheaper than the other packages together (10.00).',
-      })],
-    })
+  // ─── The Single zip section ───────────────────────────────────────────────
+
+  function useSingleZipModels() {
+    const lone = row('20', 'Lone Lamp', { single_zip: true, hours_spent: '5.00', packages: [pkg('whole', 'Whole File')] })
+    vi.mocked(pricingApi.listPricingModels).mockImplementation(async (params) => ({
+      count: params.page_size === 1 ? 1 : 1,
+      next: null,
+      previous: null,
+      results: params.kind === 'single_zip' ? [lone] : rows,
+    }))
+    return lone
+  }
+
+  it('asks for the Variations section by default and has a Single zip section', async () => {
     renderPage()
 
-    expect(await screen.findByRole('note')).toHaveTextContent('Whole File (12.00) is not cheaper')
+    expect(await screen.findByText('Oak Chair')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^variations/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^single zip/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(pricingApi.listPricingModels).toHaveBeenCalledWith(expect.objectContaining({ tab: 'waiting', kind: 'variations' }))
+  })
+
+  it('lists only the single-zip models in the Single zip section', async () => {
+    const user = userEvent.setup()
+    useSingleZipModels()
+    renderPage()
+    await screen.findByText('Oak Chair')
+
+    await user.click(screen.getByRole('button', { name: /^single zip/i }))
+
+    expect(await screen.findByText('Lone Lamp')).toBeInTheDocument()
+    expect(screen.queryByText('Oak Chair')).not.toBeInTheDocument()
+    expect(pricingApi.listPricingModels).toHaveBeenCalledWith(expect.objectContaining({ kind: 'single_zip' }))
+    expect(screen.getByRole('button', { name: /^single zip/i })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shows only "Base price = Hours x a box" for a single zip, with no percents', async () => {
+    const user = userEvent.setup()
+    useSingleZipModels()
+    renderPage()
+    await screen.findByText('Oak Chair')
+
+    await user.click(screen.getByRole('button', { name: /^single zip/i }))
+    await screen.findByText('Lone Lamp')
+
+    expect(screen.getByRole('heading', { name: 'Model Pricing' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Rate per hour (USD)')).toBeInTheDocument()
+    expect(screen.getByText('Base price = Hours ×')).toBeInTheDocument()
+    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only', 'Whole File']) {
+      expect(screen.queryByLabelText(`${label} percent`)).not.toBeInTheDocument()
+    }
+  })
+
+  it('sends only the multiplier and the section for a single zip, then shows the new price', async () => {
+    const user = userEvent.setup()
+    const lone = useSingleZipModels()
+    vi.mocked(pricingApi.calculatePricing).mockResolvedValue(calculationOf({
+      rows: [{
+        id: lone.id, name: 'Lone Lamp', sku: 'MDL-20', hours_spent: '5.00', error: '',
+        packages: [{ kind: 'whole', label: 'Whole File', old_price: null, price: '63.00' }],
+      }],
+      summary: { models: 1, priced: 1, errors: 0, currency: 'USD' },
+    }))
+    renderPage()
+    await screen.findByText('Oak Chair')
+    await user.click(screen.getByRole('button', { name: /^single zip/i }))
+    await screen.findByText('Lone Lamp')
+
+    await tick(user, 'Lone Lamp')
+    await user.type(screen.getByLabelText('Rate per hour (USD)'), '12.5')
+    await user.click(screen.getByRole('button', { name: /calculate prices \(1\)/i }))
+
+    await waitFor(() =>
+      expect(pricingApi.calculatePricing).toHaveBeenCalledWith({ product_ids: ['20'], rate: '12.5', kind: 'single_zip' }),
+    )
+    const lamp = (await screen.findByText('Lone Lamp')).closest('tr')!
+    await waitFor(() => expect(lamp).toHaveTextContent('Whole File: Not set → $63.00'))
+  })
+
+  it('needs the multiplier before calculating a single zip', async () => {
+    const user = userEvent.setup()
+    useSingleZipModels()
+    renderPage()
+    await screen.findByText('Oak Chair')
+    await user.click(screen.getByRole('button', { name: /^single zip/i }))
+    await screen.findByText('Lone Lamp')
+
+    await tick(user, 'Lone Lamp')
+    await user.click(screen.getByRole('button', { name: /calculate prices \(1\)/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/number to multiply the hours by/i)
+    expect(pricingApi.calculatePricing).not.toHaveBeenCalled()
   })
 })

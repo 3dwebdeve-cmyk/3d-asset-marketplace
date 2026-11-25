@@ -73,3 +73,5 @@ frontend/viewer-playground.html
 frontend/vite.local.config.ts
 frontend/src/dev/
 frontend/scripts/localModels.ts
+docs/LOCAL_VIEWER_PLAYGROUND.md
+docs/LOCAL_VIEWER_PLAYGROUND_PROMPT.md

@@ -116,7 +116,15 @@ def price_packages(product, price: str, **sale) -> None:
     sync_summary_price(product)
 
 
-def sell_package(product, kind: str = "whole", price=None, **sale):
+# The one package kind tests buy and price. Whole File is never sold on its own (All variations
+# sells it), so no test fixture, cart line or order line may name a kind by hand: use this.
+SOLD_PACKAGE_KIND = "glb_only"
+# The kind of the one zip of a single-zip model, sold as its only package. Only a single-zip
+# model may sell it: use this constant, never a hand-written "whole".
+SINGLE_ZIP_KIND = "whole"
+
+
+def sell_package(product, kind: str = SOLD_PACKAGE_KIND, price=None, **sale):
     """Give ``product`` a priced package of this kind (the product's own price and sale by
     default), as a model is sold after the Pricing page. Returns the package row."""
     from products.models import ProductFile

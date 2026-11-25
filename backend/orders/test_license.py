@@ -57,7 +57,7 @@ class LicenseCertificateTests(APITestCase):
                 user_id=self.buyer.pk,
                 items=(
                     OrderItemCreateData(
-                        product_type="product", product_id=self.product.pk, package_kind="whole", quantity=1
+                        product_type="product", product_id=self.product.pk, package_kind="glb_only", quantity=1
                     ),
                 ),
                 currency="USD",
@@ -116,7 +116,7 @@ class LicenseCertificateTests(APITestCase):
         response = self.client.get(verify_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "active")
-        self.assertEqual(response.data["product_title"], "Oak Chair - Whole File")
+        self.assertEqual(response.data["product_title"], "Oak Chair - GLB Only")
         body = str(response.data)
         self.assertNotIn("licensee@example.com", body)
         self.assertNotIn("Licensee", body)

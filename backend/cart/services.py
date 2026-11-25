@@ -3,6 +3,9 @@ Cart pricing policy (v1):
 - A model is sold per package (docs/PACKAGES_PIPELINE.md): each cart line is one package of
   one model, priced by that package's effective price (the running sale price, else the
   price; an ended sale is ignored). Plugins: discount_price if set else price.
+- All variations (BUNDLE_KIND) is one line for every package the buyer does not own yet, at
+  BUNDLE_DISCOUNT_PERCENT off, priced by products.packages.bundle_quote. It replaces the
+  model's single-package lines in the cart, and a single package replaces it.
 - Prices are NOT snapshotted in the cart; checkout snapshots purchase_price
   on OrderItem via OrderService.create() / OrderService.create_from_cart().
 - Unavailable catalog lines remain in the cart but are excluded from subtotal.
@@ -21,7 +24,16 @@ from django.utils import timezone
 from cart.models import Cart, CartItem
 from plugins.models import Plugin
 from products.models import Product, ProductFile
-from products.packages import PACKAGE_KINDS, PACKAGE_LABELS, PACKAGE_ORDER, PackageKind, line_title
+from products.packages import (
+    BUNDLE_KIND,
+    LINE_KINDS,
+    PACKAGE_LABELS,
+    SINGLE_KINDS,
+    PackageKind,
+    bundle_quote,
+    is_single_zip,
+    line_title,
+)
 
 User = get_user_model()
 
@@ -81,7 +93,13 @@ class CartService:
     def get_cart_envelope(cls, user: User) -> CartEnvelope:
         cart = cls.get_or_create_cart(user)
         items = list(cart.items.order_by("created_at"))
-        snapshots = cls.build_catalog_snapshots(items)
+        from orders.entitlements import owned_package_kinds
+
+        owned = owned_package_kinds(
+            user,
+            {item.product_id for item in items if item.product_type == CartItem.ProductType.PRODUCT},
+        )
+        snapshots = cls.build_catalog_snapshots(items, owned=owned)
         totals = cls._compute_totals(items, snapshots)
         return CartEnvelope(
             cart=cart,
@@ -112,8 +130,15 @@ class CartService:
                 f"Quantity must be between 1 and {CartItem.MAX_QUANTITY}.",
                 field="quantity",
             )
+        if package_kind == BUNDLE_KIND and quantity != 1:
+            raise CartError("All variations is bought once: its quantity is 1.", field="quantity")
 
-        _, currency = cls._validate_catalog_item(normalized_type, product_id, package_kind)
+        owned = (
+            cls.owned_kinds(user, product_id)
+            if normalized_type == CartItem.ProductType.PRODUCT
+            else frozenset()
+        )
+        _, currency = cls._validate_catalog_item(normalized_type, product_id, package_kind, owned=owned)
         from orders.entitlements import owned_line_keys
 
         # Digital items are bought once; the download stays available.
@@ -124,6 +149,7 @@ class CartService:
             )
         cart = cls.lock_cart(user)
         cls._ensure_currency_consistency(cart, currency)
+        cls._replace_overlapping_lines(cart, normalized_type, product_id, package_kind)
 
         item, created = CartItem.objects.get_or_create(
             cart=cart,
@@ -132,6 +158,9 @@ class CartService:
             package_kind=package_kind,
             defaults={"quantity": quantity},
         )
+        if not created and package_kind == BUNDLE_KIND:
+            # All variations is bought once: adding it again changes nothing.
+            return item, False
         if not created:
             new_quantity = item.quantity + quantity
             if new_quantity > CartItem.MAX_QUANTITY:
@@ -162,7 +191,14 @@ class CartService:
         except CartItem.DoesNotExist as exc:
             raise CartError("Cart item not found.") from exc
 
-        cls._validate_catalog_item(item.product_type, item.product_id, item.package_kind)
+        if item.package_kind == BUNDLE_KIND and quantity != 1:
+            raise CartError("All variations is bought once: its quantity is 1.", field="quantity")
+        owned = (
+            cls.owned_kinds(user, item.product_id)
+            if item.product_type == CartItem.ProductType.PRODUCT
+            else frozenset()
+        )
+        cls._validate_catalog_item(item.product_type, item.product_id, item.package_kind, owned=owned)
 
         item.quantity = quantity
         item.save(update_fields=["quantity", "updated_at"])
@@ -205,6 +241,26 @@ class CartService:
         rows.delete()
 
     @classmethod
+    def owned_kinds(cls, user: User, product_id: UUID) -> frozenset[str]:
+        from orders.entitlements import owned_package_kinds
+
+        return owned_package_kinds(user, [product_id]).get(product_id, frozenset())
+
+    @classmethod
+    def _replace_overlapping_lines(
+        cls, cart: Cart, product_type: str, product_id: UUID, package_kind: str
+    ) -> None:
+        """All variations and a single package of one model are never in the cart together:
+        the buyer's latest pick wins."""
+        if product_type != CartItem.ProductType.PRODUCT:
+            return
+        same_model = cart.items.filter(product_type=product_type, product_id=product_id)
+        if package_kind == BUNDLE_KIND:
+            same_model.filter(package_kind__in=SINGLE_KINDS).delete()
+        elif package_kind in SINGLE_KINDS:
+            same_model.filter(package_kind=BUNDLE_KIND).delete()
+
+    @classmethod
     def _ensure_currency_consistency(cls, cart: Cart, currency: str) -> None:
         items = list(cart.items.all())
         if not items:
@@ -236,6 +292,7 @@ class CartService:
         product_type: str,
         product_id: UUID,
         package_kind: str,
+        owned: frozenset[str] = frozenset(),
     ) -> tuple[Decimal, str]:
         if product_type == CartItem.ProductType.PRODUCT:
             try:
@@ -252,8 +309,21 @@ class CartService:
                     "This model is free. Use Download on its page; it needs no checkout.",
                     field="product_id",
                 )
-            if package_kind not in PACKAGE_KINDS:
+            if package_kind not in LINE_KINDS:
                 raise CartError("Choose a package of this model.", field="package_kind")
+            if package_kind == BUNDLE_KIND:
+                quote = bundle_quote(product.files.all(), owned, now=timezone.now())
+                if not quote.eligible:
+                    raise CartError(
+                        f"All variations is not available for this model: {quote.reason}",
+                        field="package_kind",
+                    )
+                return quote.price, product.currency
+            if package_kind == PackageKind.WHOLE and not is_single_zip(product.files.all()):
+                raise CartError(
+                    "This model is sold by its variations: choose a variation, or All variations.",
+                    field="package_kind",
+                )
             package = ProductFile.objects.filter(
                 product=product, is_preview=False, package_kind=package_kind
             ).first()
@@ -296,8 +366,12 @@ class CartService:
     def build_catalog_snapshots(
         cls,
         items: Iterable[CartItem],
+        owned: dict[UUID, frozenset[str]] | None = None,
     ) -> dict[LineKey, dict[str, Any] | None]:
+        """The price and availability of every line. ``owned`` says which packages the buyer
+        already owns of each model; it prices All variations for that buyer."""
         items = list(items)
+        owned = owned or {}
         product_ids = [
             item.product_id
             for item in items
@@ -324,6 +398,11 @@ class CartService:
                 product = products.get(item.product_id)
                 if item.product_type != CartItem.ProductType.PRODUCT or product is None:
                     continue
+                if item.package_kind == BUNDLE_KIND:
+                    snapshots[line_key(item)] = cls._bundle_snapshot(
+                        product, owned.get(product.id, frozenset()), now=now
+                    )
+                    continue
                 package = next(
                     (
                         row
@@ -335,7 +414,6 @@ class CartService:
                 snapshots[line_key(item)] = (
                     cls._product_snapshot(product, package, now=now) if package else None
                 )
-            cls._add_whole_file_hints(items, snapshots)
 
         if plugin_ids:
             plugins = Plugin.objects.select_related("category").filter(pk__in=plugin_ids)
@@ -347,24 +425,32 @@ class CartService:
         return snapshots
 
     @classmethod
-    def _add_whole_file_hints(
-        cls, items: list[CartItem], snapshots: dict[LineKey, dict[str, Any] | None]
-    ) -> None:
-        """Whole File holds every package: say so on its line when the cart also has other
-        packages of the same model, so the buyer does not pay twice by mistake."""
-        kinds_by_product: dict[UUID, set[str]] = {}
-        for item in items:
-            if item.product_type == CartItem.ProductType.PRODUCT:
-                kinds_by_product.setdefault(item.product_id, set()).add(item.package_kind)
-        for product_id, kinds in kinds_by_product.items():
-            others = [kind for kind in PACKAGE_ORDER if kind in kinds and kind != PackageKind.WHOLE]
-            snapshot = snapshots.get((CartItem.ProductType.PRODUCT, product_id, PackageKind.WHOLE))
-            if snapshot and others:
-                labels = ", ".join(PACKAGE_LABELS[kind] for kind in others)
-                snapshot["bundle_hint"] = (
-                    f"Whole File already contains {labels}. Remove "
-                    f"{'it' if len(others) == 1 else 'them'} unless you want separate downloads."
-                )
+    def _bundle_snapshot(cls, product: Product, owned: frozenset[str], *, now) -> dict[str, Any]:
+        """The All variations line: the packages the buyer does not own, at the bundle price."""
+        quote = bundle_quote(product.files.all(), owned, now=now)
+        return {
+            "name": product.name,
+            "title": line_title(product.name, BUNDLE_KIND),
+            "package_kind": BUNDLE_KIND,
+            "package_label": PACKAGE_LABELS[BUNDLE_KIND],
+            "slug": product.slug,
+            "thumbnail": product.thumbnail,
+            "price": f"{quote.subtotal:.2f}",
+            "discount_price": f"{quote.price:.2f}",
+            "effective_price": f"{quote.price:.2f}",
+            "currency": product.currency,
+            "category": {
+                "id": str(product.category_id),
+                "name": product.category.name,
+                "slug": product.category.slug,
+            },
+            "is_available": (
+                product.status == Product.Status.PUBLISHED
+                and product.category.is_active
+                and not product.is_free
+                and quote.eligible
+            ),
+        }
 
     @classmethod
     def _product_snapshot(cls, product: Product, package: ProductFile, *, now=None) -> dict[str, Any]:
@@ -376,7 +462,6 @@ class CartService:
             "title": line_title(product.name, package.package_kind),
             "package_kind": package.package_kind,
             "package_label": PACKAGE_LABELS[package.package_kind],
-            "bundle_hint": "",
             "slug": product.slug,
             "thumbnail": product.thumbnail,
             "price": f"{package.price:.2f}" if package.price is not None else None,
@@ -396,6 +481,8 @@ class CartService:
                 and product.category.is_active
                 and not product.is_free
                 and package.price is not None
+                # Whole File is sold on its own only by a single-zip model.
+                and (package.package_kind != PackageKind.WHOLE or is_single_zip(product.files.all()))
             ),
         }
 
@@ -407,7 +494,6 @@ class CartService:
             "title": plugin.name,
             "package_kind": "",
             "package_label": "",
-            "bundle_hint": "",
             "slug": plugin.slug,
             "thumbnail": plugin.thumbnail,
             "price": f"{plugin.price:.2f}",

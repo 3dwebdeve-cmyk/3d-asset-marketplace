@@ -147,7 +147,7 @@ class FreeAndPaidApprovalTests(APITestCase):
         self._authenticate_as_customer()
         response = self.client.post(
             reverse("cart:cart-detail"),
-            {"product_type": "product", "product_id": str(product.pk), "package_kind": "whole"},
+            {"product_type": "product", "product_id": str(product.pk), "package_kind": "glb_only"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

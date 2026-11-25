@@ -126,26 +126,26 @@ class Command(BaseCommand):
                 },
             )
             folder = "free-models" if scenario.free else "models"
-            key = f"{folder}/{scenario.sku}/{scenario.sku}_whole.zip"
+            key = f"{folder}/{scenario.sku}/{scenario.sku}_glb_only.zip"
             data = _package_bytes(scenario.sku)
             storage = storages["public" if scenario.free else "private"]
             if storage.exists(key):
                 storage.delete(key)
             storage.save(key, ContentFile(data))
             ProductFile.objects.filter(product=product).exclude(storage_path=key).delete()
-            # The model's one package, Whole File, carries the price (the product's price
+            # The model's one package, GLB Only, carries the price (the product's price
             # fields are its summary). A paid model at 0 has no price yet.
             price = Decimal(scenario.price)
             ProductFile.objects.update_or_create(
                 product=product,
                 storage_path=key,
                 defaults={
-                    "file_name": f"{scenario.sku}_whole.zip",
+                    "file_name": f"{scenario.sku}_glb_only.zip",
                     "file_format": "zip",
                     "file_size": len(data),
                     "version": "1.0",
                     "is_preview": False,
-                    "package_kind": PackageKind.WHOLE,
+                    "package_kind": PackageKind.GLB_ONLY,
                     "price": price if price > 0 or scenario.free else None,
                     "discount_price": Decimal(scenario.sale) if scenario.sale else None,
                     "discount_ends_at": sale_ends_at,

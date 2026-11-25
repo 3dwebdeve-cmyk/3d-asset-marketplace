@@ -8,11 +8,11 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from products.models import Product
+from products.packages import is_single_zip
 from products.pricing import (
     MAX_MODELS_PER_ACTION,
     PricingInput,
     package_summaries,
-    summaries_bundle_warning,
 )
 
 _MONEY = {"max_digits": 10, "decimal_places": 2}
@@ -26,7 +26,8 @@ class PricingRowSerializer(serializers.ModelSerializer):
     buyer_pays = serializers.SerializerMethodField()
     # Every package with its price and sale (a package with no price is not sold yet).
     packages = serializers.SerializerMethodField()
-    bundle_warning = serializers.SerializerMethodField()
+    # Its only zip is the Whole File zip: it is priced in the Single zip section.
+    single_zip = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -48,7 +49,7 @@ class PricingRowSerializer(serializers.ModelSerializer):
             "discount_active",
             "buyer_pays",
             "packages",
-            "bundle_warning",
+            "single_zip",
             "import_batch_id",
             "created_at",
         )
@@ -74,8 +75,8 @@ class PricingRowSerializer(serializers.ModelSerializer):
     def get_packages(self, obj: Product) -> list[dict]:
         return self._packages(obj)
 
-    def get_bundle_warning(self, obj: Product) -> str:
-        return summaries_bundle_warning(self._packages(obj))
+    def get_single_zip(self, obj: Product) -> bool:
+        return is_single_zip(obj.files.all())
 
 
 class PricingListQuerySerializer(serializers.Serializer):
@@ -85,6 +86,8 @@ class PricingListQuerySerializer(serializers.Serializer):
     search = serializers.CharField(required=False, allow_blank=True, max_length=100)
     import_batch_id = serializers.CharField(required=False, allow_blank=True, max_length=64)
     ordering = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    # The section: models with variations, or single-zip models (Whole File is their only zip).
+    kind = serializers.ChoiceField(choices=("variations", "single_zip"), required=False)
 
 
 class PricingCalculateSerializer(serializers.Serializer):
@@ -98,13 +101,16 @@ class PricingCalculateSerializer(serializers.Serializer):
         child=serializers.UUIDField(), allow_empty=False, max_length=MAX_MODELS_PER_ACTION
     )
     rate = serializers.DecimalField(min_value=Decimal("0.01"), **_MONEY)
+    # The percent of every variation; none for the Single zip section.
     percents = serializers.DictField(
-        child=serializers.DecimalField(max_digits=6, decimal_places=2, min_value=Decimal("0.01"))
+        child=serializers.DecimalField(max_digits=6, decimal_places=2, min_value=Decimal("0.01")),
+        required=False,
     )
+    kind = serializers.ChoiceField(choices=("variations", "single_zip"), default="variations")
 
     def pricing_input(self) -> PricingInput:
         data = self.validated_data
-        return PricingInput.clean(data["rate"], dict(data["percents"]))
+        return PricingInput.clean(data["rate"], dict(data.get("percents") or {}), data["kind"])
 
 
 class PricingPublishSerializer(PricingCalculateSerializer):

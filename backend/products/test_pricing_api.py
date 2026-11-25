@@ -12,7 +12,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -20,8 +20,11 @@ from rest_framework.test import APITestCase
 
 from accounts.models import ActivityLog, Role, User
 from categories.models import Category
+from products.errors import ProductError
 from products.models import Product, ProductFile, ProductPriceChange
-from products.packages import PACKAGE_ORDER
+from products.packages import PACKAGE_ORDER, SINGLE_KINDS
+from products.pricing import PricingInput
+from products.testing import SINGLE_ZIP_KIND
 
 PASSWORD = "Pricing-Strong-Pass-2026!"
 
@@ -32,7 +35,6 @@ PERCENTS = {
     "without_light_rig": "50",
     "glb_only": "25",
     "environment": "30",
-    "whole": "100",
 }
 
 
@@ -74,7 +76,7 @@ class PricingApiTests(APITestCase):
         *,
         status_value: str = Product.Status.AWAITING_PRICE,
         hours: str | None = "10",
-        kinds: tuple[str, ...] = ("whole",),
+        kinds: tuple[str, ...] = ("glb_only",),
         polygons: int | None = 50_000,
         category: Category | None = None,
         free: bool = False,
@@ -213,12 +215,12 @@ class PricingApiTests(APITestCase):
         self.assertEqual(ids(import_batch_id="batch-1"), {str(stool.pk), str(lamp.pk)})
 
     def test_the_list_shows_hours_polygons_and_each_package(self, _exists) -> None:
-        self._model("Oak Chair", hours="12.5", kinds=("glb_only", "whole"), polygons=12_480)
+        self._model("Oak Chair", hours="12.5", kinds=("glb_only", "with_light_rig"), polygons=12_480)
 
         row = self._list(tab="waiting").data["results"][0]
 
         self.assertEqual((row["hours_spent"], row["polygon_count"]), ("12.50", 12_480))
-        self.assertEqual([item["kind"] for item in row["packages"]], ["glb_only", "whole"])
+        self.assertEqual([item["kind"] for item in row["packages"]], ["with_light_rig", "glb_only"])
         self.assertEqual({item["price"] for item in row["packages"]}, {None})
 
     def test_batches_lists_the_tab_upload_batches(self, _exists) -> None:
@@ -233,7 +235,8 @@ class PricingApiTests(APITestCase):
 
     # -- calculate ---------------------------------------------------------------------------
 
-    def test_a_model_with_all_five_packages_gets_five_prices(self, _exists) -> None:
+    def test_a_model_with_every_package_gets_four_prices_and_whole_file_none(self, _exists) -> None:
+        # Whole File is the zip All variations delivers: nobody prices it.
         model = self._model("Chair", hours="10", kinds=PACKAGE_ORDER)  # base 10 x 20 = 200
 
         response = self._calculate([model])
@@ -247,22 +250,22 @@ class PricingApiTests(APITestCase):
                 "without_light_rig": "100.00",
                 "glb_only": "50.00",
                 "environment": "60.00",
-                "whole": "200.00",
             },
         )
-        self.assertEqual([item["kind"] for item in row["packages"]], list(PACKAGE_ORDER))
+        self.assertEqual([item["kind"] for item in row["packages"]], list(SINGLE_KINDS))
+        self.assertIsNone(ProductFile.objects.get(product=model, package_kind="whole").price)
         self.assertEqual(response.data["summary"], {"models": 1, "priced": 1, "errors": 0, "currency": "USD"})
 
     def test_a_model_is_priced_only_for_the_packages_it_has(self, _exists) -> None:
         full = self._model("Full", hours="10", kinds=PACKAGE_ORDER)
-        partial = self._model("Partial", hours="5", kinds=("glb_only", "whole"))
+        partial = self._model("Partial", hours="5", kinds=("glb_only", "with_light_rig"))
 
         rows = {row["id"]: row for row in self._calculate([full, partial]).data["rows"]}
 
-        self.assertEqual(len(rows[str(full.pk)]["packages"]), 5)
+        self.assertEqual(len(rows[str(full.pk)]["packages"]), 4)
         self.assertEqual(
             {item["kind"]: item["price"] for item in rows[str(partial.pk)]["packages"]},
-            {"glb_only": "25.00", "whole": "100.00"},  # base 5 x 20 = 100
+            {"glb_only": "25.00", "with_light_rig": "60.00"},  # base 5 x 20 = 100
         )
 
     def test_calculating_changes_nothing(self, _exists) -> None:
@@ -270,17 +273,17 @@ class PricingApiTests(APITestCase):
 
         self._calculate([model])
 
-        self.assertEqual(self._prices(model), {"whole": None})
+        self.assertEqual(self._prices(model), {"glb_only": None})
         self.assertFalse(ProductPriceChange.objects.exists())
 
     def test_prices_round_to_whole_dollars(self, _exists) -> None:
-        model = self._model("Chair", hours="1.5", kinds=("glb_only", "whole"))
-        body = self._body([model], rate="7")  # base 10.5; GLB 25% = 2.625
+        model = self._model("Chair", hours="1.5", kinds=("glb_only", "with_light_rig"))
+        body = self._body([model], rate="7")  # base 10.5; GLB 25% = 2.625; rig 60% = 6.3
 
         response = self.client.post(reverse("products_admin:admin-pricing-calculate"), body, format="json")
 
         prices = {item["kind"]: item["price"] for item in response.data["rows"][0]["packages"]}
-        self.assertEqual(prices, {"glb_only": "3.00", "whole": "11.00"})
+        self.assertEqual(prices, {"glb_only": "3.00", "with_light_rig": "6.00"})
 
     def test_a_model_without_hours_has_an_error_and_the_others_are_priced(self, _exists) -> None:
         ready = self._model("Ready")
@@ -295,7 +298,7 @@ class PricingApiTests(APITestCase):
         self.assertEqual(response.data["summary"]["errors"], 1)
 
     def test_a_package_that_rounds_below_the_minimum_is_an_error(self, _exists) -> None:
-        model = self._model("Cheap", hours="1", kinds=("glb_only", "whole"))
+        model = self._model("Cheap", hours="1", kinds=("glb_only", "with_light_rig"))
 
         response = self.client.post(
             reverse("products_admin:admin-pricing-calculate"),
@@ -322,9 +325,11 @@ class PricingApiTests(APITestCase):
         bad_bodies = [
             self._body([model], rate="0"),
             self._body([model], rate="100001"),
-            self._body([model], percents={**PERCENTS, "whole": "0"}),
-            self._body([model], percents={**PERCENTS, "whole": "201"}),
-            self._body([model], percents={key: value for key, value in PERCENTS.items() if key != "whole"}),
+            self._body([model], percents={**PERCENTS, "environment": "0"}),
+            self._body([model], percents={**PERCENTS, "environment": "201"}),
+            self._body([model], percents={key: value for key, value in PERCENTS.items() if key != "environment"}),
+            # Whole File has no percent: All variations sells it.
+            self._body([model], percents={**PERCENTS, "whole": "100"}),
             self._body([model], percents={**PERCENTS, "bogus": "10"}),
             {**self._body([model]), "product_ids": []},
             {**self._body([model]), "product_ids": ["not-an-id"]},
@@ -382,7 +387,7 @@ class PricingApiTests(APITestCase):
 
     def test_publish_saves_the_prices_with_history_and_puts_the_model_on_the_store(self, _exists) -> None:
         full = self._model("Full", hours="10", kinds=PACKAGE_ORDER)
-        partial = self._model("Partial", hours="5", kinds=("glb_only", "whole"))
+        partial = self._model("Partial", hours="5", kinds=("glb_only", "with_light_rig"))
 
         response = self._publish([full, partial])
 
@@ -392,11 +397,12 @@ class PricingApiTests(APITestCase):
         partial.refresh_from_db()
         self.assertEqual(full.status, Product.Status.PUBLISHED)
         self.assertEqual(self._prices(full)["with_light_rig"], Decimal("120.00"))
-        self.assertEqual(self._prices(partial), {"glb_only": Decimal("25.00"), "whole": Decimal("100.00")})
+        self.assertEqual(self._prices(partial), {"glb_only": Decimal("25.00"), "with_light_rig": Decimal("60.00")})
+        self.assertIsNone(self._prices(full)["whole"])
         # The model's own price is its cheapest package.
         self.assertEqual((full.price, partial.price), (Decimal("50.00"), Decimal("25.00")))
         changes = ProductPriceChange.objects.filter(batch_id=response.data["batch_id"])
-        self.assertEqual(changes.count(), 7)
+        self.assertEqual(changes.count(), 6)
         self.assertTrue(all(c.source == "pricing_page" and c.changed_by == self.admin for c in changes))
         self.assertTrue(
             ActivityLog.objects.filter(
@@ -416,7 +422,7 @@ class PricingApiTests(APITestCase):
         self.assertIn("hours", results[str(no_hours.pk)]["reason"])
         no_hours.refresh_from_db()
         self.assertEqual(no_hours.status, Product.Status.AWAITING_PRICE)
-        self.assertEqual(self._prices(no_hours), {"whole": None})
+        self.assertEqual(self._prices(no_hours), {"glb_only": None})
 
     def test_publish_is_refused_when_the_calculation_is_stale(self, _exists) -> None:
         model = self._model("Chair", hours="10")
@@ -428,14 +434,14 @@ class PricingApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         model.refresh_from_db()
         self.assertEqual(model.status, Product.Status.AWAITING_PRICE)
-        self.assertEqual(self._prices(model), {"whole": None})
+        self.assertEqual(self._prices(model), {"glb_only": None})
 
     def test_a_token_for_other_percents_is_refused(self, _exists) -> None:
         model = self._model("Chair")
         token = self._calculate([model]).data["preview_token"]
 
         response = self._publish(
-            [model], token=token, percents={**PERCENTS, "whole": "90"}
+            [model], token=token, percents={**PERCENTS, "environment": "90"}
         )
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -462,7 +468,7 @@ class PricingApiTests(APITestCase):
         package = model.files.get(is_preview=False)
         self.assertEqual(
             (package.price, package.discount_price, package.discount_ends_at),
-            (Decimal("200.00"), None, None),
+            (Decimal("50.00"), None, None),  # 10 hours x 20 = 200; GLB Only 25%
         )
 
     def test_a_publish_check_that_fails_undoes_the_prices(self, _exists) -> None:
@@ -476,7 +482,7 @@ class PricingApiTests(APITestCase):
         self.assertIn("Package file missing", row["reason"])
         model.refresh_from_db()
         self.assertEqual(model.status, Product.Status.AWAITING_PRICE)
-        self.assertEqual(self._prices(model), {"whole": None})
+        self.assertEqual(self._prices(model), {"glb_only": None})
         self.assertFalse(ProductPriceChange.objects.exists())
 
     def test_a_model_with_no_preview_and_no_360_can_be_published(self, _exists) -> None:
@@ -488,11 +494,129 @@ class PricingApiTests(APITestCase):
         self.assertTrue(row["published"], row)
 
     def test_a_published_model_appears_in_the_shop_at_its_price(self, _exists) -> None:
-        model = self._model("Shop Chair", hours="1")  # base 20; whole 100% = 20
+        model = self._model("Shop Chair", hours="1")  # base 20; GLB 25% = 5
         self._publish([model])
         self.client.credentials()
 
         response = self.client.get(reverse("products:product-detail", kwargs={"slug": model.slug}))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["price"], "20.00")
+        self.assertEqual(response.data["price"], "5.00")
+
+    # -- the Single zip section ---------------------------------------------------------------
+    # A model whose only zip is the Whole File zip is priced on its own: base price = hours x a
+    # multiplier the admin types, with no percents. Models with variations keep the percents.
+
+    def _single_body(self, products, rate: str = "12.5", **extra) -> dict:
+        return {
+            "product_ids": [str(p.pk) for p in products],
+            "rate": rate,
+            "kind": "single_zip",
+            **extra,
+        }
+
+    def _calculate_single(self, products, **kwargs):
+        return self.client.post(
+            reverse("products_admin:admin-pricing-calculate"), self._single_body(products, **kwargs), format="json"
+        )
+
+    def test_the_list_splits_single_zip_models_from_models_with_variations(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        full = self._model("Full Chair", kinds=("with_light_rig", "glb_only", SINGLE_ZIP_KIND))
+        variation = self._model("Rig Chair", kinds=("with_light_rig",))
+
+        def ids(**params):
+            return {row["id"] for row in self._list(tab="waiting", **params).data["results"]}
+
+        self.assertEqual(ids(kind="single_zip"), {str(lone.pk)})
+        self.assertEqual(ids(kind="variations"), {str(full.pk), str(variation.pk)})
+        self.assertEqual(ids(), {str(lone.pk), str(full.pk), str(variation.pk)})
+        flags = {row["id"]: row["single_zip"] for row in self._list(tab="waiting").data["results"]}
+        self.assertEqual(flags, {str(lone.pk): True, str(full.pk): False, str(variation.pk): False})
+
+    def test_an_unknown_kind_is_refused(self, _exists) -> None:
+        self.assertEqual(self._list(tab="waiting", kind="bogus").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_single_zip_is_priced_by_hours_times_the_multiplier(self, _exists) -> None:
+        lone = self._model("Lone Lamp", hours="5", kinds=(SINGLE_ZIP_KIND,))  # 5 x 12.5 = 62.5
+
+        response = self._calculate_single([lone])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        row = response.data["rows"][0]
+        self.assertEqual(row["error"], "")
+        # Whole dollars, half up: 62.50 -> 63. No percent is involved.
+        self.assertEqual([(item["kind"], item["price"]) for item in row["packages"]], [("whole", "63.00")])
+        self.assertEqual(self._prices(lone), {"whole": None})  # calculating saves nothing
+
+    def test_a_single_zip_takes_no_percents(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        body = self._single_body([lone], percents=PERCENTS)
+        response = self.client.post(reverse("products_admin:admin-pricing-calculate"), body, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_each_section_refuses_the_other_kind_of_model(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        full = self._model("Full Chair", kinds=("with_light_rig", SINGLE_ZIP_KIND))
+
+        single_rows = {r["id"]: r for r in self._calculate_single([lone, full]).data["rows"]}
+        self.assertEqual(single_rows[str(lone.pk)]["error"], "")
+        self.assertIn("variations", single_rows[str(full.pk)]["error"])
+
+        variation_rows = {r["id"]: r for r in self._calculate([lone, full]).data["rows"]}
+        self.assertEqual(variation_rows[str(full.pk)]["error"], "")
+        self.assertIn("single zip", variation_rows[str(lone.pk)]["error"])
+
+    def test_publishing_a_single_zip_prices_its_zip_and_the_model_goes_live(self, _exists) -> None:
+        lone = self._model("Lone Lamp", hours="4", kinds=(SINGLE_ZIP_KIND,))  # 4 x 20 = 80
+        body = self._single_body([lone], rate="20")
+        token = self.client.post(reverse("products_admin:admin-pricing-calculate"), body, format="json").data["preview_token"]
+
+        response = self.client.post(
+            reverse("products_admin:admin-pricing-publish"),
+            {**body, "preview_token": token, "confirm_count": 1},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data["results"][0]["published"], response.data)
+        lone.refresh_from_db()
+        self.assertEqual(self._prices(lone), {"whole": Decimal("80.00")})
+        self.assertEqual((lone.status, lone.price), (Product.Status.PUBLISHED, Decimal("80.00")))
+        change = ProductPriceChange.objects.get(product=lone)
+        self.assertEqual((change.package_kind, change.new_price), ("whole", Decimal("80.00")))
+
+    def test_a_calculation_for_one_section_cannot_publish_the_other(self, _exists) -> None:
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        token = self._calculate_single([lone]).data["preview_token"]
+        body = {**self._body([lone]), "preview_token": token, "confirm_count": 1}  # the Variations section
+        response = self.client.post(reverse("products_admin:admin-pricing-publish"), body, format="json")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_a_single_zip_with_no_price_cannot_be_published_without_one(self, _exists) -> None:
+        """A single-zip model's zip is its package: unlike Whole File with variations, it needs
+        a price to go live."""
+        from products.services import ProductService
+
+        lone = self._model("Lone Lamp", kinds=(SINGLE_ZIP_KIND,))
+        with self.assertRaises(ProductError) as raised:
+            ProductService._validate_publish_ready(lone, require_sku=True)
+        self.assertIn("price", raised.exception.errors)
+
+
+class PricingInputKindTests(SimpleTestCase):
+    """The section a calculation belongs to is part of its input and of its token."""
+
+    def test_the_input_keeps_the_section_it_was_asked_for(self) -> None:
+        variations = PricingInput.clean("20", PERCENTS)
+        self.assertEqual((variations.kind, set(variations.percents)), ("variations", set(SINGLE_KINDS)))
+        single = PricingInput.clean("20", {}, "single_zip")
+        self.assertEqual((single.kind, single.percents), ("single_zip", {}))
+        self.assertEqual(variations.canonical()["kind"], "variations")
+        self.assertNotEqual(variations.canonical(), single.canonical())
+
+    def test_a_single_zip_takes_no_percents_and_an_unknown_kind_is_refused(self) -> None:
+        with self.assertRaises(ProductError):
+            PricingInput.clean("20", PERCENTS, "single_zip")
+        with self.assertRaises(ProductError):
+            PricingInput.clean("20", PERCENTS, "bogus")

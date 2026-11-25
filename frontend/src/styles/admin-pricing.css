@@ -88,11 +88,12 @@
   margin-top: 0.15rem;
 }
 
-/* The bundle check: a warning only, the save is never blocked. */
-.admin-layout .admin-pricing__bundle-warning {
-  margin: 0.35rem 0 0;
-  color: #fcd34d;
-  font-size: 0.8rem;
+/* The Variations / Single zip switch: the same buttons as the tabs, one row below them. */
+.admin-layout .admin-pricing__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
 }
 
 .admin-layout .admin-pricing__panel {

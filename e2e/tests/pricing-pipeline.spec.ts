@@ -71,14 +71,13 @@ function pricingRow(page: Page, sku: string): Locator {
     .filter({ has: page.getByText(sku, { exact: true }) })
 }
 
-/** Type the rate and the five percents into the Model Pricing box: Whole File = hours x 20. */
+/** Type the rate and the four percents into the Model Pricing box: GLB Only = hours x 20. */
 async function fillPricingBox(page: Page) {
   await page.getByLabel('Rate per hour (USD)').fill('20')
   await page.getByLabel('With Light Rig percent').fill('60')
   await page.getByLabel('Without Light Rig percent').fill('50')
   await page.getByLabel('With Environment percent').fill('30')
-  await page.getByLabel('GLB Only percent').fill('25')
-  await page.getByLabel('Whole File percent').fill('100')
+  await page.getByLabel('GLB Only percent').fill('100')
 }
 
 async function openPricing(page: Page, tab: 'waiting' | 'live' = 'waiting') {
@@ -185,7 +184,7 @@ test.describe('admin pricing pipeline', () => {
     await expect(pricingRow(page, FREE_QA.sku)).toHaveCount(0)
     await expect(pricingRow(page, LIVE.sku)).toHaveCount(0)
 
-    // Row details: the hours (typed, empty for the High Poly Sofa), the Whole File variation's
+    // Row details: the hours (typed, empty for the High Poly Sofa), the GLB Only variation's
     // price (or "Not set"), the "From" price.
     const paidRow = pricingRow(page, PAID_QA.sku)
     await expect(paidRow.getByLabel(`Hours for ${PAID_QA.name}`)).toHaveValue('8.00')
@@ -246,19 +245,19 @@ test.describe('admin pricing pipeline', () => {
     await fillPricingBox(page)
     await page.getByRole('button', { name: 'Calculate prices (4)' }).click()
 
-    // The new price shows right beside the model's variation (hours 8 / 4 / 6, rate $20, Whole 100%).
-    await expect(pricingRow(page, PAID_QA.sku)).toContainText('Whole File: $25.00 → $160.00')
-    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('Whole File: Not set → $80.00')
-    await expect(pricingRow(page, WAIT_MID.sku)).toContainText('Whole File: $30.00 → $120.00')
+    // The new price shows right beside the model's variation (hours 8 / 4 / 6, rate $20, GLB Only 100%).
+    await expect(pricingRow(page, PAID_QA.sku)).toContainText('GLB Only: $25.00 → $160.00')
+    await expect(pricingRow(page, WAIT_LOW.sku)).toContainText('GLB Only: Not set → $80.00')
+    await expect(pricingRow(page, WAIT_MID.sku)).toContainText('GLB Only: $30.00 → $120.00')
     // The model without hours says why and gets no price.
     await expect(pricingRow(page, WAIT_HIGH.sku)).toContainText('Enter the hours spent first.')
     await expect(page.locator('.admin-pricing__calc-summary')).toContainText('3 of 4 models priced')
 
     // Changing a box clears the calculation.
-    await page.getByLabel('Whole File percent').fill('90')
+    await page.getByLabel('GLB Only percent').fill('90')
     await expect(pricingRow(page, PAID_QA.sku)).not.toContainText('→')
     await expect(page.getByRole('button', { name: 'Publish selected (4)' })).toBeDisabled()
-    await page.getByLabel('Whole File percent').fill('100')
+    await page.getByLabel('GLB Only percent').fill('100')
     await page.getByRole('button', { name: 'Calculate prices (4)' }).click()
     await expect(pricingRow(page, PAID_QA.sku)).toContainText('→ $160.00')
 

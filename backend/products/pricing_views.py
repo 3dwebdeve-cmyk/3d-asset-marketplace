@@ -64,6 +64,7 @@ class AdminPricingListView(_PricingView):
                 search=data.get("search"),
                 import_batch_id=data.get("import_batch_id"),
                 ordering=data.get("ordering"),
+                kind=data.get("kind"),
             )
         except ProductError as exc:
             return _error(exc)

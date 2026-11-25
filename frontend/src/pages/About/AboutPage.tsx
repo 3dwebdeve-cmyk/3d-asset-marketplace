@@ -6,14 +6,6 @@ import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import '../../styles/about.css'
 import '../../styles/marketing.css'
 
-// Only things the shop really does. Do not put counts here (assets, creators, countries) unless
-// they are real and can be shown.
-const HERO_STATS = [
-  { value: '3D', label: 'Preview in your browser' },
-  { value: '1', label: 'License certificate per order' },
-  { value: 'Instant', label: 'Download once your order is paid' },
-] as const
-
 const WHO_CARDS = [
   {
     title: '3D Assets',
@@ -61,7 +53,7 @@ const OFFER_CARDS = [
   {
     title: 'Custom projects',
     text: 'Share a brief by email, receive a quotation, and collaborate with our studio through delivery.',
-    to: '/contact?enquiryType=Custom%203D%20Modeling',
+    to: '/custom-projects',
     image: '/images/about/offer-custom-projects.webp',
     imagePosition: 'center',
     badge: 'doc' as const,
@@ -203,18 +195,6 @@ export function AboutPage() {
         <div className="about-hero__content">
           <div className="about-hero__copy">
             <h1 id="about-title">3D models, plugins and custom 3D design in one place</h1>
-            <p className="about-hero__lead">
-              We build and curate marketplace-ready 3D models and plugins, and we partner with
-              creators who need bespoke design work — from brief to delivery by email enquiry.
-            </p>
-            <dl className="about-hero__stats">
-              {HERO_STATS.map((stat) => (
-                <div key={stat.label} className="about-hero__stat">
-                  <dt>{stat.value}</dt>
-                  <dd>{stat.label}</dd>
-                </div>
-              ))}
-            </dl>
           </div>
         </div>
       </section>
@@ -380,10 +360,7 @@ export function AboutPage() {
               <Link className="about-cta__btn about-cta__btn--primary" to="/3d-models">
                 Browse Models
               </Link>
-              <Link
-                className="about-cta__btn about-cta__btn--ghost"
-                to="/contact?enquiryType=Custom%203D%20Modeling"
-              >
+              <Link className="about-cta__btn about-cta__btn--ghost" to="/custom-projects">
                 Custom Projects
               </Link>
               <Link className="about-cta__btn about-cta__btn--ghost" to="/contact">

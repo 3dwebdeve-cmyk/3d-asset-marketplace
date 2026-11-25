@@ -582,7 +582,15 @@ export function AdminProductDetailPage() {
                           {sortedPackages(product.files).map((file) => (
                             <tr key={file.id}>
                               <th scope="row">{file.package_label}</th>
-                              <td>{file.price === null ? <em>Not set</em> : `${product.currency} ${file.price}`}</td>
+                              <td>
+                                {file.price !== null ? (
+                                  `${product.currency} ${file.price}`
+                                ) : file.package_kind === 'whole' && product.files.some((other) => other.package_kind !== '' && other.package_kind !== 'whole') ? (
+                                  <em>Sold in All variations</em>
+                                ) : (
+                                  <em>Not set</em>
+                                )}
+                              </td>
                               <td>{file.discount_price ? `${product.currency} ${file.discount_price}` : '—'}</td>
                             </tr>
                           ))}

@@ -5,7 +5,7 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 
-from products.packages import PackageKind
+from products.packages import LINE_KIND_CHOICES
 
 
 class Order(models.Model):
@@ -80,7 +80,7 @@ class OrderItem(models.Model):
     # The package bought. Blank for a plugin or a custom project, and for a product line
     # bought before packages existed: that line entitles the buyer to every package.
     package_kind = models.CharField(
-        max_length=32, choices=PackageKind.choices, blank=True, default=""
+        max_length=32, choices=LINE_KIND_CHOICES, blank=True, default=""
     )
     title = models.CharField(max_length=255, blank=True, null=True)
     slug = models.SlugField(max_length=255, blank=True, null=True)

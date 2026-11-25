@@ -1,9 +1,13 @@
 /** Pricing page API (docs/PRICING_PIPELINE.md; per package: docs/PACKAGES_PIPELINE.md).
  * Money is a string with two decimals. */
 
-import type { PackageKind } from '../lib/packages'
+import type { PackageKind, PricedKind } from '../lib/packages'
 
 export type PricingTab = 'waiting' | 'live'
+
+/** The two sections of the page: models with variations, and single-zip models (Whole File is
+ * their only zip, priced by hours x one multiplier). */
+export type PricingKind = 'variations' | 'single_zip'
 
 export const MAX_MODELS_PER_ACTION = 200
 
@@ -37,8 +41,8 @@ export interface PricingRow {
   /** The cheapest priced package's price: what the store shows as "From". */
   buyer_pays: string
   packages: PricingPackage[]
-  /** Server bundle check: Whole File should be the better deal; '' when fine. Never blocks. */
-  bundle_warning: string
+  /** Its only zip is the Whole File zip: priced in the Single zip section. */
+  single_zip: boolean
   import_batch_id: string
   created_at: string
 }
@@ -57,15 +61,19 @@ export interface PricingListParams {
   search?: string
   import_batch_id?: string
   ordering?: string
+  /** One section: models with variations, or single-zip models. */
+  kind?: PricingKind
   page?: number
   page_size?: number
 }
 
-/** The selection, the rate per hour and the percent of the base price for every package. */
+/** The selection, the rate per hour and the percent of the base price for every variation. A
+ * single zip (kind 'single_zip') sends the rate only: its price is the base price. */
 export interface PricingInputBody {
   product_ids: string[]
   rate: string
-  percents: Record<PackageKind, string>
+  kind?: PricingKind
+  percents?: Record<PricedKind, string>
 }
 
 export interface PricingCalcPackage {
