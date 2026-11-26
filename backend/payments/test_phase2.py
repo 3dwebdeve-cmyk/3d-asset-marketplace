@@ -157,7 +157,8 @@ class CheckoutRecoveryTests(PaymentsTestMixin, APITestCase):
         )
         create.return_value = _fake_session("cs_after_missing_sandbox")
 
-        result = CheckoutService.create_checkout_session(self.user)
+        # The new checkout buys the plugin only (one item per checkout).
+        result = CheckoutService.create_checkout_session(self.user, selected={("plugin", self.plugin.pk, "")})
 
         self.assertEqual(result["checkout_url"], _fake_session("cs_after_missing_sandbox").url)
         old_payment.refresh_from_db()
@@ -191,7 +192,7 @@ class CheckoutRecoveryTests(PaymentsTestMixin, APITestCase):
         )
 
         with self.assertRaisesRegex(CheckoutError, "needs verification"):
-            CheckoutService.create_checkout_session(self.user)
+            CheckoutService.create_checkout_session(self.user, selected={("plugin", self.plugin.pk, "")})
 
         old_payment.refresh_from_db()
         self.assertEqual(old_payment.status, Payment.Status.PENDING)
@@ -219,7 +220,7 @@ class CheckoutRecoveryTests(PaymentsTestMixin, APITestCase):
         }
         create.return_value = _fake_session("cs_after_unpaid_sandbox")
 
-        CheckoutService.create_checkout_session(self.user)
+        CheckoutService.create_checkout_session(self.user, selected={("plugin", self.plugin.pk, "")})
 
         old_payment.refresh_from_db()
         old_attempt.refresh_from_db()

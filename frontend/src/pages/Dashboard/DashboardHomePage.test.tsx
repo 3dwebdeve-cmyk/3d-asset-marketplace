@@ -101,6 +101,7 @@ describe('DashboardHomePage', () => {
         title: 'Model A',
         slug: 'model-a',
         package_kinds: ['whole'],
+        has_downloads_left: true,
         files: [],
       },
     ])

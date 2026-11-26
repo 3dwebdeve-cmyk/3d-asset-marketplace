@@ -136,16 +136,30 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk, quantity=2)
         self._add_to_cart(CartItem.ProductType.PLUGIN, self.plugin.pk, quantity=1)
 
-        response = self.client.post(self.checkout_url)
+        # One model per checkout: buy the model; the plugin waits in the cart.
+        response = self.client.post(
+            self.checkout_url,
+            {
+                "items": [
+                    {
+                        "product_type": "product",
+                        "product_id": str(self.product.pk),
+                        "package_kind": SOLD_PACKAGE_KIND,
+                    }
+                ]
+            },
+            format="json",
+        )
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.data["checkout_url"], _fake_session().url)
 
         order = Order.objects.get(pk=response.data["order_id"])
         self.assertEqual(order.order_status, Order.OrderStatus.PENDING)
         self.assertEqual(order.payment_status, Order.PaymentStatus.PENDING)
-        self.assertEqual(order.total_amount, Decimal("124.48"))
-        self.assertEqual(order.items.count(), 2)
+        self.assertEqual(order.total_amount, Decimal("99.98"))
+        self.assertEqual(order.items.count(), 1)
+        self.assertTrue(CartItem.objects.filter(product_id=self.plugin.pk).exists())
 
         payment = Payment.objects.get(order=order)
         self.assertEqual(payment.stripe_checkout_session_id, "cs_test_123")
@@ -155,9 +169,20 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         mock_session_create.assert_called_once()
         call_kwargs = mock_session_create.call_args.kwargs
         self.assertEqual(call_kwargs["mode"], "payment")
-        self.assertEqual(len(call_kwargs["line_items"]), 2)
+        self.assertEqual(len(call_kwargs["line_items"]), 1)
         self.assertIn(f"/checkout/success?order_id={order.id}", call_kwargs["success_url"])
         self.assertIn(f"/checkout/cancel?order_id={order.id}", call_kwargs["cancel_url"])
+
+    def test_a_checkout_of_two_items_is_refused(self) -> None:
+        self._authenticate()
+        self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
+        self._add_to_cart(CartItem.ProductType.PLUGIN, self.plugin.pk)
+
+        response = self.client.post(self.checkout_url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("one model or plugin at a time", str(response.data))
+        self.assertEqual(Order.objects.count(), 0)
 
     @override_settings(STRIPE_SECRET_KEY="")
     def test_returns_error_when_stripe_not_configured(self) -> None:

@@ -141,10 +141,12 @@ class CartService:
         _, currency = cls._validate_catalog_item(normalized_type, product_id, package_kind, owned=owned)
         from orders.entitlements import owned_line_keys
 
-        # Digital items are bought once; the download stays available.
+        # Owned with downloads left: download it instead. Once they are used up it can be
+        # bought again (orders.entitlements.active_order_lines).
         if owned_line_keys(user, [(normalized_type, product_id, package_kind)]):
             raise CartError(
-                "You already own this. Download it from Dashboard → Downloads.",
+                "You already own this and still have downloads left. "
+                "Download it from Dashboard → Downloads.",
                 field="product_id",
             )
         cart = cls.lock_cart(user)

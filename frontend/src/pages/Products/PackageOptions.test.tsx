@@ -80,7 +80,7 @@ function cart(items: CartItem[] = []): Cart {
 }
 
 function entitlement(kinds: DownloadEntitlement['package_kinds']): DownloadEntitlement {
-  return { product_type: 'product', product_id: PRODUCT_ID, title: 'Oak Chair', slug: 'oak-chair', package_kinds: kinds, files: [] }
+  return { product_type: 'product', product_id: PRODUCT_ID, title: 'Oak Chair', slug: 'oak-chair', package_kinds: kinds, has_downloads_left: kinds.length > 0, files: [] }
 }
 
 function signIn() {

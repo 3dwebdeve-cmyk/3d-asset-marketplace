@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 
 import { downloadCatalogFileByUrl } from '../api/downloadsApi'
@@ -6,23 +7,31 @@ import { getApiErrorMessage } from '../lib/apiError'
 import type { OrderItemDownloadFile } from '../types/download'
 
 export function useOrderDownloads() {
+  const queryClient = useQueryClient()
   const [fileError, setFileError] = useState<string | null>(null)
   const [invoiceError, setInvoiceError] = useState<string | null>(null)
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null)
   const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null)
   const [downloadingLicenseId, setDownloadingLicenseId] = useState<string | null>(null)
 
-  const downloadFile = useCallback(async (file: OrderItemDownloadFile) => {
-    setFileError(null)
-    setDownloadingFileId(file.id)
-    try {
-      await downloadCatalogFileByUrl(file.download_url, file.file_name)
-    } catch (error) {
-      setFileError(getApiErrorMessage(error, 'Could not download the file. Please try again.'))
-    } finally {
-      setDownloadingFileId(null)
-    }
-  }, [])
+  /** `automatic`: the success page starting the download itself, not a click. */
+  const downloadFile = useCallback(
+    async (file: OrderItemDownloadFile, automatic = false) => {
+      setFileError(null)
+      setDownloadingFileId(file.id)
+      try {
+        await downloadCatalogFileByUrl(file.download_url, file.file_name, automatic)
+      } catch (error) {
+        setFileError(getApiErrorMessage(error, 'Could not download the file. Please try again.'))
+      } finally {
+        setDownloadingFileId(null)
+        // Each download uses one of the purchase's downloads: refresh the counts shown.
+        void queryClient.invalidateQueries({ queryKey: ['orders'] })
+        void queryClient.invalidateQueries({ queryKey: ['downloads'] })
+      }
+    },
+    [queryClient],
+  )
 
   const downloadInvoice = useCallback(async (orderId: string, invoiceNumber: string) => {
     setInvoiceError(null)
