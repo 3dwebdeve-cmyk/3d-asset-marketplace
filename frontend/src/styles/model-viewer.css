@@ -62,6 +62,10 @@
   touch-action: none;
 }
 
+.model-viewer__canvas canvas {
+  filter: var(--viewer-tone-filter, brightness(1)) var(--viewer-image-filter, saturate(100%));
+}
+
 .model-viewer__toolbar {
   position: absolute;
   top: 50%;

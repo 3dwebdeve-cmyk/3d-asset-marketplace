@@ -1,5 +1,5 @@
-// Generates public/hdri/custom-hdri.hdr: a light grey-white photo studio with one
-// very large, soft "sun" (a close softbox) above and to the front of the subject.
+// Generates public/hdri/custom-hdri.hdr: a light grey-white photo studio with one very large,
+// soft, round "sun" in front of the subject: a concave dish that curves around it.
 //
 //   node scripts/make_custom_hdri.mjs [output.hdr]
 //
@@ -29,15 +29,17 @@ const STUDIO = {
   floorDown: 0.3, // floor radiance straight down (keeps the plane grounded)
 }
 
+// The "sun" is one huge, soft, round light in front of the model, like a concave dish that curves around
+// it. Seen from the side it spans from high above the model down below its base, centred just above the
+// horizon, with its light pointing in at the model from every height. In an HDRI that is simply a very
+// large disc: the bigger its radius, the more the light wraps around the model. Raising `radiance`
+// lights everything more but brightens white products too, so keep it modest.
 const SUN = {
-  elevation: deg(45), // high enough that the top face is the brightest one
-  coreRadius: deg(30), // flat, full-strength disc
-  edgeRadius: deg(65), // light has faded to nothing by here
-  radiance: 4, // linear radiance of the core
+  elevation: deg(20), // height of the centre of the disc (keep close to keyElevation in hdriEnvironments.ts)
+  coreRadius: deg(34), // flat, full-strength part of the disc
+  edgeRadius: deg(60), // the light has faded to nothing by here (the disc reaches about +80 / -40 degrees)
+  radiance: 3.0, // linear radiance of the disc
 }
-
-// A faint opposite-side bounce so shaded faces keep some shape.
-const BOUNCE = { azimuth: deg(-125), elevation: deg(18), coreRadius: deg(20), edgeRadius: deg(50), radiance: 0 /* TEMP: was 0.35 */ }
 
 function angleBetween(a, b) {
   return Math.acos(Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])))
@@ -49,11 +51,10 @@ function direction(azimuth, elevation) {
 }
 
 const sunDirection = direction(0, SUN.elevation)
-const bounceDirection = direction(BOUNCE.azimuth, BOUNCE.elevation)
 
-function softbox(dir, centre, { coreRadius, edgeRadius, radiance }) {
-  const angle = angleBetween(dir, centre)
-  return radiance * (1 - smoothstep(coreRadius, edgeRadius, angle))
+function sunRadiance(dir) {
+  const angle = angleBetween(dir, sunDirection)
+  return SUN.radiance * (1 - smoothstep(SUN.coreRadius, SUN.edgeRadius, angle))
 }
 
 // Cheap deterministic noise (about +/-0.3%) so smooth gradients do not band in 8-bit RGBE.
@@ -73,7 +74,7 @@ function radianceAt(x, y) {
     ? lerp(STUDIO.horizon, STUDIO.ceiling, up)
     : lerp(STUDIO.horizon, STUDIO.floorDown, -up)
 
-  const value = base + softbox(dir, sunDirection, SUN) + softbox(dir, bounceDirection, BOUNCE)
+  const value = base + sunRadiance(dir)
   return value * (1 + noise(x, y) * 0.006)
 }
 
