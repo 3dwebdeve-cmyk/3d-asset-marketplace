@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useImperativeHandle, type Ref } from 'react'
+import * as THREE from 'three'
 import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -99,6 +100,7 @@ vi.mock('./useViewportVisibility', () => ({
 }))
 
 import { ModelViewer } from './ModelViewer'
+import { HDRI_ENVIRONMENTS } from './hdriEnvironments'
 
 describe('ModelViewer', () => {
   beforeEach(() => {
@@ -290,7 +292,7 @@ describe('ModelViewer', () => {
     expect(canvas.style.backgroundImage).toBe('')
   })
 
-  it('lights the Custom HDRI studio from above and to the left, with a large soft sun', async () => {
+  it('lights the Custom HDRI studio from the viewer side, in front, with a large soft sun', async () => {
     viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
@@ -300,12 +302,138 @@ describe('ModelViewer', () => {
     expect(environment).toHaveAttribute('data-background', 'false')
     expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9 * 2 ** 0.7)
 
+    // Only this preset shows its HDRI as the backdrop, and picking a viewer background colour hides it.
+    await userEvent.click(screen.getByRole('button', { name: 'Change background color' }))
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
+    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
+    expect(screen.getByTestId('viewer-environment')).toHaveAttribute('data-background', 'false')
+    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
+
     const keyLight = container.querySelector('directionallight')
     expect(keyLight).toHaveAttribute('shadow-radius', '6')
     expect(Number(keyLight?.getAttribute('intensity'))).toBeGreaterThan(0)
     const [x, y, z] = String(keyLight?.getAttribute('position')).split(',').map(Number)
-    expect(Math.atan2(x, z)).toBeCloseTo(Math.atan2(-1, 1) - Math.PI / 12)
-    expect(Math.atan2(y, Math.hypot(x, z))).toBeCloseTo(Math.PI / 4)
+    expect(Math.atan2(x, z)).toBeCloseTo(Math.atan2(-1, 1))
+    expect(y).toBeGreaterThan(0)
+    expect(y).toBeLessThan(Math.hypot(x, z))
+  })
+
+  it('keeps the Custom HDRI sun, backdrop and shadow light on the viewer eye line, a little above it', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    Object.defineProperty(container.querySelector('group')!, 'scale', { value: { setScalar: vi.fn() }, configurable: true })
+    // The test DOM has no three.js light object, so give the key light one.
+    const keyLight = container.querySelector('directionallight') as unknown as { position: Vector3; shadow: { needsUpdate: boolean } }
+    keyLight.position = new Vector3()
+    keyLight.shadow = { needsUpdate: false }
+    viewerMocks.controls!.target.set(0, 0, 0)
+    const { keyElevation: painted, keyEyeLift: lift } = (HDRI_ENVIRONMENTS.find((option) => option.id === 'custom-hdri') as unknown as {
+      studio: { keyElevation: number; keyEyeLift: number }
+    }).studio
+    const orbitTo = (x: number, y: number, z: number) => {
+      viewerMocks.camera!.position.set(x, y, z)
+      const frameState = { scene: viewerMocks.renderScene, camera: viewerMocks.camera, controls: viewerMocks.controls }
+      act(() => {
+        for (const [callback] of vi.mocked(useFrame).mock.calls.slice(-2)) callback(frameState as never, 0.016, undefined)
+      })
+    }
+    const environment = () => viewerMocks.renderScene!.environmentRotation
+    const keyLightYaw = () => Math.atan2(keyLight.position.x, keyLight.position.z)
+    const keyLightElevation = () => Math.asin(keyLight.position.y / keyLight.position.length())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
+    orbitTo(2, 1, 2)
+    const eyeElevation = Math.atan2(1, Math.hypot(2, 2))
+    expect(environment().y).toBeCloseTo(Math.PI / 4)
+    expect(environment().order).toBe('YXZ')
+    // The painted sun is raised from its own height to the eye's height plus the lift.
+    expect(environment().x).toBeCloseTo(painted - (eyeElevation + lift))
+    expect(viewerMocks.renderScene!.backgroundRotation.y).toBeCloseTo(Math.PI / 4)
+    expect(viewerMocks.renderScene!.backgroundRotation.x).toBeCloseTo(painted - (eyeElevation + lift))
+    expect(keyLightYaw()).toBeCloseTo(Math.PI / 4)
+    expect(keyLightElevation()).toBeCloseTo(eyeElevation + lift)
+    expect(keyLight.shadow.needsUpdate).toBe(true)
+
+    // Orbiting to the other side turns the sun, the backdrop and the key light with the camera.
+    orbitTo(-2, 1, 2)
+    expect(environment().y).toBeCloseTo(-Math.PI / 4)
+    expect(keyLightYaw()).toBeCloseTo(-Math.PI / 4)
+    expect(keyLightElevation()).toBeCloseTo(eyeElevation + lift)
+
+    // Looking from high above, the sun follows but never goes past the zenith.
+    orbitTo(0.5, 3, 0.5)
+    expect(keyLightElevation()).toBeCloseTo(THREE.MathUtils.degToRad(80))
+    expect(environment().x).toBeCloseTo(painted - THREE.MathUtils.degToRad(80))
+
+    // Other presets keep their light fixed in the scene: orbiting does not touch the environment.
+    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
+    const before = environment().y
+    viewerMocks.camera!.position.set(2, 1, -2)
+    act(() => vi.mocked(useFrame).mock.calls.at(-1)![0]({ scene: viewerMocks.renderScene, camera: viewerMocks.camera, controls: viewerMocks.controls } as never, 0.016, undefined))
+    expect(environment().y).toBe(before)
+  })
+
+  it('lets Alt + drag turn the Custom HDRI light, and the turn stays while the camera orbits', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    Object.defineProperty(container.querySelector('group')!, 'scale', { value: { setScalar: vi.fn() }, configurable: true })
+    const keyLight = container.querySelector('directionallight') as unknown as { position: Vector3; shadow: { needsUpdate: boolean } }
+    keyLight.position = new Vector3()
+    keyLight.shadow = { needsUpdate: false }
+    viewerMocks.controls!.target.set(0, 0, 0)
+    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
+
+    const surface = container.querySelector<HTMLElement>('.model-viewer__surface')!
+    Object.defineProperty(surface, 'clientWidth', { value: 1000, configurable: true })
+    surface.setPointerCapture = vi.fn()
+    // A quarter of the viewer width is a quarter turn of the light.
+    fireEvent.pointerDown(surface, { altKey: true, button: 0, pointerId: 1, clientX: 100 })
+    fireEvent.pointerMove(surface, { altKey: true, pointerId: 1, clientX: 350 })
+    fireEvent.pointerUp(surface, { pointerId: 1, clientX: 350 })
+
+    const orbitTo = (x: number, z: number) => {
+      viewerMocks.camera!.position.set(x, 1, z)
+      const frameState = { scene: viewerMocks.renderScene, camera: viewerMocks.camera, controls: viewerMocks.controls }
+      act(() => {
+        for (const [callback] of vi.mocked(useFrame).mock.calls.slice(-2)) callback(frameState as never, 0.016, undefined)
+      })
+    }
+    orbitTo(0, 2)
+    expect(viewerMocks.renderScene!.environmentRotation.y).toBeCloseTo(Math.PI / 2)
+    // The same quarter turn is kept relative to the camera after orbiting.
+    orbitTo(2, 0)
+    expect(viewerMocks.renderScene!.environmentRotation.y).toBeCloseTo(Math.PI)
+  })
+
+  it('starts Custom HDRI with its own brightness instead of the shared defaults', async () => {
+    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
+    render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
+    const slider = (name: string) => screen.getByRole('slider', { name })
+    // Shared defaults for the other presets.
+    expect(slider('Brightness')).toHaveValue('8')
+    expect(slider('Contrast')).toHaveValue('-50')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
+    expect(slider('Brightness')).toHaveValue('3')
+    expect(slider('Contrast')).toHaveValue('0')
+    expect(slider('Exposure')).toHaveValue('-0.7')
+    expect(slider('Highlights')).toHaveValue('0')
+    expect(slider('Shadows')).toHaveValue('0')
+
+    // Reset goes back to this preset's own starting point.
+    fireEvent.change(slider('Contrast'), { target: { value: '20' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
+    expect(slider('Contrast')).toHaveValue('0')
+    expect(slider('Brightness')).toHaveValue('3')
+
+    // Leaving it restores the shared defaults; moving between ordinary presets keeps the visitor's sliders.
+    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
+    expect(slider('Brightness')).toHaveValue('8')
+    expect(slider('Contrast')).toHaveValue('-50')
+    fireEvent.change(slider('Contrast'), { target: { value: '-10' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 08' }))
+    expect(slider('Contrast')).toHaveValue('-10')
   })
 
   it('opens HDRI sliders, changes light intensity and restores defaults', async () => {
