@@ -8,7 +8,6 @@ import { getCart } from '../api/cartApi'
 import { firstCategoriesPageQuery } from '../hooks/useAllCategories'
 import { AuthEntryButton } from './auth/AuthEntryButton'
 import { CategoryMenu } from './CategoryMenu'
-import { getAllCategoriesIcon, getCategoryIcon } from './categoryIcons'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { buildCategoryTree } from '../lib/categoryTree'
 import { isAdministrator } from '../lib/roles'
@@ -51,7 +50,6 @@ export function Navbar() {
   const [searchCatOpen, setSearchCatOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [drawerMenuOpen, setDrawerMenuOpen] = useState(true)
-  const [drawerExploreOpen, setDrawerExploreOpen] = useState(false)
   const accountRef = useRef<HTMLDivElement>(null)
   const exploreRef = useRef<HTMLDivElement>(null)
   const searchCatRef = useRef<HTMLDivElement>(null)
@@ -198,7 +196,6 @@ export function Navbar() {
   // Explore/search menus list top-level categories with their subcategories
   // underneath, excluding the internal demo category from customer-facing navigation.
   const exploreTree = buildCategoryTree(categories, { excludeDemo: true })
-  const AllCategoriesIcon = getAllCategoriesIcon()
   const selectedSearchCategory = exploreTree
     .flatMap(({ category, children }) => [category, ...children])
     .find((cat) => cat.id === categoryId)
@@ -766,80 +763,6 @@ export function Navbar() {
                     Contact
                   </Link>
                 </nav>
-              ) : null}
-            </div>
-
-            {/* Explore Dropdown Accordion */}
-            <div className={`navbar__drawer-accordion${drawerExploreOpen ? ' navbar__drawer-accordion--open' : ''}`}>
-              <button
-                type="button"
-                className="navbar__drawer-accordion-trigger"
-                aria-expanded={drawerExploreOpen}
-                onClick={() => setDrawerExploreOpen((open) => !open)}
-              >
-                <span>EXPLORE</span>
-                <svg
-                  className={`navbar__drawer-chevron${drawerExploreOpen ? ' navbar__drawer-chevron--open' : ''}`}
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d="M7 10l5 5 5-5z" />
-                </svg>
-              </button>
-              {drawerExploreOpen ? (
-                <div className="navbar__drawer-subnav navbar__drawer-subnav--explore">
-                  <button
-                    type="button"
-                    className="navbar__drawer-sublink navbar__drawer-sublink--button"
-                    onClick={() => {
-                      closeMobileNav()
-                      handleSelectCategory('')
-                    }}
-                  >
-                    <AllCategoriesIcon className="navbar__drawer-cat-icon" />
-                    <span>All Categories</span>
-                  </button>
-                  {exploreTree.flatMap(({ category, children }) => {
-                    const Icon = getCategoryIcon(category.slug)
-                    return [
-                      <button
-                        type="button"
-                        className="navbar__drawer-sublink navbar__drawer-sublink--button"
-                        key={category.id}
-                        onClick={() => {
-                          closeMobileNav()
-                          handleSelectCategory(category.id)
-                        }}
-                      >
-                        {category.image ? (
-                          <img className="navbar__drawer-cat-image" src={category.image} alt="" />
-                        ) : (
-                          <Icon className="navbar__drawer-cat-icon" />
-                        )}
-                        <span>{category.name}</span>
-                      </button>,
-                      ...children.map((child) => (
-                        <button
-                          type="button"
-                          className="navbar__drawer-sublink navbar__drawer-sublink--button navbar__drawer-sublink--child"
-                          key={child.id}
-                          onClick={() => {
-                            closeMobileNav()
-                            handleSelectCategory(child.id)
-                          }}
-                        >
-                          <span>{child.name}</span>
-                        </button>
-                      )),
-                    ]
-                  })}
-                  {productCategoriesQuery.isLoading ? (
-                    <p className="navbar__drawer-status">Loading categories…</p>
-                  ) : null}
-                </div>
               ) : null}
             </div>
           </div>

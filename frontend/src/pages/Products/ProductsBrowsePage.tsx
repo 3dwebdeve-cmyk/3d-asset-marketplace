@@ -7,7 +7,6 @@ import { listPublicPlugins } from '../../api/pluginsApi'
 import { listPublicProducts } from '../../api/productsApi'
 import { CategoryTile } from '../../components/CategoryTile'
 import { MarketplaceHero } from '../../components/MarketplaceHero'
-import { useAllCategories } from '../../hooks/useAllCategories'
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import { buildOrganizationJsonLd, buildWebSiteJsonLd } from '../../lib/seo'
 import { HOME_SEO } from '../../lib/seoPages'
@@ -320,7 +319,6 @@ export function ProductsBrowsePage() {
   const searchFromUrl = searchParams.get('search')?.trim() ?? ''
   const viewAll = searchParams.get('view') === 'all'
   const isCatalogMode = Boolean(searchFromUrl || categoryFromUrl || viewAll)
-  const { data: allCategories } = useAllCategories(!isCatalogMode)
 
   useEffect(() => {
     clearPostLogoutRedirect()
@@ -424,8 +422,7 @@ export function ProductsBrowsePage() {
               Trending Categories
             </h2>
             <Link className="browse-rail-section__view-all" to="/categories">
-              View all {allCategories ? `${allCategories.length} ` : ''}
-              {allCategories?.length === 1 ? 'category' : 'categories'} →
+              View all categories →
             </Link>
           </div>
           <div className="browse-category-grid">
