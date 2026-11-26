@@ -428,12 +428,22 @@ describe('ModelViewer', () => {
       const previousTone = toneTable()
       fireEvent.change(slider, { target: { value } })
       expect(slider).toHaveValue(value)
-      if (['Contrast', 'Highlights', 'Shadows', 'Gamma'].includes(name)) {
+      if (['Contrast', 'Highlights', 'Gamma'].includes(name)) {
         expect(toneTable()).toBeDefined()
         expect(toneTable()).not.toBe(previousTone)
       }
     }
     expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9 * 2 ** -0.4)
+    const shadows = screen.getByRole('slider', { name: 'Shadows' })
+    const shadowIntensity = () => Number(canvas.querySelector('directionallight')?.getAttribute('shadow-intensity'))
+    const previousShadowIntensity = shadowIntensity()
+    const previousTone = toneTable()
+    fireEvent.change(shadows, { target: { value: '100' } })
+    expect(shadowIntensity()).toBe(1)
+    expect(shadowIntensity()).toBeGreaterThan(previousShadowIntensity)
+    fireEvent.change(shadows, { target: { value: '-100' } })
+    expect(shadowIntensity()).toBe(0)
+    expect(toneTable()).toBe(previousTone)
     expect(canvas.style.getPropertyValue('--viewer-image-filter')).toMatch(/^saturate\(75%\) url\(/)
     const kernel = () => canvas.parentElement?.querySelector('feConvolveMatrix')
     expect(kernel()).toHaveAttribute('kernelMatrix', '0 0.1 0 0.1 0.6 0.1 0 0.1 0')
