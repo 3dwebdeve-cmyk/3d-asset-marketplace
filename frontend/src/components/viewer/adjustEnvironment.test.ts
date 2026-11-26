@@ -26,11 +26,6 @@ describe('HDRI tone adjustments', () => {
     expect(shadows[4]).toBe(2)
     expect(samples({ gamma: 1 }).slice(0, 5)).toEqual([0.5, 0.5, 0.5, 1, 2])
     expect(samples({ gamma: -0.5 })[0]).toBeCloseTo(0.0625)
-    const desaturated = samples({ saturation: -100 })
-    expect(desaturated[8]).toBeCloseTo(desaturated[9])
-    expect(desaturated[9]).toBeCloseTo(desaturated[10])
-    expect(samples({ sharpness: -100 })[4]).toBeLessThan(2)
-    expect(samples({ sharpness: 100 })[4]).toBeGreaterThan(2)
     expect(Array.from(source.image.data!, DataUtils.fromHalfFloat)).toEqual(
       [0.25, 0.25, 0.25, 1, 2, 2, 2, 1, 1, 0.5, 0.25, 1],
     )

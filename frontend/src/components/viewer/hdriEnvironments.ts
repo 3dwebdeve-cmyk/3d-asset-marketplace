@@ -32,11 +32,11 @@ export const HDRI_ENVIRONMENTS = [
     yaw: 0,
     sunFollowsKey: true,
     studio: {
-      ambient: 0, // off on purpose: the HDRI sun is the only light
-      keyIntensity: 0, // off on purpose: the HDRI sun is the only light (shadow light kept for its angle)
-      keyViewYawOffset: 0, // sun sits in line with the camera (front light from the viewer's side)
-      keyElevation: (20 * Math.PI) / 180, // height of the sun painted into the HDRI (SUN.elevation in the generator)
-      keyEyeLift: (15 * Math.PI) / 180, // the sun sits this far above the viewer's eye line, wherever they look from
+      ambient: 0,
+      keyIntensity: 0.7,
+      keyViewYawOffset: 0,
+      keyElevation: (20 * Math.PI) / 180,
+      keyEyeLift: (15 * Math.PI) / 180,
       exposure: 0.9,
       shadowRadius: 6,
     },
