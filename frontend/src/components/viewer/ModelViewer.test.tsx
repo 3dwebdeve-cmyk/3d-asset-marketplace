@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useImperativeHandle, type Ref } from 'react'
-import * as THREE from 'three'
 import { BoxGeometry, Mesh, Object3D, PerspectiveCamera, Scene, Vector3 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -66,11 +65,13 @@ vi.mock('@react-three/drei', () => ({
     return null
   },
   useEnvironment: ({ files }: { files: string }) => ({ name: files }),
-  Environment: ({ map, background, environmentIntensity, backgroundIntensity, backgroundBlurriness }: {
+  Environment: ({ map, background, environmentIntensity, environmentRotation, backgroundRotation, backgroundIntensity, backgroundBlurriness }: {
     map: { name: string }; background: boolean; environmentIntensity: number
+    environmentRotation?: number[]; backgroundRotation?: number[]
     backgroundIntensity?: number; backgroundBlurriness?: number
   }) => (
     <div data-testid="viewer-environment" data-files={map.name} data-background={background} data-intensity={environmentIntensity}
+      data-environment-yaw={environmentRotation?.[1]} data-background-yaw={backgroundRotation?.[1]}
       data-background-intensity={backgroundIntensity} data-background-blur={backgroundBlurriness} />
   ),
   ContactShadows: () => <div data-testid="viewer-shadow" />,
@@ -100,7 +101,6 @@ vi.mock('./useViewportVisibility', () => ({
 }))
 
 import { ModelViewer } from './ModelViewer'
-import { HDRI_ENVIRONMENTS } from './hdriEnvironments'
 
 describe('ModelViewer', () => {
   beforeEach(() => {
@@ -318,89 +318,51 @@ describe('ModelViewer', () => {
     expect(y).toBeLessThan(Math.hypot(x, z))
   })
 
-  it('keeps the Custom HDRI sun, backdrop and shadow light on the viewer eye line, a little above it', async () => {
+  it('keeps the Custom HDRI lighting fixed during orbit and rotates it only while Alt is held during a drag', async () => {
     viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
     const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
     Object.defineProperty(container.querySelector('group')!, 'scale', { value: { setScalar: vi.fn() }, configurable: true })
-    // The test DOM has no three.js light object, so give the key light one.
-    const keyLight = container.querySelector('directionallight') as unknown as { position: Vector3; shadow: { needsUpdate: boolean } }
-    keyLight.position = new Vector3()
-    keyLight.shadow = { needsUpdate: false }
-    viewerMocks.controls!.target.set(0, 0, 0)
-    const { keyElevation: painted, keyEyeLift: lift } = HDRI_ENVIRONMENTS.find((option) => option.id === 'custom-hdri')!.studio
-    const orbitTo = (x: number, y: number, z: number) => {
-      viewerMocks.camera!.position.set(x, y, z)
-      const frameState = { scene: viewerMocks.renderScene, camera: viewerMocks.camera, controls: viewerMocks.controls }
-      act(() => {
-        for (const [callback] of vi.mocked(useFrame).mock.calls.slice(-2)) callback(frameState as never, 0.016, undefined)
-      })
-    }
-    const environment = () => viewerMocks.renderScene!.environmentRotation
-    const keyLightYaw = () => Math.atan2(keyLight.position.x, keyLight.position.z)
-    const keyLightElevation = () => Math.asin(keyLight.position.y / keyLight.position.length())
-
-    await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
-    orbitTo(2, 1, 2)
-    const eyeElevation = Math.atan2(1, Math.hypot(2, 2))
-    expect(environment().y).toBeCloseTo(Math.PI / 4)
-    expect(environment().order).toBe('YXZ')
-    // The painted sun is raised from its own height to the eye's height plus the lift.
-    expect(environment().x).toBeCloseTo(painted - (eyeElevation + lift))
-    expect(viewerMocks.renderScene!.backgroundRotation.y).toBeCloseTo(Math.PI / 4)
-    expect(viewerMocks.renderScene!.backgroundRotation.x).toBeCloseTo(painted - (eyeElevation + lift))
-    expect(keyLightYaw()).toBeCloseTo(Math.PI / 4)
-    expect(keyLightElevation()).toBeCloseTo(eyeElevation + lift)
-    expect(keyLight.shadow.needsUpdate).toBe(true)
-
-    // Orbiting to the other side turns the sun, the backdrop and the key light with the camera.
-    orbitTo(-2, 1, 2)
-    expect(environment().y).toBeCloseTo(-Math.PI / 4)
-    expect(keyLightYaw()).toBeCloseTo(-Math.PI / 4)
-    expect(keyLightElevation()).toBeCloseTo(eyeElevation + lift)
-
-    // Looking from high above, the sun follows but never goes past the zenith.
-    orbitTo(0.5, 3, 0.5)
-    expect(keyLightElevation()).toBeCloseTo(THREE.MathUtils.degToRad(80))
-    expect(environment().x).toBeCloseTo(painted - THREE.MathUtils.degToRad(80))
-
-    // Other presets keep their light fixed in the scene: orbiting does not touch the environment.
-    await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
-    const before = environment().y
-    viewerMocks.camera!.position.set(2, 1, -2)
-    act(() => vi.mocked(useFrame).mock.calls.at(-1)![0]({ scene: viewerMocks.renderScene, camera: viewerMocks.camera, controls: viewerMocks.controls } as never, 0.016, undefined))
-    expect(environment().y).toBe(before)
-  })
-
-  it('lets Alt + drag turn the Custom HDRI light, and the turn stays while the camera orbits', async () => {
-    viewerMocks.scene = new Mesh(new BoxGeometry(1, 2, 1))
-    const { container } = render(<ModelViewer modelUrl="https://cdn.example.com/preview.glb" ariaLabel="Preview" />)
-    Object.defineProperty(container.querySelector('group')!, 'scale', { value: { setScalar: vi.fn() }, configurable: true })
-    const keyLight = container.querySelector('directionallight') as unknown as { position: Vector3; shadow: { needsUpdate: boolean } }
-    keyLight.position = new Vector3()
-    keyLight.shadow = { needsUpdate: false }
-    viewerMocks.controls!.target.set(0, 0, 0)
+    vi.mocked(useFrame).mockClear()
     await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
 
     const surface = container.querySelector<HTMLElement>('.model-viewer__surface')!
     Object.defineProperty(surface, 'clientWidth', { value: 1000, configurable: true })
     surface.setPointerCapture = vi.fn()
-    // A quarter of the viewer width is a quarter turn of the light.
+    const initialYaw = -Math.PI / 4
+    const expectLightingYaw = (yaw: number) => {
+      const environment = screen.getByTestId('viewer-environment')
+      expect(Number(environment.getAttribute('data-environment-yaw'))).toBeCloseTo(yaw)
+      expect(Number(environment.getAttribute('data-background-yaw'))).toBeCloseTo(yaw)
+      const position = container.querySelector('directionallight')?.getAttribute('position') ?? ''
+      const [x, , z] = position.split(',').map(Number)
+      expect(Math.atan2(x, z)).toBeCloseTo(yaw)
+    }
+    const orbit = () => {
+      viewerMocks.camera!.position.set(2, 1, -2)
+      const scene = viewerMocks.renderScene!
+      const frameState = { scene, camera: viewerMocks.camera, controls: viewerMocks.controls }
+      const rotation = scene.environmentRotation.clone()
+      const backgroundRotation = scene.backgroundRotation.clone()
+      act(() => {
+        for (const [callback] of vi.mocked(useFrame).mock.calls) callback(frameState as never, 0.016, undefined)
+      })
+      expect(scene.environmentRotation.equals(rotation)).toBe(true)
+      expect(scene.backgroundRotation.equals(backgroundRotation)).toBe(true)
+    }
+
+    fireEvent.pointerDown(surface, { button: 0, pointerId: 1, clientX: 100 })
+    fireEvent.pointerMove(surface, { pointerId: 1, clientX: 350 })
+    fireEvent.pointerUp(surface, { pointerId: 1 })
+    orbit()
+    expectLightingYaw(initialYaw)
+
     fireEvent.pointerDown(surface, { altKey: true, button: 0, pointerId: 1, clientX: 100 })
     fireEvent.pointerMove(surface, { altKey: true, pointerId: 1, clientX: 350 })
-    fireEvent.pointerUp(surface, { pointerId: 1, clientX: 350 })
-
-    const orbitTo = (x: number, z: number) => {
-      viewerMocks.camera!.position.set(x, 1, z)
-      const frameState = { scene: viewerMocks.renderScene, camera: viewerMocks.camera, controls: viewerMocks.controls }
-      act(() => {
-        for (const [callback] of vi.mocked(useFrame).mock.calls.slice(-2)) callback(frameState as never, 0.016, undefined)
-      })
-    }
-    orbitTo(0, 2)
-    expect(viewerMocks.renderScene!.environmentRotation.y).toBeCloseTo(Math.PI / 2)
-    // The same quarter turn is kept relative to the camera after orbiting.
-    orbitTo(2, 0)
-    expect(viewerMocks.renderScene!.environmentRotation.y).toBeCloseTo(Math.PI)
+    expectLightingYaw(initialYaw + Math.PI / 2)
+    fireEvent.pointerMove(surface, { pointerId: 1, clientX: 450 })
+    fireEvent.pointerUp(surface, { pointerId: 1 })
+    orbit()
+    expectLightingYaw(initialYaw + Math.PI / 2)
   })
 
   it('starts Custom HDRI with its own brightness instead of the shared defaults', async () => {
