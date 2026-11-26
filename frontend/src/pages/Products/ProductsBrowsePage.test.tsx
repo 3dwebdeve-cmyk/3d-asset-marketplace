@@ -434,21 +434,11 @@ describe('ProductsBrowsePage', () => {
     expect(categoriesApi.recordCategoryClick).toHaveBeenCalledWith(categoryId)
   })
 
-  it('opens the category directory with the full category count', async () => {
+  it('opens the category directory from a plain "View all categories" link', async () => {
     const user = userEvent.setup()
-    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
-      ...samplePublicCategories,
-      count: 17,
-      results: Array.from({ length: 17 }, (_, index) => ({
-        ...samplePublicCategories.results[0],
-        id: `category-${index}`,
-        name: `Category ${index}`,
-        slug: `category-${index}`,
-      })),
-    })
     renderProductsBrowsePage()
 
-    const link = await screen.findByRole('link', { name: /view all 17 categories/i })
+    const link = await screen.findByRole('link', { name: /^view all categories/i })
     expect(link).toHaveAttribute('href', '/categories')
     await user.click(link)
     expect(screen.getByText('All categories page')).toBeInTheDocument()

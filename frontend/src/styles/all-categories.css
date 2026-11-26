@@ -62,3 +62,43 @@
     padding: 1.5rem 1rem 2rem;
   }
 }
+
+/* Phones: same two-per-row tiles as the home page's Trending Categories,
+   with the whole picture shown (scaled to fit, never cropped). */
+@media (max-width: 640px) {
+  .all-categories-page .browse-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .all-categories-page .browse-category-card {
+    aspect-ratio: 1000 / 566;
+    border-radius: 0.6rem;
+  }
+
+  .all-categories-page .browse-category-card__image,
+  .all-categories-page .browse-category-card:hover .browse-category-card__image {
+    object-fit: contain;
+    transform: none;
+  }
+
+  .all-categories-page .browse-category-card__content {
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.35rem;
+  }
+
+  .all-categories-page .browse-category-card__icon-badge {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .all-categories-page .browse-category-card__icon {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .all-categories-page .browse-category-card__name {
+    font-size: 0.72rem;
+  }
+}

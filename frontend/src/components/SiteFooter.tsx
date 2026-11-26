@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom'
 
 export function SiteFooter() {
-  const year = new Date().getFullYear()
-
   return (
     <footer className="site-footer">
       <div className="site-footer__inner">
@@ -77,7 +75,7 @@ export function SiteFooter() {
         </nav>
 
         <div className="site-footer__bottom">
-          <p className="site-footer__copy">© {year} AssetHive3D. All rights reserved.</p>
+          <p className="site-footer__copy">© AssetHive3D. All rights reserved.</p>
         </div>
       </div>
     </footer>
