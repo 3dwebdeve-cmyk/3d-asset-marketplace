@@ -360,7 +360,7 @@ export function CheckoutSuccessPage() {
               <>
                 <p className="checkout-success-page__thankyou" role="status">
                   {autoDownloadStarted
-                    ? 'Thanks for your purchase! Your download has started. If it did not, press Download below.'
+                    ? 'Thanks for your purchase! Your items are ready to download, and your download has started. If it did not, press Download below.'
                     : 'Thanks for your purchase! Your items are ready to download.'}
                 </p>
                 <PurchasedDownloads

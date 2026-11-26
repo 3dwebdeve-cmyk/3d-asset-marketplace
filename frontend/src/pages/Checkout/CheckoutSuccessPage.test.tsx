@@ -192,6 +192,8 @@ describe('CheckoutSuccessPage', () => {
     const first = renderCheckoutSuccessPage()
 
     expect(await screen.findByText(/your download has started/i)).toBeInTheDocument()
+    // The E2E checkout tests wait for this phrase.
+    expect(screen.getByText(/ready to download/i)).toBeInTheDocument()
     expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledTimes(1)
     expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(
       paidOrder.items[0].files[0].download_url,
@@ -203,7 +205,9 @@ describe('CheckoutSuccessPage', () => {
     // A refresh of the page must not use another download.
     first.unmount()
     renderCheckoutSuccessPage()
-    expect(await screen.findByText(/your items are ready to download/i)).toBeInTheDocument()
+    expect(
+      await screen.findByText('Thanks for your purchase! Your items are ready to download.'),
+    ).toBeInTheDocument()
     expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledTimes(1)
   })
 
