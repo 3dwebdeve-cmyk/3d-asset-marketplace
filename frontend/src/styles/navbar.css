@@ -1341,40 +1341,10 @@ button.navbar__link {
     padding-left: 1.75rem;
   }
 
-  .navbar__drawer-sublink--button {
-    width: 100%;
-  }
-
-  .navbar__drawer-sublink--child {
-    min-height: 2.3rem;
-    padding-left: 3.5rem;
-    font-weight: 500;
-  }
-
-  .navbar__drawer-sublink--child:hover {
-    padding-left: 3.75rem;
-  }
-
   .navbar__drawer-subdivider {
     height: 1px;
     background: #e2e8f0;
     margin: 0.4rem 1.25rem;
-  }
-
-  .navbar__drawer-cat-icon,
-  .navbar__drawer-cat-image {
-    width: 1.25rem;
-    height: 1.25rem;
-    flex-shrink: 0;
-    color: #64748b;
-    object-fit: contain;
-  }
-
-  .navbar__drawer-status {
-    padding: 0.75rem 1.5rem;
-    margin: 0;
-    font-size: 0.85rem;
-    color: #64748b;
   }
 }
 
@@ -1651,5 +1621,126 @@ button.navbar__link {
     width: auto;
     height: 20.25px;
     max-width: 120px;
+  }
+}
+
+/* Phones: a narrower side menu that leaves part of the page visible,
+   with slimmer Dashboard / Profile / Sign out (and Log in / Sign up) buttons. */
+@media (max-width: 640px) {
+  .navbar__drawer {
+    width: min(17.5rem, 80vw);
+  }
+
+  .navbar__drawer-top {
+    gap: 0.8rem;
+    padding: 1rem 1rem 1.1rem;
+  }
+
+  .navbar__drawer-auth-buttons {
+    gap: 0.6rem;
+  }
+
+  .navbar__drawer-btn {
+    min-height: 2.4rem;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* Phones, top bar with the search box (3D models, plugins and other inner pages):
+   a slimmer bar, and the category dropdown spans the whole header so both
+   columns fit on screen at once. The home page top bar is not affected. */
+@media (max-width: 640px) {
+  .navbar:not(.navbar--marketplace-home) .navbar__inner {
+    position: relative;
+    min-height: 0;
+    padding-block: 0.45rem;
+    gap: 0.4rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__brand-logo {
+    height: 18px;
+    max-width: 104px;
+  }
+
+  /* The dropdown positions against the header, not the narrow search box. */
+  .navbar:not(.navbar--marketplace-home) .navbar__search,
+  .navbar:not(.navbar--marketplace-home) .navbar__search-cat {
+    position: static;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search {
+    height: 1.8rem;
+    border-radius: 0.35rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-cat {
+    border-radius: 0.3rem 0 0 0.3rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-cat-trigger {
+    max-width: 5.25rem;
+    gap: 0.25rem;
+    padding-inline: 0.45rem;
+    font-size: 0.62rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-input {
+    padding-inline: 0.45rem;
+    font-size: 0.78rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-submit {
+    flex: 0 0 1.8rem;
+    padding: 0;
+    border-radius: 0 0.3rem 0.3rem 0;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-submit svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__toolbar {
+    gap: 0.3rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__menu-button {
+    width: 2.15rem;
+    height: 2.15rem;
+    min-width: 2.15rem;
+    min-height: 2.15rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-cat-menu.navbar__category-picker {
+    top: calc(100% + 0.15rem);
+    left: var(--site-gutter);
+    right: var(--site-gutter);
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 5rem);
+    padding: 0.5rem 0.6rem;
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-cat-menu .navbar__category-list {
+    column-gap: 0.6rem;
+  }
+
+  /* Narrow phones (380px and below) also keep two columns; an older rule there
+     switches to one long column. Items read left to right, row by row. */
+  @media (max-width: 380px) {
+    .navbar:not(.navbar--marketplace-home) .navbar__search-cat-menu .navbar__category-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-flow: row;
+    }
+  }
+
+  .navbar:not(.navbar--marketplace-home) .navbar__search-cat-menu .navbar__explore-item {
+    min-height: 1.85rem;
+    gap: 0.4rem;
+    padding: 0.28rem 0.2rem;
+    font-size: 0.72rem;
+    line-height: 1.2;
   }
 }

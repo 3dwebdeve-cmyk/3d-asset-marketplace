@@ -242,11 +242,6 @@ export function PluginsBrowsePage() {
         <div className="site-hero-banner__overlay" />
         <div className="plugins-browse-hero__container">
           <h1 className="plugins-browse-hero__title">{heroTitle}</h1>
-
-          <p className="plugins-browse-hero__subtitle">
-            Plugins and tools for Blender, Unreal and more. Speed up your 3D workflow, check
-            compatibility and license on each listing, and download right after checkout.
-          </p>
         </div>
       </section>
 

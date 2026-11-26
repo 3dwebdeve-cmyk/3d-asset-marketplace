@@ -28,7 +28,7 @@ export function SiteMotion() {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
           observer.unobserve(entry.target)
-          if (entry.target.closest('[inert]') || !entry.target.animate) continue
+          if (entry.target.closest('[inert], [data-rail-copy]') || !entry.target.animate) continue
           const animation = entry.target.animate([
             { opacity: 0.8, translate: '0 8px' },
             { opacity: 1, translate: '0 0' },
@@ -44,7 +44,7 @@ export function SiteMotion() {
       }, { threshold: 0, rootMargin: '0px 0px -12px 0px' })
 
       const register = (element: Element) => {
-        if (!element.matches(REVEAL_TARGETS) || seen.has(element) || element.closest('[inert]')) return
+        if (!element.matches(REVEAL_TARGETS) || seen.has(element) || element.closest('[inert], [data-rail-copy]')) return
         // Animate one container, not both a card and its parent.
         if (element.parentElement?.closest(REVEAL_TARGETS)) return
         seen.add(element)
