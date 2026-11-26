@@ -1067,6 +1067,28 @@
   background: #ffffff;
 }
 
+/* The whole card opens the model or plugin: the title link is stretched over the card,
+   so the price and the empty space in the strip are clickable too. The wishlist heart
+   sits above it and keeps its own click; badges let clicks pass through to the card. */
+.product-card--marketplace {
+  position: relative;
+}
+
+.product-card--marketplace .product-card__title-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.product-card--marketplace .product-card__wishlist {
+  z-index: 3;
+}
+
+.product-card--marketplace :is(.product-card__badge-category, .product-card__badge-discount) {
+  pointer-events: none;
+}
+
 /* Fit four home page model cards across the scrolling rail. */
 .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards {
   grid-auto-columns: calc((100% - 3 * 1.1rem) / 4);
