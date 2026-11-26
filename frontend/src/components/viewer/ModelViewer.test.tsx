@@ -244,19 +244,19 @@ describe('ModelViewer', () => {
     expect(container.querySelectorAll('ambientlight')).toHaveLength(1)
     const lights = container.querySelectorAll('directionallight')
     expect(lights).toHaveLength(2)
-    expect(Number(lights[1].getAttribute('intensity'))).toBeCloseTo(0.864)
+    expect(Number(lights[1].getAttribute('intensity'))).toBeCloseTo(0.832)
     const [rightX, rightY, rightZ] = (lights[1].getAttribute('position') ?? '').split(',').map(Number)
     expect(rightX + rightZ).toBeGreaterThan(0)
     expect(rightY).toBeGreaterThan(4)
     const keyLight = () => container.querySelector('directionallight')
-    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.864)
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.832)
     expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
     expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
     const environment = () => screen.getByTestId('viewer-environment')
     expect(environment()).toHaveAttribute('data-files', '/hdri/small-studio-09.hdr')
     expect(environment()).toHaveAttribute('data-background', 'false')
-    expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
+    expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9 * 2 ** 0.7)
     expect(container.querySelector('rectarealight')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Brown Studio' }))
     expect(container.querySelectorAll('directionallight')).toHaveLength(1)
@@ -268,12 +268,13 @@ describe('ModelViewer', () => {
     }
     expect(environment()).toHaveAttribute('data-background', 'false')
     expect(keyLight()).toHaveAttribute('shadow-bias', '-0.0002')
-    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.972)
-    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.006')
-    expect(keyLight()).toHaveAttribute('shadow-camera-right', '1.7')
+    expect(Number(keyLight()?.getAttribute('intensity'))).toBeCloseTo(0.936)
+    expect(keyLight()).toHaveAttribute('shadow-normalbias', '0.002')
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeGreaterThan(0)
+    expect(Number(keyLight()?.getAttribute('shadow-camera-right'))).toBeLessThan(1.7)
     expect(environment()).toHaveAttribute('data-files', '/hdri/brown-studio.hdr')
     expect(screen.getByRole('button', { name: 'Brown Studio' })).toHaveAttribute('aria-pressed', 'true')
-    expect(viewerMocks.renderer.toneMappingExposure).toBe(1)
+    expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(2 ** 0.7)
 
     const colorButton = screen.getByRole('button', { name: 'Change background color' })
     const canvas = screen.getByTestId('r3f-canvas')
@@ -284,10 +285,6 @@ describe('ModelViewer', () => {
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toMatch(
       /radial-gradient\(.*rgb\(51, 60, 77\) 0%.*rgb\(32, 38, 51\) 55%.*rgb\(17, 21, 30\) 100%/,
-    )
-    await userEvent.click(colorButton)
-    expect(canvas.style.backgroundImage).toMatch(
-      /radial-gradient\(.*rgb\(78, 84, 89\) 0%.*rgb\(55, 60, 64\) 55%.*rgb\(32, 35, 38\) 100%/,
     )
     await userEvent.click(colorButton)
     expect(canvas.style.backgroundImage).toBe('')
@@ -301,10 +298,11 @@ describe('ModelViewer', () => {
     const environment = screen.getByTestId('viewer-environment')
     expect(environment).toHaveAttribute('data-files', '/hdri/custom-hdri.hdr')
     expect(environment).toHaveAttribute('data-background', 'false')
-    expect(viewerMocks.renderer.toneMappingExposure).toBe(0.9)
+    expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9 * 2 ** 0.7)
 
     const keyLight = container.querySelector('directionallight')
     expect(keyLight).toHaveAttribute('shadow-radius', '6')
+    expect(Number(keyLight?.getAttribute('intensity'))).toBeGreaterThan(0)
     const [x, y, z] = String(keyLight?.getAttribute('position')).split(',').map(Number)
     expect(Math.atan2(x, z)).toBeCloseTo(Math.atan2(-1, 1) - Math.PI / 12)
     expect(Math.atan2(y, Math.hypot(x, z))).toBeCloseTo(Math.PI / 4)
@@ -315,32 +313,50 @@ describe('ModelViewer', () => {
     expect(screen.queryByRole('slider', { name: 'Brightness' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const brightness = screen.getByRole('slider', { name: 'Brightness' })
-    expect(brightness).toHaveValue('8')
+    expect(brightness).toHaveValue('4')
     fireEvent.change(brightness, { target: { value: '50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(1.2)
     fireEvent.change(brightness, { target: { value: '-50' } })
     expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.4)
+    const canvas = screen.getByTestId('r3f-canvas')
+    const toneTable = () => canvas.parentElement?.querySelector('feFuncR')?.getAttribute('tableValues')
+    const defaultToneTable = toneTable()
     const extraSliders = [
-      ['Contrast', '-25', '-50'],
-      ['Exposure', '-1.5', '-1.1'],
+      ['Contrast', '-25', '-45'],
+      ['Exposure', '-1.5', '-0.4'],
       ['Saturation', '-25', '-4'],
-      ['Highlights', '-30', '-32'],
-      ['Shadows', '-30', '-45'],
+      ['Highlights', '-30', '-24'],
+      ['Shadows', '-30', '-69'],
       ['Gamma', '-0.25', '-0.1'],
-      ['Sharpness', '-50', '0'],
+      ['Sharpness', '-50', '20'],
     ]
     for (const [name, value, defaultValue] of extraSliders) {
       const slider = screen.getByRole('slider', { name })
       expect(slider).toHaveValue(defaultValue)
+      const previousTone = toneTable()
       fireEvent.change(slider, { target: { value } })
       expect(slider).toHaveValue(value)
+      if (['Contrast', 'Highlights', 'Shadows', 'Gamma'].includes(name)) {
+        expect(toneTable()).toBeDefined()
+        expect(toneTable()).not.toBe(previousTone)
+      }
     }
+    expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9 * 2 ** -0.4)
+    expect(canvas.style.getPropertyValue('--viewer-image-filter')).toMatch(/^saturate\(75%\) url\(/)
+    const kernel = () => canvas.parentElement?.querySelector('feConvolveMatrix')
+    expect(kernel()).toHaveAttribute('kernelMatrix', '0 0.1 0 0.1 0.6 0.1 0 0.1 0')
+    fireEvent.change(screen.getByRole('slider', { name: 'Sharpness' }), { target: { value: '100' } })
+    expect(kernel()).toHaveAttribute('kernelMatrix', '0 -0.25 0 -0.25 2 -0.25 0 -0.25 0')
     await userEvent.click(screen.getByRole('button', { name: 'Reset adjustments' }))
-    expect(brightness).toHaveValue('8')
+    expect(canvas.style.getPropertyValue('--viewer-image-filter')).toMatch(/^saturate\(96%\) url\(/)
+    expect(kernel()).toHaveAttribute('kernelMatrix', '0 -0.05 0 -0.05 1.2 -0.05 0 -0.05 0')
+    expect(toneTable()).toBe(defaultToneTable)
+    expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9 * 2 ** 0.7)
+    expect(brightness).toHaveValue('4')
     for (const [name, , defaultValue] of extraSliders) {
       expect(screen.getByRole('slider', { name })).toHaveValue(defaultValue)
     }
-    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.864)
+    expect(Number(screen.getByTestId('viewer-environment').getAttribute('data-intensity'))).toBeCloseTo(0.832)
   })
 
   it('shows a no-model fallback when the URL is missing or unsafe', () => {

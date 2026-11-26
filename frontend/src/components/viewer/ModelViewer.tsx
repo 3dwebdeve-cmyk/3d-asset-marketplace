@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent } from 'react'
+import { Suspense, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type CSSProperties, type PointerEvent } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, OrbitControls, useEnvironment, useGLTF, useProgress } from '@react-three/drei'
 import * as THREE from 'three'
@@ -75,7 +75,6 @@ function PreviewModel({
   lightIntensity,
   shadowRadius = DEFAULT_SHADOW_RADIUS,
   contactShadowOpacity = 0.25,
-  detailedSelfShadows,
   cameraPosition,
 }: {
   url: string
@@ -87,7 +86,6 @@ function PreviewModel({
   lightIntensity: number
   shadowRadius?: number
   contactShadowOpacity?: number
-  detailedSelfShadows: boolean
   cameraPosition?: [number, number, number]
 }) {
   const { scene } = useGLTF(url)
@@ -115,7 +113,7 @@ function PreviewModel({
   }, [scene])
   const bounds = useMemo(() => new THREE.Box3().setFromObject(fitted), [fitted])
   // A tighter light-space frame gives small gaps between surfaces more shadow-map texels.
-  const shadowHalfExtent = detailedSelfShadows && !bounds.isEmpty()
+  const shadowHalfExtent = !bounds.isEmpty()
     ? Math.max(0.5, bounds.getBoundingSphere(new THREE.Sphere()).radius + 0.1)
     : 1.7
   const ground = useMemo(() => {
@@ -139,7 +137,7 @@ function PreviewModel({
     shadow.camera.updateProjectionMatrix()
     shadow.needsUpdate = true
     invalidate()
-  }, [fitted, lightIntensity, lightYaw, lightElevation, lightDistance, shadowHalfExtent, detailedSelfShadows, shadowResolution, shadowsReady, invalidate])
+  }, [fitted, lightIntensity, lightYaw, lightElevation, lightDistance, shadowHalfExtent, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
@@ -214,7 +212,7 @@ function PreviewModel({
         shadow-camera-bottom={-shadowHalfExtent}
         shadow-camera-near={2}
         shadow-camera-far={lightDistance + 3}
-        shadow-normalBias={detailedSelfShadows ? 0.002 : 0.006}
+        shadow-normalBias={0.002}
         shadow-bias={-0.0002}
         shadow-radius={shadowRadius}
       />
@@ -272,21 +270,22 @@ const VIEWER_BACKGROUNDS = [
   undefined,
   'radial-gradient(ellipse farthest-side at center, #686868 0%, #555555 55%, #3C3C3C 100%)',
   'radial-gradient(ellipse farthest-side at center, #333C4D 0%, #202633 55%, #11151E 100%)',
-  'radial-gradient(ellipse farthest-side at center, #4E5459 0%, #373C40 55%, #202326 100%)',
 ] as const
 
-type LightAdjustments = EnvironmentAdjustments & { brightness: number }
+type LightAdjustments = EnvironmentAdjustments & { brightness: number; saturation: number; sharpness: number }
 
-const DEFAULT_VIEWER_BRIGHTNESS = 8
-const DEFAULT_VIEWER_ENVIRONMENT = {
+const REFERENCE_VIEWER_BRIGHTNESS = 8
+const DEFAULT_VIEWER_BRIGHTNESS = 4
+const REFERENCE_VIEWER_ENVIRONMENT = {
   ...DEFAULT_ENVIRONMENT_ADJUSTMENTS,
   contrast: -50,
   exposure: -1.1,
-  saturation: -4,
   highlights: -32,
   shadows: -45,
   gamma: -0.1,
 }
+const DEFAULT_VIEWER_TONE = { contrast: -45, exposure: -0.4, highlights: -24, shadows: -69, gamma: -0.1 }
+const DEFAULT_IMAGE_ADJUSTMENTS = { saturation: -4, sharpness: 20 }
 
 const LIGHT_SLIDERS = [
   { key: 'brightness', label: 'Brightness', min: -75, max: 100, step: 1, unit: '%' },
@@ -299,24 +298,15 @@ const LIGHT_SLIDERS = [
   { key: 'sharpness', label: 'Sharpness', min: -100, max: 100, step: 1, unit: '%' },
 ] as const
 
-function ViewerEnvironment({ files, intensity, yaw, adjustments }: {
+function ViewerEnvironment({ files, intensity, yaw }: {
   files: string
   intensity: number
   yaw: number
-  adjustments: EnvironmentAdjustments
 }) {
   const source = useEnvironment({ files })
-  const [filtered, setFiltered] = useState(adjustments)
-
-  useEffect(() => {
-    // Environment maps are expensive to filter and upload. Coalesce rapid slider inputs.
-    const timeout = window.setTimeout(() => setFiltered(adjustments), 90)
-    return () => window.clearTimeout(timeout)
-  }, [adjustments])
-
   const map = useMemo(
-    () => adjustEnvironment(source, filtered),
-    [source, filtered],
+    () => adjustEnvironment(source, REFERENCE_VIEWER_ENVIRONMENT),
+    [source],
   )
   useEffect(() => {
     if (map !== source) return () => map.dispose()
@@ -504,7 +494,30 @@ function ModelViewerCanvas({
   const studio: StudioLighting | undefined = 'studio' in preset ? preset.studio : undefined
   const [lightingYaw, setLightingYaw] = useState(0)
   const [brightness, setBrightness] = useState(DEFAULT_VIEWER_BRIGHTNESS)
-  const [environmentAdjustments, setEnvironmentAdjustments] = useState(DEFAULT_VIEWER_ENVIRONMENT)
+  const [toneAdjustments, setToneAdjustments] = useState(DEFAULT_VIEWER_TONE)
+  const toneFilterId = useId()
+  const { contrast, exposure, highlights, shadows, gamma } = toneAdjustments
+  const contrastPower = 2 ** ((contrast - REFERENCE_VIEWER_ENVIRONMENT.contrast) / 100)
+  const exposureGain = 2 ** (exposure - REFERENCE_VIEWER_ENVIRONMENT.exposure)
+  const highlightPower = 2 ** ((highlights - REFERENCE_VIEWER_ENVIRONMENT.highlights) / 100)
+  const shadowPower = 2 ** ((REFERENCE_VIEWER_ENVIRONMENT.shadows - shadows) / 100)
+  const gammaPower = (1 + REFERENCE_VIEWER_ENVIRONMENT.gamma) / (1 + gamma)
+  const toneTable = useMemo(() => Array.from({ length: 129 }, (_, index) => {
+    const input = index / 128
+    // Anchor both curves at mid-gray so each slider targets its own tonal range.
+    const tone = input < 0.5
+      ? 0.5 * (input * 2) ** (contrastPower * shadowPower)
+      : 1 - 0.5 * ((1 - input) * 2) ** (contrastPower * highlightPower)
+    return (tone ** gammaPower).toFixed(5)
+  }).join(' '), [contrastPower, highlightPower, shadowPower, gammaPower])
+  const hasToneFilter = contrastPower !== 1 || highlightPower !== 1 || shadowPower !== 1 || gammaPower !== 1
+  const [imageAdjustments, setImageAdjustments] = useState(DEFAULT_IMAGE_ADJUSTMENTS)
+  const sharpnessFilterId = useId()
+  const { saturation, sharpness } = imageAdjustments
+  const sharpnessAmount = sharpness / (sharpness < 0 ? 500 : 400)
+  const neighborWeight = -sharpnessAmount
+  const centerWeight = 1 + 4 * sharpnessAmount
+  const imageFilter = `saturate(${100 + saturation}%)${sharpness === 0 ? '' : ` url("#${sharpnessFilterId}")`}`
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
   const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
   const studioKeyYaw = studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : undefined
@@ -514,7 +527,8 @@ function ModelViewerCanvas({
     : preset.yaw + lightingYaw
   const brightnessMultiplier = 1 + brightness / 100
   const isBananaModel = /banana/i.test(modelUrl + ' ' + ariaLabel)
-  const emphasizeBananaShadows = isBananaModel && preset.id === 'small-08'
+  const bananaStudio09 = isBananaModel && preset.id === 'small-09'
+  const emphasizeBananaShadows = bananaStudio09 || (isBananaModel && preset.id === 'small-08')
   const hasPcCaseFrontFill = (preset.id === 'small-08' || preset.id === 'small-09')
     && /pc(?:[-_\s]|%20)*(?:case|cabinet)/i.test(modelUrl + ' ' + ariaLabel)
   const hasPcCaseStudioLighting = hasPcCaseFrontFill && preset.id === 'small-09'
@@ -524,7 +538,6 @@ function ModelViewerCanvas({
   // Lower the ambient HDRI fill so the directional shadow is visible between overlapping bananas.
   const environmentIntensity = preset.intensity * brightnessMultiplier * (emphasizeBananaShadows ? 0.35 : 1)
   const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier * (emphasizeBananaShadows ? 1.15 : 1)
-  const detailedSelfShadows = preset.id === 'small-09' || isBananaModel
   const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
   const fillLights = 'fillLights' in preset ? preset.fillLights : undefined
   const frontRightYaw = openingCameraYaw + (preset.id === 'small-09' ? Math.PI / 3 : Math.PI / 6)
@@ -544,6 +557,8 @@ function ModelViewerCanvas({
   )
   const lowerLeftYaw = openingCameraYaw - (2 * Math.PI) / 5
   const lowerLeftElevation = -(2 * Math.PI) / 9
+  const sideSoftboxYaw = openingCameraYaw - Math.PI / 2
+  const sideSoftboxElevation = Math.PI / 18
   const upperRightSoftboxYaw = openingCameraYaw + (5 * Math.PI) / 12
   const upperRightSoftboxElevation = (2 * Math.PI) / 9
   const overheadLightYaw = openingCameraYaw + Math.PI
@@ -588,24 +603,55 @@ function ModelViewerCanvas({
         onPointerCancelCapture={finishLightDrag}
         onLostPointerCapture={finishLightDrag}
       >
+        {hasToneFilter && (
+          <svg aria-hidden="true" width="0" height="0" style={{ position: 'absolute' }}>
+            <defs>
+              <filter id={toneFilterId} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+                <feComponentTransfer>
+                  <feFuncR type="table" tableValues={toneTable} />
+                  <feFuncG type="table" tableValues={toneTable} />
+                  <feFuncB type="table" tableValues={toneTable} />
+                </feComponentTransfer>
+              </filter>
+            </defs>
+          </svg>
+        )}
+        {sharpness !== 0 && (
+          <svg aria-hidden="true" width="0" height="0" style={{ position: 'absolute' }}>
+            <defs>
+              <filter id={sharpnessFilterId} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+                <feConvolveMatrix
+                  order={3}
+                  kernelMatrix={`0 ${neighborWeight} 0 ${neighborWeight} ${centerWeight} ${neighborWeight} 0 ${neighborWeight} 0`}
+                  divisor={1}
+                  edgeMode="duplicate"
+                  preserveAlpha="true"
+                />
+              </filter>
+            </defs>
+          </svg>
+        )}
         <Canvas
           className="model-viewer__canvas"
-          style={background ? { backgroundImage: background } : undefined}
+          style={{
+            backgroundImage: background,
+            '--viewer-tone-filter': hasToneFilter ? `url("#${toneFilterId}")` : 'brightness(1)',
+            '--viewer-image-filter': imageFilter,
+          } as CSSProperties}
           camera={{ position: cameraPosition, fov: 42, near: 0.1, far: 200 }}
           gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
           dpr={pixelRatio}
           shadows="percentage"
           frameloop={visible ? 'always' : 'never'}
         >
-          <ViewerExposure exposure={studio?.exposure} />
-          <ambientLight intensity={studio?.ambient ?? AMBIENT_FILL_INTENSITY} />
+          <ViewerExposure exposure={(studio?.exposure ?? 1) * exposureGain} />
+          <ambientLight intensity={(studio?.ambient ?? AMBIENT_FILL_INTENSITY) * brightnessMultiplier / (1 + REFERENCE_VIEWER_BRIGHTNESS / 100)} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
               <ViewerEnvironment
                 files={preset.hdrPath}
                 intensity={environmentIntensity}
                 yaw={environmentYaw}
-                adjustments={environmentAdjustments}
               />
             </Suspense>
           </ErrorBoundary>
@@ -619,10 +665,11 @@ function ModelViewerCanvas({
               lightYaw={studioKeyYaw ?? environmentYaw}
               shadowRadius={studio?.shadowRadius}
               contactShadowOpacity={contactShadowOpacity}
-              lightElevation={(studio?.keyElevation ?? DEFAULT_KEY_ELEVATION) - (hasPcCaseStudioLighting ? Math.PI / 12 : 0)}
+              lightElevation={bananaStudio09
+                ? Math.PI / 4
+                : (studio?.keyElevation ?? DEFAULT_KEY_ELEVATION) - (hasPcCaseStudioLighting ? Math.PI / 12 : 0)}
               lightDistance={hasPcCaseStudioLighting ? studio09FillDistance : undefined}
               lightIntensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
-              detailedSelfShadows={detailedSelfShadows}
             />
             {upperRightLight && (
               <directionalLight
@@ -631,7 +678,7 @@ function ModelViewerCanvas({
                   upperRightLight.elevation - (hasPcCaseStudioLighting ? (5 * Math.PI) / 36 : 0),
                   hasPcCaseStudioLighting ? studio09FillDistance : undefined,
                 )}
-                intensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
+                intensity={keyIntensity * (bananaStudio09 ? 0.25 : hasPcCaseStudioLighting ? 0.82 : 1)}
               />
             )}
             {fillLights?.map(({ name, viewYawOffset, elevation, intensity, width, height }) => {
@@ -669,9 +716,19 @@ function ModelViewerCanvas({
               <rectAreaLight
                 position={directionalLightPosition(lowerLeftYaw, lowerLeftElevation, studio09FillDistance + 0.25)}
                 rotation={[-lowerLeftElevation, lowerLeftYaw, 0, 'YXZ']}
-                intensity={0.22 * brightnessMultiplier}
-                width={4.25}
-                height={3.5}
+                intensity={0.48 * brightnessMultiplier}
+                width={5}
+                height={4}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={directionalLightPosition(sideSoftboxYaw, sideSoftboxElevation, 4)}
+                rotation={[-sideSoftboxElevation, sideSoftboxYaw, 0, 'YXZ']}
+                color="#ffffff"
+                intensity={1.5 * brightnessMultiplier}
+                width={1.25}
+                height={2.5}
               />
             )}
             {hasPcCaseStudioLighting && (
@@ -723,14 +780,16 @@ function ModelViewerCanvas({
       </div>
       <ViewerToolbar
         controls={controls}
-        adjustments={{ ...environmentAdjustments, brightness }}
+        adjustments={{ ...toneAdjustments, ...imageAdjustments, brightness }}
         onAdjustmentChange={(key, value) => {
           if (key === 'brightness') setBrightness(value)
-          else setEnvironmentAdjustments((current) => ({ ...current, [key]: value }))
+          else if (key === 'saturation' || key === 'sharpness') setImageAdjustments((current) => ({ ...current, [key]: value }))
+          else setToneAdjustments((current) => ({ ...current, [key]: value }))
         }}
         onResetAdjustments={() => {
           setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
-          setEnvironmentAdjustments(DEFAULT_VIEWER_ENVIRONMENT)
+          setToneAdjustments(DEFAULT_VIEWER_TONE)
+          setImageAdjustments(DEFAULT_IMAGE_ADJUSTMENTS)
         }}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={startManualCamera}
