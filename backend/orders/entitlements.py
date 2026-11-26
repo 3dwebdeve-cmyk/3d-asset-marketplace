@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from uuid import UUID
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import QuerySet
 
@@ -24,6 +25,21 @@ def paid_order_lines() -> QuerySet[OrderItem]:
     ).exclude(order__payment__status="disputed")
 
 
+def downloads_per_purchase() -> int:
+    """Download links one paid purchase line gives (``DOWNLOADS_PER_PURCHASE``)."""
+    return max(1, int(getattr(settings, "DOWNLOADS_PER_PURCHASE", 5)))
+
+
+def downloads_left(line: OrderItem) -> int:
+    return max(0, downloads_per_purchase() - line.downloads_used)
+
+
+def active_order_lines() -> QuerySet[OrderItem]:
+    """Paid lines with downloads left. A used-up line no longer counts as owned: no download,
+    and the buyer may buy the item again. Reviews still use every paid line."""
+    return paid_order_lines().filter(downloads_used__lt=downloads_per_purchase())
+
+
 def kinds_of_line(kind: str) -> frozenset[str]:
     """The package kinds one product order line owns: its own, or every one for All variations,
     Whole File and a line from before packages (blank kind)."""
@@ -39,12 +55,13 @@ def download_kinds_of_line(kind: str) -> frozenset[str]:
 
 
 def download_kinds_by_product(user: User, product_ids: Iterable[UUID]) -> dict[UUID, frozenset[str]]:
-    """For each product, the file kinds the user may download: the union over their paid lines."""
+    """For each product, the file kinds the user may download now: the union over their paid
+    lines with downloads left."""
     product_ids = set(product_ids)
     if not product_ids:
         return {}
     downloads: dict[UUID, frozenset[str]] = {}
-    rows = paid_order_lines().filter(
+    rows = active_order_lines().filter(
         order__user=user,
         product_type=OrderItem.ProductType.PRODUCT,
         product_id__in=product_ids,
@@ -56,13 +73,14 @@ def download_kinds_by_product(user: User, product_ids: Iterable[UUID]) -> dict[U
 
 def owned_package_kinds(user: User, product_ids: Iterable[UUID]) -> dict[UUID, frozenset[str]]:
     """For each product, the package kinds the user owns ("" = the files without a kind), in
-    one query. A product the user owns nothing of is left out. Free models are not here:
-    anyone downloads them from the product page."""
+    one query: lines with downloads left, so a used-up package can be bought again. A product
+    the user owns nothing of is left out. Free models are not here: anyone downloads them from
+    the product page."""
     product_ids = set(product_ids)
     if not product_ids:
         return {}
     owned: dict[UUID, frozenset[str]] = {}
-    rows = paid_order_lines().filter(
+    rows = active_order_lines().filter(
         order__user=user,
         product_type=OrderItem.ProductType.PRODUCT,
         product_id__in=product_ids,
@@ -77,8 +95,9 @@ def user_owns_catalog_item(
     product_type: str,
     product_id: UUID,
 ) -> bool:
-    """The user owns the plugin, or at least one package of the model (enough to review it).
-    The cart and downloads check each package with ``owned_package_kinds``."""
+    """The user bought the plugin, or at least one package of the model (enough to review it),
+    even if its downloads are used up. The cart and downloads check each package with
+    ``owned_package_kinds`` / ``active_order_lines``."""
     return paid_order_lines().filter(
         order__user=user,
         product_type=product_type,
@@ -88,13 +107,14 @@ def user_owns_catalog_item(
 
 def owned_line_keys(user: User, keys: Iterable[tuple[str, UUID, str]]) -> set[tuple[str, UUID, str]]:
     """Which of these cart lines, (product_type, product_id, package_kind), the user already
-    owns: a package by ``owned_package_kinds``, a plugin by any paid line. Two queries."""
+    owns with downloads left: a package by ``owned_package_kinds``, a plugin by an active
+    line. Two queries."""
     keys = set(keys)
     product_ids = {pk for kind, pk, _ in keys if kind == OrderItem.ProductType.PRODUCT}
     plugin_ids = {pk for kind, pk, _ in keys if kind == OrderItem.ProductType.PLUGIN}
     packages = owned_package_kinds(user, product_ids)
     plugins = set(
-        paid_order_lines()
+        active_order_lines()
         .filter(order__user=user, product_type=OrderItem.ProductType.PLUGIN, product_id__in=plugin_ids)
         .values_list("product_id", flat=True)
     ) if plugin_ids else set()

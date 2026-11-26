@@ -1,5 +1,5 @@
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -47,6 +47,13 @@ function formatProductType(productType: string): string {
   return productType === 'product' ? 'Product' : 'Plugin'
 }
 
+/** Where a used-up purchase can be bought again. */
+function catalogPath(entitlement: DownloadEntitlement): string {
+  return entitlement.product_type === 'plugin'
+    ? `/plugins/${entitlement.slug}`
+    : `/products/${entitlement.slug}`
+}
+
 export function MyDownloadsPage() {
   useDocumentSeo({
     title: 'My downloads | AssetHive 3D',
@@ -55,6 +62,7 @@ export function MyDownloadsPage() {
   })
 
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   const isCustomerSession = isAuthenticated && !isAdministrator(user?.role)
@@ -70,6 +78,7 @@ export function MyDownloadsPage() {
   const [orderStatus, setOrderStatus] = useState<StatusFilter>('')
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilter>('')
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null)
 
   const entitlementsQuery = useQuery({ ...libraryQueryOptions, enabled: isCustomerSession })
 
@@ -118,6 +127,7 @@ export function MyDownloadsPage() {
       setDownloadError('This entitlement cannot be downloaded from the catalog library.')
       return
     }
+    setDownloadingFileId(file.id)
     try {
       await downloadCatalogFile(
         entitlement.product_type,
@@ -129,6 +139,10 @@ export function MyDownloadsPage() {
       setDownloadError(
         getApiErrorMessage(error, 'Could not download the file. Please try again.'),
       )
+    } finally {
+      setDownloadingFileId(null)
+      // Each download uses one of the purchase's downloads: show the new count.
+      void queryClient.invalidateQueries({ queryKey: ['downloads'] })
     }
   }
 
@@ -166,7 +180,8 @@ export function MyDownloadsPage() {
           My Downloads
         </h1>
         <p className="dash-list-page__subtitle">
-          Access purchased files, download history, and marketplace invoices.
+          Access purchased files, download history, and marketplace invoices. Each purchase can be
+          downloaded a limited number of times; after that, buy it again to download more.
         </p>
       </header>
 
@@ -280,6 +295,7 @@ export function MyDownloadsPage() {
                     <th scope="col">Version</th>
                     <th scope="col">Size</th>
                     <th scope="col">Last downloaded</th>
+                    <th scope="col">Downloads left</th>
                     <th scope="col">Download</th>
                   </tr>
                 </thead>
@@ -294,21 +310,30 @@ export function MyDownloadsPage() {
                         <td>{file.version}</td>
                         <td>{formatFileSize(file.file_size)}</td>
                         <td>{formatDateTime(file.last_downloaded_at)}</td>
+                        <td>{file.downloads_left > 0 ? file.downloads_left : 'Used up'}</td>
                         <td>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => void onDownload(entitlement, file)}
-                          >
-                            Download
-                          </Button>
+                          {file.downloads_left > 0 ? (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              isLoading={downloadingFileId === file.id}
+                              disabled={downloadingFileId !== null}
+                              onClick={() => void onDownload(entitlement, file)}
+                            >
+                              Download
+                            </Button>
+                          ) : (
+                            <Link className="dash-list-page__link" to={catalogPath(entitlement)}>
+                              Buy again
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     ) : (
                       <tr key={`${entitlement.product_type}-${entitlement.product_id}`}>
                         <td>{formatProductType(entitlement.product_type)}</td>
                         <td>{entitlement.title}</td>
-                        <td colSpan={5}>No downloadable files yet. Please contact support.</td>
+                        <td colSpan={7}>No downloadable files yet. Please contact support.</td>
                       </tr>
                     ),
                   )}

@@ -15,6 +15,8 @@ class DownloadFileSerializer(serializers.Serializer):
     version = serializers.CharField()
     download_url = serializers.SerializerMethodField()
     last_downloaded_at = serializers.DateTimeField(required=False, allow_null=True)
+    # Downloads left on this file over the user's paid lines (0 = used up: buy it again).
+    downloads_left = serializers.IntegerField(min_value=0)
 
     def get_download_url(self, obj: dict) -> str:
         request = self.context.get("request")
@@ -35,6 +37,8 @@ class DownloadEntitlementSerializer(serializers.Serializer):
     slug = serializers.CharField()
     # The packages of a model the user owns, in PACKAGE_ORDER ([] for a plugin).
     package_kinds = serializers.ListField(child=serializers.CharField())
+    # False once every download is used: the item can be bought again.
+    has_downloads_left = serializers.BooleanField()
     files = serializers.SerializerMethodField()
 
     def get_files(self, obj: dict) -> list:
@@ -98,6 +102,9 @@ class OrderItemDownloadFileSerializer(serializers.Serializer):
             obj["product_id"],
             obj["id"],
         )
+        if obj.get("line_id"):
+            # Count the download against this order's line, not another purchase.
+            path = f"{path}?line={obj['line_id']}"
         if request is not None:
             return request.build_absolute_uri(path)
         return path

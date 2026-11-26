@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from downloads.serializers import OrderItemDownloadFileSerializer
 from downloads.services import DownloadService
-from orders.entitlements import order_allows_download
+from orders.entitlements import downloads_left, downloads_per_purchase, order_allows_download
 from orders.models import Order, OrderItem
 from products.packages import PACKAGE_LABELS
 
@@ -85,25 +85,42 @@ class OrderItemDetailSerializer(serializers.ModelSerializer):
 
 class CustomerOrderItemDetailSerializer(OrderItemDetailSerializer):
     can_download = serializers.SerializerMethodField()
+    downloads_left = serializers.SerializerMethodField()
+    downloads_limit = serializers.SerializerMethodField()
+    downloads_used_up = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
 
     class Meta(OrderItemDetailSerializer.Meta):
         fields = OrderItemDetailSerializer.Meta.fields + (
             "can_download",
+            "downloads_left",
+            "downloads_limit",
+            "downloads_used_up",
             "files",
         )
 
-    def get_can_download(self, obj: OrderItem) -> bool:
+    def _order_gives_downloads(self, obj: OrderItem) -> bool:
         if obj.product_type == OrderItem.ProductType.CUSTOM_PROJECT:
             return False
         order = self.context.get("order")
-        if order is None:
-            return False
-        return order_allows_download(order)
+        return order is not None and order_allows_download(order)
+
+    def get_can_download(self, obj: OrderItem) -> bool:
+        """Paid, and this line still has downloads left."""
+        return self._order_gives_downloads(obj) and downloads_left(obj) > 0
+
+    def get_downloads_left(self, obj: OrderItem) -> int:
+        return downloads_left(obj) if self._order_gives_downloads(obj) else 0
+
+    def get_downloads_limit(self, obj: OrderItem) -> int:
+        return downloads_per_purchase()
+
+    def get_downloads_used_up(self, obj: OrderItem) -> bool:
+        """Paid, but every download is used: buy it again for more."""
+        return self._order_gives_downloads(obj) and downloads_left(obj) == 0
 
     def get_files(self, obj: OrderItem) -> list:
-        order = self.context.get("order")
-        if order is None or not order_allows_download(order):
+        if not self.get_can_download(obj):
             return []
 
         downloadable_files = self.context.get("downloadable_files")
@@ -123,6 +140,7 @@ class CustomerOrderItemDetailSerializer(OrderItemDetailSerializer):
                     "version": file_row.version,
                     "product_type": file_row.product_type,
                     "product_id": file_row.product_id,
+                    "line_id": obj.pk,
                 }
                 for file_row in file_rows
             ],

@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { getCustomerOrder } from '../../api/ordersApi'
 import { confirmCheckoutSession } from '../../api/paymentsApi'
 import { OrderItemDownloads } from '../../components/orders/OrderItemDownloads'
+import { downloadsLeftLabel } from '../../lib/downloadsLeft'
 import { Alert } from '../../components/ui/Alert'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
@@ -22,6 +23,30 @@ const POLL_INTERVAL_MS = 2000
 const POLL_TIMEOUT_MS = 45_000
 
 const CONFETTI_DOTS = 11
+
+// Between automatic downloads of several files, so the browser has taken each one before the
+// next link opens in this tab.
+const AUTO_DOWNLOAD_GAP_MS = 2500
+const AUTO_DOWNLOAD_KEY_PREFIX = 'checkout-auto-download:'
+
+/**
+ * True the first time for this order in this tab. Every download uses one of the purchase's
+ * downloads, so a refresh or a second render must not start them again.
+ */
+function claimAutoDownload(orderId: string): boolean {
+  const key = `${AUTO_DOWNLOAD_KEY_PREFIX}${orderId}`
+  try {
+    if (window.sessionStorage.getItem(key)) return false
+    window.sessionStorage.setItem(key, '1')
+  } catch {
+    // Storage blocked: the in-page guard still stops a second start.
+  }
+  return true
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
 
 function PaymentStatusPill({ status }: { status: OrderPaymentStatus }) {
   const modifier =
@@ -94,6 +119,7 @@ function PurchasedDownloads({
       <ul className="checkout-success-page__download-list">
         {order.items.map((item) => {
           const singleFile = item.files.length === 1 ? item.files[0] : null
+          const leftLabel = downloadsLeftLabel(item)
           return (
             <li key={item.id} className="checkout-success-page__download-item">
               <div className="checkout-success-page__download-info">
@@ -103,6 +129,13 @@ function PurchasedDownloads({
                 {singleFile ? (
                   <span className="checkout-success-page__download-meta">
                     {singleFile.file_format.toUpperCase()} · {formatFileSize(singleFile.file_size)}
+                  </span>
+                ) : null}
+                {leftLabel ? (
+                  <span className="checkout-success-page__download-meta">{leftLabel}</span>
+                ) : item.downloads_used_up ? (
+                  <span className="checkout-success-page__download-meta">
+                    All {item.downloads_limit} downloads used
                   </span>
                 ) : null}
               </div>
@@ -138,6 +171,8 @@ export function CheckoutSuccessPage() {
   const queryClient = useQueryClient()
   const startedAtRef = useRef(Date.now())
   const confirmAttemptedRef = useRef(false)
+  const autoDownloadStartedRef = useRef(false)
+  const [autoDownloadStarted, setAutoDownloadStarted] = useState(false)
   const [missingFileMessage, setMissingFileMessage] = useState<string | null>(null)
   const {
     downloadFile,
@@ -209,6 +244,22 @@ export function CheckoutSuccessPage() {
       })
     }
   }, [isPaid, orderId, queryClient])
+
+  // Paid: start the download by itself, once. The buttons below stay as the backup.
+  useEffect(() => {
+    if (!isPaid || !order || autoDownloadStartedRef.current) return
+    const files = order.items.filter((item) => item.can_download).flatMap((item) => item.files)
+    if (files.length === 0) return
+    autoDownloadStartedRef.current = true
+    if (!claimAutoDownload(order.id)) return
+    void (async () => {
+      setAutoDownloadStarted(true)
+      for (const [index, file] of files.entries()) {
+        if (index > 0) await wait(AUTO_DOWNLOAD_GAP_MS)
+        await downloadFile(file, true)
+      }
+    })()
+  }, [isPaid, order, downloadFile])
 
   if (!orderId) {
     return (
@@ -308,7 +359,9 @@ export function CheckoutSuccessPage() {
             {isPaid ? (
               <>
                 <p className="checkout-success-page__thankyou" role="status">
-                  Thanks for your purchase! Your items are ready to download.
+                  {autoDownloadStarted
+                    ? 'Thanks for your purchase! Your download has started. If it did not, press Download below.'
+                    : 'Thanks for your purchase! Your items are ready to download.'}
                 </p>
                 <PurchasedDownloads
                   order={order}

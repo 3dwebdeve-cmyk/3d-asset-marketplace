@@ -59,6 +59,9 @@ const pendingOrder: CustomerOrder = {
       line_total: '39.99',
       license_code: null,
       can_download: false,
+      downloads_left: 0,
+      downloads_limit: 5,
+      downloads_used_up: false,
       files: [],
       created_at: '2026-07-29T00:00:00Z',
       updated_at: '2026-07-29T00:00:00Z',
@@ -76,6 +79,7 @@ const paidOrder: CustomerOrder = {
     {
       ...pendingOrder.items[0],
       can_download: true,
+      downloads_left: 5,
       files: [
         {
           id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
@@ -153,6 +157,7 @@ describe('CustomerOrderDetailPage', () => {
     expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(
       paidOrder.items[0].files[0].download_url,
       'hero-sword.zip',
+      false,
     )
   })
 

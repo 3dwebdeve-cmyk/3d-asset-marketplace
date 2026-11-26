@@ -116,6 +116,20 @@ function triggerAnchorDownload(href: string, fileName: string): void {
   anchor.click()
 }
 
+/**
+ * Start a signed-link download. Without a click (right after payment) a new tab is blocked as a
+ * popup, so open the link in this tab: it answers "Content-Disposition: attachment", so the
+ * browser saves the file and the page stays where it is. (A hidden frame would need the storage
+ * host in the CSP frame-src.)
+ */
+function triggerSignedDownload(href: string, fileName: string, automatic: boolean): void {
+  if (automatic) {
+    window.location.assign(href)
+    return
+  }
+  triggerAnchorDownload(href, fileName)
+}
+
 function triggerBlobDownload(data: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(data)
   triggerAnchorDownload(objectUrl, fileName)
@@ -156,7 +170,11 @@ function catalogDownloadRequestPath(downloadUrl: string): string {
   return `${parsed.pathname}${parsed.search}`
 }
 
-async function fetchCatalogDownload(downloadUrl: string, fileName: string): Promise<void> {
+async function fetchCatalogDownload(
+  downloadUrl: string,
+  fileName: string,
+  automatic = false,
+): Promise<void> {
   const requestPath = catalogDownloadRequestPath(downloadUrl)
   const response = await apiClient.get<Blob | SignedDownloadResponse>(requestPath, {
     responseType: 'blob',
@@ -166,14 +184,14 @@ async function fetchCatalogDownload(downloadUrl: string, fileName: string): Prom
 
   if (isSignedDownloadPayload(payload)) {
     assertSafeRemoteDownloadUrl(payload.download_url)
-    triggerAnchorDownload(payload.download_url, payload.file_name || fileName)
+    triggerSignedDownload(payload.download_url, payload.file_name || fileName, automatic)
     return
   }
 
   if (payload instanceof Blob && contentType.toLowerCase().includes('application/json')) {
     const signed = await parseSignedDownload(payload)
     assertSafeRemoteDownloadUrl(signed.download_url)
-    triggerAnchorDownload(signed.download_url, signed.file_name || fileName)
+    triggerSignedDownload(signed.download_url, signed.file_name || fileName, automatic)
     return
   }
 
@@ -194,6 +212,11 @@ export async function downloadCatalogFile(
   await fetchCatalogDownload(buildCatalogDownloadPath(productType, productId, fileId), fileName)
 }
 
-export async function downloadCatalogFileByUrl(downloadUrl: string, fileName: string): Promise<void> {
-  await fetchCatalogDownload(downloadUrl, fileName)
+/** `automatic`: started by the page (after payment), not by a click on Download. */
+export async function downloadCatalogFileByUrl(
+  downloadUrl: string,
+  fileName: string,
+  automatic = false,
+): Promise<void> {
+  await fetchCatalogDownload(downloadUrl, fileName, automatic)
 }
