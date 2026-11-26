@@ -37,42 +37,6 @@ function directionalLightPosition(yaw: number, elevation: number, distance = KEY
   const horizontalDistance = distance * Math.cos(elevation)
   return [Math.sin(yaw) * horizontalDistance, distance * Math.sin(elevation), Math.cos(yaw) * horizontalDistance]
 }
-/** Where the key light should be right now (yaw and elevation, in radians); written every frame by CameraRelativeLighting. */
-type KeyLightRef = { current: { yaw: number; elevation: number } | undefined }
-
-const MAX_SUN_ELEVATION = THREE.MathUtils.degToRad(80)
-
-/**
- * Keeps the sun, the HDRI backdrop and the shadow-casting key light tied to the viewer's eye while the
- * camera orbits the model: the sun always sits in the camera's direction, `eyeLift` above the eye line, so
- * the light seems to come from the viewer. The HDRI has its sun painted at `paintedSunElevation` on +Z, so
- * the whole map is turned in 3D (first up or down, then left or right) to put that sun where it belongs.
- * `offsetYaw` is how far the light sits to one side of the camera (the preset's own offset plus whatever
- * the visitor set with Alt + drag).
- */
-function CameraRelativeLighting({ offsetYaw, eyeLift, paintedSunElevation, keyLightRef }: {
-  offsetYaw: number
-  eyeLift: number
-  paintedSunElevation: number
-  keyLightRef: KeyLightRef
-}) {
-  useFrame((state) => {
-    const target = (state.controls as { target?: THREE.Vector3 } | null)?.target
-    const dx = state.camera.position.x - (target?.x ?? 0)
-    const dy = state.camera.position.y - (target?.y ?? 0)
-    const dz = state.camera.position.z - (target?.z ?? 0)
-    const horizontal = Math.hypot(dx, dz)
-    // Looking straight down or up has no azimuth: keep the last light position.
-    if (horizontal < 1e-4) return
-    const yaw = Math.atan2(dx, dz) + offsetYaw
-    const elevation = THREE.MathUtils.clamp(Math.atan2(dy, horizontal) + eyeLift, -MAX_SUN_ELEVATION, MAX_SUN_ELEVATION)
-    keyLightRef.current = { yaw, elevation }
-    // R = Ry(yaw) * Rx(-lift): raises the painted sun from its own height to `elevation`, then swings it round.
-    state.scene.environmentRotation.set(paintedSunElevation - elevation, yaw, 0, 'YXZ')
-    state.scene.backgroundRotation.set(paintedSunElevation - elevation, yaw, 0, 'YXZ')
-  })
-  return null
-}
 const SHADOW_LIGHT_INTENSITY = 0.9
 const AMBIENT_FILL_INTENSITY = 0.15
 const DEFAULT_SHADOW_RADIUS = 2.5
@@ -85,8 +49,7 @@ type StudioLighting = {
   exposure: number
   /** Penumbra of the key light's shadow; bigger reads as a bigger, softer light. */
   shadowRadius?: number
-  /** For presets whose light follows the camera: how far above the viewer's eye line the sun sits. */
-  keyEyeLift?: number
+
 }
 
 function easeInOut(progress: number): number {
@@ -111,7 +74,6 @@ function PreviewModel({
   lightElevation,
   lightDistance = KEY_LIGHT_DISTANCE,
   lightIntensity,
-  keyLightRef,
   shadowRadius = DEFAULT_SHADOW_RADIUS,
   contactShadowOpacity = 0.25,
   cameraPosition,
@@ -123,7 +85,6 @@ function PreviewModel({
   lightElevation: number
   lightDistance?: number
   lightIntensity: number
-  keyLightRef?: KeyLightRef
   shadowRadius?: number
   contactShadowOpacity?: number
   cameraPosition?: [number, number, number]
@@ -180,16 +141,6 @@ function PreviewModel({
   }, [fitted, lightIntensity, lightYaw, lightElevation, lightDistance, shadowHalfExtent, shadowResolution, shadowsReady, invalidate])
 
   useFrame((_, delta) => {
-    const followed = keyLightRef?.current
-    const light = shadowLight.current
-    if (followed && light) {
-      const [x, y, z] = directionalLightPosition(followed.yaw, followed.elevation, lightDistance)
-      if (Math.abs(light.position.x - x) + Math.abs(light.position.y - y) + Math.abs(light.position.z - z) > 1e-4) {
-        light.position.set(x, y, z)
-        light.shadow.needsUpdate = true
-      }
-    }
-
     if (reducedMotion || entranceTime.current >= ENTRANCE_DURATION || !modelGroup.current) return
 
     const time = Math.min(entranceTime.current + Math.min(delta, 0.25), ENTRANCE_DURATION)
@@ -584,8 +535,8 @@ function ModelViewerCanvas({
   const centerWeight = 1 + 4 * sharpnessAmount
   const imageFilter = `saturate(${100 + saturation}%)${sharpness === 0 ? '' : ` url("#${sharpnessFilterId}")`}`
   const cameraPosition = presentation?.cameraPosition ?? PREVIEW_CAMERA_POSITION
-  const openingCameraYaw = Math.atan2(cameraPosition[0], cameraPosition[2])
-  const studioKeyYaw = studio ? openingCameraYaw + studio.keyViewYawOffset + lightingYaw : undefined
+  const lightingViewYaw = Math.atan2(cameraPosition[0], cameraPosition[2]) + lightingYaw
+  const studioKeyYaw = studio ? lightingViewYaw + studio.keyViewYawOffset : undefined
   // Presets whose sun is painted on +Z turn with the key light so both always agree.
   const environmentYaw = 'sunFollowsKey' in preset && studioKeyYaw !== undefined
     ? studioKeyYaw
@@ -605,7 +556,7 @@ function ModelViewerCanvas({
   const keyIntensity = (studio?.keyIntensity ?? SHADOW_LIGHT_INTENSITY) * brightnessMultiplier * (emphasizeBananaShadows ? 1.15 : 1)
   const upperRightLight = 'upperRightLight' in preset ? preset.upperRightLight : undefined
   const fillLights = 'fillLights' in preset ? preset.fillLights : undefined
-  const frontRightYaw = openingCameraYaw + (preset.id === 'small-09' ? Math.PI / 3 : Math.PI / 6)
+  const frontRightYaw = lightingViewYaw + (preset.id === 'small-09' ? Math.PI / 3 : Math.PI / 6)
   const frontRightElevation = preset.id === 'small-09' ? -Math.PI / 6 : -Math.PI / 9
   const studio09FillDistance = KEY_LIGHT_DISTANCE + 2.5
   const frontRightPosition = directionalLightPosition(
@@ -613,27 +564,24 @@ function ModelViewerCanvas({
     frontRightElevation,
     preset.id === 'small-09' ? studio09FillDistance + 0.25 : KEY_LIGHT_DISTANCE,
   )
-  const frontLeftYaw = openingCameraYaw - Math.PI / 4
+  const frontLeftYaw = lightingViewYaw - Math.PI / 4
   const frontLeftElevation = -(7 * Math.PI) / 36
   const frontLeftPosition = directionalLightPosition(frontLeftYaw, frontLeftElevation, studio09FillDistance)
   const frontLeftPitch = Math.atan2(
     -0.25 - frontLeftPosition[1],
     Math.hypot(frontLeftPosition[0], frontLeftPosition[2]),
   )
-  const lowerLeftYaw = openingCameraYaw - (2 * Math.PI) / 5
+  const lowerLeftYaw = lightingViewYaw - (2 * Math.PI) / 5
   const lowerLeftElevation = -(2 * Math.PI) / 9
-  const sideSoftboxYaw = openingCameraYaw - Math.PI / 2
+  const sideSoftboxYaw = lightingViewYaw - Math.PI / 2
   const sideSoftboxElevation = Math.PI / 18
-  const upperRightSoftboxYaw = openingCameraYaw + (5 * Math.PI) / 12
+  const upperRightSoftboxYaw = lightingViewYaw + (5 * Math.PI) / 12
   const upperRightSoftboxElevation = (2 * Math.PI) / 9
-  const overheadLightYaw = openingCameraYaw + Math.PI
+  const overheadLightYaw = lightingViewYaw + Math.PI
   const overheadLightHeight = KEY_LIGHT_DISTANCE * Math.sin(Math.PI / 3) - 1.25
   const overheadLightSetback = KEY_LIGHT_DISTANCE * Math.cos(Math.PI / 3) + 4
   const overheadLightElevation = Math.atan2(overheadLightHeight, overheadLightSetback)
   const lightDrag = useRef<{ pointerId: number; x: number } | null>(null)
-  // Presets whose sun is painted on +Z keep their light fixed on screen while the camera orbits.
-  const followsCamera = studio !== undefined && 'sunFollowsKey' in preset
-  const keyLightRef = useRef<{ yaw: number; elevation: number } | undefined>(undefined)
 
   function resetAdjustments(option: (typeof HDRI_ENVIRONMENTS)[number]) {
     const defaults = viewerDefaultsFor(option)
@@ -658,7 +606,7 @@ function ModelViewerCanvas({
     event.stopPropagation()
     const delta = (event.clientX - drag.x) / event.currentTarget.clientWidth * Math.PI * 2
     drag.x = event.clientX
-    if (Number.isFinite(delta)) setLightingYaw((yaw) => (yaw + delta) % (Math.PI * 2))
+    if (event.altKey && Number.isFinite(delta)) setLightingYaw((yaw) => (yaw + delta) % (Math.PI * 2))
   }
 
   function finishLightDrag(event: PointerEvent<HTMLDivElement>) {
@@ -720,14 +668,6 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={(studio?.exposure ?? 1) * exposureGain} />
-          {followsCamera && (
-            <CameraRelativeLighting
-              offsetYaw={studio.keyViewYawOffset + lightingYaw}
-              eyeLift={studio.keyEyeLift ?? 0}
-              paintedSunElevation={studio.keyElevation}
-              keyLightRef={keyLightRef}
-            />
-          )}
           <ambientLight intensity={(studio?.ambient ?? AMBIENT_FILL_INTENSITY) * brightnessMultiplier / (1 + REFERENCE_VIEWER_BRIGHTNESS / 100)} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
@@ -748,7 +688,6 @@ function ModelViewerCanvas({
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
               lightYaw={studioKeyYaw ?? environmentYaw}
-              keyLightRef={followsCamera ? keyLightRef : undefined}
               shadowRadius={studio?.shadowRadius}
               contactShadowOpacity={contactShadowOpacity}
               lightElevation={bananaStudio09
@@ -760,7 +699,7 @@ function ModelViewerCanvas({
             {upperRightLight && (
               <directionalLight
                 position={directionalLightPosition(
-                  openingCameraYaw + upperRightLight.viewYawOffset + lightingYaw,
+                  lightingViewYaw + upperRightLight.viewYawOffset,
                   upperRightLight.elevation - (hasPcCaseStudioLighting ? (5 * Math.PI) / 36 : 0),
                   hasPcCaseStudioLighting ? studio09FillDistance : undefined,
                 )}
@@ -768,7 +707,7 @@ function ModelViewerCanvas({
               />
             )}
             {fillLights?.map(({ name, viewYawOffset, elevation, intensity, width, height }) => {
-              const yaw = openingCameraYaw + viewYawOffset + lightingYaw
+              const yaw = lightingViewYaw + viewYawOffset
               return (
                 <rectAreaLight
                   key={name}
@@ -861,7 +800,6 @@ function ModelViewerCanvas({
                 resetAdjustments(option)
               }
               setPreset(option)
-              setLightingYaw(0)
             }}
           >
             {option.label}

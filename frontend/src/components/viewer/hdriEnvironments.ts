@@ -23,8 +23,7 @@ export const HDRI_ENVIRONMENTS = [
   {
     // Light grey-white studio with one huge, soft, round sun (a concave dish) in front of the model, made by
     // scripts/make_custom_hdri.mjs. The sun is painted on the HDRI's +Z axis; `sunFollowsKey` turns the whole
-    // map (and the shadow-casting key light) so the sun stays on the viewer's eye line, a little above it,
-    // wherever they look from. Alt + drag turns it on top of that.
+    // map with the shadow-casting key light. Alt + drag rotates both around the model.
     id: 'custom-hdri',
     label: 'Custom HDRI',
     hdrPath: '/hdri/custom-hdri.hdr',
@@ -36,7 +35,6 @@ export const HDRI_ENVIRONMENTS = [
       keyIntensity: 0.7,
       keyViewYawOffset: 0,
       keyElevation: (20 * Math.PI) / 180,
-      keyEyeLift: (15 * Math.PI) / 180,
       exposure: 0.9,
       shadowRadius: 6,
     },
