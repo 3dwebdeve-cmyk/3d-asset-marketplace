@@ -441,18 +441,18 @@ function ViewerToolbar({
           onCameraInteraction()
           controls.current?.dollyIn(0.8)
         }}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12m-6-6v12" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15 15 5 5M8 10.5h5m-2.5-2.5v5" /></svg>
           Zoom In
         </button>
         <button type="button" onClick={() => {
           onCameraInteraction()
           controls.current?.dollyOut(0.8)
         }}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15 15 5 5M8 10.5h5" /></svg>
           Zoom Out
         </button>
         <button type="button" onClick={() => void toggleFullscreen()}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H5v4m10-4h4v4m0 6v4h-4m-6 0H5v-4" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5m0 6v5h-5m-6 0H4v-5M4 4l5 5m11-5-5 5m5 11-5-5m-11 5 5-5" /></svg>
           {fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
         </button>
       </div>
@@ -573,6 +573,10 @@ function ModelViewerCanvas({
   )
   const lowerLeftYaw = lightingViewYaw - (2 * Math.PI) / 5
   const lowerLeftElevation = -(2 * Math.PI) / 9
+  // Place the softbox opposite the opening view across the +Z front panel.
+  const frontSoftboxYaw = lightingYaw - Math.atan2(cameraPosition[0], cameraPosition[2])
+  const frontSoftboxElevation = -Math.PI / 9
+  const [frontSoftboxX, frontSoftboxY, frontSoftboxZ] = directionalLightPosition(frontSoftboxYaw, frontSoftboxElevation, 2.5)
   const sideSoftboxYaw = lightingViewYaw - Math.PI / 2
   const sideSoftboxElevation = Math.PI / 18
   const upperRightSoftboxYaw = lightingViewYaw + (5 * Math.PI) / 12
@@ -741,7 +745,7 @@ function ModelViewerCanvas({
               <rectAreaLight
                 position={directionalLightPosition(lowerLeftYaw, lowerLeftElevation, studio09FillDistance + 0.25)}
                 rotation={[-lowerLeftElevation, lowerLeftYaw, 0, 'YXZ']}
-                intensity={0.48 * brightnessMultiplier}
+                intensity={0.36 * brightnessMultiplier}
                 width={5}
                 height={4}
               />
@@ -754,6 +758,16 @@ function ModelViewerCanvas({
                 intensity={1.5 * brightnessMultiplier}
                 width={1.25}
                 height={2.5}
+              />
+            )}
+            {hasPcCaseStudioLighting && (
+              <rectAreaLight
+                position={[frontSoftboxX + 0.85 * Math.sin(lightingYaw), frontSoftboxY, frontSoftboxZ + 0.85 * Math.cos(lightingYaw)]}
+                rotation={[-frontSoftboxElevation, frontSoftboxYaw, 0, 'YXZ']}
+                color="#ffffff"
+                intensity={0.65 * brightnessMultiplier}
+                width={1.85}
+                height={3.5}
               />
             )}
             {hasPcCaseStudioLighting && (
