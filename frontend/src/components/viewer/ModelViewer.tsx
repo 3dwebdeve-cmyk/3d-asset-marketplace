@@ -745,7 +745,7 @@ function ModelViewerCanvas({
               <rectAreaLight
                 position={directionalLightPosition(lowerLeftYaw, lowerLeftElevation, studio09FillDistance + 0.25)}
                 rotation={[-lowerLeftElevation, lowerLeftYaw, 0, 'YXZ']}
-                intensity={0.48 * brightnessMultiplier}
+                intensity={0.36 * brightnessMultiplier}
                 width={5}
                 height={4}
               />

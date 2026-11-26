@@ -80,11 +80,11 @@
   max-height: calc(100% - 1rem);
   padding: 0.25rem;
   overflow-y: auto;
-  border: 1px solid rgb(255 255 255 / 85%);
+  border: 1px solid #3f3f3f;
   border-radius: 1.125rem;
-  background: #f6f7fa;
-  box-shadow: 0 3px 10px rgb(23 30 45 / 20%);
-  color: #252d3d;
+  background: #202020;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 24%);
+  color: #e5e5e5;
 }
 
 .model-viewer__toolbar button {
@@ -110,12 +110,12 @@
 
 .model-viewer__toolbar button:hover,
 .model-viewer__toolbar button[aria-expanded='true'] {
-  background: #d5dffc;
-  color: #1746ad;
+  background: #484848;
+  color: #fff;
 }
 
 .model-viewer__toolbar button:focus-visible {
-  outline: 2px solid #1746ad;
+  outline: 2px solid #bdbdbd;
   outline-offset: -2px;
 }
 
