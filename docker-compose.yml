@@ -130,7 +130,8 @@ services:
       R2_PUBLIC_BUCKET: ${R2_PUBLIC_BUCKET:-}
       R2_PRIVATE_BUCKET: ${R2_PRIVATE_BUCKET:-}
       R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
-      R2_SIGNED_URL_EXPIRY: ${R2_SIGNED_URL_EXPIRY:-60}
+      R2_SIGNED_URL_EXPIRY: ${R2_SIGNED_URL_EXPIRY:-120}
+      DOWNLOADS_PER_PURCHASE: ${DOWNLOADS_PER_PURCHASE:-5}
     depends_on:
       migrate:
         condition: service_completed_successfully

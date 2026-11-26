@@ -12,6 +12,8 @@ export interface DownloadFile {
   version: string
   download_url: string
   last_downloaded_at?: string | null
+  /** Downloads left on this file over the buyer's purchases (0 = used up: buy it again). */
+  downloads_left: number
 }
 
 export interface DownloadEntitlement {
@@ -21,6 +23,8 @@ export interface DownloadEntitlement {
   slug: string
   /** The packages of a model the user owns, in package order ([] for a plugin). */
   package_kinds: PackageKind[]
+  /** False once every download is used: the item can be bought again. */
+  has_downloads_left: boolean
   files: DownloadFile[]
 }
 

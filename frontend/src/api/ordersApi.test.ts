@@ -174,6 +174,9 @@ describe('ordersApi', () => {
       items: sampleOrder.items.map((item) => ({
         ...item,
         can_download: false,
+        downloads_left: 0,
+        downloads_limit: 5,
+        downloads_used_up: false,
         files: [],
       })),
       items_total: sampleOrder.items_total,

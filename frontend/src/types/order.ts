@@ -145,7 +145,12 @@ export interface CustomerOrderItem {
   purchase_price: string
   line_total: string
   license_code: string | null
+  /** Paid, and this purchase still has downloads left. */
   can_download: boolean
+  downloads_left: number
+  downloads_limit: number
+  /** Paid, but every download is used: buy it again for more. */
+  downloads_used_up: boolean
   files: OrderItemDownloadFile[]
   created_at: string
   updated_at: string

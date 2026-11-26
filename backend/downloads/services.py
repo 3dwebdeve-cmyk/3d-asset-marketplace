@@ -17,12 +17,12 @@ from config.media import PrivateFileNotFound, resolve_private_download
 from config.sentry import capture_download_spike
 from downloads.models import DownloadHistory
 from orders.entitlements import (
-    download_kinds_by_product,
     download_kinds_of_line,
+    downloads_per_purchase,
     owned_package_kinds,
-    user_owns_catalog_item,
+    paid_order_lines,
 )
-from orders.models import Order, OrderItem
+from orders.models import OrderItem
 from plugins.models import Plugin, PluginFile
 from products.models import Product, ProductFile
 from products.packages import BUNDLE_KIND, PACKAGE_LABELS, PACKAGE_ORDER, PackageKind
@@ -53,9 +53,14 @@ class CatalogFileRef:
 
 
 class DownloadError(Exception):
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, code: str = "not_found") -> None:
         self.message = message
+        self.code = code
         super().__init__(message)
+
+
+# DownloadError.code when the purchase has no downloads left (the view answers 403).
+USED_UP = "downloads_used_up"
 
 
 class DownloadService:
@@ -96,11 +101,7 @@ class DownloadService:
 
     @classmethod
     def list_owned_catalog_keys(cls, user: User) -> list[tuple[str, UUID]]:
-        rows = OrderItem.objects.filter(
-            order__user=user,
-            order__order_status=Order.OrderStatus.PAID,
-            order__payment_status=Order.PaymentStatus.PAID,
-        ).exclude(order__payment__status="disputed").values_list("product_type", "product_id")
+        rows = paid_order_lines().filter(order__user=user).values_list("product_type", "product_id")
         seen: set[tuple[str, UUID]] = set()
         keys: list[tuple[str, UUID]] = []
         for product_type, product_id in rows:
@@ -112,6 +113,8 @@ class DownloadService:
 
     @classmethod
     def list_entitlements(cls, user: User) -> list[dict[str, Any]]:
+        """Every paid item, with the downloads left on each file. A used-up item stays in the
+        list (``has_downloads_left`` False) so the page can offer to buy it again."""
         keys = cls.list_owned_catalog_keys(user)
         if not keys:
             return []
@@ -129,8 +132,9 @@ class DownloadService:
         }
 
         product_files = cls.downloadable_product_files(product_ids)
+        # Packages with downloads left: a product page shows Download for these.
         owned_kinds = owned_package_kinds(user, product_ids)
-        download_kinds = download_kinds_by_product(user, product_ids)
+        lines_by_item = cls._paid_lines_by_item(user)
 
         plugin_files: dict[UUID, list[PluginFile]] = {}
         if plugin_ids:
@@ -144,17 +148,26 @@ class DownloadService:
         entitlements: list[dict[str, Any]] = []
         for product_type, product_id in keys:
             package_kinds: list[str] = []
+            lines = lines_by_item.get((product_type, product_id), [])
             if product_type == PRODUCT_TYPE_PRODUCT:
                 catalog = products.get(product_id)
                 owned = owned_kinds.get(product_id, frozenset())
                 # Only the files bought: one package's zip, the Whole File zip for All variations,
                 # or every file for an order from before packages.
-                downloadable = download_kinds.get(product_id, frozenset())
-                files = [row for row in product_files.get(product_id, []) if row.package_kind in downloadable]
+                bought = frozenset().union(*(download_kinds_of_line(kind) for kind, _ in lines))
+                files = [row for row in product_files.get(product_id, []) if row.package_kind in bought]
                 package_kinds = [kind for kind in PACKAGE_ORDER if kind in owned]
+                left_by_file = {
+                    row.id: sum(
+                        left for kind, left in lines if row.package_kind in download_kinds_of_line(kind)
+                    )
+                    for row in files
+                }
             elif product_type == PRODUCT_TYPE_PLUGIN:
                 catalog = plugins.get(product_id)
                 files = plugin_files.get(product_id, [])
+                plugin_left = sum(left for _, left in lines)
+                left_by_file = {row.id: plugin_left for row in files}
             else:
                 continue
 
@@ -167,14 +180,16 @@ class DownloadService:
                     "product_id": product_id,
                     "title": catalog.name,
                     "slug": catalog.slug,
-                    # The packages owned (so a product page shows Download for them).
+                    # The packages owned with downloads left (so a product page shows Download).
                     "package_kinds": package_kinds,
+                    "has_downloads_left": any(left > 0 for left in left_by_file.values()),
                     "files": [
                         cls._serialize_file_metadata(
                             product_type=product_type,
                             product_id=product_id,
                             file_row=file_row,
                             last_downloaded_at=last_downloads.get(file_row.id),
+                            downloads_left=left_by_file.get(file_row.id, 0),
                         )
                         for file_row in files
                     ],
@@ -183,6 +198,18 @@ class DownloadService:
 
         entitlements.sort(key=lambda item: item["title"].lower())
         return entitlements
+
+    @classmethod
+    def _paid_lines_by_item(cls, user: User) -> dict[tuple[str, UUID], list[tuple[str, int]]]:
+        """(package_kind, downloads left) of each paid line, per (product_type, product_id)."""
+        limit = downloads_per_purchase()
+        lines: dict[tuple[str, UUID], list[tuple[str, int]]] = {}
+        rows = paid_order_lines().filter(order__user=user).values_list(
+            "product_type", "product_id", "package_kind", "downloads_used"
+        )
+        for product_type, product_id, kind, used in rows:
+            lines.setdefault((product_type, product_id), []).append((kind, max(0, limit - used)))
+        return lines
 
     @staticmethod
     def package_labels(rows) -> dict[UUID, str]:
@@ -239,12 +266,9 @@ class DownloadService:
 
     @classmethod
     def stream_product_file(
-        cls, user: User, product_id: UUID, file_id: UUID
+        cls, user: User, product_id: UUID, file_id: UUID, line_id: UUID | None = None
     ) -> FileResponse | dict[str, Any]:
         file_row = cls.get_product_file(product_id, file_id)
-        # Only a file the user bought (the same answer whether the file exists or not).
-        if file_row.package_kind not in download_kinds_by_product(user, [product_id]).get(product_id, ()):
-            raise DownloadError("File not found.")
         return cls._deliver_owned_file(
             user=user,
             product_type=PRODUCT_TYPE_PRODUCT,
@@ -253,15 +277,14 @@ class DownloadService:
             file_name=file_row.file_name,
             storage_path=file_row.storage_path,
             package_kind=file_row.package_kind,
+            line_id=line_id,
         )
 
     @classmethod
     def stream_plugin_file(
-        cls, user: User, plugin_id: UUID, file_id: UUID
+        cls, user: User, plugin_id: UUID, file_id: UUID, line_id: UUID | None = None
     ) -> FileResponse | dict[str, Any]:
         file_row = cls.get_plugin_file(plugin_id, file_id)
-        if not user_owns_catalog_item(user, PRODUCT_TYPE_PLUGIN, plugin_id):
-            raise DownloadError("File not found.")
         return cls._deliver_owned_file(
             user=user,
             product_type=PRODUCT_TYPE_PLUGIN,
@@ -269,6 +292,7 @@ class DownloadService:
             file_id=file_row.id,
             file_name=file_row.file_name,
             storage_path=file_row.storage_path,
+            line_id=line_id,
         )
 
     @classmethod
@@ -338,6 +362,7 @@ class DownloadService:
         product_id: UUID,
         file_row: ProductFile | PluginFile,
         last_downloaded_at,
+        downloads_left: int,
     ) -> dict[str, Any]:
         package_kind = getattr(file_row, "package_kind", "")
         return {
@@ -351,6 +376,7 @@ class DownloadService:
             "version": file_row.version,
             "download_url": cls.build_download_path(product_type, product_id, file_row.id),
             "last_downloaded_at": last_downloaded_at,
+            "downloads_left": downloads_left,
         }
 
     @classmethod
@@ -365,69 +391,90 @@ class DownloadService:
         return {row["file_id"]: row["last_downloaded_at"] for row in rows}
 
     @classmethod
-    def _find_matching_order(
+    def _covering_lines(
         cls,
         user: User,
         product_type: str,
         product_id: UUID,
         package_kind: str,
-    ) -> Order | None:
-        """The latest paid order whose line gives this file (its package, Whole File, or a
-        line from before packages)."""
-        lines = OrderItem.objects.filter(
+    ) -> QuerySet[OrderItem]:
+        """The user's paid lines that give this file (its package, Whole File, All variations
+        for the Whole File zip, or a line from before packages), newest first."""
+        lines = paid_order_lines().filter(
             order__user=user,
-            order__order_status=Order.OrderStatus.PAID,
-            order__payment_status=Order.PaymentStatus.PAID,
             product_type=product_type,
             product_id=product_id,
         )
         if product_type == PRODUCT_TYPE_PRODUCT:
-            # A line from before packages, and an old Whole File line, give every file.
             kinds = {package_kind, PackageKind.WHOLE, ""}
             if package_kind == PackageKind.WHOLE:
                 kinds.add(BUNDLE_KIND)
             lines = lines.filter(package_kind__in=kinds)
-        item = (
-            lines
-            .exclude(order__payment__status="disputed")
-            .select_related("order")
-            .order_by("-order__created_at")
-            .first()
-        )
-        return item.order if item else None
+        return lines.order_by("-order__created_at", "-created_at")
+
+    @classmethod
+    def _claim_download(
+        cls,
+        user: User,
+        product_type: str,
+        product_id: UUID,
+        package_kind: str,
+        line_id: UUID | None,
+    ) -> OrderItem:
+        """Lock and return the line this download counts against: ``line_id`` when given (the
+        order page's link), otherwise the newest covering line with downloads left. Call inside
+        a transaction; the caller records the download in it."""
+        candidates = cls._covering_lines(user, product_type, product_id, package_kind)
+        if line_id is not None:
+            candidates = candidates.filter(pk=line_id)
+        limit = downloads_per_purchase()
+        candidate_ids = list(candidates.values_list("pk", flat=True))
+        for pk in candidate_ids:
+            # Lock the one row (no joins, so the lock is allowed on every database), then read
+            # the count again: a second tab may have taken the last download meanwhile.
+            line = OrderItem.objects.select_for_update().get(pk=pk)
+            if line.downloads_used < limit:
+                return line
+        if candidate_ids:
+            raise DownloadError(
+                f"You have used all {limit} downloads of this purchase. "
+                "Buy it again to download it more times.",
+                code=USED_UP,
+            )
+        # Never bought: the same answer as a file that does not exist.
+        raise DownloadError("File not found.")
 
     @classmethod
     def _record_download(
         cls,
         *,
         user: User,
+        line: OrderItem,
         product_type: str,
         product_id: UUID,
         file_id: UUID,
         file_name: str,
-        package_kind: str,
     ) -> None:
-        order = cls._find_matching_order(user, product_type, product_id, package_kind)
-        with transaction.atomic():
-            DownloadHistory.objects.create(
-                user=user,
-                product_type=product_type,
-                product_id=product_id,
-                file_id=file_id,
-                file_name=file_name,
-                order=order,
+        OrderItem.objects.filter(pk=line.pk).update(downloads_used=F("downloads_used") + 1)
+        DownloadHistory.objects.create(
+            user=user,
+            product_type=product_type,
+            product_id=product_id,
+            file_id=file_id,
+            file_name=file_name,
+            order_id=line.order_id,
+            order_item=line,
+        )
+        # total_downloads counts links issued. Downloads from R2 go straight to the
+        # browser, so completed transfers are not visible here.
+        if product_type == PRODUCT_TYPE_PRODUCT:
+            Product.objects.filter(pk=product_id).update(
+                total_downloads=F("total_downloads") + 1
             )
-            # total_downloads counts links issued. Downloads from R2 go straight to the
-            # browser, so completed transfers are not visible here.
-            if product_type == PRODUCT_TYPE_PRODUCT:
-                Product.objects.filter(pk=product_id).update(
-                    total_downloads=F("total_downloads") + 1
-                )
-            else:
-                Plugin.objects.filter(pk=product_id).update(
-                    total_downloads=F("total_downloads") + 1
-                )
-        cls._alert_on_download_spike(user)
+        else:
+            Plugin.objects.filter(pk=product_id).update(
+                total_downloads=F("total_downloads") + 1
+            )
 
     @classmethod
     def _alert_on_download_spike(cls, user: User) -> None:
@@ -456,20 +503,25 @@ class DownloadService:
         file_name: str,
         storage_path: str,
         package_kind: str = "",
+        line_id: UUID | None = None,
     ) -> FileResponse | dict[str, Any]:
-        try:
-            result = resolve_private_download(storage_path, file_name=file_name)
-        except PrivateFileNotFound as exc:
-            raise DownloadError("File not found.") from exc
-
-        cls._record_download(
-            user=user,
-            product_type=product_type,
-            product_id=product_id,
-            file_id=file_id,
-            file_name=file_name,
-            package_kind=package_kind,
-        )
+        """Count one download against a paid line with downloads left, then hand out the
+        signed link (or the local file). A missing file counts nothing."""
+        with transaction.atomic():
+            line = cls._claim_download(user, product_type, product_id, package_kind, line_id)
+            try:
+                result = resolve_private_download(storage_path, file_name=file_name)
+            except PrivateFileNotFound as exc:
+                raise DownloadError("File not found.") from exc
+            cls._record_download(
+                user=user,
+                line=line,
+                product_type=product_type,
+                product_id=product_id,
+                file_id=file_id,
+                file_name=file_name,
+            )
+        cls._alert_on_download_spike(user)
         logger.info(
             "catalog_download user_id=%s product_type=%s product_id=%s file_id=%s mode=%s",
             user.pk,

@@ -218,7 +218,9 @@ R2_PUBLIC_BASE_URL = config("R2_PUBLIC_BASE_URL", default="").strip()
 # (manage.py rewrite_public_media_host). Addresses on it still count as the site's own files.
 # Remove it once the command reports nothing left and the old address is switched off.
 R2_PUBLIC_BASE_URL_PREVIOUS = config("R2_PUBLIC_BASE_URL_PREVIOUS", default="").strip()
-R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=60, cast=int)
+# Seconds a signed download link works. It only has to cover the start of the transfer:
+# a download already running is not cut off when the link expires.
+R2_SIGNED_URL_EXPIRY = config("R2_SIGNED_URL_EXPIRY", default=120, cast=int)
 # The backup token belongs only on the backup host (.env.backup). In the app, code
 # execution would expose every backup, so staging and production refuse to start.
 if DEPLOYMENT_PROFILE in {"staging", "production"} and config(
@@ -231,6 +233,11 @@ if DEPLOYMENT_PROFILE in {"staging", "production"} and config(
 # Sentry warning when one account requests this many download links within an hour.
 # Alert only: buyers are never blocked.
 DOWNLOAD_ALERT_LINKS_PER_HOUR = config("DOWNLOAD_ALERT_LINKS_PER_HOUR", default=50, cast=int)
+# Download links one paid purchase line gives (a model variation, All variations or a
+# plugin). At 0 left the buyer pays again for more. Free items have no limit.
+DOWNLOADS_PER_PURCHASE = config("DOWNLOADS_PER_PURCHASE", default=5, cast=int)
+if DOWNLOADS_PER_PURCHASE < 1:
+    raise ImproperlyConfigured("DOWNLOADS_PER_PURCHASE must be at least 1.")
 if not R2_ENDPOINT_URL and R2_ACCOUNT_ID:
     R2_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 

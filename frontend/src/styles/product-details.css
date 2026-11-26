@@ -997,6 +997,11 @@ button.product-detail-cta__link {
   color: var(--action-color);
 }
 
+.package-options__downloads-left {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
 .package-options__footer {
   display: grid;
   gap: 0.6rem;

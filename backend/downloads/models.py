@@ -26,6 +26,15 @@ class DownloadHistory(models.Model):
         blank=True,
         related_name="download_history",
     )
+    # The purchase line this download counted against (blank for downloads from before
+    # downloads were counted per purchase).
+    order_item = models.ForeignKey(
+        "orders.OrderItem",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="download_history",
+    )
     downloaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

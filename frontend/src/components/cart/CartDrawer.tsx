@@ -115,14 +115,25 @@ export function CartDrawer() {
               <span>Total</span>
               <strong>{formatMoney(cart.total, cart.currency)}</strong>
             </div>
-            <Button
-              type="button"
-              className="cart-checkout-button cart-checkout-button--secure"
-              isLoading={isRedirecting}
-              onClick={() => startCheckout()}
-            >
-              Checkout securely •
-            </Button>
+            {new Set(cart.items.map((item) => `${item.product_type}:${item.product_id}`)).size > 1 ? (
+              // One model or plugin per checkout: pick which one on the cart page.
+              <Link
+                to="/cart"
+                className="ui-button ui-button--primary cart-checkout-button cart-checkout-button--secure"
+                onClick={closeDrawer}
+              >
+                Choose one model to check out
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                className="cart-checkout-button cart-checkout-button--secure"
+                isLoading={isRedirecting}
+                onClick={() => startCheckout()}
+              >
+                Checkout securely •
+              </Button>
+            )}
             <Link to="/cart" className="cart-drawer__view-all" onClick={closeDrawer}>
               View full cart details
             </Link>

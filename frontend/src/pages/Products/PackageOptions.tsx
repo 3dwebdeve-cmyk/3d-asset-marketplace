@@ -22,6 +22,16 @@ interface PackageOptionsProps {
 
 const ALL_VARIATIONS: LineKind = 'bundle'
 
+/** "3 downloads left" under an owned package's Download button. */
+function DownloadsLeftNote({ left }: { left: number | null }) {
+  if (left === null) return null
+  return (
+    <span className="package-options__downloads-left">
+      {left} {left === 1 ? 'download' : 'downloads'} left
+    </span>
+  )
+}
+
 function PackagePrice({ item, currency }: { item: PublicProductPackage; currency: string }) {
   if (item.discount_price) {
     return (
@@ -46,7 +56,7 @@ function PackagePrice({ item, currency }: { item: PublicProductPackage; currency
 export function PackageOptions({ product, isFree }: PackageOptionsProps) {
   const location = useLocation()
   const { isSignedIn, isInCart, addPackages, isPending } = useCart()
-  const { ownedPackages, ownedLoaded } = useOwnedItems()
+  const { ownedPackages, ownedLoaded, downloadsLeft } = useOwnedItems()
   const { buyNow, isRedirecting } = useBuyNow()
   const [ticked, setTicked] = useState<ReadonlySet<PackageKind>>(() => new Set())
 
@@ -133,9 +143,12 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
                     Free download
                   </a>
                 ) : isOwned ? (
-                  <Link className="ui-button ui-button--secondary package-options__action" to="/dashboard/downloads">
-                    Download
-                  </Link>
+                  <>
+                    <Link className="ui-button ui-button--secondary package-options__action" to="/dashboard/downloads">
+                      Download
+                    </Link>
+                    <DownloadsLeftNote left={downloadsLeft('product', product.id, item.kind)} />
+                  </>
                 ) : (
                   <>
                     <PackagePrice item={item} currency={product.currency} />

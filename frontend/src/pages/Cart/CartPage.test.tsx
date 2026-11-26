@@ -120,6 +120,40 @@ describe('CartPage', () => {
     expect(screen.getByRole('button', { name: 'Checkout selected (0)' })).toBeDisabled()
   })
 
+  it('checks out one model at a time: ticking another model replaces the selection', async () => {
+    const user = userEvent.setup()
+    const chair = sampleCart.items[0]
+    const chairRig = {
+      ...chair,
+      id: '33333333-3333-3333-3333-333333333333',
+      package_kind: 'with_light_rig' as const,
+      catalog: { ...chair.catalog, title: 'Oak Chair - With light rig', package_kind: 'with_light_rig' as const },
+    }
+    const lamp = {
+      ...chair,
+      id: '44444444-4444-4444-4444-444444444444',
+      product_id: '55555555-5555-5555-5555-555555555555',
+      catalog: { ...chair.catalog, name: 'Desk Lamp', title: 'Desk Lamp - Whole File', slug: 'desk-lamp' },
+    }
+    vi.mocked(cartApi.getCart).mockResolvedValue({
+      ...sampleCart,
+      item_count: 3,
+      items: [chair, chairRig, lamp],
+    })
+    renderCartPage()
+
+    // Both variations of the first model are selected; the other model waits.
+    expect(await screen.findByRole('button', { name: 'Checkout selected (2)' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: 'Buy Desk Lamp - Whole File' })).not.toBeChecked()
+    expect(screen.getByText(/check out one model .* at a time/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Buy Desk Lamp - Whole File' }))
+
+    expect(screen.getByRole('checkbox', { name: 'Buy Desk Lamp - Whole File' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Buy Oak Chair - Whole File' })).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Checkout selected (1)' })).toBeEnabled()
+  })
+
   it('starts checkout and redirects to the returned checkout URL', async () => {
     const originalLocation = window.location
     Object.defineProperty(window, 'location', {

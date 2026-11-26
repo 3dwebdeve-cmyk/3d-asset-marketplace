@@ -38,9 +38,16 @@ export function CommerceCtaGroup({
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
   const { buyNow, isRedirecting } = useBuyNow()
-  const { isOwned } = useOwnedItems()
+  const { isOwned, downloadsLeft } = useOwnedItems()
   const isSignedIn = isAuthenticated && Boolean(accessToken)
   const owned = isSignedIn && isOwned(productType, productId)
+  const left = owned ? downloadsLeft(productType, productId) : null
+  const ownedNote = owned ? (
+    <p className="product-detail-cta__owned">
+      You already own this plugin
+      {left !== null ? ` · ${left} ${left === 1 ? 'download' : 'downloads'} left` : ''}.
+    </p>
+  ) : null
   const returnTo = location.pathname
   const pathSegment = 'plugins'
   const itemLabel = 'Plugin'
@@ -136,7 +143,7 @@ export function CommerceCtaGroup({
             />
           )}
         </div>
-        {owned ? <p className="product-detail-cta__owned">You already own this {itemLabel.toLowerCase()}.</p> : null}
+        {ownedNote}
         {shareControl}
       </div>
     )
@@ -145,7 +152,7 @@ export function CommerceCtaGroup({
   return (
     <div className="product-detail-cta">
       {buyButton}
-      {owned ? <p className="product-detail-cta__owned">You already own this {itemLabel.toLowerCase()}.</p> : null}
+      {ownedNote}
 
       <div className="product-detail-cta__secondary">
         {!showCart ? null : (

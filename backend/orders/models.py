@@ -99,6 +99,9 @@ class OrderItem(models.Model):
     )
     license_type = models.CharField(max_length=32, blank=True, default="", editable=False)
     license_issued_at = models.DateTimeField(null=True, blank=True, editable=False)
+    # Download links this purchase line has handed out. At DOWNLOADS_PER_PURCHASE it is used
+    # up: no more links, and the buyer can buy the item again (orders.entitlements).
+    downloads_used = models.PositiveIntegerField(default=0, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

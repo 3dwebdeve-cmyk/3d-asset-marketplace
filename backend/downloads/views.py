@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from django.http import FileResponse
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -16,7 +16,7 @@ from downloads.serializers import (
     DownloadHistorySerializer,
     SignedDownloadSerializer,
 )
-from downloads.services import DownloadError, DownloadService
+from downloads.services import USED_UP, DownloadError, DownloadService
 
 
 def _parse_product_type(value: str | None) -> str | None:
@@ -26,6 +26,13 @@ def _parse_product_type(value: str | None) -> str | None:
     if normalized not in {"product", "plugin"}:
         raise ValidationError({"product_type": ["Invalid product_type filter."]})
     return normalized
+
+
+def _download_error(exc: DownloadError) -> Exception:
+    """403 when the purchase has no downloads left, otherwise 404 (never says what exists)."""
+    if exc.code == USED_UP:
+        return PermissionDenied(detail=exc.message, code=USED_UP)
+    return NotFound(detail=exc.message)
 
 
 class DownloadEntitlementListView(APIView):
@@ -62,9 +69,14 @@ class ProductFileDownloadView(APIView):
 
     def get(self, request: Request, product_id: UUID, file_id: UUID) -> FileResponse | Response:
         try:
-            result = DownloadService.stream_product_file(request.user, product_id, file_id)
+            result = DownloadService.stream_product_file(
+                request.user,
+                product_id,
+                file_id,
+                line_id=parse_uuid(request.query_params.get("line"), "line"),
+            )
         except DownloadError as exc:
-            raise NotFound(detail=exc.message) from exc
+            raise _download_error(exc) from exc
         if isinstance(result, dict):
             return Response(SignedDownloadSerializer(result).data)
         return result
@@ -76,9 +88,14 @@ class PluginFileDownloadView(APIView):
 
     def get(self, request: Request, plugin_id: UUID, file_id: UUID) -> FileResponse | Response:
         try:
-            result = DownloadService.stream_plugin_file(request.user, plugin_id, file_id)
+            result = DownloadService.stream_plugin_file(
+                request.user,
+                plugin_id,
+                file_id,
+                line_id=parse_uuid(request.query_params.get("line"), "line"),
+            )
         except DownloadError as exc:
-            raise NotFound(detail=exc.message) from exc
+            raise _download_error(exc) from exc
         if isinstance(result, dict):
             return Response(SignedDownloadSerializer(result).data)
         return result
