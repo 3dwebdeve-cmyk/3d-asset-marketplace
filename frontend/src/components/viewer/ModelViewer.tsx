@@ -74,6 +74,7 @@ function PreviewModel({
   lightElevation,
   lightDistance = KEY_LIGHT_DISTANCE,
   lightIntensity,
+  shadowIntensity,
   shadowRadius = DEFAULT_SHADOW_RADIUS,
   contactShadowOpacity = 0.25,
   cameraPosition,
@@ -85,6 +86,7 @@ function PreviewModel({
   lightElevation: number
   lightDistance?: number
   lightIntensity: number
+  shadowIntensity: number
   shadowRadius?: number
   contactShadowOpacity?: number
   cameraPosition?: [number, number, number]
@@ -205,6 +207,7 @@ function PreviewModel({
         position={lightPosition}
         intensity={lightIntensity}
         castShadow={shadowsReady}
+        shadow-intensity={shadowIntensity}
         shadow-autoUpdate={false}
         shadow-mapSize={[shadowResolution, shadowResolution]}
         shadow-camera-left={-shadowHalfExtent}
@@ -516,7 +519,9 @@ function ModelViewerCanvas({
   const contrastPower = 2 ** ((contrast - reference.contrast) / 100)
   const exposureGain = 2 ** (exposure - reference.exposure)
   const highlightPower = 2 ** ((highlights - reference.highlights) / 100)
-  const shadowPower = 2 ** ((reference.shadows - shadows) / 100)
+  // Keep the preset's low-tone grading separate from the strength of its cast shadows.
+  const shadowPower = 2 ** ((reference.shadows - viewerDefaultsFor(preset).tone.shadows) / 100)
+  const shadowIntensity = ((shadows + 100) / 200) ** 0.25
   const gammaPower = (1 + reference.gamma) / (1 + gamma)
   const toneTable = useMemo(() => Array.from({ length: 129 }, (_, index) => {
     const input = index / 128
@@ -699,6 +704,7 @@ function ModelViewerCanvas({
                 : (studio?.keyElevation ?? DEFAULT_KEY_ELEVATION) - (hasPcCaseStudioLighting ? Math.PI / 12 : 0)}
               lightDistance={hasPcCaseStudioLighting ? studio09FillDistance : undefined}
               lightIntensity={keyIntensity * (hasPcCaseStudioLighting ? 0.82 : 1)}
+              shadowIntensity={shadowIntensity}
             />
             {upperRightLight && (
               <directionalLight
