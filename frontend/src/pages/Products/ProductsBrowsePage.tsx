@@ -168,6 +168,30 @@ function useAutoScrollRail(
   }, [railRef, enabled])
 }
 
+/**
+ * The auto-scrolling rails repeat their cards so the loop looks endless. The repeats must
+ * stay clickable (a visitor can tap any card that passes by), but keyboard users should
+ * not tab through the same cards twice, so every link and button inside a repeat is taken
+ * out of the Tab order. A MutationObserver re-applies this when cards re-render.
+ */
+function useRailCopiesOutOfTabOrder(railRef: RefObject<HTMLElement | null>, items: unknown) {
+  useEffect(() => {
+    const rail = railRef.current
+    if (!rail) return
+    const apply = () => {
+      rail
+        .querySelectorAll<HTMLElement>('[data-rail-copy] :is(a[href], button, input, select, textarea, [tabindex])')
+        .forEach((element) => {
+          if (element.tabIndex !== -1) element.tabIndex = -1
+        })
+    }
+    apply()
+    const observer = new MutationObserver(apply)
+    observer.observe(rail, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [railRef, items])
+}
+
 function getRailDisplayItems<T extends { id: string }>(items: T[]) {
   if (items.length <= 1) {
     return items.map((item) => ({ item, cycle: 0, key: item.id }))
@@ -393,6 +417,8 @@ export function ProductsBrowsePage() {
 
   useAutoScrollRail(productsRailRef, !isCatalogMode && !isLoading && filteredProducts.length > 1)
   useAutoScrollRail(pluginsRailRef, !isCatalogMode && !pluginsLoading && plugins.length > 1)
+  useRailCopiesOutOfTabOrder(productsRailRef, filteredProducts)
+  useRailCopiesOutOfTabOrder(pluginsRailRef, plugins)
 
   useDocumentSeo({
     ...HOME_SEO,
@@ -469,7 +495,10 @@ export function ProductsBrowsePage() {
                   key={key}
                   className="browse-rail__item"
                   data-cycle={cycle}
-                  inert={cycle > 0 ? true : undefined}
+                  // Repeated copies stay clickable; they are hidden from screen readers and
+                  // taken out of the Tab order (see useRailCopiesOutOfTabOrder).
+                  aria-hidden={cycle > 0 ? true : undefined}
+                  data-rail-copy={cycle > 0 ? '' : undefined}
                 >
                   <ProductCard product={product} />
                 </div>
@@ -507,7 +536,10 @@ export function ProductsBrowsePage() {
                   key={key}
                   className="browse-rail__item"
                   data-cycle={cycle}
-                  inert={cycle > 0 ? true : undefined}
+                  // Repeated copies stay clickable; they are hidden from screen readers and
+                  // taken out of the Tab order (see useRailCopiesOutOfTabOrder).
+                  aria-hidden={cycle > 0 ? true : undefined}
+                  data-rail-copy={cycle > 0 ? '' : undefined}
                 >
                   <PluginCard plugin={plugin} />
                 </div>

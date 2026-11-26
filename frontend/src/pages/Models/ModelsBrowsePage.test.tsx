@@ -245,7 +245,7 @@ describe('ModelsBrowsePage', () => {
   })
 
   describe('readable category addresses', () => {
-    it('loads the category named in the address and gives it its own heading, intro and title', async () => {
+    it('loads the category named in the address and gives it its own heading and title, without a banner intro', async () => {
       renderModelsBrowsePage('/3d-models/furniture')
 
       expect(await screen.findByRole('heading', { level: 1, name: 'Furniture 3D Models' })).toBeInTheDocument()
@@ -254,7 +254,7 @@ describe('ModelsBrowsePage', () => {
           expect.objectContaining({ category_id: categoryId }),
         )
       })
-      expect(screen.getByText(/ready-to-use furniture 3D models for interior renders/i)).toBeInTheDocument()
+      expect(screen.queryByText(/ready-to-use furniture 3D models for interior renders/i)).not.toBeInTheDocument()
       await waitFor(() => expect(document.title).toBe('Furniture 3D Models – Chairs, Sofas & Tables | AssetHive3D'))
       expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
         'content',
