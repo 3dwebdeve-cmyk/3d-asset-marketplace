@@ -468,3 +468,15 @@
 .custom-studio .studio-benefits-row .studio-info.studio-benefits,
 .custom-studio .studio-benefits-row .studio-faq--side{border:1px solid #dedede;border-radius:12px;background:#fff;box-shadow:0 2px 10px rgba(17,24,39,.05)}
 @media(max-width:740px){.custom-studio .studio-benefits-row{gap:16px}}
+
+/* Phones: "What do you need?" service cards stay in two columns (an older rule
+   above made them one long list), with a smaller picture and text to fit. */
+@media(max-width:480px){
+.custom-studio .brief-selector-wrap--compact .brief-selector-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card{min-height:0;padding:8px 9px 10px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card img{height:64px;margin-bottom:6px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card input{top:6px;right:6px;width:20px;height:20px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-card input:checked::after{line-height:18px;font-size:12px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-title{font-size:12.5px;line-height:17px;margin-bottom:3px}
+.custom-studio .brief-selector-wrap--compact .brief-selector-description{font-size:10.5px;line-height:14px}
+}
