@@ -32,10 +32,11 @@ export const HDRI_ENVIRONMENTS = [
     yaw: 0,
     sunFollowsKey: true,
     studio: {
-      ambient: 0, // TEMP: was 0.04
+      ambient: 0,
       keyIntensity: 0.7,
-      keyViewYawOffset: -Math.PI / 12,
-      keyElevation: (45 * Math.PI) / 180,
+      keyViewYawOffset: 0,
+      keyElevation: (20 * Math.PI) / 180,
+      keyEyeLift: (15 * Math.PI) / 180,
       exposure: 0.9,
       shadowRadius: 6,
     },

@@ -111,6 +111,7 @@ function PreviewModel({
   lightElevation,
   lightDistance = KEY_LIGHT_DISTANCE,
   lightIntensity,
+  keyLightRef,
   shadowRadius = DEFAULT_SHADOW_RADIUS,
   contactShadowOpacity = 0.25,
   cameraPosition,
@@ -122,6 +123,7 @@ function PreviewModel({
   lightElevation: number
   lightDistance?: number
   lightIntensity: number
+  keyLightRef?: KeyLightRef
   shadowRadius?: number
   contactShadowOpacity?: number
   cameraPosition?: [number, number, number]
@@ -337,9 +339,11 @@ const DEFAULT_IMAGE_ADJUSTMENTS = { saturation: -4, sharpness: 20 }
 
 /** Brightness and environment adjustments a preset starts with; most presets use the shared defaults. */
 function viewerDefaultsFor(preset: (typeof HDRI_ENVIRONMENTS)[number]) {
-  return 'viewerDefaults' in preset
-    ? preset.viewerDefaults
-    : { brightness: DEFAULT_VIEWER_BRIGHTNESS, environment: DEFAULT_VIEWER_ENVIRONMENT }
+  if ('viewerDefaults' in preset) {
+    const { saturation, sharpness, ...tone } = preset.viewerDefaults.environment
+    return { brightness: preset.viewerDefaults.brightness, tone, image: { saturation, sharpness } }
+  }
+  return { brightness: DEFAULT_VIEWER_BRIGHTNESS, tone: DEFAULT_VIEWER_TONE, image: DEFAULT_IMAGE_ADJUSTMENTS }
 }
 
 const LIGHT_SLIDERS = [
@@ -353,15 +357,17 @@ const LIGHT_SLIDERS = [
   { key: 'sharpness', label: 'Sharpness', min: -100, max: 100, step: 1, unit: '%' },
 ] as const
 
-function ViewerEnvironment({ files, intensity, yaw }: {
+function ViewerEnvironment({ files, intensity, yaw, background, reference }: {
   files: string
   intensity: number
   yaw: number
+  background?: { intensity: number; blur: number }
+  reference: EnvironmentAdjustments
 }) {
   const source = useEnvironment({ files })
   const map = useMemo(
-    () => adjustEnvironment(source, REFERENCE_VIEWER_ENVIRONMENT),
-    [source],
+    () => adjustEnvironment(source, reference),
+    [source, reference],
   )
   useEffect(() => {
     if (map !== source) return () => map.dispose()
@@ -555,11 +561,12 @@ function ModelViewerCanvas({
   const [toneAdjustments, setToneAdjustments] = useState(DEFAULT_VIEWER_TONE)
   const toneFilterId = useId()
   const { contrast, exposure, highlights, shadows, gamma } = toneAdjustments
-  const contrastPower = 2 ** ((contrast - REFERENCE_VIEWER_ENVIRONMENT.contrast) / 100)
-  const exposureGain = 2 ** (exposure - REFERENCE_VIEWER_ENVIRONMENT.exposure)
-  const highlightPower = 2 ** ((highlights - REFERENCE_VIEWER_ENVIRONMENT.highlights) / 100)
-  const shadowPower = 2 ** ((REFERENCE_VIEWER_ENVIRONMENT.shadows - shadows) / 100)
-  const gammaPower = (1 + REFERENCE_VIEWER_ENVIRONMENT.gamma) / (1 + gamma)
+  const reference = 'viewerDefaults' in preset ? preset.viewerDefaults.environment : REFERENCE_VIEWER_ENVIRONMENT
+  const contrastPower = 2 ** ((contrast - reference.contrast) / 100)
+  const exposureGain = 2 ** (exposure - reference.exposure)
+  const highlightPower = 2 ** ((highlights - reference.highlights) / 100)
+  const shadowPower = 2 ** ((reference.shadows - shadows) / 100)
+  const gammaPower = (1 + reference.gamma) / (1 + gamma)
   const toneTable = useMemo(() => Array.from({ length: 129 }, (_, index) => {
     const input = index / 128
     // Anchor both curves at mid-gray so each slider targets its own tonal range.
@@ -627,6 +634,13 @@ function ModelViewerCanvas({
   // Presets whose sun is painted on +Z keep their light fixed on screen while the camera orbits.
   const followsCamera = studio !== undefined && 'sunFollowsKey' in preset
   const keyLightRef = useRef<{ yaw: number; elevation: number } | undefined>(undefined)
+
+  function resetAdjustments(option: (typeof HDRI_ENVIRONMENTS)[number]) {
+    const defaults = viewerDefaultsFor(option)
+    setBrightness(defaults.brightness)
+    setToneAdjustments(defaults.tone)
+    setImageAdjustments(defaults.image)
+  }
 
   function startLightDrag(event: PointerEvent<HTMLDivElement>) {
     if (!event.altKey || event.button !== 0 || lightDrag.current) return
@@ -706,6 +720,14 @@ function ModelViewerCanvas({
           frameloop={visible ? 'always' : 'never'}
         >
           <ViewerExposure exposure={(studio?.exposure ?? 1) * exposureGain} />
+          {followsCamera && (
+            <CameraRelativeLighting
+              offsetYaw={studio.keyViewYawOffset + lightingYaw}
+              eyeLift={studio.keyEyeLift ?? 0}
+              paintedSunElevation={studio.keyElevation}
+              keyLightRef={keyLightRef}
+            />
+          )}
           <ambientLight intensity={(studio?.ambient ?? AMBIENT_FILL_INTENSITY) * brightnessMultiplier / (1 + REFERENCE_VIEWER_BRIGHTNESS / 100)} />
           <ErrorBoundary key={preset.id} fallback={<ambientLight intensity={1} />}>
             <Suspense fallback={null}>
@@ -713,6 +735,8 @@ function ModelViewerCanvas({
                 files={preset.hdrPath}
                 intensity={environmentIntensity}
                 yaw={environmentYaw}
+                background={!background && 'background' in preset ? preset.background : undefined}
+                reference={reference}
               />
             </Suspense>
           </ErrorBoundary>
@@ -724,6 +748,7 @@ function ModelViewerCanvas({
               openingOrbit={openingOrbit}
               cameraPosition={presentation?.cameraPosition}
               lightYaw={studioKeyYaw ?? environmentYaw}
+              keyLightRef={followsCamera ? keyLightRef : undefined}
               shadowRadius={studio?.shadowRadius}
               contactShadowOpacity={contactShadowOpacity}
               lightElevation={bananaStudio09
@@ -833,9 +858,7 @@ function ModelViewerCanvas({
               // Entering or leaving a preset with its own starting brightness swaps the adjustments to match;
               // moving between ordinary presets keeps whatever the visitor set with the sliders.
               if (option.id !== preset.id && ('viewerDefaults' in option || 'viewerDefaults' in preset)) {
-                const defaults = viewerDefaultsFor(option)
-                setBrightness(defaults.brightness)
-                setEnvironmentAdjustments(defaults.environment)
+                resetAdjustments(option)
               }
               setPreset(option)
               setLightingYaw(0)
@@ -854,11 +877,7 @@ function ModelViewerCanvas({
           else if (key === 'saturation' || key === 'sharpness') setImageAdjustments((current) => ({ ...current, [key]: value }))
           else setToneAdjustments((current) => ({ ...current, [key]: value }))
         }}
-        onResetAdjustments={() => {
-          setBrightness(DEFAULT_VIEWER_BRIGHTNESS)
-          setToneAdjustments(DEFAULT_VIEWER_TONE)
-          setImageAdjustments(DEFAULT_IMAGE_ADJUSTMENTS)
-        }}
+        onResetAdjustments={() => resetAdjustments(preset)}
         onBackgroundChange={onBackgroundChange}
         onCameraInteraction={startManualCamera}
         onResetCamera={() => {

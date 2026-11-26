@@ -299,8 +299,8 @@ describe('ModelViewer', () => {
 
     const environment = screen.getByTestId('viewer-environment')
     expect(environment).toHaveAttribute('data-files', '/hdri/custom-hdri.hdr')
-    expect(environment).toHaveAttribute('data-background', 'false')
-    expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9 * 2 ** 0.7)
+    expect(environment).toHaveAttribute('data-background', 'true')
+    expect(viewerMocks.renderer.toneMappingExposure).toBeCloseTo(0.9)
 
     // Only this preset shows its HDRI as the backdrop, and picking a viewer background colour hides it.
     await userEvent.click(screen.getByRole('button', { name: 'Change background color' }))
@@ -327,9 +327,7 @@ describe('ModelViewer', () => {
     keyLight.position = new Vector3()
     keyLight.shadow = { needsUpdate: false }
     viewerMocks.controls!.target.set(0, 0, 0)
-    const { keyElevation: painted, keyEyeLift: lift } = (HDRI_ENVIRONMENTS.find((option) => option.id === 'custom-hdri') as unknown as {
-      studio: { keyElevation: number; keyEyeLift: number }
-    }).studio
+    const { keyElevation: painted, keyEyeLift: lift } = HDRI_ENVIRONMENTS.find((option) => option.id === 'custom-hdri')!.studio
     const orbitTo = (x: number, y: number, z: number) => {
       viewerMocks.camera!.position.set(x, y, z)
       const frameState = { scene: viewerMocks.renderScene, camera: viewerMocks.camera, controls: viewerMocks.controls }
@@ -411,8 +409,8 @@ describe('ModelViewer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Light Controls' }))
     const slider = (name: string) => screen.getByRole('slider', { name })
     // Shared defaults for the other presets.
-    expect(slider('Brightness')).toHaveValue('8')
-    expect(slider('Contrast')).toHaveValue('-50')
+    expect(slider('Brightness')).toHaveValue('4')
+    expect(slider('Contrast')).toHaveValue('-45')
 
     await userEvent.click(screen.getByRole('button', { name: 'Custom HDRI' }))
     expect(slider('Brightness')).toHaveValue('3')
@@ -420,6 +418,8 @@ describe('ModelViewer', () => {
     expect(slider('Exposure')).toHaveValue('-0.7')
     expect(slider('Highlights')).toHaveValue('0')
     expect(slider('Shadows')).toHaveValue('0')
+    expect(slider('Saturation')).toHaveValue('0')
+    expect(slider('Sharpness')).toHaveValue('0')
 
     // Reset goes back to this preset's own starting point.
     fireEvent.change(slider('Contrast'), { target: { value: '20' } })
@@ -429,8 +429,10 @@ describe('ModelViewer', () => {
 
     // Leaving it restores the shared defaults; moving between ordinary presets keeps the visitor's sliders.
     await userEvent.click(screen.getByRole('button', { name: 'Small Studio 09' }))
-    expect(slider('Brightness')).toHaveValue('8')
-    expect(slider('Contrast')).toHaveValue('-50')
+    expect(slider('Brightness')).toHaveValue('4')
+    expect(slider('Contrast')).toHaveValue('-45')
+    expect(slider('Saturation')).toHaveValue('-4')
+    expect(slider('Sharpness')).toHaveValue('20')
     fireEvent.change(slider('Contrast'), { target: { value: '-10' } })
     await userEvent.click(screen.getByRole('button', { name: 'Small Studio 08' }))
     expect(slider('Contrast')).toHaveValue('-10')
