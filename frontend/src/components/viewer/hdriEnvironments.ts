@@ -21,10 +21,10 @@ export const HDRI_ENVIRONMENTS = [
     upperRightLight: { viewYawOffset: Math.PI / 3, elevation: Math.PI / 3 },
   },
   {
-    // Light grey-white studio with one very large, soft sun (made by scripts/make_custom_hdri.mjs).
-    // The sun sits on the HDRI's +Z axis and `sunFollowsKey` turns the map so it lines up with the
-    // shadow-casting key light, which is placed up and to the viewer's left of the opening camera.
-    // Seen from the opening angle that lights the top, front and one side of the model.
+    // Light grey-white studio with one huge, soft, round sun (a concave dish) in front of the model, made by
+    // scripts/make_custom_hdri.mjs. The sun is painted on the HDRI's +Z axis; `sunFollowsKey` turns the whole
+    // map (and the shadow-casting key light) so the sun stays on the viewer's eye line, a little above it,
+    // wherever they look from. Alt + drag turns it on top of that.
     id: 'custom-hdri',
     label: 'Custom HDRI',
     hdrPath: '/hdri/custom-hdri.hdr',
@@ -32,14 +32,22 @@ export const HDRI_ENVIRONMENTS = [
     yaw: 0,
     sunFollowsKey: true,
     studio: {
-      ambient: 0, // TEMP: was 0.04
-      keyIntensity: 0, // TEMP: was 0.7 (direct key light switched off to see the HDRI sun alone)
-      keyViewYawOffset: -Math.PI / 12,
-      keyElevation: (45 * Math.PI) / 180,
+      ambient: 0, // off on purpose: the HDRI sun is the only light
+      keyIntensity: 0, // off on purpose: the HDRI sun is the only light (shadow light kept for its angle)
+      keyViewYawOffset: 0, // sun sits in line with the camera (front light from the viewer's side)
+      keyElevation: (20 * Math.PI) / 180, // height of the sun painted into the HDRI (SUN.elevation in the generator)
+      keyEyeLift: (15 * Math.PI) / 180, // the sun sits this far above the viewer's eye line, wherever they look from
       exposure: 0.9,
       shadowRadius: 6,
     },
     background: { intensity: 3.8, blur: 0.2 },
+    contactShadowOpacity: 0.12, // lighter than the other presets so the base does not look dim
+    // Starting brightness this preset was tuned with. The shared defaults (contrast -50, exposure -1.1 EV,
+    // highlights -32 ...) are meant for the other presets and would flatten and dim this sun.
+    viewerDefaults: {
+      brightness: 3,
+      environment: { contrast: 0, exposure: -0.7, saturation: 0, highlights: 0, shadows: 0, gamma: 0, sharpness: 0 },
+    },
   },
   {
     id: 'small-08',
