@@ -22,6 +22,7 @@ class PackageKind(models.TextChoices):
     WITH_LIGHT_RIG = "with_light_rig", "With Light Rig"
     WITHOUT_LIGHT_RIG = "without_light_rig", "Without Light Rig"
     GLB_ONLY = "glb_only", "GLB Only"
+    THREE_DS_MAX = "3ds_max", "3ds Max"
     ENVIRONMENT = "environment", "With Environment"
     WHOLE = "whole", "Whole File"
 
@@ -49,6 +50,7 @@ PACKAGE_DESCRIPTIONS: dict[str, str] = {
     PackageKind.WITH_LIGHT_RIG: "The model with its textures and the studio light rig.",
     PackageKind.WITHOUT_LIGHT_RIG: "The model with its textures, without any lights.",
     PackageKind.GLB_ONLY: "A single GLB file with its textures, for web, AR and game engines.",
+    PackageKind.THREE_DS_MAX: "The 3ds Max scene files with the FBX, renders and textures.",
     PackageKind.ENVIRONMENT: "The model placed in its environment scene.",
     PackageKind.WHOLE: "The complete model in one download.",
     BUNDLE_KIND: "Every package of this model in one download, at 25% off the total.",

@@ -34,6 +34,7 @@ PERCENTS = {
     "with_light_rig": "60",
     "without_light_rig": "50",
     "glb_only": "25",
+    "3ds_max": "40",
     "environment": "30",
 }
 
@@ -235,7 +236,7 @@ class PricingApiTests(APITestCase):
 
     # -- calculate ---------------------------------------------------------------------------
 
-    def test_a_model_with_every_package_gets_four_prices_and_whole_file_none(self, _exists) -> None:
+    def test_a_model_with_every_package_gets_five_prices_and_whole_file_none(self, _exists) -> None:
         # Whole File is the zip All variations delivers: nobody prices it.
         model = self._model("Chair", hours="10", kinds=PACKAGE_ORDER)  # base 10 x 20 = 200
 
@@ -249,6 +250,7 @@ class PricingApiTests(APITestCase):
                 "with_light_rig": "120.00",
                 "without_light_rig": "100.00",
                 "glb_only": "50.00",
+                "3ds_max": "80.00",
                 "environment": "60.00",
             },
         )
@@ -262,7 +264,7 @@ class PricingApiTests(APITestCase):
 
         rows = {row["id"]: row for row in self._calculate([full, partial]).data["rows"]}
 
-        self.assertEqual(len(rows[str(full.pk)]["packages"]), 4)
+        self.assertEqual(len(rows[str(full.pk)]["packages"]), 5)
         self.assertEqual(
             {item["kind"]: item["price"] for item in rows[str(partial.pk)]["packages"]},
             {"glb_only": "25.00", "with_light_rig": "60.00"},  # base 5 x 20 = 100
@@ -402,7 +404,7 @@ class PricingApiTests(APITestCase):
         # The model's own price is its cheapest package.
         self.assertEqual((full.price, partial.price), (Decimal("50.00"), Decimal("25.00")))
         changes = ProductPriceChange.objects.filter(batch_id=response.data["batch_id"])
-        self.assertEqual(changes.count(), 6)
+        self.assertEqual(changes.count(), 7)  # five for Full, two for Partial
         self.assertTrue(all(c.source == "pricing_page" and c.changed_by == self.admin for c in changes))
         self.assertTrue(
             ActivityLog.objects.filter(

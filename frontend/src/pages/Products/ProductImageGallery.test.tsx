@@ -184,6 +184,15 @@ describe('product gallery navigation', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('shows only the renders for a model with no 3D preview and no 360°', () => {
+    render(<ProductImageGallery {...defaults} previewModelUrl="" spinImages={[]} />)
+    expect(screen.queryByTestId('model-preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: '360° view of Chair' })).not.toBeInTheDocument()
+    expect(thumbnailLabels()).toEqual(['Show image 1 of 2', 'Show image 2 of 2'])
+    expect(within(stage()).getByAltText('Chair 3D model, image 1')).toBeInTheDocument()
+    expect(counter()).toHaveTextContent('1 / 2')
+  })
+
   it('hides navigation for a single preview or empty gallery', () => {
     const { rerender } = render(<ProductImageGallery {...defaults} images={[]} />)
     expect(screen.queryByRole('button', { name: 'Next preview' })).not.toBeInTheDocument()

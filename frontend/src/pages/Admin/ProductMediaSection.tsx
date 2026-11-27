@@ -210,7 +210,8 @@ export function ProductMediaSection({
           <p className="admin-media-panel__hint">No 3D preview - 360 only. The product page shows the 360° view.</p>
         ) : (
           <p className="home-page__subtitle">
-            Upload a GLB or self-contained GLTF file (max {PRODUCT_PREVIEW_MAX_MB} MB) below to test the 3D preview. Other formats are downloads only.
+            No 3D preview and no 360 - the product page shows the images only. To add a preview,
+            upload a GLB or self-contained GLTF file (max {PRODUCT_PREVIEW_MAX_MB} MB) below to test the 3D preview. Other formats are downloads only.
           </p>
         )}
       </div>

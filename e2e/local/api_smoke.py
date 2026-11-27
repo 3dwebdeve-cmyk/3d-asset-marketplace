@@ -29,6 +29,7 @@ PERCENTS = {
     "with_light_rig": "60",
     "without_light_rig": "50",
     "glb_only": "100",
+    "3ds_max": "40",
     "environment": "30",
 }
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}

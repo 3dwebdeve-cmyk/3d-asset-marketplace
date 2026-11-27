@@ -466,7 +466,7 @@ class DownloadTests(PackageSellingTestBase):
 
         self.assertEqual([f["package_kind"] for f in entry["files"]], ["whole"])
         # Every package counts as owned, so the product page offers the download for each.
-        self.assertEqual(entry["package_kinds"], ["with_light_rig", "without_light_rig", "glb_only", "environment", "whole"])
+        self.assertEqual(entry["package_kinds"], ["with_light_rig", "without_light_rig", "glb_only", "3ds_max", "environment", "whole"])
 
     def test_all_variations_after_a_single_package_lists_both_zips(self, _resolve) -> None:
         self.price_environment("12.00")

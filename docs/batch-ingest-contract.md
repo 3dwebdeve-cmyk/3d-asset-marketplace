@@ -24,7 +24,7 @@ writes these files:
 
 | File | Contents |
 |---|---|
-| `<ID>_<kind>.zip` | One zip per package the model has (1 to 5), each sold on its own: `with_light_rig`, `without_light_rig`, `glb_only`, `environment`, `whole` (Whole File, everything) |
+| `<ID>_<kind>.zip` | One zip per package the model has (1 to 6), each sold on its own: `with_light_rig`, `without_light_rig`, `glb_only`, `3ds_max`, `environment`, `whole` (Whole File, everything) |
 | `preview_<ID>.glb` | Optional when the model has a 360°: a light preview model (under 12 MB, not Draco-compressed) |
 | `previewthumb_<ID>.jpg` | The thumbnail |
 | `<ID>.json` | All product details (the plugin's own record; not uploaded) |
@@ -179,7 +179,7 @@ add it there.
 - `price`: the `"0.00"` placeholder. The sheet's price and discount are never read: each
   package is priced on the Pricing page, and a package with no price is not sold.
 - `media.packages`: one entry per zip the tool made (1 to 5), each with `kind` (one of
-  `with_light_rig`, `without_light_rig`, `glb_only`, `environment`, `whole`), `key`
+  `with_light_rig`, `without_light_rig`, `glb_only`, `3ds_max`, `environment`, `whole`), `key`
   (`<prefix><ID>_<kind>.zip`), `file_name`, `file_format` (`zip`) and `file_size` (> 0).
   `label` is accepted and not used: the website names packages itself. No duplicate kinds;
   `media.package_key` (the main zip) must be one of the keys. Otherwise `invalid_packages`.
@@ -248,7 +248,7 @@ holds `preview_unchecked` when that applies.
 | `category_linked` | The category with the sheet's name had no code; it now has this ID's code, and later models with that code go there. |
 | `category_pending_approval` | The category of this code is new (created by this or an earlier upload) and hidden. Approve it in `/console` → Categories before approving the model. |
 | `package_needs_price` | A live model got a new package. It is not sold until it has a price on the Pricing page. |
-| `extra_file_skipped` | The upload listed a zip that is not one of the five packages. It was not imported; the model's QA notes name it, so an administrator can add it by hand. |
+| `extra_file_skipped` | The upload listed a zip that is not one of the six packages (the five plus `3ds_max`). It was not imported; the model's QA notes name it, so an administrator can add it by hand. |
 | `preview_unchecked` | The preview was accepted without the 50% reduction check (see Import gate). Send `polygon_count`. |
 | `preview_not_scanned` | The preview was imported without a virus scan, because `CATALOG_IMPORT_SCAN_REQUIRED` is `False` and no scanner is configured. Expected while that switch is off. |
 | `console_text_kept` | Re-upload only: the sheet's name or descriptions differ from the product's, and the website kept the product's (see Re-import). Change the text in `/console`, not in the sheet. |
