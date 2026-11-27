@@ -1433,6 +1433,31 @@
   color: var(--text-body, var(--text-secondary));
 }
 
+.legal-document-page__table-wrap {
+  overflow-x: auto;
+}
+
+.legal-document-page__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-body, var(--text-secondary));
+}
+
+.legal-document-page__table th,
+.legal-document-page__table td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-default, #d4dce8);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-document-page__table th {
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
 .legal-document-page__draft-note {
   margin: 0.5rem 0 0;
   font-size: 0.875rem;

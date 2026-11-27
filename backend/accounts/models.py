@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -164,17 +165,33 @@ class ActivityLog(models.Model):
 
 
 class LegalAcceptance(models.Model):
-    """Proof that a user accepted a specific legal document version."""
+    """Proof that a user accepted a specific legal document version.
+
+    Rows outlive the account. Deleting a user only clears ``user``: ``user_ref`` still holds the
+    account's id, and the pre-delete signal stamps ``email_sha256``, so the record can be matched
+    to a claimant later without keeping their email (GDPR Art. 17(3)(e), legal claims).
+    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         User,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="legal_acceptances",
     )
+    # The account's id, kept after the account is deleted.
+    user_ref = models.UUIDField(null=True, blank=True, editable=False, db_index=True)
+    # SHA-256 of the lowercased email, written only when the account is deleted.
+    email_sha256 = models.CharField(max_length=64, blank=True, editable=False, db_index=True)
     document_key = models.CharField(max_length=64, db_index=True)
     version = models.CharField(max_length=64)
     accepted_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if self.user_id and not self.user_ref:
+            self.user_ref = self.user_id
+        super().save(*args, **kwargs)
 
     class Meta:
         db_table = "legal_acceptances"
