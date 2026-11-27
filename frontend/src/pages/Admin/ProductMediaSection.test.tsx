@@ -116,7 +116,7 @@ describe('ProductMediaSection', () => {
 
   it('explains preview requirements before a model is uploaded', () => {
     renderMediaSection()
-    expect(screen.getByText(/Upload a GLB or self-contained GLTF/)).toBeInTheDocument()
+    expect(screen.getByText(/upload a GLB or self-contained GLTF/)).toBeInTheDocument()
   })
 
   it('rejects oversized previews before sending the upload', () => {

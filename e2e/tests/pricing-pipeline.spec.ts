@@ -71,13 +71,14 @@ function pricingRow(page: Page, sku: string): Locator {
     .filter({ has: page.getByText(sku, { exact: true }) })
 }
 
-/** Type the rate and the four percents into the Model Pricing box: GLB Only = hours x 20. */
+/** Type the rate and the five percents into the Model Pricing box: GLB Only = hours x 20. */
 async function fillPricingBox(page: Page) {
   await page.getByLabel('Rate per hour (USD)').fill('20')
   await page.getByLabel('With Light Rig percent').fill('60')
   await page.getByLabel('Without Light Rig percent').fill('50')
   await page.getByLabel('With Environment percent').fill('30')
   await page.getByLabel('GLB Only percent').fill('100')
+  await page.getByLabel('3ds Max percent').fill('40')
 }
 
 async function openPricing(page: Page, tab: 'waiting' | 'live' = 'waiting') {

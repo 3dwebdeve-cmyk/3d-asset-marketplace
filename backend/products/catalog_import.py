@@ -84,10 +84,10 @@ CATEGORY_LINKED = "category_linked"
 CATEGORY_PENDING_APPROVAL = "category_pending_approval"
 # Row warning: a live model got a new package; it is not sold until it has a price.
 PACKAGE_NEEDS_PRICE = "package_needs_price"
-# Row warning (D7): the upload listed a zip that is not one of the five packages. Only the
-# five are imported; the QA note names the file so an administrator can add it by hand.
+# Row warning (D7): the upload listed a zip that is not one of the six packages. Only the
+# six are imported; the QA note names the file so an administrator can add it by hand.
 EXTRA_FILE_SKIPPED = "extra_file_skipped"
-EXTRA_FILE_NOTE_PREFIX = "Extra file not imported (not one of the five packages): "
+EXTRA_FILE_NOTE_PREFIX = "Extra file not imported (not one of the six packages): "
 _EXTRA_FILE_NOTE_HINT = ". Add it in Media > Packages if it should be sold."
 _MAX_EXTRA_NAMES = 10
 _CATEGORY_CODE_RE = re.compile(CATEGORY_CODE_REGEX)

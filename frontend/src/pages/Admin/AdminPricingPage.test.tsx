@@ -101,13 +101,14 @@ async function tick(user: ReturnType<typeof userEvent.setup>, ...names: string[]
   for (const name of names) await user.click(await screen.findByLabelText(`Select ${name}`))
 }
 
-/** Type the rate and the five percents into the Model Pricing box. */
+/** Type the rate and the percents into the Model Pricing box. */
 async function fillBox(user: ReturnType<typeof userEvent.setup>, rate = '20') {
   await user.type(screen.getByLabelText('Rate per hour (USD)'), rate)
   const percents = {
     'With Light Rig': '60',
     'Without Light Rig': '50',
     'GLB Only': '25',
+    '3ds Max': '40',
     'With Environment': '30',
   }
   for (const [label, value] of Object.entries(percents)) {
@@ -151,7 +152,7 @@ describe('AdminPricingPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Model Pricing' })).toBeInTheDocument()
     expect(screen.getByLabelText('Rate per hour (USD)')).toBeInTheDocument()
-    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only']) {
+    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only', '3ds Max']) {
       expect(screen.getByLabelText(`${label} percent`)).toBeInTheDocument()
     }
   })
@@ -194,7 +195,7 @@ describe('AdminPricingPage', () => {
         product_ids: ['1', '2'],
         rate: '20',
         percents: {
-          with_light_rig: '60', without_light_rig: '50', glb_only: '25', environment: '30',
+          with_light_rig: '60', without_light_rig: '50', glb_only: '25', '3ds_max': '40', environment: '30',
         },
       }),
     )
@@ -356,7 +357,7 @@ describe('AdminPricingPage', () => {
     expect(screen.getByRole('heading', { name: 'Model Pricing' })).toBeInTheDocument()
     expect(screen.getByLabelText('Rate per hour (USD)')).toBeInTheDocument()
     expect(screen.getByText('Base price = Hours ×')).toBeInTheDocument()
-    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only', 'Whole File']) {
+    for (const label of ['With Light Rig', 'Without Light Rig', 'With Environment', 'GLB Only', '3ds Max', 'Whole File']) {
       expect(screen.queryByLabelText(`${label} percent`)).not.toBeInTheDocument()
     }
   })
