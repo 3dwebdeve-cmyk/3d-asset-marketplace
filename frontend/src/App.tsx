@@ -277,6 +277,11 @@ const PrivacyPage = lazy(() =>
     default: module.PrivacyPage,
   })),
 )
+const CookiePolicyPage = lazy(() =>
+  import('./pages/Legal/LegalDocumentPage').then((module) => ({
+    default: module.CookiePolicyPage,
+  })),
+)
 
 const ContactPage = lazy(() =>
   import('./pages/Contact/ContactPage').then((module) => ({
@@ -334,6 +339,7 @@ function AppRoutes() {
             <Route path="/about" element={<AboutPage />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/cookies" element={<CookiePolicyPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
             <Route path="/products" element={<Navigate to="/" replace />} />

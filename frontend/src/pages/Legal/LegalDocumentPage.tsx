@@ -2,9 +2,15 @@ import { Link } from 'react-router-dom'
 
 import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import '../../styles/marketing.css'
-import { LEGAL_DOCUMENT_VERSIONS, PRIVACY_PATH, TERMS_PATH } from '../../lib/legalDocuments'
+import {
+  COOKIE_POLICY_PATH,
+  COOKIE_POLICY_VERSION,
+  LEGAL_DOCUMENT_VERSIONS,
+  PRIVACY_PATH,
+  TERMS_PATH,
+} from '../../lib/legalDocuments'
 
-type LegalKind = 'terms' | 'privacy'
+type LegalKind = 'terms' | 'privacy' | 'cookies'
 
 const COPY: Record<
   LegalKind,
@@ -28,6 +34,15 @@ const COPY: Record<
     otherLabel: 'Terms of Service',
     otherPath: TERMS_PATH,
   },
+  cookies: {
+    title: 'Cookie Policy | AssetHive3D',
+    description:
+      'Which cookies and browser storage AssetHive3D uses, why, and how to control them.',
+    heading: 'Cookie Policy',
+    version: COOKIE_POLICY_VERSION,
+    otherLabel: 'Privacy Policy',
+    otherPath: PRIVACY_PATH,
+  },
 }
 
 interface LegalDocumentPageProps {
@@ -49,8 +64,11 @@ function LegalDocumentPage({ kind }: LegalDocumentPageProps) {
           <p className="marketing-page__eyebrow">Legal</p>
           <h1>{copy.heading}</h1>
           <p className="home-page__subtitle">
-            Document version <strong>{LEGAL_DOCUMENT_VERSIONS[kind]}</strong>. By creating an account or completing
-            checkout, you confirm you have read this document.
+            Document version{' '}
+            <strong>{kind === 'cookies' ? COOKIE_POLICY_VERSION : LEGAL_DOCUMENT_VERSIONS[kind]}</strong>.{' '}
+            {kind === 'cookies'
+              ? 'This policy explains the cookies and browser storage the site uses.'
+              : 'By creating an account or completing checkout, you confirm you have read this document.'}
           </p>
           <p className="home-page__subtitle">
             Also see our{' '}
@@ -61,7 +79,7 @@ function LegalDocumentPage({ kind }: LegalDocumentPageProps) {
           </p>
         </header>
 
-        {kind === 'terms' ? <TermsBody /> : <PrivacyBody />}
+        {kind === 'terms' ? <TermsBody /> : kind === 'privacy' ? <PrivacyBody /> : <CookiesBody />}
 
         <p className="home-page__subtitle">
           Questions?{' '}
@@ -197,11 +215,130 @@ function PrivacyBody() {
         </p>
       </section>
       <section>
-        <h2>7. Changes</h2>
+        <h2>7. Cookies</h2>
+        <p>
+          We use only the cookies and browser storage needed to sign you in, keep the site secure,
+          and save form drafts on your device. We do not use advertising or tracking cookies. See
+          our{' '}
+          <Link className="auth-link" to={COOKIE_POLICY_PATH}>
+            Cookie Policy
+          </Link>{' '}
+          for the full list.
+        </p>
+      </section>
+      <section>
+        <h2>8. Changes</h2>
         <p>
           Privacy Policy updates bump the document version. Material changes may require
           re-acceptance before checkout.
         </p>
+      </section>
+      <p className="legal-document-page__draft-note">
+        Draft for sandbox / pre-launch review. Have counsel finalize wording before public launch.
+      </p>
+    </article>
+  )
+}
+
+function CookiesBody() {
+  return (
+    <article className="legal-document-page__body">
+      <section>
+        <h2>1. What cookies are</h2>
+        <p>
+          Cookies are small text files a website stores in your browser. Browser storage
+          (localStorage) is similar, but it stays on your device and is not sent to our servers.
+        </p>
+      </section>
+      <section>
+        <h2>2. Cookies we use</h2>
+        <p>
+          AssetHive3D uses only strictly necessary cookies. The site cannot work without them, so
+          they do not need your consent and there is no option to switch them off.
+        </p>
+        <div className="legal-document-page__table-wrap">
+          <table className="legal-document-page__table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Purpose</th>
+                <th scope="col">How long it lasts</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <code>refresh_token</code>
+                </td>
+                <td>Keeps you signed in. Page scripts cannot read it (httpOnly).</td>
+                <td>30 days with “remember me”, otherwise until you close the browser</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>refresh_remember</code>
+                </td>
+                <td>Remembers that you chose “remember me” when signing in.</td>
+                <td>30 days</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>csrftoken</code>
+                </td>
+                <td>Protects staff back-office forms against cross-site request forgery.</td>
+                <td>1 year</td>
+              </tr>
+              <tr>
+                <td>
+                  <code>sessionid</code>
+                </td>
+                <td>Keeps staff signed in to the back office.</td>
+                <td>2 weeks, or until sign-out</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <h2>3. Browser storage</h2>
+        <p>
+          When you save a draft of a custom project enquiry, the form contents are kept in your
+          browser&apos;s localStorage so you can continue later. Selected files are not stored.
+          Clearing your browser data removes these drafts.
+        </p>
+      </section>
+      <section>
+        <h2>4. No tracking or advertising cookies</h2>
+        <p>
+          We do not use analytics, advertising, or social media tracking cookies. If we add any, we
+          will update this policy and ask for your consent before setting them.
+        </p>
+      </section>
+      <section>
+        <h2>5. Payments</h2>
+        <p>
+          Checkout takes place on Stripe&apos;s secure payment page. Stripe may set its own cookies
+          there, for example to prevent fraud. These are covered by{' '}
+          <a
+            className="auth-link"
+            href="https://stripe.com/legal/cookies-policy"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Stripe&apos;s cookie policy
+          </a>
+          .
+        </p>
+      </section>
+      <section>
+        <h2>6. Controlling cookies</h2>
+        <p>
+          You can view, block, or delete cookies in your browser settings. If you block the cookies
+          listed above, you will not be able to sign in, check out, or download your purchases.
+        </p>
+      </section>
+      <section>
+        <h2>7. Changes</h2>
+        <p>When this policy changes, the document version at the top of this page is updated.</p>
       </section>
       <p className="legal-document-page__draft-note">
         Draft for sandbox / pre-launch review. Have counsel finalize wording before public launch.
@@ -216,4 +353,8 @@ export function TermsPage() {
 
 export function PrivacyPage() {
   return <LegalDocumentPage kind="privacy" />
+}
+
+export function CookiePolicyPage() {
+  return <LegalDocumentPage kind="cookies" />
 }
