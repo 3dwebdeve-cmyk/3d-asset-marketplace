@@ -1918,7 +1918,7 @@
 
 .custom-studio .brief-cta--banner {
   padding: clamp(32px, 4vw, 76px) max(20px, 6.8vw);
-  background: #fff;
+  background: #f2f4f6;
 }
 
 .custom-studio .brief-cta--banner .brief-cta-inner {
