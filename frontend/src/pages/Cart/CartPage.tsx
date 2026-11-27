@@ -9,6 +9,12 @@ import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { CartLineItem } from '../../components/cart/CartLineItem'
 import { formatMoney } from '../../lib/format'
+import type { CartItem } from '../../types/cart'
+
+/** One model (any of its variations) or one plugin per checkout: lines are grouped by item. */
+function checkoutGroup(item: CartItem): string {
+  return `${item.product_type}:${item.product_id}`
+}
 
 export function CartPage() {
   useDocumentSeo({
@@ -28,18 +34,30 @@ export function CartPage() {
     refetch,
   } = useCart()
   const { startCheckout, isRedirecting } = useCheckout()
-  // Every available line is bought unless the customer unticks it.
-  const [unticked, setUnticked] = useState<ReadonlySet<string>>(() => new Set())
-  const selected = (cart?.items ?? []).filter(
-    (item) => item.catalog?.is_available && !unticked.has(item.id),
-  )
+  // Checkout takes one model (any of its variations) or one plugin. Until the customer ticks
+  // something, every available line of the first item in the cart is selected.
+  const [ticked, setTicked] = useState<ReadonlySet<string> | null>(null)
+  const [switchedItem, setSwitchedItem] = useState(false)
+  const available = (cart?.items ?? []).filter((item) => item.catalog?.is_available)
+  const firstGroup = available[0] ? checkoutGroup(available[0]) : null
+  const effectiveTicked =
+    ticked ??
+    new Set(available.filter((item) => checkoutGroup(item) === firstGroup).map((item) => item.id))
+  const selected = available.filter((item) => effectiveTicked.has(item.id))
   const selectedTotal = selected.reduce((sum, item) => sum + Number(item.line_total ?? 0), 0)
-  const toggle = (itemId: string) =>
-    setUnticked((current) => {
-      const next = new Set(current)
-      if (!next.delete(itemId)) next.add(itemId)
-      return next
-    })
+  const selectedGroup = selected[0] ? checkoutGroup(selected[0]) : null
+  const hasSeveralItems = new Set(available.map(checkoutGroup)).size > 1
+  const toggle = (item: CartItem) => {
+    if (selectedGroup && checkoutGroup(item) !== selectedGroup) {
+      // Another model: it replaces the selection (one model per checkout).
+      setTicked(new Set([item.id]))
+      setSwitchedItem(true)
+      return
+    }
+    const next = new Set(effectiveTicked)
+    if (!next.delete(item.id)) next.add(item.id)
+    setTicked(next)
+  }
 
   const isEmpty = cart?.item_count === 0
   const showTopActions = !isLoading && !isEmpty
@@ -111,9 +129,9 @@ export function CartPage() {
                   <input
                     type="checkbox"
                     aria-label={`Buy ${item.catalog?.title ?? 'this item'}`}
-                    checked={Boolean(item.catalog?.is_available) && !unticked.has(item.id)}
+                    checked={Boolean(item.catalog?.is_available) && effectiveTicked.has(item.id)}
                     disabled={!item.catalog?.is_available}
-                    onChange={() => toggle(item.id)}
+                    onChange={() => toggle(item)}
                   />
                   <CartLineItem
                     item={item}
@@ -143,6 +161,12 @@ export function CartPage() {
               <p className="cart-summary__note">
                 Unavailable items are excluded from the subtotal.
               </p>
+              {hasSeveralItems ? (
+                <p className="cart-summary__note" role={switchedItem ? 'status' : undefined}>
+                  Check out one model (any of its variations) or one plugin at a time. The rest
+                  stay in your cart.
+                </p>
+              ) : null}
               <p className="cart-summary__note cart-summary__note--legal">
                 By checking out you agree to our{' '}
                 <Link className="auth-link" to="/terms">

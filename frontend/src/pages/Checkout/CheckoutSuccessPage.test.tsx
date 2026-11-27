@@ -68,6 +68,9 @@ const paidOrder: CustomerOrder = {
       line_total: '39.99',
       license_code: null,
       can_download: true,
+      downloads_left: 5,
+      downloads_limit: 5,
+      downloads_used_up: false,
       files: [
         {
           id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
@@ -110,6 +113,8 @@ function renderCheckoutSuccessPage() {
 beforeEach(() => {
   resetAuthStore()
   vi.clearAllMocks()
+  // The automatic download is remembered per order in this tab.
+  window.sessionStorage.clear()
   useAuthStore.setState({
     accessToken: 'access-token',
     user: testUser,
@@ -134,9 +139,10 @@ describe('CheckoutSuccessPage', () => {
     expect(within(downloads).getByText(/GLB · 2\.0 KB/)).toBeInTheDocument()
 
     await user.click(within(downloads).getByRole('button', { name: /^download$/i }))
-    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(
+    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenLastCalledWith(
       paidOrder.items[0].files[0].download_url,
       'hero-sword.glb',
+      false,
     )
     expect(screen.queryByRole('button', { name: /download model/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /my downloads/i })).not.toBeInTheDocument()
@@ -179,6 +185,62 @@ describe('CheckoutSuccessPage', () => {
     const downloads = await screen.findByRole('region', { name: /your downloads/i })
     await user.click(within(downloads).getByRole('button', { name: /^download$/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/no model file attached yet/i)
+  })
+
+  it('starts the download by itself once payment is confirmed, and only once', async () => {
+    vi.mocked(downloadsApi.downloadCatalogFileByUrl).mockResolvedValue(undefined)
+    const first = renderCheckoutSuccessPage()
+
+    expect(await screen.findByText(/your download has started/i)).toBeInTheDocument()
+    // The E2E checkout tests wait for this phrase.
+    expect(screen.getByText(/ready to download/i)).toBeInTheDocument()
+    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledTimes(1)
+    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledWith(
+      paidOrder.items[0].files[0].download_url,
+      'hero-sword.glb',
+      true,
+    )
+    expect(screen.getByText('5 downloads left')).toBeInTheDocument()
+
+    // A refresh of the page must not use another download.
+    first.unmount()
+    renderCheckoutSuccessPage()
+    expect(
+      await screen.findByText('Thanks for your purchase! Your items are ready to download.'),
+    ).toBeInTheDocument()
+    expect(downloadsApi.downloadCatalogFileByUrl).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not start a download while payment is pending', async () => {
+    vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue(pendingOrder)
+    renderCheckoutSuccessPage()
+
+    await screen.findByRole('heading', { name: /confirming your payment/i })
+    expect(downloadsApi.downloadCatalogFileByUrl).not.toHaveBeenCalled()
+  })
+
+  it('offers Buy again when every download of the purchase is used', async () => {
+    vi.mocked(ordersApi.getCustomerOrder).mockResolvedValue({
+      ...paidOrder,
+      items: [
+        {
+          ...paidOrder.items[0],
+          can_download: false,
+          downloads_left: 0,
+          downloads_used_up: true,
+          files: [],
+        },
+      ],
+    })
+    renderCheckoutSuccessPage()
+
+    const downloads = await screen.findByRole('region', { name: /your downloads/i })
+    expect(within(downloads).getByRole('link', { name: /buy again/i })).toHaveAttribute(
+      'href',
+      '/products/hero-sword',
+    )
+    expect(within(downloads).getByText('All 5 downloads used')).toBeInTheDocument()
+    expect(downloadsApi.downloadCatalogFileByUrl).not.toHaveBeenCalled()
   })
 
   it('does not show download or invoice buttons while payment is pending', async () => {

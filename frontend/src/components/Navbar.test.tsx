@@ -416,7 +416,7 @@ describe('Navbar', () => {
     expect(screen.getByRole('button', { name: /^log\s*in$/i })).toBeInTheDocument()
   })
 
-  it('renders mobile drawer with LOGIN, SIGN UP, Menu dropdown headings, and Explore dropdown', async () => {
+  it('renders mobile drawer with LOGIN, SIGN UP and Menu dropdown headings, without an Explore section', async () => {
     const user = userEvent.setup()
     const origMatchMedia = window.matchMedia
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -450,13 +450,8 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /^about$/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /^contact$/i })).toBeInTheDocument()
 
-    // Explore dropdown trigger button should be present
-    const exploreTrigger = screen.getByRole('button', { name: /^explore$/i })
-    expect(exploreTrigger).toBeInTheDocument()
-
-    // Open Explore dropdown
-    await user.click(exploreTrigger)
-    expect(screen.getByRole('button', { name: /^all categories$/i })).toBeInTheDocument()
+    // Categories live in the search bar's All Categories menu, so the drawer has no Explore section.
+    expect(screen.queryByRole('button', { name: /^explore$/i })).not.toBeInTheDocument()
 
     window.matchMedia = origMatchMedia
   })

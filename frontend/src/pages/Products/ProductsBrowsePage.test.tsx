@@ -162,6 +162,7 @@ function renderProductsBrowsePage(initialPath = '/home') {
           <Route path="/3d-models" element={<ModelsCatalogRoute />} />
           <Route path="/3d-models/:categorySlug" element={<ModelsCatalogRoute />} />
           <Route path="/plugins" element={<div>Plugins page</div>} />
+          <Route path="/products/:slug" element={<div>Product detail page</div>} />
           <Route path="/custom-projects" element={<div>Custom projects page</div>} />
         </Routes>
       </MemoryRouter>
@@ -225,6 +226,32 @@ describe('ProductsBrowsePage', () => {
     requestFrame.mock.calls[0][0](performance.now() + 100)
     expect(rail.scrollLeft).toBeGreaterThan(0)
     unmount()
+  })
+
+  it('keeps repeated rail cards clickable while hiding them from screen readers and the Tab order', async () => {
+    // Two products are repeated to fill the endless loop; the repeats used to ignore clicks.
+    const user = userEvent.setup()
+    const [first] = samplePublicProducts.results
+    vi.mocked(productsApi.listPublicProducts).mockResolvedValue({
+      ...samplePublicProducts,
+      count: 2,
+      results: [first, { ...first, id: `${first.id}-2`, name: 'Oak Chair', slug: 'oak-chair' }],
+    })
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1)
+    const { container } = renderProductsBrowsePage()
+
+    await screen.findByRole('link', { name: 'Oak Chair' })
+    const copies = container.querySelectorAll<HTMLElement>('.browse-rail-section--models [data-rail-copy]')
+    expect(copies.length).toBeGreaterThan(0)
+    copies.forEach((copy) => {
+      expect(copy).toHaveAttribute('aria-hidden', 'true')
+      expect(copy).not.toHaveAttribute('inert')
+    })
+
+    const copyLink = copies[0].querySelector<HTMLAnchorElement>('.product-card__title-link')!
+    await waitFor(() => expect(copyLink.tabIndex).toBe(-1))
+    await user.click(copyLink)
+    expect(await screen.findByText('Product detail page')).toBeInTheDocument()
   })
 
   it('renders browse hub hero, modules, and product preview', async () => {
@@ -434,21 +461,11 @@ describe('ProductsBrowsePage', () => {
     expect(categoriesApi.recordCategoryClick).toHaveBeenCalledWith(categoryId)
   })
 
-  it('opens the category directory with the full category count', async () => {
+  it('opens the category directory from a plain "View all categories" link', async () => {
     const user = userEvent.setup()
-    vi.mocked(categoriesApi.listPublicCategories).mockResolvedValue({
-      ...samplePublicCategories,
-      count: 17,
-      results: Array.from({ length: 17 }, (_, index) => ({
-        ...samplePublicCategories.results[0],
-        id: `category-${index}`,
-        name: `Category ${index}`,
-        slug: `category-${index}`,
-      })),
-    })
     renderProductsBrowsePage()
 
-    const link = await screen.findByRole('link', { name: /view all 17 categories/i })
+    const link = await screen.findByRole('link', { name: /^view all categories/i })
     expect(link).toHaveAttribute('href', '/categories')
     await user.click(link)
     expect(screen.getByText('All categories page')).toBeInTheDocument()

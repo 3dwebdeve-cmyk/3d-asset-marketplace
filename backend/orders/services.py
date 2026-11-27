@@ -374,6 +374,12 @@ class OrderService:
                 "Remove it from your cart and add it again.",
                 field="items",
             )
+        # One model (any of its variations) or one plugin per checkout; the rest wait in the cart.
+        if len({(item.product_type, item.product_id) for item in available_items}) > 1:
+            raise OrderError(
+                "Check out one model or plugin at a time. Select the variations of one model.",
+                field="items",
+            )
 
         resolved_items = [
             (

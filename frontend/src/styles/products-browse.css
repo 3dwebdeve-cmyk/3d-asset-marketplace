@@ -1067,6 +1067,28 @@
   background: #ffffff;
 }
 
+/* The whole card opens the model or plugin: the title link is stretched over the card,
+   so the price and the empty space in the strip are clickable too. The wishlist heart
+   sits above it and keeps its own click; badges let clicks pass through to the card. */
+.product-card--marketplace {
+  position: relative;
+}
+
+.product-card--marketplace .product-card__title-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.product-card--marketplace .product-card__wishlist {
+  z-index: 3;
+}
+
+.product-card--marketplace :is(.product-card__badge-category, .product-card__badge-discount) {
+  pointer-events: none;
+}
+
 /* Fit four home page model cards across the scrolling rail. */
 .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards {
   grid-auto-columns: calc((100% - 3 * 1.1rem) / 4);
@@ -1499,4 +1521,328 @@
   background: var(--primary-accent);
   border-color: var(--primary-accent);
   color: var(--pure-white);
+}
+
+/* ==========================================================================
+   Home page: phone layout (640px and below)
+   Scoped to .products-browse-page--hub so no other page changes.
+   Images are never cropped here: every thumbnail uses object-fit: contain
+   inside a fixed-shape frame, so the whole picture is scaled down, not cut.
+   ========================================================================== */
+@media (max-width: 640px) {
+
+  /* 1. Marketplace modules: three compact cards in one row (icon, title, button). */
+  .products-browse-page--hub > .browse-service-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding-block: 0.25rem 0;
+  }
+
+  .products-browse-page--hub .browse-service-card,
+  .products-browse-page--hub .browse-service-card:last-child {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    padding: 0.75rem 0.45rem 0.6rem;
+    border: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent);
+    border-radius: 0.75rem;
+    background: #ffffff;
+    text-align: center;
+  }
+
+  .products-browse-page--hub .browse-service-card__art {
+    order: -1;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .products-browse-page--hub .browse-service-card__copy {
+    flex: 1 1 auto;
+    align-items: center;
+    align-self: stretch;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  /* Room for two lines so all three buttons line up even when one title wraps. */
+  .products-browse-page--hub .browse-service-card__title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.4em;
+    font-size: 0.78rem;
+    line-height: 1.2;
+  }
+
+  .products-browse-page--hub .browse-service-card__text {
+    display: none;
+  }
+
+  .products-browse-page--hub .browse-service-card__btn {
+    align-self: stretch;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 2.4rem;
+    padding: 0.4rem 0.35rem;
+    font-size: 0.56rem;
+    letter-spacing: 0.03em;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  /* 2. Trending categories: smaller tiles, two per row, whole picture shown. */
+  .products-browse-page--hub .browse-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .products-browse-page--hub .browse-category-card {
+    aspect-ratio: 1000 / 566;
+    border-radius: 0.6rem;
+  }
+
+  .products-browse-page--hub .browse-category-card__image,
+  .products-browse-page--hub .browse-category-card:hover .browse-category-card__image {
+    object-fit: contain;
+    transform: none;
+  }
+
+  .products-browse-page--hub .browse-category-card__content {
+    gap: 0.3rem;
+    padding: 0.35rem;
+  }
+
+  .products-browse-page--hub .browse-category-card__icon-badge {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+
+  .products-browse-page--hub .browse-category-card__icon {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .products-browse-page--hub .browse-category-card__name {
+    font-size: 0.72rem;
+  }
+
+  /* 3. Shop 3D Models + Explore Plugins: still auto-scrolling rows, smaller cards
+        (about two and a bit on screen), thumbnails scaled to fit, not cropped. */
+  .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards,
+  .products-browse-page--hub .browse-rail-section--plugins > .browse-rail--cards {
+    grid-auto-columns: calc((100% - 2 * 0.65rem) / 2.2);
+    gap: 0.65rem;
+  }
+
+  .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .browse-rail__item,
+  .products-browse-page--hub .browse-rail-section--plugins > .browse-rail--cards .browse-rail__item {
+    aspect-ratio: auto;
+    min-height: 0;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__media,
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card-skeleton .product-card-skeleton__media {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+    background: #ffffff;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__body {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 0.2rem;
+    padding: 0.45rem 0.55rem 0.55rem;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__title {
+    flex: none;
+    width: 100%;
+    font-size: 0.74rem;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__price {
+    font-size: 0.78rem;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__price--original {
+    font-size: 0.62rem;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__badge-category {
+    top: 0.4rem;
+    left: 0.4rem;
+    max-width: 65%;
+    padding: 0.18rem 0.45rem;
+    font-size: 0.5rem;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card--marketplace .product-card__badge-discount {
+    top: 0.4rem;
+    right: 0.4rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.55rem;
+  }
+
+  /* Model cards carry a wishlist heart in the top-right corner, so the sale badge
+     moves to the bottom-right there and the heart shrinks to suit the smaller card. */
+  .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card--marketplace .product-card__badge-discount {
+    top: auto;
+    bottom: 0.4rem;
+  }
+
+  .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card__wishlist {
+    top: 0.4rem;
+    right: 0.4rem;
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .products-browse-page--hub .browse-rail-section--models > .browse-rail--cards .product-card__wishlist-icon {
+    font-size: 0.9rem;
+  }
+
+  .products-browse-page--hub :is(.browse-rail-section--models, .browse-rail-section--plugins) > .browse-rail--cards .product-card__badge-360 {
+    bottom: 0.4rem;
+    left: 0.4rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.58rem;
+  }
+
+  /* 4. What we offer: 2 columns x 2 rows, whole image shown, buttons fit the card. */
+  .products-browse-page--hub .hub-offer__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  /* The card is the frame for the tap-to-reveal details, so they can use the
+     picture and the title area together and still leave the button visible. */
+  .products-browse-page--hub .hub-offer__card {
+    position: relative;
+    overflow: hidden;
+    gap: 0.5rem;
+    padding: 0.45rem;
+    border-radius: 0.75rem;
+  }
+
+  .products-browse-page--hub .hub-offer__media {
+    position: static;
+    aspect-ratio: 4 / 3;
+    min-height: 0;
+    border-radius: 0.5rem;
+  }
+
+  /* No browser focus ring after a tap; keyboard users still get a clear outline. */
+  .products-browse-page--hub .hub-offer__media:focus {
+    outline: none;
+  }
+
+  .products-browse-page--hub .hub-offer__media:focus-visible {
+    outline: 2px solid var(--action-color);
+    outline-offset: -2px;
+  }
+
+  .products-browse-page--hub .hub-offer__thumb {
+    object-fit: contain;
+  }
+
+  .products-browse-page--hub .hub-offer__thumb--contain {
+    padding: 0.2rem;
+  }
+
+  /* Covers the picture and title, stops above the button (its height plus the card gap). */
+  .products-browse-page--hub .hub-offer__details {
+    inset: 0.45rem 0.45rem calc(0.45rem + 2.6rem + 0.15rem) 0.45rem;
+    justify-content: flex-start;
+    justify-content: safe center;
+    padding: 0.4rem 0.45rem;
+    /* Park it fully past the card edge while closed, so no tick peeks in. */
+    transform: translateX(calc(100% + 0.5rem));
+  }
+
+  /* Phones show only the four ticked points; the long sentence is hidden. */
+  .products-browse-page--hub .hub-offer__details p {
+    display: none;
+  }
+
+  .products-browse-page--hub .hub-offer__details ul {
+    gap: 0.35rem;
+  }
+
+  .products-browse-page--hub .hub-offer__details li {
+    align-items: flex-start;
+    gap: 0.35rem;
+    font-size: 0.64rem;
+    line-height: 1.25;
+  }
+
+  .products-browse-page--hub .hub-offer__check svg {
+    width: 0.7rem;
+    height: 0.7rem;
+  }
+
+  .products-browse-page--hub .hub-offer__label {
+    gap: 0.4rem;
+    padding: 0 0.1rem;
+  }
+
+  .products-browse-page--hub .hub-offer__label h3 {
+    font-size: 0.74rem;
+  }
+
+  .products-browse-page--hub .hub-offer__icon {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 0.35rem;
+  }
+
+  .products-browse-page--hub .hub-offer__icon svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  /* Narrow phones: slightly tighter points so all four fit without scrolling. */
+  @media (max-width: 360px) {
+    .products-browse-page--hub .hub-offer__details {
+      padding: 0.3rem 0.35rem;
+    }
+
+    .products-browse-page--hub .hub-offer__details ul {
+      gap: 0.25rem;
+    }
+
+    .products-browse-page--hub .hub-offer__details li {
+      gap: 0.3rem;
+      font-size: 0.6rem;
+      line-height: 1.2;
+    }
+
+    .products-browse-page--hub .hub-offer__check svg {
+      width: 0.62rem;
+      height: 0.62rem;
+    }
+  }
+
+  /* Fixed height: the tap-to-reveal details stop exactly above this button. */
+  .products-browse-page--hub .hub-offer__cta {
+    height: 2.6rem;
+    min-height: 2.6rem;
+    padding: 0.45rem 0.4rem;
+    font-size: 0.66rem;
+    line-height: 1.15;
+    text-align: center;
+  }
 }

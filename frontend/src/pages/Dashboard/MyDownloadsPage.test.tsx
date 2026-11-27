@@ -41,6 +41,7 @@ const entitlement: DownloadEntitlement = {
   title: 'Hero Sword',
   slug: 'hero-sword',
   package_kinds: ['whole'],
+  has_downloads_left: true,
   files: [
     {
       id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
@@ -52,6 +53,7 @@ const entitlement: DownloadEntitlement = {
       version: '1.0',
       download_url: '/api/v1/downloads/products/cccccccc-cccc-cccc-cccc-cccccccccccc/files/dddddddd-dddd-dddd-dddd-dddddddddddd/download/',
       last_downloaded_at: null,
+      downloads_left: 5,
     },
   ],
 }
@@ -119,6 +121,25 @@ describe('MyDownloadsPage', () => {
       entitlement.files[0].id,
       'hero-sword.zip',
     )
+  })
+
+  it('shows the downloads left, and Buy again once they are used up', async () => {
+    vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([
+      {
+        ...entitlement,
+        has_downloads_left: false,
+        files: [{ ...entitlement.files[0], downloads_left: 0 }],
+      },
+    ])
+    renderMyDownloadsPage()
+
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('Used up')).toBeInTheDocument()
+    expect(within(table).getByRole('link', { name: /buy again/i })).toHaveAttribute(
+      'href',
+      '/products/hero-sword',
+    )
+    expect(within(table).queryByRole('button', { name: /^download$/i })).not.toBeInTheDocument()
   })
 
   it('shows empty library state', async () => {

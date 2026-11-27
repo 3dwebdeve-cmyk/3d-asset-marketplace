@@ -49,7 +49,7 @@ beforeEach(() => {
   })
   vi.mocked(downloadsApi.listDownloadEntitlements).mockReset()
   vi.mocked(downloadsApi.listDownloadEntitlements).mockResolvedValue([
-    { product_type: 'plugin', product_id: OWNED_ID, title: 'UV Tool', slug: 'uv-tool', package_kinds: [], files: [] },
+    { product_type: 'plugin', product_id: OWNED_ID, title: 'UV Tool', slug: 'uv-tool', package_kinds: [], has_downloads_left: true, files: [] },
   ])
 })
 
