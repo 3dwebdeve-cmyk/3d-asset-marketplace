@@ -472,7 +472,7 @@ def _check_checkout_session(*, product: Product) -> LoadSmokeCheck:
         ), CaptureQueriesContext(connection) as ctx:
             response = client.post(
                 path,
-                {"accepted_legal": legal},
+                {"accepted_legal": legal, "withdrawal_waiver": True},
                 format="json",
             )
         latency_ms = _ms(started)

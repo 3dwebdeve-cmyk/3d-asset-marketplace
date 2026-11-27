@@ -545,6 +545,9 @@ LEGAL_DOCUMENT_VERSIONS = {
     "terms": config("LEGAL_TERMS_VERSION", default="2026-09-18"),
     "privacy": config("LEGAL_PRIVACY_VERSION", default="2026-09-18"),
 }
+# Refund Policy shown at checkout. Not part of LEGAL_DOCUMENT_VERSIONS: buyers agree to it with
+# the immediate-access checkbox on each order, which records this version on the order.
+REFUND_POLICY_VERSION = config("REFUND_POLICY_VERSION", default="2026-11-27")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

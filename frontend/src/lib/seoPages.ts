@@ -87,6 +87,11 @@ const COOKIES_SEO: StaticPageSeo = {
   description: `Which cookies and browser storage ${SITE_NAME} uses, why, and how to control them.`,
 }
 
+const REFUNDS_SEO: StaticPageSeo = {
+  title: `Refund Policy | ${SITE_NAME}`,
+  description: `When ${SITE_NAME} refunds 3D model, plugin, and custom project purchases, and how to ask for one.`,
+}
+
 /** Indexable public routes, keyed by pathname. Used for SSR head tags and the sitemap. */
 export const STATIC_PAGE_SEO: Readonly<Record<string, StaticPageSeo>> = {
   '/': HOME_SEO,
@@ -99,4 +104,5 @@ export const STATIC_PAGE_SEO: Readonly<Record<string, StaticPageSeo>> = {
   '/terms': TERMS_SEO,
   '/privacy': PRIVACY_SEO,
   '/cookies': COOKIES_SEO,
+  '/refunds': REFUNDS_SEO,
 }

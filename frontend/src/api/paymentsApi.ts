@@ -10,14 +10,18 @@ import type {
   PaginatedAdminPayments,
 } from '../types/payment'
 
-/** Without `items` the whole cart is bought; with it, only those cart lines. */
+/**
+ * Without `items` the whole cart is bought; with it, only those cart lines. Call it only after
+ * the buyer ticked the immediate-access box (useWithdrawalWaiver): it sends that consent.
+ */
 export async function createCheckoutSession(
   acceptedLegal: Record<string, string> = currentAcceptedLegalPayload(),
   items?: CheckoutItem[],
 ): Promise<CheckoutSessionResponse> {
+  const body = { accepted_legal: acceptedLegal, withdrawal_waiver: true }
   const { data } = await apiClient.post<CheckoutSessionResponse>(
     '/api/v1/payments/checkout/',
-    items ? { accepted_legal: acceptedLegal, items } : { accepted_legal: acceptedLegal },
+    items ? { ...body, items } : body,
     { headers: { 'Idempotency-Key': newId() } },
   )
   return data

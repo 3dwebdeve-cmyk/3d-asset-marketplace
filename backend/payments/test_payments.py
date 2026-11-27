@@ -19,6 +19,9 @@ from plugins.models import Plugin, PluginCategory
 from products.models import Product, ProductFile
 from products.testing import SOLD_PACKAGE_KIND, sell_package
 
+# The buyer ticked "give me the files now; I lose my 14-day right to cancel".
+CHECKOUT_WAIVER = {"withdrawal_waiver": True}
+
 
 class _FakeStripeObject:
     """Mimics stripe.StripeObject: item/attr access, but no ``.get()`` method."""
@@ -119,12 +122,12 @@ def _fake_session(session_id: str = "cs_test_123") -> _FakeStripeObject:
 @override_settings(STRIPE_SECRET_KEY="sk_test_dummy")
 class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
     def test_requires_authentication(self) -> None:
-        response = self.client.post(self.checkout_url)
+        response = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_empty_cart_is_rejected(self) -> None:
         self._authenticate()
-        response = self.client.post(self.checkout_url)
+        response = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("items", response.data)
         self.assertEqual(Order.objects.count(), 0)
@@ -140,6 +143,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         response = self.client.post(
             self.checkout_url,
             {
+                **CHECKOUT_WAIVER,
                 "items": [
                     {
                         "product_type": "product",
@@ -172,13 +176,28 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self.assertEqual(len(call_kwargs["line_items"]), 1)
         self.assertIn(f"/checkout/success?order_id={order.id}", call_kwargs["success_url"])
         self.assertIn(f"/checkout/cancel?order_id={order.id}", call_kwargs["cancel_url"])
+        # The immediate-access consent is the proof for refund requests and chargebacks.
+        self.assertIsNotNone(order.withdrawal_waiver_at)
+        self.assertEqual(order.refund_policy_version, "2026-11-27")
+
+    @patch("payments.checkout_service.stripe.checkout.Session.create")
+    def test_checkout_without_the_waiver_is_refused(self, mock_session_create) -> None:
+        self._authenticate()
+        self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
+        for body in ({}, {"withdrawal_waiver": False}, {"withdrawal_waiver": "true"}):
+            response = self.client.post(self.checkout_url, body, format="json")
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, body)
+            self.assertEqual(response.data.get("code"), "withdrawal_waiver_required")
+            self.assertIn("withdrawal_waiver", response.data)
+        self.assertEqual(Order.objects.count(), 0)
+        mock_session_create.assert_not_called()
 
     def test_a_checkout_of_two_items_is_refused(self) -> None:
         self._authenticate()
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
         self._add_to_cart(CartItem.ProductType.PLUGIN, self.plugin.pk)
 
-        response = self.client.post(self.checkout_url)
+        response = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("one model or plugin at a time", str(response.data))
@@ -188,7 +207,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
     def test_returns_error_when_stripe_not_configured(self) -> None:
         self._authenticate()
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
-        response = self.client.post(self.checkout_url)
+        response = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Order.objects.count(), 0)
 
@@ -200,7 +219,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self._authenticate()
 
         with self.assertLogs("payments.views", level="ERROR") as captured:
-            response = self.client.post(self.checkout_url)
+            response = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertEqual(response.data["code"], "checkout_internal_error")
@@ -220,7 +239,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
 
         with patch("payments.checkout_service.stripe.checkout.Session.create") as mock_create:
-            response = self.client.post(self.checkout_url)
+            response = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_create.assert_not_called()
@@ -239,8 +258,8 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk, quantity=1)
 
         headers = {"HTTP_IDEMPOTENCY_KEY": "checkout-retry-1"}
-        first = self.client.post(self.checkout_url, **headers)
-        second = self.client.post(self.checkout_url, **headers)
+        first = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json", **headers)
+        second = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json", **headers)
 
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_201_CREATED)
@@ -262,10 +281,10 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk, quantity=1)
 
         headers = {"HTTP_IDEMPOTENCY_KEY": "checkout-retry-2"}
-        first = self.client.post(self.checkout_url, **headers)
+        first = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json", **headers)
         # The model is sold as its GLB Only package: that price changes.
         ProductFile.objects.filter(product=self.product).update(price=self.product.price + 10)
-        second = self.client.post(self.checkout_url, **headers)
+        second = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json", **headers)
 
         self.assertEqual(first.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second.status_code, status.HTTP_201_CREATED)
@@ -282,7 +301,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         self._authenticate()
         self._add_to_cart(CartItem.ProductType.PRODUCT, self.product.pk)
 
-        blocked = self.client.post(self.checkout_url)
+        blocked = self.client.post(self.checkout_url, CHECKOUT_WAIVER, format="json")
         self.assertEqual(blocked.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(blocked.data.get("code"), "legal_acceptance_required")
         self.assertIn("accepted_legal", blocked.data)
@@ -292,6 +311,7 @@ class CreateCheckoutSessionTests(PaymentsTestMixin, APITestCase):
         allowed = self.client.post(
             self.checkout_url,
             {
+                **CHECKOUT_WAIVER,
                 "accepted_legal": {
                     "terms": "2026-09-18",
                     "privacy": "2026-09-18",

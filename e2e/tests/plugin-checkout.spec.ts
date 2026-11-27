@@ -22,6 +22,8 @@ test.describe('plugin checkout commerce', () => {
 
     // Every cart line is ticked by default; checkout buys the ticked ones.
     await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Plugin' })).toBeChecked()
+    // EU/UK law: the buyer agrees to immediate access before paying.
+    await page.getByRole('checkbox', { name: /immediate access/i }).check()
     await page.getByRole('button', { name: /^Checkout selected \(\d+\)$/ }).click()
 
     await expect(page).toHaveURL(/\/checkout\/success\?order_id=/, { timeout: 60_000 })

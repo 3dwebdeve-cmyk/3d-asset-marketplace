@@ -7,6 +7,7 @@ import { Button } from '../ui/Button'
 import { ErrorState } from '../ui/ErrorState'
 import { Spinner } from '../ui/Spinner'
 import { CartLineItem } from './CartLineItem'
+import { useWithdrawalWaiver } from '../commerce/WithdrawalWaiver'
 import { formatMoney } from '../../lib/format'
 
 export function CartDrawer() {
@@ -14,6 +15,7 @@ export function CartDrawer() {
   const closeDrawer = useCartUiStore((state) => state.closeDrawer)
   const { cart, isLoading, isError, isPending, updateQuantity, remove, refetch } = useCart()
   const { startCheckout, isRedirecting } = useCheckout()
+  const waiver = useWithdrawalWaiver()
 
   if (!isDrawerOpen) {
     return null
@@ -125,14 +127,17 @@ export function CartDrawer() {
                 Choose one model to check out
               </Link>
             ) : (
-              <Button
-                type="button"
-                className="cart-checkout-button cart-checkout-button--secure"
-                isLoading={isRedirecting}
-                onClick={() => startCheckout()}
-              >
-                Checkout securely •
-              </Button>
+              <>
+                {waiver.field}
+                <Button
+                  type="button"
+                  className="cart-checkout-button cart-checkout-button--secure"
+                  isLoading={isRedirecting}
+                  onClick={() => waiver.confirm() && startCheckout()}
+                >
+                  Checkout securely •
+                </Button>
+              </>
             )}
             <Link to="/cart" className="cart-drawer__view-all" onClick={closeDrawer}>
               View full cart details

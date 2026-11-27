@@ -109,14 +109,22 @@ class CheckoutService:
         *,
         accepted_legal=None,
         selected=None,
+        withdrawal_waiver_at=None,
     ) -> dict[str, str]:
+        """``withdrawal_waiver_at``: when the buyer ticked the immediate-access box. The checkout
+        API requires it; it is recorded on the order with the current Refund Policy version."""
         with session_advisory_lock(f"checkout-user:{user.pk}"):
             return cls._create_checkout_session_locked(
-                user, accepted_legal=accepted_legal, selected=selected
+                user,
+                accepted_legal=accepted_legal,
+                selected=selected,
+                withdrawal_waiver_at=withdrawal_waiver_at,
             )
 
     @classmethod
-    def _create_checkout_session_locked(cls, user, *, accepted_legal=None, selected=None):
+    def _create_checkout_session_locked(
+        cls, user, *, accepted_legal=None, selected=None, withdrawal_waiver_at=None
+    ):
         cls._require_legal_acceptance(user, accepted_legal=accepted_legal)
 
         simulate = e2e_stripe_simulate_enabled()
@@ -138,6 +146,12 @@ class CheckoutService:
                 order = OrderService.create_from_cart(user, reuse_pending=True, selected=selected)
             except OrderError as exc:
                 raise CheckoutError(exc.message, field=exc.field) from exc
+
+            if withdrawal_waiver_at is not None:
+                # A reused pending order keeps the latest consent, given just before this payment.
+                order.withdrawal_waiver_at = withdrawal_waiver_at
+                order.refund_policy_version = settings.REFUND_POLICY_VERSION
+                order.save(update_fields=["withdrawal_waiver_at", "refund_policy_version", "updated_at"])
 
             try:
                 validate_checkout_amount(order.total_amount, order.currency)
