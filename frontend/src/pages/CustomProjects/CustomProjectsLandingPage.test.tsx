@@ -1,4 +1,4 @@
-import styles from './custom-studio.css?raw'
+import styles from '../../styles/marketing.css?raw'
 import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent } from '@testing-library/react'
@@ -21,6 +21,10 @@ describe('CustomProjectsLandingPage', () => {
     expect(screen.getAllByRole('checkbox')).toHaveLength(8)
     expect(screen.getByRole('heading', { name: /Brief the Hive/ })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument()
+    const banner = within(screen.getByRole('region', { name: 'Send Us Your Requirements' }))
+    expect(banner.getByRole('link', { name: 'Brief the Hive' })).toHaveAttribute('href', '#brief-the-hive')
+    expect(banner.queryByRole('link', { name: 'Custom Projects' })).not.toBeInTheDocument()
+    expect(banner.getByRole('link', { name: 'Contact' })).toHaveAttribute('href', '/contact')
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute('href', window.location.origin + '/custom-projects')
   })
   it('shows success for two seconds then resets the enquiry to Service', async () => {
