@@ -53,6 +53,7 @@ IMPLEMENTATION_ROADMAP.md
 # Project documentation is versioned: runbooks under docs/ and the root status files.
 !docs/**/*.md
 !/README.md
+/docs/PRIVACY_POLICY.md
 
 # Explicit env files (belt-and-suspenders; .env already covers these)
 backend/.env
