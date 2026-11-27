@@ -46,6 +46,11 @@ class Order(models.Model):
         default=PaymentStatus.PENDING,
         db_index=True,
     )
+    # Proof for refund requests and chargebacks: when the buyer ticked "give me the files now and
+    # I lose the 14-day right to cancel" (EU/UK digital content rules), and which Refund Policy
+    # version they agreed to. Set by the checkout API; blank on orders made another way.
+    withdrawal_waiver_at = models.DateTimeField(null=True, blank=True)
+    refund_policy_version = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

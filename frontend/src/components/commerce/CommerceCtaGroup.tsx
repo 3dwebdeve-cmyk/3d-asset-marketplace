@@ -4,6 +4,7 @@ import { AuthEntryButton } from '../auth/AuthEntryButton'
 import { AddToCartButton } from '../cart/AddToCartButton'
 import { Button } from '../ui/Button'
 import { WishlistToggle } from '../wishlist/WishlistToggle'
+import { useWithdrawalWaiver } from './WithdrawalWaiver'
 import { useBuyNow } from '../../hooks/useBuyNow'
 import { useOwnedItems } from '../../hooks/useOwnedItems'
 import { useAuthStore } from '../../store/authStore'
@@ -38,6 +39,7 @@ export function CommerceCtaGroup({
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const accessToken = useAuthStore((state) => state.accessToken)
   const { buyNow, isRedirecting } = useBuyNow()
+  const waiver = useWithdrawalWaiver()
   const { isOwned, downloadsLeft } = useOwnedItems()
   const isSignedIn = isAuthenticated && Boolean(accessToken)
   const owned = isSignedIn && isOwned(productType, productId)
@@ -85,7 +87,9 @@ export function CommerceCtaGroup({
       type="button"
       className={isBuybox ? 'product-detail-cta__full' : 'product-detail-cta__buy'}
       isLoading={isRedirecting}
-      onClick={() => buyNow(productType, productId)}
+      onClick={() => {
+        if (waiver.confirm()) buyNow(productType, productId)
+      }}
     >
       {isBuybox ? 'Buy Now' : 'Buy now'}
     </Button>
@@ -128,9 +132,13 @@ export function CommerceCtaGroup({
     </Button>
   )
 
+  // Only a signed-in buyer who does not own the plugin sees Buy Now, so only they need the box.
+  const waiverField = isSignedIn && !owned ? waiver.field : null
+
   if (isBuybox) {
     return (
       <div className="product-detail-cta product-detail-cta--buybox">
+        {waiverField}
         <div className="product-detail-cta__actions">
           {buyButton}
           {!showCart ? null : (
@@ -151,6 +159,7 @@ export function CommerceCtaGroup({
 
   return (
     <div className="product-detail-cta">
+      {waiverField}
       {buyButton}
       {ownedNote}
 

@@ -224,6 +224,7 @@ def _check_purchase_path() -> RollbackCheck:
                 reverse("payments:checkout"),
                 {
                     "accepted_legal": LegalAcceptanceService.current_versions(),
+                    "withdrawal_waiver": True,
                 },
                 format="json",
             )

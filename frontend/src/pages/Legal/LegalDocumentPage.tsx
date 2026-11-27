@@ -4,6 +4,7 @@ import { useDocumentSeo } from '../../hooks/useDocumentSeo'
 import '../../styles/marketing.css'
 import {
   COOKIE_POLICY_PATH,
+  REFUND_POLICY_PATH,
   COOKIE_POLICY_VERSION,
   LEGAL_DOCUMENT_VERSIONS,
   PRIVACY_PATH,
@@ -138,9 +139,14 @@ function TermsBody() {
       <section>
         <h2>6. Refunds</h2>
         <p>
-          Because digital downloads and custom work are intangible, refund eligibility is limited.
-          Contact support promptly if a file is defective or fulfillment fails. Stripe refunds, when
-          issued, update order and download entitlements according to platform policy.
+          Refunds follow our{' '}
+          <Link className="auth-link" to={REFUND_POLICY_PATH}>
+            Refund Policy
+          </Link>
+          . In short: digital files are available as soon as you pay, so we do not refund a change
+          of mind, but we do refund within 14 days when an item is faulty, materially not as
+          described, bought twice by mistake, or could not be delivered. A full refund ends your
+          download access and your license to the item.
         </p>
       </section>
       <section>

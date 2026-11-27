@@ -3,6 +3,7 @@ import logging
 
 import stripe
 from django.conf import settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -48,6 +49,12 @@ def _accepted_legal_from_request(request: Request):
     return None
 
 
+def _withdrawal_waiver_from_request(request: Request) -> bool:
+    """The buyer ticked "give me the files now; I lose my 14-day right to cancel"."""
+    data = request.data
+    return isinstance(data, dict) and data.get("withdrawal_waiver") is True
+
+
 def _cart_fingerprint(user, selected=None) -> str:
     """Hash of the cart's lines, prices and currency, so a replayed checkout key cannot
     return a session that was priced before the cart or the catalog changed."""
@@ -89,8 +96,23 @@ class CreateCheckoutSessionView(APIView):
 
     def post(self, request: Request) -> Response:
         selected = _selected_items_from_request(request)
+        if not _withdrawal_waiver_from_request(request):
+            # EU/UK buyers keep a 14-day right to cancel a digital purchase unless they agree,
+            # before paying, to get the files at once and lose that right.
+            return Response(
+                _checkout_error_body(
+                    CheckoutError(
+                        "Please confirm you want immediate access to the files and understand "
+                        "you lose the 14-day right to cancel.",
+                        field="withdrawal_waiver",
+                        code="withdrawal_waiver_required",
+                    )
+                ),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
             accepted_legal = _accepted_legal_from_request(request)
+            waiver_at = timezone.now()
 
             def _produce() -> tuple[dict, int]:
                 try:
@@ -98,6 +120,7 @@ class CreateCheckoutSessionView(APIView):
                         request.user,
                         accepted_legal=accepted_legal,
                         selected=selected,
+                        withdrawal_waiver_at=waiver_at,
                     )
                 except CheckoutError as exc:
                     return _checkout_error_body(exc), status.HTTP_400_BAD_REQUEST

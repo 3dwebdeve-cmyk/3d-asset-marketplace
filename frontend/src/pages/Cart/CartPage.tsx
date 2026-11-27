@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { Spinner } from '../../components/ui/Spinner'
 import { CartLineItem } from '../../components/cart/CartLineItem'
+import { useWithdrawalWaiver } from '../../components/commerce/WithdrawalWaiver'
 import { formatMoney } from '../../lib/format'
 import type { CartItem } from '../../types/cart'
 
@@ -34,6 +35,7 @@ export function CartPage() {
     refetch,
   } = useCart()
   const { startCheckout, isRedirecting } = useCheckout()
+  const waiver = useWithdrawalWaiver()
   // Checkout takes one model (any of its variations) or one plugin. Until the customer ticks
   // something, every available line of the first item in the cart is selected.
   const [ticked, setTicked] = useState<ReadonlySet<string> | null>(null)
@@ -178,12 +180,14 @@ export function CartPage() {
                 </Link>
                 .
               </p>
+              {waiver.field}
               <Button
                 type="button"
                 className="cart-checkout-button"
                 isLoading={isRedirecting}
                 disabled={selected.length === 0}
                 onClick={() =>
+                  waiver.confirm() &&
                   startCheckout(
                     selected.map((item) => ({
                       product_type: item.product_type,
