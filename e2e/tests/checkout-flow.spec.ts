@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test'
 
-import { E2E_PRODUCT_SLUG, loginAsBuyer } from '../helpers/auth'
+import { E2E_BUYER_EMAIL, E2E_PRODUCT_SLUG, loginAsBuyer } from '../helpers/auth'
 
 test.describe('marketplace checkout commerce', () => {
-  test('login → viewer → cart → checkout confirm → download', async ({ page }) => {
-    await loginAsBuyer(page)
+  test('login → viewer → cart → checkout confirm → download', async ({ page }, testInfo) => {
+    // A failed attempt can leave a purchase or cart behind on the server.
+    const [buyer, domain] = E2E_BUYER_EMAIL.trim().toLowerCase().split('@')
+    await loginAsBuyer(page, `${buyer}+checkout-${testInfo.retry}@${domain}`)
 
     await page.goto(`/products/${E2E_PRODUCT_SLUG}`)
     await expect(page.getByRole('heading', { name: 'E2E Checkout Chair' })).toBeVisible()
@@ -34,7 +36,13 @@ test.describe('marketplace checkout commerce', () => {
     // Every cart line is ticked by default; checkout buys the ticked ones. The line names
     // the package.
     await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Chair - GLB Only' })).toBeChecked()
-    await page.getByRole('button', { name: /^Checkout selected \(\d+\)$/ }).click()
+    // Payment confirmation starts the download automatically.
+    const [download] = await Promise.all([
+      page.waitForEvent('download', { timeout: 60_000 }),
+      page.getByRole('button', { name: /^Checkout selected \(\d+\)$/ }).click(),
+    ])
+    expect(download.suggestedFilename()).toMatch(/e2e-checkout-chair/i)
+    expect(await download.failure()).toBeNull()
 
     await expect(page).toHaveURL(/\/checkout\/success\?order_id=/, { timeout: 60_000 })
     await expect(page.getByRole('heading', { name: 'Payment successful' })).toBeVisible({
@@ -47,22 +55,9 @@ test.describe('marketplace checkout commerce', () => {
     await expect(page.getByRole('heading', { name: 'My Downloads' })).toBeVisible()
     await expect(page.getByText('E2E Checkout Chair')).toBeVisible()
 
-    const downloadResponse = page.waitForResponse(
-      (response) =>
-        response.url().includes('/download/') &&
-        response.request().method() === 'GET' &&
-        response.ok(),
-      { timeout: 60_000 },
-    )
-    // The file must actually download; a missing download event fails the test.
-    const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 60_000 }),
-      page.getByRole('button', { name: /^Download$/ }).first().click(),
-    ])
-    await downloadResponse
-    expect(download.suggestedFilename()).toMatch(/e2e-checkout-chair/i)
-
     await page.getByRole('tab', { name: 'Download history' }).click()
-    await expect(page.getByText('e2e-checkout-chair.zip')).toBeVisible({ timeout: 15_000 })
+    await expect(
+      page.getByRole('cell', { name: 'e2e-checkout-chair.zip (GLB Only)', exact: true }),
+    ).toHaveCount(1, { timeout: 15_000 })
   })
 })

@@ -98,14 +98,24 @@ class Command(BaseCommand):
         unverified_email = str(options["unverified_email"]).strip().lower()
         unverified_password = str(options["unverified_password"])
         plugin_slug = str(options["plugin_slug"]).strip()
+        buyer_name, separator, buyer_domain = email.rpartition("@")
+        if not separator or not buyer_name or not buyer_domain:
+            raise CommandError("--email must be a valid buyer email address.")
+        # Playwright runs the checkout test once and can retry it once in CI.
+        checkout_emails = [
+            f"{buyer_name}+checkout-{attempt}@{buyer_domain}" for attempt in range(2)
+        ]
 
         # Fixed fixture accounts may be refreshed on repeat runs. Any other address
         # must not match an existing account, or the seed would reset a real user.
         fixture_emails = {DEFAULT_BUYER_EMAIL, DEFAULT_ADMIN_EMAIL, DEFAULT_UNVERIFIED_EMAIL}
+        if email == DEFAULT_BUYER_EMAIL:
+            fixture_emails.update(checkout_emails)
         for flag, value in (
             ("--email", email),
             ("--admin-email", admin_email),
             ("--unverified-email", unverified_email),
+            *(("--email checkout alias", address) for address in checkout_emails),
         ):
             if value not in fixture_emails and User.objects.filter(email=value).exists():
                 raise CommandError(
@@ -139,6 +149,18 @@ class Command(BaseCommand):
             buyer,
             LegalAcceptanceService.current_versions(),
         )
+        for address in checkout_emails:
+            checkout_buyer = self._upsert_customer(
+                email=address,
+                password=password,
+                full_name="E2E Checkout Buyer",
+                customer_role=customer_role,
+                email_verified=True,
+            )
+            LegalAcceptanceService.record_acceptances(
+                checkout_buyer,
+                LegalAcceptanceService.current_versions(),
+            )
 
         category, _ = Category.objects.get_or_create(
             slug="e2e-furniture",
