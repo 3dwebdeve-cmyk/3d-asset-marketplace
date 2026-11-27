@@ -82,6 +82,11 @@ const PRIVACY_SEO: StaticPageSeo = {
   description: `How ${SITE_NAME} collects, uses, and protects account and order information.`,
 }
 
+const COOKIES_SEO: StaticPageSeo = {
+  title: `Cookie Policy | ${SITE_NAME}`,
+  description: `Which cookies and browser storage ${SITE_NAME} uses, why, and how to control them.`,
+}
+
 /** Indexable public routes, keyed by pathname. Used for SSR head tags and the sitemap. */
 export const STATIC_PAGE_SEO: Readonly<Record<string, StaticPageSeo>> = {
   '/': HOME_SEO,
@@ -93,4 +98,5 @@ export const STATIC_PAGE_SEO: Readonly<Record<string, StaticPageSeo>> = {
   '/custom-projects': CUSTOM_PROJECTS_SEO,
   '/terms': TERMS_SEO,
   '/privacy': PRIVACY_SEO,
+  '/cookies': COOKIES_SEO,
 }

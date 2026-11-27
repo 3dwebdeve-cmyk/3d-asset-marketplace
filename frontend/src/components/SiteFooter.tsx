@@ -65,6 +65,9 @@ export function SiteFooter() {
             <Link className="site-footer__link" to="/privacy">
               Privacy Policy
             </Link>
+            <Link className="site-footer__link" to="/cookies">
+              Cookie Policy
+            </Link>
             <Link className="site-footer__link" to="/contact">
               Security & support
             </Link>

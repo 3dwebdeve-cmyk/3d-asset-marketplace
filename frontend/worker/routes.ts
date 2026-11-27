@@ -14,6 +14,7 @@ export const APP_ROUTE_PATTERNS: readonly string[] = [
   '/about',
   '/terms',
   '/privacy',
+  '/cookies',
   '/contact',
   '/custom-projects',
   '/products',
