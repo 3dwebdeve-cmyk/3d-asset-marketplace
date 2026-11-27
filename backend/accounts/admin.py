@@ -13,10 +13,19 @@ class RoleAdmin(admin.ModelAdmin):
 
 @admin.register(LegalAcceptance)
 class LegalAcceptanceAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "document_key", "version", "accepted_at")
+    list_display = ("id", "user", "user_ref", "document_key", "version", "accepted_at")
     list_filter = ("document_key", "version", "accepted_at")
-    search_fields = ("user__email", "document_key", "version")
-    readonly_fields = ("id", "user", "document_key", "version", "accepted_at")
+    # For a deleted account, search by its id (user_ref) or run `find_legal_acceptances --email`.
+    search_fields = ("user__email", "=user_ref", "=email_sha256", "document_key", "version")
+    readonly_fields = (
+        "id",
+        "user",
+        "user_ref",
+        "email_sha256",
+        "document_key",
+        "version",
+        "accepted_at",
+    )
     ordering = ("-accepted_at",)
 
     def has_add_permission(self, request) -> bool:
