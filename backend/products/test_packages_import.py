@@ -28,7 +28,7 @@ from products.services import ProductError, ProductService
 from products.test_catalog_import import CatalogImportTestBase, _happy_item
 from products.testing import package_media, put_pipeline_objects
 
-ALL_KINDS = ("with_light_rig", "without_light_rig", "glb_only", "environment", "whole")
+ALL_KINDS = ("with_light_rig", "without_light_rig", "glb_only", "3ds_max", "environment", "whole")
 
 
 def _item(sku: str = "ELE-000001", *, kinds=("whole",), category: str = "Electronics", **overrides) -> dict:
@@ -100,11 +100,11 @@ class PackagesImportTestBase(CatalogImportTestBase):
 
 
 class ImportPackagesTests(PackagesImportTestBase):
-    def test_one_three_and_five_packages_make_one_row_each_with_no_price(self) -> None:
+    def test_one_three_and_six_packages_make_one_row_each_with_no_price(self) -> None:
         for sku, kinds in (
             ("ELE-000001", ("whole",)),
             ("ELE-000003", ("with_light_rig", "without_light_rig", "whole")),
-            ("ELE-000005", ALL_KINDS),
+            ("ELE-000006", ALL_KINDS),
         ):
             with self.subTest(kinds=kinds):
                 row = self._row(_item(sku, kinds=kinds))
@@ -156,6 +156,9 @@ class ImportPackagesTests(PackagesImportTestBase):
             # A known kind with a wrong name is an uploader fault, not an extra file (D7).
             "duplicate kind": lambda m: entry(m, 1).update(kind="with_light_rig", key=entry(m)["key"]),
             "wrong name": lambda m: entry(m).update(key="models/ELE-000001/chair.zip"),
+            "wrong 3ds Max name": lambda m: entry(m).update(
+                kind="3ds_max", key="models/ELE-000001/ELE-000001_3dsmax.zip"
+            ),
             "another model's name": lambda m: entry(m).update(key="models/ELE-000001/ELE-000002_with_light_rig.zip"),
             "main zip not listed": lambda m: m.update(package_key="models/ELE-000001/ELE-000001_glb_only.zip"),
             "size 0": lambda m: entry(m).update(file_size=0),
@@ -196,6 +199,17 @@ class ImportPackagesTests(PackagesImportTestBase):
         row = self._row(_item(kinds=("with_light_rig", "whole")), batch_id="2026-11-16-run-02")
         self.assertNotIn("extra_file_skipped", row.get("warnings", []))
         self.assertEqual(Product.objects.get(sku="ELE-000001").qa_notes, "Checked by QA.")
+
+    def test_the_3ds_max_zip_is_a_package_not_an_extra_file(self) -> None:
+        row = self._row(_item(kinds=ALL_KINDS))
+
+        self.assertEqual(row["action"], "created", row)
+        self.assertNotIn("extra_file_skipped", row.get("warnings", []))
+        packages = self._packages("ELE-000001")
+        self.assertEqual(len(packages), 6)
+        three_ds_max = packages["3ds_max"]
+        self.assertEqual(three_ds_max.storage_path, "models/ELE-000001/ELE-000001_3ds_max.zip")
+        self.assertIsNone(three_ds_max.price)
 
     def test_one_missing_zip_skips_the_row(self) -> None:
         item = _item("ELE-000040", kinds=("with_light_rig", "whole"))

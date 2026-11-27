@@ -58,7 +58,7 @@ class PackageKindsTests(TestCase):
     def test_every_kind_has_one_place_in_the_order_a_label_and_a_description(self) -> None:
         self.assertEqual(
             set(PACKAGE_ORDER),
-            {"glb_only", "with_light_rig", "without_light_rig", "environment", "whole"},
+            {"glb_only", "3ds_max", "with_light_rig", "without_light_rig", "environment", "whole"},
         )
         self.assertEqual(len(PACKAGE_ORDER), len(PACKAGE_KINDS))
         # All variations is a cart and order line, not a package: it has a label and a

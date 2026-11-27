@@ -46,6 +46,7 @@ const EMPTY_PERCENTS: Percents = {
   with_light_rig: '',
   without_light_rig: '',
   glb_only: '',
+  '3ds_max': '',
   environment: '',
 }
 

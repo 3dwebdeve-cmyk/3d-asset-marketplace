@@ -174,7 +174,7 @@ class PricingReviewFixTests(CatalogImportTestBase):
             "rate": "20",
             "percents": {
                 "with_light_rig": "60", "without_light_rig": "50", "glb_only": "100",
-                "environment": "30",
+                "3ds_max": "40", "environment": "30",
             },
         }
         token = self.client.post(

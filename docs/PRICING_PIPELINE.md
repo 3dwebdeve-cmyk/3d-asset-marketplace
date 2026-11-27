@@ -135,7 +135,7 @@ package price  = round(base price x percent / 100)           (whole dollars, hal
   edited on the page.
 - A model is priced only for the packages it **has**: a model with three packages gets three
   prices, the percents of the other two are not used for it.
-- Rate: above 0, at most 100,000. Percent: above 0, at most 200. All four percents are required.
+- Rate: above 0, at most 100,000. Percent: above 0, at most 200. All five percents (With Light Rig, Without Light Rig, GLB Only, 3ds Max, With Environment) are required; a model is priced only for the packages it has.
 
 ### `GET pricing/?tab=waiting|live`
 

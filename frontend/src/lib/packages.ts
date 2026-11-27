@@ -6,6 +6,7 @@ export const PACKAGE_ORDER = [
   'with_light_rig',
   'without_light_rig',
   'glb_only',
+  '3ds_max',
   'environment',
   'whole',
 ] as const
@@ -16,6 +17,7 @@ export const PACKAGE_LABELS: Record<PackageKind, string> = {
   with_light_rig: 'With Light Rig',
   without_light_rig: 'Without Light Rig',
   glb_only: 'GLB Only',
+  '3ds_max': '3ds Max',
   environment: 'With Environment',
   whole: 'Whole File',
 }

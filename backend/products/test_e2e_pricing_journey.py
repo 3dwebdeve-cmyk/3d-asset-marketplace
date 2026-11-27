@@ -52,6 +52,7 @@ PERCENTS = {
     "with_light_rig": "60",
     "without_light_rig": "50",
     "glb_only": "100",
+    "3ds_max": "40",
     "environment": "30",
 }
 LAMP_HOURS = Decimal("1.2")
