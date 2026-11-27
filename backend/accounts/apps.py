@@ -10,3 +10,4 @@ class AccountsConfig(AppConfig):
         from config import deploy_checks  # noqa: F401
         from config import schema  # noqa: F401
         from accounts import notification_signals  # noqa: F401
+        from accounts import legal_signals  # noqa: F401

@@ -2,13 +2,36 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from accounts.models import LegalAcceptance, User
+
+
+def email_digest(email: str) -> str:
+    """SHA-256 of the trimmed, lowercased email: how a deleted account's records are matched."""
+    return hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()
+
+
+def keep_acceptances_for_deleted_user(user: User) -> None:
+    """Stamp a user's acceptance rows before the account is deleted (the delete then clears
+    ``user`` and leaves the rows in place)."""
+    LegalAcceptance.objects.filter(user=user).update(
+        user_ref=user.pk,
+        email_sha256=email_digest(user.email or ""),
+    )
+
+
+def acceptances_for_email(email: str) -> QuerySet[LegalAcceptance]:
+    """Every acceptance tied to this email, from a live account or a deleted one."""
+    return LegalAcceptance.objects.filter(
+        Q(user__email__iexact=email.strip()) | Q(email_sha256=email_digest(email))
+    ).order_by("accepted_at")
 
 
 class LegalAcceptanceError(Exception):
