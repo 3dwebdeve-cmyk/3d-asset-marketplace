@@ -32,6 +32,8 @@ class OrderAdmin(admin.ModelAdmin):
         "currency",
         "order_status",
         "payment_status",
+        "withdrawal_waiver_at",
+        "refund_policy_version",
         "created_at",
         "updated_at",
     )

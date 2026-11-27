@@ -179,7 +179,7 @@ class CatalogImportCommerceE2ETests(APITestCase):
             "payments.checkout_service.stripe.checkout.Session.create",
             return_value=_fake_session("cs_test_e2e"),
         ):
-            checkout = self.client.post(self.checkout_url)
+            checkout = self.client.post(self.checkout_url, {"withdrawal_waiver": True}, format="json")
         self.assertEqual(checkout.status_code, status.HTTP_201_CREATED)
         order = Order.objects.get(pk=checkout.data["order_id"])
         payment = Payment.objects.get(order=order)

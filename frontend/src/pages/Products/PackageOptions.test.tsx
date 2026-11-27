@@ -237,6 +237,7 @@ describe('PackageOptions', () => {
     for (const name of ['With Light Rig', 'GLB Only', 'With Environment']) {
       await user.click(screen.getByRole('checkbox', { name }))
     }
+    await user.click(screen.getByRole('checkbox', { name: /immediate access/i }))
     await user.click(within(singlesFooter()).getByRole('button', { name: 'Buy now' }))
 
     await vi.waitFor(() =>
@@ -294,6 +295,7 @@ describe('PackageOptions', () => {
     renderOptions({ product: product(), isFree: false })
 
     await user.click(screen.getByRole('checkbox', { name: 'GLB Only' }))
+    await user.click(screen.getByRole('checkbox', { name: /immediate access/i }))
     await user.click(within(singlesFooter()).getByRole('button', { name: 'Buy now' }))
 
     await vi.waitFor(() =>

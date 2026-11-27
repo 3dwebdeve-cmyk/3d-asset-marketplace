@@ -36,6 +36,8 @@ test.describe('marketplace checkout commerce', () => {
     // Every cart line is ticked by default; checkout buys the ticked ones. The line names
     // the package.
     await expect(page.getByRole('checkbox', { name: 'Buy E2E Checkout Chair - GLB Only' })).toBeChecked()
+    // EU/UK law: the buyer agrees to immediate access before paying.
+    await page.getByRole('checkbox', { name: /immediate access/i }).check()
     // Payment confirmation starts the download automatically.
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 60_000 }),

@@ -170,6 +170,7 @@ describe('CartPage', () => {
     renderCartPage()
     await screen.findByRole('link', { name: /oak chair/i })
 
+    await user.click(screen.getByRole('checkbox', { name: /immediate access/i }))
     await user.click(screen.getByRole('button', { name: 'Checkout selected (1)' }))
 
     await waitFor(() => {
@@ -186,6 +187,25 @@ describe('CartPage', () => {
       configurable: true,
       value: originalLocation,
     })
+  })
+
+  it('does not start checkout until the immediate-access box is ticked', async () => {
+    const user = userEvent.setup()
+    renderCartPage()
+    await screen.findByRole('link', { name: /oak chair/i })
+
+    const waiver = screen.getByRole('checkbox', { name: /immediate access/i })
+    expect(waiver).not.toBeChecked()
+    expect(screen.getByRole('link', { name: 'Refund Policy' })).toHaveAttribute('href', '/refunds')
+
+    await user.click(screen.getByRole('button', { name: 'Checkout selected (1)' }))
+
+    expect(paymentsApi.createCheckoutSession).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(/tick this box/i)
+    expect(waiver).toHaveFocus()
+
+    await user.click(waiver)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('shows empty state when cart has no items', async () => {

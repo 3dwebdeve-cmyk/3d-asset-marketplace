@@ -475,6 +475,7 @@ describe('PluginDetailsPage', () => {
       ).toBeInTheDocument()
     })
 
+    await user.click(screen.getByRole('checkbox', { name: /immediate access/i }))
     await user.click(screen.getByRole('button', { name: /^buy now$/i }))
 
     await waitFor(() => {

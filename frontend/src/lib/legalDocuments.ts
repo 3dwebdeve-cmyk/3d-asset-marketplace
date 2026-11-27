@@ -24,6 +24,11 @@ export function currentAcceptedLegalPayload(): Record<string, string> {
 
 export const TERMS_PATH = '/terms'
 export const PRIVACY_PATH = '/privacy'
+export const REFUND_POLICY_PATH = '/refunds'
+
+/** Shown on the Refund Policy page. Buyers agree to it with the checkout checkbox; the server
+ * records its own REFUND_POLICY_VERSION on each order, so keep the two in step. */
+export const REFUND_POLICY_VERSION = '2026-11-27'
 export const COOKIE_POLICY_PATH = '/cookies'
 
 /** Shown on the Cookie Policy page only. Users are not asked to accept it, so it stays out of

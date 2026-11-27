@@ -235,7 +235,7 @@ class PricingJourneyE2ETests(CatalogImportTestBase):
         return response.data
 
     def _checkout(self) -> Order:
-        response = self.client.post(reverse("payments:checkout"), {}, format="json")
+        response = self.client.post(reverse("payments:checkout"), {"withdrawal_waiver": True}, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         return Order.objects.prefetch_related("items").get(pk=response.data["order_id"])
 

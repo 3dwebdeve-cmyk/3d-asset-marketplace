@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiClient } from './client'
-import { getAdminPayment, listAdminPayments } from './paymentsApi'
+import { createCheckoutSession, getAdminPayment, listAdminPayments } from './paymentsApi'
 
 vi.mock('./client', () => ({
   apiClient: {
@@ -12,6 +12,21 @@ vi.mock('./client', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+describe('createCheckoutSession', () => {
+  it('sends the immediate-access consent with the legal versions and items', async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { checkout_url: 'u', order_id: 'o' } })
+    const items = [{ product_type: 'plugin' as const, product_id: 'p1' }]
+
+    await createCheckoutSession({ terms: 't', privacy: 'p' }, items)
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      '/api/v1/payments/checkout/',
+      { accepted_legal: { terms: 't', privacy: 'p' }, withdrawal_waiver: true, items },
+      expect.anything(),
+    )
+  })
 })
 
 describe('paymentsApi admin helpers', () => {

@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { getBundleQuote } from '../../api/cartApi'
 import { freeDownloadUrl } from '../../api/productsApi'
 import { AuthEntryButton } from '../../components/auth/AuthEntryButton'
+import { useWithdrawalWaiver } from '../../components/commerce/WithdrawalWaiver'
 import { Button } from '../../components/ui/Button'
 import { useBuyNow } from '../../hooks/useBuyNow'
 import { useCart } from '../../hooks/useCart'
@@ -58,6 +59,7 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
   const { isSignedIn, isInCart, addPackages, isPending } = useCart()
   const { ownedPackages, ownedLoaded, downloadsLeft } = useOwnedItems()
   const { buyNow, isRedirecting } = useBuyNow()
+  const waiver = useWithdrawalWaiver()
   const [ticked, setTicked] = useState<ReadonlySet<PackageKind>>(() => new Set())
 
   const owned = isSignedIn ? ownedPackages(product.id) : new Set<PackageKind>()
@@ -197,28 +199,33 @@ export function PackageOptions({ product, isFree }: PackageOptionsProps) {
             bundleAlreadyInCart ? (
               <Link className="package-options__in-cart" to="/cart">All variations is in your cart</Link>
             ) : (
-              <div className="package-options__actions">
-                <Button
-                  type="button"
-                  isLoading={isRedirecting}
-                  disabled={busy}
-                  onClick={() => buyNow('product', product.id, payKinds)}
-                >
-                  Buy now
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  isLoading={isPending}
-                  disabled={busy}
-                  onClick={() => {
-                    addPackages(product.id, payKinds)
-                    setTicked(new Set())
-                  }}
-                >
-                  Add selected to cart
-                </Button>
-              </div>
+              <>
+                {waiver.field}
+                <div className="package-options__actions">
+                  <Button
+                    type="button"
+                    isLoading={isRedirecting}
+                    disabled={busy}
+                    onClick={() => {
+                      if (waiver.confirm()) buyNow('product', product.id, payKinds)
+                    }}
+                  >
+                    Buy now
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    isLoading={isPending}
+                    disabled={busy}
+                    onClick={() => {
+                      addPackages(product.id, payKinds)
+                      setTicked(new Set())
+                    }}
+                  >
+                    Add selected to cart
+                  </Button>
+                </div>
+              </>
             )
           ) : (
             <AuthEntryButton

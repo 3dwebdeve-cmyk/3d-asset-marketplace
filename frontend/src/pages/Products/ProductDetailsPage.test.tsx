@@ -669,6 +669,7 @@ describe('ProductDetailsPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Choose packages' }))
     await user.click(screen.getByRole('checkbox', { name: 'Whole File' }))
+    await user.click(screen.getByRole('checkbox', { name: /immediate access/i }))
     await user.click(screen.getByRole('button', { name: /^buy now$/i }))
 
     await waitFor(() => {

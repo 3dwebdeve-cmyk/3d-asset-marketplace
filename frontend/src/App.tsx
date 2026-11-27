@@ -277,6 +277,11 @@ const PrivacyPage = lazy(() =>
     default: module.PrivacyPage,
   })),
 )
+const RefundPolicyPage = lazy(() =>
+  import('./pages/Legal/RefundPolicyPage').then((module) => ({
+    default: module.RefundPolicyPage,
+  })),
+)
 const CookiePolicyPage = lazy(() =>
   import('./pages/Legal/LegalDocumentPage').then((module) => ({
     default: module.CookiePolicyPage,
@@ -340,6 +345,7 @@ function AppRoutes() {
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/cookies" element={<CookiePolicyPage />} />
+            <Route path="/refunds" element={<RefundPolicyPage />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/custom-projects" element={<CustomProjectsLandingPage />} />
             <Route path="/products" element={<Navigate to="/" replace />} />
