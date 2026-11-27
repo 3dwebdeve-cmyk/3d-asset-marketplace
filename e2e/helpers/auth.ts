@@ -49,10 +49,10 @@ async function submitCustomerLogin(page: Page, dialog: Locator) {
   return loginResponsePromise
 }
 
-export async function loginAsBuyer(page: Page): Promise<void> {
+export async function loginAsBuyer(page: Page, email = E2E_BUYER_EMAIL): Promise<void> {
   const dialog = await openCustomerLoginDialog(page)
 
-  await dialog.locator('#auth-email').fill(E2E_BUYER_EMAIL)
+  await dialog.locator('#auth-email').fill(email)
   await dialog.locator('#auth-password').fill(E2E_BUYER_PASSWORD)
 
   const loginResponse = await submitCustomerLogin(page, dialog)
